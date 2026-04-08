@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 月球地圖與物理探索 | 3D Moon Atlas</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- MathJax for Physics Formulas -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' },
+            startup: {
+                pageReady: () => {
+                    return MathJax.startup.defaultPageReady().then(() => {
+                        console.log('MathJax initial typesetting complete');
+                    });
+                }
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+        
+        /* UI 覆蓋層 */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* 毛玻璃面板特效 */
+        .glass-panel { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); }
+        
+        /* 自定義滾動條 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+
+        /* 滑桿樣式 */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #60a5fa; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255,255,255,0.3); border-radius: 2px; }
+
+        /* POI 提示框與指示點 */
+        #poi-tooltip { position: absolute; transform: translate(-50%, -120%); transition: opacity 0.2s; pointer-events: none; opacity: 0; z-index: 20; }
+        
+        /* 修正地標點動畫：只針對放大作動畫，去除位移動畫以防延遲 */
+        .poi-indicator { 
+            position: absolute;
+            width: 10px; height: 10px; 
+            background-color: #fbbf24; 
+            border-radius: 50%; 
+            box-shadow: 0 0 8px #fbbf24, 0 0 15px #fbbf24; 
+            cursor: pointer; 
+            pointer-events: auto;
+            transform: translate(-50%, -50%);
+            transition: transform 0.2s ease-out;
+        }
+        .poi-indicator:hover {
+            transform: translate(-50%, -50%) scale(1.8);
+            z-index: 30;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D 畫布容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- 2D POI 標籤容器 (動態追蹤 3D 座標) -->
+    <div id="poi-labels-container" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10"></div>
+
+    <!-- 提示框 -->
+    <div id="poi-tooltip" class="glass-panel p-3 min-w-[200px] text-sm pointer-events-none">
+        <h3 id="tt-title" class="font-bold text-blue-400 mb-1">Title</h3>
+        <p id="tt-desc" class="text-gray-300">Description</p>
+    </div>
+
+    <!-- UI 控制層 -->
+    <div id="ui-layer" class="p-4 md:p-6 flex flex-col justify-between">
+        <!-- 頂部資訊列 -->
+        <div class="flex justify-between items-start pointer-events-none w-full">
+            <div class="glass-panel p-4 pointer-events-auto max-w-sm">
+                <h1 class="text-2xl font-bold text-white mb-1" id="t-title">3D 月球地圖</h1>
+                <p class="text-sm text-gray-400" id="t-subtitle">互動式物理與地理模型</p>
+            </div>
+            
+            <div class="flex gap-2 pointer-events-auto">
+                <button id="btn-physics" class="glass-panel px-4 py-2 hover:bg-slate-800 transition font-medium text-blue-300 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    <span id="t-btn-physics">物理原理</span>
+                </button>
+                <button id="btn-lang" class="glass-panel px-4 py-2 hover:bg-slate-800 transition font-bold text-white">
+                    中 / EN
+                </button>
+            </div>
+        </div>
+
+        <!-- 底部控制列 (移至左下角，不再置中) -->
+        <div class="absolute bottom-4 left-4 md:bottom-6 md:left-6 pointer-events-none">
+            <!-- 縮小寬度，改為單行排列的緊湊設計，避免佔用過大畫面 -->
+            <div class="glass-panel p-5 pointer-events-auto w-full max-w-[320px] flex flex-col gap-5">
+                
+                <!-- 太陽照射角度控制 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-sm font-medium text-gray-300" id="t-sun-angle">太陽照射角度 (月相)</label>
+                        <span id="val-sun" class="text-sm text-blue-400 font-mono">0°</span>
+                    </div>
+                    <input type="range" id="slider-sun" min="-180" max="180" value="0" step="1">
+                </div>
+
+                <!-- 自轉速度控制 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-sm font-medium text-gray-300" id="t-rot-speed">自轉速度</label>
+                        <span id="val-rot" class="text-sm text-blue-400 font-mono">0.05</span>
+                    </div>
+                    <input type="range" id="slider-rot" min="0" max="0.5" value="0.05" step="0.01">
+                </div>
+
+                <!-- 開關選項 -->
+                <div class="flex flex-col gap-3 pt-3 border-t border-slate-700">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="toggle-poi" checked class="w-4 h-4 text-blue-500 rounded focus:ring-blue-500 bg-gray-700 border-gray-600">
+                        <span class="text-sm text-gray-300" id="t-show-poi">顯示地標 (POIs)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="toggle-auto-rot" checked class="w-4 h-4 text-blue-500 rounded focus:ring-blue-500 bg-gray-700 border-gray-600">
+                        <span class="text-sm text-gray-300" id="t-auto-rot">自動自轉</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 物理原理視窗 Modal -->
+    <div id="modal-physics" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex justify-center items-center pointer-events-auto p-4 transition-opacity duration-300 opacity-0">
+        <div class="glass-panel w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 md:p-8 relative">
+            <button id="btn-close-modal" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            
+            <h2 class="text-2xl font-bold mb-6 text-blue-400" id="t-m-title">月球物理學 (Lunar Physics)</h2>
+            
+            <div class="space-y-6 text-gray-200 leading-relaxed">
+                <section>
+                    <h3 class="text-xl font-semibold mb-2 text-white" id="t-m-g-title">1. 表面重力 (Surface Gravity)</h3>
+                    <p id="t-m-g-desc1" class="mb-2">月球的質量約為地球的 1.2%，半徑約為地球的 27%。根據萬有引力定律，天體表面的重力加速度 $g$ 與其質量 $M$ 成正比，與半徑 $R$ 的平方成反比：</p>
+                    <div class="bg-black/50 p-3 rounded-lg text-center overflow-x-auto">
+                        $$g = G \frac{M}{R^2}$$
+                    </div>
+                    <p id="t-m-g-desc2" class="mt-2">代入月球數據，得出月球表面重力 $g_m \approx 1.62 \text{ m/s}^2$，大約是地球的六分之一。這就是為什麼太空人在月球上可以輕鬆跳躍的原因。</p>
+                </section>
+
+                <section>
+                    <h3 class="text-xl font-semibold mb-2 text-white" id="t-m-v-title">2. 逃逸速度 (Escape Velocity)</h3>
+                    <p id="t-m-v-desc1" class="mb-2">要完全擺脫天體的引力束縛所需的最小初速度稱為逃逸速度 $v_e$。由力學能守恆定律推導得出：</p>
+                    <div class="bg-black/50 p-3 rounded-lg text-center overflow-x-auto">
+                        $$\frac{1}{2}mv_e^2 - G\frac{Mm}{R} = 0 \implies v_e = \sqrt{\frac{2GM}{R}}$$
+                    </div>
+                    <p id="t-m-v-desc2" class="mt-2">月球的逃逸速度約為 $2.38 \text{ km/s}$ (相較於地球的 $11.2 \text{ km/s}$)。因為引力較弱，阿波羅登月艙只需較少的燃料就能從月表起飛返回軌道。</p>
+                </section>
+
+                <section>
+                    <h3 class="text-xl font-semibold mb-2 text-white" id="t-m-t-title">3. 潮汐鎖定 (Tidal Locking)</h3>
+                    <p id="t-m-t-desc" class="mb-2">你有發現我們總是只看到月球的「同一面」嗎？這是因為地球強大的引力對月球產生了潮汐摩擦力，經過數十億年的作用，月球的<b>自轉週期</b>逐漸減慢，直到與它的<b>公轉週期</b>完全相等（約 27.3 天）。這種現象稱為「同步自轉」或潮汐鎖定。</p>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- 應用程式邏輯 -->
+    <script>
+        // --- 1. 多國語言字典 ---
+        const i18n = {
+            zh: {
+                title: "3D 月球地圖",
+                subtitle: "互動式物理與地理模型",
+                btnPhysics: "物理原理",
+                sunAngle: "太陽照射角度 (月相)",
+                rotSpeed: "自轉速度",
+                showPoi: "顯示地標 (POIs)",
+                autoRot: "自動自轉",
+                mTitle: "月球物理學 (Lunar Physics)",
+                mGTitle: "1. 表面重力 (Surface Gravity)",
+                mGDesc1: "月球的質量約為地球的 1.2%，半徑約為地球的 27%。根據萬有引力定律，天體表面的重力加速度 $g$ 與其質量 $M$ 成正比，與半徑 $R$ 的平方成反比：",
+                mGDesc2: "代入月球數據，得出月球表面重力 $g_m \\approx 1.62 \\text{ m/s}^2$，大約是地球的六分之一。這就是為什麼太空人在月球上可以輕鬆跳躍的原因。",
+                mVTitle: "2. 逃逸速度 (Escape Velocity)",
+                mVDesc1: "要完全擺脫天體的引力束縛所需的最小初速度稱為逃逸速度 $v_e$。由力學能守恆定律推導得出：",
+                mVDesc2: "月球的逃逸速度約為 $2.38 \\text{ km/s}$ (相較於地球的 $11.2 \\text{ km/s}$)。因為引力較弱，阿波羅登月艙只需較少的燃料就能從月表起飛返回軌道。",
+                mTTitle: "3. 潮汐鎖定 (Tidal Locking)",
+                mTDesc: "你有發現我們總是只看到月球的「同一面」嗎？這是因為地球強大的引力對月球產生了潮汐摩擦力，經過數十億年的作用，月球的<b>自轉週期</b>逐漸減慢，直到與它的<b>公轉週期</b>完全相等（約 27.3 天）。這種現象稱為「同步自轉」或潮汐鎖定。"
+            },
+            en: {
+                title: "3D Moon Atlas",
+                subtitle: "Interactive Physics & Geography Model",
+                btnPhysics: "Physics Principles",
+                sunAngle: "Sun Illumination Angle (Phases)",
+                rotSpeed: "Rotation Speed",
+                showPoi: "Show Points of Interest (POIs)",
+                autoRot: "Auto Rotation",
+                mTitle: "Lunar Physics",
+                mGTitle: "1. Surface Gravity",
+                mGDesc1: "The Moon's mass is ~1.2% of Earth's, and its radius is ~27% of Earth's. According to Newton's law of universal gravitation, gravity $g$ is proportional to mass $M$ and inversely proportional to radius squared $R^2$:",
+                mGDesc2: "Plugging in the numbers gives a surface gravity $g_m \\approx 1.62 \\text{ m/s}^2$, about 1/6th of Earth's. This explains the characteristic bounding leaps of astronauts.",
+                mVTitle: "2. Escape Velocity",
+                mVDesc1: "The minimum speed needed to break free from a body's gravitational pull is $v_e$. Derived from the conservation of mechanical energy:",
+                mVDesc2: "The Moon's escape velocity is $\\approx 2.38 \\text{ km/s}$ (vs Earth's $11.2 \\text{ km/s}$). Weaker gravity meant the Apollo Lunar Module needed much less fuel to lift off and return to orbit.",
+                mTTitle: "3. Tidal Locking",
+                mTDesc: "Ever noticed we always see the 'same face' of the Moon? Earth's strong gravity creates tidal friction on the Moon. Over billions of years, this slowed the Moon's <b>rotation period</b> until it exactly matched its <b>orbital period</b> (about 27.3 days). This is known as synchronous rotation or tidal locking."
+            }
+        };
+
+        // --- 2. 完善的地標資料庫 (POIs) ---
+        // 東經為正 (+)，西經為負 (-)；北緯為正 (+)，南緯為負 (-)
+        const poisData = [
+            // 主要月海 (Maria)
+            { id: 'procellarum', lat: 18.4, lon: -57.4, zhTitle: "風暴洋", enTitle: "Oceanus Procellarum", zhDesc: "月球最大的月海，由遠古玄武岩組成。", enDesc: "The largest of the lunar maria." },
+            { id: 'imbrium', lat: 32.8, lon: -15.6, zhTitle: "雨海", enTitle: "Mare Imbrium", zhDesc: "第二大月海，邊界清晰，形成於巨大的隕石撞擊。", enDesc: "Second largest mare, with distinct and clear borders." },
+            { id: 'serenitatis', lat: 28.0, lon: 17.5, zhTitle: "澄海", enTitle: "Mare Serenitatis", zhDesc: "月面著名的「眼睛」之一，阿波羅17號曾於邊緣著陸。", enDesc: "One of the famous 'eyes' of the man in the moon." },
+            { id: 'tranquillitatis', lat: 8.5, lon: 28.3, zhTitle: "靜海", enTitle: "Mare Tranquillitatis", zhDesc: "1969年阿波羅 11 號首次載人登陸月球的地點。", enDesc: "Landing site of Apollo 11 in 1969." },
+            { id: 'crisium', lat: 17.0, lon: 59.1, zhTitle: "危海", enTitle: "Mare Crisium", zhDesc: "邊緣孤立的圓形月海，從地球觀測十分明顯。", enDesc: "An isolated, prominent circular mare near the edge." },
+            { id: 'nubium', lat: -21.3, lon: -16.6, zhTitle: "雲海", enTitle: "Mare Nubium", zhDesc: "位於月球南部的高地邊緣。", enDesc: "Located on the edge of the southern lunar highlands." },
+            { id: 'humorum', lat: -24.4, lon: -38.6, zhTitle: "濕海", enTitle: "Mare Humorum", zhDesc: "一個圓形盆地，坑底充滿了玄武岩熔岩。", enDesc: "A circular basin filled with basaltic lava." },
+
+            // 主要撞擊坑 (Craters)
+            { id: 'tycho', lat: -43.3, lon: -11.2, zhTitle: "第谷坑", enTitle: "Tycho", zhDesc: "擁有月面最壯觀、延伸數千公里的輻射紋系統。", enDesc: "Features the most spectacular ray system on the lunar surface." },
+            { id: 'copernicus', lat: 9.7, lon: -20.1, zhTitle: "哥白尼坑", enTitle: "Copernicus", zhDesc: "位於雨海南部的典型撞擊坑，有明顯的中央峰。", enDesc: "A typical prominent crater south of Mare Imbrium." },
+            { id: 'clavius', lat: -58.4, lon: -14.4, zhTitle: "克拉維斯坑", enTitle: "Clavius", zhDesc: "月球正面最大的古老撞擊坑之一。", enDesc: "One of the largest ancient craters on the near side." },
+            { id: 'aristarchus', lat: 23.7, lon: -47.4, zhTitle: "阿利斯塔克坑", enTitle: "Aristarchus", zhDesc: "月面上最明亮的地點，反照率極高。", enDesc: "The brightest large formation on the lunar surface." },
+            { id: 'plato', lat: 51.6, lon: -9.3, zhTitle: "柏拉圖坑", enTitle: "Plato", zhDesc: "坑底平坦且極暗，常被觀測者稱為「大黑湖」。", enDesc: "Known for its dark, flat floor; often called the 'Greater Black Lake'." },
+            { id: 'kepler', lat: 8.1, lon: -38.0, zhTitle: "開普勒坑", enTitle: "Kepler", zhDesc: "擁有小型卻非常明顯的輻射紋系統的年輕隕石坑。", enDesc: "A young crater known for its distinct ray system." },
+
+            // 主要山脈 (Mountains)
+            { id: 'apenninus', lat: 18.9, lon: -3.7, zhTitle: "亞平寧山脈", enTitle: "Montes Apenninus", zhDesc: "月球最高、最長的山脈，形成於雨海撞擊事件。", enDesc: "The highest and longest mountain range on the Moon." },
+            { id: 'caucasus', lat: 38.4, lon: 10.0, zhTitle: "高加索山脈", enTitle: "Montes Caucasus", zhDesc: "連接雨海與澄海之間的重要山脊。", enDesc: "Mountain range connecting Mare Imbrium and Mare Serenitatis." },
+            { id: 'alpes', lat: 48.5, lon: -0.6, zhTitle: "阿爾卑斯山脈", enTitle: "Montes Alpes", zhDesc: "橫穿有著名的「阿爾卑斯月谷」，壯觀的裂谷地形。", enDesc: "Cut by the famous Vallis Alpes (Alpine Valley)." }
+        ];
+
+        let currentLang = 'zh';
+        
+        // --- 3. 狀態與變數 ---
+        const state = {
+            sunAngle: 0,
+            rotSpeed: 0.05,
+            showPoi: true,
+            autoRot: true
+        };
+
+        // --- 4. Three.js 場景設置 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5.5;
+        controls.maxDistance = 30;
+        // 關閉右鍵平移
+        controls.enablePan = false;
+        
+        // **限制上下翻轉，鎖定南北極，僅允許水平旋轉**
+        controls.minPolarAngle = Math.PI / 2;
+        controls.maxPolarAngle = Math.PI / 2;
+
+        // --- 5. 光源設定 ---
+        const ambientLight = new THREE.AmbientLight(0x222222); 
+        scene.add(ambientLight);
+
+        // 模擬太陽光
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        sunLight.position.set(20, 0, 0); 
+        sunLight.castShadow = true;
+        scene.add(sunLight);
+
+        // --- 6. 建立月球模型 ---
+        const moonRadius = 5;
+        const moonGeometry = new THREE.SphereGeometry(moonRadius, 64, 64);
+        
+        // 載入紋理貼圖
+        const textureLoader = new THREE.TextureLoader();
+        const colorMap = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg');
+        
+        const moonMaterial = new THREE.MeshStandardMaterial({
+            map: colorMap,
+            bumpMap: colorMap,
+            bumpScale: 0.05,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        
+        const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+        
+        // 【重要修正】：將本初子午線旋轉至朝向攝影機 (+Z軸方向)
+        // Three.js 預設將經度0的 U=0.5 放在 +X，所以我們沿著 Y 軸旋轉 -90 度 (-Math.PI/2) 即可正確朝前
+        moon.rotation.y = -Math.PI / 2;
+        scene.add(moon);
+
+        // --- 7. POI (地標) 系統與座標轉換 ---
+        const markers = [];
+        const labelsContainer = document.getElementById('poi-labels-container');
+        const tooltip = document.getElementById('poi-tooltip');
+        const ttTitle = document.getElementById('tt-title');
+        const ttDesc = document.getElementById('tt-desc');
+
+        // 【數學修正】嚴謹的經緯度轉換為 Three.js 內部局部座標系 (Local Coordinates)
+        function latLonToVector3(lat, lon, radius) {
+            var lat_rad = lat * (Math.PI / 180);
+            var lon_rad = lon * (Math.PI / 180);
+            
+            // X 軸：對應赤道上的正中央 (Lat=0, Lon=0)，也是月球正向地球的那一點
+            var x = radius * Math.cos(lat_rad) * Math.cos(lon_rad);
+            // Y 軸：對應南北極的高度
+            var y = radius * Math.sin(lat_rad);
+            // Z 軸：控制東西向 (東經為右，因此對應 -Z 方向，以符合 Three.js 的球體映射規則)
+            var z = -radius * Math.cos(lat_rad) * Math.sin(lon_rad);
+            
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // 產生 HTML 標籤並綁定 3D 位置
+        poisData.forEach(poi => {
+            const pos = latLonToVector3(poi.lat, poi.lon, moonRadius);
+            
+            // 建立隱形的 3D 錨點
+            const anchorGeo = new THREE.SphereGeometry(0.1, 8, 8);
+            const anchorMat = new THREE.MeshBasicMaterial({ visible: false });
+            const anchorMesh = new THREE.Mesh(anchorGeo, anchorMat);
+            anchorMesh.position.copy(pos);
+            moon.add(anchorMesh);  // 加入 moon 中，確保旋轉同步
+            
+            // 建立 2D DOM 元素
+            const labelEl = document.createElement('div');
+            labelEl.className = 'poi-indicator'; // 已移除了造成延遲的 CSS 動畫類別
+            labelsContainer.appendChild(labelEl);
+
+            // 滑鼠懸浮事件 (Tooltip)
+            labelEl.addEventListener('mouseenter', () => {
+                tooltip.style.opacity = 1;
+                ttTitle.innerText = currentLang === 'zh' ? poi.zhTitle : poi.enTitle;
+                ttDesc.innerText = currentLang === 'zh' ? poi.zhDesc : poi.enDesc;
+            });
+            
+            labelEl.addEventListener('mouseleave', () => {
+                tooltip.style.opacity = 0;
+            });
+
+            markers.push({ data: poi, mesh: anchorMesh, element: labelEl });
+        });
+
+        // 動態更新 2D 標籤的位置以符合 3D 旋轉
+        function updateLabels() {
+            if (!state.showPoi) {
+                markers.forEach(m => { m.element.style.display = 'none'; });
+                tooltip.style.opacity = 0;
+                return;
+            }
+
+            const tempV = new THREE.Vector3();
+            
+            markers.forEach(m => {
+                m.mesh.getWorldPosition(tempV); // 取得世界坐標
+                
+                // 判斷錨點是否位於朝向攝影機的半球 (點積 > 0)
+                const dirToPoint = tempV.clone().sub(moon.position).normalize();
+                const dirToCamera = camera.position.clone().sub(moon.position).normalize();
+                const isVisible = dirToPoint.dot(dirToCamera) > 0.05; 
+
+                if (isVisible) {
+                    // 將 3D 坐標投影到 2D 螢幕上
+                    tempV.project(camera);
+                    const x = (tempV.x * .5 + .5) * window.innerWidth;
+                    const y = (tempV.y * -.5 + .5) * window.innerHeight;
+                    
+                    m.element.style.display = 'block';
+                    // 【修正延遲】直接透過絕對位置 (left, top) 修改定位，取代 transform: translate
+                    m.element.style.left = `${x}px`;
+                    m.element.style.top = `${y}px`;
+                    
+                    // 如果提示框正在顯示該地標，使其跟隨移動
+                    if (ttTitle.innerText === (currentLang === 'zh' ? m.data.zhTitle : m.data.enTitle) && tooltip.style.opacity == 1) {
+                        tooltip.style.left = `${x}px`;
+                        tooltip.style.top = `${y}px`;
+                    }
+                } else {
+                    m.element.style.display = 'none';
+                }
+            });
+        }
+
+
+        // --- 8. 事件監聽器與 UI 邏輯 ---
+        
+        // 語言切換
+        document.getElementById('btn-lang').addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateLanguage();
+        });
+
+        function updateLanguage() {
+            const t = i18n[currentLang];
+            document.getElementById('t-title').innerText = t.title;
+            document.getElementById('t-subtitle').innerText = t.subtitle;
+            document.getElementById('t-btn-physics').innerText = t.btnPhysics;
+            document.getElementById('t-sun-angle').innerText = t.sunAngle;
+            document.getElementById('t-rot-speed').innerText = t.rotSpeed;
+            document.getElementById('t-show-poi').innerText = t.showPoi;
+            document.getElementById('t-auto-rot').innerText = t.autoRot;
+            
+            document.getElementById('t-m-title').innerText = t.mTitle;
+            document.getElementById('t-m-g-title').innerText = t.mGTitle;
+            document.getElementById('t-m-g-desc1').innerText = t.mGDesc1;
+            document.getElementById('t-m-g-desc2').innerText = t.mGDesc2;
+            document.getElementById('t-m-v-title').innerText = t.mVTitle;
+            document.getElementById('t-m-v-desc1').innerText = t.mVDesc1;
+            document.getElementById('t-m-v-desc2').innerText = t.mVDesc2;
+            document.getElementById('t-m-t-title').innerText = t.mTTitle;
+            document.getElementById('t-m-t-desc').innerHTML = t.mTDesc;
+
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        // 月相滑桿 (控制太陽光源)
+        const sliderSun = document.getElementById('slider-sun');
+        const valSun = document.getElementById('val-sun');
+        sliderSun.addEventListener('input', (e) => {
+            state.sunAngle = parseInt(e.target.value);
+            valSun.innerText = `${state.sunAngle}°`;
+            const radians = state.sunAngle * (Math.PI / 180);
+            const r = 20;
+            sunLight.position.x = Math.cos(radians) * r;
+            sunLight.position.z = Math.sin(radians) * r;
+        });
+
+        // 轉速滑桿
+        const sliderRot = document.getElementById('slider-rot');
+        const valRot = document.getElementById('val-rot');
+        sliderRot.addEventListener('input', (e) => {
+            state.rotSpeed = parseFloat(e.target.value);
+            valRot.innerText = state.rotSpeed.toFixed(2);
+        });
+
+        // Checkbox 開關
+        document.getElementById('toggle-poi').addEventListener('change', (e) => {
+            state.showPoi = e.target.checked;
+            updateLabels(); 
+        });
+
+        document.getElementById('toggle-auto-rot').addEventListener('change', (e) => {
+            state.autoRot = e.target.checked;
+        });
+
+        // Modal 視窗開關
+        const modal = document.getElementById('modal-physics');
+        document.getElementById('btn-physics').addEventListener('click', () => {
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.classList.add('opacity-100');
+            }, 10);
+        });
+
+        document.getElementById('btn-close-modal').addEventListener('click', () => {
+            modal.classList.remove('opacity-100');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        });
+
+        // 視窗縮放處理
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateLabels();
+        }
+
+        // --- 9. 動畫主循環 ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (state.autoRot) {
+                // 使模型繞 Y 軸旋轉
+                moon.rotation.y += state.rotSpeed * delta * 0.5; 
+            }
+
+            controls.update(); 
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        updateLanguage(); 
+        sunLight.position.set(20, 0, 0); 
+        animate(); 
+
+    </script>
+</body>
+</html>
