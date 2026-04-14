@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>石油分餾物理模型 | Fractional Distillation Physics Model</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MathJax for Physics Formulas -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        .canvas-container { position: relative; width: 100%; max-width: 500px; aspect-ratio: 5/7; margin: 0 auto; }
+        canvas { width: 100%; height: 100%; background: #0f172a; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        
+        /* Custom range slider */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #ef4444; cursor: pointer; margin-top: -8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8px; cursor: pointer; background: #cbd5e1; border-radius: 4px; }
+        
+        /* Modal Animation */
+        .modal-enter { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm z-10 px-6 py-4 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-bold text-xl">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            </div>
+            <h1 id="app-title" class="text-xl font-bold text-slate-800">石油分餾物理模型</h1>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="toggleModal()" class="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-medium transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span id="btn-theory">原理解說</span>
+            </button>
+            <button onclick="toggleLanguage()" class="px-4 py-2 bg-slate-800 text-white hover:bg-slate-700 rounded-lg font-medium transition-colors">
+                中 / EN
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Left: Canvas Area -->
+        <div class="w-full md:w-1/2 lg:w-7/12 p-4 lg:p-6 flex flex-col items-center justify-center bg-slate-100 overflow-y-auto">
+            <div class="canvas-container w-full max-w-md">
+                <canvas id="simCanvas"></canvas>
+                <!-- Overlay Temperature Display -->
+                <div class="absolute bottom-4 left-4 bg-slate-900/80 text-white px-3 py-2 rounded-lg backdrop-blur-sm border border-slate-700 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <span class="font-mono text-xl"><span id="temp-display">20</span>°C</span>
+                </div>
+            </div>
+            
+            <!-- Controls -->
+            <div class="w-full max-w-md mt-6 bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-end mb-2">
+                    <label id="lbl-furnace-temp" class="font-semibold text-slate-700">加熱爐溫度</label>
+                    <button id="btn-auto-heat" onclick="toggleAutoHeat()" class="text-sm px-3 py-1 bg-red-100 text-red-600 rounded-full font-medium hover:bg-red-200 transition-colors">
+                        ▶ 自動加熱
+                    </button>
+                </div>
+                <input type="range" id="temp-slider" min="20" max="450" value="20" step="1" oninput="manualTempChange(this.value)">
+                <div class="flex justify-between text-xs text-slate-400 mt-2 font-mono">
+                    <span>20°C</span>
+                    <span>450°C</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Data Panel -->
+        <div class="w-full md:w-1/2 lg:w-5/12 bg-white border-l border-slate-200 flex flex-col">
+            <div class="p-4 border-b border-slate-100 bg-slate-50 shrink-0">
+                <h2 id="panel-title" class="font-bold text-lg text-slate-800">石油分餾產物 (Fractions)</h2>
+                <p id="panel-desc" class="text-sm text-slate-500 mt-1">隨著溫度升高，沸點較低的物質將首先氣化並在塔頂冷凝。</p>
+            </div>
+            <div id="fractions-container" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <!-- Fraction Cards generated by JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for Physics Concept -->
+    <div id="theory-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto modal-enter">
+            <div class="sticky top-0 bg-white/95 backdrop-blur px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 id="modal-title" class="text-xl font-bold text-indigo-700">物理原理解說</h3>
+                <button onclick="toggleModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-6 text-slate-700 leading-relaxed" id="modal-content">
+                <!-- Content injected by JS based on language -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Data Definitions & Translations ---
+        const fractionsData = [
+            { id: 'gas', tempRange: [0, 40], bp: 25, color: '#fde047', yIdx: 7, 
+              zh: { name: '石油氣 (Liquefied Petroleum Gas)', usage: '煮食、家居供暖燃料' }, 
+              en: { name: 'Liquefied Petroleum Gas', usage: 'Fuel for cooking and domestic heating' } },
+            { id: 'petrol', tempRange: [40, 70], bp: 55, color: '#fb923c', yIdx: 6, 
+              zh: { name: '汽油 (Petrol/Gasoline)', usage: '汽車燃料' }, 
+              en: { name: 'Petrol / Gasoline', usage: 'Fuel for cars' } },
+            { id: 'naphtha', tempRange: [70, 170], bp: 120, color: '#f87171', yIdx: 5, 
+              zh: { name: '石腦油 (Naphtha)', usage: '製造化學品、塑膠原料' }, 
+              en: { name: 'Naphtha', usage: 'Making chemicals and plastics' } },
+            { id: 'kerosene', tempRange: [170, 250], bp: 210, color: '#c084fc', yIdx: 4, 
+              zh: { name: '煤油 / 火水 (Kerosene)', usage: '飛機燃料、家用爐具' }, 
+              en: { name: 'Kerosene', usage: 'Aircraft fuel, domestic heaters' } },
+            { id: 'diesel', tempRange: [250, 300], bp: 275, color: '#60a5fa', yIdx: 3, 
+              zh: { name: '柴油 (Diesel)', usage: '重型車輛 (貨車、巴士) 燃料' }, 
+              en: { name: 'Diesel', usage: 'Fuel for heavy vehicles (lorries, buses)' } },
+            { id: 'fuelOil', tempRange: [300, 350], bp: 325, color: '#2dd4bf', yIdx: 2, 
+              zh: { name: '燃油 (Fuel Oil)', usage: '大型船隻燃料、發電廠燃料' }, 
+              en: { name: 'Fuel Oil', usage: 'Fuel for ships and power stations' } },
+            { id: 'lube', tempRange: [350, 400], bp: 375, color: '#a8a29e', yIdx: 1, 
+              zh: { name: '潤滑油 (Lubricating Oil)', usage: '減少機械摩擦、蠟燭、潤滑劑' }, 
+              en: { name: 'Lubricating Oil', usage: 'Lubricants, waxes, polishes' } },
+            { id: 'bitumen', tempRange: [400, 500], bp: 450, color: '#475569', yIdx: 0, 
+              zh: { name: '瀝青 (Bitumen)', usage: '鋪設道路、屋頂防水層' }, 
+              en: { name: 'Bitumen', usage: 'Surfacing roads and roofs' } },
+        ];
+
+        const dict = {
+            zh: {
+                appTitle: "石油分餾物理模型",
+                btnTheory: "原理解說",
+                lblTemp: "加熱爐溫度",
+                btnAutoHeatStart: "▶ 自動加熱",
+                btnAutoHeatStop: "⏸ 停止加熱",
+                panelTitle: "石油分餾產物 (Fractions)",
+                panelDesc: "隨著溫度升高，分子量較小、沸點較低的物質將首先克服分子間作用力氣化，並在塔頂較冷處冷凝。",
+                bpLabel: "沸點",
+                usageLabel: "日常應用",
+                modalTitle: "物理原理解說：相變與分子間作用力",
+                modalContent: `
+                    <div class="mb-6">
+                        <h4 class="font-bold text-lg text-slate-800 border-b border-slate-200 pb-2 mb-3">1. 沸騰與動能 (Boiling & Kinetic Energy)</h4>
+                        <p class="mb-2">根據<strong>分子運動論 (Kinetic Theory)</strong>，物質的平均平移動能與其絕對溫度成正比：</p>
+                        <p class="text-center my-3">$$ \\bar{E}_k = \\frac{3}{2} k_B T $$</p>
+                        <p>當我們對原油加熱時，系統獲得熱能，分子的動能增加。當動能大於分子間的吸引力位能時，液體分子便能掙脫束縛，進入氣態 (Vaporization)。</p>
+                    </div>
+                    <div class="mb-6">
+                        <h4 class="font-bold text-lg text-slate-800 border-b border-slate-200 pb-2 mb-3">2. 分子間作用力 (Intermolecular Forces)</h4>
+                        <p class="mb-2">原油主要是由碳和氫組成的<strong>烴類 (Hydrocarbons)</strong> 混合物。非極性分子之間的主要作用力為<strong>倫敦色散力 (London Dispersion Forces)</strong>。</p>
+                        <ul class="list-disc pl-5 mt-2 space-y-1">
+                            <li><strong>小分子 (如石油氣)</strong>：電子數少，電子雲不易變形，色散力弱 $\\rightarrow$ <strong>低沸點</strong>。</li>
+                            <li><strong>大分子 (如瀝青)</strong>：碳鏈長、電子數多，電子雲容易瞬間極化，色散力極強 $\\rightarrow$ <strong>高沸點</strong>。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-lg text-slate-800 border-b border-slate-200 pb-2 mb-3">3. 潛熱 (Latent Heat) 與冷凝</h4>
+                        <p class="mb-2">當氣態分子上升到分餾塔上方時，塔內環境溫度逐漸降低。氣體將熱量釋放給環境：</p>
+                        <p class="text-center my-3">$$ Q = m L_v $$</p>
+                        <p>($L_v$ 為汽化比潛熱)。失去動能的分子無法抵抗彼此的吸引力，於是重新凝結成液體 (Condensation) 並流出收集管，達成物理分離。</p>
+                    </div>
+                `
+            },
+            en: {
+                appTitle: "Fractional Distillation Physics Model",
+                btnTheory: "Physics Theory",
+                lblTemp: "Furnace Temperature",
+                btnAutoHeatStart: "▶ Auto Heat",
+                btnAutoHeatStop: "⏸ Stop Heating",
+                panelTitle: "Crude Oil Fractions",
+                panelDesc: "As temperature increases, smaller molecules with lower boiling points overcome intermolecular forces first, vaporize, and condense at the cooler top of the tower.",
+                bpLabel: "Boiling Point",
+                usageLabel: "Daily Application",
+                modalTitle: "Physics Theory: Phase Transition & Forces",
+                modalContent: `
+                    <div class="mb-6">
+                        <h4 class="font-bold text-lg text-slate-800 border-b border-slate-200 pb-2 mb-3">1. Boiling & Kinetic Energy</h4>
+                        <p class="mb-2">According to the <strong>Kinetic Theory</strong>, the average translational kinetic energy of molecules is directly proportional to absolute temperature:</p>
+                        <p class="text-center my-3">$$ \\bar{E}_k = \\frac{3}{2} k_B T $$</p>
+                        <p>Heating crude oil provides thermal energy, increasing molecular kinetic energy. When this energy exceeds the intermolecular potential energy, liquid molecules break free into the gaseous state (Vaporization).</p>
+                    </div>
+                    <div class="mb-6">
+                        <h4 class="font-bold text-lg text-slate-800 border-b border-slate-200 pb-2 mb-3">2. Intermolecular Forces</h4>
+                        <p class="mb-2">Crude oil is a mixture of <strong>Hydrocarbons</strong>. The primary attractive force between these non-polar molecules is the <strong>London Dispersion Force</strong>.</p>
+                        <ul class="list-disc pl-5 mt-2 space-y-1">
+                            <li><strong>Small molecules (e.g. Gas)</strong>: Fewer electrons, less polarizable electron cloud, weak dispersion forces $\\rightarrow$ <strong>Low Boiling Point</strong>.</li>
+                            <li><strong>Large molecules (e.g. Bitumen)</strong>: Long carbon chains, many electrons, highly polarizable, strong dispersion forces $\\rightarrow$ <strong>High Boiling Point</strong>.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-lg text-slate-800 border-b border-slate-200 pb-2 mb-3">3. Latent Heat & Condensation</h4>
+                        <p class="mb-2">As gaseous molecules rise, the tower's ambient temperature drops. Gases release heat to the surroundings:</p>
+                        <p class="text-center my-3">$$ Q = m L_v $$</p>
+                        <p>($L_v$ is specific latent heat of vaporization). Molecules losing kinetic energy can no longer overcome mutual attraction, condensing back into liquid and exiting via collection trays, achieving physical separation.</p>
+                    </div>
+                `
+            }
+        };
+
+        // --- 2. State Management ---
+        let currentLang = 'zh';
+        let currentTemp = 20;
+        let isAutoHeating = false;
+        let autoHeatInterval = null;
+
+        // --- 3. UI Update Logic ---
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateUI();
+        }
+
+        function updateUI() {
+            const d = dict[currentLang];
+            document.getElementById('app-title').innerText = d.appTitle;
+            document.getElementById('btn-theory').innerText = d.btnTheory;
+            document.getElementById('lbl-furnace-temp').innerText = d.lblTemp;
+            document.getElementById('btn-auto-heat').innerText = isAutoHeating ? d.btnAutoHeatStop : d.btnAutoHeatStart;
+            document.getElementById('panel-title').innerText = d.panelTitle;
+            document.getElementById('panel-desc').innerText = d.panelDesc;
+            document.getElementById('modal-title').innerText = d.modalTitle;
+            document.getElementById('modal-content').innerHTML = d.modalContent;
+            
+            // Re-render MathJax
+            if (window.MathJax) MathJax.typesetPromise();
+            
+            renderFractionsList();
+        }
+
+        function renderFractionsList() {
+            const container = document.getElementById('fractions-container');
+            container.innerHTML = '';
+            
+            // 與分餾塔一致：低沸點在上（石油氣）→ 高沸點在下（瀝青）
+            fractionsData.forEach(f => {
+                const isActive = currentTemp >= f.bp;
+                const isBoiling = currentTemp >= f.tempRange[0] && currentTemp < (f.tempRange[1] || 1000);
+                
+                // Card styling based on state
+                let cardClass = "p-4 rounded-xl border transition-all duration-300 ";
+                if (isActive) {
+                    cardClass += isBoiling ? "bg-white border-blue-300 shadow-md transform scale-[1.02]" : "bg-white border-slate-200 shadow-sm opacity-70";
+                } else {
+                    cardClass += "bg-slate-50 border-slate-100 opacity-50 grayscale";
+                }
+
+                const dotColor = isActive ? f.color : '#cbd5e1';
+                
+                const html = `
+                    <div class="${cardClass}">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full shadow-sm" style="background-color: ${dotColor}"></span>
+                                <h3 class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-500'}">${f[currentLang].name}</h3>
+                            </div>
+                            <span class="text-xs font-mono px-2 py-1 bg-slate-100 text-slate-600 rounded">
+                                ${dict[currentLang].bpLabel}: ~${f.bp}°C
+                            </span>
+                        </div>
+                        <p class="text-sm text-slate-600 ml-5">
+                            <span class="font-semibold text-slate-500">${dict[currentLang].usageLabel}:</span> 
+                            ${f[currentLang].usage}
+                        </p>
+                        ${isBoiling ? `<div class="ml-5 mt-2 text-xs text-blue-600 flex items-center gap-1 animate-pulse"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg> 沸騰氣化中 / Boiling...</div>` : ''}
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        // --- 4. Controls Logic ---
+        function manualTempChange(val) {
+            if (isAutoHeating) toggleAutoHeat(); // Stop auto if user interacts
+            setTemperature(parseInt(val));
+        }
+
+        function setTemperature(val) {
+            currentTemp = val;
+            document.getElementById('temp-slider').value = val;
+            document.getElementById('temp-display').innerText = val;
+            renderFractionsList();
+        }
+
+        function toggleAutoHeat() {
+            isAutoHeating = !isAutoHeating;
+            const btn = document.getElementById('btn-auto-heat');
+            
+            if (isAutoHeating) {
+                btn.className = "text-sm px-3 py-1 bg-slate-200 text-slate-700 rounded-full font-medium hover:bg-slate-300 transition-colors";
+                btn.innerText = dict[currentLang].btnAutoHeatStop;
+                autoHeatInterval = setInterval(() => {
+                    if (currentTemp >= 450) {
+                        toggleAutoHeat(); // Auto stop
+                    } else {
+                        setTemperature(currentTemp + 1);
+                    }
+                }, 50); // Speed of heating
+            } else {
+                btn.className = "text-sm px-3 py-1 bg-red-100 text-red-600 rounded-full font-medium hover:bg-red-200 transition-colors";
+                btn.innerText = dict[currentLang].btnAutoHeatStart;
+                clearInterval(autoHeatInterval);
+            }
+        }
+
+        function toggleModal() {
+            const modal = document.getElementById('theory-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        // --- 5. Canvas Simulation Engine ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let animationId;
+
+        // Resize canvas correctly for high DPI
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            // Re-init particles on resize to fit new dimensions
+            initParticles();
+        }
+
+        class Particle {
+            constructor(fraction) {
+                this.fraction = fraction;
+                this.reset();
+            }
+
+            reset() {
+                const cw = canvas.width / window.devicePixelRatio;
+                const ch = canvas.height / window.devicePixelRatio;
+                
+                // Furnace area at bottom left
+                const furnaceW = cw * 0.4;
+                const furnaceH = ch * 0.15;
+                const furnaceX = cw * 0.3 - furnaceW/2;
+                const furnaceY = ch * 0.95 - furnaceH;
+
+                this.x = furnaceX + Math.random() * furnaceW;
+                this.y = furnaceY + Math.random() * furnaceH;
+                this.vx = (Math.random() - 0.5) * 0.5; // slight jiggle
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.radius = 2 + (this.fraction.yIdx * 0.3); // Heavier fractions = slightly larger
+                this.state = 'liquid'; // liquid, gas, condensed
+            }
+
+            update(cw, ch) {
+                // Determine Tray Levels based on height
+                // Tower occupies y from ch*0.1 to ch*0.8
+                const towerTopY = ch * 0.15;
+                const towerBotY = ch * 0.8;
+                const towerHeight = towerBotY - towerTopY;
+                const trayInterval = towerHeight / 8;
+                
+                // Target Y is based on fraction index (0=Bottom, 7=Top)
+                // Inverted: Gas (idx 7) goes to top (yIdx=7)
+                const targetY = towerBotY - (this.fraction.yIdx * trayInterval) - trayInterval/2;
+
+                if (this.state === 'liquid') {
+                    // Jiggle around in furnace
+                    this.x += (Math.random() - 0.5);
+                    this.y += (Math.random() - 0.5);
+                    
+                    // Check if boiled
+                    if (currentTemp >= this.fraction.bp) {
+                        this.state = 'gas';
+                        // Add upward velocity (kinetic energy)
+                        this.vy = -1.5 - Math.random() * 1.5; 
+                    }
+                } 
+                else if (this.state === 'gas') {
+                    // Move up the tower (x centered around tower middle)
+                    const towerCX = cw * 0.4;
+                    this.x += (towerCX - this.x) * 0.05 + (Math.random() - 0.5); // drift towards center
+                    this.y += this.vy;
+
+                    // Check condensation (reached target tray level)
+                    if (this.y <= targetY) {
+                        this.state = 'condensed';
+                        this.vy = 0;
+                        this.vx = 1 + Math.random(); // move right into pipe
+                    }
+                }
+                else if (this.state === 'condensed') {
+                    // Move right along tray pipe
+                    this.x += this.vx;
+                    this.y += (Math.random() - 0.5) * 0.5; // liquid flow jiggle
+
+                    // Reset if off screen
+                    if (this.x > cw) {
+                        this.reset();
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.fraction.color;
+                
+                // Add glow if gaseous
+                if (this.state === 'gas') {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = this.fraction.color;
+                } else {
+                    ctx.shadowBlur = 0;
+                }
+                
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const numPerFraction = 30; // 30 particles per fraction
+            fractionsData.forEach(f => {
+                for(let i=0; i<numPerFraction; i++) {
+                    particles.push(new Particle(f));
+                }
+            });
+        }
+
+        function drawScene(cw, ch) {
+            // Background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, cw, ch);
+
+            const towerCX = cw * 0.4;
+            const towerW = cw * 0.25;
+            const towerTopY = ch * 0.15;
+            const towerBotY = ch * 0.8;
+            const pipeW = cw * 0.35;
+
+            // Draw Furnace Area
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(towerCX - towerW, towerBotY, towerW*2, ch*0.15);
+            
+            // Draw Fire/Heat gradient based on temp
+            const heatIntensity = currentTemp / 500;
+            const gradient = ctx.createLinearGradient(0, ch, 0, towerBotY);
+            gradient.addColorStop(0, `rgba(239, 68, 68, ${heatIntensity})`); // Red
+            gradient.addColorStop(1, `rgba(245, 158, 11, ${heatIntensity*0.5})`); // Amber
+            ctx.fillStyle = gradient;
+            ctx.fillRect(towerCX - towerW, towerBotY, towerW*2, ch*0.15);
+
+            // Draw Tower Structure
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(towerCX - towerW/2, towerBotY);
+            ctx.lineTo(towerCX - towerW/2, towerTopY);
+            ctx.lineTo(towerCX + towerW/2, towerTopY);
+            ctx.lineTo(towerCX + towerW/2, towerBotY);
+            ctx.stroke();
+
+            // Draw Trays and Pipes
+            const trayInterval = (towerBotY - towerTopY) / 8;
+            ctx.lineWidth = 2;
+            
+            for (let i = 0; i < 8; i++) {
+                const y = towerBotY - (i * trayInterval);
+                const isFractionActive = currentTemp >= fractionsData[7-i].bp;
+                
+                // Tray inside tower
+                ctx.strokeStyle = '#475569';
+                ctx.beginPath();
+                ctx.moveTo(towerCX - towerW/2, y);
+                // Bubble caps representation
+                ctx.lineTo(towerCX - towerW/4, y);
+                ctx.lineTo(towerCX, y - 5);
+                ctx.lineTo(towerCX + towerW/4, y);
+                ctx.lineTo(towerCX + towerW/2, y);
+                ctx.stroke();
+
+                // Exit Pipe
+                ctx.strokeStyle = isFractionActive ? fractionsData[7-i].color : '#334155';
+                ctx.lineWidth = isFractionActive ? 3 : 2;
+                ctx.beginPath();
+                ctx.moveTo(towerCX + towerW/2, y - trayInterval/2);
+                ctx.lineTo(cw, y - trayInterval/2);
+                ctx.stroke();
+                
+                // Label for Pipe (Small dot/line indicator)
+                ctx.fillStyle = isFractionActive ? fractionsData[7-i].color : '#475569';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(fractionsData[7-i][currentLang].name.split(' ')[0], towerCX + towerW/2 + 5, y - trayInterval/2 - 5);
+            }
+        }
+
+        function animate() {
+            const cw = canvas.width / window.devicePixelRatio;
+            const ch = canvas.height / window.devicePixelRatio;
+            
+            drawScene(cw, ch);
+
+            // Update and draw particles
+            particles.forEach(p => {
+                p.update(cw, ch);
+                p.draw(ctx);
+            });
+
+            // Reset shadow to prevent bleeding
+            ctx.shadowBlur = 0;
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // --- 6. Initialization ---
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initial setup
+        updateUI();
+        renderFractionsList();
+        
+        // Wait for fonts/layout to settle before canvas init
+        setTimeout(() => {
+            resizeCanvas();
+            animate();
+        }, 100);
+
+    </script>
+</body>
+</html>
