@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科學模擬：金屬與水反應趨勢</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a202c; font-family: 'Noto Sans TC', sans-serif; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        .glass-panel { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        input[type=range] { accent-color: #4f46e5; }
+        #reaction-info { text-shadow: 0 0 10px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer" class="flex flex-col justify-between p-6">
+        <!-- 頂部標題與語言切換 -->
+        <div class="flex justify-between items-start interactive">
+            <div class="glass-panel p-4 rounded-xl text-white">
+                <h1 id="title" class="text-2xl font-bold">金屬與水反應模擬室</h1>
+                <p id="subtitle" class="text-sm opacity-80">探索第一族與第二族元素的化學趨勢</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="toggleLang()" class="glass-panel px-4 py-2 rounded-lg text-white font-medium hover:bg-white/20 transition">中 / EN</button>
+                <button onclick="showTheory()" class="glass-panel px-4 py-2 rounded-lg text-white font-medium hover:bg-white/20 transition">科學原理 / Theory</button>
+            </div>
+        </div>
+
+        <!-- 右側控制面板 -->
+        <div class="absolute right-6 top-24 w-72 interactive">
+            <div class="glass-panel p-6 rounded-2xl text-white space-y-6">
+                <div>
+                    <label id="label-group" class="block text-sm font-medium mb-2">選擇族群 (Group)</label>
+                    <select id="group-select" onchange="updateElementOptions()" class="w-full bg-slate-800 border border-slate-600 rounded-md p-2">
+                        <option value="1">Group I (Alkali Metals)</option>
+                        <option value="2">Group II (Alkaline Earth)</option>
+                    </select>
+                </div>
+                <div>
+                    <label id="label-element" class="block text-sm font-medium mb-2">選擇元素 (Element)</label>
+                    <select id="element-select" class="w-full bg-slate-800 border border-slate-600 rounded-md p-2">
+                        <!-- 動態填充 -->
+                    </select>
+                </div>
+                <div>
+                    <label id="label-mass" class="block text-sm font-medium mb-1">質量 (Mass): <span id="mass-val">1.0</span>g</label>
+                    <input type="range" id="mass-slider" min="0.1" max="5.0" step="0.1" value="1.0" class="w-full">
+                </div>
+                <div>
+                    <label id="label-temp" class="block text-sm font-medium mb-1">水溫 (Temp): <span id="temp-val">25</span>°C</label>
+                    <input type="range" id="temp-slider" min="5" max="95" step="1" value="25" class="w-full">
+                </div>
+                <button onclick="startReaction()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg transform active:scale-95 transition">
+                    開始實驗 / Start Experiment
+                </button>
+                <button onclick="resetScene()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-xl transition">
+                    重置 / Reset
+                </button>
+            </div>
+        </div>
+
+        <!-- 底部狀態列 -->
+        <div class="interactive flex justify-center">
+            <div id="reaction-status" class="glass-panel px-8 py-4 rounded-full text-white text-lg font-medium hidden">
+                反應中... <span id="current-obs"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 理論說明 Modal -->
+    <div id="theory-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-3xl p-8 text-white">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">化學原理推導</h2>
+                <button onclick="closeTheory()" class="text-2xl">&times;</button>
+            </div>
+            <div class="prose prose-invert">
+                <h3 class="text-xl text-indigo-400">1. 反應趨勢 (Reactivity Trend)</h3>
+                <p>隨著原子序增加，原子半徑增大，最外層電子受原子核引力減弱，<strong>第一電離能 (First Ionization Energy)</strong> 降低，因此金屬更易失去電子，反應更劇烈。</p>
+                
+                <h3 class="text-xl text-indigo-400">2. 化學反應式</h3>
+                <p>第一族 (Li, Na, K...):</p>
+                <p>$$2M(s) + 2H_2O(l) \rightarrow 2M^+(aq) + 2OH^-(aq) + H_2(g) \uparrow$$</p>
+                <p>第二族 (Mg, Ca, Ba...):</p>
+                <p>$$M'(s) + 2H_2O(l) \rightarrow M'^{2+}(aq) + 2OH^-(aq) + H_2(g) \uparrow$$</p>
+
+                <h3 class="text-xl text-indigo-400">3. 指示劑顏色變化</h3>
+                <p>產生 $OH^-$ 離子使溶液變為鹼性。若加入酚酞 (Phenolphthalein)，溶液會由無色變為粉紅色 ($pH > 8.2$)。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 初始化數據 ---
+        const elementsData = {
+            1: [
+                { symbol: 'Li', name: '鋰 (Lithium)', activity: 1, density: 0.53, flame: 0xff0044 },
+                { symbol: 'Na', name: '鈉 (Sodium)', activity: 3, density: 0.97, flame: 0xffaa00 },
+                { symbol: 'K', name: '鉀 (Potassium)', activity: 6, density: 0.86, flame: 0xcc88ff },
+                { symbol: 'Rb', name: '銣 (Rubidium)', activity: 10, density: 1.53, flame: 0xff0000 },
+                { symbol: 'Cs', name: '銫 (Cesium)', activity: 20, density: 1.93, flame: 0x4444ff }
+            ],
+            2: [
+                { symbol: 'Mg', name: '鎂 (Magnesium)', activity: 0.1, density: 1.74, flame: 0xffffff },
+                { symbol: 'Ca', name: '鈣 (Calcium)', activity: 2, density: 1.54, flame: 0xff5500 },
+                { symbol: 'Sr', name: '鍶 (Strontium)', activity: 4, density: 2.64, flame: 0xff0000 },
+                { symbol: 'Ba', name: '鋇 (Barium)', activity: 7, density: 3.59, flame: 0x88ff88 }
+            ]
+        };
+
+        let currentLang = 'zh';
+        const i18n = {
+            zh: {
+                title: "金屬與水反應模擬室",
+                subtitle: "探索第一族與第二族元素的化學趨勢",
+                group: "選擇族群 (Group)",
+                element: "選擇元素 (Element)",
+                mass: "質量",
+                temp: "水溫",
+                obs_li: "鋰在水面緩慢遊動，產生氣泡",
+                obs_na: "鈉熔化成球，迅速遊動，偶有火花",
+                obs_k: "鉀劇烈反應，產生紫色火焰",
+                obs_cs: "爆炸性反應！",
+                obs_mg_cold: "常溫下反應極慢，幾乎觀察不到氣泡",
+                obs_mg_hot: "與熱水反應產生明顯氣泡",
+                obs_ca: "沉入水中，平穩產生大量氣體"
+            },
+            en: {
+                title: "Metal-Water Reaction Lab",
+                subtitle: "Explore Chemical Trends of Group I & II",
+                group: "Select Group",
+                element: "Select Element",
+                mass: "Mass",
+                temp: "Temperature",
+                obs_li: "Lithium floats and fizzes steadily",
+                obs_na: "Sodium melts into a ball, darts on surface",
+                obs_k: "Potassium reacts violently with lilac flame",
+                obs_cs: "Explosive reaction!",
+                obs_mg_cold: "Very slow reaction at room temp",
+                obs_mg_hot: "Reacts steadily with hot water",
+                obs_ca: "Sinks and produces gas bubbles steadily"
+            }
+        };
+
+        // --- Three.js 引擎 ---
+        let scene, camera, renderer, water, metal, particles = [], flames = [];
+        let isReacting = false;
+        let reactionTime = 0;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050505);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 12);
+            camera.lookAt(0, 2, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // 燈光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 0.8);
+            pointLight.position.set(5, 10, 5);
+            scene.add(pointLight);
+
+            // 水槽 (Water Tank)
+            const tankGeo = new THREE.BoxGeometry(10, 6, 6);
+            const tankMat = new THREE.MeshPhongMaterial({ color: 0x00aaff, transparent: true, opacity: 0.3, side: THREE.BackSide });
+            const tank = new THREE.Mesh(tankGeo, tankMat);
+            tank.position.y = 3;
+            scene.add(tank);
+
+            // 水面
+            const waterGeo = new THREE.PlaneGeometry(10, 6);
+            const waterMat = new THREE.MeshPhongMaterial({ color: 0x0077ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+            water = new THREE.Mesh(waterGeo, waterMat);
+            water.rotation.x = -Math.PI / 2;
+            water.position.y = 4.5;
+            scene.add(water);
+
+            animate();
+        }
+
+        function updateElementOptions() {
+            const group = document.getElementById('group-select').value;
+            const select = document.getElementById('element-select');
+            select.innerHTML = '';
+            elementsData[group].forEach(el => {
+                const opt = document.createElement('option');
+                opt.value = el.symbol;
+                opt.innerText = el.name;
+                select.appendChild(opt);
+            });
+        }
+
+        function startReaction() {
+            if (isReacting) return;
+            resetScene();
+
+            const group = document.getElementById('group-select').value;
+            const symbol = document.getElementById('element-select').value;
+            const el = elementsData[group].find(e => e.symbol === symbol);
+            const mass = parseFloat(document.getElementById('mass-slider').value);
+            const temp = parseFloat(document.getElementById('temp-slider').value);
+
+            // 建立金屬塊
+            const size = Math.pow(mass, 1/3) * 0.4;
+            const metalGeo = group == 1 ? new THREE.SphereGeometry(size, 32, 32) : new THREE.BoxGeometry(size, size, size);
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 });
+            metal = new THREE.Mesh(metalGeo, metalMat);
+            
+            // 初始位置
+            metal.position.set(0, 8, 0);
+            scene.add(metal);
+
+            isReacting = true;
+            reactionTime = 0;
+
+            // 顯示狀態
+            document.getElementById('reaction-status').classList.remove('hidden');
+            let obsText = "";
+            if (symbol === 'Li') obsText = i18n[currentLang].obs_li;
+            else if (symbol === 'Na') obsText = i18n[currentLang].obs_na;
+            else if (symbol === 'K') obsText = i18n[currentLang].obs_k;
+            else if (symbol === 'Cs' || symbol === 'Rb') obsText = i18n[currentLang].obs_cs;
+            else if (symbol === 'Mg' && temp < 60) obsText = i18n[currentLang].obs_mg_cold;
+            else if (symbol === 'Mg' && temp >= 60) obsText = i18n[currentLang].obs_mg_hot;
+            else if (symbol === 'Ca') obsText = i18n[currentLang].obs_ca;
+            document.getElementById('current-obs').innerText = obsText;
+
+            // 物理與化學參數
+            metal.userData = {
+                density: el.density,
+                activity: el.activity,
+                temp: temp,
+                flameColor: el.flame,
+                vy: -0.1,
+                vx: 0,
+                vz: 0,
+                isSubmerged: false
+            };
+        }
+
+        function resetScene() {
+            isReacting = false;
+            if (metal) scene.remove(metal);
+            particles.forEach(p => scene.remove(p));
+            flames.forEach(f => scene.remove(f));
+            particles = [];
+            flames = [];
+            water.material.color.set(0x0077ff); // 重置水色
+            document.getElementById('reaction-status').classList.add('hidden');
+        }
+
+        function createBubble(pos, intensity) {
+            const geo = new THREE.SphereGeometry(0.05, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+            const p = new THREE.Mesh(geo, mat);
+            p.position.copy(pos);
+            p.position.x += (Math.random() - 0.5) * 0.5;
+            p.position.z += (Math.random() - 0.5) * 0.5;
+            p.userData = { vy: 0.05 + Math.random() * 0.05 };
+            scene.add(p);
+            particles.push(p);
+        }
+
+        function createFlame(pos, color) {
+            const geo = new THREE.SphereGeometry(0.15, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 });
+            const f = new THREE.Mesh(geo, mat);
+            f.position.copy(pos);
+            f.userData = { 
+                vy: 0.1, 
+                life: 1.0,
+                vx: (Math.random()-0.5)*0.1 
+            };
+            scene.add(f);
+            flames.push(f);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isReacting && metal) {
+                const data = metal.userData;
+                const waterLevel = 4.5;
+                
+                // 落下物理
+                if (metal.position.y > waterLevel) {
+                    data.vy -= 0.01;
+                } else {
+                    // 浮力與運動邏輯
+                    if (data.density < 1.0) { // 浮在水面 (Li, Na, K)
+                        metal.position.y = waterLevel;
+                        data.vy = 0;
+                        // 隨機遊動速率取決於活性與溫度
+                        const speed = data.activity * (data.temp / 50) * 0.02;
+                        data.vx += (Math.random() - 0.5) * speed;
+                        data.vz += (Math.random() - 0.5) * speed;
+                        // 摩擦力
+                        data.vx *= 0.95;
+                        data.vz *= 0.95;
+                    } else { // 沉入水中 (Group II, Rb, Cs)
+                        data.vy = -0.05;
+                    }
+
+                    // 化學反應：產生氣泡
+                    const bubbleCount = Math.floor(data.activity * (data.temp / 25));
+                    if (Math.random() < 0.5) {
+                        for(let i=0; i<bubbleCount; i++) createBubble(metal.position, data.activity);
+                    }
+
+                    // 火焰效果 (活性高或溫度高)
+                    if (data.activity > 5 || (data.activity > 2 && Math.random() < 0.1)) {
+                        createFlame(metal.position, data.flameColor);
+                    }
+
+                    // 溶液顏色變紫 (鹼性)
+                    const colorShift = Math.min(reactionTime / 500, 1);
+                    water.material.color.lerp(new THREE.Color(0xff00ff), colorShift * 0.01);
+                }
+
+                metal.position.x += data.vx;
+                metal.position.y += data.vy;
+                metal.position.z += data.vz;
+
+                // 邊界檢查
+                if (Math.abs(metal.position.x) > 4.8) data.vx *= -1;
+                if (Math.abs(metal.position.z) > 2.8) data.vz *= -1;
+
+                reactionTime++;
+                if (reactionTime > 600) isReacting = false; // 反應結束
+            }
+
+            // 更新粒子
+            particles.forEach((p, i) => {
+                p.position.y += p.userData.vy;
+                p.material.opacity -= 0.01;
+                if (p.material.opacity <= 0 || p.position.y > 6) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            });
+
+            flames.forEach((f, i) => {
+                f.position.y += f.userData.vy;
+                f.position.x += f.userData.vx;
+                f.userData.life -= 0.05;
+                f.scale.setScalar(f.userData.life);
+                if (f.userData.life <= 0) {
+                    scene.remove(f);
+                    flames.splice(i, 1);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // --- UI 控制 ---
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateUIStrings();
+        }
+
+        function updateUIStrings() {
+            const t = i18n[currentLang];
+            document.getElementById('title').innerText = t.title;
+            document.getElementById('subtitle').innerText = t.subtitle;
+            document.getElementById('label-group').innerText = t.group;
+            document.getElementById('label-element').innerText = t.element;
+            document.getElementById('label-mass').innerHTML = `${t.mass}: <span id="mass-val">${document.getElementById('mass-slider').value}</span>g`;
+            document.getElementById('label-temp').innerHTML = `${t.temp}: <span id="temp-val">${document.getElementById('temp-slider').value}</span>°C`;
+            updateElementOptions();
+        }
+
+        function showTheory() { document.getElementById('theory-modal').style.display = 'flex'; }
+        function closeTheory() { document.getElementById('theory-modal').style.display = 'none'; }
+
+        // 滑桿監聽
+        document.getElementById('mass-slider').oninput = function() {
+            document.getElementById('mass-val').innerText = this.value;
+        };
+        document.getElementById('temp-slider').oninput = function() {
+            document.getElementById('temp-val').innerText = this.value;
+        };
+
+        window.onload = () => {
+            initThree();
+            updateUIStrings();
+        };
+
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+    </script>
+</body>
+</html>
