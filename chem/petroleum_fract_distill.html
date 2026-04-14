@@ -340,6 +340,15 @@
             initParticles();
         }
 
+        /** 加熱爐邊界（與 reset / drawScene 幾何一致），液態粒子限制在內以免隨機漫步漂進塔內 */
+        function getFurnaceBounds(cw, ch) {
+            const furnaceW = cw * 0.4;
+            const furnaceH = ch * 0.15;
+            const furnaceX = cw * 0.3 - furnaceW / 2;
+            const furnaceY = ch * 0.95 - furnaceH;
+            return { furnaceX, furnaceY, furnaceW, furnaceH };
+        }
+
         class Particle {
             constructor(fraction) {
                 this.fraction = fraction;
@@ -349,12 +358,7 @@
             reset() {
                 const cw = canvas.width / window.devicePixelRatio;
                 const ch = canvas.height / window.devicePixelRatio;
-                
-                // Furnace area at bottom left
-                const furnaceW = cw * 0.4;
-                const furnaceH = ch * 0.15;
-                const furnaceX = cw * 0.3 - furnaceW/2;
-                const furnaceY = ch * 0.95 - furnaceH;
+                const { furnaceX, furnaceY, furnaceW, furnaceH } = getFurnaceBounds(cw, ch);
 
                 this.x = furnaceX + Math.random() * furnaceW;
                 this.y = furnaceY + Math.random() * furnaceH;
@@ -362,6 +366,7 @@
                 this.vy = (Math.random() - 0.5) * 0.5;
                 this.radius = 2 + (this.fraction.yIdx * 0.3); // Heavier fractions = slightly larger
                 this.state = 'liquid'; // liquid, gas, condensed
+                this.condensedY = null; // 冷凝後鎖定在收集盤高度，避免 y 隨機漫步往上飄
             }
 
             update(cw, ch) {
@@ -375,11 +380,16 @@
                 // Target Y is based on fraction index (0=Bottom, 7=Top)
                 // Inverted: Gas (idx 7) goes to top (yIdx=7)
                 const targetY = towerBotY - (this.fraction.yIdx * trayInterval) - trayInterval/2;
+                const { furnaceX, furnaceY, furnaceW, furnaceH } = getFurnaceBounds(cw, ch);
+                const pad = this.radius + 0.5;
 
                 if (this.state === 'liquid') {
                     // Jiggle around in furnace
                     this.x += (Math.random() - 0.5);
                     this.y += (Math.random() - 0.5);
+                    // 限制在爐內：未沸騰前不應因布朗運動擴散到塔身
+                    this.x = Math.min(Math.max(this.x, furnaceX + pad), furnaceX + furnaceW - pad);
+                    this.y = Math.min(Math.max(this.y, furnaceY + pad), furnaceY + furnaceH - pad);
                     
                     // Check if boiled
                     if (currentTemp >= this.fraction.bp) {
@@ -399,12 +409,15 @@
                         this.state = 'condensed';
                         this.vy = 0;
                         this.vx = 1 + Math.random(); // move right into pipe
+                        this.condensedY = targetY;
+                        this.y = targetY;
                     }
                 }
                 else if (this.state === 'condensed') {
                     // Move right along tray pipe
                     this.x += this.vx;
-                    this.y += (Math.random() - 0.5) * 0.5; // liquid flow jiggle
+                    const trayY = this.condensedY != null ? this.condensedY : targetY;
+                    this.y = trayY + (Math.random() - 0.5) * 1.2; // 僅在盤面附近微擾，平均位置不漂移
 
                     // Reset if off screen
                     if (this.x > cw) {
