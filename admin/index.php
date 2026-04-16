@@ -41,7 +41,6 @@ if (!$u && !$s) {
         <?php endif; ?>
         <?php if ($s): ?>
             <a href="simulations.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">全部模擬</a>
-            <a href="../tools/import_index_csv.php" class="block bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-900 text-sm">從 index.csv 匯入（僅限空庫）</a>
         <?php endif; ?>
     </main>
 </body>

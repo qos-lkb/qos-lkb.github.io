@@ -16,7 +16,7 @@ try {
 } catch (Throwable $e) {
     http_response_code(503);
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>無法載入</title></head><body><p>無法連線資料庫或尚未設定 .env／includes/config.local.php。</p><p>若已設定，請確認 MariaDB 服務與匯入流程（sql/001_initial.sql、install.php、tools/import_index_csv.php）。</p></body></html>';
+    echo '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>無法載入</title></head><body><p>無法連線資料庫或尚未設定 .env／includes/config.local.php。</p><p>若已設定，請確認 MariaDB 服務已啟動，且資料庫與資料表已正確建立。</p></body></html>';
     exit;
 }
 
