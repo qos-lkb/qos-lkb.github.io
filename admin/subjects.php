@@ -81,14 +81,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id <= 0 || $sid <= 0 || $en === '') {
                     $error = '單元資料不完整。';
                 } else {
-                    $chk = $pdo->prepare('SELECT id FROM topics WHERE id = ? AND subject_id = ?');
-                    $chk->execute([$id, $sid]);
+                    $chk = $pdo->prepare('SELECT id FROM topics WHERE id = ?');
+                    $chk->execute([$id]);
                     if (!$chk->fetch()) {
-                        $error = '單元不屬於該科目。';
+                        $error = '找不到此單元。';
                     } else {
-                        $slug = substr(sim_slugify($en), 0, 160) ?: 'topic';
-                        $pdo->prepare('UPDATE topics SET slug = ?, name_zh = ?, name_en = ?, sort_order = ? WHERE id = ?')->execute([$slug, $zh !== '' ? $zh : $en, $en, $sort, $id]);
-                        $ok = '已更新單元。';
+                        $subOk = $pdo->prepare('SELECT id FROM subjects WHERE id = ?');
+                        $subOk->execute([$sid]);
+                        if (!$subOk->fetch()) {
+                            $error = '所屬科目不存在。';
+                        } else {
+                            $slug = substr(sim_slugify($en), 0, 160) ?: 'topic';
+                            $pdo->prepare('UPDATE topics SET subject_id = ?, slug = ?, name_zh = ?, name_en = ?, sort_order = ? WHERE id = ?')->execute([$sid, $slug, $zh !== '' ? $zh : $en, $en, $sort, $id]);
+                            $ok = '已更新單元。';
+                        }
                     }
                 }
             } elseif ($form === 'topic_delete') {
@@ -112,14 +118,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$subjects = $pdo->query('SELECT * FROM subjects ORDER BY sort_order, name_en')->fetchAll() ?: [];
-$topicsBySubject = [];
-foreach ($subjects as $s) {
-    $tid = (int) $s['id'];
-    $st = $pdo->prepare('SELECT * FROM topics WHERE subject_id = ? ORDER BY sort_order, name_en');
-    $st->execute([$tid]);
-    $topicsBySubject[$tid] = $st->fetchAll() ?: [];
+$activeTab = 'subjects';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $pf = (string) ($_POST['form'] ?? '');
+    if (in_array($pf, ['topic', 'topic_update', 'topic_delete'], true)) {
+        $activeTab = 'topics';
+    } elseif (in_array($pf, ['subject', 'subject_update', 'subject_delete'], true)) {
+        $activeTab = 'subjects';
+    }
+} else {
+    $g = (string) ($_GET['tab'] ?? 'subjects');
+    $activeTab = ($g === 'topics') ? 'topics' : 'subjects';
 }
+
+$subjects = $pdo->query('SELECT * FROM subjects ORDER BY sort_order, name_en')->fetchAll() ?: [];
+$topicsRows = $pdo->query(
+    'SELECT t.*, s.name_zh AS subject_name_zh, s.name_en AS subject_name_en
+     FROM topics t
+     INNER JOIN subjects s ON s.id = t.subject_id
+     ORDER BY s.sort_order, s.name_en, t.sort_order, t.name_en'
+)->fetchAll() ?: [];
 
 ?>
 <!DOCTYPE html>
@@ -137,107 +155,141 @@ foreach ($subjects as $s) {
             <a href="index.php" class="text-sm text-slate-300 hover:text-white">後台</a>
         </div>
     </header>
-    <main class="max-w-4xl mx-auto px-4 py-8 space-y-8">
+    <main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <?php if ($error !== ''): ?><p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
         <?php if ($ok !== ''): ?><p class="text-green-700 text-sm"><?php echo htmlspecialchars($ok, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
 
-        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <h2 class="font-semibold mb-4">新增科目</h2>
-            <form method="post" class="space-y-3">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="form" value="subject">
-                <input type="text" name="name_zh" placeholder="中文名稱" class="w-full border rounded-lg px-3 py-2">
-                <input type="text" name="name_en" placeholder="英文名稱（必填）" required class="w-full border rounded-lg px-3 py-2">
-                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">新增科目</button>
-            </form>
-        </section>
+        <nav class="flex gap-1 border-b border-slate-200" aria-label="管理分頁">
+            <a href="subjects.php?tab=subjects"
+               class="px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 -mb-px <?php echo $activeTab === 'subjects' ? 'bg-white border-slate-200 text-indigo-700' : 'border-transparent text-slate-600 hover:text-slate-900'; ?>">
+                科目
+            </a>
+            <a href="subjects.php?tab=topics"
+               class="px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 -mb-px <?php echo $activeTab === 'topics' ? 'bg-white border-slate-200 text-indigo-700' : 'border-transparent text-slate-600 hover:text-slate-900'; ?>">
+                單元
+            </a>
+        </nav>
 
-        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <h2 class="font-semibold mb-4">新增單元（課題）</h2>
-            <form method="post" class="space-y-3">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="form" value="topic">
-                <select name="subject_id" class="w-full border rounded-lg px-3 py-2" required>
-                    <option value="">選擇科目</option>
-                    <?php foreach ($subjects as $s): ?>
-                        <option value="<?php echo (int) $s['id']; ?>"><?php echo htmlspecialchars($s['name_zh'] . ' / ' . $s['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <input type="text" name="topic_name_zh" placeholder="單元中文名稱" class="w-full border rounded-lg px-3 py-2">
-                <input type="text" name="topic_name_en" placeholder="單元英文名稱（必填）" required class="w-full border rounded-lg px-3 py-2">
-                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">新增單元</button>
-            </form>
-        </section>
-
-        <section>
-            <h2 class="font-semibold mb-4">科目列表（排序與編輯）</h2>
-            <div class="space-y-6">
-                <?php foreach ($subjects as $s): ?>
-                <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                    <form method="post" class="space-y-3 mb-4">
+        <div class="<?php echo $activeTab === 'subjects' ? '' : 'hidden'; ?>" id="panel-subjects">
+            <div class="space-y-8">
+                <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm rounded-tl-none">
+                    <h2 class="font-semibold mb-4">新增科目</h2>
+                    <form method="post" class="space-y-3">
                         <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                        <input type="hidden" name="form" value="subject_update">
-                        <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
-                        <div class="flex flex-wrap gap-3 items-end">
-                            <div class="flex-1 min-w-[140px]">
-                                <label class="text-xs text-slate-500">中文</label>
-                                <input type="text" name="name_zh" value="<?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="w-full border rounded-lg px-3 py-2 text-sm">
-                            </div>
-                            <div class="flex-1 min-w-[140px]">
-                                <label class="text-xs text-slate-500">英文</label>
-                                <input type="text" name="name_en" value="<?php echo htmlspecialchars((string) $s['name_en'], ENT_QUOTES, 'UTF-8'); ?>" required class="w-full border rounded-lg px-3 py-2 text-sm">
-                            </div>
-                            <div class="w-24">
-                                <label class="text-xs text-slate-500">排序</label>
-                                <input type="number" name="sort_order" value="<?php echo (int) $s['sort_order']; ?>" class="w-full border rounded-lg px-3 py-2 text-sm">
-                            </div>
-                            <button type="submit" class="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm">儲存</button>
+                        <input type="hidden" name="form" value="subject">
+                        <input type="text" name="name_zh" placeholder="中文名稱" class="w-full border rounded-lg px-3 py-2">
+                        <input type="text" name="name_en" placeholder="英文名稱（必填）" required class="w-full border rounded-lg px-3 py-2">
+                        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">新增科目</button>
+                    </form>
+                </section>
+
+                <section>
+                    <h2 class="font-semibold mb-4">科目列表（排序與編輯）</h2>
+                    <div class="space-y-4">
+                        <?php foreach ($subjects as $s): ?>
+                        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                            <form method="post" class="space-y-3 mb-4">
+                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="form" value="subject_update">
+                                <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
+                                <div class="flex flex-wrap gap-3 items-end">
+                                    <div class="flex-1 min-w-[140px]">
+                                        <label class="text-xs text-slate-500">中文</label>
+                                        <input type="text" name="name_zh" value="<?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    </div>
+                                    <div class="flex-1 min-w-[140px]">
+                                        <label class="text-xs text-slate-500">英文</label>
+                                        <input type="text" name="name_en" value="<?php echo htmlspecialchars((string) $s['name_en'], ENT_QUOTES, 'UTF-8'); ?>" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    </div>
+                                    <div class="w-24">
+                                        <label class="text-xs text-slate-500">排序</label>
+                                        <input type="number" name="sort_order" value="<?php echo (int) $s['sort_order']; ?>" class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    </div>
+                                    <button type="submit" class="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm">儲存</button>
+                                </div>
+                                <p class="text-xs text-slate-400 font-mono">slug: <?php echo htmlspecialchars((string) $s['slug'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            </form>
+                            <form method="post" class="inline" onsubmit="return confirm('確定刪除此科目？（須無下層單元與模擬）');">
+                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="form" value="subject_delete">
+                                <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
+                                <button type="submit" class="text-red-600 text-sm hover:underline">刪除科目</button>
+                            </form>
                         </div>
-                        <p class="text-xs text-slate-400 font-mono">slug: <?php echo htmlspecialchars((string) $s['slug'], ENT_QUOTES, 'UTF-8'); ?></p>
-                    </form>
-                    <form method="post" class="inline" onsubmit="return confirm('確定刪除此科目？（須無下層單元與模擬）');">
-                        <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                        <input type="hidden" name="form" value="subject_delete">
-                        <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
-                        <button type="submit" class="text-red-600 text-sm hover:underline">刪除科目</button>
-                    </form>
+                        <?php endforeach; ?>
+                        <?php if (empty($subjects)): ?>
+                            <p class="text-sm text-slate-500">尚無科目</p>
+                        <?php endif; ?>
+                    </div>
+                </section>
+            </div>
+        </div>
 
-                    <h3 class="text-sm font-medium text-slate-700 mt-6 mb-2">此科目下的單元</h3>
-                    <?php $topics = $topicsBySubject[(int) $s['id']] ?? []; ?>
-                    <?php if (empty($topics)): ?>
-                        <p class="text-sm text-slate-500">尚無單元</p>
+        <div class="<?php echo $activeTab === 'topics' ? '' : 'hidden'; ?>" id="panel-topics">
+            <div class="space-y-8">
+                <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm rounded-tl-none">
+                    <h2 class="font-semibold mb-4">新增單元（課題）</h2>
+                    <form method="post" class="space-y-3">
+                        <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                        <input type="hidden" name="form" value="topic">
+                        <select name="subject_id" class="w-full border rounded-lg px-3 py-2" required>
+                            <option value="">選擇科目</option>
+                            <?php foreach ($subjects as $s): ?>
+                                <option value="<?php echo (int) $s['id']; ?>"><?php echo htmlspecialchars($s['name_zh'] . ' / ' . $s['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="topic_name_zh" placeholder="單元中文名稱" class="w-full border rounded-lg px-3 py-2">
+                        <input type="text" name="topic_name_en" placeholder="單元英文名稱（必填）" required class="w-full border rounded-lg px-3 py-2">
+                        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">新增單元</button>
+                    </form>
+                </section>
+
+                <section>
+                    <h2 class="font-semibold mb-4">單元列表（依科目排序）</h2>
+                    <?php if (empty($topicsRows)): ?>
+                        <p class="text-sm text-slate-500 bg-white border border-slate-200 rounded-xl p-6">尚無單元</p>
                     <?php else: ?>
-                    <div class="overflow-x-auto border border-slate-100 rounded-lg">
+                    <div class="overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm">
                         <table class="min-w-full text-sm">
                             <thead class="bg-slate-50 text-left">
                                 <tr>
-                                    <th class="p-2">中文</th>
-                                    <th class="p-2">英文</th>
-                                    <th class="p-2 w-24">排序</th>
-                                    <th class="p-2"></th>
+                                    <th class="p-3">科目</th>
+                                    <th class="p-3">單元（中／英）</th>
+                                    <th class="p-3 w-24">排序</th>
+                                    <th class="p-3 w-32"></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($topics as $t): ?>
-                                <tr class="border-t border-slate-100">
-                                    <td class="p-2" colspan="4">
-                                        <form method="post" class="flex flex-wrap gap-2 items-center">
+                                <?php foreach ($topicsRows as $t): ?>
+                                <tr class="border-t border-slate-100 align-top">
+                                    <td class="p-3 text-slate-700 whitespace-nowrap">
+                                        <?php echo htmlspecialchars((string) $t['subject_name_zh'] . ' / ' . (string) $t['subject_name_en'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </td>
+                                    <td class="p-3" colspan="3">
+                                        <form method="post" class="space-y-2">
                                             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                                             <input type="hidden" name="form" value="topic_update">
                                             <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
-                                            <input type="hidden" name="subject_id" value="<?php echo (int) $s['id']; ?>">
-                                            <input type="text" name="topic_name_zh" value="<?php echo htmlspecialchars((string) $t['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="flex-1 min-w-[100px] border rounded px-2 py-1 text-sm" placeholder="中文">
-                                            <input type="text" name="topic_name_en" value="<?php echo htmlspecialchars((string) $t['name_en'], ENT_QUOTES, 'UTF-8'); ?>" required class="flex-1 min-w-[100px] border rounded px-2 py-1 text-sm" placeholder="English">
-                                            <input type="number" name="sort_order" value="<?php echo (int) $t['sort_order']; ?>" class="w-20 border rounded px-2 py-1 text-sm" title="排序">
-                                            <button type="submit" class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded text-sm">儲存</button>
+                                            <div class="flex flex-wrap gap-2 items-center">
+                                                <label class="text-xs text-slate-500 sr-only">所屬科目</label>
+                                                <select name="subject_id" class="min-w-[180px] border rounded-lg px-2 py-1.5 text-sm" title="所屬科目">
+                                                    <?php foreach ($subjects as $s): ?>
+                                                        <option value="<?php echo (int) $s['id']; ?>"<?php echo (int) $t['subject_id'] === (int) $s['id'] ? ' selected' : ''; ?>><?php echo htmlspecialchars($s['name_zh'] . ' / ' . $s['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="text" name="topic_name_zh" value="<?php echo htmlspecialchars((string) $t['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="flex-1 min-w-[120px] border rounded-lg px-2 py-1.5 text-sm" placeholder="單元中文">
+                                                <input type="text" name="topic_name_en" value="<?php echo htmlspecialchars((string) $t['name_en'], ENT_QUOTES, 'UTF-8'); ?>" required class="flex-1 min-w-[120px] border rounded-lg px-2 py-1.5 text-sm" placeholder="單元英文">
+                                                <input type="number" name="sort_order" value="<?php echo (int) $t['sort_order']; ?>" class="w-20 border rounded-lg px-2 py-1.5 text-sm" title="排序">
+                                                <button type="submit" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm shrink-0">儲存</button>
+                                            </div>
+                                            <p class="text-xs text-slate-400 font-mono">slug: <?php echo htmlspecialchars((string) $t['slug'], ENT_QUOTES, 'UTF-8'); ?></p>
                                         </form>
-                                        <form method="post" class="inline ml-2" onsubmit="return confirm('確定刪除此單元？');">
+                                        <form method="post" class="mt-2 inline" onsubmit="return confirm('確定刪除此單元？');">
                                             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                                             <input type="hidden" name="form" value="topic_delete">
                                             <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
-                                            <button type="submit" class="text-red-600 text-sm hover:underline">刪除</button>
+                                            <button type="submit" class="text-red-600 text-sm hover:underline">刪除單元</button>
                                         </form>
-                                        <span class="text-xs text-slate-400 font-mono ml-2">slug: <?php echo htmlspecialchars((string) $t['slug'], ENT_QUOTES, 'UTF-8'); ?></span>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -245,10 +297,9 @@ foreach ($subjects as $s) {
                         </table>
                     </div>
                     <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
+                </section>
             </div>
-        </section>
+        </div>
     </main>
 </body>
 </html>
