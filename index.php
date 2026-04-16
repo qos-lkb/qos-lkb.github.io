@@ -2,73 +2,32 @@
 // 啟動輸出緩衝，用於生成靜態 index.html
 ob_start();
 
-// Read and parse CSV file
-function parseCSV($filename) {
-    $data = [];
-    if (($handle = fopen($filename, "r")) !== FALSE) {
-        $header = fgetcsv($handle); // Skip header row
-        while (($row = fgetcsv($handle)) !== FALSE) {
-            if (count($row) >= 3) {
-                $data[] = [
-                    'category' => $row[0],
-                    'title' => $row[1],
-                    'url' => $row[2],
-                    'screenshot' => isset($row[3]) && !empty($row[3]) ? $row[3] : '',
-                    'category_zh' => isset($row[4]) && !empty($row[4]) ? $row[4] : $row[0],
-                    'category_en' => isset($row[5]) && !empty($row[5]) ? $row[5] : $row[0],
-                    'title_zh' => isset($row[6]) && !empty($row[6]) ? $row[6] : $row[1],
-                    'title_en' => isset($row[7]) && !empty($row[7]) ? $row[7] : $row[1],
-                    'last_updated' => isset($row[8]) && !empty($row[8]) ? $row[8] : '2026-01-01'
-                ];
-            }
-        }
-        fclose($handle);
-    }
-    return $data;
+require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/simulations_lib.php';
+
+bootstrap_public();
+
+try {
+    $pdo = db();
+    $struct = sim_build_index_structures(sim_fetch_published_for_index($pdo));
+    $groupedData = $struct['grouped'];
+    $categoryMap = $struct['categoryMap'];
+    $titleMap = $struct['titleMap'];
+} catch (Throwable $e) {
+    http_response_code(503);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>無法載入</title></head><body><p>無法連線資料庫或尚未設定 .env／includes/config.local.php。</p><p>若已設定，請確認 MariaDB 服務與匯入流程（sql/001_initial.sql、install.php、tools/import_index_csv.php）。</p></body></html>';
+    exit;
 }
 
-// Group data by category
-function groupByCategory($data) {
-    $grouped = [];
-    foreach ($data as $item) {
-        $category = $item['category'];
-        if (!isset($grouped[$category])) {
-            $grouped[$category] = [];
-        }
-        $grouped[$category][] = $item;
-    }
-    return $grouped;
+if (empty($groupedData)) {
+    $groupedData = [
+        'Empty' => [],
+    ];
+    $categoryMap['Empty'] = ['zh' => '尚無已發佈模擬', 'en' => 'No published simulations'];
 }
 
-// Build translation maps from CSV data
-function buildTranslationMaps($data) {
-    $categoryMap = [];
-    $titleMap = [];
-    
-    foreach ($data as $item) {
-        // Build category map (only need to add once per category)
-        if (!isset($categoryMap[$item['category']])) {
-            $categoryMap[$item['category']] = [
-                'zh' => $item['category_zh'],
-                'en' => $item['category_en']
-            ];
-        }
-        
-        // Build title map
-        $titleMap[$item['title']] = [
-            'zh' => $item['title_zh'],
-            'en' => $item['title_en']
-        ];
-    }
-    
-    return ['categoryMap' => $categoryMap, 'titleMap' => $titleMap];
-}
-
-$csvData = parseCSV('index.csv');
-$groupedData = groupByCategory($csvData);
-$translations = buildTranslationMaps($csvData);
-$categoryMap = $translations['categoryMap'];
-$titleMap = $translations['titleMap'];
+$navUser = current_user();
 ?>
 <!DOCTYPE html>
 <html lang="zh-Hant">
@@ -340,7 +299,16 @@ $titleMap = $translations['titleMap'];
                     </div>
                 </div>
                 
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 md:gap-3 flex-wrap justify-end">
+                    <?php if ($navUser !== null): ?>
+                        <a href="portal/simulations.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white">我的模擬</a>
+                        <?php if (user_has_permission('user.manage') || user_has_permission('simulation.manage_any')): ?>
+                            <a href="admin/index.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-amber-200 hover:text-white">管理</a>
+                        <?php endif; ?>
+                        <a href="logout.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white">登出</a>
+                    <?php else: ?>
+                        <a href="login.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white">登入</a>
+                    <?php endif; ?>
                     <button onclick="toggleLang()" class="px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-indigo-400 hover:bg-white hover:text-indigo-900 transition-all text-xs md:text-sm font-medium">
                         中 / EN
                     </button>
@@ -374,11 +342,11 @@ $titleMap = $translations['titleMap'];
                         <svg class="w-4 h-4 rotate-icon <?php echo $firstCategory ? 'active' : ''; ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div class="submenu bg-slate-900 rounded-md <?php echo $firstCategory ? 'open' : ''; ?>">
-                        <?php foreach ($items as $item): 
+                        <?php foreach ($items as $item):
                             $titleZh = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title'];
                             $titleEn = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['en'] : $item['title'];
                         ?>
-                        <div onclick="openModal('<?php echo htmlspecialchars($item['url']); ?>')" class="sub-label block py-2 px-6 text-sm hover:text-indigo-400 cursor-pointer" data-zh="<?php echo htmlspecialchars($titleZh); ?>" data-en="<?php echo htmlspecialchars($titleEn); ?>"><?php echo htmlspecialchars($titleZh); ?></div>
+                        <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="sub-label block py-2 px-6 text-sm hover:text-indigo-400 cursor-pointer" data-zh="<?php echo htmlspecialchars($titleZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($titleEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($titleZh); ?></div>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -401,11 +369,12 @@ $titleMap = $translations['titleMap'];
                 </div>
 
                 <div id="card-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                <?php 
+                <?php
                 $currentCategory = key($groupedData);
-                foreach ($groupedData[$currentCategory] as $item): 
+                foreach ($groupedData[$currentCategory] as $item):
+                    $exportUrl = $item['export_url'] ?? $item['url'];
                 ?>
-                <div onclick="openModal('<?php echo htmlspecialchars($item['url']); ?>')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
+                <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
                     <div class="h-32 md:h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
                         <?php if (!empty($item['screenshot'])): ?>
                             <img src="<?php echo htmlspecialchars($item['screenshot']); ?>" alt="<?php echo htmlspecialchars(isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title']); ?>" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
@@ -426,7 +395,7 @@ $titleMap = $translations['titleMap'];
                     </div>
                     <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
                         <p class="text-[10px] md:text-[11px] text-slate-400 font-medium tracking-wide update-text" data-zh="最後更新日期：<?php echo htmlspecialchars($lastUpdated); ?>" data-en="Last Updated: <?php echo htmlspecialchars($lastUpdated); ?>">最後更新日期：<?php echo htmlspecialchars($lastUpdated); ?></p>
-                        <button onclick="downloadSourceCode('<?php echo htmlspecialchars($item['url']); ?>'); event.stopPropagation();" 
+                        <button onclick="downloadSourceCode('<?php echo htmlspecialchars($exportUrl, ENT_QUOTES, 'UTF-8'); ?>'); event.stopPropagation();" 
                                 class="px-2 py-1 text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors flex items-center gap-1 download-btn" 
                                 title="下載源程式碼 / Download Source Code"
                                 data-zh="下載源碼" 
@@ -472,7 +441,7 @@ $titleMap = $translations['titleMap'];
             </svg>
         </button>
         <div id="sim-modal-content" onclick="event.stopPropagation()">
-            <iframe id="sim-modal-iframe" src=""></iframe>
+            <iframe id="sim-modal-iframe" src="" title="模擬內容" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-same-origin"></iframe>
         </div>
     </div>
 
@@ -522,6 +491,7 @@ $titleMap = $translations['titleMap'];
                 const screenshot = item.screenshot || '';
                 const hasScreenshot = screenshot && screenshot.trim() !== '';
                 const lastUpdated = item.last_updated || '2026-01-01';
+                const exportUrl = item.export_url || item.url;
                 return `
                 <div onclick="openModal('${escapeHtml(item.url)}')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
                     <div class="h-32 md:h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
@@ -537,7 +507,7 @@ $titleMap = $translations['titleMap'];
                     </div>
                     <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
                         <p class="text-[10px] md:text-[11px] text-slate-400 font-medium tracking-wide update-text" data-zh="最後更新日期：${escapeHtml(lastUpdated)}" data-en="Last Updated: ${escapeHtml(lastUpdated)}">${currentLang === 'zh' ? '最後更新日期：' + escapeHtml(lastUpdated) : 'Last Updated: ' + escapeHtml(lastUpdated)}</p>
-                        <button onclick="downloadSourceCode('${escapeHtml(item.url)}'); event.stopPropagation();" 
+                        <button onclick="downloadSourceCode('${escapeHtml(exportUrl)}'); event.stopPropagation();" 
                                 class="px-2 py-1 text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors flex items-center gap-1 download-btn" 
                                 title="${currentLang === 'zh' ? '下載源程式碼' : 'Download Source Code'}"
                                 data-zh="下載源碼" 
@@ -744,8 +714,12 @@ $titleMap = $translations['titleMap'];
             if (!url) return '';
             try {
                 const urlObj = new URL(url, window.location.origin);
+                const slug = urlObj.searchParams.get('slug');
+                if (slug) {
+                    return slug.replace(/[^a-zA-Z0-9_-]/g, '_') || 'simulation';
+                }
                 const pathname = urlObj.pathname;
-                const fileName = pathname.split('/').pop().replace('.html', '');
+                const fileName = pathname.split('/').pop().replace(/\.html?$/i, '');
                 return fileName || 'simulation';
             } catch (e) {
                 return 'simulation';
