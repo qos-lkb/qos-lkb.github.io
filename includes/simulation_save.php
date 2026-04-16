@@ -23,6 +23,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
     $screenshot = trim((string) ($post['screenshot_path'] ?? ''));
     $subjectId = isset($post['subject_id']) && $post['subject_id'] !== '' ? (int) $post['subject_id'] : null;
     $topicId = isset($post['topic_id']) && $post['topic_id'] !== '' ? (int) $post['topic_id'] : null;
+    $listSortOrder = isset($post['list_sort_order']) && $post['list_sort_order'] !== '' ? (int) $post['list_sort_order'] : 0;
     $status = ($post['status'] ?? 'draft') === 'published' ? 'published' : 'draft';
     $tagsRaw = (string) ($post['tags'] ?? '');
     $slugInput = trim((string) ($post['slug'] ?? ''));
@@ -41,7 +42,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
         $chk = $pdo->prepare('SELECT id FROM topics WHERE id = ? AND subject_id = ? LIMIT 1');
         $chk->execute([$topicId, $subjectId]);
         if (!$chk->fetch()) {
-            return ['ok' => false, 'error' => '所選課題不屬於該科目。'];
+            return ['ok' => false, 'error' => '所選單元不屬於該科目。'];
         }
     }
 
@@ -71,7 +72,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
 
         $upd = $pdo->prepare(
             'UPDATE simulations SET slug = ?, title_zh = ?, title_en = ?, html = ?, screenshot_path = ?,
-             subject_id = ?, topic_id = ?, status = ?, owner_user_id = ?, updated_at = CURRENT_TIMESTAMP
+             subject_id = ?, topic_id = ?, list_sort_order = ?, status = ?, owner_user_id = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?'
         );
         $upd->execute([
@@ -82,6 +83,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
             $screenshot !== '' ? $screenshot : null,
             $subjectId,
             $topicId,
+            $listSortOrder,
             $status,
             $ownerUserId,
             $id,
@@ -98,8 +100,8 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
     $slug = sim_ensure_unique_slug($pdo, substr($baseSlug, 0, 190));
 
     $ins = $pdo->prepare(
-        'INSERT INTO simulations (owner_user_id, slug, title_zh, title_en, html, screenshot_path, subject_id, topic_id, status, last_updated)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())'
+        'INSERT INTO simulations (owner_user_id, slug, title_zh, title_en, html, screenshot_path, subject_id, topic_id, list_sort_order, status, last_updated)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())'
     );
     $ins->execute([
         $ownerUserId,
@@ -110,6 +112,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
         $screenshot !== '' ? $screenshot : null,
         $subjectId,
         $topicId,
+        $listSortOrder,
         $status,
     ]);
     $newId = (int) $pdo->lastInsertId();

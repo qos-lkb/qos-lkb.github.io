@@ -19,10 +19,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
 }
 
 $list = $pdo->query(
-    'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, u.email AS owner_email
+    'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, s.list_sort_order,
+            sub.name_zh AS subject_zh, sub.name_en AS subject_en,
+            t.name_zh AS topic_zh, t.name_en AS topic_en,
+            u.email AS owner_email
      FROM simulations s
      LEFT JOIN users u ON u.id = s.owner_user_id
-     ORDER BY s.updated_at DESC'
+     LEFT JOIN subjects sub ON sub.id = s.subject_id
+     LEFT JOIN topics t ON t.id = s.topic_id
+     ORDER BY COALESCE(sub.sort_order, 999999) ASC, sub.name_en ASC,
+              COALESCE(t.sort_order, 999999) ASC, t.name_en ASC,
+              s.list_sort_order ASC, s.updated_at DESC'
 )->fetchAll() ?: [];
 
 ?>
@@ -54,6 +61,9 @@ $list = $pdo->query(
                     <tr>
                         <th class="p-3">標題</th>
                         <th class="p-3">slug</th>
+                        <th class="p-3">科目</th>
+                        <th class="p-3">單元</th>
+                        <th class="p-3">列表排序</th>
                         <th class="p-3">擁有者</th>
                         <th class="p-3">狀態</th>
                         <th class="p-3">更新</th>
@@ -65,6 +75,19 @@ $list = $pdo->query(
                     <tr class="border-t border-slate-100">
                         <td class="p-3"><?php echo htmlspecialchars($row['title_zh'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="p-3 text-xs text-slate-600"><?php
+                            $szh = trim((string) ($row['subject_zh'] ?? ''));
+                            $sen = trim((string) ($row['subject_en'] ?? ''));
+                            $sout = ($szh === '' && $sen === '') ? '—' : ($szh === '' ? $sen : ($sen !== '' ? $szh . ' / ' . $sen : $szh));
+                            echo htmlspecialchars($sout, ENT_QUOTES, 'UTF-8');
+                        ?></td>
+                        <td class="p-3 text-xs text-slate-600"><?php
+                            $tzh = trim((string) ($row['topic_zh'] ?? ''));
+                            $ten = trim((string) ($row['topic_en'] ?? ''));
+                            $tout = ($tzh === '' && $ten === '') ? '—' : ($tzh === '' ? $ten : ($ten !== '' ? $tzh . ' / ' . $ten : $tzh));
+                            echo htmlspecialchars($tout, ENT_QUOTES, 'UTF-8');
+                        ?></td>
+                        <td class="p-3 font-mono text-xs"><?php echo (int) ($row['list_sort_order'] ?? 0); ?></td>
                         <td class="p-3 text-xs"><?php echo htmlspecialchars((string) $row['owner_email'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 text-slate-500"><?php echo htmlspecialchars($row['updated_at'], ENT_QUOTES, 'UTF-8'); ?></td>

@@ -20,6 +20,7 @@ $html = $editSim['html'] ?? '';
 $screenshot = $editSim['screenshot_path'] ?? '';
 $subjectId = $editSim['subject_id'] ?? '';
 $topicId = $editSim['topic_id'] ?? '';
+$listSortOrder = isset($editSim['list_sort_order']) ? (int) $editSim['list_sort_order'] : 0;
 $status = $editSim['status'] ?? 'draft';
 $ownerId = $editSim['owner_user_id'] ?? '';
 $tagSlugs = $editSim['_tags'] ?? [];
@@ -72,11 +73,16 @@ $tagsStr = is_array($tagSlugs) ? implode(', ', $tagSlugs) : '';
             </select>
         </div>
         <div>
-            <label class="block text-sm font-medium text-slate-700">課題</label>
+            <label class="block text-sm font-medium text-slate-700">單元（課題）</label>
             <select name="topic_id" id="field-topic" class="mt-1 w-full border rounded-lg px-3 py-2">
                 <option value="">—</option>
             </select>
         </div>
+    </div>
+
+    <div>
+        <label class="block text-sm font-medium text-slate-700">列表排序（同一科目＋同一單元內，數字越小越前）</label>
+        <input type="number" name="list_sort_order" value="<?php echo (int) $listSortOrder; ?>" min="0" step="1" class="mt-1 w-full border rounded-lg px-3 py-2 md:w-40">
     </div>
 
     <div>

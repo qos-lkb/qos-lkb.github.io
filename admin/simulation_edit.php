@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'screenshot_path' => $_POST['screenshot_path'] ?? '',
         'subject_id' => $_POST['subject_id'] ?? '',
         'topic_id' => $_POST['topic_id'] ?? '',
+        'list_sort_order' => isset($_POST['list_sort_order']) && $_POST['list_sort_order'] !== '' ? (int) $_POST['list_sort_order'] : 0,
         'status' => $_POST['status'] ?? 'draft',
         'owner_user_id' => $_POST['owner_user_id'] ?? $u['id'],
         '_tags' => array_filter(array_map('trim', preg_split('/[,，]/u', (string) ($_POST['tags'] ?? '')) ?: [])),

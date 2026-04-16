@@ -37,7 +37,7 @@ if (!$u && !$s) {
     <main class="max-w-3xl mx-auto px-4 py-8 space-y-3">
         <?php if ($u): ?>
             <a href="users.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">使用者與角色</a>
-            <a href="subjects.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">科目與課題</a>
+            <a href="subjects.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">科目與單元</a>
         <?php endif; ?>
         <?php if ($s): ?>
             <a href="simulations.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">全部模擬</a>

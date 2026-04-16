@@ -9,21 +9,31 @@ require_once __DIR__ . '/db.php';
  */
 function sim_fetch_published_for_index(PDO $pdo): array
 {
-    $sql = 'SELECT s.slug, s.title_zh, s.title_en, s.screenshot_path, s.last_updated,
-                   sub.name_en AS category_en, sub.name_zh AS category_zh, sub.sort_order AS sub_sort
+    $sql = 'SELECT s.slug, s.title_zh, s.title_en, s.screenshot_path, s.last_updated, s.list_sort_order,
+                   s.topic_id,
+                   sub.name_en AS category_en, sub.name_zh AS category_zh, sub.sort_order AS sub_sort,
+                   t.name_zh AS topic_name_zh, t.name_en AS topic_name_en, t.sort_order AS topic_sort
             FROM simulations s
             LEFT JOIN subjects sub ON sub.id = s.subject_id
+            LEFT JOIN topics t ON t.id = s.topic_id
             WHERE s.status = \'published\'
-            ORDER BY sub.sort_order ASC, sub.name_en ASC, s.title_en ASC';
+            ORDER BY COALESCE(sub.sort_order, 999999) ASC, sub.name_en ASC,
+                     (s.topic_id IS NULL) ASC,
+                     COALESCE(t.sort_order, 999999) ASC, COALESCE(t.name_en, \'\') ASC,
+                     s.list_sort_order ASC, s.title_en ASC';
     return $pdo->query($sql)->fetchAll() ?: [];
 }
 
 /**
- * @return array{grouped: array<string, array<int, array<string, mixed>>>, categoryMap: array<string, array{zh:string,en:string}>, titleMap: array<string, array{zh:string,en:string}>}
+ * @return array{
+ *   subjects: array<string, array{label_zh:string,label_en:string,topics:array<string, array{label_zh:string,label_en:string,items:array<int, array<string, mixed>>}>}>,
+ *   categoryMap: array<string, array{zh:string,en:string}>,
+ *   titleMap: array<string, array{zh:string,en:string}>
+ * }
  */
 function sim_build_index_structures(array $rows): array
 {
-    $grouped = [];
+    $subjects = [];
     $categoryMap = [];
     $titleMap = [];
 
@@ -31,11 +41,42 @@ function sim_build_index_structures(array $rows): array
         $catEn = $r['category_en'] !== null && $r['category_en'] !== '' ? $r['category_en'] : 'Other';
         $catZh = $r['category_zh'] !== null && $r['category_zh'] !== '' ? $r['category_zh'] : $catEn;
 
-        if (!isset($grouped[$catEn])) {
-            $grouped[$catEn] = [];
-        }
         if (!isset($categoryMap[$catEn])) {
             $categoryMap[$catEn] = ['zh' => $catZh, 'en' => $catEn];
+        }
+
+        if (!isset($subjects[$catEn])) {
+            $subjects[$catEn] = [
+                'label_zh' => $catZh,
+                'label_en' => $catEn,
+                'topics' => [],
+            ];
+        }
+
+        $topicId = isset($r['topic_id']) && $r['topic_id'] !== null && $r['topic_id'] !== ''
+            ? (int) $r['topic_id']
+            : null;
+
+        if ($topicId === null || $topicId <= 0) {
+            $topicKey = '__none__';
+            $topicLabelZh = '未分類單元';
+            $topicLabelEn = 'Uncategorized';
+        } else {
+            $topicKey = 'topic_' . $topicId;
+            $topicLabelZh = $r['topic_name_zh'] !== null && $r['topic_name_zh'] !== ''
+                ? (string) $r['topic_name_zh']
+                : ($r['topic_name_en'] ?? 'Topic');
+            $topicLabelEn = $r['topic_name_en'] !== null && $r['topic_name_en'] !== ''
+                ? (string) $r['topic_name_en']
+                : $topicLabelZh;
+        }
+
+        if (!isset($subjects[$catEn]['topics'][$topicKey])) {
+            $subjects[$catEn]['topics'][$topicKey] = [
+                'label_zh' => $topicLabelZh,
+                'label_en' => $topicLabelEn,
+                'items' => [],
+            ];
         }
 
         $slug = $r['slug'];
@@ -46,17 +87,20 @@ function sim_build_index_structures(array $rows): array
 
         $titleMap[$titleEn] = ['zh' => $titleZh, 'en' => $titleEn];
 
-        $grouped[$catEn][] = [
+        $subjects[$catEn]['topics'][$topicKey]['items'][] = [
             'title' => $titleEn,
             'url' => $viewUrl,
             'export_url' => $exportUrl,
             'screenshot' => $r['screenshot_path'] ?? '',
             'last_updated' => $r['last_updated'] ?: date('Y-m-d'),
             'slug' => $slug,
+            'topic_label_zh' => $topicLabelZh,
+            'topic_label_en' => $topicLabelEn,
+            'list_sort_order' => (int) ($r['list_sort_order'] ?? 0),
         ];
     }
 
-    return ['grouped' => $grouped, 'categoryMap' => $categoryMap, 'titleMap' => $titleMap];
+    return ['subjects' => $subjects, 'categoryMap' => $categoryMap, 'titleMap' => $titleMap];
 }
 
 function sim_slugify(string $text): string

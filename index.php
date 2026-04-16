@@ -10,7 +10,7 @@ bootstrap_public();
 try {
     $pdo = db();
     $struct = sim_build_index_structures(sim_fetch_published_for_index($pdo));
-    $groupedData = $struct['grouped'];
+    $subjectsData = $struct['subjects'];
     $categoryMap = $struct['categoryMap'];
     $titleMap = $struct['titleMap'];
 } catch (Throwable $e) {
@@ -20,12 +20,25 @@ try {
     exit;
 }
 
-if (empty($groupedData)) {
-    $groupedData = [
-        'Empty' => [],
+if (empty($subjectsData)) {
+    $subjectsData = [
+        'Empty' => [
+            'label_zh' => '尚無已發佈模擬',
+            'label_en' => 'No published simulations',
+            'topics' => [
+                '__none__' => [
+                    'label_zh' => '—',
+                    'label_en' => '—',
+                    'items' => [],
+                ],
+            ],
+        ],
     ];
     $categoryMap['Empty'] = ['zh' => '尚無已發佈模擬', 'en' => 'No published simulations'];
 }
+
+$firstSubjectKey = array_key_first($subjectsData);
+$firstSubjectInfo = $firstSubjectKey !== null ? $subjectsData[$firstSubjectKey] : null;
 
 $navUser = current_user();
 ?>
@@ -329,30 +342,41 @@ $navUser = current_user();
             <div class="p-4 pb-2 uppercase text-[10px] font-bold text-slate-500 tracking-[2px]" id="core-label">核心單元 Compulsory</div>
             
             <nav class="mt-2 space-y-1 px-2 pb-6" id="main-nav">
-                <?php 
+                <?php
                 $firstCategory = true;
-                foreach ($groupedData as $category => $items): 
+                foreach ($subjectsData as $category => $subInfo):
                     $categoryId = strtolower(str_replace(' ', '-', $category));
                     $categoryZh = isset($categoryMap[$category]) ? $categoryMap[$category]['zh'] : $category;
                     $categoryEn = isset($categoryMap[$category]) ? $categoryMap[$category]['en'] : $category;
+                    $topicsNav = $subInfo['topics'] ?? [];
                 ?>
                 <div class="nav-group <?php echo $firstCategory ? '' : 'border-t border-slate-700/50 mt-1'; ?>">
-                    <button onclick="toggleSub(this); showCategory('<?php echo $categoryId; ?>')" class="group w-full flex items-center justify-between p-3 rounded-md hover:bg-slate-700 hover:text-white transition-colors">
+                    <button type="button" onclick="toggleSub(this); showCategory(<?php echo htmlspecialchars(json_encode($categoryId), ENT_QUOTES, 'UTF-8'); ?>, null);" class="group w-full flex items-center justify-between p-3 rounded-md hover:bg-slate-700 hover:text-white transition-colors">
                         <span class="main-label" data-zh="<?php echo htmlspecialchars($categoryZh); ?>" data-en="<?php echo htmlspecialchars($categoryEn); ?>"><?php echo htmlspecialchars($categoryZh); ?></span>
                         <svg class="w-4 h-4 rotate-icon <?php echo $firstCategory ? 'active' : ''; ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div class="submenu bg-slate-900 rounded-md <?php echo $firstCategory ? 'open' : ''; ?>">
-                        <?php foreach ($items as $item):
-                            $titleZh = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title'];
-                            $titleEn = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['en'] : $item['title'];
+                        <?php foreach ($topicsNav as $topicKey => $topicInfo):
+                            $tZh = $topicInfo['label_zh'] ?? '';
+                            $tEn = $topicInfo['label_en'] ?? '';
                         ?>
-                        <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="sub-label block py-2 px-6 text-sm hover:text-indigo-400 cursor-pointer" data-zh="<?php echo htmlspecialchars($titleZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($titleEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($titleZh); ?></div>
+                        <div class="border-t border-slate-700/30 first:border-t-0">
+                            <button type="button" class="topic-nav-btn w-full text-left px-3 py-2 text-xs font-semibold text-slate-400 hover:text-indigo-300" onclick="event.stopPropagation(); showCategory(<?php echo htmlspecialchars(json_encode($categoryId), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode((string) $topicKey), ENT_QUOTES, 'UTF-8'); ?>);">
+                                <span class="topic-nav-label" data-zh="<?php echo htmlspecialchars($tZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($tEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($tZh); ?></span>
+                            </button>
+                            <?php foreach ($topicInfo['items'] as $item):
+                                $titleZh = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title'];
+                                $titleEn = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['en'] : $item['title'];
+                            ?>
+                            <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="sub-label block py-1.5 pl-6 pr-4 text-sm hover:text-indigo-400 cursor-pointer" data-zh="<?php echo htmlspecialchars($titleZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($titleEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($titleZh); ?></div>
+                            <?php endforeach; ?>
+                        </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
-                <?php 
+                <?php
                 $firstCategory = false;
-                endforeach; 
+                endforeach;
                 ?>
             </nav>
                 </aside>
@@ -360,24 +384,37 @@ $navUser = current_user();
                 <!-- 3. 主顯示區域 -->
                 <main class="flex-1 transition-all duration-300 py-4 md:py-8 px-4 md:px-6 lg:px-8">
                 <div class="mb-6 md:mb-8 border-b border-slate-200 pb-6">
-                    <nav class="flex mb-2 text-xs md:text-sm text-slate-500">
-                        <span id="breadcrumb-parent" data-zh="<?php echo isset($categoryMap[key($groupedData)]) ? htmlspecialchars($categoryMap[key($groupedData)]['zh']) : htmlspecialchars(key($groupedData)); ?>" data-en="<?php echo isset($categoryMap[key($groupedData)]) ? htmlspecialchars($categoryMap[key($groupedData)]['en']) : htmlspecialchars(key($groupedData)); ?>"><?php echo isset($categoryMap[key($groupedData)]) ? $categoryMap[key($groupedData)]['zh'] : key($groupedData); ?></span>
-                        <span class="mx-2">/</span>
-                        <span id="breadcrumb-child" class="text-indigo-600 font-medium" data-zh="所有實驗" data-en="All Experiments">所有實驗</span>
+                    <nav class="flex flex-wrap items-center gap-x-1 gap-y-1 mb-2 text-xs md:text-sm text-slate-500">
+                        <span id="breadcrumb-parent" data-zh="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?>" data-en="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_en']) : ''; ?>"><?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?></span>
+                        <span class="mx-1">/</span>
+                        <span id="breadcrumb-topic" data-zh="所有單元" data-en="All units">所有單元</span>
+                        <span class="mx-1">/</span>
+                        <span id="breadcrumb-child" class="text-indigo-600 font-medium" data-zh="模擬列表" data-en="Simulations">模擬列表</span>
                     </nav>
-                    <h1 id="page-title" class="text-2xl md:text-4xl font-extrabold text-slate-900 tracking-tight" data-zh="<?php echo isset($categoryMap[key($groupedData)]) ? htmlspecialchars($categoryMap[key($groupedData)]['zh'] . '模擬實驗') : htmlspecialchars(key($groupedData) . '模擬實驗'); ?>" data-en="<?php echo isset($categoryMap[key($groupedData)]) ? htmlspecialchars($categoryMap[key($groupedData)]['en'] . ' Simulations') : htmlspecialchars(key($groupedData) . ' Simulations'); ?>"><?php echo isset($categoryMap[key($groupedData)]) ? $categoryMap[key($groupedData)]['zh'] : key($groupedData); ?>模擬實驗</h1>
+                    <h1 id="page-title" class="text-2xl md:text-4xl font-extrabold text-slate-900 tracking-tight" data-zh="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh'] . '模擬實驗') : ''; ?>" data-en="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_en'] . ' Simulations') : ''; ?>"><?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?>模擬實驗</h1>
                 </div>
 
-                <div id="card-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                <div id="card-container" class="space-y-10">
                 <?php
-                $currentCategory = key($groupedData);
-                foreach ($groupedData[$currentCategory] as $item):
-                    $exportUrl = $item['export_url'] ?? $item['url'];
+                if ($firstSubjectInfo !== null):
+                    foreach ($firstSubjectInfo['topics'] as $topicKey => $topicInfo):
+                ?>
+                <section class="topic-block" data-topic-key="<?php echo htmlspecialchars((string) $topicKey, ENT_QUOTES, 'UTF-8'); ?>">
+                    <h2 class="topic-heading text-lg font-semibold text-slate-800 mb-4 border-b border-slate-200 pb-2" data-zh="<?php echo htmlspecialchars($topicInfo['label_zh'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($topicInfo['label_en'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($topicInfo['label_zh'] ?? ''); ?></h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 topic-card-grid">
+                <?php
+                        foreach ($topicInfo['items'] as $item):
+                            $exportUrl = $item['export_url'] ?? $item['url'];
+                            $titleZh = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title'];
+                            $titleEn = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['en'] : $item['title'];
+                            $lastUpdated = isset($item['last_updated']) ? $item['last_updated'] : '2026-01-01';
+                            $unitZh = $item['topic_label_zh'] ?? '';
+                            $unitEn = $item['topic_label_en'] ?? '';
                 ?>
                 <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
                     <div class="h-32 md:h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
                         <?php if (!empty($item['screenshot'])): ?>
-                            <img src="<?php echo htmlspecialchars($item['screenshot']); ?>" alt="<?php echo htmlspecialchars(isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title']); ?>" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <img src="<?php echo htmlspecialchars($item['screenshot']); ?>" alt="<?php echo htmlspecialchars($titleZh); ?>" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             <span class="text-slate-400 text-sm image-placeholder" data-zh="[實驗影像]" data-en="[Experiment Image]" style="display: none;">[實驗影像]</span>
                         <?php else: ?>
                             <span class="text-slate-400 text-sm image-placeholder" data-zh="[實驗影像]" data-en="[Experiment Image]">[實驗影像]</span>
@@ -385,20 +422,16 @@ $navUser = current_user();
                         <div class="absolute inset-0 bg-indigo-900/0 group-hover:bg-indigo-900/10 transition-colors"></div>
                     </div>
                     <div class="p-4 md:p-5 flex-grow">
-                        <?php 
-                        $titleZh = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title'];
-                        $titleEn = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['en'] : $item['title'];
-                        $lastUpdated = isset($item['last_updated']) ? $item['last_updated'] : '2026-01-01';
-                        ?>
+                        <p class="topic-badge text-[11px] text-indigo-600 font-medium mb-1" data-zh="<?php echo htmlspecialchars($unitZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($unitEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($unitZh); ?></p>
                         <h3 class="font-bold text-base md:text-lg text-slate-800 mb-2 card-t" data-zh="<?php echo htmlspecialchars($titleZh); ?>" data-en="<?php echo htmlspecialchars($titleEn); ?>"><?php echo htmlspecialchars($titleZh); ?></h3>
                         <p class="text-slate-600 text-xs md:text-sm leading-relaxed mb-4 card-d" data-zh="點擊進入模擬實驗" data-en="Click to enter simulation">點擊進入模擬實驗</p>
                     </div>
                     <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
                         <p class="text-[10px] md:text-[11px] text-slate-400 font-medium tracking-wide update-text" data-zh="最後更新日期：<?php echo htmlspecialchars($lastUpdated); ?>" data-en="Last Updated: <?php echo htmlspecialchars($lastUpdated); ?>">最後更新日期：<?php echo htmlspecialchars($lastUpdated); ?></p>
-                        <button onclick="downloadSourceCode('<?php echo htmlspecialchars($exportUrl, ENT_QUOTES, 'UTF-8'); ?>'); event.stopPropagation();" 
-                                class="px-2 py-1 text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors flex items-center gap-1 download-btn" 
+                        <button onclick="downloadSourceCode('<?php echo htmlspecialchars($exportUrl, ENT_QUOTES, 'UTF-8'); ?>'); event.stopPropagation();"
+                                class="px-2 py-1 text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors flex items-center gap-1 download-btn"
                                 title="下載源程式碼 / Download Source Code"
-                                data-zh="下載源碼" 
+                                data-zh="下載源碼"
                                 data-en="Download">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -407,8 +440,16 @@ $navUser = current_user();
                         </button>
                     </div>
                 </div>
-                        <?php endforeach; ?>
+                <?php
+                        endforeach;
+                ?>
                     </div>
+                </section>
+                <?php
+                    endforeach;
+                endif;
+                ?>
+                </div>
                 </main>
             </div>
         </div>
@@ -447,7 +488,7 @@ $navUser = current_user();
 
     <script>
         let currentLang = 'zh';
-        const categoryData = <?php echo json_encode($groupedData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const subjectData = <?php echo json_encode($subjectsData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const categoryMap = <?php echo json_encode($categoryMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const titleMap = <?php echo json_encode($titleMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
@@ -459,58 +500,35 @@ $navUser = current_user();
             icon.classList.toggle('active');
         }
 
-        // 顯示特定類別的卡片
-        function showCategory(categoryId) {
-            const category = Object.keys(categoryData).find(cat => 
-                cat.toLowerCase().replace(/\s+/g, '-') === categoryId
-            ) || Object.keys(categoryData)[0];
-            
-            const items = categoryData[category];
-            const container = document.getElementById('card-container');
-            const breadcrumbParent = document.getElementById('breadcrumb-parent');
-            const pageTitle = document.getElementById('page-title');
-            
-            // 更新麵包屑和標題
-            const categoryZh = categoryMap[category] ? categoryMap[category]['zh'] : category;
-            const categoryEn = categoryMap[category] ? categoryMap[category]['en'] : category;
-            
-            breadcrumbParent.setAttribute('data-zh', categoryZh);
-            breadcrumbParent.setAttribute('data-en', categoryEn);
-            breadcrumbParent.textContent = currentLang === 'zh' ? categoryZh : categoryEn;
-            
-            const titleZh = categoryZh + '模擬實驗';
-            const titleEn = categoryEn + ' Simulations';
-            pageTitle.setAttribute('data-zh', titleZh);
-            pageTitle.setAttribute('data-en', titleEn);
-            pageTitle.textContent = currentLang === 'zh' ? titleZh : titleEn;
-            
-            // 生成卡片
-            container.innerHTML = items.map(item => {
-                const titleZh = titleMap[item.title] ? titleMap[item.title]['zh'] : item.title;
-                const titleEn = titleMap[item.title] ? titleMap[item.title]['en'] : item.title;
-                const screenshot = item.screenshot || '';
-                const hasScreenshot = screenshot && screenshot.trim() !== '';
-                const lastUpdated = item.last_updated || '2026-01-01';
-                const exportUrl = item.export_url || item.url;
-                return `
+        function cardHtmlFromItem(item) {
+            const titleZh = titleMap[item.title] ? titleMap[item.title]['zh'] : item.title;
+            const titleEn = titleMap[item.title] ? titleMap[item.title]['en'] : item.title;
+            const screenshot = item.screenshot || '';
+            const hasScreenshot = screenshot && screenshot.trim() !== '';
+            const lastUpdated = item.last_updated || '2026-01-01';
+            const exportUrl = item.export_url || item.url;
+            const unitZh = item.topic_label_zh || '';
+            const unitEn = item.topic_label_en || '';
+            return `
                 <div onclick="openModal('${escapeHtml(item.url)}')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
                     <div class="h-32 md:h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
-                        ${hasScreenshot ? 
+                        ${hasScreenshot ?
                             `<img src="${escapeHtml(screenshot)}" alt="${escapeHtml(titleZh)}" class="w-full h-full object-cover">` :
                             `<span class="text-slate-400 text-sm image-placeholder" data-zh="[實驗影像]" data-en="[Experiment Image]">${currentLang === 'zh' ? '[實驗影像]' : '[Experiment Image]'}</span>`
                         }
                         <div class="absolute inset-0 bg-indigo-900/0 group-hover:bg-indigo-900/10 transition-colors"></div>
                     </div>
                     <div class="p-4 md:p-5 flex-grow">
+                        <p class="topic-badge text-[11px] text-indigo-600 font-medium mb-1" data-zh="${escapeHtml(unitZh)}" data-en="${escapeHtml(unitEn)}">${escapeHtml(currentLang === 'zh' ? unitZh : unitEn)}</p>
                         <h3 class="font-bold text-base md:text-lg text-slate-800 mb-2 card-t" data-zh="${escapeHtml(titleZh)}" data-en="${escapeHtml(titleEn)}">${escapeHtml(currentLang === 'zh' ? titleZh : titleEn)}</h3>
                         <p class="text-slate-600 text-xs md:text-sm leading-relaxed mb-4 card-d" data-zh="點擊進入模擬實驗" data-en="Click to enter simulation">${currentLang === 'zh' ? '點擊進入模擬實驗' : 'Click to enter simulation'}</p>
                     </div>
                     <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
                         <p class="text-[10px] md:text-[11px] text-slate-400 font-medium tracking-wide update-text" data-zh="最後更新日期：${escapeHtml(lastUpdated)}" data-en="Last Updated: ${escapeHtml(lastUpdated)}">${currentLang === 'zh' ? '最後更新日期：' + escapeHtml(lastUpdated) : 'Last Updated: ' + escapeHtml(lastUpdated)}</p>
-                        <button onclick="downloadSourceCode('${escapeHtml(exportUrl)}'); event.stopPropagation();" 
-                                class="px-2 py-1 text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors flex items-center gap-1 download-btn" 
+                        <button onclick="downloadSourceCode('${escapeHtml(exportUrl)}'); event.stopPropagation();"
+                                class="px-2 py-1 text-[10px] md:text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-colors flex items-center gap-1 download-btn"
                                 title="${currentLang === 'zh' ? '下載源程式碼' : 'Download Source Code'}"
-                                data-zh="下載源碼" 
+                                data-zh="下載源碼"
                                 data-en="Download">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -518,10 +536,69 @@ $navUser = current_user();
                             <span class="download-btn-text" data-zh="下載源碼" data-en="Download">${currentLang === 'zh' ? '下載源碼' : 'Download'}</span>
                         </button>
                     </div>
-                </div>
-            `;
-            }).join('');
-            
+                </div>`;
+        }
+
+        function topicSectionHtml(topicKey, tInfo) {
+            const cards = (tInfo.items || []).map(item => cardHtmlFromItem(item)).join('');
+            const hZh = tInfo.label_zh || '';
+            const hEn = tInfo.label_en || '';
+            const hDisp = currentLang === 'zh' ? hZh : hEn;
+            return `
+                <section class="topic-block" data-topic-key="${escapeHtml(topicKey)}">
+                    <h2 class="topic-heading text-lg font-semibold text-slate-800 mb-4 border-b border-slate-200 pb-2" data-zh="${escapeHtml(hZh)}" data-en="${escapeHtml(hEn)}">${escapeHtml(hDisp)}</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 topic-card-grid">${cards}</div>
+                </section>`;
+        }
+
+        // 顯示科目（可選單元篩選）：topicKey 為 null 時顯示該科目下所有單元區塊
+        function showCategory(categoryId, topicKey) {
+            const subjectKey = Object.keys(subjectData).find(cat =>
+                cat.toLowerCase().replace(/\s+/g, '-') === categoryId
+            ) || Object.keys(subjectData)[0];
+            const sub = subjectData[subjectKey];
+            const container = document.getElementById('card-container');
+            const breadcrumbParent = document.getElementById('breadcrumb-parent');
+            const breadcrumbTopic = document.getElementById('breadcrumb-topic');
+            const pageTitle = document.getElementById('page-title');
+
+            if (!sub || !sub.topics) {
+                return;
+            }
+
+            const categoryZh = categoryMap[subjectKey] ? categoryMap[subjectKey]['zh'] : sub.label_zh || subjectKey;
+            const categoryEn = categoryMap[subjectKey] ? categoryMap[subjectKey]['en'] : sub.label_en || subjectKey;
+
+            breadcrumbParent.setAttribute('data-zh', categoryZh);
+            breadcrumbParent.setAttribute('data-en', categoryEn);
+            breadcrumbParent.textContent = currentLang === 'zh' ? categoryZh : categoryEn;
+
+            const titleZh = categoryZh + '模擬實驗';
+            const titleEn = categoryEn + ' Simulations';
+            pageTitle.setAttribute('data-zh', titleZh);
+            pageTitle.setAttribute('data-en', titleEn);
+            pageTitle.textContent = currentLang === 'zh' ? titleZh : titleEn;
+
+            const allZh = '所有單元';
+            const allEn = 'All units';
+
+            if (topicKey === undefined || topicKey === null) {
+                breadcrumbTopic.setAttribute('data-zh', allZh);
+                breadcrumbTopic.setAttribute('data-en', allEn);
+                breadcrumbTopic.textContent = currentLang === 'zh' ? allZh : allEn;
+                container.innerHTML = Object.keys(sub.topics).map(tk => topicSectionHtml(tk, sub.topics[tk])).join('');
+            } else {
+                const tInfo = sub.topics[topicKey];
+                if (!tInfo) {
+                    showCategory(categoryId, null);
+                    return;
+                }
+                breadcrumbTopic.setAttribute('data-zh', tInfo.label_zh || '');
+                breadcrumbTopic.setAttribute('data-en', tInfo.label_en || '');
+                breadcrumbTopic.textContent = currentLang === 'zh' ? (tInfo.label_zh || '') : (tInfo.label_en || '');
+                container.innerHTML = topicSectionHtml(topicKey, tInfo);
+            }
+
             updateUI();
         }
 
@@ -819,17 +896,18 @@ $navUser = current_user();
             document.getElementById('core-label').innerText = texts[currentLang].core;
 
             // 更新所有帶有 data-zh 和 data-en 屬性的元素
-            document.querySelectorAll('.main-label, .sub-label, .card-t, .card-d, .update-text, .image-placeholder, #breadcrumb-parent, #breadcrumb-child, #page-title, #footer-copyright, #footer-license span, .download-btn-text').forEach(el => {
+            document.querySelectorAll('.main-label, .sub-label, .topic-nav-label, .topic-heading, .topic-badge, .card-t, .card-d, .update-text, .image-placeholder, #breadcrumb-parent, #breadcrumb-topic, #breadcrumb-child, #page-title, #footer-copyright, #footer-license span, .download-btn-text').forEach(el => {
                 const val = el.getAttribute(`data-${currentLang}`);
                 if (val) el.innerText = val;
             });
         }
 
-        // 初始化顯示第一個類別
+        // 初始化顯示第一個科目（所有單元）
         window.addEventListener('DOMContentLoaded', function() {
-            const firstCategory = Object.keys(categoryData)[0];
+            const firstCategory = Object.keys(subjectData)[0];
+            if (!firstCategory) return;
             const categoryId = firstCategory.toLowerCase().replace(/\s+/g, '-');
-            showCategory(categoryId);
+            showCategory(categoryId, null);
         });
     </script>
 </body>
