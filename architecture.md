@@ -1,518 +1,161 @@
 # Architecture Documentation
 
-## Project Overview
+## Project overview
 
-This is an **educational website** hosting interactive science simulations for teaching physics, chemistry, biology, integrated science, and astronomy. The project is designed as a collection of standalone HTML files, each implementing a specific simulation or concept visualization. 
+Educational site hosting **interactive science simulations** (HKDSE / secondary level): physics, chemistry, biology, integrated science, astronomy, and related folders. Each simulation is typically a **standalone HTML** file using CDN libraries (Tailwind, Chart.js, Three.js, MathJax, etc.).
 
-The site supports **two deployment modes**:
-- **PHP Mode**: Dynamic content generation from CSV data files (requires PHP server)
-- **Static Mode**: Pure HTML/CSS/JavaScript files (works on GitHub Pages)
+The same codebase may be deployed as:
 
-**Primary Purpose**: Educational resource for HKDSE (Hong Kong Diploma of Secondary Education) and secondary school science curriculum.
+| Mode | Entry | Purpose |
+|------|--------|---------|
+| **Dynamic (LAMPP / PHP)** | `index.php` | Main catalogue: data from **MariaDB**, session-aware UI, modal viewer |
+| **Optional redirect** | `index.html` | If `.env` sets `DEFAULT_REDIRECT_URL`, sync XHR to `default_redirect_url.php` then `location.replace` (PHP host only) |
+| **Static hosting** | Individual HTML under `physics/`, `chem/`, … | GitHub Pages–style: open files directly; **no DB** |
 
-**Repository**: `qos-lkb.github.io` (GitHub Pages)
+**Related repositories (typical setup)**
 
----
-
-## Technology Stack
-
-### Core Technologies
-
-- **HTML5**: Semantic markup for all simulation pages
-- **CSS3**: Custom styling with Tailwind CSS utility classes
-- **Vanilla JavaScript**: No frameworks required (some simulations use React standalone)
-- **PHP** (Optional): Server-side processing for dynamic content generation
-  - Used in `index.php` for CSV-based data loading
-  - Used in `markdown_reader.php` for Markdown file rendering
-  - Falls back to static HTML when PHP is unavailable
-
-### External Dependencies (CDN)
-
-#### UI & Styling
-- **Tailwind CSS** (`cdn.tailwindcss.com`)
-  - Utility-first CSS framework
-  - Used for responsive layouts, color schemes, and component styling
-  - No build process required (CDN version)
-
-#### Visualization Libraries
-- **Three.js** (`cdn.jsdelivr.net/npm/three@*`)
-  - 3D graphics library for particle systems, 3D models, and interactive visualizations
-  - Versions used: r128, 0.154.0, 0.160.0 (varies by simulation)
-  - **OrbitControls**: Camera controls for 3D scenes
-  - ES modules via import maps in newer simulations
-
-- **Chart.js** (`cdn.jsdelivr.net/npm/chart.js`)
-  - Data visualization for graphs, charts, and real-time data plotting
-  - Used for displaying relationships (P-V, V-T, P-T curves, etc.)
-
-#### Mathematical Rendering
-- **MathJax 3** (`cdn.jsdelivr.net/npm/mathjax@3`)
-  - LaTeX/MathML rendering for mathematical equations
-  - Supports inline (`$...$`) and display (`$$...$$`) math
-  - Async loading for performance
-
-#### Optional Frameworks (Select Simulations)
-- **React 18** (`unpkg.com/react@18`)
-  - Used in some advanced simulations (e.g., Wave Interference)
-  - Standalone version with Babel for JSX compilation
-  - No build step required
-
-- **Babel Standalone** (`unpkg.com/@babel/standalone`)
-  - JSX/ES6+ transpilation in browser
-  - Only used where React is present
-
-#### Utility Libraries
-- **html2canvas** (`cdn.jsdelivr.net/npm/html2canvas@1.4.1`)
-  - Screenshot/capture functionality for simulations
-  - Used in modal interface to capture simulation screenshots
-  - Downloads as PNG with timestamp filename
+- **`science_sims`** — canonical app + DB + admin (this tree).
+- **`qos-lkb.github.io`** — GitHub Pages mirror / user site; may track the same or a subset of static assets.
 
 ---
 
-## Project Structure
+## Technology stack
+
+### Core
+
+- **HTML5**, **CSS3**, **Vanilla JS**; **Tailwind CSS** via CDN on many pages.
+- **PHP 8+** (`declare(strict_types=1);`) for `index.php`, admin, auth, DB access.
+- **MariaDB / MySQL** for published simulations, subjects, topics, users, roles (see migrations / admin).
+
+### CDN libraries (representative)
+
+| Library | Typical use |
+|---------|----------------|
+| Tailwind CSS | Layout, admin UI, `index.php` shell |
+| Chart.js | Graphs in simulations |
+| MathJax 3 | Equations |
+| Three.js (+ OrbitControls) | 3D sims |
+| html2canvas | Screenshots in modal (`index.php`) |
+| React 18 + Babel standalone | Selected sims only |
+
+### PHP includes (`includes/`)
+
+- **`config.php`** — Loads root `.env` (`config_load_dotenv`), merges `config.local.php`, DB DSN from env.
+- **`db.php`** — PDO connection.
+- **`auth.php`**, **`bootstrap.php`** — Sessions, `bootstrap_public()`.
+- **`simulations_lib.php`**, **`simulation_save.php`**, **`simulation_form_fragment.php`** — Index structure, CRUD helpers.
+- **`user_admin.php`** — Permissions (`user.manage`, `simulation.manage_any`, …).
+
+---
+
+## Data & admin (current model)
+
+- **Catalogue data** for `index.php` comes from the **database** (`sim_fetch_published_for_index` and related tables), **not** from `index.csv` (legacy CSV flow has been superseded; `index_csv_editor.php` is deprecated).
+- **`admin/`** — Protected UI: users/roles, subjects & units (`subjects.php`), simulations list/edit, DB export (permission-gated).
+- **`portal/`** — Contributor-facing flows (e.g. “my simulations”) where applicable.
+- **`.env`** — DB credentials, optional `DEFAULT_REDIRECT_URL` for `index.html` redirect bridge via `default_redirect_url.php` (JSON `{ "url": … }` only; no secrets in response).
+
+---
+
+## Repository layout (high level)
 
 ```
-qos-lkb.github.io/
-├── index.html                 # Main landing page (English, tab-based navigation)
-├── index.php                  # Dynamic landing page (PHP, CSV-driven, modal interface)
-├── index_new.html             # Modern landing page (Chinese/English, sidebar navigation)
-├── index.csv                  # Simulation data source (Category, Title, URL, Screenshot, etc.)
-├── markdown_reader.php        # Markdown file reader and renderer
-├── architecture.md            # This file
-├── link.txt                   # External links reference
+science_sims/   (example root name)
+├── index.php              # Main dynamic homepage (DB-driven)
+├── index.html             # Minimal shell; optional redirect to DEFAULT_REDIRECT_URL
+├── default_redirect_url.php   # Reads .env; JSON for index.html
+├── login.php, logout.php
+├── markdown_reader.php    # Optional Markdown helper
+├── index_csv_editor.php   # Legacy; comments note DB/admin path
 │
-├── physics/                   # Physics simulations (HKDSE curriculum)
-│   ├── 01/                    # Unit 1: Heat and Gases
-│   │   ├── 0101_calibration_of_thermometer.html
-│   │   ├── 0101_clinical_thermometer.html
-│   │   ├── 0102_conduction.html
-│   │   ├── 0102_convection.html
-│   │   ├── 0102_radiation_and_colour.html
-│   │   ├── 0103_specific_heat_capacity.html
-│   │   ├── 0103_specific_heat_capacity2.html
-│   │   ├── 0103_thermal_equilibrium.html
-│   │   ├── 0105_gas_laws.html
-│   │   └── 0105_distribution_gas_speed.html
-│   ├── 02/                    # Unit 2: Force and Motion
-│   │   ├── 0202_freefall.html
-│   │   └── 0210_cavendish_experiment.html
-│   ├── 03a/                   # Unit 3a: Optics (Reflection & Refraction)
-│   │   ├── 0301_how_we_see.html
-│   │   ├── 0301_laws_of_reflection.html
-│   │   ├── 0301_plane_mirror_ray_diagram.html
-│   │   ├── 0301_plane_mirror_ray_diagram2.html
-│   │   ├── 0302_analogy_refraction.html
-│   │   ├── 0302_snells_law.html
-│   │   ├── 0302_dispersion.html
-│   │   └── 0303_lenses.html
-│   ├── 03b/                   # Unit 3b: Wave Interference & Diffraction
-│   │   ├── 0306_diffraction_grating.html
-│   │   ├── 0306_youngs_double_slit.html
-│   │   └── 0307_signal_generator.html
-│   ├── 04b/                   # Unit 4b: Electromagnetism
-│   │   ├── 0405_magnetic_field_lines.html
-│   │   └── 0406_mass_spectrometer.html
-│   ├── 05/                    # Unit 5: Radioactivity
-│   │   └── 0501_geiger_muller_counter.html
-│   ├── e01/                   # Elective 1: Astronomy
-│   │   └── e0104_fraunhofer_lines.html
-│   ├── e02/                   # Elective 2: Atomic Physics
-│   │   ├── e0201_photoelectric_effect.html
-│   │   ├── e0201_rutherford_experiment.html
-│   │   ├── e0202_electron_transition.html
-│   │   └── e0202_emission_line_spectra.html
-│   └── e03/                   # Elective 3: Energy & Use of Energy
-│       ├── e0301_air-conditioner.html
-│       ├── e0303_thermal_conductivity.html
-│       ├── e0303_ottv.html
-│       ├── e0303_cars.html
-│       ├── e0304_wind_power.html
-│       └── e0304_photovoltaic_plate.html
+├── includes/                # PHP config, DB, auth, simulation helpers
+├── admin/                 # Back office (Tailwind, CSRF, permissions)
+├── portal/                # User portal pages
+├── migrations/            # SQL migrations (if present)
 │
-├── chemistry/                 # Chemistry simulations
-│   ├── atomic_structure.html
-│   ├── ram.html
-│   ├── electrolysis.html
-│   ├── orbital.html
-│   └── firework_display.html
+├── physics/               # HKDSE-style units (01, 02, 03a, …, e01–e03)
+├── chem/ / chemistry/     # Chemistry sims (naming varies by history)
+├── biology/
+├── science/               # Integrated science
+├── astronomy/
+├── s4_physics/, other/, geography/, music/ …
+├── dev/                   # Planning notes (e.g. plan.md)
 │
-├── biology/                   # Biology simulations
-│   ├── osmosis.html
-│   ├── cell_membrane_permeability.html
-│   └── absorption_ileum.html
-│
-├── science/                   # Integrated Science simulations
-│   ├── structure_of_cell.html
-│   ├── cell_division.html
-│   ├── dna.html
-│   ├── microecosystem.html
-│   ├── belljar_model.html
-│   ├── electric_circuit.html
-│   └── algorithm.html
-│
-├── astronomy/                 # Astronomy simulations
-│   ├── hr_diagram.html
-│   ├── analemma.html
-│   └── solar_system_model.html
-│
-├── s4_physics/                # S4 Physics curriculum simulations
-│   ├── 4A02 - Aero.html
-│   ├── 4A02 - AstroLab 2.4.html
-│   ├── 4A02 - G-force.html
-│   ├── 4A02 - Radiation.html
-│   ├── 4A02 - Solaris II.html
-│   ├── 4A03 - Heat Transfer.html
-│   ├── 4A06 - gravity.html
-│   ├── 4A09 - Thin Lens.html
-│   ├── 4A14 - Thin Lens.html
-│   ├── 4A21 - Thin Lens.html
-│   ├── 4A25 - Thin Lens.html
-│   └── 4A27 - Thin Lens.html
-│
-├── other/                     # Miscellaneous simulations
-│   ├── 3Dmagneticfield.html
-│   ├── chain_rx.html
-│   ├── circuit.html
-│   ├── circular.html
-│   ├── Coefficient of Static Friction.html
-│   ├── Electrostatic Induction Sims v3 - Good (with minor bugs).html
-│   ├── Friction in riding bicycle V9 - 20251209.html
-│   ├── gas.html
-│   ├── inclined plane simulation.html
-│   ├── Kinetic theory.html
-│   ├── moment.html
-│   ├── projectile_sim.html
-│   ├── refraction.html
-│   ├── Sound interference - 20251120.html
-│   ├── Stellar life.html
-│   ├── vertical motion with parachute.html
-│   └── Wave interference.html
-│
-├── geography/                 # Geography simulations
-│   └── BL_Succession.html
-│
-├── music/                     # Music simulations
-│   └── drum-set.html
-│
-└── travel/                    # Travel-related content
-    ├── spain.html
-    └── taipei.html
+├── architecture.md        # This file (canonical architecture doc)
+├── ARCHITECTURE.md        # Pointer to this file
+├── README.md, rule.md, prompt.md, link.txt
+└── .env, .env.example     # Env template (do not commit real .env)
 ```
+
+Adjust folder names to match your checkout (`chem` vs `chemistry`, etc.).
 
 ---
 
-## Architecture Patterns
+## Architecture patterns
 
-### 1. Standalone HTML Files
+### 1. Standalone simulation HTML
 
-Each simulation is a **self-contained HTML file** with:
-- Embedded CSS (Tailwind CDN + custom styles)
-- Embedded JavaScript (inline or `<script>` tags)
-- No external file dependencies (except CDN resources)
-- No build process required
+Self-contained pages, CDN scripts, optional inline JS. No bundler required. Suited for static hosting and embedding from `index.php` modal (iframe).
 
-**Advantages**:
-- Easy to deploy (just upload HTML files)
-- No compilation errors
-- Fast development iteration
-- Works directly in browser
+### 2. Dynamic index (`index.php`)
 
-**Trade-offs**:
-- Code duplication across files
-- No shared component library
-- Manual dependency management
+- Server renders navigation from **DB structures** (subjects → topics → items).
+- **Modal + iframe** to open sim URLs; **html2canvas** for PNG capture where enabled.
+- **503** page if DB unavailable (prompts `.env` / MariaDB).
 
-### 2. CDN-Based Dependencies
+### 3. Auth & permissions
 
-All external libraries are loaded via CDN:
-- **Pros**: No build step, easy updates, fast global delivery
-- **Cons**: Requires internet connection, potential version conflicts
+Session-based login; admin routes check capabilities before rendering or mutating data.
 
-### 3. Responsive Design Pattern
+### 4. Bilingual UI
 
-- **Mobile-first**: Tailwind's responsive utilities (`sm:`, `md:`, `lg:`)
-- **Fixed header**: Navigation stays visible on scroll
-- **Sidebar navigation**: Collapsible on mobile, fixed on desktop
-- **Card-based layouts**: Grid system for simulation listings
+`data-zh` / `data-en` toggles and similar patterns on `index.php` and many sims; MathJax for notation.
 
-### 4. Language Support
+### 5. Security notes
 
-- **Bilingual support**: Chinese (Traditional) and English
-- **Data attributes**: `data-zh` and `data-en` for text switching
-- **JavaScript toggle**: `toggleLang()` function updates UI text
-- **MathJax**: Renders equations in both languages
-
-### 5. 3D Visualization Pattern
-
-**Three.js Integration**:
-```javascript
-// Common pattern across 3D simulations
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 100);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-
-function animate() {
-    requestAnimationFrame(animate);
-    updatePhysics();
-    controls.update();
-    renderer.render(scene, camera);
-}
-```
-
-### 6. Real-time Data Visualization
-
-**Chart.js Integration**:
-- Dynamic chart updates based on user input
-- Multiple datasets (theoretical vs. current values)
-- Responsive canvas sizing
-- Custom styling with Tailwind colors
-
-### 7. CSV-Driven Data Management
-
-**Dynamic Content Loading**:
-- Simulation metadata stored in `index.csv`
-- PHP reads CSV and generates navigation dynamically
-- Supports bilingual titles (Chinese/English)
-- Includes screenshot paths, update dates, and categorization
-- Easy to maintain: update CSV to add/modify simulations
-
-**CSV Structure**:
-```csv
-Category,Title,URL,Screenshot,Category_ZH,Category_EN,Title_ZH,Title_EN,Last_Updated
-```
-
-### 8. Modal-Based Simulation Display
-
-**Modal Interface Pattern**:
-- Simulations open in full-screen modal overlay
-- Iframe-based loading for isolation
-- Screenshot capture functionality
-- Keyboard shortcuts (ESC to close)
-- Responsive design (full-screen on mobile)
-
-### 9. Markdown Documentation Reader
-
-**Markdown Support**:
-- `markdown_reader.php` reads and renders Markdown files
-- Custom Markdown-to-HTML converter
-- Supports code blocks, tables, lists, and inline formatting
-- File selector for multiple Markdown documents
-- Styled output with syntax highlighting
-
----
-
-## File Organization Principles
-
-### Naming Conventions
-
-1. **Physics files**: `{unit}{topic}_{description}.html`
-   - Example: `0105_gas_laws.html` = Unit 1, Topic 5, Gas Laws
-
-2. **Elective files**: `e{number}/{e}{unit}{topic}_{description}.html`
-   - Example: `e02/e0201_photoelectric_effect.html` = Elective 2, Unit 2, Topic 1
-
-3. **Other subjects**: `{subject}/{description}.html`
-   - Example: `biology/osmosis.html`
-
-### Directory Structure
-
-- **Subject-based**: Each major subject has its own directory
-- **Unit-based**: Physics organized by curriculum units
-- **Flat structure**: Most directories contain HTML files directly (no subdirectories except physics)
-
----
-
-## Dependencies
-
-### Required CDN Resources
-
-| Library | Version | Purpose | Loaded In |
-|---------|---------|---------|-----------|
-| Tailwind CSS | Latest (CDN) | Styling | All pages |
-| Three.js | r128, 0.154.0, 0.160.0 | 3D graphics | 3D simulations |
-| Chart.js | Latest | Data visualization | Simulations with graphs |
-| MathJax | 3.x | Math rendering | Simulations with equations |
-| React | 18 (standalone) | UI framework | Advanced simulations |
-| Babel Standalone | Latest | JSX transpilation | React-based simulations |
-| html2canvas | 1.4.1 | Screenshot capture | Modal interface (index.php) |
-
-### Browser Compatibility
-
-- **Modern browsers**: Chrome, Firefox, Safari, Edge (latest versions)
-- **ES6+ features**: Arrow functions, template literals, destructuring
-- **WebGL**: Required for Three.js simulations
-- **Canvas API**: Required for Chart.js and custom visualizations
+- **`.env`** must not be web-readable; root `.htaccess` should deny direct access to dotfiles.
+- Admin forms use **CSRF** tokens.
+- **`default_redirect_url.php`** exposes only the redirect URL string, not DB secrets.
 
 ---
 
 ## Deployment
 
-### GitHub Pages (Static Mode)
+### PHP / LAMPP
 
-1. **Repository**: `qos-lkb.github.io`
-2. **Branch**: `main` (or `master`)
-3. **Build**: None required (static files)
-4. **URL**: `https://qos-lkb.github.io`
-5. **Note**: PHP files will not execute on GitHub Pages; use `index.html` or `index_new.html` for static deployment
+1. PHP 8+ with PDO MySQL, MariaDB with schema applied.
+2. Copy `.env.example` → `.env`, set `DB_*` and optional `DEFAULT_REDIRECT_URL`.
+3. Point vhost document root at project root; open `/index.php`.
 
-### PHP Server Deployment
+### GitHub Pages (static subset)
 
-1. **Requirements**: PHP 7.4+ server (Apache/Nginx with PHP-FPM)
-2. **Files**: `index.php`, `markdown_reader.php`, `index.csv`
-3. **Benefits**: Dynamic content generation, CSV-driven updates
-4. **Local Development**: Use XAMPP, MAMP, or PHP built-in server
+- **No PHP execution**: `index.php`, admin, and DB-backed catalogue **will not run**.
+- Use **per-simulation HTML URLs** or a static mirror strategy; `index.html` redirect only works if Pages somehow serves PHP (it does not) — redirect bridge is for **PHP hosts** (e.g. school server) that still ship `index.html`.
 
-### Deployment Process
+### Environment variables (subset)
 
-**For Static Deployment (GitHub Pages)**:
-1. Commit changes to repository
-2. Push to main branch
-3. GitHub Pages automatically deploys
-4. Changes live within minutes
-
-**For PHP Deployment**:
-1. Upload files to PHP-enabled server
-2. Ensure `index.csv` is readable
-3. Verify PHP version compatibility
-4. Test `index.php` and `markdown_reader.php`
-
-### Custom Domain (Optional)
-
-- Configured via GitHub Pages settings (static) or server config (PHP)
-- CNAME file in root directory
-- DNS records point to hosting provider
+| Variable | Role |
+|----------|------|
+| `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, … | Database |
+| `DEFAULT_REDIRECT_URL` | Optional; `index.html` + `default_redirect_url.php` immediate redirect |
 
 ---
 
-## Development Guidelines
+## Development guidelines
 
-### Adding a New Simulation
-
-1. **Create HTML file** in appropriate directory
-2. **Include CDN dependencies** in `<head>`:
-   ```html
-   <script src="https://cdn.tailwindcss.com"></script>
-   <!-- Add other dependencies as needed -->
-   ```
-3. **Structure**:
-   - Header with title
-   - Main content area
-   - Controls/inputs (if interactive)
-   - Visualization canvas/container
-   - Footer (optional)
-4. **Add to CSV** (if using `index.php`):
-   - Open `index.csv`
-   - Add new row with: Category, Title, URL, Screenshot path, Chinese/English translations, Last Updated date
-   - Format: `Category,Title,URL,Screenshot,Category_ZH,Category_EN,Title_ZH,Title_EN,Last_Updated`
-5. **Link from index files**:
-   - For static: Update `index.html` or `index_new.html`
-   - For PHP: Update `index.csv` (automatic)
-6. **Test** in multiple browsers
-7. **Commit and push**
-
-### Updating Simulation Metadata
-
-**Using CSV (Recommended for PHP mode)**:
-1. Edit `index.csv` with spreadsheet software or text editor
-2. Maintain CSV format: Category, Title, URL, Screenshot, Category_ZH, Category_EN, Title_ZH, Title_EN, Last_Updated
-3. Save and upload to server
-4. Changes reflect immediately in `index.php`
-
-**Screenshot Management**:
-- Screenshots stored in `{subject}/screenshots/` directories
-- Naming convention: `{filename}_{timestamp}.png`
-- Generated via modal capture feature or manually created
-
-### Code Style
-
-- **Indentation**: 4 spaces (or tabs, be consistent)
-- **Naming**: camelCase for JavaScript, kebab-case for files
-- **Comments**: Explain complex physics calculations
-- **Accessibility**: Use semantic HTML, ARIA labels where needed
-
-### Performance Considerations
-
-- **Lazy loading**: Load heavy libraries only when needed
-- **Async scripts**: Use `async` or `defer` for non-critical scripts
-- **CDN caching**: Leverage browser caching for CDN resources
-- **Canvas optimization**: Limit particle counts, use instanced rendering
+- Follow **`rule.md`** for naming, HTML skeleton, and quality bar.
+- New simulations: add HTML under the correct subject folder; register via **admin / DB workflow** (not legacy CSV) unless your fork still uses CSV.
+- Prefer **small, focused diffs**; match existing style in each directory.
 
 ---
 
-## Future Considerations
+## Related docs
 
-### Potential Improvements
-
-1. **Build System**
-   - Consider using a static site generator (Jekyll, Eleventy)
-   - Bundle optimization
-   - Code splitting
-
-2. **Component Library**
-   - Extract common UI patterns
-   - Shared JavaScript utilities
-   - Reusable simulation templates
-
-3. **State Management**
-   - URL parameters for sharing specific simulation states
-   - LocalStorage for user preferences
-   - Session management
-
-4. **Testing**
-   - Unit tests for physics calculations
-   - Visual regression testing
-   - Cross-browser testing automation
-
-5. **Documentation**
-   - Inline code documentation
-   - User guides for each simulation
-   - Developer contribution guide
-
-6. **Performance**
-   - Service Worker for offline support
-   - Image optimization
-   - Lazy loading for simulations
-
-7. **Accessibility**
-   - Screen reader support
-   - Keyboard navigation
-   - High contrast mode
-   - WCAG 2.1 compliance
-
-8. **Internationalization**
-   - Expand language support
-   - RTL language support
-   - Localized number formats
+- **`README.md`** — Overview, quick start, links.
+- **`rule.md`** — File naming, structure, accessibility.
+- **`dev/plan.md`** — Optional curriculum / project ideation list (Traditional Chinese).
 
 ---
 
-## Maintenance
-
-### Regular Tasks
-
-- **Update dependencies**: Check for security updates in CDN libraries
-- **Browser testing**: Verify compatibility with new browser versions
-- **Performance monitoring**: Check page load times
-- **Content updates**: Add new simulations, update existing ones
-- **Link checking**: Ensure all internal links work
-
-### Version Control
-
-- **Git workflow**: Feature branches for new simulations
-- **Commit messages**: Descriptive, reference issue numbers
-- **Tags**: Version tags for major releases
-
----
-
-## Contact & Resources
-
-- **Repository**: `https://github.com/qos-lkb/qos-lkb.github.io`
-- **Live Site**: `https://qos-lkb.github.io`
-- **Alternative Links**: See `link.txt` for additional resources
-
----
-
-**Last Updated**: 2026-01-01  
-**Maintained by**: Mr. B. Leung
-
+**Last updated**: 2026-04-18  
+**Maintainer**: Mr. Bryan Leung (see README)
