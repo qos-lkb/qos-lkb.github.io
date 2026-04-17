@@ -238,6 +238,32 @@ foreach ($topicsRows as $t) {
     $topicsBySubjectId[$sid][] = $t;
 }
 
+$subjectIds = array_map(static fn (array $s): int => (int) $s['id'], $subjects);
+$topicSubjectId = 0;
+if ($activeTab === 'topics') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $pfTs = (string) ($_POST['form'] ?? '');
+        if ($pfTs === 'topic') {
+            $topicSubjectId = (int) ($_POST['subject_id'] ?? 0);
+        } elseif ($pfTs === 'topic_row') {
+            $topicSubjectId = (int) ($_POST['subject_id'] ?? 0);
+            if ($topicSubjectId <= 0) {
+                $topicSubjectId = (int) ($_POST['panel_subject_id'] ?? 0);
+            }
+        } elseif ($pfTs === 'topics_reorder') {
+            $topicSubjectId = (int) ($_POST['subject_id'] ?? 0);
+        }
+    }
+    if ($topicSubjectId <= 0 || !in_array($topicSubjectId, $subjectIds, true)) {
+        $gSub = (int) ($_GET['subject'] ?? 0);
+        if ($gSub > 0 && in_array($gSub, $subjectIds, true)) {
+            $topicSubjectId = $gSub;
+        } elseif ($subjectIds !== []) {
+            $topicSubjectId = $subjectIds[0];
+        }
+    }
+}
+
 $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
 
 ?>
@@ -332,7 +358,7 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                         <select name="subject_id" class="w-full border rounded-lg px-3 py-2" required>
                             <option value="">選擇科目</option>
                             <?php foreach ($subjects as $s): ?>
-                                <option value="<?php echo (int) $s['id']; ?>"><?php echo htmlspecialchars($s['name_zh'] . ' / ' . $s['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                <option value="<?php echo (int) $s['id']; ?>"<?php echo $activeTab === 'topics' && $topicSubjectId === (int) $s['id'] ? ' selected' : ''; ?>><?php echo htmlspecialchars($s['name_zh'] . ' / ' . $s['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <input type="text" name="topic_name_zh" placeholder="單元中文名稱" class="w-full border rounded-lg px-3 py-2">
@@ -342,18 +368,40 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                 </section>
 
                 <section>
-                    <h2 class="font-semibold mb-3">單元列表（依科目分組；拖曳排序）</h2>
-                    <p class="text-slate-500 mb-3 text-xs">組內「⠿」拖曳排序。雙擊單元中文／英文名稱編輯，離開欄位後自動儲存；變更「科目」下拉後亦會立即儲存。</p>
-                    <?php if (empty($topicsRows)): ?>
-                        <p class="text-slate-500 bg-white border border-slate-200 rounded-xl p-6">尚無單元</p>
+                    <h2 class="font-semibold mb-3">單元列表（依科目分頁；拖曳排序）</h2>
+                    <p class="text-slate-500 mb-3 text-xs">上方選擇科目。組內「⠿」拖曳排序。雙擊單元中文／英文名稱編輯，離開欄位後自動儲存；變更「科目」下拉後亦會立即儲存。</p>
+                    <?php if ($subjects === []): ?>
+                        <p class="text-slate-500 bg-white border border-slate-200 rounded-xl p-6">請先在「科目」分頁新增科目。</p>
                     <?php else: ?>
-                    <div class="space-y-6">
+                    <nav class="flex gap-1 overflow-x-auto border-b border-slate-200 pb-px mb-3 -mx-1 px-1" aria-label="依科目檢視單元">
                         <?php foreach ($subjects as $s): ?>
+                            <?php
+                            $sidTab = (int) $s['id'];
+                            $isTopicSubjectTab = $sidTab === $topicSubjectId;
+                            ?>
+                        <a href="subjects.php?tab=topics&amp;subject=<?php echo $sidTab; ?>"
+                           class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium rounded-t-lg border border-b-0 -mb-px <?php echo $isTopicSubjectTab ? 'bg-white border-slate-200 text-indigo-700 z-[1]' : 'border-transparent text-slate-600 hover:text-slate-900'; ?>">
+                            <?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?>
+                        </a>
+                        <?php endforeach; ?>
+                    </nav>
+                        <?php
+                        $s = null;
+                        foreach ($subjects as $sub) {
+                            if ((int) $sub['id'] === $topicSubjectId) {
+                                $s = $sub;
+                                break;
+                            }
+                        }
+                        ?>
+                        <?php if ($s === null): ?>
+                            <p class="text-slate-500 bg-white border border-slate-200 rounded-xl p-6">找不到所選科目。</p>
+                        <?php else: ?>
                             <?php
                             $sid = (int) $s['id'];
                             $grp = $topicsBySubjectId[$sid] ?? [];
                             ?>
-                        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden rounded-tl-none">
                             <div class="bg-slate-50 px-3 py-2 text-slate-700 font-medium border-b border-slate-200">
                                 <?php echo htmlspecialchars((string) $s['name_zh'] . ' / ' . (string) $s['name_en'], ENT_QUOTES, 'UTF-8'); ?>
                             </div>
@@ -382,6 +430,7 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                                         <form method="post" class="shrink-0 flex items-center" onsubmit="return confirm('確定刪除此單元？');">
                                             <input type="hidden" name="csrf" value="<?php echo $csrf; ?>">
                                             <input type="hidden" name="form" value="topic_row">
+                                            <input type="hidden" name="panel_subject_id" value="<?php echo (int) $t['subject_id']; ?>">
                                             <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
                                             <button type="submit" name="action" value="delete" class="text-red-600 px-2.5 py-1 rounded hover:bg-red-50">刪除</button>
                                         </form>
@@ -391,8 +440,7 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                             </div>
                             <?php endif; ?>
                         </div>
-                        <?php endforeach; ?>
-                    </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </section>
             </div>
@@ -708,7 +756,7 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                 var newSid = j.subject_id != null ? String(j.subject_id) : '';
                 var curListSid = listEl ? (listEl.getAttribute('data-subject-id') || '') : '';
                 if (newSid !== '' && curListSid !== '' && newSid !== curListSid) {
-                    window.location.href = 'subjects.php?tab=topics';
+                    window.location.href = 'subjects.php?tab=topics&subject=' + encodeURIComponent(newSid);
                     return;
                 }
                 leaveViewOnly();
