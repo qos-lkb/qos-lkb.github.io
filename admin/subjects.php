@@ -11,6 +11,8 @@ require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/sub
 $pdo = db();
 $error = '';
 $ok = '';
+/** @var array<string, mixed> */
+$jsonExtra = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['csrf'] ?? null)) {
@@ -71,6 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $slug = substr(sim_slugify($en), 0, 128) ?: 'subject';
                         $pdo->prepare('UPDATE subjects SET slug = ?, name_zh = ?, name_en = ? WHERE id = ?')->execute([$slug, $zh !== '' ? $zh : $en, $en, $id]);
                         $ok = '已更新科目。';
+                        $jsonExtra = [
+                            'slug' => $slug,
+                            'name_zh' => $zh !== '' ? $zh : $en,
+                            'name_en' => $en,
+                        ];
                     }
                 } else {
                     $error = '無效的科目操作。';
@@ -132,6 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $slug = substr(sim_slugify($en), 0, 160) ?: 'topic';
                                 $pdo->prepare('UPDATE topics SET subject_id = ?, slug = ?, name_zh = ?, name_en = ? WHERE id = ?')->execute([$sid, $slug, $zh !== '' ? $zh : $en, $en, $id]);
                                 $ok = '已更新單元。';
+                                $jsonExtra = [
+                                    'slug' => $slug,
+                                    'name_zh' => $zh !== '' ? $zh : $en,
+                                    'name_en' => $en,
+                                    'subject_id' => $sid,
+                                ];
                             }
                         }
                     }
@@ -175,17 +188,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pfJson = (string) ($_POST['form'] ?? '');
-    if (in_array($pfJson, ['subjects_reorder', 'topics_reorder'], true)) {
-        $xhr = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
-        if ($xhr) {
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'ok' => $error === '',
-                'error' => $error,
-                'message' => $ok,
-            ], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
+    $actJson = (string) ($_POST['action'] ?? '');
+    $xhr = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+    $wantJson = $xhr && (
+        in_array($pfJson, ['subjects_reorder', 'topics_reorder'], true)
+        || (in_array($pfJson, ['subject_row', 'topic_row'], true) && $actJson === 'save')
+    );
+    if ($wantJson) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(array_merge([
+            'ok' => $error === '',
+            'error' => $error,
+            'message' => $ok,
+        ], $jsonExtra), JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }
 
@@ -273,22 +289,29 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                 </section>
 
                 <section>
-                    <h2 class="font-semibold mb-3">科目列表（拖曳控點排序；同一列儲存／刪除）</h2>
-                    <p class="text-slate-500 mb-3 text-xs">請由左側「⠿」拖曳整列以調整科目順序。</p>
+                    <h2 class="font-semibold mb-3">科目列表（拖曳排序；雙擊名稱編輯）</h2>
+                    <p class="text-slate-500 mb-3 text-xs">左側「⠿」拖曳排序。雙擊中文或英文名稱進入編輯，離開欄位後自動儲存。</p>
                     <div id="subject-sort-list" class="space-y-2" data-csrf="<?php echo $csrf; ?>">
                         <?php foreach ($subjects as $s): ?>
                         <div class="subject-sort-item bg-white border border-slate-200 rounded-lg px-2 py-1.5 shadow-sm flex flex-nowrap items-stretch gap-2 min-w-0" data-subject-id="<?php echo (int) $s['id']; ?>">
                             <button type="button" class="subject-drag-handle shrink-0 w-8 flex flex-col items-center justify-center rounded border border-dashed border-slate-300 text-slate-500 cursor-grab active:cursor-grabbing select-none text-xs leading-none" title="拖曳排序" aria-label="拖曳排序">⠿</button>
-                            <form method="post" class="flex flex-nowrap items-center gap-2 min-w-0 flex-1 overflow-x-auto">
-                                <input type="hidden" name="csrf" value="<?php echo $csrf; ?>">
-                                <input type="hidden" name="form" value="subject_row">
-                                <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
-                                <input type="text" name="name_zh" value="<?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="w-[7.5rem] shrink-0 border rounded px-2 py-1" placeholder="中文" title="中文">
-                                <input type="text" name="name_en" value="<?php echo htmlspecialchars((string) $s['name_en'], ENT_QUOTES, 'UTF-8'); ?>" required class="min-w-[6rem] flex-1 border rounded px-2 py-1" placeholder="英文" title="英文">
-                                <span class="shrink-0 text-slate-400 font-mono text-xs truncate max-w-[7rem]" title="<?php echo htmlspecialchars((string) $s['slug'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $s['slug'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                <button type="submit" name="action" value="save" class="shrink-0 bg-indigo-600 text-white px-2.5 py-1 rounded">儲存</button>
-                                <button type="submit" name="action" value="delete" class="shrink-0 text-red-600 px-2.5 py-1 rounded hover:bg-red-50" onclick="return confirm('確定刪除此科目？（須無下層單元與模擬）');">刪除</button>
-                            </form>
+                            <div class="flex flex-nowrap items-center gap-2 min-w-0 flex-1 overflow-x-auto">
+                                <div class="js-subject-inline flex flex-nowrap items-center gap-2 flex-1 min-w-0" data-endpoint="subjects.php">
+                                    <input type="hidden" class="js-csrf" value="<?php echo $csrf; ?>">
+                                    <input type="hidden" class="js-id" value="<?php echo (int) $s['id']; ?>">
+                                    <span class="js-subject-zh-view shrink-0 max-w-[7.5rem] truncate cursor-text border-b border-dotted border-slate-300 hover:border-slate-500 px-0.5" title="雙擊編輯"><?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <input type="text" name="name_zh" value="<?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="js-subject-zh-input hidden w-[7.5rem] shrink-0 border rounded px-2 py-1" placeholder="中文" autocomplete="off">
+                                    <span class="js-subject-en-view min-w-[4rem] flex-1 truncate cursor-text border-b border-dotted border-slate-300 hover:border-slate-500 px-0.5" title="雙擊編輯"><?php echo htmlspecialchars((string) $s['name_en'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <input type="text" name="name_en" value="<?php echo htmlspecialchars((string) $s['name_en'], ENT_QUOTES, 'UTF-8'); ?>" class="js-subject-en-input hidden min-w-[6rem] flex-1 border rounded px-2 py-1" placeholder="英文（必填）" autocomplete="off">
+                                    <span class="js-subject-slug shrink-0 text-slate-400 font-mono text-xs truncate max-w-[7rem]" title="<?php echo htmlspecialchars((string) $s['slug'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $s['slug'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                </div>
+                                <form method="post" class="shrink-0 flex items-center" onsubmit="return confirm('確定刪除此科目？（須無下層單元與模擬）');">
+                                    <input type="hidden" name="csrf" value="<?php echo $csrf; ?>">
+                                    <input type="hidden" name="form" value="subject_row">
+                                    <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
+                                    <button type="submit" name="action" value="delete" class="text-red-600 px-2.5 py-1 rounded hover:bg-red-50">刪除</button>
+                                </form>
+                            </div>
                         </div>
                         <?php endforeach; ?>
                         <?php if (empty($subjects)): ?>
@@ -319,8 +342,8 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                 </section>
 
                 <section>
-                    <h2 class="font-semibold mb-3">單元列表（依科目分組；組內拖曳排序）</h2>
-                    <p class="text-slate-500 mb-3 text-xs">同一科目下的單元請以左側「⠿」拖曳調整順序；儲存與刪除在同一列。</p>
+                    <h2 class="font-semibold mb-3">單元列表（依科目分組；拖曳排序）</h2>
+                    <p class="text-slate-500 mb-3 text-xs">組內「⠿」拖曳排序。雙擊單元中文／英文名稱編輯，離開欄位後自動儲存；變更「科目」下拉後亦會立即儲存。</p>
                     <?php if (empty($topicsRows)): ?>
                         <p class="text-slate-500 bg-white border border-slate-200 rounded-xl p-6">尚無單元</p>
                     <?php else: ?>
@@ -341,21 +364,28 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                                 <?php foreach ($grp as $t): ?>
                                 <div class="topic-sort-item flex flex-nowrap items-stretch gap-2 px-2 py-1.5 min-w-0" data-topic-id="<?php echo (int) $t['id']; ?>">
                                     <button type="button" class="topic-drag-handle shrink-0 w-8 flex flex-col items-center justify-center rounded border border-dashed border-slate-300 text-slate-500 cursor-grab active:cursor-grabbing select-none text-xs leading-none" title="拖曳排序" aria-label="拖曳排序">⠿</button>
-                                    <form method="post" class="flex flex-nowrap items-center gap-2 min-w-0 flex-1 overflow-x-auto">
-                                        <input type="hidden" name="csrf" value="<?php echo $csrf; ?>">
-                                        <input type="hidden" name="form" value="topic_row">
-                                        <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
-                                        <select name="subject_id" class="shrink-0 min-w-[8.5rem] max-w-[11rem] border rounded px-1.5 py-1" title="所屬科目">
-                                            <?php foreach ($subjects as $sub): ?>
-                                                <option value="<?php echo (int) $sub['id']; ?>"<?php echo (int) $t['subject_id'] === (int) $sub['id'] ? ' selected' : ''; ?>><?php echo htmlspecialchars($sub['name_zh'] . ' / ' . $sub['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <input type="text" name="topic_name_zh" value="<?php echo htmlspecialchars((string) $t['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="w-[6.5rem] shrink-0 border rounded px-2 py-1" placeholder="中文">
-                                        <input type="text" name="topic_name_en" value="<?php echo htmlspecialchars((string) $t['name_en'], ENT_QUOTES, 'UTF-8'); ?>" required class="min-w-[5rem] flex-1 border rounded px-2 py-1" placeholder="英文">
-                                        <span class="shrink-0 text-slate-400 font-mono text-xs truncate max-w-[6rem]" title="<?php echo htmlspecialchars((string) $t['slug'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $t['slug'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                        <button type="submit" name="action" value="save" class="shrink-0 bg-indigo-600 text-white px-2.5 py-1 rounded">儲存</button>
-                                        <button type="submit" name="action" value="delete" class="shrink-0 text-red-600 px-2.5 py-1 rounded hover:bg-red-50" onclick="return confirm('確定刪除此單元？');">刪除</button>
-                                    </form>
+                                    <div class="flex flex-nowrap items-center gap-2 min-w-0 flex-1 overflow-x-auto">
+                                        <div class="js-topic-inline flex flex-nowrap items-center gap-2 flex-1 min-w-0" data-endpoint="subjects.php">
+                                            <input type="hidden" class="js-csrf" value="<?php echo $csrf; ?>">
+                                            <input type="hidden" class="js-id" value="<?php echo (int) $t['id']; ?>">
+                                            <select name="subject_id" class="js-topic-subject shrink-0 min-w-[8.5rem] max-w-[11rem] border rounded px-1.5 py-1" title="所屬科目">
+                                                <?php foreach ($subjects as $sub): ?>
+                                                    <option value="<?php echo (int) $sub['id']; ?>"<?php echo (int) $t['subject_id'] === (int) $sub['id'] ? ' selected' : ''; ?>><?php echo htmlspecialchars($sub['name_zh'] . ' / ' . $sub['name_en'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <span class="js-topic-zh-view w-[6.5rem] shrink-0 truncate cursor-text border-b border-dotted border-slate-300 hover:border-slate-500 px-0.5" title="雙擊編輯"><?php echo htmlspecialchars((string) $t['name_zh'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <input type="text" name="topic_name_zh" value="<?php echo htmlspecialchars((string) $t['name_zh'], ENT_QUOTES, 'UTF-8'); ?>" class="js-topic-zh-input hidden w-[6.5rem] shrink-0 border rounded px-2 py-1" placeholder="中文" autocomplete="off">
+                                            <span class="js-topic-en-view min-w-[4rem] flex-1 truncate cursor-text border-b border-dotted border-slate-300 hover:border-slate-500 px-0.5" title="雙擊編輯"><?php echo htmlspecialchars((string) $t['name_en'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <input type="text" name="topic_name_en" value="<?php echo htmlspecialchars((string) $t['name_en'], ENT_QUOTES, 'UTF-8'); ?>" class="js-topic-en-input hidden min-w-[5rem] flex-1 border rounded px-2 py-1" placeholder="英文（必填）" autocomplete="off">
+                                            <span class="js-topic-slug shrink-0 text-slate-400 font-mono text-xs truncate max-w-[6rem]" title="<?php echo htmlspecialchars((string) $t['slug'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $t['slug'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                        </div>
+                                        <form method="post" class="shrink-0 flex items-center" onsubmit="return confirm('確定刪除此單元？');">
+                                            <input type="hidden" name="csrf" value="<?php echo $csrf; ?>">
+                                            <input type="hidden" name="form" value="topic_row">
+                                            <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
+                                            <button type="submit" name="action" value="delete" class="text-red-600 px-2.5 py-1 rounded hover:bg-red-50">刪除</button>
+                                        </form>
+                                    </div>
                                 </div>
                                 <?php endforeach; ?>
                             </div>
@@ -484,6 +514,280 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
             });
         }
 
+        function postRowSave(url, body) {
+            return fetch(url || 'subjects.php', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: body,
+                credentials: 'same-origin'
+            }).then(function (res) { return res.json(); });
+        }
+
+        function setVisible(el, on) {
+            if (!el) return;
+            if (on) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+
+        function wireSubjectInline(root) {
+            var zhV = root.querySelector('.js-subject-zh-view');
+            var zhI = root.querySelector('.js-subject-zh-input');
+            var enV = root.querySelector('.js-subject-en-view');
+            var enI = root.querySelector('.js-subject-en-input');
+            var slugEl = root.querySelector('.js-subject-slug');
+            if (!zhV || !zhI || !enV || !enI) return;
+
+            function enterEdit() {
+                if (root.dataset.editing === '1') return;
+                root.dataset.editing = '1';
+                zhI.value = zhV.textContent || '';
+                enI.value = enV.textContent || '';
+                root.dataset.origZh = zhI.value;
+                root.dataset.origEn = enI.value;
+                setVisible(zhV, false);
+                setVisible(zhI, true);
+                setVisible(enV, false);
+                setVisible(enI, true);
+                window.requestAnimationFrame(function () {
+                    zhI.focus();
+                    zhI.select();
+                });
+            }
+
+            function leaveViewOnly() {
+                setVisible(zhV, true);
+                setVisible(zhI, false);
+                setVisible(enV, true);
+                setVisible(enI, false);
+                delete root.dataset.editing;
+            }
+
+            function applyPayload(j) {
+                if (j.name_zh != null) zhV.textContent = String(j.name_zh);
+                if (j.name_en != null) enV.textContent = String(j.name_en);
+                if (j.slug != null) {
+                    slugEl.textContent = String(j.slug);
+                    slugEl.setAttribute('title', String(j.slug));
+                }
+                zhI.value = zhV.textContent || '';
+                enI.value = enV.textContent || '';
+            }
+
+            function saveInline() {
+                if (root.dataset.editing !== '1') return;
+                var csrf = (root.querySelector('.js-csrf') || {}).value || '';
+                var id = (root.querySelector('.js-id') || {}).value || '';
+                var zh = String(zhI.value || '').trim();
+                var en = String(enI.value || '').trim();
+                if (en === '') {
+                    window.alert('英文名稱為必填。');
+                    enI.focus();
+                    return;
+                }
+                if (zh === root.dataset.origZh && en === root.dataset.origEn) {
+                    leaveViewOnly();
+                    return;
+                }
+                var body = new URLSearchParams();
+                body.set('csrf', csrf);
+                body.set('form', 'subject_row');
+                body.set('action', 'save');
+                body.set('id', id);
+                body.set('name_zh', zh);
+                body.set('name_en', en);
+                var ep = root.getAttribute('data-endpoint') || 'subjects.php';
+                postRowSave(ep, body).then(function (j) {
+                    if (!j.ok) {
+                        window.alert(j.error || '儲存失敗');
+                        return;
+                    }
+                    applyPayload(j);
+                    leaveViewOnly();
+                }).catch(function () {
+                    window.alert('儲存請求失敗');
+                });
+            }
+
+            [zhV, enV].forEach(function (el) {
+                el.addEventListener('dblclick', function (e) {
+                    e.preventDefault();
+                    enterEdit();
+                });
+            });
+
+            [zhI, enI].forEach(function (inp) {
+                inp.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        inp.blur();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        zhI.value = root.dataset.origZh || '';
+                        enI.value = root.dataset.origEn || '';
+                        leaveViewOnly();
+                    }
+                });
+            });
+
+            root.addEventListener('focusout', function (e) {
+                if (root.dataset.editing !== '1') return;
+                var rt = e.relatedTarget;
+                window.setTimeout(function () {
+                    if (root.dataset.editing !== '1') return;
+                    if (rt && root.contains(rt)) return;
+                    if (root.contains(document.activeElement)) return;
+                    saveInline();
+                }, 0);
+            });
+        }
+
+        function wireTopicInline(root) {
+            var listEl = root.closest('.topic-sort-list');
+            var zhV = root.querySelector('.js-topic-zh-view');
+            var zhI = root.querySelector('.js-topic-zh-input');
+            var enV = root.querySelector('.js-topic-en-view');
+            var enI = root.querySelector('.js-topic-en-input');
+            var slugEl = root.querySelector('.js-topic-slug');
+            var sel = root.querySelector('.js-topic-subject');
+            if (!zhV || !zhI || !enV || !enI || !sel) return;
+
+            function readZhEn() {
+                if (root.dataset.editing === '1') {
+                    return { zh: String(zhI.value || '').trim(), en: String(enI.value || '').trim() };
+                }
+                return { zh: String(zhV.textContent || '').trim(), en: String(enV.textContent || '').trim() };
+            }
+
+            function enterEdit() {
+                if (root.dataset.editing === '1') return;
+                root.dataset.editing = '1';
+                zhI.value = zhV.textContent || '';
+                enI.value = enV.textContent || '';
+                root.dataset.origZh = zhI.value;
+                root.dataset.origEn = enI.value;
+                setVisible(zhV, false);
+                setVisible(zhI, true);
+                setVisible(enV, false);
+                setVisible(enI, true);
+                window.requestAnimationFrame(function () {
+                    zhI.focus();
+                    zhI.select();
+                });
+            }
+
+            function leaveViewOnly() {
+                setVisible(zhV, true);
+                setVisible(zhI, false);
+                setVisible(enV, true);
+                setVisible(enI, false);
+                delete root.dataset.editing;
+            }
+
+            function applyPayload(j) {
+                if (j.name_zh != null) zhV.textContent = String(j.name_zh);
+                if (j.name_en != null) enV.textContent = String(j.name_en);
+                if (j.slug != null) {
+                    slugEl.textContent = String(j.slug);
+                    slugEl.setAttribute('title', String(j.slug));
+                }
+                zhI.value = zhV.textContent || '';
+                enI.value = enV.textContent || '';
+                if (j.subject_id != null) {
+                    sel.value = String(j.subject_id);
+                }
+            }
+
+            function postSaveThenMaybeReload(j) {
+                if (!j.ok) {
+                    window.alert(j.error || '儲存失敗');
+                    sel.value = String(root.dataset.origSubjectId || '');
+                    return;
+                }
+                applyPayload(j);
+                root.dataset.origSubjectId = String((j.subject_id != null ? j.subject_id : sel.value) || '');
+                var newSid = j.subject_id != null ? String(j.subject_id) : '';
+                var curListSid = listEl ? (listEl.getAttribute('data-subject-id') || '') : '';
+                if (newSid !== '' && curListSid !== '' && newSid !== curListSid) {
+                    window.location.href = 'subjects.php?tab=topics';
+                    return;
+                }
+                leaveViewOnly();
+            }
+
+            function saveFromInputs() {
+                var csrf = (root.querySelector('.js-csrf') || {}).value || '';
+                var id = (root.querySelector('.js-id') || {}).value || '';
+                var sid = String(sel.value || '');
+                var pair = readZhEn();
+                var origSid = String(root.dataset.origSubjectId || '');
+                if (pair.en === '') {
+                    window.alert('單元英文名稱為必填。');
+                    if (root.dataset.editing === '1') enI.focus();
+                    return;
+                }
+                if (root.dataset.editing === '1' && pair.zh === root.dataset.origZh && pair.en === root.dataset.origEn && sid === origSid) {
+                    leaveViewOnly();
+                    return;
+                }
+                var body = new URLSearchParams();
+                body.set('csrf', csrf);
+                body.set('form', 'topic_row');
+                body.set('action', 'save');
+                body.set('id', id);
+                body.set('subject_id', sid);
+                body.set('topic_name_zh', pair.zh);
+                body.set('topic_name_en', pair.en);
+                var ep = root.getAttribute('data-endpoint') || 'subjects.php';
+                postRowSave(ep, body).then(postSaveThenMaybeReload).catch(function () {
+                    window.alert('儲存請求失敗');
+                });
+            }
+
+            root.dataset.origSubjectId = String(sel.value || '');
+
+            sel.addEventListener('change', function () {
+                saveFromInputs();
+            });
+
+            [zhV, enV].forEach(function (el) {
+                el.addEventListener('dblclick', function (e) {
+                    e.preventDefault();
+                    enterEdit();
+                });
+            });
+
+            [zhI, enI].forEach(function (inp) {
+                inp.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        inp.blur();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        zhI.value = root.dataset.origZh || '';
+                        enI.value = root.dataset.origEn || '';
+                        leaveViewOnly();
+                    }
+                });
+            });
+
+            root.addEventListener('focusout', function (e) {
+                if (root.dataset.editing !== '1') return;
+                var rt = e.relatedTarget;
+                window.setTimeout(function () {
+                    if (root.dataset.editing !== '1') return;
+                    if (rt && root.contains(rt)) return;
+                    if (root.contains(document.activeElement)) return;
+                    var sid = String(sel.value || '');
+                    var pair = readZhEn();
+                    if (pair.zh === root.dataset.origZh && pair.en === root.dataset.origEn && sid === String(root.dataset.origSubjectId || '')) {
+                        leaveViewOnly();
+                        return;
+                    }
+                    saveFromInputs();
+                }, 0);
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             document.addEventListener('mouseup', function () {
                 Array.prototype.forEach.call(document.querySelectorAll('.subject-sort-item,.topic-sort-item'), function (el) {
@@ -498,6 +802,8 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
             Array.prototype.forEach.call(document.querySelectorAll('.topic-sort-list'), function (el) {
                 wireVerticalSort(el, '.topic-sort-item', '.topic-drag-handle', persistTopics);
             });
+            Array.prototype.forEach.call(document.querySelectorAll('.js-subject-inline'), wireSubjectInline);
+            Array.prototype.forEach.call(document.querySelectorAll('.js-topic-inline'), wireTopicInline);
         });
     })();
     </script>
