@@ -1,5 +1,5 @@
 <?php
-// 啟動輸出緩衝，用於生成靜態 index.html
+// 輸出緩衝（可選：WRITE_INDEX_HTML_SNAPSHOT=1 時寫出靜態 index.html）
 ob_start();
 
 require_once __DIR__ . '/includes/bootstrap.php';
@@ -913,11 +913,14 @@ $navUser = current_user();
 </body>
 </html>
 <?php
-// 獲取輸出緩衝內容並寫入 index.html
 $htmlContent = ob_get_contents();
-ob_end_flush(); // 輸出內容給瀏覽器
+ob_end_flush();
 
-// 將內容寫入 index.html 靜態文件
+// 預設不寫入 index.html：避免每次載入首頁都產生巨大快照、造成 Git 無謂差異與合併困擾。
+// 需要離線／靜態快照時，於 .env 設定 WRITE_INDEX_HTML_SNAPSHOT=1。
 $indexHtmlPath = __DIR__ . '/index.html';
-file_put_contents($indexHtmlPath, $htmlContent);
+$snap = trim((string) (getenv('WRITE_INDEX_HTML_SNAPSHOT') ?: ($_ENV['WRITE_INDEX_HTML_SNAPSHOT'] ?? '')));
+if ($snap === '1' || strcasecmp($snap, 'true') === 0) {
+    file_put_contents($indexHtmlPath, $htmlContent);
+}
 ?>
