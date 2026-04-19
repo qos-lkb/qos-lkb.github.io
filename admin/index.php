@@ -31,10 +31,14 @@ if (!$u && !$s) {
     <header class="bg-slate-900 text-white shadow">
         <div class="max-w-3xl mx-auto px-4 py-6">
             <h1 class="text-xl font-bold">管理後台</h1>
-            <p class="text-slate-400 text-sm mt-1"><a href="../index.php" class="underline hover:text-white">首頁</a> · <a href="../portal/simulations.php" class="underline hover:text-white">我的模擬</a> · <a href="../logout.php" class="underline hover:text-white">登出</a></p>
+            <p class="text-slate-400 text-sm mt-1"><a href="../index.php" class="underline hover:text-white">首頁</a> · <a href="../codespace/index.html" class="underline hover:text-white" target="_blank" rel="noopener">Code Space</a> · <a href="../portal/simulations.php" class="underline hover:text-white">我的模擬</a> · <a href="../logout.php" class="underline hover:text-white">登出</a></p>
         </div>
     </header>
     <main class="max-w-3xl mx-auto px-4 py-8 space-y-3">
+        <a href="../codespace/index.html" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-sky-300 transition" target="_blank" rel="noopener">
+            <span class="font-medium text-slate-900">Code Space</span>
+            <span class="block text-sm text-slate-500 mt-1">HTML 即時編輯與預覽（codespace/index.html），於新分頁開啟。</span>
+        </a>
         <?php if ($u): ?>
             <a href="users.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">使用者與角色</a>
             <a href="subjects.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">科目與單元</a>
