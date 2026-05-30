@@ -6,6 +6,8 @@ require_once dirname(__DIR__, 3) . '/includes/api_response.php';
 require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_save.php';
 
+require_once dirname(__DIR__, 3) . '/includes/web_base.php';
+
 function api_handle_simulation_get(PDO $pdo, string $slug): void
 {
     $sim = sim_get_by_slug($pdo, $slug);
@@ -26,7 +28,7 @@ function api_handle_simulation_get(PDO $pdo, string $slug): void
         'subject_id' => $sim['subject_id'] !== null ? (int) $sim['subject_id'] : null,
         'topic_id' => $sim['topic_id'] !== null ? (int) $sim['topic_id'] : null,
         'status' => $sim['status'],
-        'html_url' => '/api/v1/simulations/' . rawurlencode($slug) . '/html',
+        'html_url' => web_base_path() . '/simulation_view.php?slug=' . rawurlencode($slug),
         'tags' => sim_get_tag_slugs($pdo, (int) $sim['id']),
     ]);
 }
@@ -56,7 +58,19 @@ function api_handle_simulation_html(PDO $pdo, string $slug): void
         "style-src * 'unsafe-inline'; " .
         'img-src * data: blob:; font-src * data:; connect-src *; frame-ancestors \'self\';'
     );
-    echo $sim['html'];
+
+    $html = (string) $sim['html'];
+    $baseHref = web_base_path();
+    if ($baseHref !== '') {
+        $baseTag = '<base href="' . htmlspecialchars($baseHref . '/', ENT_QUOTES, 'UTF-8') . '">';
+        if (stripos($html, '<head>') !== false) {
+            $html = preg_replace('/<head>/i', '<head>' . $baseTag, $html, 1) ?? ($baseTag . $html);
+        } else {
+            $html = $baseTag . $html;
+        }
+    }
+
+    echo $html;
     exit;
 }
 

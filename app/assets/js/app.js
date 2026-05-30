@@ -51,6 +51,7 @@
 
     async function boot() {
         await AppAuth.initAuth();
+        if (window.SimModal) SimModal.init();
 
         AppRouter.init({
             '/': showSimulationsHome,
@@ -90,7 +91,10 @@
 
         document.getElementById('btn-lang')?.addEventListener('click', () => AppRouter.toggleLang());
 
-        document.getElementById('sim-modal-close')?.addEventListener('click', () => AppCatalog.closeModal());
+        document.getElementById('sim-modal-close')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            AppCatalog.closeModal();
+        });
         document.getElementById('sim-modal')?.addEventListener('click', (e) => {
             if (e.target.id === 'sim-modal') AppCatalog.closeModal();
         });

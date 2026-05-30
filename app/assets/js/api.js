@@ -2,7 +2,23 @@
     'use strict';
 
     const meta = document.querySelector('meta[name="api-base"]');
-    const API_BASE = (meta && meta.content) ? meta.content.replace(/\/$/, '') : '../api/v1';
+
+    function detectSiteBase() {
+        if (typeof window.__SITE_BASE__ === 'string') {
+            return window.__SITE_BASE__;
+        }
+        const path = location.pathname || '/';
+        const idx = path.indexOf('/app');
+        if (idx >= 0) {
+            return path.slice(0, idx);
+        }
+        return '';
+    }
+
+    const SITE_BASE = detectSiteBase();
+    const API_BASE = (meta && meta.content && !meta.content.startsWith('.'))
+        ? meta.content.replace(/\/$/, '')
+        : (SITE_BASE + '/api/v1');
 
     let csrfToken = '';
     let currentUser = null;
@@ -68,6 +84,7 @@
     }
 
     global.ScienceApi = {
+        SITE_BASE,
         API_BASE,
         apiFetch,
         loadSession,

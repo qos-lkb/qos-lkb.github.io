@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/simulations_lib.php';
+require_once __DIR__ . '/includes/web_base.php';
 
 bootstrap_public();
 
@@ -55,4 +56,15 @@ header(
     'img-src * data: blob:; font-src * data:; connect-src *; frame-ancestors \'self\';'
 );
 
-echo $sim['html'];
+$html = (string) $sim['html'];
+$baseHref = web_base_path();
+if ($baseHref !== '') {
+    $baseTag = '<base href="' . htmlspecialchars($baseHref . '/', ENT_QUOTES, 'UTF-8') . '">';
+    if (stripos($html, '<head>') !== false) {
+        $html = preg_replace('/<head>/i', '<head>' . $baseTag, $html, 1) ?? ($baseTag . $html);
+    } else {
+        $html = $baseTag . $html;
+    }
+}
+
+echo $html;

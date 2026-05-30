@@ -10,20 +10,24 @@
     let learningTools = [];
     let articles = [];
 
-    function resolveApiUrl(path) {
+    let siteBase = '';
+
+    function resolveAssetUrl(path) {
         if (!path) return path;
-        if (path.startsWith('http') || path.startsWith('/')) return path;
-        return path;
+        if (/^https?:\/\//i.test(path) || path.startsWith('//')) return path;
+        if (path.startsWith('/')) return path;
+        const base = siteBase || (global.ScienceApi && ScienceApi.SITE_BASE) || '';
+        return (base ? base.replace(/\/$/, '') : '') + '/' + path.replace(/^\.\//, '');
     }
 
     function cardHtmlFromItem(item) {
         const lang = getLang();
         const titleZh = titleMap[item.title] ? titleMap[item.title].zh : item.title;
         const titleEn = titleMap[item.title] ? titleMap[item.title].en : item.title;
-        const screenshot = item.screenshot || '';
+        const screenshot = resolveAssetUrl(item.screenshot || '');
         const lastUpdated = item.last_updated || '';
-        const exportUrl = item.export_url || item.url;
-        const url = resolveApiUrl(item.url);
+        const exportUrl = resolveAssetUrl(item.export_url || item.url);
+        const url = item.url || '';
         const unitZh = item.topic_label_zh || '';
         const unitEn = item.topic_label_en || '';
         return `
@@ -154,15 +158,17 @@
         const modal = document.getElementById('sim-modal');
         const iframe = document.getElementById('sim-modal-iframe');
         if (!modal || !iframe) return;
-        const base = location.pathname.split('/app')[0] || '';
-        iframe.src = url.startsWith('/api') ? base + url : url;
+        const resolved = resolveAssetUrl(url);
+        iframe.src = resolved;
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
+        if (global.SimModal) SimModal.onOpen(resolved);
     }
 
     function closeModal() {
         const modal = document.getElementById('sim-modal');
         const iframe = document.getElementById('sim-modal-iframe');
+        if (global.SimModal) SimModal.onClose();
         if (modal) modal.classList.remove('active');
         if (iframe) iframe.src = '';
         document.body.style.overflow = '';
@@ -170,6 +176,9 @@
 
     async function loadCatalog() {
         const data = await apiFetch('/catalog');
+        if (data.site_base !== undefined) {
+            siteBase = data.site_base || '';
+        }
         const sim = data.simulations || {};
         subjectData = sim.subjects || {};
         categoryMap = sim.categoryMap || {};

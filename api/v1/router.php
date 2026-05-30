@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/includes/db.php';
+require_once dirname(__DIR__, 2) . '/includes/web_base.php';
 require_once dirname(__DIR__, 2) . '/includes/api_response.php';
 require_once dirname(__DIR__, 2) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 2) . '/includes/simulations_lib.php';
@@ -120,7 +121,7 @@ function api_v1_dispatch(): void
 
 function api_catalog_base(): string
 {
-    return '/api/v1';
+    return web_base_path() . '/api/v1';
 }
 
 function api_handle_catalog(PDO $pdo): void
@@ -139,6 +140,7 @@ function api_handle_catalog(PDO $pdo): void
             return $out;
         }, $artRows),
         'user' => api_user_payload(),
+        'site_base' => web_base_path(),
     ]);
 }
 
@@ -148,15 +150,21 @@ function api_handle_catalog(PDO $pdo): void
 function sim_build_index_structures_for_api(array $rows): array
 {
     $struct = sim_build_index_structures($rows);
-    $base = api_catalog_base();
+    $webBase = web_base_path();
 
     foreach ($struct['subjects'] as &$subject) {
         foreach ($subject['topics'] as &$topic) {
             foreach ($topic['items'] as &$item) {
                 $slug = $item['slug'];
-                $item['url'] = $base . '/simulations/' . rawurlencode($slug) . '/html';
-                $item['view_url'] = $base . '/simulations/' . rawurlencode($slug);
-                $item['export_url'] = 'simulation_export.php?slug=' . rawurlencode($slug);
+                $viewUrl = ($webBase !== '' ? $webBase : '') . '/simulation_view.php?slug=' . rawurlencode($slug);
+                $item['url'] = $viewUrl;
+                $item['view_url'] = $viewUrl;
+                $item['export_url'] = ($webBase !== '' ? $webBase : '') . '/simulation_export.php?slug=' . rawurlencode($slug);
+
+                $shot = (string) ($item['screenshot'] ?? '');
+                if ($shot !== '') {
+                    $item['screenshot'] = web_resolve_path($shot);
+                }
             }
             unset($item);
         }
