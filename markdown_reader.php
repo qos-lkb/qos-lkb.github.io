@@ -4,6 +4,22 @@
  * 讀取並顯示 Markdown 文件
  */
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/includes/bootstrap.php';
+
+bootstrap_public();
+
+$allowedPublicMd = ['README.md', 'data_dictionary.md', 'architecture.md', 'rule.md'];
+$requestedFile = basename((string) ($_GET['file'] ?? 'data_dictionary.md'));
+if (!in_array($requestedFile, $allowedPublicMd, true)) {
+    require_login('login.php?next=' . rawurlencode('markdown_reader.php?file=' . rawurlencode($requestedFile)));
+    if (!user_has_permission('user.manage')) {
+        http_response_code(403);
+        exit('沒有權限');
+    }
+}
+
 // 掃描當前目錄下的所有 .md 文件
 function getMarkdownFiles($dir) {
     $files = [];

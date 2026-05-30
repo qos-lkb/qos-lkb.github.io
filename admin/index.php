@@ -31,7 +31,7 @@ if (!$u && !$s) {
     <header class="bg-slate-900 text-white shadow">
         <div class="max-w-3xl mx-auto px-4 py-6">
             <h1 class="text-xl font-bold">管理後台</h1>
-            <p class="text-slate-400 text-sm mt-1"><a href="../index.php" class="underline hover:text-white">首頁</a> · <a href="../codespace/index.html" class="underline hover:text-white" target="_blank" rel="noopener">Code Space</a> · <a href="../portal/simulations.php" class="underline hover:text-white">我的模擬</a> · <a href="../logout.php" class="underline hover:text-white">登出</a></p>
+            <p class="text-slate-400 text-sm mt-1"><a href="../app/" class="underline hover:text-white">首頁</a> · <a href="../codespace/index.html" class="underline hover:text-white" target="_blank" rel="noopener">Code Space</a> · <a href="../portal/simulations.php" class="underline hover:text-white">我的模擬</a> · <a href="../logout.php" class="underline hover:text-white">登出</a></p>
         </div>
     </header>
     <main class="max-w-3xl mx-auto px-4 py-8 space-y-3">
@@ -46,6 +46,9 @@ if (!$u && !$s) {
         <?php endif; ?>
         <?php if ($s): ?>
             <a href="simulations.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">全部模擬</a>
+            <a href="learning_tools.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">互動學習工具</a>
+            <a href="articles.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">科學文章</a>
+            <a href="review_queue.php" class="block bg-white border border-amber-200 rounded-xl p-4 shadow-sm hover:border-amber-300 transition">審核佇列</a>
         <?php endif; ?>
     </main>
 </body>

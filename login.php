@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes/bootstrap.php';
 bootstrap_public();
 
 if (current_user() !== null) {
-    header('Location: index.php');
+    header('Location: app/');
     exit;
 }
 
@@ -21,9 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!attempt_login($email, $pass)) {
             $error = '登入失敗，請檢查電郵與密碼。';
         } else {
-            $next = $_GET['next'] ?? 'index.php';
+            $next = $_GET['next'] ?? 'app/';
             if (!is_string($next) || str_contains($next, '://') || str_starts_with($next, '//')) {
-                $next = 'index.php';
+                $next = 'app/';
             }
             header('Location: ' . $next);
             exit;
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">登入</button>
         </form>
-        <p class="mt-4 text-sm text-slate-500"><a href="index.php" class="text-indigo-600 underline">返回首頁</a></p>
+        <p class="mt-4 text-sm text-slate-500"><a href="app/" class="text-indigo-600 underline">返回首頁</a></p>
     </div>
 </body>
 </html>

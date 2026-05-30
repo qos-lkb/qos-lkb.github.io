@@ -47,6 +47,7 @@ if (!$allowed) {
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
+header('X-Deprecated-Endpoint: simulation_view.php — prefer /api/v1/simulations/{slug}/html via app/');
 header(
     'Content-Security-Policy: default-src * data: blob:; ' .
     "script-src * 'unsafe-inline' 'unsafe-eval'; " .

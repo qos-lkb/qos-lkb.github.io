@@ -8,9 +8,11 @@ The same codebase may be deployed as:
 
 | Mode | Entry | Purpose |
 |------|--------|---------|
-| **Dynamic (LAMPP / PHP)** | `index.php` | Main catalogue: data from **MariaDB**, session-aware UI, modal viewer |
-| **Optional redirect** | `index.html` | If `.env` sets `DEFAULT_REDIRECT_URL`, sync XHR to `default_redirect_url.php` then `location.replace` (PHP host only) |
-| **Static hosting** | Individual HTML under `physics/`, `chem/`, … | GitHub Pages–style: open files directly; **no DB** |
+| **SPA frontend (recommended)** | `app/` | Vanilla JS catalogue, learning tools, articles; loads data via REST API |
+| **Legacy redirect** | `index.php` | 302 → `app/` |
+| **REST API** | `api/v1/` | JSON endpoints for catalogue, auth, CRUD, review |
+| **Optional redirect** | `index.html` | If `.env` sets validated `DEFAULT_REDIRECT_URL`, sync XHR then `location.replace` |
+| **Static hosting** | Individual HTML under `physics/`, `chem/`, … | GitHub Pages–style; **no DB** |
 
 **Related repositories (typical setup)**
 
@@ -44,34 +46,69 @@ The same codebase may be deployed as:
 - **`db.php`** — PDO connection.
 - **`auth.php`**, **`bootstrap.php`** — Sessions, `bootstrap_public()`.
 - **`simulations_lib.php`**, **`simulation_save.php`**, **`simulation_form_fragment.php`** — Index structure, CRUD helpers.
-- **`user_admin.php`** — Permissions (`user.manage`, `simulation.manage_any`, …).
+- **`learning_tools_lib.php`**, **`articles_lib.php`** — Quiz sets and science articles.
+- **`api_response.php`**, **`api_auth.php`**, **`api_rate_limit.php`** — REST JSON helpers.
+- **`user_admin.php`** — Permissions (`user.manage`, `simulation.manage_any`, `learning_tool.manage_*`, `article.manage_*`, …).
+
+---
+
+## REST API (`api/v1/`)
+
+Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SIM_SESSID`); mutating requests require `X-CSRF-Token`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/catalog` | Public | Simulations tree + published learning tools & articles |
+| GET | `/simulations/{slug}` | Public/owner | Simulation metadata |
+| GET | `/simulations/{slug}/html` | Public/owner | HTML for iframe |
+| GET/POST | `/auth/*` | Varies | Login, logout (POST+CSRF), me |
+| GET/POST/DELETE | `/admin/simulations` | RBAC | Simulation list/save/delete |
+| GET/POST/DELETE | `/admin/learning-tools` | RBAC | Learning tool CRUD |
+| GET/POST/DELETE | `/admin/articles` | RBAC | Article CRUD |
+| GET | `/review-queue` | Admin | Pending review items |
+| POST | `/review/.../publish\|reject` | Admin | Approve or reject content |
+
+Apply schema: [`migrations/001_api_learning_content.sql`](migrations/001_api_learning_content.sql).
+
+---
+
+## Frontend SPA (`app/`)
+
+- **Vanilla JS** modules: `api.js`, `router.js`, `catalog.js`, `quiz.js`, `article.js`, `auth.js`.
+- Three main sections: **模擬實驗**, **互動學習工具** (四選一 MCQ), **科學文章** (Markdown + comprehension).
+- Simulations open in **sandboxed iframe** via `/api/v1/simulations/{slug}/html`.
 
 ---
 
 ## Data & admin (current model)
 
-- **Catalogue data** for `index.php` comes from the **database** (`sim_fetch_published_for_index` and related tables), **not** from `index.csv` (legacy CSV flow has been superseded; `index_csv_editor.php` is deprecated).
-- **`admin/`** — Protected UI: users/roles, subjects & units (`subjects.php`), simulations list/edit, DB export (permission-gated).
-- **`portal/`** — Contributor-facing flows (e.g. “my simulations”) where applicable.
-- **`.env`** — DB credentials, optional `DEFAULT_REDIRECT_URL` for `index.html` redirect bridge via `default_redirect_url.php` (JSON `{ "url": … }` only; no secrets in response).
+- **Catalogue data** comes from **MariaDB**, not `index.csv` (legacy CSV deprecated).
+- **`learning_tools`**, **`quiz_questions`**, **`quiz_options`**, **`science_articles`**, **`article_questions`**, **`article_options`** — interactive learning content.
+- **Publish workflow**: contributors save `draft` or `pending_review`; admins with `*.manage_any` publish via admin or `/review/*` API.
+- **`admin/`** — Users, subjects, simulations, learning tools, articles, review queue, DB export.
+- **`portal/`** — Contributor simulations, learning tools, articles.
 
 ---
 
 ## Repository layout (high level)
 
 ```
-science_sims/   (example root name)
-├── index.php              # Main dynamic homepage (DB-driven)
-├── index.html             # Minimal shell; optional redirect to DEFAULT_REDIRECT_URL
-├── default_redirect_url.php   # Reads .env; JSON for index.html
-├── login.php, logout.php
-├── markdown_reader.php    # Optional Markdown helper
-├── index_csv_editor.php   # Legacy; comments note DB/admin path
+science_sims/
+├── app/                   # SPA frontend (main user UI)
+├── api/                   # REST API front controller
+├── assets/js/             # Shared admin-api.js
+├── index.php              # Legacy redirect → app/
+├── index.html             # Optional redirect shell
+├── default_redirect_url.php
+├── login.php, logout.php  # logout: POST + CSRF only
+├── simulation_view.php    # Deprecated; prefer API html endpoint
+├── markdown_reader.php    # Whitelist + admin for sensitive .md
+├── index_csv_editor.php   # Legacy redirect to admin
 │
-├── includes/                # PHP config, DB, auth, simulation helpers
-├── admin/                 # Back office (Tailwind, CSRF, permissions)
-├── portal/                # User portal pages
-├── migrations/            # SQL migrations (if present)
+├── includes/              # PHP config, DB, auth, API, content libs
+├── admin/                 # Back office
+├── portal/                # Contributor portal
+├── migrations/            # SQL migrations
 │
 ├── physics/               # HKDSE-style units (01, 02, 03a, …, e01–e03)
 ├── chem/ / chemistry/     # Chemistry sims (naming varies by history)
@@ -97,11 +134,10 @@ Adjust folder names to match your checkout (`chem` vs `chemistry`, etc.).
 
 Self-contained pages, CDN scripts, optional inline JS. No bundler required. Suited for static hosting and embedding from `index.php` modal (iframe).
 
-### 2. Dynamic index (`index.php`)
+### 2. SPA catalogue (`app/`)
 
-- Server renders navigation from **DB structures** (subjects → topics → items).
-- **Modal + iframe** to open sim URLs; **html2canvas** for PNG capture where enabled.
-- **503** page if DB unavailable (prompts `.env` / MariaDB).
+- Client fetches **`GET /api/v1/catalog`** and renders subjects → topics → simulation cards.
+- **Modal + sandbox iframe** for simulations; quiz/article pages are client-rendered routes.
 
 ### 3. Auth & permissions
 
@@ -113,9 +149,13 @@ Session-based login; admin routes check capabilities before rendering or mutatin
 
 ### 5. Security notes
 
-- **`.env`** must not be web-readable; root `.htaccess` should deny direct access to dotfiles.
-- Admin forms use **CSRF** tokens.
-- **`default_redirect_url.php`** exposes only the redirect URL string, not DB secrets.
+- **`.env`** must not be web-readable; root `.htaccess` denies dotfiles.
+- Admin/API mutating requests use **CSRF** (`X-CSRF-Token` or JSON `csrf`).
+- **`logout.php`**: POST only (GET shows confirmation form).
+- **Login rate limit**: 5 attempts / 15 min per IP+email (`api_rate_limits` table).
+- **`DEFAULT_REDIRECT_URL`**: validated via `REDIRECT_URL_WHITELIST` / HTTPS check.
+- **`markdown_reader.php`**: public whitelist only; other files require `user.manage`.
+- **Articles / quizzes**: Markdown rendered client-side with DOMPurify.
 
 ---
 
@@ -125,7 +165,8 @@ Session-based login; admin routes check capabilities before rendering or mutatin
 
 1. PHP 8+ with PDO MySQL, MariaDB with schema applied.
 2. Copy `.env.example` → `.env`, set `DB_*` and optional `DEFAULT_REDIRECT_URL`.
-3. Point vhost document root at project root; open `/index.php`.
+3. Run `migrations/001_api_learning_content.sql` on MariaDB.
+4. Point vhost document root at project root; open `/app/`.
 
 ### GitHub Pages (static subset)
 
@@ -137,14 +178,18 @@ Session-based login; admin routes check capabilities before rendering or mutatin
 | Variable | Role |
 |----------|------|
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, … | Database |
-| `DEFAULT_REDIRECT_URL` | Optional; `index.html` + `default_redirect_url.php` immediate redirect |
+| `DEFAULT_REDIRECT_URL` | Optional validated redirect for `index.html` |
+| `REDIRECT_URL_WHITELIST` | Comma-separated allowed redirect hosts |
+| `CORS_ALLOWED_ORIGINS` | Optional cross-origin API access |
+| `SESSION_COOKIE_SECURE` | Set on HTTPS production |
 
 ---
 
 ## Development guidelines
 
 - Follow **`rule.md`** for naming, HTML skeleton, and quality bar.
-- New simulations: add HTML under the correct subject folder; register via **admin / DB workflow** (not legacy CSV) unless your fork still uses CSV.
+- New simulations: add HTML under the correct subject folder; register via **admin / DB workflow**.
+- Learning tools & articles: use **admin/** or **portal/** editors (REST API backend).
 - Prefer **small, focused diffs**; match existing style in each directory.
 
 ---
@@ -157,5 +202,5 @@ Session-based login; admin routes check capabilities before rendering or mutatin
 
 ---
 
-**Last updated**: 2026-04-18  
+**Last updated**: 2026-05-30  
 **Maintainer**: Mr. Bryan Leung (see README)
