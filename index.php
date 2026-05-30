@@ -57,59 +57,184 @@ $navUser = current_user();
     <!-- html2canvas for screenshot -->
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
+        :root {
+            --header-h: 4rem;
+            --sidebar-w: 16rem;
+        }
+
         /* 子選單展開動畫 */
-        .submenu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-        .submenu.open { max-height: 1000px; }
+        .submenu { max-height: 0; overflow: hidden; transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+        .submenu.open { max-height: 1200px; }
         .rotate-icon { transition: transform 0.3s; }
         .rotate-icon.active { transform: rotate(180deg); }
-        
-        /* 側邊欄過渡動畫 (Mobile) */
+
+        /* App shell */
+        .app-shell {
+            display: flex;
+            min-height: calc(100vh - var(--header-h));
+        }
+
+        /* 側邊欄：桌面 sticky + 可收合；行動 fixed overlay */
         #sidebar {
-            transition: transform 0.3s ease-in-out;
+            width: var(--sidebar-w);
+            flex-shrink: 0;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.25s ease;
+            will-change: transform, width;
+        }
+        @media (min-width: 768px) {
+            #sidebar {
+                position: sticky;
+                top: var(--header-h);
+                height: calc(100vh - var(--header-h));
+            }
+            #sidebar.sidebar-collapsed {
+                width: 0;
+                opacity: 0;
+                pointer-events: none;
+                overflow: hidden;
+            }
         }
         @media (max-width: 767px) {
             #sidebar {
                 position: fixed;
                 left: 0;
-                top: 64px;
+                top: var(--header-h);
+                height: calc(100vh - var(--header-h));
+                width: min(var(--sidebar-w), 88vw);
+                transform: translateX(-100%);
+                z-index: 40;
             }
-            #sidebar.hidden-mobile { transform: translateX(-100%); }
-            #sidebar.show-mobile { transform: translateX(0); }
-        }
-        @media (min-width: 768px) {
-            #sidebar {
-                position: relative;
-                height: calc(100vh - 64px);
-                top: 0;
+            #sidebar.sidebar-open {
+                transform: translateX(0);
             }
         }
 
-        /* 自定義捲軸 */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        
+        /* 收合後浮動展開鈕（桌面） */
+        #sidebar-expand {
+            display: none;
+            position: fixed;
+            left: 0;
+            top: calc(var(--header-h) + 1rem);
+            z-index: 35;
+            border-radius: 0 0.5rem 0.5rem 0;
+            padding: 0.625rem 0.5rem 0.625rem 0.375rem;
+            background: linear-gradient(135deg, #312e81, #4338ca);
+            color: white;
+            box-shadow: 2px 2px 12px rgba(49, 46, 129, 0.35);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        #sidebar-expand:hover { transform: translateX(2px); }
+        @media (min-width: 768px) {
+            body.sidebar-is-collapsed #sidebar-expand { display: flex; }
+        }
+
+        /* 側欄內捲軸 */
+        #sidebar-inner {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        #sidebar-inner::-webkit-scrollbar { width: 5px; }
+        #sidebar-inner::-webkit-scrollbar-track { background: transparent; }
+        #sidebar-inner::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+
+        /* 導航項目 */
+        .nav-group-btn {
+            border-left: 3px solid transparent;
+        }
+        .nav-group-btn.active-nav {
+            background: rgba(99, 102, 241, 0.15);
+            color: #e0e7ff;
+            border-left-color: #818cf8;
+        }
+        .topic-nav-btn:hover {
+            background: rgba(99, 102, 241, 0.08);
+        }
+        .topic-nav-btn.active-nav {
+            background: rgba(99, 102, 241, 0.12);
+            color: #c7d2fe;
+        }
+
+        /* 主內容：課題可收合區塊 */
+        .topic-panel-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .topic-panel.open .topic-panel-body {
+            max-height: 8000px;
+        }
+        .topic-panel.open .topic-panel-icon {
+            transform: rotate(180deg);
+        }
+        .topic-panel-header:focus-visible {
+            outline: 2px solid #818cf8;
+            outline-offset: -2px;
+        }
+
+        /* 主內容區 */
+        #main-content {
+            flex: 1;
+            min-width: 0;
+            transition: padding 0.3s ease;
+        }
+
+        /* 自定義捲軸（全站） */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
         /* 遮罩層 */
-        #overlay { display: none; }
-        #overlay.active { display: block; }
-        
+        #overlay {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        #overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
         /* Container 樣式 */
         .container {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 0 1rem;
             width: 100%;
         }
         @media (min-width: 640px) {
-            .container {
-                padding: 0 1.5rem;
-            }
+            .container { padding: 0 1.5rem; }
         }
         @media (min-width: 1024px) {
-            .container {
-                padding: 0 2rem;
-            }
+            .container { padding: 0 2rem; }
+        }
+
+        /* 模擬卡片 */
+        .sim-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .sim-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 24px -8px rgba(49, 46, 129, 0.15);
+            border-color: #c7d2fe;
+        }
+
+        /* 麵包屑 */
+        .breadcrumb-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.625rem;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid #e2e8f0;
+            font-size: 0.75rem;
+        }
+        @media (min-width: 768px) {
+            .breadcrumb-pill { font-size: 0.8125rem; }
         }
         
         /* Modal 樣式 */
@@ -141,10 +266,9 @@ $navUser = current_user();
             display: flex;
             flex-direction: column;
         }
-        #sim-modal-close {
+        .sim-modal-tool-btn {
             position: absolute;
             top: 2vh;
-            right: 2vw;
             width: 3rem;
             height: 3rem;
             background-color: rgba(0, 0, 0, 0.75);
@@ -160,44 +284,38 @@ $navUser = current_user();
             backdrop-filter: blur(4px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         }
-        #sim-modal-capture {
-            position: absolute;
-            top: 2vh;
-            right: calc(2vw + 4rem);
-            width: 3rem;
-            height: 3rem;
-            background-color: rgba(0, 0, 0, 0.75);
-            border: 2px solid rgba(255, 255, 255, 0.95);
-            border-radius: 50%;
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            z-index: 101;
-            backdrop-filter: blur(4px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
-        #sim-modal-capture:hover {
+        .sim-modal-tool-btn:hover {
             background-color: rgba(0, 0, 0, 0.8);
             border-color: white;
             transform: scale(1.1);
         }
-        #sim-modal-capture:active {
+        .sim-modal-tool-btn:active {
             transform: scale(0.95);
         }
-        #sim-modal-capture:disabled {
+        .sim-modal-tool-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
-        #sim-modal-close:hover {
-            background-color: rgba(0, 0, 0, 0.8);
-            border-color: white;
-            transform: scale(1.1);
+        #sim-modal-fullscreen {
+            left: 2vw;
         }
-        #sim-modal-close:active {
-            transform: scale(0.95);
+        #sim-modal-capture {
+            right: calc(2vw + 4rem);
+        }
+        #sim-modal-close {
+            right: 2vw;
+        }
+        #sim-modal.fullscreen-mode {
+            background-color: #ffffff;
+            backdrop-filter: none;
+        }
+        #sim-modal.fullscreen-mode #sim-modal-content {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            border-radius: 0;
+            box-shadow: none;
         }
         #sim-modal-iframe {
             flex: 1;
@@ -211,27 +329,29 @@ $navUser = current_user();
                 height: 100%;
                 border-radius: 0;
             }
-            #sim-modal-close {
+            .sim-modal-tool-btn {
                 top: 1rem;
-                right: 1rem;
                 width: 2.75rem;
                 height: 2.75rem;
             }
+            #sim-modal-fullscreen {
+                left: 1rem;
+            }
             #sim-modal-capture {
-                top: 1rem;
                 right: calc(1rem + 3.5rem);
-                width: 2.75rem;
-                height: 2.75rem;
+            }
+            #sim-modal-close {
+                right: 1rem;
             }
         }
         
         /* Footer 樣式 */
         footer {
-            background-color: #1e293b;
+            background: linear-gradient(to right, #0f172a, #1e293b);
             color: #cbd5e1;
-            border-top: 1px solid #334155;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
             margin-top: auto;
-            padding: 0.75rem 0;
+            padding: 0.875rem 0;
         }
         footer .container {
             display: flex;
@@ -291,38 +411,42 @@ $navUser = current_user();
         }
     </style>
 </head>
-<body class="bg-slate-50 font-sans text-slate-900 overflow-x-hidden flex flex-col min-h-screen">
+<body class="bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 font-sans text-slate-900 overflow-x-hidden flex flex-col min-h-screen antialiased">
 
     <!-- 1. 標題列 -->
-    <header class="bg-indigo-900 text-white shadow-md fixed w-full z-50 top-0">
-        <div class="container">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <!-- 行動裝置選單按鈕 -->
-                    <button id="mobile-toggle" class="mr-3 p-2 rounded-md hover:bg-indigo-800 md:hidden focus:outline-none">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                        </svg>
-                    </button>
-                    <div class="flex-shrink-0 flex items-center gap-2 cursor-pointer" onclick="location.reload()">
-                        <svg class="w-7 h-7 md:w-8 md:h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <header class="fixed w-full z-50 top-0 bg-gradient-to-r from-indigo-950 via-indigo-900 to-violet-900 text-white shadow-lg shadow-indigo-950/20 border-b border-white/10 backdrop-blur-md">
+        <div class="flex items-center h-16 w-full">
+            <!-- 側欄切換：貼左，不受 container padding 影響 -->
+            <button id="sidebar-toggle" type="button" aria-label="切換選單" aria-expanded="true" aria-controls="sidebar"
+                    class="flex-shrink-0 pl-2 sm:pl-3 pr-1 py-2 rounded-lg hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 transition-colors">
+                <svg id="icon-menu-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+                <svg id="icon-menu-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+                </svg>
+            </button>
+            <div class="flex flex-1 justify-between items-center min-w-0 pr-3 sm:pr-6 lg:pr-8">
+                <div class="flex-shrink min-w-0 flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 md:w-6 md:h-6 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
-                        <span class="font-bold text-lg md:text-xl tracking-tight" id="app-title">科學模擬實驗平台</span>
                     </div>
+                    <span class="font-bold text-base sm:text-lg md:text-xl tracking-tight truncate" id="app-title">科學模擬實驗平台</span>
                 </div>
-                
-                <div class="flex items-center gap-2 md:gap-3 flex-wrap justify-end">
+
+                <div class="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
                     <?php if ($navUser !== null): ?>
-                        <a href="portal/simulations.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white">我的模擬</a>
+                        <a href="portal/simulations.php" class="hidden sm:inline px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white rounded-lg hover:bg-white/5 transition-colors">我的模擬</a>
                         <?php if (user_has_permission('user.manage') || user_has_permission('simulation.manage_any')): ?>
-                            <a href="admin/index.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-amber-200 hover:text-white">管理</a>
+                            <a href="admin/index.php" class="hidden sm:inline px-2 py-1 md:px-3 text-xs md:text-sm text-amber-200 hover:text-white rounded-lg hover:bg-white/5 transition-colors">管理</a>
                         <?php endif; ?>
-                        <a href="logout.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white">登出</a>
+                        <a href="logout.php" class="hidden sm:inline px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white rounded-lg hover:bg-white/5 transition-colors">登出</a>
                     <?php else: ?>
-                        <a href="login.php" class="px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white">登入</a>
+                        <a href="login.php" class="hidden sm:inline px-2 py-1 md:px-3 text-xs md:text-sm text-indigo-200 hover:text-white rounded-lg hover:bg-white/5 transition-colors">登入</a>
                     <?php endif; ?>
-                    <button onclick="toggleLang()" class="px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-indigo-400 hover:bg-white hover:text-indigo-900 transition-all text-xs md:text-sm font-medium">
+                    <button onclick="toggleLang()" class="px-2.5 py-1 md:px-4 md:py-1.5 rounded-full bg-white/10 border border-white/20 hover:bg-white hover:text-indigo-900 transition-all text-xs md:text-sm font-medium backdrop-blur-sm">
                         中 / EN
                     </button>
                 </div>
@@ -331,17 +455,31 @@ $navUser = current_user();
     </header>
 
     <!-- 背景遮罩 (Mobile 選單開啟時) -->
-    <div id="overlay" class="fixed inset-0 bg-black/50 z-30 md:hidden" onclick="toggleSidebar()"></div>
+    <div id="overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-30 md:hidden" onclick="toggleSidebar()"></div>
 
-    <div class="flex-1 pt-16">
-        <div class="container">
-            <div class="flex">
-                <!-- 2. 左方選單列 -->
-                <aside id="sidebar" class="w-64 bg-slate-800 text-slate-300 flex-shrink-0 z-40 overflow-y-auto hidden-mobile md:block">
-            
-            <div class="p-4 pb-2 uppercase text-[10px] font-bold text-slate-500 tracking-[2px]" id="core-label">核心單元 Compulsory</div>
-            
-            <nav class="mt-2 space-y-1 px-2 pb-6" id="main-nav">
+    <!-- 桌面收合後的展開鈕 -->
+    <button id="sidebar-expand" type="button" aria-label="展開選單" onclick="toggleSidebar()"
+            class="items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
+        </svg>
+    </button>
+
+    <div class="app-shell pt-16 flex-1">
+        <!-- 2. 左方選單列 -->
+        <aside id="sidebar" class="bg-slate-900/95 text-slate-300 border-r border-slate-700/60 backdrop-blur-xl shadow-xl md:shadow-none z-40">
+            <div id="sidebar-inner">
+                <div class="flex items-center justify-between px-4 pt-4 pb-2">
+                    <div class="uppercase text-[10px] font-bold text-slate-500 tracking-[2px]" id="core-label">核心單元 Compulsory</div>
+                    <button type="button" onclick="toggleSidebar()" aria-label="收合選單"
+                            class="hidden md:flex p-1.5 rounded-md text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+                        </svg>
+                    </button>
+                </div>
+
+            <nav class="mt-1 space-y-0.5 px-2 pb-8" id="main-nav">
                 <?php
                 $firstCategory = true;
                 foreach ($subjectsData as $category => $subInfo):
@@ -350,27 +488,23 @@ $navUser = current_user();
                     $categoryEn = isset($categoryMap[$category]) ? $categoryMap[$category]['en'] : $category;
                     $topicsNav = $subInfo['topics'] ?? [];
                 ?>
-                <div class="nav-group <?php echo $firstCategory ? '' : 'border-t border-slate-700/50 mt-1'; ?>">
-                    <button type="button" onclick="toggleSub(this); showCategory(<?php echo htmlspecialchars(json_encode($categoryId), ENT_QUOTES, 'UTF-8'); ?>, null);" class="group w-full flex items-center justify-between p-3 rounded-md hover:bg-slate-700 hover:text-white transition-colors">
+                <div class="nav-group <?php echo $firstCategory ? '' : 'border-t border-slate-700/40 mt-1 pt-1'; ?>">
+                    <button type="button" onclick="toggleSub(this); showCategory(<?php echo htmlspecialchars(json_encode($categoryId), ENT_QUOTES, 'UTF-8'); ?>, null);" class="nav-group-btn group w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-800 hover:text-white transition-colors text-sm font-medium">
                         <span class="main-label" data-zh="<?php echo htmlspecialchars($categoryZh); ?>" data-en="<?php echo htmlspecialchars($categoryEn); ?>"><?php echo htmlspecialchars($categoryZh); ?></span>
                         <svg class="w-4 h-4 rotate-icon <?php echo $firstCategory ? 'active' : ''; ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div class="submenu bg-slate-900 rounded-md <?php echo $firstCategory ? 'open' : ''; ?>">
+                    <div class="submenu bg-slate-950/50 rounded-lg mx-1 mb-1 <?php echo $firstCategory ? 'open' : ''; ?>">
                         <?php foreach ($topicsNav as $topicKey => $topicInfo):
                             $tZh = $topicInfo['label_zh'] ?? '';
                             $tEn = $topicInfo['label_en'] ?? '';
+                            $itemCount = count($topicInfo['items'] ?? []);
                         ?>
-                        <div class="border-t border-slate-700/30 first:border-t-0">
-                            <button type="button" class="topic-nav-btn w-full text-left px-3 py-2 text-xs font-semibold text-slate-400 hover:text-indigo-300" onclick="event.stopPropagation(); showCategory(<?php echo htmlspecialchars(json_encode($categoryId), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode((string) $topicKey), ENT_QUOTES, 'UTF-8'); ?>);">
+                            <button type="button" class="topic-nav-btn w-full text-left px-3 py-2 text-xs font-semibold text-slate-400 hover:text-indigo-300 rounded-md transition-colors border-t border-slate-700/30 first:border-t-0" onclick="event.stopPropagation(); showCategory(<?php echo htmlspecialchars(json_encode($categoryId), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode((string) $topicKey), ENT_QUOTES, 'UTF-8'); ?>);">
                                 <span class="topic-nav-label" data-zh="<?php echo htmlspecialchars($tZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($tEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($tZh); ?></span>
+                                <?php if ($itemCount > 0): ?>
+                                    <span class="topic-nav-count ml-1 text-slate-500">(<?php echo $itemCount; ?>)</span>
+                                <?php endif; ?>
                             </button>
-                            <?php foreach ($topicInfo['items'] as $item):
-                                $titleZh = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['zh'] : $item['title'];
-                                $titleEn = isset($titleMap[$item['title']]) ? $titleMap[$item['title']]['en'] : $item['title'];
-                            ?>
-                            <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="sub-label block py-1.5 pl-6 pr-4 text-sm hover:text-indigo-400 cursor-pointer" data-zh="<?php echo htmlspecialchars($titleZh, ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($titleEn, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($titleZh); ?></div>
-                            <?php endforeach; ?>
-                        </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -379,29 +513,48 @@ $navUser = current_user();
                 endforeach;
                 ?>
             </nav>
-                </aside>
+            </div>
+        </aside>
 
-                <!-- 3. 主顯示區域 -->
-                <main class="flex-1 transition-all duration-300 py-4 md:py-8 px-4 md:px-6 lg:px-8">
-                <div class="mb-6 md:mb-8 border-b border-slate-200 pb-6">
-                    <nav class="flex flex-wrap items-center gap-x-1 gap-y-1 mb-2 text-xs md:text-sm text-slate-500">
-                        <span id="breadcrumb-parent" data-zh="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?>" data-en="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_en']) : ''; ?>"><?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?></span>
-                        <span class="mx-1">/</span>
-                        <span id="breadcrumb-topic" data-zh="所有單元" data-en="All units">所有單元</span>
-                        <span class="mx-1">/</span>
-                        <span id="breadcrumb-child" class="text-indigo-600 font-medium" data-zh="模擬列表" data-en="Simulations">模擬列表</span>
+        <!-- 3. 主顯示區域 -->
+        <main id="main-content" class="py-4 md:py-8 px-3 sm:px-5 md:px-8 lg:px-10">
+            <div class="max-w-6xl mx-auto w-full">
+                <div class="mb-6 md:mb-8 pb-6 border-b border-slate-200/80">
+                    <nav class="flex flex-wrap items-center gap-2 mb-3" aria-label="breadcrumb">
+                        <span class="breadcrumb-pill text-slate-500">
+                            <span id="breadcrumb-parent" data-zh="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?>" data-en="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_en']) : ''; ?>"><?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?></span>
+                            <span class="text-slate-300 mx-0.5">/</span>
+                            <span id="breadcrumb-topic" data-zh="所有單元" data-en="All units">所有單元</span>
+                            <span class="text-slate-300 mx-0.5">/</span>
+                            <span id="breadcrumb-child" class="text-indigo-600 font-medium" data-zh="模擬列表" data-en="Simulations">模擬列表</span>
+                        </span>
                     </nav>
-                    <h1 id="page-title" class="text-2xl md:text-4xl font-extrabold text-slate-900 tracking-tight" data-zh="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh'] . '模擬實驗') : ''; ?>" data-en="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_en'] . ' Simulations') : ''; ?>"><?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?>模擬實驗</h1>
+                    <h1 id="page-title" class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight" data-zh="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh'] . '模擬實驗') : ''; ?>" data-en="<?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_en'] . ' Simulations') : ''; ?>"><?php echo $firstSubjectInfo ? htmlspecialchars($firstSubjectInfo['label_zh']) : ''; ?>模擬實驗</h1>
                 </div>
 
-                <div id="card-container" class="space-y-10">
+                <div id="card-container" class="space-y-3 md:space-y-4">
                 <?php
                 if ($firstSubjectInfo !== null):
+                    $topicIndex = 0;
                     foreach ($firstSubjectInfo['topics'] as $topicKey => $topicInfo):
+                        $isFirstTopic = ($topicIndex === 0);
+                        $topicItemCount = count($topicInfo['items'] ?? []);
                 ?>
-                <section class="topic-block" data-topic-key="<?php echo htmlspecialchars((string) $topicKey, ENT_QUOTES, 'UTF-8'); ?>">
-                    <h2 class="topic-heading text-lg font-semibold text-slate-800 mb-4 border-b border-slate-200 pb-2" data-zh="<?php echo htmlspecialchars($topicInfo['label_zh'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($topicInfo['label_en'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($topicInfo['label_zh'] ?? ''); ?></h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 topic-card-grid">
+                <section class="topic-panel bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden <?php echo $isFirstTopic ? 'open' : ''; ?>" data-topic-key="<?php echo htmlspecialchars((string) $topicKey, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button type="button" class="topic-panel-header w-full flex items-center justify-between gap-3 px-4 py-3.5 md:px-5 md:py-4 hover:bg-slate-50/80 transition-colors text-left"
+                            onclick="toggleTopicPanel(this)" aria-expanded="<?php echo $isFirstTopic ? 'true' : 'false'; ?>">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="w-1 h-6 rounded-full bg-indigo-500 flex-shrink-0" aria-hidden="true"></span>
+                            <h2 class="topic-heading text-base sm:text-lg font-semibold text-slate-800 truncate" data-zh="<?php echo htmlspecialchars($topicInfo['label_zh'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" data-en="<?php echo htmlspecialchars($topicInfo['label_en'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($topicInfo['label_zh'] ?? ''); ?></h2>
+                            <span class="topic-count flex-shrink-0 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"><?php echo $topicItemCount; ?></span>
+                        </div>
+                        <svg class="topic-panel-icon w-5 h-5 text-slate-400 flex-shrink-0 rotate-icon <?php echo $isFirstTopic ? 'active' : ''; ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div class="topic-panel-body">
+                        <div class="px-3 pb-4 md:px-5 md:pb-5 pt-1 border-t border-slate-100">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 topic-card-grid">
                 <?php
                         foreach ($topicInfo['items'] as $item):
                             $exportUrl = $item['export_url'] ?? $item['url'];
@@ -411,8 +564,8 @@ $navUser = current_user();
                             $unitZh = $item['topic_label_zh'] ?? '';
                             $unitEn = $item['topic_label_en'] ?? '';
                 ?>
-                <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
-                    <div class="h-32 md:h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
+                <div onclick="openModal('<?php echo htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8'); ?>')" class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col cursor-pointer">
+                    <div class="h-32 md:h-36 bg-gradient-to-br from-slate-100 to-indigo-50/50 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
                         <?php if (!empty($item['screenshot'])): ?>
                             <img src="<?php echo htmlspecialchars($item['screenshot']); ?>" alt="<?php echo htmlspecialchars($titleZh); ?>" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             <span class="text-slate-400 text-sm image-placeholder" data-zh="[實驗影像]" data-en="[Experiment Image]" style="display: none;">[實驗影像]</span>
@@ -444,15 +597,17 @@ $navUser = current_user();
                         endforeach;
                 ?>
                     </div>
+                        </div>
+                    </div>
                 </section>
                 <?php
+                    $topicIndex++;
                     endforeach;
                 endif;
                 ?>
                 </div>
-                </main>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Footer -->
@@ -470,12 +625,20 @@ $navUser = current_user();
 
     <!-- Modal for Simulation -->
     <div id="sim-modal" onclick="closeModalOnBackdrop(event)">
-        <button id="sim-modal-close" onclick="closeModal(); event.stopPropagation();" aria-label="關閉">
+        <button id="sim-modal-fullscreen" type="button" class="sim-modal-tool-btn" onclick="toggleModalFullscreen(); event.stopPropagation();" aria-label="全螢幕" title="顯示成全螢幕">
+            <svg id="sim-modal-fullscreen-expand" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+            </svg>
+            <svg id="sim-modal-fullscreen-compress" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"></path>
+            </svg>
+        </button>
+        <button id="sim-modal-close" type="button" class="sim-modal-tool-btn" onclick="closeModal(); event.stopPropagation();" aria-label="關閉" title="關閉">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
         </button>
-        <button id="sim-modal-capture" onclick="captureModal(); event.stopPropagation();" aria-label="截圖" title="截圖並下載為 PNG">
+        <button id="sim-modal-capture" type="button" class="sim-modal-tool-btn" onclick="captureModal(); event.stopPropagation();" aria-label="截圖" title="截圖並下載為 PNG">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -492,12 +655,23 @@ $navUser = current_user();
         const categoryMap = <?php echo json_encode($categoryMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const titleMap = <?php echo json_encode($titleMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
-        // 摺疊/展開子選單
+        // 摺疊/展開子選單（側欄科目）
         function toggleSub(btn) {
             const submenu = btn.nextElementSibling;
             const icon = btn.querySelector('.rotate-icon');
             submenu.classList.toggle('open');
             icon.classList.toggle('active');
+        }
+
+        // 摺疊/展開課題區塊（主內容）
+        function toggleTopicPanel(btn) {
+            const panel = btn.closest('.topic-panel');
+            if (!panel) return;
+            const icon = btn.querySelector('.topic-panel-icon');
+            const willOpen = !panel.classList.contains('open');
+            panel.classList.toggle('open');
+            btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            if (icon) icon.classList.toggle('active', willOpen);
         }
 
         function cardHtmlFromItem(item) {
@@ -510,8 +684,8 @@ $navUser = current_user();
             const unitZh = item.topic_label_zh || '';
             const unitEn = item.topic_label_en || '';
             return `
-                <div onclick="openModal('${escapeHtml(item.url)}')" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer">
-                    <div class="h-32 md:h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
+                <div onclick="openModal('${escapeHtml(item.url)}')" class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col cursor-pointer">
+                    <div class="h-32 md:h-36 bg-gradient-to-br from-slate-100 to-indigo-50/50 flex items-center justify-center border-b border-slate-100 relative group overflow-hidden">
                         ${hasScreenshot ?
                             `<img src="${escapeHtml(screenshot)}" alt="${escapeHtml(titleZh)}" class="w-full h-full object-cover">` :
                             `<span class="text-slate-400 text-sm image-placeholder" data-zh="[實驗影像]" data-en="[Experiment Image]">${currentLang === 'zh' ? '[實驗影像]' : '[Experiment Image]'}</span>`
@@ -539,15 +713,33 @@ $navUser = current_user();
                 </div>`;
         }
 
-        function topicSectionHtml(topicKey, tInfo) {
+        function topicSectionHtml(topicKey, tInfo, expanded) {
             const cards = (tInfo.items || []).map(item => cardHtmlFromItem(item)).join('');
             const hZh = tInfo.label_zh || '';
             const hEn = tInfo.label_en || '';
             const hDisp = currentLang === 'zh' ? hZh : hEn;
+            const count = (tInfo.items || []).length;
+            const openClass = expanded ? 'open' : '';
+            const ariaExpanded = expanded ? 'true' : 'false';
+            const iconActive = expanded ? 'active' : '';
             return `
-                <section class="topic-block" data-topic-key="${escapeHtml(topicKey)}">
-                    <h2 class="topic-heading text-lg font-semibold text-slate-800 mb-4 border-b border-slate-200 pb-2" data-zh="${escapeHtml(hZh)}" data-en="${escapeHtml(hEn)}">${escapeHtml(hDisp)}</h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 topic-card-grid">${cards}</div>
+                <section class="topic-panel bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden ${openClass}" data-topic-key="${escapeHtml(topicKey)}">
+                    <button type="button" class="topic-panel-header w-full flex items-center justify-between gap-3 px-4 py-3.5 md:px-5 md:py-4 hover:bg-slate-50/80 transition-colors text-left"
+                            onclick="toggleTopicPanel(this)" aria-expanded="${ariaExpanded}">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="w-1 h-6 rounded-full bg-indigo-500 flex-shrink-0" aria-hidden="true"></span>
+                            <h2 class="topic-heading text-base sm:text-lg font-semibold text-slate-800 truncate" data-zh="${escapeHtml(hZh)}" data-en="${escapeHtml(hEn)}">${escapeHtml(hDisp)}</h2>
+                            <span class="topic-count flex-shrink-0 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${count}</span>
+                        </div>
+                        <svg class="topic-panel-icon w-5 h-5 text-slate-400 flex-shrink-0 rotate-icon ${iconActive}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div class="topic-panel-body">
+                        <div class="px-3 pb-4 md:px-5 md:pb-5 pt-1 border-t border-slate-100">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 topic-card-grid">${cards}</div>
+                        </div>
+                    </div>
                 </section>`;
         }
 
@@ -586,7 +778,8 @@ $navUser = current_user();
                 breadcrumbTopic.setAttribute('data-zh', allZh);
                 breadcrumbTopic.setAttribute('data-en', allEn);
                 breadcrumbTopic.textContent = currentLang === 'zh' ? allZh : allEn;
-                container.innerHTML = Object.keys(sub.topics).map(tk => topicSectionHtml(tk, sub.topics[tk])).join('');
+                const topicKeys = Object.keys(sub.topics);
+                container.innerHTML = topicKeys.map((tk, i) => topicSectionHtml(tk, sub.topics[tk], i === 0)).join('');
             } else {
                 const tInfo = sub.topics[topicKey];
                 if (!tInfo) {
@@ -596,10 +789,33 @@ $navUser = current_user();
                 breadcrumbTopic.setAttribute('data-zh', tInfo.label_zh || '');
                 breadcrumbTopic.setAttribute('data-en', tInfo.label_en || '');
                 breadcrumbTopic.textContent = currentLang === 'zh' ? (tInfo.label_zh || '') : (tInfo.label_en || '');
-                container.innerHTML = topicSectionHtml(topicKey, tInfo);
+                container.innerHTML = topicSectionHtml(topicKey, tInfo, true);
             }
 
             updateUI();
+            highlightActiveNav(categoryId, topicKey);
+            closeMobileSidebar();
+        }
+
+        function highlightActiveNav(categoryId, topicKey) {
+            document.querySelectorAll('.nav-group-btn').forEach(btn => btn.classList.remove('active-nav'));
+            document.querySelectorAll('.topic-nav-btn').forEach(btn => btn.classList.remove('active-nav'));
+            document.querySelectorAll('.nav-group').forEach(group => {
+                const btn = group.querySelector('.nav-group-btn');
+                if (!btn) return;
+                const onclick = btn.getAttribute('onclick') || '';
+                if (onclick.includes(JSON.stringify(categoryId))) {
+                    btn.classList.add('active-nav');
+                }
+            });
+            if (topicKey !== undefined && topicKey !== null) {
+                document.querySelectorAll('.topic-nav-btn').forEach(btn => {
+                    const onclick = btn.getAttribute('onclick') || '';
+                    if (onclick.includes(JSON.stringify(String(topicKey)))) {
+                        btn.classList.add('active-nav');
+                    }
+                });
+            }
         }
 
         function escapeHtml(text) {
@@ -613,25 +829,92 @@ $navUser = current_user();
             return text.replace(/[&<>"']/g, m => map[m]);
         }
 
-        // 行動裝置側邊欄切換
-        const mobileToggle = document.getElementById('mobile-toggle');
+        // 側邊欄切換（行動 overlay + 桌面收合）
+        const sidebarToggle = document.getElementById('sidebar-toggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
+        const iconMenuOpen = document.getElementById('icon-menu-open');
+        const iconMenuClose = document.getElementById('icon-menu-close');
+        const SIDEBAR_KEY = 'science-sims-sidebar-collapsed';
+        const mqDesktop = window.matchMedia('(min-width: 768px)');
+
+        function isDesktop() {
+            return mqDesktop.matches;
+        }
+
+        function setToggleIcons(sidebarVisible) {
+            if (sidebarVisible) {
+                iconMenuOpen.classList.add('hidden');
+                iconMenuClose.classList.remove('hidden');
+            } else {
+                iconMenuOpen.classList.remove('hidden');
+                iconMenuClose.classList.add('hidden');
+            }
+            sidebarToggle.setAttribute('aria-expanded', sidebarVisible ? 'true' : 'false');
+        }
+
+        function applyDesktopSidebar(collapsed) {
+            if (collapsed) {
+                sidebar.classList.add('sidebar-collapsed');
+                document.body.classList.add('sidebar-is-collapsed');
+            } else {
+                sidebar.classList.remove('sidebar-collapsed');
+                document.body.classList.remove('sidebar-is-collapsed');
+            }
+            setToggleIcons(!collapsed);
+            try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) {}
+        }
+
+        function applyMobileSidebar(open) {
+            if (open) {
+                sidebar.classList.add('sidebar-open');
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                sidebar.classList.remove('sidebar-open');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+            setToggleIcons(open);
+        }
 
         function toggleSidebar() {
-            const isHidden = sidebar.classList.contains('hidden-mobile');
-            if (isHidden) {
-                sidebar.classList.remove('hidden-mobile');
-                sidebar.classList.add('show-mobile');
-                overlay.classList.add('active');
+            if (isDesktop()) {
+                const collapsed = !sidebar.classList.contains('sidebar-collapsed');
+                applyDesktopSidebar(collapsed);
             } else {
-                sidebar.classList.add('hidden-mobile');
-                sidebar.classList.remove('show-mobile');
-                overlay.classList.remove('active');
+                const open = !sidebar.classList.contains('sidebar-open');
+                applyMobileSidebar(open);
             }
         }
 
-        mobileToggle.addEventListener('click', toggleSidebar);
+        function closeMobileSidebar() {
+            if (!isDesktop()) {
+                applyMobileSidebar(false);
+            }
+        }
+
+        function initSidebar() {
+            if (isDesktop()) {
+                let collapsed = false;
+                try { collapsed = localStorage.getItem(SIDEBAR_KEY) === '1'; } catch (e) {}
+                applyDesktopSidebar(collapsed);
+            } else {
+                applyMobileSidebar(false);
+            }
+        }
+
+        sidebarToggle.addEventListener('click', toggleSidebar);
+
+        mqDesktop.addEventListener('change', function() {
+            sidebar.classList.remove('sidebar-open', 'sidebar-collapsed');
+            overlay.classList.remove('active');
+            document.body.classList.remove('sidebar-is-collapsed');
+            document.body.style.overflow = '';
+            initSidebar();
+        });
+
+        initSidebar();
 
         // 切換語言
         function toggleLang() {
@@ -641,21 +924,386 @@ $navUser = current_user();
 
         // Modal 函數
         let currentModalUrl = '';
+        let modalFullscreen = false;
+        const SIM_MODAL_TOOL_IDS = ['sim-modal-close', 'sim-modal-capture', 'sim-modal-fullscreen'];
+
+        function isModalToolElement(el) {
+            return el && SIM_MODAL_TOOL_IDS.includes(el.id);
+        }
+
+        function getIframeAccess(iframe) {
+            try {
+                const win = iframe.contentWindow;
+                const doc = iframe.contentDocument || (win ? win.document : null);
+                if (!win || !doc) {
+                    return null;
+                }
+                return { win, doc };
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function waitForIframeRender(doc, win) {
+            if (doc.fonts && doc.fonts.ready) {
+                await doc.fonts.ready;
+            }
+            if (win && win.MathJax && typeof win.MathJax.typesetPromise === 'function') {
+                try {
+                    await win.MathJax.typesetPromise();
+                } catch (e) {
+                    console.warn('MathJax typeset before capture:', e);
+                }
+            }
+            const images = Array.from(doc.images || []);
+            await Promise.all(images.filter(function(img) { return !img.complete; }).map(function(img) {
+                return new Promise(function(resolve) {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                });
+            }));
+            await new Promise(function(resolve) {
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(resolve);
+                });
+            });
+        }
+
+        function temporarilyFixPositionedElements(doc, win) {
+            const restored = [];
+            doc.querySelectorAll('*').forEach(function(el) {
+                const style = win.getComputedStyle(el);
+                if (style.position === 'fixed' || style.position === 'sticky') {
+                    restored.push({
+                        element: el,
+                        position: el.style.position,
+                        top: el.style.top,
+                        left: el.style.left
+                    });
+                    el.style.position = 'absolute';
+                    const rect = el.getBoundingClientRect();
+                    el.style.top = (rect.top + (win.scrollY || 0)) + 'px';
+                    el.style.left = (rect.left + (win.scrollX || 0)) + 'px';
+                }
+            });
+            return function() {
+                restored.forEach(function(item) {
+                    item.element.style.position = item.position;
+                    item.element.style.top = item.top;
+                    item.element.style.left = item.left;
+                });
+            };
+        }
+
+        function withCaptureDocumentFixes(doc, fn) {
+            const style = doc.createElement('style');
+            style.id = 'html2canvas-live-metric-fix';
+            // html2canvas 量測 baseline 時會在 body 末尾插入含 img 的節點，需覆寫 Tailwind img{display:block}
+            style.textContent = 'body > div:last-child img { display: inline-block !important; vertical-align: baseline !important; }';
+            (doc.head || doc.documentElement).appendChild(style);
+            return Promise.resolve(fn()).finally(function() {
+                style.remove();
+            });
+        }
+
+        function copyCaptureStyles(sourceEl, targetEl, computed) {
+            const props = [
+                'boxSizing', 'display', 'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight',
+                'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+                'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+                'borderTopWidth', 'borderTopStyle', 'borderTopColor',
+                'borderRightWidth', 'borderRightStyle', 'borderRightColor',
+                'borderBottomWidth', 'borderBottomStyle', 'borderBottomColor',
+                'borderLeftWidth', 'borderLeftStyle', 'borderLeftColor',
+                'borderRadius', 'backgroundColor', 'color', 'fontFamily', 'fontSize', 'fontWeight',
+                'fontStyle', 'lineHeight', 'letterSpacing', 'textAlign', 'textTransform', 'whiteSpace',
+                'verticalAlign', 'flex', 'flexGrow', 'flexShrink', 'alignSelf',
+                'justifyContent', 'alignItems', 'gap', 'overflow', 'textOverflow', 'boxShadow', 'opacity'
+            ];
+            props.forEach(function(prop) {
+                targetEl.style[prop] = computed[prop];
+            });
+        }
+
+        function applyHtml2canvasCloneFixes(clonedDoc) {
+            if (clonedDoc.getElementById('html2canvas-capture-fix')) {
+                return;
+            }
+            const style = clonedDoc.createElement('style');
+            style.id = 'html2canvas-capture-fix';
+            style.textContent = [
+                'img, svg, video, canvas { display: inline-block !important; vertical-align: middle !important; height: auto; max-width: 100%; }',
+                'svg { overflow: visible; }',
+                'button, label, a { vertical-align: middle; }',
+                'input, select, textarea { line-height: normal; vertical-align: middle; box-sizing: border-box; }',
+                'input[type="range"] { vertical-align: middle; }',
+                'mjx-container, mjx-assistive-mml, .MathJax, .MathJax_Display { display: inline-block !important; vertical-align: middle !important; }',
+                'p, h1, h2, h3, h4, h5, h6, span, li, td, th, div { -webkit-font-smoothing: antialiased; }'
+            ].join('\n');
+            (clonedDoc.head || clonedDoc.documentElement).appendChild(style);
+        }
+
+        function replaceFormControlsInClone(clonedRoot, sourceRoot, sourceWin) {
+            if (!sourceWin) {
+                return;
+            }
+
+            function replacePair(sourceSelector, createReplacement) {
+                const sourceNodes = sourceRoot.querySelectorAll(sourceSelector);
+                const clonedNodes = clonedRoot.querySelectorAll(sourceSelector);
+                clonedNodes.forEach(function(clonedNode, index) {
+                    const sourceNode = sourceNodes[index];
+                    if (!sourceNode) {
+                        return;
+                    }
+                    const replacement = createReplacement(sourceNode, clonedNode.ownerDocument, sourceWin);
+                    if (replacement) {
+                        clonedNode.replaceWith(replacement);
+                    }
+                });
+            }
+
+            replacePair('textarea', function(sourceEl, clonedDoc, win) {
+                const computed = win.getComputedStyle(sourceEl);
+                const replacement = clonedDoc.createElement('div');
+                replacement.textContent = sourceEl.value || sourceEl.placeholder || '';
+                replacement.className = sourceEl.className;
+                replacement.style.whiteSpace = 'pre-wrap';
+                replacement.style.wordBreak = 'break-word';
+                replacement.setAttribute('aria-hidden', 'true');
+                copyCaptureStyles(sourceEl, replacement, computed);
+                return replacement;
+            });
+
+            replacePair('select', function(sourceEl, clonedDoc, win) {
+                const computed = win.getComputedStyle(sourceEl);
+                const replacement = clonedDoc.createElement('span');
+                const option = sourceEl.options[sourceEl.selectedIndex];
+                replacement.textContent = option ? option.text : '';
+                replacement.className = sourceEl.className;
+                replacement.setAttribute('aria-hidden', 'true');
+                copyCaptureStyles(sourceEl, replacement, computed);
+                if (computed.display === 'inline' || computed.display === 'inline-block') {
+                    replacement.style.display = computed.display;
+                } else {
+                    replacement.style.display = 'inline-block';
+                }
+                return replacement;
+            });
+
+            replacePair(
+                'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"])',
+                function(sourceEl, clonedDoc, win) {
+                    const computed = win.getComputedStyle(sourceEl);
+                    const replacement = clonedDoc.createElement('span');
+                    replacement.textContent = sourceEl.value || sourceEl.getAttribute('placeholder') || '';
+                    replacement.className = sourceEl.className;
+                    replacement.setAttribute('aria-hidden', 'true');
+                    copyCaptureStyles(sourceEl, replacement, computed);
+                    if (computed.display === 'block') {
+                        replacement.style.display = 'block';
+                    } else if (computed.display === 'inline') {
+                        replacement.style.display = 'inline';
+                    } else {
+                        replacement.style.display = 'inline-block';
+                    }
+                    return replacement;
+                }
+            );
+        }
+
+        function normalizeFlexButtonsInClone(clonedRoot, sourceRoot, sourceWin) {
+            if (!sourceWin) {
+                return;
+            }
+            const sourceButtons = sourceRoot.querySelectorAll('button, [role="button"]');
+            clonedRoot.querySelectorAll('button, [role="button"]').forEach(function(clonedBtn, index) {
+                const sourceBtn = sourceButtons[index];
+                if (!sourceBtn) {
+                    return;
+                }
+                const computed = sourceWin.getComputedStyle(sourceBtn);
+                if (computed.display === 'flex' || computed.display === 'inline-flex') {
+                    clonedBtn.style.display = computed.display;
+                    clonedBtn.style.alignItems = computed.alignItems;
+                    clonedBtn.style.justifyContent = computed.justifyContent;
+                    clonedBtn.style.gap = computed.gap;
+                    clonedBtn.style.lineHeight = computed.lineHeight;
+                }
+                clonedBtn.querySelectorAll('svg').forEach(function(svg) {
+                    svg.style.display = 'inline-block';
+                    svg.style.verticalAlign = 'middle';
+                    svg.style.flexShrink = '0';
+                });
+            });
+        }
+
+        function injectCanvasSnapshots(clonedRoot, sourceRoot) {
+            const clonedCanvases = clonedRoot.querySelectorAll('canvas');
+            const sourceCanvases = sourceRoot.querySelectorAll('canvas');
+            clonedCanvases.forEach(function(clonedCanvas, index) {
+                const sourceCanvas = sourceCanvases[index];
+                if (!sourceCanvas) {
+                    return;
+                }
+                try {
+                    const dataUrl = sourceCanvas.toDataURL('image/png');
+                    const img = clonedCanvas.ownerDocument.createElement('img');
+                    img.src = dataUrl;
+                    img.alt = '';
+                    const sourceWin = sourceCanvas.ownerDocument.defaultView;
+                    const computed = sourceWin ? sourceWin.getComputedStyle(sourceCanvas) : null;
+                    if (computed) {
+                        img.style.width = computed.width;
+                        img.style.height = computed.height;
+                        img.style.maxWidth = computed.maxWidth;
+                        img.style.maxHeight = computed.maxHeight;
+                    }
+                    img.style.display = 'inline-block';
+                    img.style.verticalAlign = 'middle';
+                    if (sourceCanvas.className) {
+                        img.className = sourceCanvas.className;
+                    }
+                    clonedCanvas.replaceWith(img);
+                } catch (e) {
+                    console.warn('Canvas snapshot failed:', e);
+                }
+            });
+        }
+
+        function prepareCaptureClone(clonedDoc, clonedEl, sourceRoot) {
+            const sourceWin = sourceRoot.ownerDocument ? sourceRoot.ownerDocument.defaultView : null;
+            applyHtml2canvasCloneFixes(clonedDoc);
+            injectCanvasSnapshots(clonedEl, sourceRoot);
+            replaceFormControlsInClone(clonedEl, sourceRoot, sourceWin);
+            normalizeFlexButtonsInClone(clonedEl, sourceRoot, sourceWin);
+            clonedEl.querySelectorAll('img, svg').forEach(function(el) {
+                el.style.display = 'inline-block';
+                el.style.verticalAlign = 'middle';
+            });
+        }
+
+        async function html2canvasCapture(targetEl, sourceEl, extraOptions) {
+            const sourceWin = (sourceEl || targetEl).ownerDocument.defaultView;
+            const windowWidth = sourceWin ? sourceWin.innerWidth : targetEl.clientWidth;
+            const windowHeight = sourceWin ? sourceWin.innerHeight : targetEl.clientHeight;
+            const scrollX = sourceWin ? -(sourceWin.scrollX || 0) : 0;
+            const scrollY = sourceWin ? -(sourceWin.scrollY || 0) : 0;
+            const options = Object.assign({
+                backgroundColor: '#ffffff',
+                scale: Math.min(window.devicePixelRatio || 1, 2),
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                windowWidth: windowWidth,
+                windowHeight: windowHeight,
+                scrollX: scrollX,
+                scrollY: scrollY,
+                onclone: function(clonedDoc, clonedEl) {
+                    prepareCaptureClone(clonedDoc, clonedEl, sourceEl || targetEl);
+                }
+            }, extraOptions || {});
+            return html2canvas(targetEl, options);
+        }
+
+        async function captureIframeContent(iframe) {
+            const access = getIframeAccess(iframe);
+            if (!access) {
+                throw new Error('Cannot access iframe content');
+            }
+            const { win, doc } = access;
+            const root = doc.body || doc.documentElement;
+            const originalScrollX = win.scrollX || 0;
+            const originalScrollY = win.scrollY || 0;
+            await waitForIframeRender(doc, win);
+            return withCaptureDocumentFixes(doc, async function() {
+                const restorePositioned = temporarilyFixPositionedElements(doc, win);
+                try {
+                    return await html2canvasCapture(root, root);
+                } finally {
+                    restorePositioned();
+                    win.scrollTo(originalScrollX, originalScrollY);
+                }
+            });
+        }
+
+        async function captureModalContainer() {
+            const modalContent = document.getElementById('sim-modal-content');
+            return withCaptureDocumentFixes(document, async function() {
+                return html2canvasCapture(modalContent, modalContent, {
+                    ignoreElements: function(element) {
+                        return isModalToolElement(element);
+                    }
+                });
+            });
+        }
+
+        function downloadPngFromCanvas(canvas, baseName) {
+            return new Promise((resolve, reject) => {
+                canvas.toBlob(function(blob) {
+                    if (!blob) {
+                        reject(new Error('Failed to create PNG blob'));
+                        return;
+                    }
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = baseName + '_' + getFormattedTimestamp() + '.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    resolve();
+                }, 'image/png', 1);
+            });
+        }
+
+        function updateFullscreenButtonUI() {
+            const btn = document.getElementById('sim-modal-fullscreen');
+            const expandIcon = document.getElementById('sim-modal-fullscreen-expand');
+            const compressIcon = document.getElementById('sim-modal-fullscreen-compress');
+            if (!btn || !expandIcon || !compressIcon) {
+                return;
+            }
+            if (modalFullscreen) {
+                btn.setAttribute('aria-label', currentLang === 'zh' ? '退出全螢幕' : 'Exit fullscreen');
+                btn.title = currentLang === 'zh' ? '退出全螢幕' : 'Exit fullscreen';
+                expandIcon.classList.add('hidden');
+                compressIcon.classList.remove('hidden');
+            } else {
+                btn.setAttribute('aria-label', currentLang === 'zh' ? '全螢幕' : 'Fullscreen');
+                btn.title = currentLang === 'zh' ? '顯示成全螢幕' : 'Enter fullscreen';
+                expandIcon.classList.remove('hidden');
+                compressIcon.classList.add('hidden');
+            }
+        }
+
+        function setModalFullscreen(enabled) {
+            const modal = document.getElementById('sim-modal');
+            modalFullscreen = !!enabled;
+            modal.classList.toggle('fullscreen-mode', modalFullscreen);
+            updateFullscreenButtonUI();
+        }
+
+        function toggleModalFullscreen() {
+            setModalFullscreen(!modalFullscreen);
+        }
+
         function openModal(url) {
             const modal = document.getElementById('sim-modal');
             const iframe = document.getElementById('sim-modal-iframe');
             const captureBtn = document.getElementById('sim-modal-capture');
             currentModalUrl = url;
+            setModalFullscreen(false);
             iframe.src = url;
             modal.classList.add('active');
-            document.body.style.overflow = 'hidden'; // 防止背景滾動
-            
-            // 等待 iframe 載入完成後啟用截圖按鈕
+            document.body.style.overflow = 'hidden';
+
             captureBtn.disabled = true;
             iframe.onload = function() {
-                setTimeout(() => {
+                setTimeout(function() {
                     captureBtn.disabled = false;
-                }, 1000); // 給 iframe 內容一些時間渲染
+                }, 1000);
             };
         }
 
@@ -663,125 +1311,39 @@ $navUser = current_user();
             const modal = document.getElementById('sim-modal');
             const iframe = document.getElementById('sim-modal-iframe');
             const captureBtn = document.getElementById('sim-modal-capture');
+            setModalFullscreen(false);
             modal.classList.remove('active');
-            iframe.src = ''; // 清空 iframe 以停止載入
-            document.body.style.overflow = ''; // 恢復背景滾動
+            iframe.src = '';
+            document.body.style.overflow = '';
             captureBtn.disabled = true;
             currentModalUrl = '';
         }
-        
-        // 截圖功能
+
         async function captureModal() {
             const captureBtn = document.getElementById('sim-modal-capture');
-            const modalContent = document.getElementById('sim-modal-content');
             const iframe = document.getElementById('sim-modal-iframe');
-            
-            if (!modalContent || !iframe || !iframe.src) {
+
+            if (!iframe || !iframe.src) {
                 alert(currentLang === 'zh' ? '無法截圖：內容尚未載入' : 'Cannot capture: Content not loaded');
                 return;
             }
-            
+
+            captureBtn.disabled = true;
             try {
-                captureBtn.disabled = true;
-                
-                // 等待字體加載完成
                 await document.fonts.ready;
-                
-                // 嘗試從 iframe 中捕獲內容
                 let canvas;
                 try {
-                    // 如果 iframe 是同源的，可以直接訪問其內容
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    const iframeWin = iframe.contentWindow;
-                    if (iframeDoc && iframeWin) {
-                        // 等待 iframe 中的字體也加載完成
-                        if (iframeWin.document && iframeWin.document.fonts) {
-                            await iframeWin.document.fonts.ready;
-                        }
-                        
-                        // 重置 iframe 的滾動位置到頂部
-                        const originalScrollX = iframeWin.scrollX || 0;
-                        const originalScrollY = iframeWin.scrollY || 0;
-                        iframeWin.scrollTo(0, 0);
-                        
-                        // 等待滾動完成和渲染穩定
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                        
-                        // 處理固定定位元素
-                        const fixedElements = [];
-                        const allElements = iframeDoc.querySelectorAll('*');
-                        allElements.forEach(el => {
-                            const style = iframeWin.getComputedStyle(el);
-                            if (style.position === 'fixed') {
-                                fixedElements.push({
-                                    element: el,
-                                    originalPosition: el.style.position,
-                                    originalTop: el.style.top,
-                                    originalLeft: el.style.left
-                                });
-                                el.style.position = 'absolute';
-                                const rect = el.getBoundingClientRect();
-                                el.style.top = rect.top + 'px';
-                                el.style.left = rect.left + 'px';
-                            }
-                        });
-                        
-                        canvas = await html2canvas(iframeDoc.body || iframeDoc.documentElement, {
-                            backgroundColor: '#ffffff',
-                            scale: 1,
-                            useCORS: true,
-                            logging: false,
-                            allowTaint: false
-                        });
-                        
-                        // 恢復固定定位元素的樣式
-                        fixedElements.forEach(item => {
-                            item.element.style.position = item.originalPosition;
-                            item.element.style.top = item.originalTop;
-                            item.element.style.left = item.originalLeft;
-                        });
-                        
-                        // 恢復原始滾動位置
-                        iframeWin.scrollTo(originalScrollX, originalScrollY);
-                    } else {
-                        throw new Error('Cannot access iframe content');
-                    }
-                } catch (e) {
-                    // 如果無法訪問 iframe 內容（跨域限制），則捕獲整個 modal 內容區域
-                    console.warn('Cannot access iframe content, capturing modal container:', e);
-                    
-                    canvas = await html2canvas(modalContent, {
-                        backgroundColor: '#ffffff',
-                        scale: 1,
-                        useCORS: true,
-                        logging: false,
-                        allowTaint: false,
-                        ignoreElements: (element) => {
-                            // 忽略關閉按鈕和截圖按鈕
-                            return element.id === 'sim-modal-close' || element.id === 'sim-modal-capture';
-                        }
-                    });
+                    canvas = await captureIframeContent(iframe);
+                } catch (iframeError) {
+                    console.warn('Iframe capture failed, using modal fallback:', iframeError);
+                    canvas = await captureModalContainer();
                 }
-                
-                // 將 canvas 轉換為 PNG 並下載
-                canvas.toBlob(function(blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    const fileName = getFileNameFromUrl(currentModalUrl) || 'simulation';
-                    const timestamp = getFormattedTimestamp();
-                    a.href = url;
-                    a.download = `${fileName}_${timestamp}.png`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    
-                    captureBtn.disabled = false;
-                }, 'image/png');
-                
+                const fileName = getFileNameFromUrl(currentModalUrl) || 'simulation';
+                await downloadPngFromCanvas(canvas, fileName);
             } catch (error) {
                 console.error('截圖失敗:', error);
                 alert(currentLang === 'zh' ? '截圖失敗，請稍後再試' : 'Capture failed, please try again');
+            } finally {
                 captureBtn.disabled = false;
             }
         }
@@ -822,14 +1384,20 @@ $navUser = current_user();
             }
         }
 
-        // ESC 鍵關閉 modal
+        // ESC 鍵：全螢幕時先退出全螢幕，否則關閉 modal
         document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                const modal = document.getElementById('sim-modal');
-                if (modal.classList.contains('active')) {
-                    closeModal();
-                }
+            if (event.key !== 'Escape') {
+                return;
             }
+            const modal = document.getElementById('sim-modal');
+            if (!modal.classList.contains('active')) {
+                return;
+            }
+            if (modalFullscreen) {
+                setModalFullscreen(false);
+                return;
+            }
+            closeModal();
         });
 
         // 下載源程式碼
@@ -894,9 +1462,10 @@ $navUser = current_user();
             };
             document.getElementById('app-title').innerText = texts[currentLang].title;
             document.getElementById('core-label').innerText = texts[currentLang].core;
+            updateFullscreenButtonUI();
 
             // 更新所有帶有 data-zh 和 data-en 屬性的元素
-            document.querySelectorAll('.main-label, .sub-label, .topic-nav-label, .topic-heading, .topic-badge, .card-t, .card-d, .update-text, .image-placeholder, #breadcrumb-parent, #breadcrumb-topic, #breadcrumb-child, #page-title, #footer-copyright, #footer-license span, .download-btn-text').forEach(el => {
+            document.querySelectorAll('.main-label, .topic-nav-label, .topic-heading, .topic-badge, .card-t, .card-d, .update-text, .image-placeholder, #breadcrumb-parent, #breadcrumb-topic, #breadcrumb-child, #page-title, #footer-copyright, #footer-license span, .download-btn-text').forEach(el => {
                 const val = el.getAttribute(`data-${currentLang}`);
                 if (val) el.innerText = val;
             });
