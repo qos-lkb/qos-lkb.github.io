@@ -111,7 +111,7 @@ $navUser = current_user();
             }
         }
 
-        /* 收合後浮動展開鈕（桌面） */
+        /* 收合後浮動展開鈕 */
         #sidebar-expand {
             display: none;
             position: fixed;
@@ -126,9 +126,7 @@ $navUser = current_user();
             transition: opacity 0.2s, transform 0.2s;
         }
         #sidebar-expand:hover { transform: translateX(2px); }
-        @media (min-width: 768px) {
-            body.sidebar-is-collapsed #sidebar-expand { display: flex; }
-        }
+        body.sidebar-is-collapsed #sidebar-expand { display: flex; }
 
         /* 側欄內捲軸 */
         #sidebar-inner {
@@ -416,17 +414,7 @@ $navUser = current_user();
     <!-- 1. 標題列 -->
     <header class="fixed w-full z-50 top-0 bg-gradient-to-r from-indigo-950 via-indigo-900 to-violet-900 text-white shadow-lg shadow-indigo-950/20 border-b border-white/10 backdrop-blur-md">
         <div class="flex items-center h-16 w-full">
-            <!-- 側欄切換：貼左，不受 container padding 影響 -->
-            <button id="sidebar-toggle" type="button" aria-label="切換選單" aria-expanded="true" aria-controls="sidebar"
-                    class="flex-shrink-0 pl-2 sm:pl-3 pr-1 py-2 rounded-lg hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 transition-colors">
-                <svg id="icon-menu-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                </svg>
-                <svg id="icon-menu-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
-                </svg>
-            </button>
-            <div class="flex flex-1 justify-between items-center min-w-0 pr-3 sm:pr-6 lg:pr-8">
+            <div class="flex flex-1 justify-between items-center min-w-0 pl-3 sm:pl-6 lg:pl-8 pr-3 sm:pr-6 lg:pr-8">
                 <div class="flex-shrink min-w-0 flex items-center gap-2 cursor-pointer" onclick="location.reload()">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
                         <svg class="w-5 h-5 md:w-6 md:h-6 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -830,27 +818,13 @@ $navUser = current_user();
         }
 
         // 側邊欄切換（行動 overlay + 桌面收合）
-        const sidebarToggle = document.getElementById('sidebar-toggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
-        const iconMenuOpen = document.getElementById('icon-menu-open');
-        const iconMenuClose = document.getElementById('icon-menu-close');
         const SIDEBAR_KEY = 'science-sims-sidebar-collapsed';
         const mqDesktop = window.matchMedia('(min-width: 768px)');
 
         function isDesktop() {
             return mqDesktop.matches;
-        }
-
-        function setToggleIcons(sidebarVisible) {
-            if (sidebarVisible) {
-                iconMenuOpen.classList.add('hidden');
-                iconMenuClose.classList.remove('hidden');
-            } else {
-                iconMenuOpen.classList.remove('hidden');
-                iconMenuClose.classList.add('hidden');
-            }
-            sidebarToggle.setAttribute('aria-expanded', sidebarVisible ? 'true' : 'false');
         }
 
         function applyDesktopSidebar(collapsed) {
@@ -861,7 +835,6 @@ $navUser = current_user();
                 sidebar.classList.remove('sidebar-collapsed');
                 document.body.classList.remove('sidebar-is-collapsed');
             }
-            setToggleIcons(!collapsed);
             try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) {}
         }
 
@@ -870,12 +843,13 @@ $navUser = current_user();
                 sidebar.classList.add('sidebar-open');
                 overlay.classList.add('active');
                 document.body.style.overflow = 'hidden';
+                document.body.classList.remove('sidebar-is-collapsed');
             } else {
                 sidebar.classList.remove('sidebar-open');
                 overlay.classList.remove('active');
                 document.body.style.overflow = '';
+                document.body.classList.add('sidebar-is-collapsed');
             }
-            setToggleIcons(open);
         }
 
         function toggleSidebar() {
@@ -903,8 +877,6 @@ $navUser = current_user();
                 applyMobileSidebar(false);
             }
         }
-
-        sidebarToggle.addEventListener('click', toggleSidebar);
 
         mqDesktop.addEventListener('change', function() {
             sidebar.classList.remove('sidebar-open', 'sidebar-collapsed');
