@@ -9,6 +9,8 @@ require_once dirname(__DIR__, 2) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 2) . '/includes/simulations_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/learning_tools_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/articles_lib.php';
+require_once dirname(__DIR__, 2) . '/includes/learning_notes_lib.php';
+require_once dirname(__DIR__, 2) . '/includes/worksheets_lib.php';
 
 function api_v1_path(): string
 {
@@ -49,6 +51,10 @@ function api_v1_dispatch(): void
         'GET /learning-tools/pending' => 'api_handle_learning_tools_pending',
         'GET /articles' => 'api_handle_articles_list_public',
         'GET /articles/pending' => 'api_handle_articles_pending',
+        'GET /learning-notes' => 'api_handle_learning_notes_list_public',
+        'GET /learning-notes/pending' => 'api_handle_learning_notes_pending',
+        'GET /worksheets' => 'api_handle_worksheets_list_public',
+        'GET /worksheets/pending' => 'api_handle_worksheets_pending',
         'GET /review-queue' => 'api_handle_review_queue',
         'POST /auth/login' => 'api_handle_auth_login',
         'POST /auth/logout' => 'api_handle_auth_logout',
@@ -86,6 +92,14 @@ function api_v1_dispatch(): void
         api_handle_article_answers($pdo, rawurldecode($m[1]));
         return;
     }
+    if (preg_match('#^GET /learning-notes/([^/]+)$#', $path, $m)) {
+        api_handle_learning_note_get($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^GET /worksheets/([^/]+)$#', $path, $m)) {
+        api_handle_worksheet_get($pdo, rawurldecode($m[1]));
+        return;
+    }
 
     if ($path === '/admin/simulations') {
         api_handle_admin_simulations($pdo, $method);
@@ -97,6 +111,14 @@ function api_v1_dispatch(): void
     }
     if ($path === '/admin/articles') {
         api_handle_admin_articles($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/learning-notes') {
+        api_handle_admin_learning_notes($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/worksheets') {
+        api_handle_admin_worksheets($pdo, $method);
         return;
     }
     if (preg_match('#^POST /review/learning-tools/(\d+)/publish$#', $path, $m)) {
@@ -115,6 +137,22 @@ function api_v1_dispatch(): void
         api_handle_review_art_reject($pdo, (int) $m[1]);
         return;
     }
+    if (preg_match('#^POST /review/learning-notes/(\d+)/publish$#', $path, $m)) {
+        api_handle_review_ln_publish($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /review/learning-notes/(\d+)/reject$#', $path, $m)) {
+        api_handle_review_ln_reject($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /review/worksheets/(\d+)/publish$#', $path, $m)) {
+        api_handle_review_ws_publish($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /review/worksheets/(\d+)/reject$#', $path, $m)) {
+        api_handle_review_ws_reject($pdo, (int) $m[1]);
+        return;
+    }
 
     api_json_error('not_found', '找不到資源。', 404);
 }
@@ -124,12 +162,32 @@ function api_catalog_base(): string
     return web_base_path() . '/api/v1';
 }
 
+function api_catalog_fetch_learning_notes(PDO $pdo): array
+{
+    try {
+        return ln_fetch_published($pdo);
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function api_catalog_fetch_worksheets(PDO $pdo): array
+{
+    try {
+        return ws_fetch_published($pdo);
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 function api_handle_catalog(PDO $pdo): void
 {
     $rows = sim_fetch_published_for_index($pdo);
     $struct = sim_build_index_structures_for_api($rows);
     $ltRows = lt_fetch_published($pdo);
     $artRows = art_fetch_published($pdo);
+    $noteRows = api_catalog_fetch_learning_notes($pdo);
+    $wsRows = api_catalog_fetch_worksheets($pdo);
 
     api_json_ok([
         'simulations' => $struct,
@@ -139,6 +197,16 @@ function api_handle_catalog(PDO $pdo): void
             unset($out['body_zh'], $out['body_en']);
             return $out;
         }, $artRows),
+        'learning_notes' => array_map(function (array $r) {
+            $out = ln_public_row($r);
+            unset($out['body_zh'], $out['body_en']);
+            return $out;
+        }, $noteRows),
+        'worksheets' => array_map(function (array $r) {
+            $out = ws_public_row($r);
+            unset($out['body_zh'], $out['body_en']);
+            return $out;
+        }, $wsRows),
         'user' => api_user_payload(),
         'site_base' => web_base_path(),
     ]);
@@ -202,4 +270,6 @@ require_once __DIR__ . '/handlers/auth.php';
 require_once __DIR__ . '/handlers/simulations.php';
 require_once __DIR__ . '/handlers/learning_tools.php';
 require_once __DIR__ . '/handlers/articles.php';
+require_once __DIR__ . '/handlers/learning_notes.php';
+require_once __DIR__ . '/handlers/worksheets.php';
 require_once __DIR__ . '/handlers/review.php';

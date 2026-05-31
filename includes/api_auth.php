@@ -109,3 +109,47 @@ function api_can_view_article(array $row, ?array $user): bool
     }
     return api_can_manage_article($row, $user);
 }
+
+function api_can_manage_learning_note(array $row, array $user): bool
+{
+    if (user_has_permission('learning_note.manage_any')) {
+        return true;
+    }
+    if (!user_has_permission('learning_note.manage_own')) {
+        return false;
+    }
+    return $row['owner_user_id'] !== null && (int) $row['owner_user_id'] === $user['id'];
+}
+
+function api_can_view_learning_note(array $row, ?array $user): bool
+{
+    if ($row['status'] === 'published') {
+        return true;
+    }
+    if ($user === null) {
+        return false;
+    }
+    return api_can_manage_learning_note($row, $user);
+}
+
+function api_can_manage_worksheet(array $row, array $user): bool
+{
+    if (user_has_permission('worksheet.manage_any')) {
+        return true;
+    }
+    if (!user_has_permission('worksheet.manage_own')) {
+        return false;
+    }
+    return $row['owner_user_id'] !== null && (int) $row['owner_user_id'] === $user['id'];
+}
+
+function api_can_view_worksheet(array $row, ?array $user): bool
+{
+    if ($row['status'] === 'published') {
+        return true;
+    }
+    if ($user === null) {
+        return false;
+    }
+    return api_can_manage_worksheet($row, $user);
+}

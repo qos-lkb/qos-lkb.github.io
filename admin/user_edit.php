@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="max-w-xl mx-auto px-4 py-4 flex justify-between">
             <h1 class="font-bold"><?php echo $id ? '編輯使用者' : '新增使用者'; ?></h1>
             <a href="users.php" class="text-sm text-slate-300 hover:text-white">返回</a>
+            <a href="permissions.php" class="text-sm text-slate-300 hover:text-white ml-3">更改權限</a>
         </div>
     </header>
     <main class="max-w-xl mx-auto px-4 py-8">

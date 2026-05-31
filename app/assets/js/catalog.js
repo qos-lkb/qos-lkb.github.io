@@ -9,6 +9,8 @@
     let titleMap = {};
     let learningTools = [];
     let articles = [];
+    let learningNotes = [];
+    let worksheets = [];
 
     let siteBase = '';
 
@@ -174,7 +176,7 @@
         document.body.style.overflow = '';
     }
 
-    async function loadCatalog() {
+    async function loadCatalog(skipNavRender = false) {
         const data = await apiFetch('/catalog');
         if (data.site_base !== undefined) {
             siteBase = data.site_base || '';
@@ -185,12 +187,64 @@
         titleMap = sim.titleMap || {};
         learningTools = data.learning_tools || [];
         articles = data.articles || [];
-        renderNav();
-        const firstKey = Object.keys(subjectData)[0];
-        if (firstKey) {
-            showCategory(firstKey.toLowerCase().replace(/\s+/g, '-'), null);
+        learningNotes = data.learning_notes || [];
+        worksheets = data.worksheets || [];
+        if (!skipNavRender) {
+            renderNav();
+            const firstKey = Object.keys(subjectData)[0];
+            if (firstKey) {
+                showCategory(firstKey.toLowerCase().replace(/\s+/g, '-'), null);
+            }
         }
         return data;
+    }
+
+    async function renderLearningNotesList() {
+        await loadCatalog(true);
+        const container = document.getElementById('card-container');
+        const lang = getLang();
+        document.getElementById('page-title').textContent = t('學習筆記', 'Learning Notes');
+        if (!learningNotes.length) {
+            container.innerHTML = `<p class="text-slate-500">${t('尚無已發佈的學習筆記。', 'No published learning notes yet.')}</p>`;
+            return;
+        }
+        container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${learningNotes.map(n => `
+            <a href="#" data-slug="${escapeHtml(n.slug)}" class="note-card block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <h3 class="font-bold text-lg text-slate-800 mb-2">${escapeHtml(lang === 'zh' ? n.title_zh : n.title_en)}</h3>
+                ${n.reading_time_minutes ? `<p class="text-xs text-slate-400">${t('約', '~')}${n.reading_time_minutes}${t(' 分鐘', ' min read')}</p>` : ''}
+            </a>`).join('')}</div>`;
+        container.querySelectorAll('.note-card').forEach(a => {
+            a.onclick = (e) => {
+                e.preventDefault();
+                global.AppRouter.navigate('/note/' + encodeURIComponent(a.dataset.slug));
+            };
+        });
+    }
+
+    async function renderWorksheetsList() {
+        await loadCatalog(true);
+        const container = document.getElementById('card-container');
+        const lang = getLang();
+        document.getElementById('page-title').textContent = t('工作紙', 'Worksheets');
+        if (!worksheets.length) {
+            container.innerHTML = `<p class="text-slate-500">${t('尚無已發佈的工作紙。', 'No published worksheets yet.')}</p>`;
+            return;
+        }
+        container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">${worksheets.map(w => {
+            const title = lang === 'zh' ? w.title_zh : w.title_en;
+            const desc = lang === 'zh' ? (w.description_zh || '') : (w.description_en || '');
+            return `
+            <a href="#" data-slug="${escapeHtml(w.slug)}" class="ws-card block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <h3 class="font-bold text-lg text-slate-800 mb-2">${escapeHtml(title)}</h3>
+                ${desc ? `<p class="text-sm text-slate-600 line-clamp-2">${escapeHtml(desc)}</p>` : ''}
+            </a>`;
+        }).join('')}</div>`;
+        container.querySelectorAll('.ws-card').forEach(a => {
+            a.onclick = (e) => {
+                e.preventDefault();
+                global.AppRouter.navigate('/worksheet/' + encodeURIComponent(a.dataset.slug));
+            };
+        });
     }
 
     function renderLearningToolsList() {
@@ -240,9 +294,13 @@
         showCategory,
         openModal,
         closeModal,
+        renderLearningNotesList,
+        renderWorksheetsList,
         renderLearningToolsList,
         renderArticlesList,
         getLearningTools: () => learningTools,
         getArticles: () => articles,
+        getLearningNotes: () => learningNotes,
+        getWorksheets: () => worksheets,
     };
 })(window);

@@ -17,7 +17,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     $flash = $r['ok'] ? '已刪除使用者。' : ($r['error'] ?? '錯誤');
 }
 
-$rows = $pdo->query('SELECT id, email, display_name, is_active FROM users ORDER BY id ASC')->fetchAll() ?: [];
+$rows = $pdo->query(
+    'SELECT u.id, u.email, u.display_name, u.is_active,
+            GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
+     FROM users u
+     LEFT JOIN user_roles ur ON ur.user_id = u.id
+     LEFT JOIN roles r ON r.id = ur.role_id
+     GROUP BY u.id, u.email, u.display_name, u.is_active
+     ORDER BY u.id ASC'
+)->fetchAll() ?: [];
 
 ?>
 <!DOCTYPE html>
@@ -34,6 +42,7 @@ $rows = $pdo->query('SELECT id, email, display_name, is_active FROM users ORDER 
             <h1 class="font-bold">使用者</h1>
             <nav class="flex gap-3 text-sm">
                 <a href="index.php" class="text-slate-300 hover:text-white">後台</a>
+                <a href="permissions.php" class="text-slate-300 hover:text-white">更改權限</a>
                 <a href="user_edit.php" class="text-indigo-300 hover:text-white">新增</a>
             </nav>
         </div>
@@ -49,6 +58,7 @@ $rows = $pdo->query('SELECT id, email, display_name, is_active FROM users ORDER 
                         <th class="p-3">ID</th>
                         <th class="p-3">電郵</th>
                         <th class="p-3">名稱</th>
+                        <th class="p-3">角色</th>
                         <th class="p-3">啟用</th>
                         <th class="p-3"></th>
                     </tr>
@@ -59,6 +69,7 @@ $rows = $pdo->query('SELECT id, email, display_name, is_active FROM users ORDER 
                         <td class="p-3"><?php echo (int) $r['id']; ?></td>
                         <td class="p-3"><?php echo htmlspecialchars($r['email'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo htmlspecialchars($r['display_name'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="p-3 text-slate-600"><?php echo htmlspecialchars((string) ($r['role_names'] ?? ''), ENT_QUOTES, 'UTF-8') ?: '—'; ?></td>
                         <td class="p-3"><?php echo (int) $r['is_active'] ? '是' : '否'; ?></td>
                         <td class="p-3 whitespace-nowrap">
                             <?php if ($r['email'] !== 'system@science-sims.internal'): ?>

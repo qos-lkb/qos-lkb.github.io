@@ -9,7 +9,8 @@ if (current_user() === null) {
     header('Location: ../login.php?next=' . rawurlencode('admin/review_queue.php'));
     exit;
 }
-if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('article.manage_any')) {
+if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('article.manage_any')
+    && !user_has_permission('learning_note.manage_any') && !user_has_permission('worksheet.manage_any')) {
     http_response_code(403);
     exit('沒有權限');
 }
@@ -46,24 +47,37 @@ if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('ar
                 box.innerHTML = '<p class="text-slate-500">目前沒有待審核項目。</p>';
                 return;
             }
-            box.innerHTML = items.map(it => `
+            box.innerHTML = items.map(it => {
+                const typeLabel = {
+                    article: '文章',
+                    learning_tool: '學習工具',
+                    learning_note: '學習筆記',
+                    worksheet: '工作紙',
+                }[it.type] || it.type;
+                const reviewPath = {
+                    article: 'articles',
+                    learning_tool: 'learning-tools',
+                    learning_note: 'learning-notes',
+                    worksheet: 'worksheets',
+                }[it.type] || it.type;
+                return `
                 <div class="bg-white border rounded-xl p-4 flex flex-wrap justify-between gap-3 items-center">
                     <div>
-                        <span class="text-xs uppercase text-amber-600 font-bold">${it.type === 'article' ? '文章' : '學習工具'}</span>
+                        <span class="text-xs uppercase text-amber-600 font-bold">${typeLabel}</span>
                         <h2 class="font-semibold">${it.title_zh || it.title_en}</h2>
                         <p class="text-xs text-slate-500 font-mono">${it.slug}</p>
                     </div>
                     <div class="flex gap-2">
-                        <button type="button" class="px-3 py-1 bg-green-600 text-white rounded-lg text-sm" data-action="publish" data-type="${it.type}" data-id="${it.id}">發佈</button>
-                        <button type="button" class="px-3 py-1 bg-slate-200 rounded-lg text-sm" data-action="reject" data-type="${it.type}" data-id="${it.id}">退回</button>
+                        <button type="button" class="px-3 py-1 bg-green-600 text-white rounded-lg text-sm" data-action="publish" data-path="${reviewPath}" data-id="${it.id}">發佈</button>
+                        <button type="button" class="px-3 py-1 bg-slate-200 rounded-lg text-sm" data-action="reject" data-path="${reviewPath}" data-id="${it.id}">退回</button>
                     </div>
-                </div>`).join('');
+                </div>`;
+            }).join('');
             box.querySelectorAll('button').forEach(btn => {
                 btn.onclick = async () => {
-                    const type = btn.dataset.type;
                     const id = btn.dataset.id;
                     const action = btn.dataset.action;
-                    const path = `/review/${type === 'article' ? 'articles' : 'learning-tools'}/${id}/${action}`;
+                    const path = `/review/${btn.dataset.path}/${id}/${action}`;
                     try {
                         await AdminApi.apiFetch(path, { method: 'POST', body: {} });
                         load();

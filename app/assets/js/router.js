@@ -49,8 +49,26 @@
             await routes['/article/:slug'](decodeURIComponent(article[1]));
             return;
         }
+        const note = path.match(/^\/note\/([^/]+)$/);
+        if (note) {
+            await routes['/note/:slug'](decodeURIComponent(note[1]));
+            return;
+        }
+        const worksheet = path.match(/^\/worksheet\/([^/]+)$/);
+        if (worksheet) {
+            await routes['/worksheet/:slug'](decodeURIComponent(worksheet[1]));
+            return;
+        }
         if (path === '/learning-tools') {
             await routes['/learning-tools']();
+            return;
+        }
+        if (path === '/learning-notes') {
+            await routes['/learning-notes']();
+            return;
+        }
+        if (path === '/worksheets') {
+            await routes['/worksheets']();
             return;
         }
         if (path === '/articles') {

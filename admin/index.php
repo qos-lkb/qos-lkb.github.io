@@ -40,7 +40,14 @@ if (!$u && !$s) {
             <span class="block text-sm text-slate-500 mt-1">HTML 即時編輯與預覽（codespace/index.html），於新分頁開啟。</span>
         </a>
         <?php if ($u): ?>
-            <a href="users.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">使用者與角色</a>
+            <a href="users.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">
+                <span class="font-medium text-slate-900">使用者與角色</span>
+                <span class="block text-sm text-slate-500 mt-1">新增、編輯使用者並指派角色。</span>
+            </a>
+            <a href="permissions.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">
+                <span class="font-medium text-slate-900">更改權限</span>
+                <span class="block text-sm text-slate-500 mt-1">調整管理員、一般使用者等角色的系統權限。</span>
+            </a>
             <a href="subjects.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">科目與單元</a>
             <a href="db_export.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-amber-300 transition">匯出資料庫（SQL 備份）</a>
         <?php endif; ?>
@@ -48,6 +55,8 @@ if (!$u && !$s) {
             <a href="simulations.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">全部模擬</a>
             <a href="learning_tools.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">互動學習工具</a>
             <a href="articles.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">科學文章</a>
+            <a href="learning_notes.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">學習筆記</a>
+            <a href="worksheets.php" class="block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 transition">工作紙</a>
             <a href="review_queue.php" class="block bg-white border border-amber-200 rounded-xl p-4 shadow-sm hover:border-amber-300 transition">審核佇列</a>
         <?php endif; ?>
     </main>
