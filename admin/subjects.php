@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/simulations_lib.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/subjects.php'));
@@ -266,27 +267,12 @@ if ($activeTab === 'topics') {
 
 $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
 
+admin_page_start('科目與單元', 'subjects', [
+    'bodyClass' => 'leading-snug',
+    'headExtra' => '<style>html { font-size: 14px; }</style>',
+    'wide' => true,
+]);
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>科目與單元 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* 全頁字體約小 2px（以常見 16px 為基準 → 14px） */
-        html { font-size: 14px; }
-    </style>
-</head>
-<body class="bg-slate-50 min-h-screen leading-snug">
-    <header class="bg-slate-900 text-white shadow">
-        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between">
-            <h1 class="font-bold">科目與單元</h1>
-            <a href="index.php" class="text-sm text-slate-300 hover:text-white">後台</a>
-        </div>
-    </header>
-    <main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <?php if ($error !== ''): ?><p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
         <?php if ($ok !== ''): ?><p class="text-green-700 text-sm"><?php echo htmlspecialchars($ok, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
 
@@ -445,7 +431,6 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
                 </section>
             </div>
         </div>
-    </main>
     <script>
     (function () {
         function getDragAfterElement(container, y, itemSelector) {
@@ -855,5 +840,5 @@ $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
         });
     })();
     </script>
-</body>
-</html>
+<?php
+admin_page_end();

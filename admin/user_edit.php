@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/user_admin.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/user_edit.php'));
@@ -47,26 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $roleIds = isset($_POST['roles']) && is_array($_POST['roles']) ? array_map('intval', $_POST['roles']) : [];
 }
 
+admin_page_start($id ? '編輯使用者' : '新增使用者', 'users', [
+    'actions' => admin_btn('users.php', '返回列表', 'secondary'),
+]);
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $id ? '編輯使用者' : '新增使用者'; ?> | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white shadow">
-        <div class="max-w-xl mx-auto px-4 py-4 flex justify-between">
-            <h1 class="font-bold"><?php echo $id ? '編輯使用者' : '新增使用者'; ?></h1>
-            <a href="users.php" class="text-sm text-slate-300 hover:text-white">返回</a>
-            <a href="permissions.php" class="text-sm text-slate-300 hover:text-white ml-3">更改權限</a>
-        </div>
-    </header>
-    <main class="max-w-xl mx-auto px-4 py-8">
         <?php if ($error !== ''): ?>
-            <p class="text-red-600 text-sm mb-4"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
+            <p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
         <?php endif; ?>
         <form method="post" class="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-sm">
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
@@ -101,6 +88,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">儲存</button>
         </form>
-    </main>
-</body>
-</html>
+<?php
+admin_page_end();

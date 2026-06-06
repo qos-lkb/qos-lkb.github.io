@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/simulation_save.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('simulation.manage_any', '../login.php?next=' . rawurlencode('admin/simulations.php'));
@@ -32,28 +33,13 @@ $list = $pdo->query(
               s.list_sort_order ASC, s.updated_at DESC'
 )->fetchAll() ?: [];
 
+admin_page_start('模擬程式', 'simulations', [
+    'actions' => admin_btn('simulation_edit.php', '新增'),
+    'wide' => true,
+]);
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全部模擬 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white shadow">
-        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center flex-wrap gap-2">
-            <h1 class="font-bold">全部模擬</h1>
-            <nav class="flex gap-3 text-sm">
-                <a href="index.php" class="text-slate-300 hover:text-white">後台</a>
-                <a href="simulation_edit.php" class="text-indigo-300 hover:text-white">新增</a>
-            </nav>
-        </div>
-    </header>
-    <main class="max-w-6xl mx-auto px-4 py-8">
         <?php if ($flash !== ''): ?>
-            <p class="mb-4 text-sm text-slate-700"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?></p>
+            <p class="text-sm text-slate-700"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?></p>
         <?php endif; ?>
         <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
             <table class="min-w-full text-sm">
@@ -105,6 +91,5 @@ $list = $pdo->query(
                 </tbody>
             </table>
         </div>
-    </main>
-</body>
-</html>
+<?php
+admin_page_end();

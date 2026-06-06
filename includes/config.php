@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+const CONFIG_DEFAULT_SITE_NAME = '伊中中科學學習平台';
+const CONFIG_DEFAULT_SITE_NAME_EN = 'QESOSASS Science Learning Platform';
+
 /**
  * 讀取專案根目錄 .env（KEY=value，# 為註解），寫入 putenv／$_ENV。
  */
@@ -40,6 +43,27 @@ function config_load_dotenv(?string $path = null): void
         putenv($k . '=' . $v);
         $_ENV[$k] = $v;
     }
+}
+
+function config_site_name(): string
+{
+    config_load_dotenv();
+    $name = trim((string) (getenv('SITE_NAME') ?: ($_ENV['SITE_NAME'] ?? '')));
+
+    return $name !== '' ? $name : CONFIG_DEFAULT_SITE_NAME;
+}
+
+function config_site_name_en(): string
+{
+    config_load_dotenv();
+    $name = trim((string) (getenv('SITE_NAME_EN') ?: ($_ENV['SITE_NAME_EN'] ?? '')));
+
+    return $name !== '' ? $name : CONFIG_DEFAULT_SITE_NAME_EN;
+}
+
+function config_site_title_bilingual(): string
+{
+    return config_site_name() . ' | ' . config_site_name_en();
 }
 
 /**

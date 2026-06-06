@@ -38,6 +38,7 @@ function api_v1_dispatch(): void
 {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $path = api_v1_path();
+    $routeKey = $method . ' ' . $path;
 
     try {
         $pdo = db();
@@ -62,41 +63,41 @@ function api_v1_dispatch(): void
         'GET /subjects' => 'api_handle_subjects',
     ];
 
-    $key = $method . ' ' . $path;
+    $key = $routeKey;
     if (isset($routes[$key])) {
         $routes[$key]($pdo);
         return;
     }
 
-    if (preg_match('#^GET /simulations/([^/]+)$#', $path, $m)) {
+    if (preg_match('#^GET /simulations/([^/]+)$#', $routeKey, $m)) {
         api_handle_simulation_get($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /simulations/([^/]+)/html$#', $path, $m)) {
+    if (preg_match('#^GET /simulations/([^/]+)/html$#', $routeKey, $m)) {
         api_handle_simulation_html($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /learning-tools/([^/]+)$#', $path, $m)) {
+    if (preg_match('#^GET /learning-tools/([^/]+)$#', $routeKey, $m)) {
         api_handle_learning_tool_get($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /learning-tools/([^/]+)/answers$#', $path, $m)) {
+    if (preg_match('#^GET /learning-tools/([^/]+)/answers$#', $routeKey, $m)) {
         api_handle_learning_tool_answers($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /articles/([^/]+)$#', $path, $m)) {
+    if (preg_match('#^GET /articles/([^/]+)$#', $routeKey, $m)) {
         api_handle_article_get($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /articles/([^/]+)/answers$#', $path, $m)) {
+    if (preg_match('#^GET /articles/([^/]+)/answers$#', $routeKey, $m)) {
         api_handle_article_answers($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /learning-notes/([^/]+)$#', $path, $m)) {
+    if (preg_match('#^GET /learning-notes/([^/]+)$#', $routeKey, $m)) {
         api_handle_learning_note_get($pdo, rawurldecode($m[1]));
         return;
     }
-    if (preg_match('#^GET /worksheets/([^/]+)$#', $path, $m)) {
+    if (preg_match('#^GET /worksheets/([^/]+)$#', $routeKey, $m)) {
         api_handle_worksheet_get($pdo, rawurldecode($m[1]));
         return;
     }
@@ -121,35 +122,35 @@ function api_v1_dispatch(): void
         api_handle_admin_worksheets($pdo, $method);
         return;
     }
-    if (preg_match('#^POST /review/learning-tools/(\d+)/publish$#', $path, $m)) {
+    if (preg_match('#^POST /review/learning-tools/(\d+)/publish$#', $routeKey, $m)) {
         api_handle_review_lt_publish($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/learning-tools/(\d+)/reject$#', $path, $m)) {
+    if (preg_match('#^POST /review/learning-tools/(\d+)/reject$#', $routeKey, $m)) {
         api_handle_review_lt_reject($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/articles/(\d+)/publish$#', $path, $m)) {
+    if (preg_match('#^POST /review/articles/(\d+)/publish$#', $routeKey, $m)) {
         api_handle_review_art_publish($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/articles/(\d+)/reject$#', $path, $m)) {
+    if (preg_match('#^POST /review/articles/(\d+)/reject$#', $routeKey, $m)) {
         api_handle_review_art_reject($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/learning-notes/(\d+)/publish$#', $path, $m)) {
+    if (preg_match('#^POST /review/learning-notes/(\d+)/publish$#', $routeKey, $m)) {
         api_handle_review_ln_publish($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/learning-notes/(\d+)/reject$#', $path, $m)) {
+    if (preg_match('#^POST /review/learning-notes/(\d+)/reject$#', $routeKey, $m)) {
         api_handle_review_ln_reject($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/worksheets/(\d+)/publish$#', $path, $m)) {
+    if (preg_match('#^POST /review/worksheets/(\d+)/publish$#', $routeKey, $m)) {
         api_handle_review_ws_publish($pdo, (int) $m[1]);
         return;
     }
-    if (preg_match('#^POST /review/worksheets/(\d+)/reject$#', $path, $m)) {
+    if (preg_match('#^POST /review/worksheets/(\d+)/reject$#', $routeKey, $m)) {
         api_handle_review_ws_reject($pdo, (int) $m[1]);
         return;
     }

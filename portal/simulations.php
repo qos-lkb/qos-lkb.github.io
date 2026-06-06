@@ -34,7 +34,7 @@ $list = $stmt->fetchAll() ?: [];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的模擬 | Science Sims</title>
+    <title>我的模擬 | <?php echo htmlspecialchars(config_site_title_bilingual(), ENT_QUOTES, 'UTF-8'); ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 min-h-screen">

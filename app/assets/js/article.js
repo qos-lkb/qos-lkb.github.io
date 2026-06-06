@@ -3,15 +3,11 @@
 
     const { apiFetch } = global.ScienceApi;
     const { t, escapeHtml, getLang } = global.AppRouter;
+    const { renderMarkdownToHtml, enhanceMarkdown } = global.AppMarkdown;
+
+    const { attachMarkdownEditor, buildArticlePayload, questionsForArticleSave } = global.AppInlineEdit;
 
     const LABELS = ['A', 'B', 'C', 'D'];
-
-    function renderMarkdown(md) {
-        if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
-            return DOMPurify.sanitize(marked.parse(md || ''));
-        }
-        return escapeHtml(md || '').replace(/\n/g, '<br>');
-    }
 
     async function renderArticle(slug) {
         const main = document.getElementById('main-content');
@@ -95,19 +91,38 @@
         }
 
         main.innerHTML = `
-            <div class="max-w-3xl mx-auto">
+            <div class="max-w-3xl mx-auto" id="art-page">
                 <button type="button" id="art-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
-                <h1 class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
+                <h1 id="art-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                 ${article.reading_time_minutes ? `<p class="text-sm text-slate-500 mb-6">${t('約', '~')}${article.reading_time_minutes}${t(' 分鐘閱讀', ' min read')}</p>` : ''}
-                <article class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm mb-6">${renderMarkdown(body)}</article>
+                <article id="art-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm mb-6">${renderMarkdownToHtml(body)}</article>
                 <div id="comprehension-section"></div>
             </div>`;
 
         document.getElementById('art-back').onclick = () => global.AppRouter.navigate('/articles');
         renderComprehension();
-        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-            MathJax.typesetPromise([main]).catch(() => {});
+        await enhanceMarkdown(main);
+
+        const answerMapForSave = {};
+        if (answers && answers.answers) {
+            answers.answers.forEach((a) => { answerMapForSave[a.question_id] = a; });
         }
+
+        attachMarkdownEditor({
+            type: 'article',
+            record: article,
+            root: document.getElementById('art-page'),
+            titleEl: document.getElementById('art-title'),
+            bodyEl: document.getElementById('art-body'),
+            buildPayload: (rec) => buildArticlePayload(
+                rec,
+                questionsForArticleSave(rec.questions || questions, answerMapForSave)
+            ),
+            onBodyUpdated: async (bodyEl, markdown) => {
+                bodyEl.innerHTML = renderMarkdownToHtml(markdown);
+                await enhanceMarkdown(main);
+            },
+        });
     }
 
     global.AppArticle = { renderArticle };

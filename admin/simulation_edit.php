@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/simulations_lib.php';
 require_once dirname(__DIR__) . '/includes/simulation_save.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('simulation.manage_any', '../login.php?next=' . rawurlencode('admin/simulation_edit.php'));
@@ -66,27 +67,13 @@ $formAction = 'simulation_edit.php';
 $isAdmin = true;
 $csrf = csrf_token();
 
+admin_page_start($id ? '編輯模擬' : '新增模擬', 'simulations', [
+    'actions' => admin_btn('simulations.php', '返回列表', 'secondary'),
+]);
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $id ? '編輯' : '新增'; ?>模擬 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white shadow">
-        <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between">
-            <h1 class="font-bold"><?php echo $id ? '編輯模擬' : '新增模擬'; ?></h1>
-            <a href="simulations.php" class="text-sm text-slate-300 hover:text-white">返回列表</a>
-        </div>
-    </header>
-    <main class="max-w-5xl mx-auto px-4 py-8">
         <?php if ($error !== ''): ?>
-            <p class="text-red-600 text-sm mb-4"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
+            <p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
         <?php endif; ?>
         <?php include dirname(__DIR__) . '/includes/simulation_form_fragment.php'; ?>
-    </main>
-</body>
-</html>
+<?php
+admin_page_end();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/user_admin.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/permissions.php'));
@@ -40,26 +41,8 @@ function admin_role_display_name(string $name, array $roleLabels): string
     return $roleLabels[$key] ?? $name;
 }
 
+admin_page_start('角色權限', 'permissions');
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>更改權限 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white shadow">
-        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="font-bold">更改權限</h1>
-            <nav class="flex gap-3 text-sm">
-                <a href="index.php" class="text-slate-300 hover:text-white">後台</a>
-                <a href="users.php" class="text-slate-300 hover:text-white">使用者</a>
-            </nav>
-        </div>
-    </header>
-    <main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <p class="text-sm text-slate-600">
             在此調整各<strong>角色</strong>擁有的權限。使用者的實際權限由其被指派的角色決定；若要變更個別使用者的角色，請至
             <a href="users.php" class="text-indigo-600 hover:underline">使用者管理</a>。
@@ -106,6 +89,5 @@ function admin_role_display_name(string $name, array $roleLabels): string
                 </button>
             </form>
         <?php endforeach; ?>
-    </main>
-</body>
-</html>
+<?php
+admin_page_end();

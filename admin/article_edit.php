@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/simulations_lib.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('article.manage_any', '../login.php?next=' . rawurlencode('admin/article_edit.php'));
@@ -16,19 +17,11 @@ foreach ($subjects as $s) {
     $topicsJson[(int) $s['id']] = sim_topics_for_subject($pdo, (int) $s['id']);
 }
 
+admin_page_start($id ? '編輯文章' : '新增文章', 'articles', [
+    'actions' => admin_btn('articles.php', '返回列表', 'secondary'),
+]);
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $id ? '編輯' : '新增'; ?>文章 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white px-4 py-4"><div class="max-w-3xl mx-auto"><a href="articles.php" class="text-slate-300 text-sm">← 返回</a></div></header>
-    <main class="max-w-3xl mx-auto px-4 py-8">
-        <p id="flash" class="text-red-600 text-sm mb-4 hidden"></p>
+        <p id="flash" class="text-red-600 text-sm hidden"></p>
         <form id="edit-form" class="space-y-4 bg-white rounded-xl border p-6">
             <input type="hidden" id="item-id" value="<?php echo $id; ?>">
             <div class="grid md:grid-cols-2 gap-4">
@@ -54,9 +47,11 @@ foreach ($subjects as $s) {
             </div>
             <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg">儲存</button>
         </form>
-    </main>
-    <script>const TOPICS=<?php echo json_encode($topicsJson, JSON_HEX_TAG|JSON_HEX_AMP); ?>;const EDIT_ID=<?php echo $id; ?>;</script>
-    <script src="../assets/js/admin-api.js"></script>
+<?php
+admin_page_end([
+    'scripts' => '<script>const TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP) . ';const EDIT_ID=' . $id . ';</script>'
+        . '<script src="../assets/js/admin-api.js"></script>'
+        . <<<'HTML'
     <script>
     (async function(){
         await AdminApi.initSession();
@@ -96,5 +91,5 @@ foreach ($subjects as $s) {
         };
     })();
     </script>
-</body>
-</html>
+HTML,
+]);

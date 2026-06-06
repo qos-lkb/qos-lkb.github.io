@@ -11,6 +11,8 @@
     let articles = [];
     let learningNotes = [];
     let worksheets = [];
+    let notesTree = { subjects: [], uncategorized: [] };
+    let notesNavMode = false;
 
     let siteBase = '';
 
@@ -74,7 +76,286 @@
             </section>`;
     }
 
+    function sortNotes(a, b) {
+        return (a.list_sort_order || 0) - (b.list_sort_order || 0)
+            || String(a.title_en || a.title_zh).localeCompare(String(b.title_en || b.title_zh));
+    }
+
+    function noteNavItem(n) {
+        return {
+            slug: n.slug,
+            title_zh: n.title_zh,
+            title_en: n.title_en,
+            reading_time_minutes: n.reading_time_minutes,
+            list_sort_order: n.list_sort_order || 0,
+        };
+    }
+
+    function buildNotesTree(notes) {
+        const subjectMap = new Map();
+        const uncategorized = [];
+
+        for (const n of notes) {
+            const item = noteNavItem(n);
+            if (!n.subject_id) {
+                uncategorized.push(item);
+                continue;
+            }
+            const sid = String(n.subject_id);
+            if (!subjectMap.has(sid)) {
+                subjectMap.set(sid, {
+                    id: n.subject_id,
+                    label_zh: n.subject_zh || t('未分類科目', 'Uncategorized subject'),
+                    label_en: n.subject_en || 'Uncategorized subject',
+                    topics: new Map(),
+                    looseNotes: [],
+                });
+            }
+            const sub = subjectMap.get(sid);
+            if (!n.topic_id) {
+                sub.looseNotes.push(item);
+                continue;
+            }
+            const tid = String(n.topic_id);
+            if (!sub.topics.has(tid)) {
+                sub.topics.set(tid, {
+                    id: n.topic_id,
+                    label_zh: n.topic_zh || t('未分類課題', 'Uncategorized topic'),
+                    label_en: n.topic_en || 'Uncategorized topic',
+                    notes: [],
+                });
+            }
+            sub.topics.get(tid).notes.push(item);
+        }
+
+        const subjects = [...subjectMap.values()].map((sub) => {
+            const topics = [...sub.topics.values()]
+                .map((tp) => ({ ...tp, notes: tp.notes.sort(sortNotes) }))
+                .sort((a, b) => sortNotes(
+                    { list_sort_order: 0, title_en: a.label_en, title_zh: a.label_zh },
+                    { list_sort_order: 0, title_en: b.label_en, title_zh: b.label_zh }
+                ));
+            return {
+                ...sub,
+                topics,
+                looseNotes: sub.looseNotes.sort(sortNotes),
+            };
+        }).sort((a, b) => String(a.label_en).localeCompare(String(b.label_en)));
+
+        return { subjects, uncategorized: uncategorized.sort(sortNotes) };
+    }
+
+    function getFirstNotesSelection() {
+        if (notesTree.uncategorized.length) {
+            return { subjectId: '_other', topicId: '_other' };
+        }
+        const sub = notesTree.subjects[0];
+        if (!sub) return null;
+        if (sub.topics.length) {
+            return { subjectId: String(sub.id), topicId: String(sub.topics[0].id) };
+        }
+        if (sub.looseNotes.length) {
+            return { subjectId: String(sub.id), topicId: '_loose' };
+        }
+        return null;
+    }
+
+    function findNotesSelection(subjectId, topicId) {
+        if (subjectId === '_other' || topicId === '_other') {
+            return {
+                subjectLabel: { zh: t('其他', 'Other'), en: 'Other' },
+                topicLabel: null,
+                notes: notesTree.uncategorized,
+            };
+        }
+        const sub = notesTree.subjects.find((s) => String(s.id) === String(subjectId));
+        if (!sub) return null;
+        if (topicId === '_loose') {
+            return {
+                subjectLabel: { zh: sub.label_zh, en: sub.label_en },
+                topicLabel: { zh: t('一般', 'General'), en: 'General' },
+                notes: sub.looseNotes,
+            };
+        }
+        const topic = sub.topics.find((tp) => String(tp.id) === String(topicId));
+        if (!topic) return null;
+        return {
+            subjectLabel: { zh: sub.label_zh, en: sub.label_en },
+            topicLabel: { zh: topic.label_zh, en: topic.label_en },
+            notes: topic.notes,
+        };
+    }
+
+    function renderNotesNav(activeSlug, subjectId, topicId) {
+        notesNavMode = true;
+        const nav = document.getElementById('main-nav');
+        if (!nav) return;
+        const lang = getLang();
+        let html = '';
+        let first = true;
+
+        const renderNoteLinks = (notes, subId, topId, expanded) => {
+            if (!notes.length) return '';
+            const openClass = expanded ? 'open' : '';
+            return `<div class="notes-nav-list ${openClass}" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}">
+                ${notes.map((note, idx) => {
+                    const title = lang === 'zh' ? note.title_zh : note.title_en;
+                    const active = activeSlug === note.slug ? ' active' : '';
+                    return `<button type="button" class="note-nav-btn w-full text-left pl-6 pr-3 py-1.5 text-xs text-slate-500 hover:text-indigo-300${active}" data-slug="${escapeHtml(note.slug)}" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}">
+                        <span class="note-nav-index">${idx + 1}.</span> ${escapeHtml(title)}
+                    </button>`;
+                }).join('')}
+            </div>`;
+        };
+
+        for (const sub of notesTree.subjects) {
+            const subId = String(sub.id);
+            const subOpen = subjectId == null || String(subjectId) === subId;
+            html += `<div class="nav-group ${first ? '' : 'border-t border-slate-700/40 mt-1 pt-1'}">
+                <button type="button" class="nav-group-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-800 text-sm font-medium" data-notes-subject="${escapeHtml(subId)}">
+                    <span>${escapeHtml(lang === 'zh' ? sub.label_zh : sub.label_en)}</span>
+                    <svg class="w-4 h-4 rotate-icon ${subOpen ? 'active' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div class="submenu bg-slate-950/50 rounded-lg mx-1 mb-1 ${subOpen ? 'open' : ''}">`;
+
+            for (const topic of sub.topics) {
+                const topId = String(topic.id);
+                const topicOpen = subOpen && (topicId == null || String(topicId) === topId);
+                const count = topic.notes.length;
+                html += `<div class="notes-topic-block">
+                    <button type="button" class="topic-nav-btn notes-topic-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}">
+                        ${escapeHtml(lang === 'zh' ? topic.label_zh : topic.label_en)} ${count ? '(' + count + ')' : ''}
+                    </button>
+                    ${renderNoteLinks(topic.notes, subId, topId, topicOpen)}
+                </div>`;
+            }
+
+            if (sub.looseNotes.length) {
+                const topId = '_loose';
+                const topicOpen = subOpen && (topicId == null || topicId === topId);
+                html += `<div class="notes-topic-block">
+                    <button type="button" class="topic-nav-btn notes-topic-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}">
+                        ${escapeHtml(t('一般', 'General'))} (${sub.looseNotes.length})
+                    </button>
+                    ${renderNoteLinks(sub.looseNotes, subId, topId, topicOpen)}
+                </div>`;
+            }
+
+            html += '</div></div>';
+            first = false;
+        }
+
+        if (notesTree.uncategorized.length) {
+            const subId = '_other';
+            const topId = '_other';
+            const otherOpen = subjectId === subId || subjectId == null;
+            html += `<div class="nav-group border-t border-slate-700/40 mt-1 pt-1">
+                <button type="button" class="nav-group-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-800 text-sm font-medium" data-notes-subject="${escapeHtml(subId)}">
+                    <span>${escapeHtml(t('其他', 'Other'))}</span>
+                    <svg class="w-4 h-4 rotate-icon ${otherOpen ? 'active' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div class="submenu bg-slate-950/50 rounded-lg mx-1 mb-1 ${otherOpen ? 'open' : ''}">
+                    ${renderNoteLinks(notesTree.uncategorized, subId, topId, otherOpen)}
+                </div>
+            </div>`;
+        }
+
+        nav.innerHTML = html || `<p class="px-3 py-4 text-xs text-slate-500">${t('尚無已發佈的學習筆記。', 'No published learning notes yet.')}</p>`;
+        bindNotesNavEvents();
+    }
+
+    function bindNotesNavEvents() {
+        document.querySelectorAll('.nav-group-btn[data-notes-subject]').forEach((btn) => {
+            btn.onclick = () => {
+                const submenu = btn.nextElementSibling;
+                const icon = btn.querySelector('.rotate-icon');
+                submenu?.classList.toggle('open');
+                icon?.classList.toggle('active');
+                showNotesTopic(btn.dataset.notesSubject, null);
+            };
+        });
+        document.querySelectorAll('.notes-topic-btn').forEach((btn) => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const list = btn.nextElementSibling;
+                list?.classList.toggle('open');
+                showNotesTopic(btn.dataset.subjectId, btn.dataset.topicId);
+            };
+        });
+        document.querySelectorAll('.note-nav-btn').forEach((btn) => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                global.AppRouter.navigate('/note/' + encodeURIComponent(btn.dataset.slug));
+            };
+        });
+    }
+
+    function showNotesTopic(subjectId, topicId) {
+        const container = document.getElementById('card-container');
+        const titleEl = document.getElementById('page-title');
+        if (!container || !titleEl) return;
+
+        let selection = subjectId != null ? findNotesSelection(subjectId, topicId) : null;
+        if (!selection) {
+            const first = getFirstNotesSelection();
+            if (first) selection = findNotesSelection(first.subjectId, first.topicId);
+        }
+        if (!selection) {
+            titleEl.textContent = t('課程及學習筆記', 'Courses & Learning Notes');
+            container.innerHTML = `<p class="text-slate-500">${t('尚無已發佈的學習筆記。', 'No published learning notes yet.')}</p>`;
+            return;
+        }
+
+        const lang = getLang();
+        const subName = lang === 'zh' ? selection.subjectLabel.zh : selection.subjectLabel.en;
+        const topName = selection.topicLabel
+            ? (lang === 'zh' ? selection.topicLabel.zh : selection.topicLabel.en)
+            : '';
+        titleEl.textContent = topName ? `${subName} · ${topName}` : subName;
+
+        document.querySelectorAll('.note-nav-btn').forEach((btn) => {
+            btn.classList.remove('active');
+        });
+
+        if (!selection.notes.length) {
+            container.innerHTML = `<p class="text-slate-500">${t('此課題尚無學習筆記。', 'No learning notes in this topic yet.')}</p>`;
+            return;
+        }
+
+        container.innerHTML = `
+            <section class="notes-linear-panel bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/80">
+                    <p class="text-sm text-slate-600">${t('依序閱讀以下學習筆記', 'Read the following notes in order')}</p>
+                </div>
+                <ol class="notes-linear-list divide-y divide-slate-100">
+                    ${selection.notes.map((note, idx) => {
+                        const title = lang === 'zh' ? note.title_zh : note.title_en;
+                        const time = note.reading_time_minutes
+                            ? `<span class="text-xs text-slate-400">${t('約', '~')}${note.reading_time_minutes}${t(' 分鐘', ' min')}</span>`
+                            : '';
+                        return `<li>
+                            <a href="#" data-slug="${escapeHtml(note.slug)}" class="notes-linear-item flex items-center justify-between gap-4 px-4 py-4 hover:bg-indigo-50/50 transition-colors">
+                                <div class="flex items-start gap-3 min-w-0">
+                                    <span class="notes-linear-num flex-shrink-0">${idx + 1}</span>
+                                    <span class="font-medium text-slate-800">${escapeHtml(title)}</span>
+                                </div>
+                                ${time}
+                            </a>
+                        </li>`;
+                    }).join('')}
+                </ol>
+            </section>`;
+
+        container.querySelectorAll('.notes-linear-item').forEach((a) => {
+            a.onclick = (e) => {
+                e.preventDefault();
+                global.AppRouter.navigate('/note/' + encodeURIComponent(a.dataset.slug));
+            };
+        });
+    }
+
     function renderNav() {
+        notesNavMode = false;
         const nav = document.getElementById('main-nav');
         if (!nav) return;
         const lang = getLang();
@@ -106,7 +387,7 @@
     }
 
     function bindNavEvents() {
-        document.querySelectorAll('.nav-group-btn').forEach(btn => {
+        document.querySelectorAll('.nav-group-btn[data-cat]').forEach(btn => {
             btn.onclick = () => {
                 const submenu = btn.nextElementSibling;
                 const icon = btn.querySelector('.rotate-icon');
@@ -115,7 +396,7 @@
                 showCategory(btn.dataset.cat, null);
             };
         });
-        document.querySelectorAll('.topic-nav-btn').forEach(btn => {
+        document.querySelectorAll('.topic-nav-btn[data-cat]').forEach(btn => {
             btn.onclick = (e) => {
                 e.stopPropagation();
                 showCategory(btn.dataset.cat, btn.dataset.topic);
@@ -176,7 +457,8 @@
         document.body.style.overflow = '';
     }
 
-    async function loadCatalog(skipNavRender = false) {
+    async function loadCatalog(options) {
+        const opts = typeof options === 'boolean' ? { skipNavRender: options } : (options || {});
         const data = await apiFetch('/catalog');
         if (data.site_base !== undefined) {
             siteBase = data.site_base || '';
@@ -189,36 +471,85 @@
         articles = data.articles || [];
         learningNotes = data.learning_notes || [];
         worksheets = data.worksheets || [];
-        if (!skipNavRender) {
-            renderNav();
-            const firstKey = Object.keys(subjectData)[0];
-            if (firstKey) {
-                showCategory(firstKey.toLowerCase().replace(/\s+/g, '-'), null);
+        notesTree = buildNotesTree(learningNotes);
+        if (!opts.skipNavRender) {
+            if (opts.navMode === 'notes') {
+                renderNotesNav(opts.activeSlug || null, opts.subjectId, opts.topicId);
+                showNotesTopic(opts.subjectId, opts.topicId);
+            } else {
+                renderNav();
+                const firstKey = Object.keys(subjectData)[0];
+                if (firstKey) {
+                    showCategory(firstKey.toLowerCase().replace(/\s+/g, '-'), null);
+                }
             }
         }
         return data;
     }
 
-    async function renderLearningNotesList() {
-        await loadCatalog(true);
+    function getNoteContext(slug) {
+        const note = learningNotes.find((n) => n.slug === slug);
+        if (!note) return { subjectId: null, topicId: null };
+        if (!note.subject_id) return { subjectId: '_other', topicId: '_other' };
+        if (!note.topic_id) return { subjectId: String(note.subject_id), topicId: '_loose' };
+        return { subjectId: String(note.subject_id), topicId: String(note.topic_id) };
+    }
+
+    function setupNotesPageHeader() {
+        const titleEl = document.getElementById('page-title');
+        const headerWrap = titleEl?.parentElement;
+        if (titleEl && !titleEl.textContent.trim()) {
+            titleEl.textContent = t('課程及學習筆記', 'Courses & Learning Notes');
+        }
+        const canCreate = global.AppInlineEdit && global.AppInlineEdit.canEditType('note');
+        let createBtn = document.getElementById('btn-create-note');
+        if (canCreate && headerWrap) {
+            headerWrap.classList.add('page-header-row');
+            if (!createBtn) {
+                createBtn = document.createElement('button');
+                createBtn.type = 'button';
+                createBtn.id = 'btn-create-note';
+                createBtn.className = 'admin-create-list-btn';
+                createBtn.textContent = t('+ 新增', '+ New');
+                createBtn.addEventListener('click', () => global.AppInlineEdit.openCreateNoteModal());
+                headerWrap.appendChild(createBtn);
+            }
+            createBtn.hidden = false;
+        } else if (createBtn) {
+            createBtn.hidden = true;
+        }
+    }
+
+    async function renderLearningNotesList(subjectId, topicId) {
+        await loadCatalog({ skipNavRender: true });
+        setupNotesPageHeader();
+        renderNotesNav(null, subjectId, topicId);
+
         const container = document.getElementById('card-container');
-        const lang = getLang();
-        document.getElementById('page-title').textContent = t('學習筆記', 'Learning Notes');
+        const canCreate = global.AppInlineEdit && global.AppInlineEdit.canEditType('note');
+
         if (!learningNotes.length) {
-            container.innerHTML = `<p class="text-slate-500">${t('尚無已發佈的學習筆記。', 'No published learning notes yet.')}</p>`;
+            if (container) {
+                container.innerHTML = `<p class="text-slate-500">${t('尚無已發佈的學習筆記。', 'No published learning notes yet.')}${canCreate ? ' ' + t('按「新增」建立第一則筆記。', 'Click "New" to create one.') : ''}</p>`;
+            }
             return;
         }
-        container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${learningNotes.map(n => `
-            <a href="#" data-slug="${escapeHtml(n.slug)}" class="note-card block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
-                <h3 class="font-bold text-lg text-slate-800 mb-2">${escapeHtml(lang === 'zh' ? n.title_zh : n.title_en)}</h3>
-                ${n.reading_time_minutes ? `<p class="text-xs text-slate-400">${t('約', '~')}${n.reading_time_minutes}${t(' 分鐘', ' min read')}</p>` : ''}
-            </a>`).join('')}</div>`;
-        container.querySelectorAll('.note-card').forEach(a => {
-            a.onclick = (e) => {
-                e.preventDefault();
-                global.AppRouter.navigate('/note/' + encodeURIComponent(a.dataset.slug));
-            };
-        });
+
+        const sel = subjectId != null
+            ? { subjectId, topicId }
+            : getFirstNotesSelection();
+        showNotesTopic(sel?.subjectId, sel?.topicId);
+        renderNotesNav(null, sel?.subjectId, sel?.topicId);
+    }
+
+    async function prepareNotesSidebar(activeSlug) {
+        if (!learningNotes.length) {
+            await loadCatalog({ skipNavRender: true });
+        }
+        notesTree = buildNotesTree(learningNotes);
+        const ctx = activeSlug ? getNoteContext(activeSlug) : getFirstNotesSelection() || {};
+        renderNotesNav(activeSlug || null, ctx.subjectId, ctx.topicId);
+        return ctx;
     }
 
     async function renderWorksheetsList() {
@@ -292,9 +623,13 @@
     global.AppCatalog = {
         loadCatalog,
         showCategory,
+        showNotesTopic,
         openModal,
         closeModal,
         renderLearningNotesList,
+        renderNotesNav,
+        prepareNotesSidebar,
+        getNoteContext,
         renderWorksheetsList,
         renderLearningToolsList,
         renderArticlesList,

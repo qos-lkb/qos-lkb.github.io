@@ -78,11 +78,38 @@ function ln_public_row(array $row): array
         'body_en' => $row['body_en'],
         'subject_id' => $row['subject_id'] !== null ? (int) $row['subject_id'] : null,
         'topic_id' => $row['topic_id'] !== null ? (int) $row['topic_id'] : null,
+        'subject_zh' => $row['subject_zh'] ?? null,
+        'subject_en' => $row['subject_en'] ?? null,
+        'topic_zh' => $row['topic_zh'] ?? null,
+        'topic_en' => $row['topic_en'] ?? null,
         'reading_time_minutes' => $row['reading_time_minutes'] !== null ? (int) $row['reading_time_minutes'] : null,
         'list_sort_order' => (int) $row['list_sort_order'],
         'status' => $row['status'],
         'updated_at' => $row['updated_at'],
     ];
+}
+
+function ln_enrich_row_labels(PDO $pdo, array $row): array
+{
+    if (!isset($row['subject_zh']) && !empty($row['subject_id'])) {
+        $stmt = $pdo->prepare('SELECT name_zh, name_en FROM subjects WHERE id = ? LIMIT 1');
+        $stmt->execute([(int) $row['subject_id']]);
+        $sub = $stmt->fetch();
+        if ($sub) {
+            $row['subject_zh'] = $sub['name_zh'];
+            $row['subject_en'] = $sub['name_en'];
+        }
+    }
+    if (!isset($row['topic_zh']) && !empty($row['topic_id'])) {
+        $stmt = $pdo->prepare('SELECT name_zh, name_en FROM topics WHERE id = ? LIMIT 1');
+        $stmt->execute([(int) $row['topic_id']]);
+        $top = $stmt->fetch();
+        if ($top) {
+            $row['topic_zh'] = $top['name_zh'];
+            $row['topic_en'] = $top['name_en'];
+        }
+    }
+    return $row;
 }
 
 function ln_delete_by_id(PDO $pdo, int $id): void

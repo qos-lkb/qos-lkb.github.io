@@ -27,7 +27,7 @@ function api_handle_learning_note_get(PDO $pdo, string $slug): void
         api_json_error('forbidden', '無權檢視。', 403);
     }
 
-    api_json_ok(ln_public_row($row));
+    api_json_ok(ln_public_row(ln_enrich_row_labels($pdo, $row)));
 }
 
 function api_handle_learning_notes_pending(PDO $pdo): void
@@ -75,7 +75,7 @@ function api_handle_admin_learning_notes(PDO $pdo, string $method): void
             api_json_error('save_failed', $r['error'] ?? '儲存失敗。', 422);
         }
         $saved = ln_get_by_id($pdo, $r['id']);
-        api_json_ok($saved ? ln_public_row($saved) : ['id' => $r['id']]);
+        api_json_ok($saved ? ln_public_row(ln_enrich_row_labels($pdo, $saved)) : ['id' => $r['id']]);
         return;
     }
 

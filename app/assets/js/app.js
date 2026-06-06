@@ -2,7 +2,7 @@
     'use strict';
 
     const NAV_LABELS = {
-        notes: { zh: '學習筆記', en: 'Learning Notes' },
+        notes: { zh: '課程及學習筆記', en: 'Courses & Notes' },
         worksheets: { zh: '工作紙', en: 'Worksheets' },
         simulations: { zh: '模擬程式', en: 'Simulations' },
         articles: { zh: '科學文章', en: 'Science Articles' },
@@ -12,6 +12,16 @@
     let catalogLoaded = false;
     let firstCategoryId = null;
 
+    function updateSiteBranding() {
+        const names = window.__SITE_NAMES__;
+        if (!names) return;
+        const lang = AppRouter.getLang();
+        const name = lang === 'zh' ? names.zh : names.en;
+        const brand = document.getElementById('site-brand');
+        if (brand) brand.textContent = name;
+        document.title = name;
+    }
+
     function updateNavLabels() {
         const lang = AppRouter.getLang();
         document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -20,7 +30,10 @@
         });
         const coreLabel = document.getElementById('sidebar-core-label');
         if (coreLabel) {
-            coreLabel.textContent = lang === 'zh' ? '科目' : 'Subjects';
+            const notesTab = document.querySelector('.nav-tab[data-tab="notes"]')?.classList.contains('active');
+            coreLabel.textContent = lang === 'zh'
+                ? (notesTab ? '課程' : '科目')
+                : (notesTab ? 'Courses' : 'Subjects');
         }
         const collapseBtn = document.getElementById('btn-sidebar-collapse');
         if (collapseBtn) {
@@ -39,8 +52,9 @@
             btn.classList.toggle('text-indigo-200', btn.dataset.tab !== tab);
         });
         const sidebar = document.getElementById('sidebar');
-        const showSidebar = tab === 'simulations';
-        document.body.classList.toggle('sim-tab-active', showSidebar);
+        const showSidebar = tab === 'simulations' || tab === 'notes';
+        document.body.classList.toggle('sim-tab-active', tab === 'simulations');
+        document.body.classList.toggle('notes-tab-active', tab === 'notes');
         if (sidebar) {
             sidebar.style.display = showSidebar ? '' : 'none';
         }
@@ -50,6 +64,7 @@
         } else if (window.AppSidebar) {
             AppSidebar.initSidebar();
         }
+        updateNavLabels();
     }
 
     function restoreMainShell() {
@@ -83,10 +98,10 @@
 
     document.addEventListener('langchange', async () => {
         updateNavLabels();
-        await AppCatalog.loadCatalog();
+        updateSiteBranding();
+        await AppCatalog.loadCatalog({ skipNavRender: true });
         const path = location.pathname.replace(/.*\/app/, '') || '/';
-        if (path === '/' || path === '/index.html') showSimulationsHome();
-        else AppRouter.dispatch(path.replace(/\/index\.html/i, '') || '/');
+        AppRouter.dispatch(path.replace(/\/index\.html/i, '') || '/');
     });
 
     async function boot() {
@@ -94,6 +109,7 @@
         if (window.SimModal) SimModal.init();
         if (window.AppSidebar) AppSidebar.init();
         updateNavLabels();
+        updateSiteBranding();
 
         AppRouter.init({
             '/': showSimulationsHome,
@@ -132,7 +148,8 @@
             },
             '/note/:slug': async (slug) => {
                 setActiveTab('notes');
-                document.getElementById('sidebar').style.display = 'none';
+                await AppCatalog.loadCatalog({ skipNavRender: true });
+                await AppCatalog.prepareNotesSidebar(slug);
                 await AppNote.renderNote(slug);
             },
             '/worksheet/:slug': async (slug) => {

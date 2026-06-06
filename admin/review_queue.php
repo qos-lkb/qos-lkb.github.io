@@ -3,38 +3,27 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 if (current_user() === null) {
     header('Location: ../login.php?next=' . rawurlencode('admin/review_queue.php'));
     exit;
 }
-if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('article.manage_any')
-    && !user_has_permission('learning_note.manage_any') && !user_has_permission('worksheet.manage_any')) {
+if (!admin_can_review()) {
     http_response_code(403);
     exit('沒有權限');
 }
 
+admin_page_start('審核佇列', 'review_queue', [
+    'subtitle' => '審核待發佈的學習筆記、工作紙、文章與互動學習工具。',
+]);
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>審核佇列 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white px-4 py-4">
-        <div class="max-w-4xl mx-auto flex justify-between">
-            <h1 class="font-bold">待審核內容</h1>
-            <a href="index.php" class="text-sm text-slate-300">後台</a>
-        </div>
-    </header>
-    <main class="max-w-4xl mx-auto px-4 py-8">
-        <p id="flash" class="text-sm mb-4 hidden"></p>
+        <p id="flash" class="text-sm hidden"></p>
         <div id="queue" class="space-y-3"></div>
-    </main>
+<?php
+admin_page_end([
+    'scripts' => <<<'HTML'
     <script src="../assets/js/admin-api.js"></script>
     <script>
     (async function() {
@@ -61,7 +50,7 @@ if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('ar
                     worksheet: 'worksheets',
                 }[it.type] || it.type;
                 return `
-                <div class="bg-white border rounded-xl p-4 flex flex-wrap justify-between gap-3 items-center">
+                <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap justify-between gap-3 items-center shadow-sm">
                     <div>
                         <span class="text-xs uppercase text-amber-600 font-bold">${typeLabel}</span>
                         <h2 class="font-semibold">${it.title_zh || it.title_en}</h2>
@@ -83,7 +72,8 @@ if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('ar
                         load();
                     } catch (e) {
                         flash.textContent = e.message;
-                        flash.className = 'text-red-600 text-sm mb-4';
+                        flash.className = 'text-red-600 text-sm';
+                        flash.classList.remove('hidden');
                     }
                 };
             });
@@ -91,5 +81,5 @@ if (!user_has_permission('learning_tool.manage_any') && !user_has_permission('ar
         load();
     })();
     </script>
-</body>
-</html>
+HTML,
+]);

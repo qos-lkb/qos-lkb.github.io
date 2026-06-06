@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/db_export_sql.php';
+require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/db_export.php'));
@@ -58,23 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
 
 $csrf = csrf_token();
 
+admin_page_start('匯出資料庫', 'db_export');
 ?>
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>匯出資料庫 | Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <header class="bg-slate-900 text-white shadow">
-        <div class="max-w-3xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="font-bold">匯出資料庫（SQL）</h1>
-            <a href="index.php" class="text-sm text-slate-300 hover:text-white">後台</a>
-        </div>
-    </header>
-    <main class="max-w-3xl mx-auto px-4 py-8 space-y-4">
         <p class="text-sm text-slate-600 leading-relaxed">
             下載目前 .env 所連線之<strong>整個</strong> MySQL 資料庫結構與資料（僅一般資料表，不含 VIEW）。
             檔案可能含敏感資料，請妥善保管；大型資料庫匯出可能需較久時間。
@@ -86,6 +72,5 @@ $csrf = csrf_token();
                 一鍵下載 SQL 備份
             </button>
         </form>
-    </main>
-</body>
-</html>
+<?php
+admin_page_end();
