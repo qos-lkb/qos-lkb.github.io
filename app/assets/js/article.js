@@ -91,7 +91,7 @@
         }
 
         main.innerHTML = `
-            <div class="max-w-3xl mx-auto" id="art-page">
+            <div class="reading-page" id="art-page">
                 <button type="button" id="art-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回文章列表', 'Back to articles')}</button>
                 <h1 id="art-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                 ${article.reading_time_minutes ? `<p class="text-sm text-slate-500 mb-6">${t('約', '~')}${article.reading_time_minutes}${t(' 分鐘閱讀', ' min read')}</p>` : ''}

@@ -76,7 +76,7 @@
             const body = lang === 'zh' ? note.body_zh : note.body_en;
 
             main.innerHTML = `
-                <div class="max-w-3xl mx-auto" id="note-page">
+                <div class="reading-page" id="note-page">
                     <button type="button" id="note-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回課程列表', 'Back to courses')}</button>
                     <h1 id="note-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                     ${metaHtml}
@@ -106,7 +106,7 @@
             });
         } catch (err) {
             main.innerHTML = `
-                <div class="max-w-3xl mx-auto">
+                <div class="reading-page">
                     <button type="button" id="note-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回課程列表', 'Back to courses')}</button>
                     <p class="text-red-600">${escapeHtml(err.message || t('無法載入筆記。', 'Could not load note.'))}</p>
                 </div>`;
