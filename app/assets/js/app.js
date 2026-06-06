@@ -30,10 +30,12 @@
         });
         const coreLabel = document.getElementById('sidebar-core-label');
         if (coreLabel) {
-            const notesTab = document.querySelector('.nav-tab[data-tab="notes"]')?.classList.contains('active');
+            const courseTab = ['notes', 'worksheets', 'articles'].some((tab) =>
+                document.querySelector(`.nav-tab[data-tab="${tab}"]`)?.classList.contains('active')
+            );
             coreLabel.textContent = lang === 'zh'
-                ? (notesTab ? '課程' : '科目')
-                : (notesTab ? 'Courses' : 'Subjects');
+                ? (courseTab ? '課程' : '科目')
+                : (courseTab ? 'Courses' : 'Subjects');
         }
         const collapseBtn = document.getElementById('btn-sidebar-collapse');
         if (collapseBtn) {
@@ -46,15 +48,16 @@
         }
     }
 
+    const SIDEBAR_TABS = new Set(['simulations', 'notes', 'worksheets', 'articles']);
+
     function setActiveTab(tab) {
         document.querySelectorAll('.nav-tab').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tab);
             btn.classList.toggle('text-indigo-200', btn.dataset.tab !== tab);
         });
         const sidebar = document.getElementById('sidebar');
-        const showSidebar = tab === 'simulations' || tab === 'notes';
-        document.body.classList.toggle('sim-tab-active', tab === 'simulations');
-        document.body.classList.toggle('notes-tab-active', tab === 'notes');
+        const showSidebar = SIDEBAR_TABS.has(tab);
+        document.body.classList.toggle('sidebar-tab-active', showSidebar);
         if (sidebar) {
             sidebar.style.display = showSidebar ? '' : 'none';
         }
@@ -133,8 +136,7 @@
             '/articles': async () => {
                 restoreMainShell();
                 setActiveTab('articles');
-                await ensureCatalog();
-                AppCatalog.renderArticlesList();
+                await AppCatalog.renderArticlesList();
             },
             '/quiz/:slug': async (slug) => {
                 setActiveTab('learning');
@@ -143,7 +145,8 @@
             },
             '/article/:slug': async (slug) => {
                 setActiveTab('articles');
-                document.getElementById('sidebar').style.display = 'none';
+                await AppCatalog.loadCatalog({ skipNavRender: true });
+                await AppCatalog.prepareArticlesSidebar(slug);
                 await AppArticle.renderArticle(slug);
             },
             '/note/:slug': async (slug) => {
@@ -154,7 +157,8 @@
             },
             '/worksheet/:slug': async (slug) => {
                 setActiveTab('worksheets');
-                document.getElementById('sidebar').style.display = 'none';
+                await AppCatalog.loadCatalog({ skipNavRender: true });
+                await AppCatalog.prepareWorksheetsSidebar(slug);
                 await AppWorksheet.renderWorksheet(slug);
             },
         });

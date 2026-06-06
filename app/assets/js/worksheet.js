@@ -16,7 +16,7 @@
 
         main.innerHTML = `
             <div class="max-w-3xl mx-auto" id="ws-page">
-                <button type="button" id="ws-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
+                <button type="button" id="ws-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回工作紙列表', 'Back to worksheets')}</button>
                 <h1 id="ws-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                 ${desc ? `<p class="text-slate-600 mb-6">${escapeHtml(desc)}</p>` : ''}
                 <article id="ws-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">${renderMarkdownToHtml(body)}</article>

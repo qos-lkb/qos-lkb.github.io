@@ -92,7 +92,7 @@
 
         main.innerHTML = `
             <div class="max-w-3xl mx-auto" id="art-page">
-                <button type="button" id="art-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
+                <button type="button" id="art-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回文章列表', 'Back to articles')}</button>
                 <h1 id="art-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                 ${article.reading_time_minutes ? `<p class="text-sm text-slate-500 mb-6">${t('約', '~')}${article.reading_time_minutes}${t(' 分鐘閱讀', ' min read')}</p>` : ''}
                 <article id="art-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm mb-6">${renderMarkdownToHtml(body)}</article>
