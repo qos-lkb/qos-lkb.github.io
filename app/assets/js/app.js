@@ -2,6 +2,7 @@
     'use strict';
 
     const NAV_LABELS = {
+        courses: { zh: '自學課程', en: 'Self-study' },
         notes: { zh: '課程及學習筆記', en: 'Courses & Notes' },
         worksheets: { zh: '工作紙', en: 'Worksheets' },
         simulations: { zh: '模擬程式', en: 'Simulations' },
@@ -30,9 +31,10 @@
         });
         const coreLabel = document.getElementById('sidebar-core-label');
         if (coreLabel) {
-            const courseTab = ['notes', 'worksheets', 'articles'].some((tab) =>
-                document.querySelector(`.nav-tab[data-tab="${tab}"]`)?.classList.contains('active')
-            );
+            const courseTab = document.querySelector('.nav-tab[data-tab="courses"]')?.classList.contains('active')
+                || ['notes', 'worksheets', 'articles'].some((tab) =>
+                    document.querySelector(`.nav-tab[data-tab="${tab}"]`)?.classList.contains('active')
+                );
             coreLabel.textContent = lang === 'zh'
                 ? (courseTab ? '課程' : '科目')
                 : (courseTab ? 'Courses' : 'Subjects');
@@ -48,7 +50,7 @@
         }
     }
 
-    const SIDEBAR_TABS = new Set(['simulations', 'notes', 'worksheets', 'articles']);
+    const SIDEBAR_TABS = new Set(['courses', 'simulations', 'notes', 'worksheets', 'articles']);
 
     function setActiveTab(tab) {
         document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -92,6 +94,15 @@
         }
     }
 
+    async function showCoursesHome() {
+        restoreMainShell();
+        setActiveTab('courses');
+        if (window.AppCourse) {
+            AppCourse.clearCourseContext();
+            await AppCourse.renderCoursesHome();
+        }
+    }
+
     async function showSimulationsHome() {
         restoreMainShell();
         setActiveTab('simulations');
@@ -103,6 +114,7 @@
         updateNavLabels();
         updateSiteBranding();
         await AppCatalog.loadCatalog({ skipNavRender: true });
+        if (window.AppCourse) await AppCourse.loadCourses(true);
         const path = location.pathname.replace(/.*\/app/, '') || '/';
         AppRouter.dispatch(path.replace(/\/index\.html/i, '') || '/');
     });
@@ -115,58 +127,96 @@
         updateSiteBranding();
 
         AppRouter.init({
-            '/': showSimulationsHome,
-            '/index.html': showSimulationsHome,
+            '/': showCoursesHome,
+            '/index.html': showCoursesHome,
+            '/courses': showCoursesHome,
+            '/course/:subject': async (subjectSlug) => {
+                restoreMainShell();
+                setActiveTab('courses');
+                if (window.AppCourse) await AppCourse.renderSubject(subjectSlug);
+            },
+            '/course/:subject/:topic': async (subjectSlug, topicSlug) => {
+                restoreMainShell();
+                setActiveTab('courses');
+                if (window.AppCourse) await AppCourse.renderTopic(subjectSlug, topicSlug);
+            },
+            '/simulations': showSimulationsHome,
             '/learning-notes': async () => {
                 restoreMainShell();
                 setActiveTab('notes');
+                if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderLearningNotesList();
             },
             '/worksheets': async () => {
                 restoreMainShell();
                 setActiveTab('worksheets');
+                if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderWorksheetsList();
             },
             '/learning-tools': async () => {
                 restoreMainShell();
                 setActiveTab('learning');
+                if (window.AppCourse) AppCourse.clearCourseContext();
                 await ensureCatalog();
                 AppCatalog.renderLearningToolsList();
             },
             '/articles': async () => {
                 restoreMainShell();
                 setActiveTab('articles');
+                if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderArticlesList();
             },
             '/quiz/:slug': async (slug) => {
-                setActiveTab('learning');
-                document.getElementById('sidebar').style.display = 'none';
+                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'learning');
+                document.getElementById('sidebar').style.display = window.AppCourse && AppCourse.isCourseMode() ? '' : 'none';
                 await AppQuiz.renderQuiz(slug);
             },
             '/article/:slug': async (slug) => {
-                setActiveTab('articles');
+                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'articles');
                 await AppCatalog.loadCatalog({ skipNavRender: true });
-                await AppCatalog.prepareArticlesSidebar(slug);
+                if (window.AppCourse && AppCourse.isCourseMode()) {
+                    const ctx = AppCourse.getCourseContext();
+                    if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                } else {
+                    await AppCatalog.prepareArticlesSidebar(slug);
+                }
                 await AppArticle.renderArticle(slug);
             },
             '/note/:slug': async (slug) => {
-                setActiveTab('notes');
+                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'notes');
                 await AppCatalog.loadCatalog({ skipNavRender: true });
-                await AppCatalog.prepareNotesSidebar(slug);
+                if (window.AppCourse && AppCourse.isCourseMode()) {
+                    const ctx = AppCourse.getCourseContext();
+                    if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                } else {
+                    await AppCatalog.prepareNotesSidebar(slug);
+                }
                 await AppNote.renderNote(slug);
             },
             '/worksheet/:slug': async (slug) => {
-                setActiveTab('worksheets');
+                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'worksheets');
                 await AppCatalog.loadCatalog({ skipNavRender: true });
-                await AppCatalog.prepareWorksheetsSidebar(slug);
+                if (window.AppCourse && AppCourse.isCourseMode()) {
+                    const ctx = AppCourse.getCourseContext();
+                    if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                } else {
+                    await AppCatalog.prepareWorksheetsSidebar(slug);
+                }
                 await AppWorksheet.renderWorksheet(slug);
+            },
+            '/video/:slug': async (slug) => {
+                setActiveTab('courses');
+                const ctx = window.AppCourse && AppCourse.getCourseContext();
+                if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                await AppVideo.renderVideo(slug);
             },
         });
 
         const tabRoutes = {
+            courses: '/courses',
             notes: '/learning-notes',
             worksheets: '/worksheets',
-            simulations: '/',
+            simulations: '/simulations',
             articles: '/articles',
             learning: '/learning-tools',
         };

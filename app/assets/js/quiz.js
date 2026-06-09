@@ -107,8 +107,18 @@
                 <div id="quiz-body" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm"></div>
             </div>`;
 
-        document.getElementById('quiz-back').onclick = () => global.AppRouter.navigate('/learning-tools');
+        document.getElementById('quiz-back').onclick = () => {
+            const back = global.AppCourse && global.AppCourse.isCourseMode()
+                ? global.AppCourse.getBackRoute()
+                : '/learning-tools';
+            global.AppRouter.navigate(back);
+        };
         renderQuestion();
+
+        const quizRoot = main.querySelector('.max-w-2xl');
+        if (global.AppCourse && global.AppCourse.isCourseMode() && quizRoot) {
+            global.AppCourse.attachItemNav(quizRoot, 'learning_tool', slug);
+        }
     }
 
     global.AppQuiz = { renderQuiz };

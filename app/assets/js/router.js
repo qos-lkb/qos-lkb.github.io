@@ -75,6 +75,30 @@
             await routes['/articles']();
             return;
         }
+        const courses = path.match(/^\/courses\/?$/);
+        if (courses) {
+            await routes['/courses']();
+            return;
+        }
+        const courseSubject = path.match(/^\/course\/([^/]+)$/);
+        if (courseSubject) {
+            await routes['/course/:subject'](decodeURIComponent(courseSubject[1]));
+            return;
+        }
+        const courseTopic = path.match(/^\/course\/([^/]+)\/([^/]+)$/);
+        if (courseTopic) {
+            await routes['/course/:subject/:topic'](decodeURIComponent(courseTopic[1]), decodeURIComponent(courseTopic[2]));
+            return;
+        }
+        const video = path.match(/^\/video\/([^/]+)$/);
+        if (video) {
+            await routes['/video/:slug'](decodeURIComponent(video[1]));
+            return;
+        }
+        if (path === '/simulations') {
+            await routes['/simulations']();
+            return;
+        }
         await routes['/']();
     }
 

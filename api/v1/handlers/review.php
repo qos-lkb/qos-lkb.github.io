@@ -13,7 +13,8 @@ function api_handle_review_queue(PDO $pdo): void
     $canArt = user_has_permission('article.manage_any');
     $canLn = user_has_permission('learning_note.manage_any');
     $canWs = user_has_permission('worksheet.manage_any');
-    if (!$canLt && !$canArt && !$canLn && !$canWs) {
+    $canLv = user_has_permission('learning_video.manage_any');
+    if (!$canLt && !$canArt && !$canLn && !$canWs && !$canLv) {
         api_json_error('forbidden', '沒有權限。', 403);
     }
 
@@ -49,6 +50,14 @@ function api_handle_review_queue(PDO $pdo): void
              FROM worksheets WHERE status = 'pending_review'"
         )->fetchAll() ?: [];
         $items = array_merge($items, $worksheets);
+    }
+
+    if ($canLv) {
+        $videos = $pdo->query(
+            "SELECT id, slug, title_zh, title_en, status, updated_at, owner_user_id, 'learning_video' AS type
+             FROM learning_videos WHERE status = 'pending_review'"
+        )->fetchAll() ?: [];
+        $items = array_merge($items, $videos);
     }
 
     usort($items, static function (array $a, array $b): int {
@@ -126,6 +135,24 @@ function api_handle_review_ws_reject(PDO $pdo, int $id): void
     require_api_permission('worksheet.manage_any');
     api_verify_csrf_or_fail();
     $pdo->prepare("UPDATE worksheets SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        ->execute([$id]);
+    api_json_ok(['id' => $id, 'status' => 'draft']);
+}
+
+function api_handle_review_lv_publish(PDO $pdo, int $id): void
+{
+    require_api_permission('learning_video.manage_any');
+    api_verify_csrf_or_fail();
+    $pdo->prepare("UPDATE learning_videos SET status = 'published', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        ->execute([$id]);
+    api_json_ok(['id' => $id, 'status' => 'published']);
+}
+
+function api_handle_review_lv_reject(PDO $pdo, int $id): void
+{
+    require_api_permission('learning_video.manage_any');
+    api_verify_csrf_or_fail();
+    $pdo->prepare("UPDATE learning_videos SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         ->execute([$id]);
     api_json_ok(['id' => $id, 'status' => 'draft']);
 }

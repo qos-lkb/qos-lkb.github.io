@@ -99,9 +99,19 @@
                 <div id="comprehension-section"></div>
             </div>`;
 
-        document.getElementById('art-back').onclick = () => global.AppRouter.navigate('/articles');
+        document.getElementById('art-back').onclick = () => {
+            const back = global.AppCourse && global.AppCourse.isCourseMode()
+                ? global.AppCourse.getBackRoute()
+                : '/articles';
+            global.AppRouter.navigate(back);
+        };
         renderComprehension();
         await enhanceMarkdown(main);
+
+        const artPage = document.getElementById('art-page');
+        if (global.AppCourse && global.AppCourse.isCourseMode()) {
+            global.AppCourse.attachItemNav(artPage, 'article', slug);
+        }
 
         const answerMapForSave = {};
         if (answers && answers.answers) {

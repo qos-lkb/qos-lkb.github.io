@@ -22,13 +22,23 @@
                 <article id="ws-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">${renderMarkdownToHtml(body)}</article>
             </div>`;
 
-        document.getElementById('ws-back').onclick = () => global.AppRouter.navigate('/worksheets');
+        document.getElementById('ws-back').onclick = () => {
+            const back = global.AppCourse && global.AppCourse.isCourseMode()
+                ? global.AppCourse.getBackRoute()
+                : '/worksheets';
+            global.AppRouter.navigate(back);
+        };
         await enhanceMarkdown(main);
+
+        const wsPage = document.getElementById('ws-page');
+        if (global.AppCourse && global.AppCourse.isCourseMode()) {
+            global.AppCourse.attachItemNav(wsPage, 'worksheet', slug);
+        }
 
         attachMarkdownEditor({
             type: 'worksheet',
             record: ws,
-            root: document.getElementById('ws-page'),
+            root: wsPage,
             titleEl: document.getElementById('ws-title'),
             bodyEl: document.getElementById('ws-body'),
             buildPayload: (rec) => buildWorksheetPayload(rec),

@@ -16,7 +16,7 @@ if (!admin_can_review()) {
 }
 
 admin_page_start('審核佇列', 'review_queue', [
-    'subtitle' => '審核待發佈的學習筆記、工作紙、文章與互動學習工具。',
+    'subtitle' => '審核待發佈的學習筆記、工作紙、文章、影片與互動學習工具。',
 ]);
 ?>
         <p id="flash" class="text-sm hidden"></p>
@@ -42,12 +42,14 @@ admin_page_end([
                     learning_tool: '學習工具',
                     learning_note: '學習筆記',
                     worksheet: '工作紙',
+                    learning_video: '學習影片',
                 }[it.type] || it.type;
                 const reviewPath = {
                     article: 'articles',
                     learning_tool: 'learning-tools',
                     learning_note: 'learning-notes',
                     worksheet: 'worksheets',
+                    learning_video: 'learning-videos',
                 }[it.type] || it.type;
                 return `
                 <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap justify-between gap-3 items-center shadow-sm">

@@ -11,6 +11,8 @@ require_once dirname(__DIR__, 2) . '/includes/learning_tools_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/articles_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/learning_notes_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/worksheets_lib.php';
+require_once dirname(__DIR__, 2) . '/includes/learning_videos_lib.php';
+require_once dirname(__DIR__, 2) . '/includes/topic_items_lib.php';
 
 function api_v1_path(): string
 {
@@ -48,6 +50,7 @@ function api_v1_dispatch(): void
 
     $routes = [
         'GET /catalog' => 'api_handle_catalog',
+        'GET /courses' => 'api_handle_courses_list',
         'GET /learning-tools' => 'api_handle_learning_tools_list_public',
         'GET /learning-tools/pending' => 'api_handle_learning_tools_pending',
         'GET /articles' => 'api_handle_articles_list_public',
@@ -56,6 +59,8 @@ function api_v1_dispatch(): void
         'GET /learning-notes/pending' => 'api_handle_learning_notes_pending',
         'GET /worksheets' => 'api_handle_worksheets_list_public',
         'GET /worksheets/pending' => 'api_handle_worksheets_pending',
+        'GET /learning-videos' => 'api_handle_learning_videos_list_public',
+        'GET /learning-videos/pending' => 'api_handle_learning_videos_pending',
         'GET /review-queue' => 'api_handle_review_queue',
         'POST /auth/login' => 'api_handle_auth_login',
         'POST /auth/logout' => 'api_handle_auth_logout',
@@ -101,6 +106,22 @@ function api_v1_dispatch(): void
         api_handle_worksheet_get($pdo, rawurldecode($m[1]));
         return;
     }
+    if (preg_match('#^GET /learning-videos/([^/]+)$#', $routeKey, $m)) {
+        api_handle_learning_video_get($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^GET /courses/([^/]+)$#', $routeKey, $m)) {
+        api_handle_courses_subject($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^GET /admin/topic-items/(\d+)$#', $routeKey, $m)) {
+        api_handle_topic_items_list($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^GET /admin/topic-items/(\d+)/available/([^/]+)$#', $routeKey, $m)) {
+        api_handle_topic_items_available($pdo, (int) $m[1], rawurldecode($m[2]));
+        return;
+    }
 
     if ($path === '/admin/simulations') {
         api_handle_admin_simulations($pdo, $method);
@@ -120,6 +141,14 @@ function api_v1_dispatch(): void
     }
     if ($path === '/admin/worksheets') {
         api_handle_admin_worksheets($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/learning-videos') {
+        api_handle_admin_learning_videos($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/topic-items') {
+        api_handle_admin_topic_items($pdo, $method);
         return;
     }
     if (preg_match('#^POST /review/learning-tools/(\d+)/publish$#', $routeKey, $m)) {
@@ -152,6 +181,14 @@ function api_v1_dispatch(): void
     }
     if (preg_match('#^POST /review/worksheets/(\d+)/reject$#', $routeKey, $m)) {
         api_handle_review_ws_reject($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /review/learning-videos/(\d+)/publish$#', $routeKey, $m)) {
+        api_handle_review_lv_publish($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /review/learning-videos/(\d+)/reject$#', $routeKey, $m)) {
+        api_handle_review_lv_reject($pdo, (int) $m[1]);
         return;
     }
 
@@ -273,4 +310,7 @@ require_once __DIR__ . '/handlers/learning_tools.php';
 require_once __DIR__ . '/handlers/articles.php';
 require_once __DIR__ . '/handlers/learning_notes.php';
 require_once __DIR__ . '/handlers/worksheets.php';
+require_once __DIR__ . '/handlers/courses.php';
+require_once __DIR__ . '/handlers/learning_videos.php';
+require_once __DIR__ . '/handlers/topic_items.php';
 require_once __DIR__ . '/handlers/review.php';

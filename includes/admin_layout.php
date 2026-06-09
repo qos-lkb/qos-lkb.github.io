@@ -13,7 +13,9 @@ function admin_has_any_access(): bool
         || user_has_permission('learning_tool.manage_any')
         || user_has_permission('article.manage_any')
         || user_has_permission('learning_note.manage_any')
-        || user_has_permission('worksheet.manage_any');
+        || user_has_permission('worksheet.manage_any')
+        || user_has_permission('learning_video.manage_any')
+        || user_has_permission('topic_item.manage_any');
 }
 
 function admin_btn(string $href, string $label, string $type = 'primary'): string
@@ -30,7 +32,8 @@ function admin_can_review(): bool
     return user_has_permission('learning_tool.manage_any')
         || user_has_permission('article.manage_any')
         || user_has_permission('learning_note.manage_any')
-        || user_has_permission('worksheet.manage_any');
+        || user_has_permission('worksheet.manage_any')
+        || user_has_permission('learning_video.manage_any');
 }
 
 /**
@@ -62,6 +65,12 @@ function admin_menu_sections(): array
     }
     if (user_has_permission('learning_tool.manage_any')) {
         $contentItems[] = ['key' => 'learning_tools', 'label' => '互動學習工具', 'href' => 'learning_tools.php'];
+    }
+    if (user_has_permission('learning_video.manage_any')) {
+        $contentItems[] = ['key' => 'learning_videos', 'label' => '學習影片', 'href' => 'learning_videos.php'];
+    }
+    if (user_has_permission('topic_item.manage_any') || user_has_permission('user.manage')) {
+        $contentItems[] = ['key' => 'course_curriculum', 'label' => '自學課程編排', 'href' => 'course_curriculum.php', 'accent' => 'indigo'];
     }
     if (admin_can_review()) {
         $contentItems[] = ['key' => 'review_queue', 'label' => '審核佇列', 'href' => 'review_queue.php', 'accent' => 'amber'];

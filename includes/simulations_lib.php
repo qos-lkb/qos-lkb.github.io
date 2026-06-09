@@ -138,7 +138,7 @@ function sim_ensure_unique_slug(PDO $pdo, string $base, ?int $exceptId = null): 
  */
 function sim_all_subjects(PDO $pdo): array
 {
-    return $pdo->query('SELECT id, slug, name_zh, name_en FROM subjects ORDER BY sort_order, name_en')->fetchAll() ?: [];
+    return $pdo->query('SELECT id, slug, name_zh, name_en, sort_order FROM subjects ORDER BY sort_order, name_en')->fetchAll() ?: [];
 }
 
 /**
@@ -146,7 +146,7 @@ function sim_all_subjects(PDO $pdo): array
  */
 function sim_topics_for_subject(PDO $pdo, int $subjectId): array
 {
-    $stmt = $pdo->prepare('SELECT id, slug, name_zh, name_en FROM topics WHERE subject_id = ? ORDER BY sort_order, name_en');
+    $stmt = $pdo->prepare('SELECT id, slug, name_zh, name_en, sort_order FROM topics WHERE subject_id = ? ORDER BY sort_order, name_en');
     $stmt->execute([$subjectId]);
     return $stmt->fetchAll() ?: [];
 }

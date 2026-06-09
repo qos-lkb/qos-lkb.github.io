@@ -83,10 +83,18 @@
                     <article id="note-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">${renderMarkdownToHtml(body)}</article>
                 </div>`;
 
-            document.getElementById('note-back').onclick = () => global.AppRouter.navigate('/learning-notes');
+            document.getElementById('note-back').onclick = () => {
+                const back = global.AppCourse && global.AppCourse.isCourseMode()
+                    ? global.AppCourse.getBackRoute()
+                    : '/learning-notes';
+                global.AppRouter.navigate(back);
+            };
             await enhanceMarkdown(main);
 
             const page = document.getElementById('note-page');
+            if (global.AppCourse && global.AppCourse.isCourseMode()) {
+                global.AppCourse.attachItemNav(page, 'note', slug);
+            }
             attachMarkdownEditor({
                 type: 'note',
                 record: note,
