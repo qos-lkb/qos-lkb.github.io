@@ -70,6 +70,26 @@ function api_handle_admin_learning_notes(PDO $pdo, string $method): void
             api_json_error('forbidden', '沒有權限。', 403);
         }
         $body = api_read_json_body();
+        if (($body['action'] ?? '') === 'reorder') {
+            if (!$canAny) {
+                api_json_error('forbidden', '沒有權限。', 403);
+            }
+            $subjectId = isset($body['subject_id']) && $body['subject_id'] !== '' && $body['subject_id'] !== null
+                ? (int) $body['subject_id'] : null;
+            $topicId = isset($body['topic_id']) && $body['topic_id'] !== '' && $body['topic_id'] !== null
+                ? (int) $body['topic_id'] : null;
+            $order = $body['order'] ?? [];
+            if (!is_array($order)) {
+                $order = [];
+            }
+            $r = ln_reorder_in_scope($pdo, $subjectId, $topicId, array_map('intval', $order));
+            if (!$r['ok']) {
+                api_json_error('validation_error', $r['error'] ?? '排序失敗。', 422);
+            }
+            api_json_ok(['reordered' => true]);
+            return;
+        }
+
         $r = ln_save_from_payload($pdo, $user, $body, $canAny, $canAny);
         if (!$r['ok']) {
             api_json_error('save_failed', $r['error'] ?? '儲存失敗。', 422);

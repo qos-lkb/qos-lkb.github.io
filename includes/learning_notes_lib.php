@@ -117,6 +117,65 @@ function ln_delete_by_id(PDO $pdo, int $id): void
     $pdo->prepare('DELETE FROM learning_notes WHERE id = ?')->execute([$id]);
 }
 
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function ln_fetch_admin_list(PDO $pdo): array
+{
+    $sql = 'SELECT ln.id, ln.slug, ln.title_zh, ln.title_en, ln.status, ln.updated_at,
+                   ln.list_sort_order, ln.subject_id, ln.topic_id,
+                   sub.name_zh AS subject_zh, sub.name_en AS subject_en, sub.sort_order AS sub_sort,
+                   t.name_zh AS topic_zh, t.name_en AS topic_en, t.sort_order AS topic_sort
+            FROM learning_notes ln
+            LEFT JOIN subjects sub ON sub.id = ln.subject_id
+            LEFT JOIN topics t ON t.id = ln.topic_id
+            ORDER BY COALESCE(sub.sort_order, 999999), COALESCE(t.sort_order, 999999),
+                     ln.list_sort_order, ln.title_en';
+    return $pdo->query($sql)->fetchAll() ?: [];
+}
+
+/**
+ * @param list<int> $orderedIds
+ * @return array{ok:bool,error?:string}
+ */
+function ln_reorder_in_scope(PDO $pdo, ?int $subjectId, ?int $topicId, array $orderedIds): array
+{
+    $orderedIds = array_values(array_filter(array_map('intval', $orderedIds), static fn (int $x): bool => $x > 0));
+    if ($orderedIds === []) {
+        return ['ok' => false, 'error' => '排序資料無效。'];
+    }
+
+    if ($topicId !== null && $topicId > 0) {
+        $stmt = $pdo->prepare('SELECT id FROM learning_notes WHERE topic_id = ? ORDER BY list_sort_order, id');
+        $stmt->execute([$topicId]);
+    } elseif ($subjectId !== null && $subjectId > 0) {
+        $stmt = $pdo->prepare(
+            'SELECT id FROM learning_notes WHERE subject_id = ? AND topic_id IS NULL ORDER BY list_sort_order, id'
+        );
+        $stmt->execute([$subjectId]);
+    } else {
+        $stmt = $pdo->query(
+            'SELECT id FROM learning_notes WHERE subject_id IS NULL AND topic_id IS NULL ORDER BY list_sort_order, id'
+        );
+    }
+
+    $allIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    sort($allIds);
+    $sorted = $orderedIds;
+    sort($sorted);
+    if ($sorted !== $allIds) {
+        return ['ok' => false, 'error' => '排序資料無效。'];
+    }
+
+    $pdo->beginTransaction();
+    $u = $pdo->prepare('UPDATE learning_notes SET list_sort_order = ? WHERE id = ?');
+    foreach ($orderedIds as $i => $id) {
+        $u->execute([$i, $id]);
+    }
+    $pdo->commit();
+    return ['ok' => true];
+}
+
 function ln_resolve_status(string $requested, bool $canPublishAny): string
 {
     if (!in_array($requested, ['draft', 'pending_review', 'published'], true)) {
