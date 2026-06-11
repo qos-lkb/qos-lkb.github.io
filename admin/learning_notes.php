@@ -40,19 +40,81 @@ foreach ($rows as $row) {
     $groups[$key]['items'][] = $row;
 }
 
+/** @var array<int, array{id:int,label:string,count:int,sort_order:int}> */
+$subjectTabs = [];
+$uncategorizedCount = 0;
+foreach ($groups as $group) {
+    $count = count($group['items']);
+    if ($group['subject_id'] === null) {
+        $uncategorizedCount += $count;
+        continue;
+    }
+    $sid = (int) $group['subject_id'];
+    if (!isset($subjectTabs[$sid])) {
+        $label = '';
+        foreach ($group['items'] as $item) {
+            $label = (string) ($item['subject_zh'] ?: $item['subject_en'] ?: '科目 #' . $sid);
+            break;
+        }
+        $subjectTabs[$sid] = [
+            'id' => $sid,
+            'label' => $label,
+            'count' => 0,
+            'sort_order' => (int) ($group['items'][0]['sub_sort'] ?? 999999),
+        ];
+    }
+    $subjectTabs[$sid]['count'] += $count;
+}
+usort($subjectTabs, static function (array $a, array $b): int {
+    return ($a['sort_order'] <=> $b['sort_order']) ?: strcmp($a['label'], $b['label']);
+});
+
+$activeSubject = (string) ($_GET['subject'] ?? 'all');
+if ($activeSubject !== 'all' && $activeSubject !== 'none' && !isset($subjectTabs[(int) $activeSubject])) {
+    $activeSubject = 'all';
+}
+
 admin_page_start('學習筆記', 'learning_notes', [
     'actions' => admin_btn('learning_note_edit.php', '新增') . admin_btn('review_queue.php', '審核佇列', 'secondary'),
-    'subtitle' => '拖曳 ⠿ 可調整同一課題內的顯示順序（影響前台學習筆記列表）。',
+    'subtitle' => '以分頁切換科目；拖曳 ⠿ 調整順序；雙擊標題、slug 可編輯；雙擊狀態可切換發佈狀態。',
     'wide' => true,
+    'headExtra' => '<style>.note-inline-input{display:none}.note-row-editing .note-inline-view{display:none}.note-row-editing .note-inline-input{display:block;width:100%}.note-editable{cursor:text;border-radius:.25rem;padding:.125rem .25rem}.note-editable:hover{background:rgb(238 242 255)}.note-status-editable{cursor:pointer;border-radius:.25rem;padding:.125rem .375rem}.note-status-editable:hover{background:rgb(254 243 199)}.note-subject-tab.active{background:#fff;border-color:#e2e8f0;color:#4338ca;font-weight:600}.note-subject-tab:not(.active){border-color:transparent;color:#475569}.note-subject-tab:not(.active):hover{color:#0f172a}</style>',
 ]);
 ?>
         <p id="flash" class="text-sm hidden"></p>
         <?php if ($groups === []): ?>
             <div class="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500 shadow-sm">尚無學習筆記。</div>
         <?php else: ?>
-            <div class="space-y-6">
-                <?php foreach ($groups as $group): ?>
-                    <section class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <nav id="note-subject-tabs" class="flex flex-wrap gap-1 border-b border-slate-200 mb-4 -mt-2" aria-label="科目篩選">
+                <?php
+                $totalCount = array_sum(array_map(static fn (array $g): int => count($g['items']), $groups));
+                $tabClass = static function (string $key) use ($activeSubject): string {
+                    $base = 'note-subject-tab px-3 sm:px-4 py-2 text-sm rounded-t-lg border border-b-0 -mb-px whitespace-nowrap';
+                    return $base . ($activeSubject === $key ? ' active' : '');
+                };
+                ?>
+                <button type="button" class="<?php echo $tabClass('all'); ?>" data-subject-filter="all">
+                    全部 <span class="text-xs text-slate-400 ml-1"><?php echo $totalCount; ?></span>
+                </button>
+                <?php foreach ($subjectTabs as $tab): ?>
+                    <button type="button" class="<?php echo $tabClass((string) $tab['id']); ?>" data-subject-filter="<?php echo (int) $tab['id']; ?>">
+                        <?php echo htmlspecialchars($tab['label'], ENT_QUOTES, 'UTF-8'); ?>
+                        <span class="text-xs text-slate-400 ml-1"><?php echo (int) $tab['count']; ?></span>
+                    </button>
+                <?php endforeach; ?>
+                <?php if ($uncategorizedCount > 0): ?>
+                    <button type="button" class="<?php echo $tabClass('none'); ?>" data-subject-filter="none">
+                        未分類 <span class="text-xs text-slate-400 ml-1"><?php echo $uncategorizedCount; ?></span>
+                    </button>
+                <?php endif; ?>
+            </nav>
+            <div id="note-subject-panels" class="space-y-6">
+                <?php foreach ($groups as $group):
+                    $filterKey = $group['subject_id'] !== null ? (string) (int) $group['subject_id'] : 'none';
+                    $panelHidden = $activeSubject !== 'all' && $activeSubject !== $filterKey;
+                    ?>
+                    <section class="note-subject-panel bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm<?php echo $panelHidden ? ' hidden' : ''; ?>"
+                             data-subject-filter="<?php echo htmlspecialchars($filterKey, ENT_QUOTES, 'UTF-8'); ?>">
                         <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
                             <h2 class="text-sm font-semibold text-slate-800"><?php echo htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8'); ?></h2>
                         </div>
@@ -72,14 +134,29 @@ admin_page_start('學習筆記', 'learning_notes', [
                                 <tbody class="note-sort-group"
                                        data-subject-id="<?php echo $group['subject_id'] !== null ? (int) $group['subject_id'] : ''; ?>"
                                        data-topic-id="<?php echo $group['topic_id'] !== null ? (int) $group['topic_id'] : ''; ?>">
-                                    <?php foreach ($group['items'] as $row): ?>
+                                    <?php foreach ($group['items'] as $row):
+                                        $status = (string) $row['status'];
+                                        $statusLabel = match ($status) {
+                                            'published' => '已發佈',
+                                            'pending_review' => '待審核',
+                                            default => '草稿',
+                                        };
+                                        ?>
                                         <tr class="note-sort-item border-t border-slate-100" data-note-id="<?php echo (int) $row['id']; ?>">
                                             <td class="p-3">
                                                 <button type="button" class="note-drag-handle w-8 h-8 flex items-center justify-center rounded border border-dashed border-slate-300 text-slate-500 cursor-grab active:cursor-grabbing select-none text-xs" title="拖曳排序" aria-label="拖曳排序">⠿</button>
                                             </td>
-                                            <td class="p-3"><?php echo htmlspecialchars($row['title_zh'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                            <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                            <td class="p-3"><?php echo htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                            <td class="p-3 note-cell-title">
+                                                <span class="note-inline-view note-editable note-title-view" title="雙擊編輯"><?php echo htmlspecialchars($row['title_zh'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <input type="text" class="note-inline-input note-title-input border border-indigo-300 rounded px-2 py-1 text-sm" value="<?php echo htmlspecialchars($row['title_zh'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            </td>
+                                            <td class="p-3 font-mono text-xs note-cell-slug">
+                                                <span class="note-inline-view note-editable note-slug-view" title="雙擊編輯"><?php echo htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <input type="text" class="note-inline-input note-slug-input border border-indigo-300 rounded px-2 py-1 text-sm font-mono" value="<?php echo htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            </td>
+                                            <td class="p-3 note-cell-status">
+                                                <span class="note-status-view note-status-editable" data-status="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>" title="雙擊切換狀態"><?php echo htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'); ?></span>
+                                            </td>
                                             <td class="p-3 font-mono text-xs note-sort-order"><?php echo (int) $row['list_sort_order']; ?></td>
                                             <td class="p-3 text-xs"><?php echo htmlspecialchars((string) $row['updated_at'], ENT_QUOTES, 'UTF-8'); ?></td>
                                             <td class="p-3"><a href="learning_note_edit.php?id=<?php echo (int) $row['id']; ?>" class="text-indigo-600 hover:underline">編輯</a></td>

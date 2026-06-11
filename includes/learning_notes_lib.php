@@ -176,6 +176,64 @@ function ln_reorder_in_scope(PDO $pdo, ?int $subjectId, ?int $topicId, array $or
     return ['ok' => true];
 }
 
+/**
+ * @param array{id:int,email:string,display_name:string} $user
+ * @param array<string, mixed> $fields
+ * @return array{ok:bool,error?:string,id?:int}
+ */
+function ln_patch_note(PDO $pdo, array $user, int $id, array $fields, bool $canAny): array
+{
+    if ($id <= 0) {
+        return ['ok' => false, 'error' => '無效的 ID。'];
+    }
+    $row = ln_get_by_id($pdo, $id);
+    if (!$row) {
+        return ['ok' => false, 'error' => '找不到學習筆記。'];
+    }
+    if (!$canAny && (int) ($row['owner_user_id'] ?? 0) !== $user['id']) {
+        return ['ok' => false, 'error' => '無權編輯。'];
+    }
+
+    $sets = [];
+    $params = [];
+
+    if (array_key_exists('title_zh', $fields)) {
+        $titleZh = trim((string) $fields['title_zh']);
+        if ($titleZh === '') {
+            return ['ok' => false, 'error' => '標題不可為空。'];
+        }
+        $sets[] = 'title_zh=?';
+        $params[] = $titleZh;
+    }
+
+    if (array_key_exists('slug', $fields)) {
+        $slugIn = trim((string) $fields['slug']);
+        if ($slugIn === '') {
+            return ['ok' => false, 'error' => 'slug 不可為空。'];
+        }
+        $slug = ln_ensure_unique_slug($pdo, sim_slugify($slugIn), $id);
+        $sets[] = 'slug=?';
+        $params[] = $slug;
+    }
+
+    if (array_key_exists('status', $fields)) {
+        $status = ln_resolve_status((string) $fields['status'], $canAny);
+        $sets[] = 'status=?';
+        $params[] = $status;
+    }
+
+    if ($sets === []) {
+        return ['ok' => false, 'error' => '無欄位可更新。'];
+    }
+
+    $params[] = $id;
+    $pdo->prepare(
+        'UPDATE learning_notes SET ' . implode(', ', $sets) . ', updated_at=CURRENT_TIMESTAMP WHERE id=?'
+    )->execute($params);
+
+    return ['ok' => true, 'id' => $id];
+}
+
 function ln_resolve_status(string $requested, bool $canPublishAny): string
 {
     if (!in_array($requested, ['draft', 'pending_review', 'published'], true)) {

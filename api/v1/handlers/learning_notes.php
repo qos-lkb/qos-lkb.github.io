@@ -70,6 +70,30 @@ function api_handle_admin_learning_notes(PDO $pdo, string $method): void
             api_json_error('forbidden', '沒有權限。', 403);
         }
         $body = api_read_json_body();
+        if (($body['action'] ?? '') === 'patch') {
+            $id = (int) ($body['id'] ?? 0);
+            if ($id <= 0) {
+                api_json_error('validation_error', '無效的 ID。', 422);
+            }
+            $patch = [];
+            if (array_key_exists('title_zh', $body)) {
+                $patch['title_zh'] = $body['title_zh'];
+            }
+            if (array_key_exists('slug', $body)) {
+                $patch['slug'] = $body['slug'];
+            }
+            if (array_key_exists('status', $body)) {
+                $patch['status'] = $body['status'];
+            }
+            $r = ln_patch_note($pdo, $user, $id, $patch, $canAny);
+            if (!$r['ok']) {
+                api_json_error('save_failed', $r['error'] ?? '更新失敗。', 422);
+            }
+            $saved = ln_get_by_id($pdo, $r['id']);
+            api_json_ok($saved ? ln_public_row(ln_enrich_row_labels($pdo, $saved)) : ['id' => $r['id']]);
+            return;
+        }
+
         if (($body['action'] ?? '') === 'reorder') {
             if (!$canAny) {
                 api_json_error('forbidden', '沒有權限。', 403);
