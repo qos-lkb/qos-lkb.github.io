@@ -1,8 +1,5 @@
-(async function () {
+(function () {
     'use strict';
-
-    await AdminApi.initSession();
-    const flash = document.getElementById('flash');
 
     const STATUS_CYCLE = ['draft', 'pending_review', 'published'];
     const STATUS_LABELS = {
@@ -11,13 +8,50 @@
         published: '已發佈',
     };
 
+    let flash = null;
+    let apiReady = false;
+
     function showFlash(msg, isError) {
+        if (!flash) flash = document.getElementById('flash');
         if (!flash) return;
         flash.textContent = msg;
         flash.className = isError ? 'text-red-600 text-sm' : 'text-green-700 text-sm';
         flash.classList.remove('hidden');
         clearTimeout(flash._t);
         flash._t = setTimeout(function () { flash.classList.add('hidden'); }, 4000);
+    }
+
+    function applySubjectFilter(key) {
+        document.querySelectorAll('.note-subject-panel').forEach(function (panel) {
+            const panelKey = panel.getAttribute('data-subject-filter') || '';
+            const show = key === 'all' || panelKey === key;
+            panel.hidden = !show;
+        });
+        document.querySelectorAll('.note-subject-tab').forEach(function (btn) {
+            const active = btn.getAttribute('data-subject-filter') === key;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        try {
+            const url = new URL(window.location.href);
+            if (key === 'all') {
+                url.searchParams.delete('subject');
+            } else {
+                url.searchParams.set('subject', key);
+            }
+            window.history.replaceState({}, '', url.pathname + url.search);
+        } catch (e) { /* ignore */ }
+    }
+
+    function initSubjectTabs() {
+        const tabNav = document.getElementById('note-subject-tabs');
+        if (!tabNav) return;
+        tabNav.addEventListener('click', function (e) {
+            const btn = e.target.closest('.note-subject-tab');
+            if (!btn || !tabNav.contains(btn)) return;
+            e.preventDefault();
+            applySubjectFilter(btn.getAttribute('data-subject-filter') || 'all');
+        });
     }
 
     function refreshSortLabels(groupEl) {
@@ -69,6 +103,7 @@
     }
 
     async function saveInlineField(row, field) {
+        if (!apiReady) return;
         const id = parseInt(row.getAttribute('data-note-id'), 10);
         const input = row.querySelector(field === 'title' ? '.note-title-input' : '.note-slug-input');
         const view = row.querySelector(field === 'title' ? '.note-title-view' : '.note-slug-view');
@@ -148,6 +183,7 @@
         if (statusView) {
             statusView.addEventListener('dblclick', async function (e) {
                 e.preventDefault();
+                if (!apiReady) return;
                 const id = parseInt(row.getAttribute('data-note-id'), 10);
                 if (!id) return;
                 const current = statusView.dataset.status || 'draft';
@@ -165,6 +201,7 @@
     }
 
     async function persistGroup(groupEl) {
+        if (!apiReady) return;
         refreshSortLabels(groupEl);
 
         const subjectRaw = groupEl.getAttribute('data-subject-id');
@@ -191,39 +228,24 @@
         }
     }
 
-    function applySubjectFilter(key) {
-        document.querySelectorAll('.note-subject-panel').forEach(function (panel) {
-            const panelKey = panel.getAttribute('data-subject-filter') || '';
-            const show = key === 'all' || panelKey === key;
-            panel.classList.toggle('hidden', !show);
-        });
-        document.querySelectorAll('.note-subject-tab').forEach(function (btn) {
-            const active = btn.getAttribute('data-subject-filter') === key;
-            btn.classList.toggle('active', active);
-        });
-        const url = new URL(window.location.href);
-        if (key === 'all') {
-            url.searchParams.delete('subject');
-        } else {
-            url.searchParams.set('subject', key);
-        }
-        window.history.replaceState({}, '', url.pathname + url.search);
-    }
-
-    const tabNav = document.getElementById('note-subject-tabs');
-    if (tabNav) {
-        tabNav.querySelectorAll('.note-subject-tab').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                applySubjectFilter(btn.getAttribute('data-subject-filter') || 'all');
+    function initInteractiveFeatures() {
+        document.querySelectorAll('.note-sort-item').forEach(wireInlineEdit);
+        document.querySelectorAll('.note-sort-group').forEach(function (groupEl) {
+            AdminListReorder.wireVerticalSort(groupEl, '.note-sort-item', '.note-drag-handle', function () {
+                persistGroup(groupEl);
             });
         });
     }
 
-    document.querySelectorAll('.note-sort-item').forEach(wireInlineEdit);
+    initSubjectTabs();
 
-    document.querySelectorAll('.note-sort-group').forEach(function (groupEl) {
-        AdminListReorder.wireVerticalSort(groupEl, '.note-sort-item', '.note-drag-handle', function () {
-            persistGroup(groupEl);
-        });
-    });
+    (async function () {
+        try {
+            await AdminApi.initSession();
+            apiReady = true;
+        } catch (e) {
+            showFlash(e.message || '無法連線 API，部分功能可能無法使用。', true);
+        }
+        initInteractiveFeatures();
+    })();
 })();

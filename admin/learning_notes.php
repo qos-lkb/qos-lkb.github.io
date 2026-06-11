@@ -78,7 +78,7 @@ admin_page_start('學習筆記', 'learning_notes', [
     'actions' => admin_btn('learning_note_edit.php', '新增') . admin_btn('review_queue.php', '審核佇列', 'secondary'),
     'subtitle' => '以分頁切換科目；拖曳 ⠿ 調整順序；雙擊標題、slug 可編輯；雙擊狀態可切換發佈狀態。',
     'wide' => true,
-    'headExtra' => '<style>.note-inline-input{display:none}.note-row-editing .note-inline-view{display:none}.note-row-editing .note-inline-input{display:block;width:100%}.note-editable{cursor:text;border-radius:.25rem;padding:.125rem .25rem}.note-editable:hover{background:rgb(238 242 255)}.note-status-editable{cursor:pointer;border-radius:.25rem;padding:.125rem .375rem}.note-status-editable:hover{background:rgb(254 243 199)}.note-subject-tab.active{background:#fff;border-color:#e2e8f0;color:#4338ca;font-weight:600}.note-subject-tab:not(.active){border-color:transparent;color:#475569}.note-subject-tab:not(.active):hover{color:#0f172a}</style>',
+    'headExtra' => '<style>.note-inline-input{display:none}.note-row-editing .note-inline-view{display:none}.note-row-editing .note-inline-input{display:block;width:100%}.note-editable{cursor:text;border-radius:.25rem;padding:.125rem .25rem}.note-editable:hover{background:rgb(238 242 255)}.note-status-editable{cursor:pointer;border-radius:.25rem;padding:.125rem .375rem}.note-status-editable:hover{background:rgb(254 243 199)}.note-subject-tab{cursor:pointer;background:transparent}.note-subject-tab.active{background:#fff;border-color:#e2e8f0;color:#4338ca;font-weight:600}.note-subject-tab:not(.active){border-color:transparent;color:#475569}.note-subject-tab:not(.active):hover{color:#0f172a;background:#f8fafc}.note-subject-panel[hidden]{display:none!important}</style>',
 ]);
 ?>
         <p id="flash" class="text-sm hidden"></p>
@@ -93,17 +93,19 @@ admin_page_start('學習筆記', 'learning_notes', [
                     return $base . ($activeSubject === $key ? ' active' : '');
                 };
                 ?>
-                <button type="button" class="<?php echo $tabClass('all'); ?>" data-subject-filter="all">
+                <button type="button" class="<?php echo $tabClass('all'); ?>" data-subject-filter="all" aria-selected="<?php echo $activeSubject === 'all' ? 'true' : 'false'; ?>">
                     全部 <span class="text-xs text-slate-400 ml-1"><?php echo $totalCount; ?></span>
                 </button>
-                <?php foreach ($subjectTabs as $tab): ?>
-                    <button type="button" class="<?php echo $tabClass((string) $tab['id']); ?>" data-subject-filter="<?php echo (int) $tab['id']; ?>">
+                <?php foreach ($subjectTabs as $tab):
+                    $tabKey = (string) $tab['id'];
+                    ?>
+                    <button type="button" class="<?php echo $tabClass($tabKey); ?>" data-subject-filter="<?php echo $tabKey; ?>" aria-selected="<?php echo $activeSubject === $tabKey ? 'true' : 'false'; ?>">
                         <?php echo htmlspecialchars($tab['label'], ENT_QUOTES, 'UTF-8'); ?>
                         <span class="text-xs text-slate-400 ml-1"><?php echo (int) $tab['count']; ?></span>
                     </button>
                 <?php endforeach; ?>
                 <?php if ($uncategorizedCount > 0): ?>
-                    <button type="button" class="<?php echo $tabClass('none'); ?>" data-subject-filter="none">
+                    <button type="button" class="<?php echo $tabClass('none'); ?>" data-subject-filter="none" aria-selected="<?php echo $activeSubject === 'none' ? 'true' : 'false'; ?>">
                         未分類 <span class="text-xs text-slate-400 ml-1"><?php echo $uncategorizedCount; ?></span>
                     </button>
                 <?php endif; ?>
@@ -113,8 +115,9 @@ admin_page_start('學習筆記', 'learning_notes', [
                     $filterKey = $group['subject_id'] !== null ? (string) (int) $group['subject_id'] : 'none';
                     $panelHidden = $activeSubject !== 'all' && $activeSubject !== $filterKey;
                     ?>
-                    <section class="note-subject-panel bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm<?php echo $panelHidden ? ' hidden' : ''; ?>"
-                             data-subject-filter="<?php echo htmlspecialchars($filterKey, ENT_QUOTES, 'UTF-8'); ?>">
+                    <section class="note-subject-panel bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+                             data-subject-filter="<?php echo htmlspecialchars($filterKey, ENT_QUOTES, 'UTF-8'); ?>"
+                             <?php if ($panelHidden): ?>hidden<?php endif; ?>>
                         <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
                             <h2 class="text-sm font-semibold text-slate-800"><?php echo htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8'); ?></h2>
                         </div>
