@@ -138,6 +138,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     <title><?php echo $pageTitle; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="assets/css/admin.css">
+    <script>window.__APP_TIMEZONE__=<?php echo json_encode(config_timezone(), JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo $headExtra; ?>
 </head>
 <body class="bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 font-sans text-slate-900 min-h-screen flex flex-col antialiased <?php echo htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8'); ?>">

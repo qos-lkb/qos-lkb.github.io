@@ -13,5 +13,6 @@
  *         'unix_socket' => '', // 選填，例：/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock
  *     ],
  *     'session_cookie_secure' => false, // HTTPS 環境改為 true
+ *     'timezone' => 'Asia/Hong_Kong', // 或於 .env 設定 APP_TIMEZONE
  * ];
  */

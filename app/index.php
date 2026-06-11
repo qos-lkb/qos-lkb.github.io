@@ -22,7 +22,7 @@ $bilingualTitle = $siteNameZh . ' | ' . $siteNameEn;
 
 $namesScript = '<script>window.__SITE_NAMES__='
     . json_encode(['zh' => config_site_name(), 'en' => config_site_name_en()], JSON_UNESCAPED_UNICODE)
-    . ';</script>';
+    . ';window.__APP_TIMEZONE__=' . json_encode(config_timezone(), JSON_UNESCAPED_UNICODE) . ';</script>';
 
 $html = preg_replace('/<head>/', '<head>' . "\n    " . $namesScript, $html, 1);
 $html = preg_replace('/<title>.*?<\/title>/', '<title>' . $bilingualTitle . '</title>', $html, 1);

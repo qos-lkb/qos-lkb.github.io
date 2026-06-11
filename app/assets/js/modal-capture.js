@@ -283,9 +283,19 @@
     }
 
     function getFormattedTimestamp() {
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const tz = (typeof window !== 'undefined' && window.__APP_TIMEZONE__) || 'Asia/Hong_Kong';
+        const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        }).formatToParts(new Date());
+        const get = type => (parts.find(p => p.type === type) || {}).value || '';
+        return `${get('year')}${get('month')}${get('day')}${get('hour')}${get('minute')}${get('second')}`;
     }
 
     function getFileNameFromUrl(url) {

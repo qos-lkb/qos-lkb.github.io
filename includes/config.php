@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const CONFIG_DEFAULT_SITE_NAME = '伊中中科學學習平台';
 const CONFIG_DEFAULT_SITE_NAME_EN = 'QESOSASS Science Learning Platform';
+const CONFIG_DEFAULT_TIMEZONE = 'Asia/Hong_Kong';
 
 /**
  * 讀取專案根目錄 .env（KEY=value，# 為註解），寫入 putenv／$_ENV。
@@ -66,6 +67,52 @@ function config_site_title_bilingual(): string
     return config_site_name() . ' | ' . config_site_name_en();
 }
 
+function config_timezone(): string
+{
+    static $resolved = null;
+    if ($resolved !== null) {
+        return $resolved;
+    }
+
+    config_load_dotenv();
+    $candidate = trim((string) (getenv('APP_TIMEZONE') ?: ($_ENV['APP_TIMEZONE'] ?? '')));
+    if ($candidate === '') {
+        $candidate = trim((string) (app_config()['timezone'] ?? CONFIG_DEFAULT_TIMEZONE));
+    }
+    if ($candidate === '') {
+        $candidate = CONFIG_DEFAULT_TIMEZONE;
+    }
+
+    try {
+        new DateTimeZone($candidate);
+        $resolved = $candidate;
+    } catch (Exception) {
+        $resolved = CONFIG_DEFAULT_TIMEZONE;
+    }
+
+    return $resolved;
+}
+
+function config_apply_timezone(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    date_default_timezone_set(config_timezone());
+}
+
+function config_mysql_time_zone(): string
+{
+    $tz = new DateTimeZone(config_timezone());
+    $offset = $tz->getOffset(new DateTime('now', $tz));
+    $sign = $offset >= 0 ? '+' : '-';
+    $offset = abs($offset);
+
+    return sprintf('%s%02d:%02d', $sign, intdiv($offset, 3600), intdiv($offset % 3600, 60));
+}
+
 /**
  * 自環境變數組出 db 設定；若未設定資料庫相關變數則回傳 null。
  *
@@ -118,6 +165,7 @@ function app_config(): array
         'session_name' => 'SCI_SIM_SESSID',
         'session_cookie_secure' => false,
         'session_cookie_samesite' => 'Lax',
+        'timezone' => CONFIG_DEFAULT_TIMEZONE,
     ];
 
     $local = [];
@@ -137,3 +185,5 @@ function app_config(): array
 
     return $cfg;
 }
+
+config_apply_timezone();

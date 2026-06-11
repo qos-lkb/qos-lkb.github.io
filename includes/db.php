@@ -22,10 +22,15 @@ function db(): PDO
         $dsn .= ';unix_socket=' . $socket;
     }
 
+    $initSql = sprintf(
+        "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, time_zone = '%s'",
+        config_mysql_time_zone()
+    );
+
     $pdo = new PDO($dsn, $c['user'], $c['pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+        PDO::MYSQL_ATTR_INIT_COMMAND => $initSql,
     ]);
 
     return $pdo;

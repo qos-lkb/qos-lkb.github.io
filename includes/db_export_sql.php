@@ -31,8 +31,9 @@ function db_export_stream_full_sql(PDO $pdo, callable $write): void
     }
 
     $write("-- Science Sims 資料庫匯出\n");
-    $write('-- 產生時間: ' . gmdate('Y-m-d H:i:s') . " UTC\n");
+    $write('-- 產生時間: ' . date('Y-m-d H:i:s') . ' HKT (' . config_timezone() . ")\n");
     $write("SET NAMES utf8mb4;\n");
+    $write("SET time_zone = '" . config_mysql_time_zone() . "';\n");
     $write("SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';\n");
     $write("SET FOREIGN_KEY_CHECKS=0;\n\n");
 
