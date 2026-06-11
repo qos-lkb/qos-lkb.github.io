@@ -21,39 +21,6 @@
         flash._t = setTimeout(function () { flash.classList.add('hidden'); }, 4000);
     }
 
-    function applySubjectFilter(key) {
-        document.querySelectorAll('.note-subject-panel').forEach(function (panel) {
-            const panelKey = panel.getAttribute('data-subject-filter') || '';
-            const show = key === 'all' || panelKey === key;
-            panel.hidden = !show;
-        });
-        document.querySelectorAll('.note-subject-tab').forEach(function (btn) {
-            const active = btn.getAttribute('data-subject-filter') === key;
-            btn.classList.toggle('active', active);
-            btn.setAttribute('aria-selected', active ? 'true' : 'false');
-        });
-        try {
-            const url = new URL(window.location.href);
-            if (key === 'all') {
-                url.searchParams.delete('subject');
-            } else {
-                url.searchParams.set('subject', key);
-            }
-            window.history.replaceState({}, '', url.pathname + url.search);
-        } catch (e) { /* ignore */ }
-    }
-
-    function initSubjectTabs() {
-        const tabNav = document.getElementById('note-subject-tabs');
-        if (!tabNav) return;
-        tabNav.addEventListener('click', function (e) {
-            const btn = e.target.closest('.note-subject-tab');
-            if (!btn || !tabNav.contains(btn)) return;
-            e.preventDefault();
-            applySubjectFilter(btn.getAttribute('data-subject-filter') || 'all');
-        });
-    }
-
     function refreshSortLabels(groupEl) {
         groupEl.querySelectorAll('.note-sort-item').forEach(function (row, index) {
             const cell = row.querySelector('.note-sort-order');
@@ -236,8 +203,6 @@
             });
         });
     }
-
-    initSubjectTabs();
 
     (async function () {
         try {

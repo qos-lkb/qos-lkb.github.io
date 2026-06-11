@@ -89,25 +89,31 @@ admin_page_start('學習筆記', 'learning_notes', [
                 <?php
                 $totalCount = array_sum(array_map(static fn (array $g): int => count($g['items']), $groups));
                 $tabClass = static function (string $key) use ($activeSubject): string {
-                    $base = 'note-subject-tab px-3 sm:px-4 py-2 text-sm rounded-t-lg border border-b-0 -mb-px whitespace-nowrap';
+                    $base = 'note-subject-tab inline-block px-3 sm:px-4 py-2 text-sm rounded-t-lg border border-b-0 -mb-px whitespace-nowrap no-underline';
                     return $base . ($activeSubject === $key ? ' active' : '');
                 };
+                $tabHref = static function (string $key): string {
+                    if ($key === 'all') {
+                        return 'learning_notes.php';
+                    }
+                    return 'learning_notes.php?subject=' . rawurlencode($key);
+                };
                 ?>
-                <button type="button" class="<?php echo $tabClass('all'); ?>" data-subject-filter="all" aria-selected="<?php echo $activeSubject === 'all' ? 'true' : 'false'; ?>">
+                <a href="<?php echo htmlspecialchars($tabHref('all'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $tabClass('all'); ?>" data-subject-filter="all" role="tab" aria-selected="<?php echo $activeSubject === 'all' ? 'true' : 'false'; ?>">
                     全部 <span class="text-xs text-slate-400 ml-1"><?php echo $totalCount; ?></span>
-                </button>
+                </a>
                 <?php foreach ($subjectTabs as $tab):
                     $tabKey = (string) $tab['id'];
                     ?>
-                    <button type="button" class="<?php echo $tabClass($tabKey); ?>" data-subject-filter="<?php echo $tabKey; ?>" aria-selected="<?php echo $activeSubject === $tabKey ? 'true' : 'false'; ?>">
+                    <a href="<?php echo htmlspecialchars($tabHref($tabKey), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $tabClass($tabKey); ?>" data-subject-filter="<?php echo htmlspecialchars($tabKey, ENT_QUOTES, 'UTF-8'); ?>" role="tab" aria-selected="<?php echo $activeSubject === $tabKey ? 'true' : 'false'; ?>">
                         <?php echo htmlspecialchars($tab['label'], ENT_QUOTES, 'UTF-8'); ?>
                         <span class="text-xs text-slate-400 ml-1"><?php echo (int) $tab['count']; ?></span>
-                    </button>
+                    </a>
                 <?php endforeach; ?>
                 <?php if ($uncategorizedCount > 0): ?>
-                    <button type="button" class="<?php echo $tabClass('none'); ?>" data-subject-filter="none" aria-selected="<?php echo $activeSubject === 'none' ? 'true' : 'false'; ?>">
+                    <a href="<?php echo htmlspecialchars($tabHref('none'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $tabClass('none'); ?>" data-subject-filter="none" role="tab" aria-selected="<?php echo $activeSubject === 'none' ? 'true' : 'false'; ?>">
                         未分類 <span class="text-xs text-slate-400 ml-1"><?php echo $uncategorizedCount; ?></span>
-                    </button>
+                    </a>
                 <?php endif; ?>
             </nav>
             <div id="note-subject-panels" class="space-y-6">
@@ -174,7 +180,42 @@ admin_page_start('學習筆記', 'learning_notes', [
         <?php endif; ?>
 <?php
 admin_page_end([
-    'scripts' => '<script src="../assets/js/admin-api.js"></script>'
+    'scripts' => <<<'HTML'
+    <script>
+    (function () {
+        function applySubjectFilter(key) {
+            document.querySelectorAll('.note-subject-panel').forEach(function (panel) {
+                var panelKey = panel.getAttribute('data-subject-filter') || '';
+                panel.hidden = !(key === 'all' || panelKey === key);
+            });
+            document.querySelectorAll('.note-subject-tab').forEach(function (tab) {
+                var active = tab.getAttribute('data-subject-filter') === key;
+                tab.classList.toggle('active', active);
+                tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            try {
+                var url = new URL(window.location.href);
+                if (key === 'all') {
+                    url.searchParams.delete('subject');
+                } else {
+                    url.searchParams.set('subject', key);
+                }
+                window.history.replaceState({}, '', url.pathname + url.search);
+            } catch (e) { /* ignore */ }
+        }
+        var tabNav = document.getElementById('note-subject-tabs');
+        if (!tabNav) return;
+        tabNav.addEventListener('click', function (e) {
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            var tab = e.target.closest('.note-subject-tab');
+            if (!tab || !tabNav.contains(tab)) return;
+            e.preventDefault();
+            applySubjectFilter(tab.getAttribute('data-subject-filter') || 'all');
+        });
+    })();
+    </script>
+HTML
+        . '<script src="../assets/js/admin-api.js"></script>'
         . '<script src="assets/js/list-reorder.js"></script>'
         . '<script src="assets/js/learning-notes-list.js"></script>',
 ]);
