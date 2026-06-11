@@ -227,15 +227,22 @@ function ti_reorder_items(PDO $pdo, int $topicId, array $orderedIds): array
     $stmt = $pdo->prepare('SELECT id FROM topic_learning_items WHERE topic_id = ? ORDER BY sort_order, id');
     $stmt->execute([$topicId]);
     $allIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-    sort($allIds);
-    $sorted = array_values(array_filter(array_map('intval', $orderedIds), static fn (int $x): bool => $x > 0));
-    sort($sorted);
-    if ($sorted !== $allIds) {
+    $ordered = array_values(array_filter(array_map('intval', $orderedIds), static fn (int $x): bool => $x > 0));
+
+    if (count($ordered) !== count($allIds)) {
         return ['ok' => false, 'error' => '排序資料無效。'];
     }
+
+    $allSet = array_flip($allIds);
+    foreach ($ordered as $id) {
+        if (!isset($allSet[$id])) {
+            return ['ok' => false, 'error' => '排序資料無效。'];
+        }
+    }
+
     $pdo->beginTransaction();
     $u = $pdo->prepare('UPDATE topic_learning_items SET sort_order = ? WHERE id = ? AND topic_id = ?');
-    foreach ($sorted as $i => $id) {
+    foreach ($ordered as $i => $id) {
         $u->execute([$i, $id, $topicId]);
     }
     $pdo->commit();

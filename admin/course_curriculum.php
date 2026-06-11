@@ -90,5 +90,6 @@ admin_page_end([
     'scripts' => '<script>window.CURRICULUM_TOPICS=' . json_encode($topicsBySubject, JSON_HEX_TAG | JSON_HEX_AMP)
         . ';window.CURRICULUM_TYPE_LABELS=' . json_encode($typeLabels, JSON_HEX_TAG | JSON_HEX_AMP) . ';</script>'
         . '<script src="../assets/js/admin-api.js"></script>'
+        . '<script src="assets/js/list-reorder.js"></script>'
         . '<script src="assets/js/course-curriculum.js"></script>',
 ]);

@@ -17,7 +17,6 @@
     const TYPE_LABELS = window.CURRICULUM_TYPE_LABELS || {};
 
     let currentTopicId = null;
-    let dragged = null;
 
     function showFlash(msg, isError) {
         flash.textContent = msg;
@@ -57,9 +56,9 @@
         const typeLabel = TYPE_LABELS[it.content_type] || it.content_type;
         const title = it.title_zh || it.title_en || '(無標題)';
         const missing = it.missing ? ' opacity-50' : '';
-        return '<li class="item-row flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50/50' + missing + '" draggable="true" data-item-id="' + it.id + '">' +
-            '<span class="cursor-grab text-slate-400 select-none" title="拖曳排序">☰</span>' +
-            '<span class="text-xs font-mono text-indigo-600 w-6">' + (idx + 1) + '</span>' +
+        return '<li class="item-row flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50/50' + missing + '" data-item-id="' + it.id + '">' +
+            '<span class="item-drag-handle cursor-grab text-slate-400 select-none" title="拖曳排序">☰</span>' +
+            '<span class="item-order-num text-xs font-mono text-indigo-600 w-6">' + (idx + 1) + '</span>' +
             '<span class="type-badge">' + typeLabel + '</span>' +
             '<span class="flex-1 text-sm font-medium truncate">' + title + '</span>' +
             '<button type="button" class="text-red-600 text-xs hover:underline remove-btn" data-id="' + it.id + '">移除</button></li>';
@@ -78,6 +77,13 @@
         }
     }
 
+    function refreshOrderLabels() {
+        itemsList.querySelectorAll('.item-row').forEach(function (row, index) {
+            const label = row.querySelector('.item-order-num');
+            if (label) label.textContent = String(index + 1);
+        });
+    }
+
     function bindItemRows() {
         itemsList.querySelectorAll('.remove-btn').forEach(function (btn) {
             btn.onclick = async function () {
@@ -88,35 +94,23 @@
                 } catch (e) { showFlash(e.message, true); }
             };
         });
-        itemsList.querySelectorAll('.item-row').forEach(function (row) {
-            row.addEventListener('dragstart', function (e) {
-                dragged = row;
-                row.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-            });
-            row.addEventListener('dragend', function () {
-                row.classList.remove('dragging');
-                if (dragged) {
-                    dragged = null;
-                    persistOrder();
-                }
-            });
-            row.addEventListener('dragover', function (e) {
-                e.preventDefault();
-                if (!dragged || dragged === row) return;
-                const rect = row.getBoundingClientRect();
-                const after = e.clientY > rect.top + rect.height / 2;
-                if (after) row.after(dragged); else row.before(dragged);
-            });
+        AdminListReorder.wireVerticalSort(itemsList, '.item-row', '.item-drag-handle', function () {
+            persistOrder();
         });
     }
 
     async function persistOrder() {
+        if (!currentTopicId) return;
+        refreshOrderLabels();
         const order = Array.prototype.map.call(itemsList.querySelectorAll('.item-row'), function (r) {
             return parseInt(r.dataset.itemId, 10);
-        });
+        }).filter(function (id) { return id > 0; });
+        if (order.length === 0) return;
         try {
-            await AdminApi.apiFetch('/admin/topic-items', { method: 'POST', body: { action: 'reorder', topic_id: currentTopicId, order: order } });
+            await AdminApi.apiFetch('/admin/topic-items', {
+                method: 'POST',
+                body: { action: 'reorder', topic_id: currentTopicId, order: order },
+            });
         } catch (e) { showFlash(e.message, true); }
     }
 
