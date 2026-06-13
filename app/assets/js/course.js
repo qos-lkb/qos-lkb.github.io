@@ -109,14 +109,25 @@
         let topicPrev = topicIdx > 0 ? topics[topicIdx - 1] : null;
         let topicNext = topicIdx >= 0 && topicIdx < topics.length - 1 ? topics[topicIdx + 1] : null;
 
+        let prevSubjectSlug = subjectSlug;
+        let prevTopicSlug = topicSlug;
+        let nextSubjectSlug = subjectSlug;
+        let nextTopicSlug = topicSlug;
+
         if (idx === items.length - 1 && !next && topicNext && (topicNext.items || []).length) {
             next = topicNext.items[0];
+            nextTopicSlug = topicNext.slug;
         }
         if (idx === 0 && !prev && topicPrev && (topicPrev.items || []).length) {
             prev = topicPrev.items[topicPrev.items.length - 1];
+            prevTopicSlug = topicPrev.slug;
         }
 
-        return { prev, next, topicPrev, topicNext, subject: ctx.subject, topic: ctx.topic };
+        return {
+            prev, next, topicPrev, topicNext,
+            prevSubjectSlug, prevTopicSlug, nextSubjectSlug, nextTopicSlug,
+            subject: ctx.subject, topic: ctx.topic,
+        };
     }
 
     function openSimulation(slug) {
@@ -133,6 +144,9 @@
             contentType: item.content_type,
             slug: item.slug,
         });
+        if (global.AppCatalog && global.AppCatalog.closeModal) {
+            global.AppCatalog.closeModal();
+        }
         const route = itemRoute(item);
         if (route) await navigate(route);
     }
@@ -145,13 +159,13 @@
         let prevBtn = '';
         let nextBtn = '';
         if (adj.prev) {
-            prevBtn = `<button type="button" class="course-nav-prev px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50" data-type="${escapeHtml(adj.prev.content_type)}" data-slug="${escapeHtml(adj.prev.slug)}">← ${t('上一項', 'Previous')}</button>`;
+            prevBtn = `<button type="button" class="course-nav-prev px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50" data-content-type="${escapeHtml(adj.prev.content_type)}" data-slug="${escapeHtml(adj.prev.slug)}" data-subject="${escapeHtml(adj.prevSubjectSlug)}" data-topic="${escapeHtml(adj.prevTopicSlug)}">← ${t('上一項', 'Previous')}</button>`;
         } else if (adj.topicPrev) {
             prevBtn = `<button type="button" class="course-nav-topic-prev px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(adj.topicPrev.slug)}">← ${t('上一課題', 'Previous topic')}</button>`;
         }
 
         if (adj.next) {
-            nextBtn = `<button type="button" class="course-nav-next px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" data-type="${escapeHtml(adj.next.content_type)}" data-slug="${escapeHtml(adj.next.slug)}">${t('下一項', 'Next')} →</button>`;
+            nextBtn = `<button type="button" class="course-nav-next px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" data-content-type="${escapeHtml(adj.next.content_type)}" data-slug="${escapeHtml(adj.next.slug)}" data-subject="${escapeHtml(adj.nextSubjectSlug)}" data-topic="${escapeHtml(adj.nextTopicSlug)}">${t('下一項', 'Next')} →</button>`;
         } else if (adj.topicNext) {
             nextBtn = `<button type="button" class="course-nav-topic-next px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(adj.topicNext.slug)}">${t('下一課題', 'Next topic')} →</button>`;
         }
@@ -167,14 +181,25 @@
             </p>`;
     }
 
+    function navItemFromBtn(btn, fallbackSubject, fallbackTopic) {
+        return {
+            item: {
+                content_type: btn.getAttribute('data-content-type') || btn.dataset.contentType,
+                slug: btn.dataset.slug,
+            },
+            subjectSlug: btn.dataset.subject || fallbackSubject,
+            topicSlug: btn.dataset.topic || fallbackTopic,
+        };
+    }
+
     function bindNavBar(root, subjectSlug, topicSlug) {
         root.querySelector('.course-nav-prev')?.addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            await openItem({ content_type: btn.dataset.type, slug: btn.dataset.slug }, subjectSlug, topicSlug);
+            const { item, subjectSlug: sub, topicSlug: top } = navItemFromBtn(e.currentTarget, subjectSlug, topicSlug);
+            await openItem(item, sub, top);
         });
         root.querySelector('.course-nav-next')?.addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            await openItem({ content_type: btn.dataset.type, slug: btn.dataset.slug }, subjectSlug, topicSlug);
+            const { item, subjectSlug: sub, topicSlug: top } = navItemFromBtn(e.currentTarget, subjectSlug, topicSlug);
+            await openItem(item, sub, top);
         });
         root.querySelector('.course-nav-topic-prev')?.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
@@ -335,7 +360,7 @@
             meta = `<span class="text-xs text-slate-400">${item.duration_minutes}${t(' 分鐘', ' min')}</span>`;
         }
         return `
-            <button type="button" class="course-item-row w-full text-left flex items-center gap-3 p-4 rounded-xl border border-slate-200/80 bg-white hover:border-indigo-300 shadow-sm transition-all" data-idx="${idx}" data-type="${escapeHtml(item.content_type)}" data-slug="${escapeHtml(item.slug)}" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicSlug)}">
+            <button type="button" class="course-item-row w-full text-left flex items-center gap-3 p-4 rounded-xl border border-slate-200/80 bg-white hover:border-indigo-300 shadow-sm transition-all" data-idx="${idx}" data-content-type="${escapeHtml(item.content_type)}" data-slug="${escapeHtml(item.slug)}" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicSlug)}">
                 <span class="text-xs font-mono text-indigo-600 w-6">${idx + 1}</span>
                 <span class="text-lg" aria-hidden="true">${icon}</span>
                 <div class="flex-1 min-w-0">
@@ -392,7 +417,7 @@
                 ${topicNav}`;
             container.querySelectorAll('.course-item-row').forEach((row) => {
                 row.onclick = () => openItem(
-                    { content_type: row.dataset.type, slug: row.dataset.slug },
+                    { content_type: row.getAttribute('data-content-type') || row.dataset.contentType, slug: row.dataset.slug },
                     row.dataset.subject,
                     row.dataset.topic
                 );

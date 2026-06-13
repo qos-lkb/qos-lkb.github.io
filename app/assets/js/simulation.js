@@ -14,6 +14,9 @@
 
     async function renderSimulation(slug) {
         const main = document.getElementById('main-content');
+        if (global.AppCatalog && global.AppCatalog.closeModal) {
+            global.AppCatalog.closeModal();
+        }
         try {
             const sim = await apiFetch('/simulations/' + encodeURIComponent(slug));
             const lang = getLang();

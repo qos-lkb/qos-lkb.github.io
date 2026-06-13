@@ -211,6 +211,7 @@
                 await AppVideo.renderVideo(slug);
             },
             '/simulation/:slug': async (slug) => {
+                if (window.AppCatalog && AppCatalog.closeModal) AppCatalog.closeModal();
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'simulations');
                 if (window.AppCourse && AppCourse.isCourseMode()) {
                     const ctx = AppCourse.getCourseContext();
