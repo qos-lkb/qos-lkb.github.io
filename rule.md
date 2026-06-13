@@ -236,12 +236,19 @@ background: #3b82f6; /* blue-500 */
 - Elective 2 → `physics/e02/`
 - Elective 3 → `physics/e03/`
 
-**Rule 5.3**: Update index pages when adding new simulations
-- Add link to `index.html` or `index_new.html`
-- Place in correct subject section
-- Use consistent formatting
+**Rule 5.3**: Register new simulations via the database / admin workflow
+- Add the simulation record in **`admin/simulations.php`** (or contributor portal)
+- Set subject, topic, bilingual titles, HTML path, and **published** status when ready
+- Do **not** rely on `index.csv` or manual `index.html` links (legacy flows are deprecated)
+- Place the HTML file in the correct subject directory before registering
 
-**Rule 5.4**: Keep related files together
+**Rule 5.4**: Database-managed learning content follows the same publish workflow
+- **Learning notes**, **worksheets**, **learning tools**, **articles**, **learning videos**, and **question banks** are stored in MariaDB
+- Contributors save as `draft` or `pending_review`; admins publish via admin or review queue
+- Use **`admin/`** or **`portal/`** editors; SPA reads published items via **`/api/v1/`**
+- Course curriculum ordering uses **`admin/course_curriculum.php`** (`topic_learning_items`)
+
+**Rule 5.5**: Keep related files together
 - Multiple versions of same simulation → same directory
 - Related experiments → same unit folder
 
@@ -401,8 +408,10 @@ refactor: Extract common physics calculations
 - Easy to review and revert if needed
 
 **Rule 9.7**: Update documentation when making significant changes
-- Update `architecture.md` for structural changes
-- Update `rule.md` if adding new rules
+- Add an entry to **`change_log.md`** for user-visible features or breaking changes
+- Update **`architecture.md`** for structural changes
+- Update **`rule.md`** if adding new rules
+- Update **`README.md`** if setup steps or main entry points change
 
 ---
 
@@ -430,10 +439,11 @@ function calculateGasConstant(P, V, n, T) {
 - Explain physics concepts
 - Explain workarounds or hacks
 
-**Rule 10.3**: Keep README and architecture docs updated
-- Document new patterns
-- Update file structure
-- Note breaking changes
+**Rule 10.3**: Keep README, architecture, and changelog updated
+- Document new patterns in **`architecture.md`**
+- Summarize releases in **`change_log.md`**
+- Update file structure and quick-start steps in **`README.md`**
+- Note breaking changes in all three when relevant
 
 **Rule 10.4**: Document dependencies
 - Note which CDN libraries are used
@@ -566,6 +576,6 @@ Some older files may not follow all these rules. When updating old files:
 
 ---
 
-**Last Updated**: 2025-01-XX  
+**Last Updated**: 2026-06-13  
 **Maintained by**: Mr. B. Leung
 
