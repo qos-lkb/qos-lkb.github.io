@@ -118,7 +118,115 @@ function admin_menu_sections(): array
 }
 
 /**
- * @param array{subtitle?:string,actions?:string,wide?:bool,bodyClass?:string,headExtra?:string} $opts
+ * @return array<string, array<string, int>|array{published:int,pending:int,draft:int}>
+ */
+function admin_dashboard_stats(PDO $pdo): array
+{
+    $stats = [];
+    $tables = [];
+    if (user_has_permission('learning_note.manage_any')) {
+        $tables[] = 'learning_notes';
+    }
+    if (user_has_permission('worksheet.manage_any')) {
+        $tables[] = 'worksheets';
+    }
+    if (user_has_permission('article.manage_any')) {
+        $tables[] = 'science_articles';
+    }
+    if (user_has_permission('learning_tool.manage_any')) {
+        $tables[] = 'learning_tools';
+    }
+    if (user_has_permission('learning_video.manage_any')) {
+        $tables[] = 'learning_videos';
+    }
+    if (user_has_permission('simulation.manage_any')) {
+        $tables[] = 'simulations';
+    }
+
+    foreach ($tables as $table) {
+        try {
+            $stmt = $pdo->query(
+                "SELECT
+                    SUM(status = 'published') AS published,
+                    SUM(status = 'pending_review') AS pending,
+                    SUM(status = 'draft') AS draft
+                 FROM {$table}"
+            );
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                continue;
+            }
+            $stats[$table] = [
+                'published' => (int) ($row['published'] ?? 0),
+                'pending' => (int) ($row['pending'] ?? 0),
+                'draft' => (int) ($row['draft'] ?? 0),
+            ];
+        } catch (Throwable $e) {
+            // table may not exist on older installs
+        }
+    }
+
+    $stats['_totals'] = ['published' => 0, 'pending' => 0, 'draft' => 0];
+    foreach ($stats as $key => $row) {
+        if ($key === '_totals' || !is_array($row)) {
+            continue;
+        }
+        $stats['_totals']['published'] += $row['published'];
+        $stats['_totals']['pending'] += $row['pending'];
+        $stats['_totals']['draft'] += $row['draft'];
+    }
+
+    return $stats;
+}
+
+/**
+ * @return array<string, array{icon:string, tone:string, desc:string}>
+ */
+function admin_dashboard_card_meta(): array
+{
+    return [
+        'learning_notes' => ['icon' => 'note', 'tone' => 'indigo', 'desc' => '管理學習筆記內容、排序與發佈狀態。'],
+        'worksheets' => ['icon' => 'sheet', 'tone' => 'sky', 'desc' => '管理工作紙與可列印內容。'],
+        'simulations' => ['icon' => 'sim', 'tone' => 'violet', 'desc' => '檢視、編輯與排序全部互動模擬程式。'],
+        'articles' => ['icon' => 'article', 'tone' => 'emerald', 'desc' => '管理科學文章與閱讀測驗。'],
+        'learning_tools' => ['icon' => 'quiz', 'tone' => 'cyan', 'desc' => '管理互動學習工具與小測。'],
+        'question_banks' => ['icon' => 'bank', 'tone' => 'rose', 'desc' => '維護試題庫與題目資料。'],
+        'learning_videos' => ['icon' => 'video', 'tone' => 'fuchsia', 'desc' => '管理學習影片與發佈狀態。'],
+        'course_curriculum' => ['icon' => 'course', 'tone' => 'indigo', 'desc' => '編排自學課程與前台課程樹結構。'],
+        'review_queue' => ['icon' => 'review', 'tone' => 'amber', 'desc' => '審核待發佈的投稿內容。'],
+        'subjects' => ['icon' => 'folder', 'tone' => 'slate', 'desc' => '維護科目、單元與前台側欄目錄結構。'],
+        'users' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '新增、編輯使用者並指派角色。'],
+        'permissions' => ['icon' => 'lock', 'tone' => 'slate', 'desc' => '調整各角色的系統權限。'],
+        'codespace' => ['icon' => 'code', 'tone' => 'slate', 'desc' => 'HTML 即時編輯與預覽（新分頁開啟）。'],
+        'db_import' => ['icon' => 'db', 'tone' => 'orange', 'desc' => '上載 SQL 還原或取代整個資料庫。'],
+        'db_export' => ['icon' => 'db', 'tone' => 'teal', 'desc' => '下載完整 MySQL 資料庫 SQL 備份。'],
+    ];
+}
+
+function admin_dashboard_icon_svg(string $icon): string
+{
+    $paths = [
+        'note' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
+        'sheet' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 17v-2m3 2v-4m3 4v-6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
+        'sim' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+        'article' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2"/>',
+        'quiz' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+        'bank' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M8 11h8"/>',
+        'video' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>',
+        'course' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 6h16M4 10h16M4 14h10M4 18h6"/>',
+        'review' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+        'folder' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>',
+        'users' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>',
+        'lock' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>',
+        'code' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>',
+        'db' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>',
+    ];
+    $path = $paths[$icon] ?? $paths['folder'];
+    return '<svg class="admin-dash-card-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' . $path . '</svg>';
+}
+
+/**
+ * @param array{subtitle?:string,actions?:string,wide?:bool,bodyClass?:string,headExtra?:string,hideTitle?:bool} $opts
  */
 function admin_page_start(string $title, string $activeKey = '', array $opts = []): void
 {
@@ -128,6 +236,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     $subtitle = $opts['subtitle'] ?? '';
     $actions = $opts['actions'] ?? '';
     $wide = !empty($opts['wide']);
+    $hideTitle = !empty($opts['hideTitle']);
     $bodyClass = $opts['bodyClass'] ?? '';
     $headExtra = $opts['headExtra'] ?? '';
     $maxW = $wide ? 'max-w-7xl' : 'max-w-6xl';
@@ -219,6 +328,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
 
         <main id="main-content" class="flex-1 py-4 md:py-8 px-3 sm:px-6 lg:px-10">
             <div class="<?php echo $maxW; ?> mx-auto w-full">
+                <?php if (!$hideTitle): ?>
                 <div class="mb-6 pb-6 border-b border-slate-200/80 flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900"><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></h1>
@@ -230,6 +340,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
                         <div class="flex flex-wrap items-center gap-2 text-sm"><?php echo $actions; ?></div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
                 <div class="admin-page-body space-y-4">
     <?php
 }

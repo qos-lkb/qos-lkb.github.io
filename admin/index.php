@@ -20,53 +20,108 @@ if (!admin_has_any_access()) {
 $user = current_user();
 assert($user !== null);
 
-$cardDescriptions = [
-    'learning_notes' => '管理學習筆記內容、題目與發佈狀態。',
-    'worksheets' => '管理工作紙與可列印內容。',
-    'simulations' => '檢視、編輯與排序全部互動模擬程式。',
-    'articles' => '管理科學文章與閱讀測驗。',
-    'learning_tools' => '管理互動學習工具與小測。',
-    'review_queue' => '審核待發佈的投稿內容。',
-    'subjects' => '維護科目、單元與前台側欄目錄結構。',
-    'users' => '新增、編輯使用者並指派角色。',
-    'permissions' => '調整各角色的系統權限。',
-    'codespace' => 'HTML 即時編輯與預覽（新分頁開啟）。',
-    'db_import' => '上載 SQL 檔案還原或取代整個資料庫（會先刪除全部資料表）。',
-    'db_export' => '下載完整 MySQL 資料庫 SQL 備份。',
-];
+$pdo = db();
+$stats = admin_dashboard_stats($pdo);
+$totals = $stats['_totals'] ?? ['published' => 0, 'pending' => 0, 'draft' => 0];
+$cardMeta = admin_dashboard_card_meta();
+$displayName = htmlspecialchars($user['display_name'] ?: $user['email'], ENT_QUOTES, 'UTF-8');
+$siteName = htmlspecialchars(config_site_name(), ENT_QUOTES, 'UTF-8');
+$appHref = '../app/';
 
 admin_page_start('儀表板', 'dashboard', [
-    'subtitle' => '歡迎，' . htmlspecialchars($user['display_name'] ?: $user['email'], ENT_QUOTES, 'UTF-8') . '。請從左側選單或下方快捷入口進入各項管理功能。',
+    'wide' => true,
+    'hideTitle' => true,
+    'bodyClass' => 'admin-dashboard-page',
 ]);
+?>
 
-foreach (admin_menu_sections() as $section):
-    if ($section['label'] === '概覽') {
-        continue;
-    }
-    ?>
-    <section>
-        <h2 class="text-xs font-bold text-slate-500 tracking-widest uppercase mb-3"><?php echo htmlspecialchars($section['label'], ENT_QUOTES, 'UTF-8'); ?></h2>
-        <div class="grid sm:grid-cols-2 gap-3">
-            <?php foreach ($section['items'] as $item):
-                if ($item['key'] === 'dashboard') {
-                    continue;
-                }
-                $desc = $cardDescriptions[$item['key']] ?? '';
-                $external = !empty($item['external']);
-                $accent = ($item['accent'] ?? '') === 'amber' ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-indigo-300';
-                ?>
-                <a href="<?php echo htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8'); ?>"
-                   class="block bg-white border <?php echo $accent; ?> rounded-xl p-4 shadow-sm transition"
-                   <?php if ($external): ?>target="_blank" rel="noopener"<?php endif; ?>>
-                    <span class="font-medium text-slate-900"><?php echo htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?></span>
-                    <?php if ($desc !== ''): ?>
-                        <span class="block text-sm text-slate-500 mt-1"><?php echo htmlspecialchars($desc, ENT_QUOTES, 'UTF-8'); ?></span>
+<div class="admin-dashboard">
+    <header class="admin-dashboard-hero">
+        <div class="admin-dashboard-hero-text">
+            <p class="admin-dashboard-eyebrow">管理後台</p>
+            <h1 class="admin-dashboard-title">儀表板</h1>
+            <p class="admin-dashboard-greeting">歡迎回來，<?php echo $displayName; ?>。管理 <?php echo $siteName; ?> 的內容與平台設定。</p>
+        </div>
+        <div class="admin-dashboard-hero-actions">
+            <a href="<?php echo htmlspecialchars($appHref, ENT_QUOTES, 'UTF-8'); ?>" class="admin-dashboard-hero-btn admin-dashboard-hero-btn-primary">前往前台</a>
+            <?php if (admin_can_review()): ?>
+                <a href="review_queue.php" class="admin-dashboard-hero-btn admin-dashboard-hero-btn-secondary">
+                    審核佇列
+                    <?php if ($totals['pending'] > 0): ?>
+                        <span class="admin-dashboard-badge"><?php echo (int) $totals['pending']; ?></span>
                     <?php endif; ?>
                 </a>
+            <?php endif; ?>
+        </div>
+    </header>
+
+    <?php if ($totals['published'] + $totals['pending'] + $totals['draft'] > 0): ?>
+    <section class="admin-dashboard-stats" aria-label="內容概況">
+        <article class="admin-stat-card">
+            <span class="admin-stat-label">已發佈</span>
+            <span class="admin-stat-value admin-stat-value-emerald"><?php echo (int) $totals['published']; ?></span>
+        </article>
+        <article class="admin-stat-card">
+            <span class="admin-stat-label">待審核</span>
+            <span class="admin-stat-value admin-stat-value-amber"><?php echo (int) $totals['pending']; ?></span>
+        </article>
+        <article class="admin-stat-card">
+            <span class="admin-stat-label">草稿</span>
+            <span class="admin-stat-value admin-stat-value-slate"><?php echo (int) $totals['draft']; ?></span>
+        </article>
+    </section>
+    <?php endif; ?>
+
+    <?php foreach (admin_menu_sections() as $section):
+        if ($section['label'] === '概覽') {
+            continue;
+        }
+        $items = array_values(array_filter(
+            $section['items'],
+            static fn (array $item): bool => $item['key'] !== 'dashboard'
+        ));
+        if ($items === []) {
+            continue;
+        }
+        ?>
+    <section class="admin-dashboard-section">
+        <div class="admin-dashboard-section-head">
+            <h2 class="admin-dashboard-section-title"><?php echo htmlspecialchars($section['label'], ENT_QUOTES, 'UTF-8'); ?></h2>
+        </div>
+        <div class="admin-dash-grid">
+            <?php foreach ($items as $item):
+                $key = $item['key'];
+                $meta = $cardMeta[$key] ?? ['icon' => 'folder', 'tone' => 'slate', 'desc' => ''];
+                $tone = ($item['accent'] ?? '') === 'amber' ? 'amber' : ($meta['tone'] ?? 'slate');
+                $external = !empty($item['external']);
+                $href = htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8');
+                $label = htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8');
+                $desc = htmlspecialchars($meta['desc'], ENT_QUOTES, 'UTF-8');
+                ?>
+            <a href="<?php echo $href; ?>"
+               class="admin-dash-card admin-dash-card-<?php echo htmlspecialchars($tone, ENT_QUOTES, 'UTF-8'); ?>"
+               <?php if ($external): ?>target="_blank" rel="noopener"<?php endif; ?>>
+                <span class="admin-dash-card-icon" aria-hidden="true">
+                    <?php echo admin_dashboard_icon_svg($meta['icon']); ?>
+                </span>
+                <span class="admin-dash-card-body">
+                    <span class="admin-dash-card-title">
+                        <?php echo $label; ?>
+                        <?php if ($external): ?><span class="admin-dash-card-ext">↗</span><?php endif; ?>
+                    </span>
+                    <?php if ($desc !== ''): ?>
+                        <span class="admin-dash-card-desc"><?php echo $desc; ?></span>
+                    <?php endif; ?>
+                </span>
+                <span class="admin-dash-card-arrow" aria-hidden="true">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </span>
+            </a>
             <?php endforeach; ?>
         </div>
     </section>
-    <?php
-endforeach;
+    <?php endforeach; ?>
+</div>
 
+<?php
 admin_page_end();
