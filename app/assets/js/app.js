@@ -210,6 +210,14 @@
                 if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
                 await AppVideo.renderVideo(slug);
             },
+            '/simulation/:slug': async (slug) => {
+                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'simulations');
+                if (window.AppCourse && AppCourse.isCourseMode()) {
+                    const ctx = AppCourse.getCourseContext();
+                    if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                }
+                await AppSimulation.renderSimulation(slug);
+            },
         });
 
         const tabRoutes = {

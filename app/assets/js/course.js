@@ -88,6 +88,7 @@
             case 'article': return '/article/' + slug;
             case 'learning_tool': return '/quiz/' + slug;
             case 'video': return '/video/' + slug;
+            case 'simulation': return '/simulation/' + slug;
             default: return null;
         }
     }
@@ -132,10 +133,6 @@
             contentType: item.content_type,
             slug: item.slug,
         });
-        if (item.content_type === 'simulation') {
-            openSimulation(item.slug);
-            return;
-        }
         const route = itemRoute(item);
         if (route) await navigate(route);
     }

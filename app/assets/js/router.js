@@ -95,6 +95,11 @@
             await routes['/video/:slug'](decodeURIComponent(video[1]));
             return;
         }
+        const simulation = path.match(/^\/simulation\/([^/]+)$/);
+        if (simulation) {
+            await routes['/simulation/:slug'](decodeURIComponent(simulation[1]));
+            return;
+        }
         if (path === '/simulations') {
             await routes['/simulations']();
             return;
