@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/simulations_lib.php';
+require_once dirname(__DIR__) . '/includes/question_bank_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
@@ -21,54 +22,99 @@ admin_page_start($id ? '編輯試題庫' : '新增試題庫', 'question_banks', 
     'actions' => admin_btn('question_banks.php', '返回列表', 'secondary'),
 ]);
 ?>
-        <p id="flash" class="text-red-600 text-sm hidden"></p>
-        <form id="edit-form" class="space-y-4 bg-white rounded-xl border p-6 shadow-sm">
+        <p id="flash" class="text-sm hidden"></p>
+        <form id="edit-form" class="space-y-6">
             <input type="hidden" id="item-id" value="<?php echo $id; ?>">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label class="text-sm font-medium">標題（中）</label><input id="title-zh" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
-                <div><label class="text-sm font-medium">標題（英）</label><input id="title-en" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
-            </div>
-            <div><label class="text-sm font-medium">slug（選填）</label><input id="slug" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm"></div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label class="text-sm font-medium">描述（中）</label><textarea id="desc-zh" class="w-full border rounded-lg px-3 py-2 mt-1" rows="2"></textarea></div>
-                <div><label class="text-sm font-medium">描述（英）</label><textarea id="desc-en" class="w-full border rounded-lg px-3 py-2 mt-1" rows="2"></textarea></div>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div><label class="text-sm font-medium">科目</label>
-                    <select id="subject-id" class="w-full border rounded-lg px-3 py-2 mt-1">
-                        <option value="">—</option>
-                        <?php foreach ($subjects as $s): ?>
-                        <option value="<?php echo (int) $s['id']; ?>"><?php echo htmlspecialchars($s['name_zh'], ENT_QUOTES, 'UTF-8'); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+
+            <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <h2 class="text-sm font-semibold text-slate-800">試題集（question_banks）</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">預設科目／課題會套用到新加入的題目；各題仍可個別覆寫。</p>
                 </div>
-                <div><label class="text-sm font-medium">單元</label><select id="topic-id" class="w-full border rounded-lg px-3 py-2 mt-1"><option value="">—</option></select></div>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div><label class="text-sm font-medium">排序</label><input type="number" id="list-sort" value="0" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
-                <div><label class="text-sm font-medium">狀態</label>
-                    <select id="status" class="w-full border rounded-lg px-3 py-2 mt-1">
-                        <option value="draft">草稿</option>
-                        <option value="pending_review">待審核</option>
-                        <option value="published">已發佈</option>
-                    </select>
+                <div class="p-4 overflow-x-auto">
+                    <table class="qb-form-table w-full min-w-[640px] text-sm">
+                        <tbody>
+                            <tr>
+                                <th>標題（中）</th>
+                                <td><input id="title-zh" class="w-full border rounded-lg px-3 py-2"></td>
+                                <th>標題（英）</th>
+                                <td><input id="title-en" class="w-full border rounded-lg px-3 py-2"></td>
+                            </tr>
+                            <tr>
+                                <th>slug</th>
+                                <td colspan="3"><input id="slug" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="留空則依標題自動產生"></td>
+                            </tr>
+                            <tr>
+                                <th>描述（中）</th>
+                                <td><textarea id="desc-zh" class="w-full border rounded-lg px-3 py-2" rows="2"></textarea></td>
+                                <th>描述（英）</th>
+                                <td><textarea id="desc-en" class="w-full border rounded-lg px-3 py-2" rows="2"></textarea></td>
+                            </tr>
+                            <tr>
+                                <th>預設科目</th>
+                                <td>
+                                    <select id="subject-id" class="w-full border rounded-lg px-3 py-2">
+                                        <option value="">—</option>
+                                        <?php foreach ($subjects as $s): ?>
+                                        <option value="<?php echo (int) $s['id']; ?>"><?php echo htmlspecialchars($s['name_zh'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </td>
+                                <th>預設課題</th>
+                                <td><select id="topic-id" class="w-full border rounded-lg px-3 py-2"><option value="">—</option></select></td>
+                            </tr>
+                            <tr>
+                                <th>列表排序</th>
+                                <td><input type="number" id="list-sort" value="0" class="w-full border rounded-lg px-3 py-2"></td>
+                                <th>狀態</th>
+                                <td>
+                                    <select id="status" class="w-full border rounded-lg px-3 py-2">
+                                        <option value="draft">草稿</option>
+                                        <option value="pending_review">待審核</option>
+                                        <option value="published">已發佈</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-            <div>
-                <p class="text-xs text-slate-500 mb-2">試題集層級的科目／單元可作為新增題目的預設值；每題可個別設定科目、課題、難度、來源與題目代號。題幹支援 MathJax（<code>$...$</code>）及上載圖片（需先儲存試題集）。</p>
-                <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
-                    <label class="text-sm font-medium">題目</label>
+            </section>
+
+            <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+                    <div>
+                        <h2 class="text-sm font-semibold text-slate-800">題目（qb_questions）</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">題幹支援 MathJax（<code>$...$</code>）及上載圖片（需先儲存試題集）。</p>
+                    </div>
                     <div class="flex flex-wrap gap-2">
                         <?php foreach (['mcq' => '四選一', 'short_answer' => '短答', 'long_answer' => '長答', 'fill_blank' => '填充', 'true_false' => '是非'] as $tval => $tlabel): ?>
                         <button type="button" class="add-q-type text-xs px-2 py-1 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50" data-type="<?php echo htmlspecialchars($tval, ENT_QUOTES, 'UTF-8'); ?>">+ <?php echo htmlspecialchars($tlabel, ENT_QUOTES, 'UTF-8'); ?></button>
                         <?php endforeach; ?>
                     </div>
                 </div>
-                <div id="questions"></div>
-            </div>
+                <div class="overflow-x-auto">
+                    <table class="qb-questions-table min-w-full text-sm border-collapse">
+                        <thead class="bg-slate-100 text-left">
+                            <tr>
+                                <th class="p-2 w-10">#</th>
+                                <th class="p-2 min-w-[7rem]">題目代號</th>
+                                <th class="p-2 min-w-[6rem]">題型</th>
+                                <th class="p-2 min-w-[7rem]">科目</th>
+                                <th class="p-2 min-w-[7rem]">課題</th>
+                                <th class="p-2 w-16">難度</th>
+                                <th class="p-2 min-w-[8rem]">來源</th>
+                                <th class="p-2 w-24">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="questions"></tbody>
+                    </table>
+                </div>
+                <p id="questions-empty" class="hidden p-6 text-center text-slate-500 text-sm">尚無題目，請按上方按鈕新增。</p>
+            </section>
+
             <div class="flex gap-3">
-                <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium">儲存</button>
-                <?php if ($id): ?><button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg">刪除</button><?php endif; ?>
+                <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">儲存</button>
+                <?php if ($id): ?><button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50">刪除試題集</button><?php endif; ?>
             </div>
         </form>
 <?php
@@ -81,9 +127,9 @@ $subjectsJson = array_map(static fn(array $s): array => [
 admin_page_end([
     'scripts' => '<script>window.MathJax={tex:{inlineMath:[[\'$\',\'$\'],[\'\\\\(\',\'\\\\)\']],displayMath:[[\'$$\',\'$$\'],[\'\\\\[\',\'\\\\]\']]},options:{skipHtmlTags:[\'script\',\'noscript\',\'style\',\'textarea\',\'pre\',\'code\']}};</script>'
         . '<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
-        . '<script>const TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP)
-        . ';const QB_SUBJECTS=' . json_encode($subjectsJson, JSON_HEX_TAG | JSON_HEX_AMP)
-        . ';const EDIT_ID=' . $id . ';</script>'
+        . '<script>window.TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP)
+        . ';window.QB_SUBJECTS=' . json_encode($subjectsJson, JSON_HEX_TAG | JSON_HEX_AMP)
+        . ';window.EDIT_ID=' . $id . ';</script>'
         . '<script src="../assets/js/admin-api.js"></script>'
         . '<script src="../assets/js/admin-question-bank.js"></script>'
         . <<<'HTML'
@@ -91,11 +137,18 @@ admin_page_end([
     (async function() {
         await AdminApi.initSession();
         const qBox = document.getElementById('questions');
+        const qEmpty = document.getElementById('questions-empty');
         const flash = document.getElementById('flash');
 
+        function syncEmptyState() {
+            const has = qBox.querySelectorAll(':scope > tr.q-meta-row').length > 0;
+            qEmpty.classList.toggle('hidden', has);
+        }
+
         function addQuestion(type) {
-            QbAdmin.renderQuestionBlock(QbAdmin.blankQuestion(type), qBox.children.length, qBox);
+            QbAdmin.renderQuestionBlock(QbAdmin.blankQuestion(type), qBox.querySelectorAll(':scope > tr.q-meta-row').length, qBox);
             QbAdmin.renumberQuestions(qBox);
+            syncEmptyState();
         }
 
         document.querySelectorAll('.add-q-type').forEach(btn => {
@@ -105,7 +158,7 @@ admin_page_end([
         document.getElementById('subject-id').onchange = function() {
             const tid = document.getElementById('topic-id');
             tid.innerHTML = '<option value="">—</option>';
-            (TOPICS[this.value] || []).forEach(t => {
+            (window.TOPICS[this.value] || []).forEach(t => {
                 const o = document.createElement('option');
                 o.value = t.id;
                 o.textContent = t.name_zh;
@@ -113,9 +166,9 @@ admin_page_end([
             });
         };
 
-        if (EDIT_ID) {
+        if (window.EDIT_ID) {
             try {
-                const detail = await AdminApi.apiFetch('/admin/question-banks/' + EDIT_ID);
+                const detail = await AdminApi.apiFetch('/admin/question-banks/' + window.EDIT_ID);
                 document.getElementById('title-zh').value = detail.title_zh || '';
                 document.getElementById('title-en').value = detail.title_en || '';
                 document.getElementById('slug').value = detail.slug || '';
@@ -129,9 +182,11 @@ admin_page_end([
                 }
                 if (detail.topic_id) document.getElementById('topic-id').value = detail.topic_id;
                 (detail.questions || []).forEach((q, i) => QbAdmin.renderQuestionBlock(q, i, qBox));
+                syncEmptyState();
             } catch (e) {
                 flash.textContent = e.message;
                 flash.classList.remove('hidden');
+                flash.classList.add('text-red-600');
             }
         } else {
             addQuestion('mcq');
@@ -156,7 +211,7 @@ admin_page_end([
                 const saved = await AdminApi.apiFetch('/admin/question-banks', { method: 'POST', body: payload });
                 QbAdmin.applySavedQuestionIds(qBox, saved.questions || []);
                 document.getElementById('item-id').value = saved.id;
-                if (!EDIT_ID) {
+                if (!window.EDIT_ID) {
                     history.replaceState(null, '', 'question_bank_edit.php?id=' + saved.id);
                     window.EDIT_ID = saved.id;
                 }
@@ -185,6 +240,7 @@ admin_page_end([
                 } catch (err) {
                     flash.textContent = err.message;
                     flash.classList.remove('hidden');
+                    flash.classList.add('text-red-600');
                 }
             };
         }

@@ -781,6 +781,24 @@ function qb_question_type_label(string $type): string
     };
 }
 
+function qb_status_label(string $status): string
+{
+    return match ($status) {
+        'draft' => '草稿',
+        'pending_review' => '待審核',
+        'published' => '已發佈',
+        default => $status,
+    };
+}
+
+function qb_difficulty_label(?string $difficulty): string
+{
+    if ($difficulty === null || $difficulty === '') {
+        return '—';
+    }
+    return qb_difficulty_labels()[$difficulty] ?? $difficulty;
+}
+
 /**
  * @return array{ok:bool,error?:string,media?:array<string,mixed>}
  */

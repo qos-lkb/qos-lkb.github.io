@@ -35,6 +35,15 @@
         return global.TOPICS || {};
     }
 
+    function topicsForSubject(subjectId) {
+        if (!subjectId && subjectId !== 0) {
+            return [];
+        }
+        const map = getTopicsMap();
+        const key = String(subjectId);
+        return map[key] || map[subjectId] || [];
+    }
+
     function getBankId() {
         return parseInt(global.EDIT_ID || '0', 10) || 0;
     }
@@ -56,7 +65,7 @@
     }
 
     function buildTopicOptions(subjectId, selectedId) {
-        const topics = getTopicsMap()[subjectId] || [];
+        const topics = topicsForSubject(subjectId);
         let html = '<option value="">—</option>';
         topics.forEach(t => {
             html += `<option value="${t.id}" ${String(t.id) === String(selectedId || '') ? 'selected' : ''}>${escapeHtml(t.name_zh)}</option>`;
@@ -64,10 +73,26 @@
         return html;
     }
 
-    function wireTopicSelect(subjectSelect, topicSelect) {
-        subjectSelect.onchange = () => {
-            topicSelect.innerHTML = buildTopicOptions(subjectSelect.value, '');
+    function wireTopicSelect(subjectSelect, topicSelect, selectedTopicId) {
+        const syncTopics = (topicId) => {
+            topicSelect.innerHTML = buildTopicOptions(subjectSelect.value, topicId || '');
         };
+        subjectSelect.onchange = () => syncTopics('');
+        syncTopics(selectedTopicId);
+    }
+
+    function getDetailRow(metaTr) {
+        if (metaTr._detailRow) {
+            return metaTr._detailRow;
+        }
+        return metaTr.nextElementSibling && metaTr.nextElementSibling.classList.contains('q-detail-row')
+            ? metaTr.nextElementSibling
+            : null;
+    }
+
+    function getDetailRoot(metaTr) {
+        const detailRow = getDetailRow(metaTr);
+        return detailRow ? detailRow.querySelector('.q-detail') : null;
     }
 
     function typesetPreview(el) {
@@ -93,7 +118,7 @@
         return `
             <div class="rich-field mb-2">
                 <div class="flex flex-wrap justify-between items-center gap-2 mb-1">
-                    <label class="block text-sm">${escapeHtml(label)}</label>
+                    <label class="block text-sm font-medium text-slate-700">${escapeHtml(label)}</label>
                     <div class="flex gap-2">
                         ${opts.upload ? `<button type="button" class="upload-img text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50" data-target="${className}">上載圖片</button>` : ''}
                         <button type="button" class="preview-math text-xs px-2 py-1 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50" data-target="${className}">預覽</button>
@@ -105,11 +130,11 @@
             </div>`;
     }
 
-    function bindRichFieldEvents(div) {
-        div.querySelectorAll('.preview-math').forEach(btn => {
+    function bindRichFieldEvents(scope, metaTr) {
+        scope.querySelectorAll('.preview-math').forEach(btn => {
             btn.onclick = () => {
                 const cls = btn.dataset.target;
-                const ta = div.querySelector('.' + cls);
+                const ta = scope.querySelector('.' + cls);
                 const preview = btn.closest('.rich-field').querySelector('.math-preview');
                 if (!ta || !preview) return;
                 preview.classList.remove('hidden');
@@ -118,10 +143,10 @@
             };
         });
 
-        div.querySelectorAll('.upload-img').forEach(btn => {
+        scope.querySelectorAll('.upload-img').forEach(btn => {
             btn.onclick = () => {
                 const bankId = getBankId();
-                const qId = parseInt(div.dataset.questionId || '0', 10);
+                const qId = parseInt(metaTr.dataset.questionId || '0', 10);
                 if (!bankId) {
                     alert('請先儲存試題集，再上載圖片。');
                     return;
@@ -131,7 +156,7 @@
                     return;
                 }
                 const cls = btn.dataset.target;
-                const ta = div.querySelector('.' + cls);
+                const ta = scope.querySelector('.' + cls);
                 if (!ta) return;
                 const input = document.createElement('input');
                 input.type = 'file';
@@ -142,9 +167,9 @@
                     try {
                         const media = await uploadMedia(bankId, qId, file);
                         insertAtCursor(ta, (media.markdown || '') + '\n');
-                        if (!div._mediaList) div._mediaList = [];
-                        div._mediaList.push(media);
-                        renderMediaList(div, div._mediaList);
+                        if (!metaTr._mediaList) metaTr._mediaList = [];
+                        metaTr._mediaList.push(media);
+                        renderMediaList(scope, metaTr._mediaList);
                     } catch (e) {
                         alert(e.message || '上載失敗');
                     }
@@ -175,14 +200,17 @@
         return json.data;
     }
 
-    function renderMediaList(div, media) {
-        div._mediaList = media || [];
-        let box = div.querySelector('.media-list');
+    function renderMediaList(scope, media) {
+        let box = scope.querySelector('.media-list');
         if (!box) {
             box = document.createElement('div');
             box.className = 'media-list mt-2 flex flex-wrap gap-2';
-            const anchor = div.querySelector('.type-fields') || div.querySelector('.expl-en')?.closest('.rich-field') || div;
-            anchor.parentElement.insertBefore(box, anchor.nextSibling);
+            const anchor = scope.querySelector('.type-fields');
+            if (anchor) {
+                anchor.parentElement.insertBefore(box, anchor);
+            } else {
+                scope.appendChild(box);
+            }
         }
         box.innerHTML = '';
         (media || []).forEach(m => {
@@ -254,17 +282,18 @@
         return base;
     }
 
-    function renderMcqOptions(div, q) {
-        const optContainer = div.querySelector('.type-fields');
+    function renderMcqOptions(detail, q, metaTr) {
+        const optContainer = detail.querySelector('.type-fields');
         optContainer.innerHTML = '<div class="options space-y-3"></div>';
         const box = optContainer.querySelector('.options');
         (q.options || blankMcqOptions()).forEach((o, i) => {
             const row = document.createElement('div');
             row.className = 'border rounded p-2 bg-white';
+            const isCorrect = o.is_correct === 1 || o.is_correct === '1' || o.is_correct === true;
             row.innerHTML = `
                 <div class="flex gap-2 items-start flex-wrap mb-1">
                     <span class="text-xs font-bold pt-2 w-4">${String.fromCharCode(65 + i)}</span>
-                    <input type="radio" name="correct-${div.dataset.index}" class="correct mt-2" ${o.is_correct ? 'checked' : ''}>
+                    <input type="radio" name="correct-${metaTr.dataset.index}" class="correct mt-2" ${isCorrect ? 'checked' : ''}>
                     <span class="text-xs text-slate-500 pt-2">正確</span>
                 </div>
                 <textarea class="opt-zh w-full border rounded p-1 text-sm mb-1" rows="2" placeholder="選項（中）">${escapeHtml(o.text_zh)}</textarea>
@@ -273,18 +302,17 @@
         });
     }
 
-    function renderShortAnswer(div, q) {
-        div.querySelector('.type-fields').innerHTML =
+    function renderShortAnswer(detail, q) {
+        detail.querySelector('.type-fields').innerHTML =
             renderRichField('參考答案（中）', 'model-zh', q.model_answer_zh, { rows: 2, upload: false }) +
             renderRichField('參考答案（英）', 'model-en', q.model_answer_en, { rows: 2, upload: false });
-        bindRichFieldEvents(div.querySelector('.type-fields'));
     }
 
-    function renderTrueFalse(div, q) {
+    function renderTrueFalse(detail, q) {
         const val = q.true_false_answer === 0 || q.true_false_answer === '0' || q.true_false_answer === false ? '0' : '1';
-        div.querySelector('.type-fields').innerHTML = `
+        detail.querySelector('.type-fields').innerHTML = `
             <label class="block text-sm mb-1">正確答案</label>
-            <select class="tf-answer w-full border rounded p-2 text-sm">
+            <select class="tf-answer w-full max-w-xs border rounded p-2 text-sm">
                 <option value="1" ${val === '1' ? 'selected' : ''}>是（True）</option>
                 <option value="0" ${val === '0' ? 'selected' : ''}>否（False）</option>
             </select>`;
@@ -328,7 +356,7 @@
         });
     }
 
-    function renderLongAnswer(div, q) {
+    function renderLongAnswer(detail, q) {
         const wrap = document.createElement('div');
         wrap.innerHTML = `
             <div class="flex justify-between items-center mb-2">
@@ -344,8 +372,8 @@
             container.appendChild(renderPartRow(blankPart(idx), idx));
             reindexParts(container);
         };
-        div.querySelector('.type-fields').innerHTML = '';
-        div.querySelector('.type-fields').appendChild(wrap);
+        detail.querySelector('.type-fields').innerHTML = '';
+        detail.querySelector('.type-fields').appendChild(wrap);
     }
 
     function renderBlankRow(blank, bi) {
@@ -378,7 +406,7 @@
         });
     }
 
-    function renderFillBlank(div, q) {
+    function renderFillBlank(detail, q) {
         const wrap = document.createElement('div');
         wrap.innerHTML = `
             <p class="text-xs text-slate-500 mb-2">題幹中使用 <code>{{1}}</code>、<code>{{2}}</code> 標記空格位置。</p>
@@ -395,106 +423,111 @@
             container.appendChild(renderBlankRow(blankFillBlank(idx), idx));
             reindexBlanks(container);
         };
-        div.querySelector('.type-fields').innerHTML = '';
-        div.querySelector('.type-fields').appendChild(wrap);
+        detail.querySelector('.type-fields').innerHTML = '';
+        detail.querySelector('.type-fields').appendChild(wrap);
     }
 
-    function renderTypeFields(div, q) {
-        const type = div.querySelector('.q-type').value;
+    function renderTypeFields(metaTr, q) {
+        const detail = getDetailRoot(metaTr);
+        if (!detail) return;
+        const type = metaTr.querySelector('.q-type').value;
         q.question_type = type;
-        if (type === 'mcq') renderMcqOptions(div, q);
-        else if (type === 'short_answer') renderShortAnswer(div, q);
-        else if (type === 'long_answer') renderLongAnswer(div, q);
-        else if (type === 'fill_blank') renderFillBlank(div, q);
-        else if (type === 'true_false') renderTrueFalse(div, q);
+        if (type === 'mcq') renderMcqOptions(detail, q, metaTr);
+        else if (type === 'short_answer') renderShortAnswer(detail, q);
+        else if (type === 'long_answer') renderLongAnswer(detail, q);
+        else if (type === 'fill_blank') renderFillBlank(detail, q);
+        else if (type === 'true_false') renderTrueFalse(detail, q);
+        if (type === 'short_answer') {
+            bindRichFieldEvents(detail.querySelector('.type-fields'), metaTr);
+        }
     }
 
-    function renderMetadataRow(q) {
+    function buildDetailHtml(q) {
+        return `
+            ${renderRichField('題幹（中）', 'stem-zh', q.stem_zh, { upload: true })}
+            ${renderRichField('題幹（英）', 'stem-en', q.stem_en, { upload: true })}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+                <div>
+                    <label class="block text-xs mb-1 text-slate-600">來源（英）</label>
+                    <input class="q-source-en w-full border rounded p-2 text-sm" value="${escapeHtml(q.source_en || '')}">
+                </div>
+            </div>
+            <div class="type-fields mb-2"></div>
+            ${renderRichField('解析（中）', 'expl-zh', q.explanation_zh || '', { rows: 2, upload: false })}
+            ${renderRichField('解析（英）', 'expl-en', q.explanation_en || '', { rows: 2, upload: false })}`;
+    }
+
+    function renderQuestionBlock(q, index, tbody) {
+        const metaTr = document.createElement('tr');
+        metaTr.className = 'q-meta-row q-block border-t border-slate-100';
+        metaTr.dataset.index = String(index);
+        if (q.id) metaTr.dataset.questionId = String(q.id);
+
+        const type = q.question_type || 'mcq';
+        const typeOptions = QUESTION_TYPES.map(t =>
+            `<option value="${t.value}" ${t.value === type ? 'selected' : ''}>${t.label}</option>`
+        ).join('');
         const diffOpts = DIFFICULTIES.map(d =>
             `<option value="${d.value}" ${String(q.difficulty || '') === d.value ? 'selected' : ''}>${d.label}</option>`
         ).join('');
         const subjId = q.subject_id || getDefaultSubjectId();
         const topicId = q.topic_id || getDefaultTopicId();
-        return `
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3 p-3 border rounded-lg bg-white q-meta">
-                <div>
-                    <label class="block text-xs mb-1">題目代號</label>
-                    <input class="q-code w-full border rounded p-2 text-sm font-mono" placeholder="如 PHY-01-001" value="${escapeHtml(q.question_code || '')}">
-                </div>
-                <div>
-                    <label class="block text-xs mb-1">科目 <span class="text-red-500">*</span></label>
-                    <select class="q-subject w-full border rounded p-2 text-sm">
-                        <option value="">—</option>
-                        ${buildSubjectOptions(subjId)}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs mb-1">課題</label>
-                    <select class="q-topic w-full border rounded p-2 text-sm">${buildTopicOptions(subjId, topicId)}</select>
-                </div>
-                <div>
-                    <label class="block text-xs mb-1">難度</label>
-                    <select class="q-difficulty w-full border rounded p-2 text-sm">${diffOpts}</select>
-                </div>
-                <div>
-                    <label class="block text-xs mb-1">來源（中）</label>
-                    <input class="q-source-zh w-full border rounded p-2 text-sm" placeholder="如 DSE 2023 Q5" value="${escapeHtml(q.source_zh || '')}">
-                </div>
-                <div>
-                    <label class="block text-xs mb-1">來源（英）</label>
-                    <input class="q-source-en w-full border rounded p-2 text-sm" value="${escapeHtml(q.source_en || '')}">
-                </div>
-            </div>`;
-    }
 
-    function renderQuestionBlock(q, index, container) {
-        const div = document.createElement('div');
-        div.className = 'border rounded-xl p-4 mb-4 bg-slate-50 q-block';
-        div.dataset.index = String(index);
-        if (q.id) div.dataset.questionId = String(q.id);
-        const type = q.question_type || 'mcq';
-        const typeOptions = QUESTION_TYPES.map(t =>
-            `<option value="${t.value}" ${t.value === type ? 'selected' : ''}>${t.label}</option>`
-        ).join('');
+        metaTr.innerHTML = `
+            <td class="p-2 text-center font-medium q-num">${index + 1}</td>
+            <td class="p-2"><input class="q-code w-full border rounded px-2 py-1 text-xs font-mono" placeholder="PHY-01-001" value="${escapeHtml(q.question_code || '')}"></td>
+            <td class="p-2"><select class="q-type w-full border rounded px-1 py-1 text-xs">${typeOptions}</select></td>
+            <td class="p-2"><select class="q-subject w-full border rounded px-1 py-1 text-xs"><option value="">—</option>${buildSubjectOptions(subjId)}</select></td>
+            <td class="p-2"><select class="q-topic w-full border rounded px-1 py-1 text-xs">${buildTopicOptions(subjId, topicId)}</select></td>
+            <td class="p-2"><select class="q-difficulty w-full border rounded px-1 py-1 text-xs">${diffOpts}</select></td>
+            <td class="p-2"><input class="q-source-zh w-full border rounded px-2 py-1 text-xs" placeholder="DSE 2023 Q5" value="${escapeHtml(q.source_zh || '')}"></td>
+            <td class="p-2 whitespace-nowrap">
+                <button type="button" class="toggle-detail text-xs text-indigo-600 hover:underline mr-2">收合</button>
+                <button type="button" class="remove-q text-xs text-red-600 hover:underline">移除</button>
+            </td>`;
 
-        div.innerHTML = `
-            <div class="flex flex-wrap justify-between gap-2 mb-2">
-                <strong>第 ${index + 1} 題</strong>
-                <div class="flex items-center gap-2">
-                    <select class="q-type border rounded px-2 py-1 text-sm">${typeOptions}</select>
-                    <button type="button" class="text-red-600 text-sm remove-q">移除</button>
-                </div>
-            </div>
-            ${renderMetadataRow(q)}
-            ${renderRichField('題幹（中）', 'stem-zh', q.stem_zh, { upload: true })}
-            ${renderRichField('題幹（英）', 'stem-en', q.stem_en, { upload: true })}
-            <div class="type-fields mb-2"></div>
-            ${renderRichField('解析（中）', 'expl-zh', q.explanation_zh || '', { rows: 2, upload: false })}
-            ${renderRichField('解析（英）', 'expl-en', q.explanation_en || '', { rows: 2, upload: false })}`;
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'q-detail-row';
+        detailTr.innerHTML = `<td colspan="8" class="p-3 bg-slate-50 border-b border-slate-100"><div class="q-detail">${buildDetailHtml(q)}</div></td>`;
 
-        const subj = div.querySelector('.q-subject');
-        const topic = div.querySelector('.q-topic');
-        wireTopicSelect(subj, topic);
+        const subj = metaTr.querySelector('.q-subject');
+        const topic = metaTr.querySelector('.q-topic');
+        wireTopicSelect(subj, topic, topicId);
 
-        div.querySelector('.remove-q').onclick = () => div.remove();
-        div.querySelector('.q-type').onchange = () => {
-            const preserved = collectQuestionFromBlock(div);
-            preserved.question_type = div.querySelector('.q-type').value;
+        metaTr.querySelector('.remove-q').onclick = () => {
+            metaTr.remove();
+            detailTr.remove();
+            renumberQuestions(tbody);
+        };
+
+        metaTr.querySelector('.toggle-detail').onclick = () => {
+            const collapsed = detailTr.classList.toggle('is-collapsed');
+            metaTr.querySelector('.toggle-detail').textContent = collapsed ? '展開' : '收合';
+        };
+
+        metaTr.querySelector('.q-type').onchange = () => {
+            const preserved = collectQuestionFromBlock(metaTr);
+            preserved.question_type = metaTr.querySelector('.q-type').value;
             const newQ = blankQuestion(preserved.question_type);
             Object.assign(newQ, preserved, { options: undefined, parts: undefined, blanks: undefined });
             if (preserved.question_type === 'mcq') newQ.options = blankMcqOptions();
-            renderTypeFields(div, newQ);
+            renderTypeFields(metaTr, newQ);
         };
 
-        bindRichFieldEvents(div);
-        renderTypeFields(div, q);
-        renderMediaList(div, q.media || []);
-        container.appendChild(div);
+        metaTr._detailRow = detailTr;
+        tbody.appendChild(metaTr);
+        tbody.appendChild(detailTr);
+
+        const detail = detailTr.querySelector('.q-detail');
+        bindRichFieldEvents(detail, metaTr);
+        renderTypeFields(metaTr, q);
+        metaTr._mediaList = q.media || [];
+        renderMediaList(detail, metaTr._mediaList);
     }
 
-    function collectMcqOptions(div) {
-        const correctIdx = Array.from(div.querySelectorAll('.correct')).findIndex(r => r.checked);
-        return Array.from(div.querySelectorAll('.options > div')).map((row, i) => ({
+    function collectMcqOptions(detail, index) {
+        const correctIdx = Array.from(detail.querySelectorAll('.correct')).findIndex(r => r.checked);
+        return Array.from(detail.querySelectorAll('.options > div')).map((row, i) => ({
             text_zh: row.querySelector('.opt-zh').value,
             text_en: row.querySelector('.opt-en').value,
             is_correct: i === correctIdx,
@@ -502,8 +535,8 @@
         }));
     }
 
-    function collectParts(div) {
-        return Array.from(div.querySelectorAll('.part-row')).map((row, i) => ({
+    function collectParts(detail) {
+        return Array.from(detail.querySelectorAll('.part-row')).map((row, i) => ({
             part_label: PART_LABELS[i] || String(i + 1),
             sort_order: i,
             prompt_zh: row.querySelector('.part-prompt-zh').value,
@@ -514,8 +547,8 @@
         }));
     }
 
-    function collectBlanks(div) {
-        return Array.from(div.querySelectorAll('.blank-row')).map((row, i) => ({
+    function collectBlanks(detail) {
+        return Array.from(detail.querySelectorAll('.blank-row')).map((row, i) => ({
             blank_index: i + 1,
             sort_order: i,
             acceptable_answer_zh: row.querySelector('.blank-zh').value,
@@ -523,58 +556,65 @@
         }));
     }
 
-    function collectQuestionFromBlock(div) {
-        const type = div.querySelector('.q-type').value;
+    function collectQuestionFromBlock(metaTr) {
+        const detail = getDetailRoot(metaTr);
+        const type = metaTr.querySelector('.q-type').value;
         const base = {
-            sort_order: parseInt(div.dataset.index, 10) || 0,
+            sort_order: parseInt(metaTr.dataset.index, 10) || 0,
             question_type: type,
-            question_code: div.querySelector('.q-code')?.value.trim() || '',
-            subject_id: div.querySelector('.q-subject')?.value || '',
-            topic_id: div.querySelector('.q-topic')?.value || '',
-            difficulty: div.querySelector('.q-difficulty')?.value || '',
-            source_zh: div.querySelector('.q-source-zh')?.value.trim() || '',
-            source_en: div.querySelector('.q-source-en')?.value.trim() || '',
+            question_code: metaTr.querySelector('.q-code')?.value.trim() || '',
+            subject_id: metaTr.querySelector('.q-subject')?.value || '',
+            topic_id: metaTr.querySelector('.q-topic')?.value || '',
+            difficulty: metaTr.querySelector('.q-difficulty')?.value || '',
+            source_zh: metaTr.querySelector('.q-source-zh')?.value.trim() || '',
+            source_en: detail?.querySelector('.q-source-en')?.value.trim() || '',
             content_format: 'markdown',
-            stem_zh: div.querySelector('.stem-zh').value,
-            stem_en: div.querySelector('.stem-en').value,
-            explanation_zh: div.querySelector('.expl-zh').value,
-            explanation_en: div.querySelector('.expl-en').value,
+            stem_zh: detail?.querySelector('.stem-zh')?.value || '',
+            stem_en: detail?.querySelector('.stem-en')?.value || '',
+            explanation_zh: detail?.querySelector('.expl-zh')?.value || '',
+            explanation_en: detail?.querySelector('.expl-en')?.value || '',
         };
-        const qId = parseInt(div.dataset.questionId || '0', 10);
+        const qId = parseInt(metaTr.dataset.questionId || '0', 10);
         if (qId > 0) base.id = qId;
-        if (type === 'mcq') base.options = collectMcqOptions(div);
-        else if (type === 'short_answer') {
-            base.model_answer_zh = div.querySelector('.model-zh')?.value || '';
-            base.model_answer_en = div.querySelector('.model-en')?.value || '';
-        } else if (type === 'long_answer') base.parts = collectParts(div);
-        else if (type === 'fill_blank') base.blanks = collectBlanks(div);
-        else if (type === 'true_false') base.true_false_answer = parseInt(div.querySelector('.tf-answer').value, 10);
+        if (detail) {
+            if (type === 'mcq') base.options = collectMcqOptions(detail, metaTr.dataset.index);
+            else if (type === 'short_answer') {
+                base.model_answer_zh = detail.querySelector('.model-zh')?.value || '';
+                base.model_answer_en = detail.querySelector('.model-en')?.value || '';
+            } else if (type === 'long_answer') base.parts = collectParts(detail);
+            else if (type === 'fill_blank') base.blanks = collectBlanks(detail);
+            else if (type === 'true_false') base.true_false_answer = parseInt(detail.querySelector('.tf-answer').value, 10);
+        }
         return base;
     }
 
-    function collectQuestions(container) {
-        return Array.from(container.querySelectorAll(':scope > .q-block')).map((div, sort) => {
-            const q = collectQuestionFromBlock(div);
+    function collectQuestions(tbody) {
+        return Array.from(tbody.querySelectorAll(':scope > tr.q-meta-row')).map((metaTr, sort) => {
+            const q = collectQuestionFromBlock(metaTr);
             q.sort_order = sort;
             return q;
         });
     }
 
-    function applySavedQuestionIds(container, questions) {
-        const blocks = container.querySelectorAll(':scope > .q-block');
+    function applySavedQuestionIds(tbody, questions) {
+        const metaRows = tbody.querySelectorAll(':scope > tr.q-meta-row');
         questions.forEach((q, i) => {
-            if (blocks[i] && q.id) {
-                blocks[i].dataset.questionId = String(q.id);
+            if (metaRows[i] && q.id) {
+                metaRows[i].dataset.questionId = String(q.id);
             }
         });
     }
 
-    function renumberQuestions(container) {
-        container.querySelectorAll(':scope > .q-block').forEach((div, i) => {
-            div.dataset.index = String(i);
-            const title = div.querySelector('strong');
-            if (title) title.textContent = '第 ' + (i + 1) + ' 題';
-            div.querySelectorAll('.correct').forEach(r => { r.name = 'correct-' + i; });
+    function renumberQuestions(tbody) {
+        tbody.querySelectorAll(':scope > tr.q-meta-row').forEach((metaTr, i) => {
+            metaTr.dataset.index = String(i);
+            const num = metaTr.querySelector('.q-num');
+            if (num) num.textContent = String(i + 1);
+            metaTr.querySelectorAll('.correct').forEach(r => { r.name = 'correct-' + i; });
+            const detail = getDetailRoot(metaTr);
+            if (detail) {
+                detail.querySelectorAll('.correct').forEach(r => { r.name = 'correct-' + i; });
+            }
         });
     }
 
