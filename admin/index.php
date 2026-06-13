@@ -26,7 +26,7 @@ $totals = $stats['_totals'] ?? ['published' => 0, 'pending' => 0, 'draft' => 0];
 $cardMeta = admin_dashboard_card_meta();
 $displayName = htmlspecialchars($user['display_name'] ?: $user['email'], ENT_QUOTES, 'UTF-8');
 $siteName = htmlspecialchars(config_site_name(), ENT_QUOTES, 'UTF-8');
-$appHref = '../app/';
+$appHref = admin_site_asset_url('app/');
 
 admin_page_start('儀表板', 'dashboard', [
     'wide' => true,
@@ -114,7 +114,7 @@ admin_page_start('儀表板', 'dashboard', [
                     <?php endif; ?>
                 </span>
                 <span class="admin-dash-card-arrow" aria-hidden="true">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </span>
             </a>
             <?php endforeach; ?>

@@ -2,9 +2,65 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/web_base.php';
+
+const ADMIN_ASSET_VERSION = '20260606n';
+
 /**
  * Admin shell: header bar, side menu, main content (mirrors app/index.html layout).
  */
+
+function admin_web_base(): string
+{
+    static $base = null;
+    if ($base !== null) {
+        return $base;
+    }
+
+    $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    if ($script !== '' && str_contains($script, '/admin/')) {
+        $base = rtrim(dirname($script), '/');
+    } else {
+        $base = rtrim(web_base_path() . '/admin', '/');
+    }
+
+    if ($base === '/') {
+        $base = '';
+    }
+
+    return $base;
+}
+
+function admin_site_base(): string
+{
+    static $base = null;
+    if ($base !== null) {
+        return $base;
+    }
+
+    $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    if ($script !== '' && str_contains($script, '/admin/')) {
+        $base = rtrim(dirname(dirname($script)), '/');
+    } else {
+        $base = web_base_path();
+    }
+
+    if ($base === '/') {
+        $base = '';
+    }
+
+    return $base;
+}
+
+function admin_asset_url(string $rel): string
+{
+    return admin_web_base() . '/' . ltrim(str_replace('\\', '/', $rel), '/');
+}
+
+function admin_site_asset_url(string $rel): string
+{
+    return admin_site_base() . '/' . ltrim(str_replace('\\', '/', $rel), '/');
+}
 
 function admin_has_any_access(): bool
 {
@@ -222,7 +278,7 @@ function admin_dashboard_icon_svg(string $icon): string
         'db' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>',
     ];
     $path = $paths[$icon] ?? $paths['folder'];
-    return '<svg class="admin-dash-card-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' . $path . '</svg>';
+    return '<svg class="admin-dash-card-icon-svg" width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' . $path . '</svg>';
 }
 
 /**
@@ -240,6 +296,10 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     $bodyClass = $opts['bodyClass'] ?? '';
     $headExtra = $opts['headExtra'] ?? '';
     $maxW = $wide ? 'max-w-7xl' : 'max-w-6xl';
+    $adminBaseHref = admin_web_base() . '/';
+    $adminCssUrl = admin_asset_url('assets/css/admin.css') . '?v=' . ADMIN_ASSET_VERSION;
+    $userMenuCssUrl = admin_site_asset_url('assets/css/user-menu.css') . '?v=' . ADMIN_ASSET_VERSION;
+    $appHref = admin_site_asset_url('app/');
 
     $pageTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . ' | 管理後台';
     ?>
@@ -248,11 +308,27 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="<?php echo htmlspecialchars($adminBaseHref, ENT_QUOTES, 'UTF-8'); ?>">
     <title><?php echo $pageTitle; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="assets/css/admin.css">
-    <link rel="stylesheet" href="../assets/css/user-menu.css">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($adminCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($userMenuCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <script>window.__APP_TIMEZONE__=<?php echo json_encode(config_timezone(), JSON_UNESCAPED_UNICODE); ?>;</script>
+    <?php if ($bodyClass === 'admin-dashboard-page'): ?>
+    <style id="admin-dashboard-critical">
+    .admin-dashboard{display:flex;flex-direction:column;gap:1.75rem}
+    .admin-dashboard-hero{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1.25rem;padding:1.5rem 1.75rem;border-radius:1.25rem;background:linear-gradient(135deg,#312e81 0%,#4338ca 45%,#6366f1 100%);color:#fff;box-shadow:0 12px 40px -12px rgba(49,46,129,.55)}
+    .admin-dashboard-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.875rem}
+    .admin-stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:1rem;padding:1rem 1.25rem}
+    .admin-dash-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:.75rem}
+    @media(min-width:640px){.admin-dash-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:1024px){.admin-dash-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    .admin-dash-card{display:flex;align-items:flex-start;gap:.875rem;padding:1rem 1.125rem;background:#fff;border:1px solid #e2e8f0;border-radius:1rem;text-decoration:none;color:inherit}
+    .admin-dash-card-icon{display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border-radius:.75rem;flex-shrink:0}
+    .admin-dash-card-icon svg,.admin-dash-card-icon-svg{width:1.375rem!important;height:1.375rem!important;max-width:1.375rem;max-height:1.375rem;display:block}
+    .admin-dash-card-arrow svg{width:1.125rem!important;height:1.125rem!important;display:block}
+    </style>
+    <?php endif; ?>
     <?php echo $headExtra; ?>
 </head>
 <body class="bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 font-sans text-slate-900 min-h-screen flex flex-col antialiased <?php echo htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8'); ?>">
@@ -267,7 +343,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
                 <span class="hidden sm:inline text-indigo-300/80 text-xs truncate"><?php echo $siteNameEn; ?></span>
             </div>
             <nav class="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-shrink-0">
-                <a href="../app/" class="hidden sm:inline px-2 py-1 rounded-lg text-indigo-200 hover:bg-white/10 whitespace-nowrap">前台首頁</a>
+                <a href="<?php echo htmlspecialchars($appHref, ENT_QUOTES, 'UTF-8'); ?>" class="hidden sm:inline px-2 py-1 rounded-lg text-indigo-200 hover:bg-white/10 whitespace-nowrap">前台首頁</a>
                 <div id="auth-nav"></div>
             </nav>
         </div>
@@ -353,6 +429,8 @@ function admin_page_end(array $opts = []): void
     $siteName = htmlspecialchars(config_site_name(), ENT_QUOTES, 'UTF-8');
     $siteNameEn = htmlspecialchars(config_site_name_en(), ENT_QUOTES, 'UTF-8');
     $scripts = $opts['scripts'] ?? '';
+    $adminShellJsUrl = admin_asset_url('assets/js/admin-shell.js') . '?v=' . ADMIN_ASSET_VERSION;
+    $userMenuJsUrl = admin_site_asset_url('assets/js/user-menu.js') . '?v=' . ADMIN_ASSET_VERSION;
     ?>
                 </div>
             </div>
@@ -363,8 +441,8 @@ function admin_page_end(array $opts = []): void
         <span>管理後台 · <?php echo $siteName; ?> · <?php echo $siteNameEn; ?></span>
     </footer>
 
-    <script src="assets/js/admin-shell.js"></script>
-    <script src="../assets/js/user-menu.js"></script>
+    <script src="<?php echo htmlspecialchars($adminShellJsUrl, ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($userMenuJsUrl, ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         if (window.AppUserMenu) {
