@@ -155,6 +155,73 @@ function api_handle_admin_question_banks(PDO $pdo, string $method): void
     api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
 }
 
+function api_handle_admin_question_bank_media_upload(PDO $pdo, int $bankId): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions($user['id']);
+    $canAny = user_has_permission('question_bank.manage_any');
+    if (!$canAny && !user_has_permission('question_bank.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    $row = qb_get_by_id($pdo, $bankId);
+    if (!$row) {
+        api_json_error('not_found', '找不到試題庫。', 404);
+    }
+    if (!$canAny && (int) ($row['owner_user_id'] ?? 0) !== $user['id']) {
+        api_json_error('forbidden', '無權編輯。', 403);
+    }
+
+    $questionId = (int) ($_POST['question_id'] ?? 0);
+    if ($questionId <= 0) {
+        api_json_error('validation_error', '請指定題目 ID。', 422);
+    }
+
+    $file = $_FILES['file'] ?? null;
+    if (!is_array($file)) {
+        api_json_error('validation_error', '請上載圖片檔案。', 422);
+    }
+
+    $role = (string) ($_POST['media_role'] ?? 'stem');
+    $relatedSort = isset($_POST['related_sort']) && $_POST['related_sort'] !== ''
+        ? (int) $_POST['related_sort']
+        : null;
+    $altZh = isset($_POST['alt_zh']) ? trim((string) $_POST['alt_zh']) : null;
+    $altEn = isset($_POST['alt_en']) ? trim((string) $_POST['alt_en']) : null;
+
+    $r = qb_save_media_upload($pdo, $bankId, $questionId, $file, $role, $relatedSort, $altZh, $altEn);
+    if (!$r['ok']) {
+        api_json_error('upload_failed', $r['error'] ?? '上載失敗。', 422);
+    }
+    api_json_ok($r['media']);
+}
+
+function api_handle_admin_question_bank_media_delete(PDO $pdo, int $bankId, int $mediaId): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions($user['id']);
+    $canAny = user_has_permission('question_bank.manage_any');
+    if (!$canAny && !user_has_permission('question_bank.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    $row = qb_get_by_id($pdo, $bankId);
+    if (!$row) {
+        api_json_error('not_found', '找不到試題庫。', 404);
+    }
+    if (!$canAny && (int) ($row['owner_user_id'] ?? 0) !== $user['id']) {
+        api_json_error('forbidden', '無權編輯。', 403);
+    }
+
+    $r = qb_delete_media($pdo, $bankId, $mediaId);
+    if (!$r['ok']) {
+        api_json_error('delete_failed', $r['error'] ?? '刪除失敗。', 422);
+    }
+    api_json_ok(['deleted' => true]);
+}
+
 function api_handle_admin_question_bank_get(PDO $pdo, int $id): void
 {
     $user = require_api_user();

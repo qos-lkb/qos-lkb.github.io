@@ -99,5 +99,6 @@
     global.AdminApi = {
         apiFetch, initSession, blankQuestion, renderQuestionBlock, collectQuestions,
         getCsrf: () => csrfToken,
+        getCsrfToken: () => csrfToken,
     };
 })(window);

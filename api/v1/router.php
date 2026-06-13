@@ -124,6 +124,14 @@ function api_v1_dispatch(): void
         api_handle_admin_question_bank_get($pdo, (int) $m[1]);
         return;
     }
+    if (preg_match('#^POST /admin/question-banks/(\d+)/media$#', $routeKey, $m)) {
+        api_handle_admin_question_bank_media_upload($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^DELETE /admin/question-banks/(\d+)/media/(\d+)$#', $routeKey, $m)) {
+        api_handle_admin_question_bank_media_delete($pdo, (int) $m[1], (int) $m[2]);
+        return;
+    }
     if (preg_match('#^GET /courses/([^/]+)$#', $routeKey, $m)) {
         api_handle_courses_subject($pdo, rawurldecode($m[1]));
         return;

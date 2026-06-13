@@ -55,6 +55,7 @@ admin_page_start($id ? '編輯試題庫' : '新增試題庫', 'question_banks', 
                 </div>
             </div>
             <div>
+                <p class="text-xs text-slate-500 mb-2">試題集層級的科目／單元可作為新增題目的預設值；每題可個別設定科目、課題、難度、來源與題目代號。題幹支援 MathJax（<code>$...$</code>）及上載圖片（需先儲存試題集）。</p>
                 <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                     <label class="text-sm font-medium">題目</label>
                     <div class="flex flex-wrap gap-2">
@@ -71,8 +72,18 @@ admin_page_start($id ? '編輯試題庫' : '新增試題庫', 'question_banks', 
             </div>
         </form>
 <?php
+$subjectsJson = array_map(static fn(array $s): array => [
+    'id' => (int) $s['id'],
+    'name_zh' => $s['name_zh'],
+    'name_en' => $s['name_en'] ?? '',
+], $subjects);
+
 admin_page_end([
-    'scripts' => '<script>const TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP) . ';const EDIT_ID=' . $id . ';</script>'
+    'scripts' => '<script>window.MathJax={tex:{inlineMath:[[\'$\',\'$\'],[\'\\\\(\',\'\\\\)\']],displayMath:[[\'$$\',\'$$\'],[\'\\\\[\',\'\\\\]\']]},options:{skipHtmlTags:[\'script\',\'noscript\',\'style\',\'textarea\',\'pre\',\'code\']}};</script>'
+        . '<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
+        . '<script>const TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP)
+        . ';const QB_SUBJECTS=' . json_encode($subjectsJson, JSON_HEX_TAG | JSON_HEX_AMP)
+        . ';const EDIT_ID=' . $id . ';</script>'
         . '<script src="../assets/js/admin-api.js"></script>'
         . '<script src="../assets/js/admin-question-bank.js"></script>'
         . <<<'HTML'
@@ -142,11 +153,22 @@ admin_page_end([
                 questions: QbAdmin.collectQuestions(qBox),
             };
             try {
-                await AdminApi.apiFetch('/admin/question-banks', { method: 'POST', body: payload });
-                location.href = 'question_banks.php';
+                const saved = await AdminApi.apiFetch('/admin/question-banks', { method: 'POST', body: payload });
+                QbAdmin.applySavedQuestionIds(qBox, saved.questions || []);
+                document.getElementById('item-id').value = saved.id;
+                if (!EDIT_ID) {
+                    history.replaceState(null, '', 'question_bank_edit.php?id=' + saved.id);
+                    window.EDIT_ID = saved.id;
+                }
+                flash.textContent = '已儲存。現在可上載題目圖片。';
+                flash.classList.remove('hidden');
+                flash.classList.remove('text-red-600');
+                flash.classList.add('text-green-700');
             } catch (err) {
                 flash.textContent = err.message;
                 flash.classList.remove('hidden');
+                flash.classList.add('text-red-600');
+                flash.classList.remove('text-green-700');
             }
         };
 
