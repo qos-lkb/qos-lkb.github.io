@@ -112,6 +112,9 @@
                 await enrichNoteFromCatalog(note);
                 await refreshNoteAfterPropsSave(note, page);
             });
+            if (global.AppNotePdf) {
+                global.AppNotePdf.attachExportPdfButton(page, note);
+            }
         } catch (err) {
             main.innerHTML = `
                 <div class="reading-page">
@@ -122,5 +125,5 @@
         }
     }
 
-    global.AppNote = { renderNote };
+    global.AppNote = { renderNote, showFlash: showFlashOnPage };
 })(window);
