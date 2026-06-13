@@ -170,7 +170,7 @@ function ln_reorder_in_scope(PDO $pdo, ?int $subjectId, ?int $topicId, array $or
     $pdo->beginTransaction();
     $u = $pdo->prepare('UPDATE learning_notes SET list_sort_order = ? WHERE id = ?');
     foreach ($orderedIds as $i => $id) {
-        $u->execute([$i, $id]);
+        $u->execute([$i + 1, $id]);
     }
     $pdo->commit();
     return ['ok' => true];

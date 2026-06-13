@@ -24,7 +24,7 @@
     function refreshSortLabels(groupEl) {
         groupEl.querySelectorAll('.note-sort-item').forEach(function (row, index) {
             const cell = row.querySelector('.note-sort-order');
-            if (cell) cell.textContent = String(index);
+            if (cell) cell.textContent = String(index + 1);
         });
     }
 
