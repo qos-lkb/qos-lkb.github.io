@@ -30,9 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
     } elseif (empty($_POST['confirm_wipe'])) {
         $flashType = 'error';
         $flash = '請勾選確認：您了解此操作會刪除現有全部資料表。';
-    } elseif (trim((string) ($_POST['confirm_schema'] ?? '')) !== $schemaName) {
-        $flashType = 'error';
-        $flash = '請在確認欄輸入正確的資料庫名稱（' . $schemaName . '）。';
     } elseif (!isset($_FILES['sql_file']) || !is_array($_FILES['sql_file'])) {
         $flashType = 'error';
         $flash = '請選擇要上載的 SQL 檔案。';
@@ -123,14 +120,6 @@ admin_page_start('匯入資料庫', 'db_import');
                 <input type="file" id="sql_file" name="sql_file" accept=".sql,text/plain,application/sql" required
                        class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                 <p class="text-xs text-slate-500 mt-1">副檔名須為 .sql；最大 <?php echo (int) (DB_IMPORT_MAX_BYTES / 1024 / 1024); ?> MB。</p>
-            </div>
-
-            <div>
-                <label for="confirm_schema" class="block text-sm font-medium text-slate-700 mb-1">確認資料庫名稱</label>
-                <input type="text" id="confirm_schema" name="confirm_schema" required autocomplete="off"
-                       placeholder="<?php echo htmlspecialchars($schemaName, ENT_QUOTES, 'UTF-8'); ?>"
-                       class="w-full max-w-md border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                <p class="text-xs text-slate-500 mt-1">請輸入上方資料庫名稱以確認匯入目標。</p>
             </div>
 
             <label class="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">

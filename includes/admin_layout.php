@@ -101,8 +101,8 @@ function admin_menu_sections(): array
             'label' => '開發與維護',
             'items' => [
                 ['key' => 'codespace', 'label' => 'Code Space', 'href' => '../codespace/index.html', 'external' => true],
-                ['key' => 'db_export', 'label' => '匯出資料庫', 'href' => 'db_export.php'],
                 ['key' => 'db_import', 'label' => '匯入資料庫', 'href' => 'db_import.php'],
+                ['key' => 'db_export', 'label' => '匯出資料庫', 'href' => 'db_export.php'],
             ],
         ];
     } elseif (user_has_permission('simulation.manage_any')) {

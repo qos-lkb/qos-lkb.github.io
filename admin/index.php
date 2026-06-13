@@ -31,8 +31,8 @@ $cardDescriptions = [
     'users' => '新增、編輯使用者並指派角色。',
     'permissions' => '調整各角色的系統權限。',
     'codespace' => 'HTML 即時編輯與預覽（新分頁開啟）。',
-    'db_export' => '下載完整 MySQL 資料庫 SQL 備份。',
     'db_import' => '上載 SQL 檔案還原或取代整個資料庫（會先刪除全部資料表）。',
+    'db_export' => '下載完整 MySQL 資料庫 SQL 備份。',
 ];
 
 admin_page_start('儀表板', 'dashboard', [
