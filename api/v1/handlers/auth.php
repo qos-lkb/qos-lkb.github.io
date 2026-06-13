@@ -47,3 +47,36 @@ function api_handle_auth_me(PDO $pdo): void
     }
     api_json_ok($payload);
 }
+
+function api_handle_auth_update_profile(PDO $pdo): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    require_once dirname(__DIR__, 3) . '/includes/account_lib.php';
+
+    $body = api_read_json_body();
+    $r = account_update_profile($pdo, $user['id'], (string) ($body['display_name'] ?? ''));
+    if (!$r['ok']) {
+        api_json_error('validation_error', $r['error'] ?? '更新失敗。', 422);
+    }
+    api_json_ok(api_user_payload());
+}
+
+function api_handle_auth_change_password(PDO $pdo): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    require_once dirname(__DIR__, 3) . '/includes/account_lib.php';
+
+    $body = api_read_json_body();
+    $r = account_change_password(
+        $pdo,
+        $user['id'],
+        (string) ($body['current_password'] ?? ''),
+        (string) ($body['new_password'] ?? '')
+    );
+    if (!$r['ok']) {
+        api_json_error('validation_error', $r['error'] ?? '更改密碼失敗。', 422);
+    }
+    api_json_ok(['changed' => true]);
+}

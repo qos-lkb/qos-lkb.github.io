@@ -120,7 +120,21 @@
     function setLang(lang) {
         currentLang = lang;
         document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+        try {
+            localStorage.setItem('science_sims_ui_lang', lang);
+        } catch (e) { /* ignore */ }
     }
+
+    function initLangFromStorage() {
+        try {
+            const saved = localStorage.getItem('science_sims_ui_lang');
+            if (saved === 'zh' || saved === 'en') {
+                setLang(saved);
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    initLangFromStorage();
 
     function toggleLang() {
         setLang(currentLang === 'zh' ? 'en' : 'zh');

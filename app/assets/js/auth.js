@@ -1,28 +1,23 @@
 (function (global) {
     'use strict';
 
-    const { loadSession, getUser, hasPermission } = global.ScienceApi;
+    const { loadSession, getUser } = global.ScienceApi;
     const { t } = global.AppRouter;
 
-    function updateAuthNav() {
+    async function updateAuthNav() {
+        if (global.AppUserMenu) {
+            global.AppUserMenu.updateAuthNav('auth-nav');
+            return;
+        }
+
         const user = getUser();
         const el = document.getElementById('auth-nav');
         if (!el) return;
 
         if (user) {
-            let links = `<span class="hidden sm:inline text-indigo-200 text-xs">${escapeHtml(user.display_name || user.email)}</span>`;
-            links += `<a href="../portal/simulations.php" class="hidden sm:inline px-2 py-1 text-xs text-indigo-200 hover:text-white">${t('我的模擬', 'My sims')}</a>`;
-            if (hasPermission('simulation.manage_any') || hasPermission('user.manage')) {
-                links += `<a href="../admin/index.php" class="hidden sm:inline px-2 py-1 text-xs text-amber-200 hover:text-white">${t('管理', 'Admin')}</a>`;
-            }
-            links += `<button type="button" id="btn-logout" class="hidden sm:inline px-2 py-1 text-xs text-indigo-200 hover:text-white">${t('登出', 'Logout')}</button>`;
-            el.innerHTML = links;
-            document.getElementById('btn-logout')?.addEventListener('click', async () => {
-                await global.ScienceApi.logout();
-                updateAuthNav();
-            });
+            el.innerHTML = `<span class="hidden sm:inline text-indigo-200 text-xs">${escapeHtml(user.display_name || user.email)}</span>`;
         } else {
-            el.innerHTML = `<a href="../login.php?next=${encodeURIComponent('app/')}" class="hidden sm:inline px-2 py-1 text-xs text-indigo-200 hover:text-white">${t('登入', 'Login')}</a>`;
+            el.innerHTML = `<a href="../login.php?next=${encodeURIComponent('app/')}" class="user-menu-login">${t('登入', 'Login')}</a>`;
         }
     }
 
@@ -31,6 +26,9 @@
     }
 
     async function initAuth() {
+        if (global.AppUserMenu) {
+            global.AppUserMenu.init();
+        }
         try {
             await loadSession();
         } catch (e) {

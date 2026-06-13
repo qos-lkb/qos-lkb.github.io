@@ -15,7 +15,8 @@ function admin_has_any_access(): bool
         || user_has_permission('learning_note.manage_any')
         || user_has_permission('worksheet.manage_any')
         || user_has_permission('learning_video.manage_any')
-        || user_has_permission('topic_item.manage_any');
+        || user_has_permission('topic_item.manage_any')
+        || user_has_permission('question_bank.manage_any');
 }
 
 function admin_btn(string $href, string $label, string $type = 'primary'): string
@@ -65,6 +66,9 @@ function admin_menu_sections(): array
     }
     if (user_has_permission('learning_tool.manage_any')) {
         $contentItems[] = ['key' => 'learning_tools', 'label' => '互動學習工具', 'href' => 'learning_tools.php'];
+    }
+    if (user_has_permission('question_bank.manage_any')) {
+        $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => 'question_banks.php'];
     }
     if (user_has_permission('learning_video.manage_any')) {
         $contentItems[] = ['key' => 'learning_videos', 'label' => '學習影片', 'href' => 'learning_videos.php'];
@@ -126,7 +130,6 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     $bodyClass = $opts['bodyClass'] ?? '';
     $headExtra = $opts['headExtra'] ?? '';
     $maxW = $wide ? 'max-w-7xl' : 'max-w-6xl';
-    $displayName = $user !== null ? htmlspecialchars($user['display_name'] ?: $user['email'], ENT_QUOTES, 'UTF-8') : '';
 
     $pageTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . ' | 管理後台';
     ?>
@@ -138,6 +141,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     <title><?php echo $pageTitle; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="../assets/css/user-menu.css">
     <script>window.__APP_TIMEZONE__=<?php echo json_encode(config_timezone(), JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo $headExtra; ?>
 </head>
@@ -153,12 +157,8 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
                 <span class="hidden sm:inline text-indigo-300/80 text-xs truncate"><?php echo $siteNameEn; ?></span>
             </div>
             <nav class="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-shrink-0">
-                <a href="../app/" class="px-2 py-1 rounded-lg text-indigo-200 hover:bg-white/10 whitespace-nowrap">前台首頁</a>
-                <a href="../portal/simulations.php" class="hidden sm:inline px-2 py-1 rounded-lg text-indigo-200 hover:bg-white/10 whitespace-nowrap">我的模擬</a>
-                <?php if ($displayName !== ''): ?>
-                    <span class="hidden md:inline text-indigo-300/70 px-1 truncate max-w-[10rem]" title="<?php echo $displayName; ?>"><?php echo $displayName; ?></span>
-                <?php endif; ?>
-                <a href="../logout.php" class="px-2 py-1 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15 whitespace-nowrap">登出</a>
+                <a href="../app/" class="hidden sm:inline px-2 py-1 rounded-lg text-indigo-200 hover:bg-white/10 whitespace-nowrap">前台首頁</a>
+                <div id="auth-nav"></div>
             </nav>
         </div>
     </header>
@@ -252,6 +252,15 @@ function admin_page_end(array $opts = []): void
     </footer>
 
     <script src="assets/js/admin-shell.js"></script>
+    <script src="../assets/js/user-menu.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.AppUserMenu) {
+            AppUserMenu.init();
+            AppUserMenu.updateAuthNav('auth-nav');
+        }
+    });
+    </script>
     <?php echo $scripts; ?>
 </body>
 </html>

@@ -117,6 +117,120 @@ function admin_delete_user(PDO $pdo, array $post, int $actingUserId): array
 }
 
 /**
+ * @return array<string, string> slug => 顯示名稱
+ */
+function admin_role_labels(): array
+{
+    return [
+        'admin' => '管理員',
+        'teacher' => '教師',
+        'contributor' => '貢獻者',
+        'student' => '學生',
+        'user' => '教師', // 舊 slug，migration 前相容
+    ];
+}
+
+/**
+ * @return array<string, string> slug => 簡短說明
+ */
+function admin_role_descriptions(): array
+{
+    return [
+        'admin' => '擁有平台完整管理權限（依下方勾選）。',
+        'teacher' => '教職員帳號；可瀏覽前台並依權限管理教學內容。',
+        'contributor' => '可提交模擬或學習資源，通常需經審核後發佈。',
+        'student' => '學生帳號；預設僅使用前台學習功能，無後台管理權限。',
+    ];
+}
+
+function admin_role_display_name(string $name): string
+{
+    $key = strtolower(trim($name));
+    return admin_role_labels()[$key] ?? $name;
+}
+
+/**
+ * @return list<string>
+ */
+function admin_role_sort_order(): array
+{
+    return ['admin', 'teacher', 'contributor', 'student'];
+}
+
+/**
+ * @return array<string, array{label:string,prefixes:list<string>}>
+ */
+function admin_permission_groups(): array
+{
+    return [
+        'platform' => [
+            'label' => '平台管理',
+            'prefixes' => ['user.'],
+        ],
+        'simulation' => [
+            'label' => '模擬程式',
+            'prefixes' => ['simulation.'],
+        ],
+        'content' => [
+            'label' => '學習內容',
+            'prefixes' => [
+                'learning_tool.',
+                'article.',
+                'learning_note.',
+                'worksheet.',
+                'question_bank.',
+                'learning_video.',
+            ],
+        ],
+        'course' => [
+            'label' => '課程編排',
+            'prefixes' => ['topic_item.'],
+        ],
+    ];
+}
+
+function admin_permission_group_key(string $permName): string
+{
+    foreach (admin_permission_groups() as $key => $group) {
+        foreach ($group['prefixes'] as $prefix) {
+            if (str_starts_with($permName, $prefix)) {
+                return $key;
+            }
+        }
+    }
+    return 'other';
+}
+
+/**
+ * @return array<string, array{label:string,permissions:list<array{id:int,name:string,description:?string,label:string}>}>
+ */
+function admin_permissions_grouped(PDO $pdo): array
+{
+    $groups = admin_permission_groups();
+    $grouped = [];
+    foreach ($groups as $key => $meta) {
+        $grouped[$key] = ['label' => $meta['label'], 'permissions' => []];
+    }
+    $grouped['other'] = ['label' => '其他', 'permissions' => []];
+
+    foreach (admin_fetch_permissions($pdo) as $perm) {
+        $key = admin_permission_group_key((string) $perm['name']);
+        $grouped[$key]['permissions'][] = $perm;
+    }
+
+    foreach ($grouped as $key => $meta) {
+        if ($meta['permissions'] === [] && $key !== 'other') {
+            unset($grouped[$key]);
+        }
+    }
+    if ($grouped['other']['permissions'] === []) {
+        unset($grouped['other']);
+    }
+
+    return $grouped;
+}
+
+/**
  * @return array<string, string>
  */
 function admin_permission_labels(): array
@@ -133,6 +247,11 @@ function admin_permission_labels(): array
         'learning_note.manage_own' => '管理自己的學習筆記',
         'worksheet.manage_any' => '管理全部工作紙',
         'worksheet.manage_own' => '管理自己的工作紙',
+        'question_bank.manage_any' => '管理全部試題庫',
+        'question_bank.manage_own' => '管理自己的試題庫',
+        'learning_video.manage_any' => '管理全部學習影片',
+        'learning_video.manage_own' => '管理自己的學習影片',
+        'topic_item.manage_any' => '管理自學課程編排',
     ];
 }
 
@@ -176,7 +295,33 @@ function admin_fetch_roles_with_permissions(PDO $pdo): array
             'permission_ids' => $permMap[$id] ?? [],
         ];
     }
+
+    $order = admin_role_sort_order();
+    usort($out, static function (array $a, array $b) use ($order): int {
+        $ia = array_search(strtolower($a['name']), $order, true);
+        $ib = array_search(strtolower($b['name']), $order, true);
+        $ia = $ia === false ? 999 : $ia;
+        $ib = $ib === false ? 999 : $ib;
+        if ($ia !== $ib) {
+            return $ia <=> $ib;
+        }
+        return strcasecmp($a['name'], $b['name']);
+    });
+
     return $out;
+}
+
+/**
+ * 將逗號分隔的角色 slug 轉為顯示名稱。
+ */
+function admin_format_role_names(?string $csv): string
+{
+    if ($csv === null || trim($csv) === '') {
+        return '';
+    }
+    $parts = array_map('trim', explode(',', $csv));
+    $labels = array_map('admin_role_display_name', $parts);
+    return implode('、', $labels);
 }
 
 function admin_permission_id_by_name(PDO $pdo, string $name): int
@@ -246,12 +391,72 @@ function admin_save_role_permissions_from_post(PDO $pdo, array $post, int $actin
         return ['ok' => false, 'error' => '不可移除此角色上的「管理使用者與角色」權限，否則您將無法再存取後台。'];
     }
 
+    admin_apply_role_permissions($pdo, $roleId, $permIds);
+
+    auth_refresh_permissions($actingUserId);
+
+    return ['ok' => true];
+}
+
+function admin_apply_role_permissions(PDO $pdo, int $roleId, array $permIds): void
+{
     $pdo->prepare('DELETE FROM role_permissions WHERE role_id = ?')->execute([$roleId]);
     $ins = $pdo->prepare('INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)');
     foreach ($permIds as $pid) {
         if ($pid > 0) {
             $ins->execute([$roleId, $pid]);
         }
+    }
+}
+
+/**
+ * 權限矩陣：一次儲存所有角色的勾選結果。
+ *
+ * @param array<string, mixed> $post 期望 role_perms[role_id][] = permission_id
+ * @return array{ok:bool,error?:string}
+ */
+function admin_save_all_role_permissions_from_post(PDO $pdo, array $post, int $actingUserId): array
+{
+    if (!verify_csrf($post['csrf'] ?? null)) {
+        return ['ok' => false, 'error' => 'CSRF 驗證失敗。'];
+    }
+
+    $roles = admin_fetch_roles_with_permissions($pdo);
+    $validPermIds = array_map('intval', array_column(admin_fetch_permissions($pdo), 'id'));
+    $raw = $post['role_perms'] ?? [];
+    if (!is_array($raw)) {
+        $raw = [];
+    }
+
+    $updates = [];
+    foreach ($roles as $role) {
+        $roleId = (int) $role['id'];
+        $rawIds = isset($raw[$roleId]) && is_array($raw[$roleId]) ? array_map('intval', $raw[$roleId]) : [];
+        $permIds = array_values(array_unique(array_filter(
+            $rawIds,
+            static fn (int $id): bool => in_array($id, $validPermIds, true)
+        )));
+
+        if (!admin_acting_user_keeps_user_manage($pdo, $actingUserId, $roleId, $permIds)) {
+            return [
+                'ok' => false,
+                'error' => '不可移除「' . admin_role_display_name((string) $role['name']) . '」的「管理使用者與角色」權限，否則您將無法再存取後台。',
+            ];
+        }
+        $updates[$roleId] = $permIds;
+    }
+
+    try {
+        $pdo->beginTransaction();
+        foreach ($updates as $roleId => $permIds) {
+            admin_apply_role_permissions($pdo, (int) $roleId, $permIds);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return ['ok' => false, 'error' => '儲存失敗。'];
     }
 
     auth_refresh_permissions($actingUserId);

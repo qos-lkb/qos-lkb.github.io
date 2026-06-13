@@ -54,7 +54,10 @@ admin_page_start('使用者', 'users', [
                         <td class="p-3"><?php echo (int) $r['id']; ?></td>
                         <td class="p-3"><?php echo htmlspecialchars($r['email'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo htmlspecialchars($r['display_name'], ENT_QUOTES, 'UTF-8'); ?></td>
-                        <td class="p-3 text-slate-600"><?php echo htmlspecialchars((string) ($r['role_names'] ?? ''), ENT_QUOTES, 'UTF-8') ?: '—'; ?></td>
+                        <td class="p-3 text-slate-600"><?php
+                            $roleDisplay = admin_format_role_names((string) ($r['role_names'] ?? ''));
+                            echo htmlspecialchars($roleDisplay !== '' ? $roleDisplay : '—', ENT_QUOTES, 'UTF-8');
+                        ?></td>
                         <td class="p-3"><?php echo (int) $r['is_active'] ? '是' : '否'; ?></td>
                         <td class="p-3 whitespace-nowrap">
                             <?php if ($r['email'] !== 'system@science-sims.internal'): ?>

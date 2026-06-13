@@ -29,7 +29,7 @@ if ($id > 0) {
     $roleIds = array_map('intval', $rs->fetchAll(PDO::FETCH_COLUMN) ?: []);
 }
 
-$allRoles = $pdo->query('SELECT id, name FROM roles ORDER BY name')->fetchAll() ?: [];
+$allRoles = admin_fetch_roles_with_permissions($pdo);
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -79,12 +79,17 @@ admin_page_start($id ? '編輯使用者' : '新增使用者', 'users', [
             <?php endif; ?>
             <div>
                 <span class="block text-sm font-medium text-slate-700 mb-2">角色</span>
+                <div class="grid sm:grid-cols-2 gap-2">
                 <?php foreach ($allRoles as $ar): ?>
-                    <label class="flex items-center gap-2 mb-1">
+                    <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50">
                         <input type="checkbox" name="roles[]" value="<?php echo (int) $ar['id']; ?>" <?php echo in_array((int) $ar['id'], $roleIds, true) ? 'checked' : ''; ?>>
-                        <span class="text-sm"><?php echo htmlspecialchars($ar['name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                        <span class="text-sm">
+                            <span class="text-slate-800"><?php echo htmlspecialchars(admin_role_display_name((string) $ar['name']), ENT_QUOTES, 'UTF-8'); ?></span>
+                            <span class="block text-xs text-slate-400 font-mono"><?php echo htmlspecialchars((string) $ar['name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                        </span>
                     </label>
                 <?php endforeach; ?>
+                </div>
             </div>
             <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">儲存</button>
         </form>

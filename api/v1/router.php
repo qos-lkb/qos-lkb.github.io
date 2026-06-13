@@ -13,6 +13,7 @@ require_once dirname(__DIR__, 2) . '/includes/learning_notes_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/worksheets_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/learning_videos_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/topic_items_lib.php';
+require_once dirname(__DIR__, 2) . '/includes/question_bank_lib.php';
 
 function api_v1_path(): string
 {
@@ -61,6 +62,7 @@ function api_v1_dispatch(): void
         'GET /worksheets/pending' => 'api_handle_worksheets_pending',
         'GET /learning-videos' => 'api_handle_learning_videos_list_public',
         'GET /learning-videos/pending' => 'api_handle_learning_videos_pending',
+        'GET /question-banks' => 'api_handle_question_banks_list_public',
         'GET /review-queue' => 'api_handle_review_queue',
         'POST /auth/login' => 'api_handle_auth_login',
         'POST /auth/logout' => 'api_handle_auth_logout',
@@ -110,6 +112,18 @@ function api_v1_dispatch(): void
         api_handle_learning_video_get($pdo, rawurldecode($m[1]));
         return;
     }
+    if (preg_match('#^GET /question-banks/([^/]+)$#', $routeKey, $m)) {
+        api_handle_question_bank_get($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^GET /question-banks/([^/]+)/answers$#', $routeKey, $m)) {
+        api_handle_question_bank_answers($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^GET /admin/question-banks/(\d+)$#', $routeKey, $m)) {
+        api_handle_admin_question_bank_get($pdo, (int) $m[1]);
+        return;
+    }
     if (preg_match('#^GET /courses/([^/]+)$#', $routeKey, $m)) {
         api_handle_courses_subject($pdo, rawurldecode($m[1]));
         return;
@@ -145,6 +159,26 @@ function api_v1_dispatch(): void
     }
     if ($path === '/admin/learning-videos') {
         api_handle_admin_learning_videos($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/question-banks') {
+        api_handle_admin_question_banks($pdo, $method);
+        return;
+    }
+    if ($path === '/auth/profile') {
+        if ($method === 'POST') {
+            api_handle_auth_update_profile($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/auth/change-password') {
+        if ($method === 'POST') {
+            api_handle_auth_change_password($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
         return;
     }
     if ($path === '/admin/topic-items') {
@@ -314,3 +348,4 @@ require_once __DIR__ . '/handlers/courses.php';
 require_once __DIR__ . '/handlers/learning_videos.php';
 require_once __DIR__ . '/handlers/topic_items.php';
 require_once __DIR__ . '/handlers/review.php';
+require_once __DIR__ . '/handlers/question_bank.php';
