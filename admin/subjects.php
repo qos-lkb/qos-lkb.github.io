@@ -267,11 +267,7 @@ if ($activeTab === 'topics') {
 
 $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
 
-admin_page_start('科目與單元', 'subjects', [
-    'bodyClass' => 'leading-snug',
-    'headExtra' => '<style>html { font-size: 14px; }</style>',
-    'wide' => true,
-]);
+admin_page_start('科目與單元', 'subjects');
 ?>
         <?php if ($error !== ''): ?><p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
         <?php if ($ok !== ''): ?><p class="text-green-700 text-sm"><?php echo htmlspecialchars($ok, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
