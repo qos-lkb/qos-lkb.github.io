@@ -77,7 +77,7 @@ admin_page_start('班級管理', 'classes', [
         <?php if ($rows !== []): ?>
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
             <h2 class="text-lg font-bold text-slate-800 mb-2">批次匯入學生（CSV）</h2>
-            <p class="text-sm text-slate-500 mb-4">格式：email, display_name, password（密碼可留空自動產生）</p>
+            <p class="text-sm text-slate-500 mb-4">格式：email, name_zh, name_en, password（密碼可留空自動產生；姓名至少填一項）</p>
             <form method="post" class="space-y-4">
                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="action" value="import_csv">
@@ -91,7 +91,7 @@ admin_page_start('班級管理', 'classes', [
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700">CSV 內容</label>
-                    <textarea name="csv_content" rows="6" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="email,display_name,password&#10;student@example.com,陳小明,"></textarea>
+                    <textarea name="csv_content" rows="6" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="email,name_zh,name_en,password&#10;student@example.com,陳小明,Chan Siu Ming,"></textarea>
                 </div>
                 <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">匯入</button>
             </form>

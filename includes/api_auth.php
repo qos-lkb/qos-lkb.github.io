@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/api_response.php';
+require_once __DIR__ . '/user_names_lib.php';
 
 /**
  * @return array{id:int,email:string,display_name:string}
@@ -39,7 +40,9 @@ function api_user_payload(?array $user = null): ?array
     $payload = [
         'id' => $user['id'],
         'email' => $user['email'],
-        'display_name' => $user['display_name'],
+        'name_zh' => (string) ($user['name_zh'] ?? ''),
+        'name_en' => (string) ($user['name_en'] ?? ''),
+        'display_name' => user_format_name($user),
         'permissions' => array_values($_SESSION['permissions'] ?? []),
         'csrf_token' => csrf_token(),
     ];

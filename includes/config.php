@@ -144,6 +144,44 @@ function config_db_from_env(): ?array
 }
 
 /**
+ * 自環境變數組出 QSIS（校本系統）唯讀資料庫設定；未設定 QSIS_DB_NAME 時回傳 null。
+ *
+ * @return array{dsn: string, user: string, pass: string, unix_socket: string}|null
+ */
+function config_qsis_db_from_env(): ?array
+{
+    config_load_dotenv();
+
+    $name = trim((string) (getenv('QSIS_DB_NAME') ?: ''));
+    if ($name === '') {
+        return null;
+    }
+
+    $host = trim((string) (getenv('QSIS_DB_HOST') ?: 'localhost'));
+    $charset = trim((string) (getenv('QSIS_DB_CHARSET') ?: 'utf8mb4'));
+    $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', $host, $name, $charset);
+
+    return [
+        'dsn' => $dsn,
+        'user' => (string) (getenv('QSIS_DB_USER') ?: ''),
+        'pass' => (string) (getenv('QSIS_DB_PASS') ?: ''),
+        'unix_socket' => trim((string) (getenv('QSIS_DB_UNIX_SOCKET') ?: '')),
+    ];
+}
+
+/**
+ * 匯入 QSIS 學生時用以產生登入電郵的網域（例：student.qos.edu.hk → sid@student.qos.edu.hk）。
+ */
+function config_qsis_student_email_domain(): string
+{
+    config_load_dotenv();
+    $domain = trim((string) (getenv('QSIS_STUDENT_EMAIL_DOMAIN') ?: ''));
+    $domain = ltrim($domain, '@');
+
+    return $domain;
+}
+
+/**
  * @return array<string, mixed>
  */
 function app_config(): array
@@ -157,6 +195,12 @@ function app_config(): array
 
     $defaults = [
         'db' => [
+            'dsn' => '',
+            'user' => '',
+            'pass' => '',
+            'unix_socket' => '',
+        ],
+        'qsis_db' => [
             'dsn' => '',
             'user' => '',
             'pass' => '',
@@ -181,6 +225,11 @@ function app_config(): array
     $envDb = config_db_from_env();
     if ($envDb !== null) {
         $cfg['db'] = array_replace($cfg['db'], $envDb);
+    }
+
+    $envQsisDb = config_qsis_db_from_env();
+    if ($envQsisDb !== null) {
+        $cfg['qsis_db'] = array_replace($cfg['qsis_db'], $envQsisDb);
     }
 
     return $cfg;

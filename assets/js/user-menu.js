@@ -75,8 +75,23 @@
         }
     }
 
+    function userLang() {
+        return localStorage.getItem(LANG_KEY) || (global.AppRouter?.getLang?.() || 'zh');
+    }
+
+    function userName(user, lang) {
+        const zh = (user.name_zh || '').trim();
+        const en = (user.name_en || '').trim();
+        const legacy = (user.display_name || '').trim();
+        const pick = lang || userLang();
+        if (pick === 'en') {
+            return en || zh || legacy || user.email || '?';
+        }
+        return zh || en || legacy || user.email || '?';
+    }
+
     function userInitial(user) {
-        const name = (user.display_name || user.email || '?').trim();
+        const name = userName(user).trim();
         return escapeHtml(name.charAt(0).toUpperCase());
     }
 
@@ -125,9 +140,14 @@
                                 <input type="email" class="account-input bg-slate-100" value="${escapeHtml(user.email)}" readonly disabled>
                             </div>
                             <div>
-                                <label class="account-label" for="account-display-name">${t('顯示名稱', 'Display name')}</label>
-                                <input id="account-display-name" name="display_name" type="text" class="account-input" required maxlength="120" value="${escapeHtml(user.display_name || '')}">
+                                <label class="account-label" for="account-name-zh">${t('中文名', 'Chinese name')}</label>
+                                <input id="account-name-zh" name="name_zh" type="text" class="account-input" maxlength="120" value="${escapeHtml(user.name_zh || '')}">
                             </div>
+                            <div>
+                                <label class="account-label" for="account-name-en">${t('英文名', 'English name')}</label>
+                                <input id="account-name-en" name="name_en" type="text" class="account-input" maxlength="120" value="${escapeHtml(user.name_en || '')}">
+                            </div>
+                            <p class="account-hint">${t('至少填寫中文名或英文名其中一項。', 'Fill in at least one of Chinese or English name.')}</p>
                             <button type="submit" class="account-btn-primary">${t('儲存個人資料', 'Save profile')}</button>
                         </form>
                     </div>
@@ -200,9 +220,10 @@
 
         modal.querySelector('#account-profile-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const displayName = modal.querySelector('#account-display-name')?.value?.trim() || '';
+            const nameZh = modal.querySelector('#account-name-zh')?.value?.trim() || '';
+            const nameEn = modal.querySelector('#account-name-en')?.value?.trim() || '';
             try {
-                const me = await apiFetch('/auth/profile', { method: 'POST', body: { display_name: displayName } });
+                const me = await apiFetch('/auth/profile', { method: 'POST', body: { name_zh: nameZh, name_en: nameEn } });
                 csrfToken = me.csrf_token || csrfToken;
                 if (global.ScienceApi && typeof global.ScienceApi.loadSession === 'function') {
                     await global.ScienceApi.loadSession();
@@ -262,7 +283,7 @@
 
     function renderMenu(user, container) {
         const base = siteBase();
-        const name = escapeHtml(user.display_name || user.email);
+        const name = escapeHtml(userName(user));
         const email = escapeHtml(user.email);
         const perms = user.permissions || [];
         const isStudent = user.is_student || (user.roles || []).includes('student');
@@ -368,6 +389,13 @@
             if (e.key === 'Escape') {
                 if (modalOpen) closeSettingsModal();
                 if (menuOpen) closeMenu();
+            }
+        });
+        document.addEventListener('langchange', () => {
+            const container = document.getElementById('auth-nav');
+            const user = global.ScienceApi?.getUser?.();
+            if (container && user) {
+                renderMenu(user, container);
             }
         });
         const savedLang = localStorage.getItem(LANG_KEY);

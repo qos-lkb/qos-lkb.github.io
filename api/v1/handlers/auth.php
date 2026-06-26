@@ -55,7 +55,12 @@ function api_handle_auth_update_profile(PDO $pdo): void
     require_once dirname(__DIR__, 3) . '/includes/account_lib.php';
 
     $body = api_read_json_body();
-    $r = account_update_profile($pdo, $user['id'], (string) ($body['display_name'] ?? ''));
+    $r = account_update_profile(
+        $pdo,
+        $user['id'],
+        (string) ($body['name_zh'] ?? ''),
+        (string) ($body['name_en'] ?? '')
+    );
     if (!$r['ok']) {
         api_json_error('validation_error', $r['error'] ?? '更新失敗。', 422);
     }

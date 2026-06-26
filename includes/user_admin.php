@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/user_names_lib.php';
 
 /**
  * @param array<string, string> $post
@@ -16,7 +17,8 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
 
     $id = isset($post['id']) ? (int) $post['id'] : 0;
     $email = trim((string) ($post['email'] ?? ''));
-    $displayName = trim((string) ($post['display_name'] ?? ''));
+    $nameZh = trim((string) ($post['name_zh'] ?? ''));
+    $nameEn = trim((string) ($post['name_en'] ?? ''));
     $password = (string) ($post['password'] ?? '');
     $isActive = isset($post['is_active']) ? 1 : 0;
     $roleIds = isset($post['roles']) && is_array($post['roles']) ? array_map('intval', $post['roles']) : [];
@@ -24,9 +26,11 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return ['ok' => false, 'error' => '請輸入有效電郵。'];
     }
-    if ($displayName === '') {
-        return ['ok' => false, 'error' => '請輸入顯示名稱。'];
+    $nameValid = account_validate_names($nameZh, $nameEn);
+    if (!$nameValid['ok']) {
+        return $nameValid;
     }
+    $displayName = account_sync_display_name($nameZh, $nameEn);
 
     if ($id === 0 && strlen($password) < 8) {
         return ['ok' => false, 'error' => '新使用者密碼至少 8 字元。'];
@@ -53,11 +57,11 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
 
         if ($password !== '') {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $upd = $pdo->prepare('UPDATE users SET email = ?, display_name = ?, is_active = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $upd->execute([$email, $displayName, $isActive, $hash, $id]);
+            $upd = $pdo->prepare('UPDATE users SET email = ?, name_zh = ?, name_en = ?, display_name = ?, is_active = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $upd->execute([$email, $nameZh, $nameEn, $displayName, $isActive, $hash, $id]);
         } else {
-            $upd = $pdo->prepare('UPDATE users SET email = ?, display_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $upd->execute([$email, $displayName, $isActive, $id]);
+            $upd = $pdo->prepare('UPDATE users SET email = ?, name_zh = ?, name_en = ?, display_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $upd->execute([$email, $nameZh, $nameEn, $displayName, $isActive, $id]);
         }
 
         $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$id]);
@@ -73,8 +77,8 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
     // 新增
     $hash = password_hash($password, PASSWORD_DEFAULT);
     try {
-        $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, is_active) VALUES (?, ?, ?, ?)');
-        $ins->execute([$email, $hash, $displayName, $isActive]);
+        $ins = $pdo->prepare('INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, ?)');
+        $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName, $isActive]);
         $newId = (int) $pdo->lastInsertId();
     } catch (Throwable $e) {
         return ['ok' => false, 'error' => '建立失敗（可能電郵重複）。'];
@@ -114,6 +118,97 @@ function admin_delete_user(PDO $pdo, array $post, int $actingUserId): array
 
     $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
     return ['ok' => true];
+}
+
+/**
+ * 列表內聯編輯：中文名、英文名、角色。
+ *
+ * @param array<string, mixed> $post 期望 id, name_zh, name_en, roles[]
+ * @return array{ok:bool,error?:string,name_zh?:string,name_en?:string,role_names?:string}
+ */
+function admin_inline_update_user(PDO $pdo, array $post, int $actingUserId): array
+{
+    if (!verify_csrf($post['csrf'] ?? null)) {
+        return ['ok' => false, 'error' => 'CSRF 驗證失敗。'];
+    }
+
+    $id = (int) ($post['id'] ?? 0);
+    if ($id <= 0) {
+        return ['ok' => false, 'error' => '無效的使用者。'];
+    }
+
+    $stmt = $pdo->prepare('SELECT id, email FROM users WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $existing = $stmt->fetch();
+    if (!$existing) {
+        return ['ok' => false, 'error' => '找不到使用者。'];
+    }
+    if ($existing['email'] === 'system@science-sims.internal') {
+        return ['ok' => false, 'error' => '不可編輯系統帳號。'];
+    }
+
+    $nameZh = trim((string) ($post['name_zh'] ?? ''));
+    $nameEn = trim((string) ($post['name_en'] ?? ''));
+    $nameValid = account_validate_names($nameZh, $nameEn);
+    if (!$nameValid['ok']) {
+        return $nameValid;
+    }
+
+    $validRoleIds = array_map('intval', array_column(admin_fetch_roles_with_permissions($pdo), 'id'));
+    $rawRoleIds = isset($post['roles']) && is_array($post['roles']) ? array_map('intval', $post['roles']) : [];
+    $roleIds = array_values(array_unique(array_filter(
+        $rawRoleIds,
+        static fn (int $rid): bool => in_array($rid, $validRoleIds, true)
+    )));
+
+    $displayName = account_sync_display_name($nameZh, $nameEn);
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare(
+            'UPDATE users SET name_zh = ?, name_en = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        )->execute([$nameZh, $nameEn, $displayName, $id]);
+
+        $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$id]);
+        $ins = $pdo->prepare('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)');
+        foreach ($roleIds as $rid) {
+            if ($rid > 0) {
+                $ins->execute([$id, $rid]);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return ['ok' => false, 'error' => '儲存失敗。'];
+    }
+
+    if ($actingUserId === $id) {
+        auth_session_start();
+        $_SESSION['name_zh'] = $nameZh;
+        $_SESSION['name_en'] = $nameEn;
+        $_SESSION['display_name'] = $displayName;
+        auth_refresh_permissions($actingUserId);
+    }
+
+    $roleStmt = $pdo->prepare(
+        'SELECT GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
+         FROM user_roles ur
+         INNER JOIN roles r ON r.id = ur.role_id
+         WHERE ur.user_id = ?'
+    );
+    $roleStmt->execute([$id]);
+    $roleCsv = (string) ($roleStmt->fetchColumn() ?: '');
+    $roleDisplay = admin_format_role_names($roleCsv);
+
+    return [
+        'ok' => true,
+        'name_zh' => $nameZh,
+        'name_en' => $nameEn,
+        'role_names' => $roleDisplay !== '' ? $roleDisplay : '—',
+        'role_ids' => $roleIds,
+    ];
 }
 
 /**

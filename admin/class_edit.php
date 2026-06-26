@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/classes_lib.php';
+require_once dirname(__DIR__) . '/includes/user_names_lib.php';
 require_once dirname(__DIR__) . '/includes/simulations_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
@@ -30,7 +31,7 @@ if ($id > 0) {
 $teachers = [];
 if ($canAny) {
     $teachers = $pdo->query(
-        "SELECT DISTINCT u.id, u.display_name FROM users u
+        "SELECT DISTINCT u.id, u.name_zh, u.name_en, u.display_name FROM users u
          INNER JOIN user_roles ur ON ur.user_id = u.id
          INNER JOIN roles r ON r.id = ur.role_id
          WHERE r.name IN ('teacher', 'admin') AND u.is_active = 1
@@ -127,7 +128,7 @@ admin_page_start($id ? '編輯班級' : '新增班級', 'classes', [
                 <select name="teacher_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">
                     <?php foreach ($teachers as $t): ?>
                     <option value="<?php echo (int) $t['id']; ?>" <?php echo (int) ($row['teacher_user_id'] ?? $acting['id']) === (int) $t['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars((string) $t['display_name'], ENT_QUOTES, 'UTF-8'); ?>
+                        <?php echo htmlspecialchars(user_format_name($t), ENT_QUOTES, 'UTF-8'); ?>
                     </option>
                     <?php endforeach; ?>
                 </select>
@@ -167,7 +168,8 @@ admin_page_start($id ? '編輯班級' : '新增班級', 'classes', [
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-100 text-left">
                     <tr>
-                        <th class="p-3">姓名</th>
+                        <th class="p-3">中文名</th>
+                        <th class="p-3">英文名</th>
                         <th class="p-3">電郵</th>
                         <th class="p-3">學號</th>
                         <th class="p-3">級別</th>
@@ -177,7 +179,8 @@ admin_page_start($id ? '編輯班級' : '新增班級', 'classes', [
                 <tbody>
                     <?php foreach ($students as $s): ?>
                     <tr class="border-t border-slate-100">
-                        <td class="p-3"><?php echo htmlspecialchars((string) $s['display_name'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="p-3"><?php echo htmlspecialchars((string) ($s['name_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="p-3"><?php echo htmlspecialchars((string) ($s['name_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo htmlspecialchars((string) $s['email'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo htmlspecialchars((string) ($s['student_number'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo $s['form_level'] ? '中' . htmlspecialchars((string) $s['form_level'], ENT_QUOTES, 'UTF-8') : '—'; ?></td>
@@ -185,7 +188,7 @@ admin_page_start($id ? '編輯班級' : '新增班級', 'classes', [
                     </tr>
                     <?php endforeach; ?>
                     <?php if ($students === []): ?>
-                    <tr><td colspan="5" class="p-6 text-slate-500 text-center">尚無學生</td></tr>
+                    <tr><td colspan="6" class="p-6 text-slate-500 text-center">尚無學生</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

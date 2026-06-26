@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/user_admin.php';
+require_once dirname(__DIR__) . '/includes/user_names_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
@@ -42,7 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $row = [
         'id' => (int) ($_POST['id'] ?? 0),
         'email' => $_POST['email'] ?? '',
-        'display_name' => $_POST['display_name'] ?? '',
+        'name_zh' => $_POST['name_zh'] ?? '',
+        'name_en' => $_POST['name_en'] ?? '',
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
     ];
     $roleIds = isset($_POST['roles']) && is_array($_POST['roles']) ? array_map('intval', $_POST['roles']) : [];
@@ -62,10 +64,17 @@ admin_page_start($id ? '編輯使用者' : '新增使用者', 'users', [
                 <label class="block text-sm font-medium text-slate-700">電郵</label>
                 <input type="email" name="email" required value="<?php echo htmlspecialchars((string) ($row['email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2" <?php echo ($row['email'] ?? '') === 'system@science-sims.internal' ? 'readonly' : ''; ?>>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700">顯示名稱</label>
-                <input type="text" name="display_name" required value="<?php echo htmlspecialchars((string) ($row['display_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2">
+            <div class="grid sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">中文名</label>
+                    <input type="text" name="name_zh" value="<?php echo htmlspecialchars((string) ($row['name_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2" maxlength="120">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">英文名</label>
+                    <input type="text" name="name_en" value="<?php echo htmlspecialchars((string) ($row['name_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2" maxlength="120">
+                </div>
             </div>
+            <p class="text-xs text-slate-500 -mt-2">至少填寫中文名或英文名其中一項。</p>
             <div>
                 <label class="block text-sm font-medium text-slate-700">密碼<?php echo $id ? '（留空則不變更）' : '（至少 8 字元）'; ?></label>
                 <input type="password" name="password" class="mt-1 w-full border rounded-lg px-3 py-2" <?php echo $id ? '' : 'required minlength="8"'; ?> autocomplete="new-password">

@@ -23,7 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo,
             trim((string) ($_POST['email'] ?? '')),
             (string) ($_POST['password'] ?? ''),
-            trim((string) ($_POST['display_name'] ?? '')),
+            trim((string) ($_POST['name_zh'] ?? '')),
+            trim((string) ($_POST['name_en'] ?? '')),
             trim((string) ($_POST['invite_code'] ?? ''))
         );
         if (!$r['ok']) {
@@ -62,9 +63,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="email" name="email" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="username">
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-700">顯示名稱</label>
-                <input type="text" name="display_name" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="name">
+                <label class="block text-sm font-medium text-slate-700">中文名</label>
+                <input type="text" name="name_zh" class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="name">
             </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700">英文名</label>
+                <input type="text" name="name_en" class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="additional-name">
+            </div>
+            <p class="text-xs text-slate-500 -mt-2">至少填寫中文名或英文名其中一項。</p>
             <div>
                 <label class="block text-sm font-medium text-slate-700">密碼（至少 8 字元）</label>
                 <input type="password" name="password" required minlength="8" class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="new-password">

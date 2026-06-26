@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/user_names_lib.php';
 
 function auth_session_start(): void
 {
@@ -40,7 +41,7 @@ function auth_refresh_permissions(int $userId): void
 }
 
 /**
- * @return array{id:int,email:string,display_name:string}|null
+ * @return array{id:int,email:string,display_name:string,name_zh:string,name_en:string}|null
  */
 function current_user(): ?array
 {
@@ -52,6 +53,8 @@ function current_user(): ?array
         'id' => (int) $_SESSION['user_id'],
         'email' => (string) $_SESSION['user_email'],
         'display_name' => (string) ($_SESSION['display_name'] ?? ''),
+        'name_zh' => (string) ($_SESSION['name_zh'] ?? ''),
+        'name_en' => (string) ($_SESSION['name_en'] ?? ''),
     ];
 }
 
@@ -87,7 +90,7 @@ function attempt_login(string $email, string $password): bool
 {
     auth_session_start();
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT id, email, password_hash, display_name, is_active FROM users WHERE email = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, email, password_hash, display_name, name_zh, name_en, is_active FROM users WHERE email = ? LIMIT 1');
     $stmt->execute([$email]);
     $u = $stmt->fetch();
     if (!$u || !(int) $u['is_active']) {
@@ -100,7 +103,12 @@ function attempt_login(string $email, string $password): bool
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $u['id'];
     $_SESSION['user_email'] = $u['email'];
-    $_SESSION['display_name'] = $u['display_name'];
+    $_SESSION['name_zh'] = (string) ($u['name_zh'] ?? '');
+    $_SESSION['name_en'] = (string) ($u['name_en'] ?? '');
+    $_SESSION['display_name'] = (string) ($u['display_name'] ?? account_sync_display_name(
+        (string) ($u['name_zh'] ?? ''),
+        (string) ($u['name_en'] ?? '')
+    ));
     auth_refresh_permissions((int) $u['id']);
     return true;
 }

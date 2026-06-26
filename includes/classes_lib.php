@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/user_names_lib.php';
+
 /**
  * @return string 8-char uppercase invite code
  */
@@ -174,10 +176,11 @@ function classes_save_student_profile(PDO $pdo, int $userId, array $data): array
 /**
  * @return array{ok:bool,error?:string,user_id?:int}
  */
-function classes_register_student(PDO $pdo, string $email, string $password, string $displayName, string $inviteCode): array
+function classes_register_student(PDO $pdo, string $email, string $password, string $nameZh, string $nameEn, string $inviteCode): array
 {
     $email = trim($email);
-    $displayName = trim($displayName);
+    $nameZh = trim($nameZh);
+    $nameEn = trim($nameEn);
     $inviteCode = strtoupper(trim($inviteCode));
 
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -186,9 +189,11 @@ function classes_register_student(PDO $pdo, string $email, string $password, str
     if (strlen($password) < 8) {
         return ['ok' => false, 'error' => '密碼至少 8 字元。'];
     }
-    if ($displayName === '') {
-        return ['ok' => false, 'error' => '請輸入顯示名稱。'];
+    $nameValid = account_validate_names($nameZh, $nameEn);
+    if (!$nameValid['ok']) {
+        return $nameValid;
     }
+    $displayName = account_sync_display_name($nameZh, $nameEn);
     if ($inviteCode === '') {
         return ['ok' => false, 'error' => '請輸入班級邀請碼。'];
     }
@@ -207,8 +212,8 @@ function classes_register_student(PDO $pdo, string $email, string $password, str
         $pdo->beginTransaction();
 
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, is_active) VALUES (?, ?, ?, 1)');
-        $ins->execute([$email, $hash, $displayName]);
+        $ins = $pdo->prepare('INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)');
+        $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
         $userId = (int) $pdo->lastInsertId();
 
         $pdo->prepare('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)')->execute([$userId, $studentRoleId]);
@@ -369,14 +374,17 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
         }
         $parts = str_getcsv($line);
         $email = trim((string) ($parts[0] ?? ''));
-        $displayName = trim((string) ($parts[1] ?? ''));
-        $password = trim((string) ($parts[2] ?? ''));
+        $nameZh = trim((string) ($parts[1] ?? ''));
+        $nameEn = trim((string) ($parts[2] ?? ''));
+        $password = trim((string) ($parts[3] ?? ''));
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             continue;
         }
-        if ($displayName === '') {
-            $displayName = strstr($email, '@', true) ?: $email;
+        if ($nameZh === '' && $nameEn === '') {
+            $localPart = strstr($email, '@', true) ?: $email;
+            $nameZh = $localPart;
         }
+        $displayName = account_sync_display_name($nameZh, $nameEn);
         if ($password === '') {
             $password = bin2hex(random_bytes(4)) . 'Aa1!';
         }
@@ -390,8 +398,8 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
         if ($uid <= 0) {
             try {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, is_active) VALUES (?, ?, ?, 1)');
-                $ins->execute([$email, $hash, $displayName]);
+                $ins = $pdo->prepare('INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)');
+                $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
                 $uid = (int) $pdo->lastInsertId();
                 $pdo->prepare('INSERT INTO student_profiles (user_id, preferred_lang) VALUES (?, ?)')->execute([$uid, 'zh']);
                 $created++;
@@ -414,7 +422,7 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
 function classes_students_in_class(PDO $pdo, int $classId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT u.id, u.email, u.display_name, u.is_active, ce.status, ce.joined_at,
+        'SELECT u.id, u.email, u.display_name, u.name_zh, u.name_en, u.is_active, ce.status, ce.joined_at,
                 sp.student_number, sp.form_level
          FROM class_enrollments ce
          INNER JOIN users u ON u.id = ce.user_id
@@ -458,7 +466,9 @@ function classes_enrich_user_payload(PDO $pdo, array $user): array
     return [
         'id' => $user['id'],
         'email' => $user['email'],
-        'display_name' => $user['display_name'],
+        'name_zh' => (string) ($user['name_zh'] ?? ''),
+        'name_en' => (string) ($user['name_en'] ?? ''),
+        'display_name' => user_format_name($user),
         'roles' => $roles,
         'is_student' => in_array('student', $roles, true),
         'is_teacher' => in_array('teacher', $roles, true) || in_array('admin', $roles, true),

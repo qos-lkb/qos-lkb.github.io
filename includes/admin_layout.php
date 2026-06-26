@@ -168,6 +168,7 @@ function admin_menu_sections(): array
             'label' => '開發與維護',
             'items' => [
                 ['key' => 'codespace', 'label' => 'Code Space', 'href' => '../codespace/index.html', 'external' => true],
+                ['key' => 'qsis_import', 'label' => 'QSIS 匯入', 'href' => 'qsis_import.php', 'accent' => 'teal'],
                 ['key' => 'db_import', 'label' => '匯入資料庫', 'href' => 'db_import.php'],
                 ['key' => 'db_export', 'label' => '匯出資料庫', 'href' => 'db_export.php'],
             ],
@@ -269,6 +270,7 @@ function admin_dashboard_card_meta(): array
         'codespace' => ['icon' => 'code', 'tone' => 'slate', 'desc' => 'HTML 即時編輯與預覽（新分頁開啟）。'],
         'db_import' => ['icon' => 'db', 'tone' => 'orange', 'desc' => '上載 SQL 還原或取代整個資料庫。'],
         'db_export' => ['icon' => 'db', 'tone' => 'teal', 'desc' => '下載完整 MySQL 資料庫 SQL 備份。'],
+        'qsis_import' => ['icon' => 'users', 'tone' => 'teal', 'desc' => '從校本 QSIS 資料庫匯入班級與學生帳戶。'],
     ];
 }
 

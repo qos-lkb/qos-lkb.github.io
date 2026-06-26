@@ -13,9 +13,11 @@ function api_handle_auth_register(PDO $pdo): void
     $email = trim((string) ($body['email'] ?? ''));
     $password = (string) ($body['password'] ?? '');
     $displayName = trim((string) ($body['display_name'] ?? ''));
+    $nameZh = trim((string) ($body['name_zh'] ?? $displayName));
+    $nameEn = trim((string) ($body['name_en'] ?? ''));
     $inviteCode = trim((string) ($body['invite_code'] ?? ''));
 
-    $r = classes_register_student($pdo, $email, $password, $displayName, $inviteCode);
+    $r = classes_register_student($pdo, $email, $password, $nameZh, $nameEn, $inviteCode);
     if (!$r['ok']) {
         api_json_error('validation_error', $r['error'] ?? '註冊失敗。', 422);
     }
