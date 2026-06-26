@@ -19,6 +19,12 @@
         }
         try {
             const sim = await apiFetch('/simulations/' + encodeURIComponent(slug));
+            if (global.AppLearningTracker) {
+                global.AppLearningTracker.trackContentOpen('simulation', slug, {
+                    subject_id: sim.subject_id,
+                    topic_id: sim.topic_id,
+                });
+            }
             const lang = getLang();
             const title = lang === 'zh' ? sim.title_zh : sim.title_en;
             const screenshot = resolveAssetUrl(sim.screenshot_path || '');

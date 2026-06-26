@@ -121,6 +121,7 @@
 
     async function boot() {
         await AppAuth.initAuth();
+        if (window.AppLearningTracker) AppLearningTracker.init();
         if (window.SimModal) SimModal.init();
         if (window.AppSidebar) AppSidebar.init();
         updateNavLabels();
@@ -218,6 +219,13 @@
                     if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
                 }
                 await AppSimulation.renderSimulation(slug);
+            },
+            '/dashboard': async () => {
+                document.querySelectorAll('.nav-tab').forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppDashboard) await AppDashboard.renderDashboard();
             },
         });
 

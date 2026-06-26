@@ -65,6 +65,7 @@ function api_v1_dispatch(): void
         'GET /question-banks' => 'api_handle_question_banks_list_public',
         'GET /review-queue' => 'api_handle_review_queue',
         'POST /auth/login' => 'api_handle_auth_login',
+        'POST /auth/register' => 'api_handle_auth_register',
         'POST /auth/logout' => 'api_handle_auth_logout',
         'GET /auth/me' => 'api_handle_auth_me',
         'GET /subjects' => 'api_handle_subjects',
@@ -189,6 +190,102 @@ function api_v1_dispatch(): void
         }
         return;
     }
+    if ($path === '/auth/student-profile') {
+        if ($method === 'POST') {
+            api_handle_student_profile_update($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/events') {
+        if ($method === 'POST') {
+            api_handle_learning_events($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/events/summary') {
+        if ($method === 'GET') {
+            api_handle_learning_events_summary($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/attempts') {
+        if ($method === 'POST') {
+            api_handle_learning_attempts_post($pdo);
+        } elseif ($method === 'GET') {
+            api_handle_learning_attempts_list($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/mastery') {
+        if ($method === 'GET') {
+            api_handle_learning_mastery($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/progress') {
+        if ($method === 'GET') {
+            api_handle_learning_progress($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/dashboard') {
+        if ($method === 'GET') {
+            api_handle_learning_dashboard($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/goals') {
+        if ($method === 'POST') {
+            api_handle_learning_goals_post($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/recommendations') {
+        if ($method === 'GET') {
+            api_handle_learning_recommendations($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/learning/adaptive-quiz') {
+        if ($method === 'GET') {
+            api_handle_learning_adaptive_quiz($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/teacher/classes') {
+        if ($method === 'GET') {
+            api_handle_teacher_classes_list($pdo);
+        } elseif ($method === 'POST') {
+            api_handle_teacher_class_create($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if ($path === '/admin/classes') {
+        api_handle_admin_classes($pdo, $method);
+        return;
+    }
     if ($path === '/admin/topic-items') {
         api_handle_admin_topic_items($pdo, $method);
         return;
@@ -231,6 +328,27 @@ function api_v1_dispatch(): void
     }
     if (preg_match('#^POST /review/learning-videos/(\d+)/reject$#', $routeKey, $m)) {
         api_handle_review_lv_reject($pdo, (int) $m[1]);
+        return;
+    }
+
+    if (preg_match('#^POST /teacher/classes/(\d+)/enroll$#', $routeKey, $m)) {
+        api_handle_teacher_class_enroll($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /teacher/classes/(\d+)/invite$#', $routeKey, $m)) {
+        api_handle_teacher_class_invite($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^GET /teacher/classes/(\d+)/report$#', $routeKey, $m)) {
+        api_handle_teacher_class_report($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^GET /teacher/classes/(\d+)/report\.csv$#', $routeKey, $m)) {
+        api_teacher_class_report_csv($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^GET /teacher/classes/(\d+)/students/(\d+)$#', $routeKey, $m)) {
+        api_handle_teacher_class_student_detail($pdo, (int) $m[1], (int) $m[2]);
         return;
     }
 
@@ -357,3 +475,6 @@ require_once __DIR__ . '/handlers/learning_videos.php';
 require_once __DIR__ . '/handlers/topic_items.php';
 require_once __DIR__ . '/handlers/review.php';
 require_once __DIR__ . '/handlers/question_bank.php';
+require_once __DIR__ . '/handlers/students.php';
+require_once __DIR__ . '/handlers/teacher.php';
+require_once __DIR__ . '/handlers/learning.php';

@@ -49,7 +49,7 @@ science_sims/
 ├── includes/                 # 設定、DB、auth、內容 lib
 ├── admin/                    # 後台
 ├── portal/                   # 貢獻者入口
-├── migrations/               # 001–007 SQL 遷移
+├── migrations/               # 001–009 SQL 遷移
 ├── physics/, chem/, biology/, science/, astronomy/, …
 ├── change_log.md             # 變更紀錄
 ├── architecture.md, rule.md, README.md
@@ -64,7 +64,7 @@ science_sims/
 
 1. 安裝 **PHP 8+**、**MariaDB**。
 2. 複製 **`.env.example`** 為 **`.env`**，填入 `DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS` 等。
-3. 依序執行 **`migrations/001`** 至 **`007`**（見 [architecture.md](architecture.md)）。
+3. 依序執行 **`migrations/001`** 至 **`009`**（見 [architecture.md](architecture.md)）；`009` 含 SDL／適性學習全部資料表。
 4. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。
 5. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
 

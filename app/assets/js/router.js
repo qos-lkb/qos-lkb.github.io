@@ -35,76 +35,100 @@
     }
 
     async function dispatch(path) {
+        async function afterRoute() {
+            if (global.AppLearningTracker) global.AppLearningTracker.trackPageView(path);
+        }
         if (routes[path]) {
             await routes[path]();
+            await afterRoute();
             return;
         }
         const quiz = path.match(/^\/quiz\/([^/]+)$/);
         if (quiz) {
             await routes['/quiz/:slug'](decodeURIComponent(quiz[1]));
+            await afterRoute();
             return;
         }
         const article = path.match(/^\/article\/([^/]+)$/);
         if (article) {
             await routes['/article/:slug'](decodeURIComponent(article[1]));
+            await afterRoute();
             return;
         }
         const note = path.match(/^\/note\/([^/]+)$/);
         if (note) {
             await routes['/note/:slug'](decodeURIComponent(note[1]));
+            await afterRoute();
             return;
         }
         const worksheet = path.match(/^\/worksheet\/([^/]+)$/);
         if (worksheet) {
             await routes['/worksheet/:slug'](decodeURIComponent(worksheet[1]));
+            await afterRoute();
             return;
         }
         if (path === '/learning-tools') {
             await routes['/learning-tools']();
+            await afterRoute();
             return;
         }
         if (path === '/learning-notes') {
             await routes['/learning-notes']();
+            await afterRoute();
             return;
         }
         if (path === '/worksheets') {
             await routes['/worksheets']();
+            await afterRoute();
             return;
         }
         if (path === '/articles') {
             await routes['/articles']();
+            await afterRoute();
             return;
         }
         const courses = path.match(/^\/courses\/?$/);
         if (courses) {
             await routes['/courses']();
+            await afterRoute();
             return;
         }
         const courseSubject = path.match(/^\/course\/([^/]+)$/);
         if (courseSubject) {
             await routes['/course/:subject'](decodeURIComponent(courseSubject[1]));
+            await afterRoute();
             return;
         }
         const courseTopic = path.match(/^\/course\/([^/]+)\/([^/]+)$/);
         if (courseTopic) {
             await routes['/course/:subject/:topic'](decodeURIComponent(courseTopic[1]), decodeURIComponent(courseTopic[2]));
+            await afterRoute();
             return;
         }
         const video = path.match(/^\/video\/([^/]+)$/);
         if (video) {
             await routes['/video/:slug'](decodeURIComponent(video[1]));
+            await afterRoute();
             return;
         }
         const simulation = path.match(/^\/simulation\/([^/]+)$/);
         if (simulation) {
             await routes['/simulation/:slug'](decodeURIComponent(simulation[1]));
+            await afterRoute();
             return;
         }
         if (path === '/simulations') {
             await routes['/simulations']();
+            await afterRoute();
+            return;
+        }
+        if (path === '/dashboard') {
+            await routes['/dashboard']();
+            await afterRoute();
             return;
         }
         await routes['/']();
+        await afterRoute();
     }
 
     function init(onRoute) {

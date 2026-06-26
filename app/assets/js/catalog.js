@@ -517,6 +517,9 @@
         });
     }
 
+    let simOpenAt = 0;
+    let simTrackSlug = '';
+
     function openModal(url) {
         const modal = document.getElementById('sim-modal');
         const iframe = document.getElementById('sim-modal-iframe');
@@ -526,12 +529,24 @@
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
         if (global.SimModal) SimModal.onOpen(resolved);
+        const m = String(url).match(/\/simulations\/([^/]+)\/html/);
+        if (m && global.AppLearningTracker) {
+            simTrackSlug = decodeURIComponent(m[1]);
+            simOpenAt = Date.now();
+            global.AppLearningTracker.trackSimulationOpen(simTrackSlug, {});
+        }
     }
 
     function closeModal() {
         const modal = document.getElementById('sim-modal');
         const iframe = document.getElementById('sim-modal-iframe');
         if (global.SimModal) SimModal.onClose();
+        if (simTrackSlug && simOpenAt && global.AppLearningTracker) {
+            const secs = Math.round((Date.now() - simOpenAt) / 1000);
+            global.AppLearningTracker.trackSimulationClose(simTrackSlug, secs);
+            simTrackSlug = '';
+            simOpenAt = 0;
+        }
         if (modal) modal.classList.remove('active');
         if (iframe) iframe.src = '';
         document.body.style.overflow = '';

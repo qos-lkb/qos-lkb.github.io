@@ -29,7 +29,7 @@ $rows = $pdo->query(
 )->fetchAll() ?: [];
 
 admin_page_start('使用者', 'users', [
-    'actions' => admin_btn('user_edit.php', '新增'),
+    'actions' => admin_btn('user_edit.php', '新增') . ' ' . admin_btn('classes.php', '班級管理', 'secondary'),
     'wide' => true,
 ]);
 ?>

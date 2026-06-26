@@ -77,6 +77,23 @@ Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SI
 | GET | `/question-banks/{slug}` | Question bank (student view) |
 | GET | `/auth/me` | Current user |
 | POST | `/auth/login`, `/auth/logout` | Session login / logout (POST+CSRF) |
+| POST | `/auth/register` | Student self-registration (invite code) |
+| POST | `/auth/student-profile` | Update student profile |
+| GET | `/learning/dashboard` | Student SDL dashboard data |
+| POST | `/learning/events` | Batch learning events (authenticated) |
+| GET | `/learning/events/summary` | Learning time summary |
+| POST/GET | `/learning/attempts` | Submit or list quiz attempts |
+| GET | `/learning/mastery` | Topic mastery scores |
+| GET | `/learning/progress` | Content completion by topic |
+| POST | `/learning/goals` | Save weekly learning goal |
+| GET | `/learning/recommendations` | Adaptive recommendations |
+| GET | `/learning/adaptive-quiz` | Adaptive quiz for topic |
+| GET/POST | `/teacher/classes` | Teacher class list / create |
+| POST | `/teacher/classes/{id}/enroll` | Enroll students by email |
+| POST | `/teacher/classes/{id}/invite` | Reset class invite code |
+| GET | `/teacher/classes/{id}/report` | Class learning report |
+| GET | `/teacher/classes/{id}/report.csv` | Export class report CSV |
+| GET | `/teacher/classes/{id}/students/{user_id}` | Student detail in class |
 | POST | `/auth/profile`, `/auth/change-password` | Account settings |
 
 ### Admin / contributor (RBAC)
@@ -94,7 +111,7 @@ Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SI
 | GET | `/review-queue` | Pending review items |
 | POST | `/review/{type}/{id}/publish\|reject` | Approve or reject content |
 
-Apply schema in order: [`migrations/001`](migrations/001_api_learning_content.sql) through [`007`](migrations/007_roles_student_teacher.sql).
+Apply schema in order: [`migrations/001`](migrations/001_api_learning_content.sql) through [`009`](migrations/009_sdl_adaptive_learning.sql) (`009` = classes, learning events, attempts, mastery, goals).
 
 ---
 

@@ -186,6 +186,10 @@ function admin_permission_groups(): array
             'label' => '課程編排',
             'prefixes' => ['topic_item.'],
         ],
+        'class' => [
+            'label' => '班級與學習',
+            'prefixes' => ['class.', 'student.'],
+        ],
     ];
 }
 
@@ -252,6 +256,9 @@ function admin_permission_labels(): array
         'learning_video.manage_any' => '管理全部學習影片',
         'learning_video.manage_own' => '管理自己的學習影片',
         'topic_item.manage_any' => '管理自學課程編排',
+        'class.manage_any' => '管理全部班級',
+        'class.manage_own' => '管理自己的班級',
+        'student.profile_own' => '管理自己的學生檔案',
     ];
 }
 

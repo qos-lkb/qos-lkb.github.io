@@ -35,13 +35,33 @@ function api_user_payload(?array $user = null): ?array
         return null;
     }
     auth_refresh_permissions($user['id']);
-    return [
+
+    $payload = [
         'id' => $user['id'],
         'email' => $user['email'],
         'display_name' => $user['display_name'],
         'permissions' => array_values($_SESSION['permissions'] ?? []),
         'csrf_token' => csrf_token(),
     ];
+
+    try {
+        require_once __DIR__ . '/classes_lib.php';
+        $pdo = db();
+        $enriched = classes_enrich_user_payload($pdo, $user);
+        $payload['roles'] = $enriched['roles'];
+        $payload['is_student'] = $enriched['is_student'];
+        $payload['is_teacher'] = $enriched['is_teacher'];
+        $payload['profile'] = $enriched['profile'];
+        $payload['classes'] = $enriched['classes'];
+    } catch (Throwable $e) {
+        $payload['roles'] = [];
+        $payload['is_student'] = false;
+        $payload['is_teacher'] = false;
+        $payload['profile'] = null;
+        $payload['classes'] = [];
+    }
+
+    return $payload;
 }
 
 function api_can_manage_simulation(array $sim, array $user): bool

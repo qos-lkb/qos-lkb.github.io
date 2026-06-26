@@ -30,6 +30,18 @@
         };
         await enhanceMarkdown(main);
 
+        if (global.AppLearningTracker) {
+            global.AppLearningTracker.trackContentOpen('worksheet', slug, {
+                subject_id: ws.subject_id,
+                topic_id: ws.topic_id,
+            });
+            const bodyEl = document.getElementById('ws-body');
+            if (bodyEl) global.AppLearningTracker.bindScrollComplete(bodyEl, 'worksheet', slug, {
+                subject_id: ws.subject_id,
+                topic_id: ws.topic_id,
+            });
+        }
+
         const wsPage = document.getElementById('ws-page');
         if (global.AppCourse && global.AppCourse.isCourseMode()) {
             global.AppCourse.attachItemNav(wsPage, 'worksheet', slug);

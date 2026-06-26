@@ -72,7 +72,9 @@ function admin_has_any_access(): bool
         || user_has_permission('worksheet.manage_any')
         || user_has_permission('learning_video.manage_any')
         || user_has_permission('topic_item.manage_any')
-        || user_has_permission('question_bank.manage_any');
+        || user_has_permission('question_bank.manage_any')
+        || user_has_permission('class.manage_own')
+        || user_has_permission('class.manage_any');
 }
 
 function admin_btn(string $href, string $label, string $type = 'primary'): string
@@ -137,6 +139,15 @@ function admin_menu_sections(): array
     }
     if ($contentItems !== []) {
         $sections[] = ['label' => '內容管理', 'items' => $contentItems];
+    }
+
+    $classItems = [];
+    if (user_has_permission('class.manage_any') || user_has_permission('class.manage_own')) {
+        $classItems[] = ['key' => 'classes', 'label' => '班級管理', 'href' => 'classes.php', 'accent' => 'blue'];
+        $classItems[] = ['key' => 'class_reports', 'label' => '班級報告', 'href' => 'classes.php', 'accent' => 'teal'];
+    }
+    if ($classItems !== []) {
+        $sections[] = ['label' => '學習分析', 'items' => $classItems];
     }
 
     if (user_has_permission('user.manage')) {
@@ -252,6 +263,8 @@ function admin_dashboard_card_meta(): array
         'review_queue' => ['icon' => 'review', 'tone' => 'amber', 'desc' => '審核待發佈的投稿內容。'],
         'subjects' => ['icon' => 'folder', 'tone' => 'slate', 'desc' => '維護科目、單元與前台側欄目錄結構。'],
         'users' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '新增、編輯使用者並指派角色。'],
+        'classes' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '管理班級、邀請碼與學生名單。'],
+        'class_reports' => ['icon' => 'sheet', 'tone' => 'teal', 'desc' => '檢視班級學習報告與掌握度。'],
         'permissions' => ['icon' => 'lock', 'tone' => 'slate', 'desc' => '調整各角色的系統權限。'],
         'codespace' => ['icon' => 'code', 'tone' => 'slate', 'desc' => 'HTML 即時編輯與預覽（新分頁開啟）。'],
         'db_import' => ['icon' => 'db', 'tone' => 'orange', 'desc' => '上載 SQL 還原或取代整個資料庫。'],

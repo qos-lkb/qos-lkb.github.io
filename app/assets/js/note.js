@@ -91,6 +91,18 @@
             };
             await enhanceMarkdown(main);
 
+            if (global.AppLearningTracker) {
+                global.AppLearningTracker.trackContentOpen('note', slug, {
+                    subject_id: note.subject_id,
+                    topic_id: note.topic_id,
+                });
+                const bodyEl = document.getElementById('note-body');
+                if (bodyEl) global.AppLearningTracker.bindScrollComplete(bodyEl, 'note', slug, {
+                    subject_id: note.subject_id,
+                    topic_id: note.topic_id,
+                });
+            }
+
             const page = document.getElementById('note-page');
             if (global.AppCourse && global.AppCourse.isCourseMode()) {
                 global.AppCourse.attachItemNav(page, 'note', slug);

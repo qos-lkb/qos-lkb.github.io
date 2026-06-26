@@ -9,6 +9,12 @@
     async function renderQuiz(slug) {
         const main = document.getElementById('main-content');
         const tool = await apiFetch('/learning-tools/' + encodeURIComponent(slug));
+        if (global.AppLearningTracker) {
+            global.AppLearningTracker.trackContentOpen('learning_tool', slug, {
+                subject_id: tool.subject_id,
+                topic_id: tool.topic_id,
+            });
+        }
         const lang = getLang();
         const title = lang === 'zh' ? tool.title_zh : tool.title_en;
         const questions = tool.questions || [];
@@ -84,17 +90,46 @@
 
             document.getElementById('quiz-prev')?.addEventListener('click', () => { qIndex--; renderQuestion(); });
             document.getElementById('quiz-next')?.addEventListener('click', () => { qIndex++; renderQuestion(); });
-            document.getElementById('quiz-submit')?.addEventListener('click', () => {
+            document.getElementById('quiz-submit')?.addEventListener('click', async () => {
                 submitted = true;
                 score = 0;
+                const responsePayload = [];
                 questions.forEach(q => {
                     const ans = answerMap[q.id];
-                    if (ans && selections[q.id] === ans.correct_option_index) score++;
+                    const sel = selections[q.id];
+                    const correct = ans && sel === ans.correct_option_index;
+                    if (correct) score++;
+                    responsePayload.push({
+                        question_id: q.id,
+                        selected_option_index: sel !== undefined ? sel : null,
+                    });
                 });
                 document.getElementById('quiz-score').textContent = t(
                     `得分：${score} / ${questions.length}`,
                     `Score: ${score} / ${questions.length}`
                 );
+                if (global.ScienceApi.getUser() && tool.id) {
+                    try {
+                        await apiFetch('/learning/attempts', {
+                            method: 'POST',
+                            body: {
+                                source_type: 'learning_tool',
+                                source_id: tool.id,
+                                responses: responsePayload,
+                            },
+                        });
+                        if (global.AppLearningTracker) {
+                            global.AppLearningTracker.trackContentComplete('learning_tool', slug, {
+                                subject_id: tool.subject_id,
+                                topic_id: tool.topic_id,
+                            });
+                        }
+                    } catch (e) {
+                        document.getElementById('quiz-score').textContent += t('（未儲存進度）', ' (not saved)');
+                    }
+                } else if (!global.ScienceApi.getUser()) {
+                    document.getElementById('quiz-score').textContent += ' · ' + t('登入以儲存進度', 'Log in to save progress');
+                }
                 renderQuestion();
             });
         }

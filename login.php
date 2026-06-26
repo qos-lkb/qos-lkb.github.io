@@ -57,7 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">登入</button>
         </form>
-        <p class="mt-4 text-sm text-slate-500"><a href="app/" class="text-indigo-600 underline">返回首頁</a></p>
+        <p class="mt-4 text-sm text-slate-500">
+            <a href="register.php" class="text-indigo-600 underline">學生註冊</a>
+            · <a href="app/" class="text-indigo-600 underline">返回首頁</a>
+        </p>
     </div>
 </body>
 </html>

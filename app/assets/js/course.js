@@ -348,11 +348,12 @@
         });
     }
 
-    function itemRowHtml(item, idx, subjectSlug, topicSlug) {
+    function itemRowHtml(item, idx, subjectSlug, topicSlug, completed) {
         const lang = getLang();
         const title = lang === 'zh' ? item.title_zh : item.title_en;
         const icon = TYPE_ICONS[item.content_type] || '•';
         const label = typeLabel(item.content_type);
+        const doneBadge = completed ? '<span class="text-emerald-500 text-sm flex-shrink-0" title="' + t('已完成', 'Done') + '">✓</span>' : '';
         let meta = '';
         if (item.reading_time_minutes) {
             meta = `<span class="text-xs text-slate-400">${t('約', '~')}${item.reading_time_minutes}${t(' 分鐘', ' min')}</span>`;
@@ -368,6 +369,7 @@
                     <p class="text-xs text-slate-500">${escapeHtml(label)}</p>
                 </div>
                 ${meta}
+                ${doneBadge}
             </button>`;
     }
 
@@ -386,6 +388,43 @@
         const tpName = lang === 'zh' ? ctx.topic.name_zh : ctx.topic.name_en;
         if (title) title.textContent = tpName;
         renderCoursesSidebar(subjectSlug, topicSlug);
+
+        if (global.AppLearningTracker) {
+            global.AppLearningTracker.trackCourseTopic(subjectSlug, topicSlug, ctx.topic.id || null);
+        }
+
+        let progressMap = {};
+        let recBanner = '';
+        if (global.ScienceApi.getUser() && ctx.topic.id) {
+            try {
+                const prog = await apiFetch('/learning/progress?topic_id=' + encodeURIComponent(ctx.topic.id));
+                progressMap = prog.completed || {};
+            } catch (e) { /* ignore */ }
+            try {
+                const rec = await apiFetch('/learning/recommendations');
+                const weak = (rec.weak_topics || []).find((w) => w.topic_slug === topicSlug);
+                if (weak && weak.suggested_items && weak.suggested_items.length) {
+                    const sug = weak.suggested_items[0];
+                    const stitle = lang === 'zh' ? sug.title_zh : sug.title_en;
+                    recBanner = `<div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm">
+                        <p class="text-amber-900 font-medium">${t('根據你的表現，建議先完成：', 'Based on your progress, try:')} ${escapeHtml(stitle)}</p>
+                        <button type="button" class="course-rec-link text-indigo-600 hover:underline" data-route="${escapeHtml(sug.route)}">${t('前往', 'Go')} →</button>
+                    </div>`;
+                } else if (rec.next_course_item && rec.next_course_item.topic_slug === topicSlug) {
+                    const ni = rec.next_course_item;
+                    const ntitle = lang === 'zh' ? ni.title_zh : ni.title_en;
+                    recBanner = `<div class="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-sm">
+                        <p class="text-indigo-900">${t('建議下一步：', 'Suggested next:')} ${escapeHtml(ntitle)}</p>
+                        <button type="button" class="course-rec-link text-indigo-600 hover:underline" data-route="${escapeHtml(ni.route)}">${t('繼續', 'Continue')} →</button>
+                    </div>`;
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        function isItemDone(item) {
+            const list = progressMap[item.content_type] || [];
+            return list.includes(item.slug);
+        }
 
         const items = ctx.topic.items || [];
         const topics = ctx.subject.topics || [];
@@ -412,8 +451,9 @@
         } else {
             container.innerHTML = `
                 <p class="text-xs text-indigo-600 mb-2">${escapeHtml(subName)}</p>
+                ${recBanner}
                 <p class="text-slate-600 text-sm mb-4">${t('依序完成以下內容：', 'Complete the following in order:')}</p>
-                <div class="space-y-2">${items.map((it, i) => itemRowHtml(it, i, subjectSlug, topicSlug)).join('')}</div>
+                <div class="space-y-2">${items.map((it, i) => itemRowHtml(it, i, subjectSlug, topicSlug, isItemDone(it))).join('')}</div>
                 ${topicNav}`;
             container.querySelectorAll('.course-item-row').forEach((row) => {
                 row.onclick = () => openItem(
@@ -429,6 +469,9 @@
         });
         container.querySelector('.course-topic-nav-next')?.addEventListener('click', (e) => {
             navigate(topicRoute(e.currentTarget.dataset.subject, e.currentTarget.dataset.topic));
+        });
+        container.querySelectorAll('.course-rec-link').forEach((btn) => {
+            btn.addEventListener('click', () => navigate(btn.getAttribute('data-route')));
         });
     }
 

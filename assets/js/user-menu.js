@@ -265,6 +265,8 @@
         const name = escapeHtml(user.display_name || user.email);
         const email = escapeHtml(user.email);
         const perms = user.permissions || [];
+        const isStudent = user.is_student || (user.roles || []).includes('student');
+        const canClass = perms.includes('class.manage_own') || perms.includes('class.manage_any');
         const canAdmin = perms.includes('simulation.manage_any') || perms.includes('user.manage');
         const canPortal = perms.includes('simulation.manage_own') || canAdmin;
 
@@ -282,6 +284,10 @@
                     <div class="user-menu-dropdown-name">${name}</div>
                     <div class="user-menu-dropdown-email">${email}</div>
                 </div>
+                ${isStudent ? `<a href="${base}/app/dashboard" class="user-menu-item" role="menuitem">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    ${t('我的學習', 'My learning')}
+                </a>` : ''}
                 <button type="button" class="user-menu-item" data-action="settings-profile" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                     ${t('個人資料', 'Profile')}
@@ -296,8 +302,9 @@
                 </button>
                 <div class="user-menu-divider"></div>
                 ${canPortal ? `<a href="${base}/portal/simulations.php" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
+                ${canClass ? `<a href="${base}/admin/classes.php" class="user-menu-item" role="menuitem">${t('班級管理', 'Classes')}</a>` : ''}
                 ${canAdmin ? `<a href="${base}/admin/index.php" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
-                ${(canPortal || canAdmin) ? '<div class="user-menu-divider"></div>' : ''}
+                ${(canPortal || canAdmin || canClass) ? '<div class="user-menu-divider"></div>' : ''}
                 <a href="${base}/app/" class="user-menu-item sm:hidden" role="menuitem">${t('前台首頁', 'Home')}</a>
                 <button type="button" class="user-menu-item user-menu-item-danger" data-action="logout" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
