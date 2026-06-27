@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/user_admin.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
+require_once dirname(__DIR__) . '/includes/classes_lib.php';
 
 bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/users.php'));
@@ -12,6 +13,7 @@ require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/use
 $pdo = db();
 $acting = current_user();
 assert($acting !== null);
+$canImpersonate = auth_user_is_admin($pdo, (int) $acting['id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inline_update') {
     header('Content-Type: application/json; charset=utf-8');
@@ -20,6 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inlin
 }
 
 $flash = '';
+if (isset($_GET['impersonate_stopped'])) {
+    $flash = '已結束模仿模式，恢復為您的管理員身分。';
+}
+if (!empty($_GET['impersonate_error'])) {
+    $flash = (string) $_GET['impersonate_error'];
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
     $r = admin_delete_user($pdo, $_POST, $acting['id']);
     $flash = $r['ok'] ? '已刪除使用者。' : ($r['error'] ?? '錯誤');
@@ -49,12 +57,15 @@ foreach ($allRoles as $role) {
 $csrf = csrf_token();
 
 admin_page_start('使用者', 'users', [
-    'actions' => admin_btn('user_edit.php', '新增') . ' ' . admin_btn('classes.php', '班級管理', 'secondary'),
+    'actions' => admin_btn('user_edit.php', '新增') . ' ' . admin_btn('courses.php', '課程管理', 'secondary'),
     'wide' => true,
 ]);
 ?>
         <?php if ($flash !== ''): ?>
             <p class="text-sm text-slate-700 mb-4"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?></p>
+        <?php endif; ?>
+        <?php if ($canImpersonate): ?>
+        <p class="text-sm text-slate-500 mb-3">管理員可點擊<strong>模仿</strong>以該使用者身分瀏覽前台；模仿期間頂部會顯示提示列，可隨時退回自己的身分。</p>
         <?php endif; ?>
         <p class="text-sm text-slate-500 mb-3">雙擊<strong>中文名</strong>、<strong>英文名</strong>或<strong>角色</strong>欄位可編輯；離開欄位後自動儲存（系統帳號除外）。</p>
         <p id="users-inline-flash" class="text-sm mb-3 hidden"></p>
@@ -94,6 +105,14 @@ admin_page_start('使用者', 'users', [
                         <td class="p-3 whitespace-nowrap users-cell-actions">
                             <?php if (!$isSystem): ?>
                             <a href="user_edit.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline users-edit-link">編輯</a>
+                            <?php if ($canImpersonate && (int) $r['id'] !== (int) $acting['id']): ?>
+                            <form method="post" action="impersonate.php" class="inline ml-2" onsubmit="return confirm('確定以「<?php echo htmlspecialchars((string) ($r['name_zh'] ?: $r['name_en'] ?: $r['email']), ENT_QUOTES, 'UTF-8'); ?>」的身分瀏覽前台？');">
+                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="action" value="start">
+                                <input type="hidden" name="user_id" value="<?php echo (int) $r['id']; ?>">
+                                <button type="submit" class="text-amber-700 hover:underline" title="以該使用者身分瀏覽前台">模仿</button>
+                            </form>
+                            <?php endif; ?>
                             <form method="post" class="inline ml-2" onsubmit="return confirm('確定刪除？');">
                                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
                                 <input type="hidden" name="action" value="delete">

@@ -39,6 +39,7 @@
         const continueItems = data.continue_learning || [];
         const mastery = data.mastery || [];
         const rec = data.recommendations || {};
+        const pendingAssignments = data.worksheet_assignments || [];
         const lang = getLang();
 
         let goalHtml = '';
@@ -101,6 +102,22 @@
             suggestHtml = `<p class="text-sm text-slate-500">${t('繼續探索課程內容', 'Keep exploring course content')}</p>`;
         }
 
+        const assignStatusLabel = (s) => {
+            if (s === 'submitted') return t('已提交', 'Submitted');
+            return t('待完成', 'To do');
+        };
+        const assignmentsHtml = pendingAssignments.length
+            ? pendingAssignments.map((a) => {
+                const title = lang === 'zh' ? a.title_zh : a.title_en;
+                const due = a.due_at ? ` · ${t('截止', 'Due')} ${String(a.due_at).slice(0, 10)}` : '';
+                return `<button type="button" class="dash-assign block w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition" data-route="${escapeHtml(a.route)}">
+                    <span class="text-xs text-slate-400">${escapeHtml(a.class_name || '')}${due}</span>
+                    <span class="block font-medium text-slate-800">${escapeHtml(title)}</span>
+                    <span class="text-xs text-amber-700">${assignStatusLabel(a.submission_status)}</span>
+                </button>`;
+            }).join('')
+            : `<p class="text-sm text-slate-500">${t('沒有待完成習作', 'No pending assignments')}</p>`;
+
         main.innerHTML = `
             <div class="max-w-5xl mx-auto space-y-8">
                 <div class="flex flex-wrap items-start justify-between gap-4">
@@ -129,14 +146,22 @@
 
                 <div class="grid lg:grid-cols-2 gap-6">
                     <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <div class="flex items-center justify-between gap-2 mb-4">
+                            <h2 class="text-lg font-bold text-slate-900">${t('課程習作', 'Assignments')}</h2>
+                            <button type="button" id="dash-goto-assignments" class="text-sm text-indigo-600 hover:underline">${t('全部', 'All')} →</button>
+                        </div>
+                        <div class="space-y-2">${assignmentsHtml}</div>
+                    </section>
+                    <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                         <h2 class="text-lg font-bold text-slate-900 mb-4">${t('繼續學習', 'Continue learning')}</h2>
                         <div class="space-y-2">${continueHtml}</div>
                     </section>
-                    <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                        <h2 class="text-lg font-bold text-slate-900 mb-4">${t('建議學習', 'Recommendations')}</h2>
-                        ${suggestHtml}
-                    </section>
                 </div>
+
+                <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4">${t('建議學習', 'Recommendations')}</h2>
+                    ${suggestHtml}
+                </section>
 
                 <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                     <h2 class="text-lg font-bold text-slate-900 mb-4">${t('課題掌握度', 'Topic mastery')}</h2>
@@ -169,6 +194,7 @@
         }
 
         document.getElementById('dash-goto-courses')?.addEventListener('click', () => navigate('/courses'));
+        document.getElementById('dash-goto-assignments')?.addEventListener('click', () => navigate('/assignments'));
         main.querySelectorAll('[data-route]').forEach((el) => {
             el.addEventListener('click', () => navigate(el.getAttribute('data-route')));
         });

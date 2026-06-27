@@ -78,7 +78,7 @@ function api_handle_teacher_class_report(PDO $pdo, int $classId): void
     $user = require_api_user();
     $class = classes_fetch_by_id($pdo, $classId);
     if ($class === null) {
-        api_json_error('not_found', '找不到班級。', 404);
+        api_json_error('not_found', '找不到課程。', 404);
     }
     if (!classes_can_manage($pdo, $class, $user)) {
         api_json_error('forbidden', '沒有權限。', 403);
@@ -97,7 +97,7 @@ function api_handle_teacher_class_student_detail(PDO $pdo, int $classId, int $st
     $user = require_api_user();
     $class = classes_fetch_by_id($pdo, $classId);
     if ($class === null) {
-        api_json_error('not_found', '找不到班級。', 404);
+        api_json_error('not_found', '找不到課程。', 404);
     }
     if (!classes_can_manage($pdo, $class, $user)) {
         api_json_error('forbidden', '沒有權限。', 403);
@@ -108,7 +108,7 @@ function api_handle_teacher_class_student_detail(PDO $pdo, int $classId, int $st
     );
     $enrolled->execute([$classId, $studentUserId]);
     if (!$enrolled->fetch()) {
-        api_json_error('not_found', '學生不在此班級。', 404);
+        api_json_error('not_found', '學生不在此課程。', 404);
     }
 
     $stmt = $pdo->prepare('SELECT id, email, display_name FROM users WHERE id = ? LIMIT 1');
@@ -133,7 +133,7 @@ function api_teacher_class_report_csv(PDO $pdo, int $classId): void
     $user = require_api_user();
     $class = classes_fetch_by_id($pdo, $classId);
     if ($class === null) {
-        api_json_error('not_found', '找不到班級。', 404);
+        api_json_error('not_found', '找不到課程。', 404);
     }
     if (!classes_can_manage($pdo, $class, $user)) {
         api_json_error('forbidden', '沒有權限。', 403);
@@ -144,7 +144,7 @@ function api_teacher_class_report_csv(PDO $pdo, int $classId): void
     header('Content-Disposition: attachment; filename="class-' . $classId . '-report.csv"');
     echo "\xEF\xBB\xBF";
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['姓名', '電郵', '平均掌握度', '本週學習分鐘', '最後上線', '最近測驗']);
+    fputcsv($out, ['姓名', '電郵', '班別', '班號', 'MOI', '平均掌握度', '本週學習分鐘', '最後上線', '最近測驗']);
     foreach ($students as $s) {
         $lastAttempt = '';
         if ($s['last_attempt']) {
@@ -153,6 +153,9 @@ function api_teacher_class_report_csv(PDO $pdo, int $classId): void
         fputcsv($out, [
             $s['display_name'],
             $s['email'],
+            $s['form_class'] ?? '',
+            $s['class_no'] ?? '',
+            $s['moi'] ?? '',
             $s['avg_mastery'],
             $s['minutes_week'],
             $s['last_active_at'] ?? '',

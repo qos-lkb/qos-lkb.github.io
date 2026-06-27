@@ -299,6 +299,11 @@ function adaptive_class_student_reports(PDO $pdo, int $classId): array
             'user_id' => $uid,
             'display_name' => (string) $s['display_name'],
             'email' => (string) $s['email'],
+            'form_class' => isset($s['form_class']) && $s['form_class'] !== null && $s['form_class'] !== ''
+                ? (string) $s['form_class'] : null,
+            'class_no' => isset($s['class_no']) && $s['class_no'] !== null && $s['class_no'] !== ''
+                ? (int) $s['class_no'] : null,
+            'moi' => classes_normalize_moi($s['moi'] ?? null),
             'avg_mastery' => round($avg, 1),
             'topic_count' => count($mastery),
             'last_active_at' => $lastAt ? (string) $lastAt : null,

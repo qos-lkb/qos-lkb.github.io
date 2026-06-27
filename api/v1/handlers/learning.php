@@ -7,6 +7,9 @@ require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/learning_analytics_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/learning_assessment_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/adaptive_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/worksheet_assignments_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/worksheet_permissions_lib.php';
 
 function api_handle_learning_events(PDO $pdo): void
 {
@@ -96,9 +99,32 @@ function api_handle_learning_progress(PDO $pdo): void
 function api_handle_learning_dashboard(PDO $pdo): void
 {
     $user = require_api_user();
+    auth_refresh_permissions($user['id']);
     $summary = la_user_summary($pdo, $user['id']);
     $goal = la_current_goal($pdo, $user['id']);
     $recommendations = adaptive_recommendations($pdo, $user['id']);
+
+    $worksheetAssignments = [];
+    if (worksheet_user_can_submit()) {
+        foreach (wa_list_for_student($pdo, $user['id']) as $row) {
+            $subStatus = (string) ($row['submission_status'] ?? 'pending');
+            if ($subStatus === 'graded') {
+                continue;
+            }
+            $worksheetAssignments[] = [
+                'id' => (int) $row['id'],
+                'title_zh' => $row['title_zh'] ?: $row['worksheet_title_zh'],
+                'title_en' => $row['title_en'] ?: $row['worksheet_title_en'],
+                'class_name' => $row['class_name'],
+                'due_at' => $row['due_at'],
+                'submission_status' => $subStatus,
+                'route' => '/assignment/' . (int) $row['id'],
+            ];
+            if (count($worksheetAssignments) >= 6) {
+                break;
+            }
+        }
+    }
 
     api_json_ok([
         'summary' => $summary,
@@ -111,6 +137,7 @@ function api_handle_learning_dashboard(PDO $pdo): void
         ] : null,
         'recommendations' => $recommendations,
         'recent_attempts' => la_user_attempts($pdo, $user['id'], 5),
+        'worksheet_assignments' => $worksheetAssignments,
     ]);
 }
 

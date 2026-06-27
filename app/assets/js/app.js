@@ -5,6 +5,7 @@
         courses: { zh: '自學課程', en: 'Self-study' },
         notes: { zh: '課程及學習筆記', en: 'Courses & Notes' },
         worksheets: { zh: '工作紙', en: 'Worksheets' },
+        videos: { zh: '學習影片', en: 'Videos' },
         simulations: { zh: '模擬程式', en: 'Simulations' },
         articles: { zh: '科學文章', en: 'Science Articles' },
         learning: { zh: '互動學習工具', en: 'Interactive Tools' },
@@ -32,7 +33,7 @@
         const coreLabel = document.getElementById('sidebar-core-label');
         if (coreLabel) {
             const courseTab = document.querySelector('.nav-tab[data-tab="courses"]')?.classList.contains('active')
-                || ['notes', 'worksheets', 'articles'].some((tab) =>
+                || ['notes', 'worksheets', 'videos', 'articles'].some((tab) =>
                     document.querySelector(`.nav-tab[data-tab="${tab}"]`)?.classList.contains('active')
                 );
             coreLabel.textContent = lang === 'zh'
@@ -50,7 +51,7 @@
         }
     }
 
-    const SIDEBAR_TABS = new Set(['courses', 'simulations', 'notes', 'worksheets', 'articles']);
+    const SIDEBAR_TABS = new Set(['courses', 'simulations', 'notes', 'worksheets', 'videos', 'articles']);
 
     function setActiveTab(tab) {
         document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -154,6 +155,12 @@
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderWorksheetsList();
             },
+            '/learning-videos': async () => {
+                restoreMainShell();
+                setActiveTab('videos');
+                if (window.AppCourse) AppCourse.clearCourseContext();
+                await AppCatalog.renderLearningVideosList();
+            },
             '/learning-tools': async () => {
                 restoreMainShell();
                 setActiveTab('learning');
@@ -206,9 +213,17 @@
                 await AppWorksheet.renderWorksheet(slug);
             },
             '/video/:slug': async (slug) => {
-                setActiveTab('courses');
-                const ctx = window.AppCourse && AppCourse.getCourseContext();
-                if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                const inCourse = window.AppCourse && AppCourse.isCourseMode();
+                setActiveTab(inCourse ? 'courses' : 'videos');
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) sidebar.style.display = '';
+                if (inCourse) {
+                    const ctx = AppCourse.getCourseContext();
+                    if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                } else {
+                    await AppCatalog.loadCatalog({ skipNavRender: true });
+                    await AppCatalog.prepareVideosSidebar(slug);
+                }
                 await AppVideo.renderVideo(slug);
             },
             '/simulation/:slug': async (slug) => {
@@ -227,12 +242,27 @@
                 });
                 if (window.AppDashboard) await AppDashboard.renderDashboard();
             },
+            '/assignments': async () => {
+                document.querySelectorAll('.nav-tab').forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAssignments) await AppAssignments.renderAssignmentsList();
+            },
+            '/assignment/:id': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAssignments) await AppAssignments.renderAssignment(id);
+            },
         });
 
         const tabRoutes = {
             courses: '/courses',
             notes: '/learning-notes',
             worksheets: '/worksheets',
+            videos: '/learning-videos',
             simulations: '/simulations',
             articles: '/articles',
             learning: '/learning-tools',

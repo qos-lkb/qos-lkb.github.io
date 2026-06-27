@@ -67,6 +67,7 @@ function api_v1_dispatch(): void
         'POST /auth/login' => 'api_handle_auth_login',
         'POST /auth/register' => 'api_handle_auth_register',
         'POST /auth/logout' => 'api_handle_auth_logout',
+        'POST /auth/stop-impersonation' => 'api_handle_auth_stop_impersonation',
         'GET /auth/me' => 'api_handle_auth_me',
         'GET /subjects' => 'api_handle_subjects',
     ];
@@ -352,6 +353,48 @@ function api_v1_dispatch(): void
         return;
     }
 
+    if (preg_match('#^GET /teacher/classes/(\d+)/worksheet-assignments$#', $routeKey, $m)) {
+        api_handle_teacher_class_worksheet_assignments($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /teacher/classes/(\d+)/worksheet-assignments$#', $routeKey, $m)) {
+        api_handle_teacher_class_worksheet_assignments($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^GET /teacher/worksheet-assignments/(\d+)$#', $routeKey, $m)) {
+        api_handle_teacher_worksheet_assignment_detail($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /teacher/worksheet-assignments/(\d+)$#', $routeKey, $m)) {
+        api_handle_teacher_worksheet_assignment_detail($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /teacher/worksheet-submissions/(\d+)/grade$#', $routeKey, $m)) {
+        api_handle_teacher_worksheet_submission_grade($pdo, (int) $m[1]);
+        return;
+    }
+    if ($path === '/teacher/worksheets') {
+        api_handle_teacher_worksheets_list($pdo);
+        return;
+    }
+
+    if ($path === '/student/worksheet-assignments') {
+        if ($method === 'GET') {
+            api_handle_student_worksheet_assignments_list($pdo);
+        } else {
+            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+        }
+        return;
+    }
+    if (preg_match('#^GET /student/worksheet-assignments/(\d+)$#', $routeKey, $m)) {
+        api_handle_student_worksheet_assignment_get($pdo, (int) $m[1]);
+        return;
+    }
+    if (preg_match('#^POST /student/worksheet-assignments/(\d+)/submit$#', $routeKey, $m)) {
+        api_handle_student_worksheet_assignment_submit($pdo, (int) $m[1]);
+        return;
+    }
+
     api_json_error('not_found', '找不到資源。', 404);
 }
 
@@ -386,6 +429,11 @@ function api_handle_catalog(PDO $pdo): void
     $artRows = art_fetch_published($pdo);
     $noteRows = api_catalog_fetch_learning_notes($pdo);
     $wsRows = api_catalog_fetch_worksheets($pdo);
+    try {
+        $videoRows = lv_fetch_published($pdo);
+    } catch (Throwable $e) {
+        $videoRows = [];
+    }
 
     api_json_ok([
         'simulations' => $struct,
@@ -400,6 +448,11 @@ function api_handle_catalog(PDO $pdo): void
             unset($out['body_zh'], $out['body_en']);
             return $out;
         }, $noteRows),
+        'learning_videos' => array_map(function (array $r) {
+            $out = lv_public_row($r);
+            unset($out['embed_url'], $out['embed_url_zh'], $out['embed_url_en']);
+            return $out;
+        }, $videoRows),
         'worksheets' => array_map(function (array $r) {
             $out = ws_public_row($r);
             unset($out['body_zh'], $out['body_en']);
@@ -477,4 +530,5 @@ require_once __DIR__ . '/handlers/review.php';
 require_once __DIR__ . '/handlers/question_bank.php';
 require_once __DIR__ . '/handlers/students.php';
 require_once __DIR__ . '/handlers/teacher.php';
+require_once __DIR__ . '/handlers/worksheet_assignments.php';
 require_once __DIR__ . '/handlers/learning.php';

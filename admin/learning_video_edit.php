@@ -30,9 +30,13 @@ admin_page_start($id ? '編輯學習影片' : '新增學習影片', 'learning_vi
             </div>
             <div><label class="text-sm font-medium">slug</label><input id="slug" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm"></div>
             <div>
-                <label class="text-sm font-medium">YouTube / Vimeo 連結</label>
-                <input id="source-url" type="url" class="w-full border rounded-lg px-3 py-2 mt-1" placeholder="https://www.youtube.com/watch?v=...">
-                <p class="text-xs text-slate-500 mt-1">儲存時會轉換為安全嵌入網址。</p>
+                <label class="text-sm font-medium">影片連結（中文版本）</label>
+                <input id="source-url-zh" type="url" class="w-full border rounded-lg px-3 py-2 mt-1" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <div>
+                <label class="text-sm font-medium">影片連結（英文版本）</label>
+                <input id="source-url-en" type="url" class="w-full border rounded-lg px-3 py-2 mt-1" placeholder="https://www.youtube.com/watch?v=...">
+                <p class="text-xs text-slate-500 mt-1">至少填寫其中一個語言版本。支援 YouTube、Vimeo、Brightcove、Dailymotion、Facebook、Instagram；儲存時會轉換為安全嵌入網址。</p>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div><label class="text-sm font-medium">科目</label><select id="subject-id" class="w-full border rounded-lg px-3 py-2 mt-1"><option value="">—</option>
@@ -66,7 +70,8 @@ admin_page_end([
                 document.getElementById('title-zh').value=row.title_zh||'';
                 document.getElementById('title-en').value=row.title_en||'';
                 document.getElementById('slug').value=row.slug||'';
-                document.getElementById('source-url').value=row.embed_url||'';
+                document.getElementById('source-url-zh').value=row.embed_url_zh||row.embed_url||'';
+                document.getElementById('source-url-en').value=row.embed_url_en||'';
                 document.getElementById('status').value=row.status||'draft';
                 document.getElementById('duration').value=row.duration_minutes||'';
                 if(row.subject_id){document.getElementById('subject-id').value=row.subject_id;document.getElementById('subject-id').dispatchEvent(new Event('change'));}
@@ -75,7 +80,7 @@ admin_page_end([
         }
         document.getElementById('edit-form').onsubmit=async(e)=>{
             e.preventDefault();
-            const payload={id:parseInt(document.getElementById('item-id').value,10)||undefined,title_zh:document.getElementById('title-zh').value,title_en:document.getElementById('title-en').value,slug:document.getElementById('slug').value,source_url:document.getElementById('source-url').value,subject_id:document.getElementById('subject-id').value||null,topic_id:document.getElementById('topic-id').value||null,duration_minutes:document.getElementById('duration').value||null,status:document.getElementById('status').value};
+            const payload={id:parseInt(document.getElementById('item-id').value,10)||undefined,title_zh:document.getElementById('title-zh').value,title_en:document.getElementById('title-en').value,slug:document.getElementById('slug').value,source_url_zh:document.getElementById('source-url-zh').value,source_url_en:document.getElementById('source-url-en').value,subject_id:document.getElementById('subject-id').value||null,topic_id:document.getElementById('topic-id').value||null,duration_minutes:document.getElementById('duration').value||null,status:document.getElementById('status').value};
             try{await AdminApi.apiFetch('/admin/learning-videos',{method:'POST',body:payload});location.href='learning_videos.php';}catch(err){flash.textContent=err.message;flash.classList.remove('hidden');}
         };
         const delBtn=document.getElementById('btn-delete');

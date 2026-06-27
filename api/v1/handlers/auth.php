@@ -85,3 +85,18 @@ function api_handle_auth_change_password(PDO $pdo): void
     }
     api_json_ok(['changed' => true]);
 }
+
+function api_handle_auth_stop_impersonation(PDO $pdo): void
+{
+    require_api_user();
+    api_verify_csrf_or_fail();
+
+    $r = auth_stop_impersonation($pdo);
+    if (!$r['ok']) {
+        api_json_error('validation_error', $r['error'] ?? '無法結束模仿模式。', 422);
+    }
+
+    $user = current_user();
+    assert($user !== null);
+    api_json_ok(api_user_payload($user));
+}

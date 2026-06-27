@@ -207,7 +207,11 @@
     function sanitizeHtml(html) {
         if (typeof DOMPurify === 'undefined') return html;
         return DOMPurify.sanitize(html, {
-            ADD_ATTR: ['target', 'rel', 'class', 'id'],
+            ADD_ATTR: [
+                'target', 'rel', 'class', 'id',
+                'data-embed-type', 'data-embed-slug', 'data-embed-bank',
+                'data-embed-question-id', 'data-embed-question-code', 'data-embed-question-index', 'data-embed-score', 'data-embed-key', 'data-question-type',
+            ],
             ADD_TAGS: ['details', 'summary'],
         });
     }
@@ -217,12 +221,22 @@
             return escapeHtml(markdown || '').replace(/\n/g, '<br>');
         }
         configureMarked();
-        const mermaidProtected = protectMermaid(markdown || '');
+        let source = markdown || '';
+        let embedStore = [];
+        if (global.AppContentEmbeds) {
+            const protectedEmbeds = global.AppContentEmbeds.protect(source);
+            source = protectedEmbeds.text;
+            embedStore = protectedEmbeds.store;
+        }
+        const mermaidProtected = protectMermaid(source);
         const { text, store } = protectMath(mermaidProtected.text);
         let html = marked.parse(text);
         html = restoreMath(html, store);
         html = restoreMermaid(html, mermaidProtected.store);
         html = promoteMermaidBlocks(html);
+        if (global.AppContentEmbeds) {
+            html = global.AppContentEmbeds.restore(html, embedStore);
+        }
         return sanitizeHtml(html);
     }
 
@@ -424,6 +438,9 @@
         if (!root) return;
         await renderMermaid(root);
         await typesetMath(root);
+        if (global.AppContentEmbeds) {
+            await global.AppContentEmbeds.hydrate(root);
+        }
     }
 
     global.AppMarkdown = {

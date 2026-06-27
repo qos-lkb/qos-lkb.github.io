@@ -6,7 +6,7 @@
     const TYPE_CONFIG = {
         note: {
             endpoint: '/admin/learning-notes',
-            perms: ['learning_note.manage_any', 'user.manage'],
+            perms: ['learning_note.manage_any', 'learning_note.manage_own', 'user.manage'],
         },
         article: {
             endpoint: '/admin/articles',
@@ -14,7 +14,7 @@
         },
         worksheet: {
             endpoint: '/admin/worksheets',
-            perms: ['worksheet.manage_any', 'user.manage'],
+            perms: ['worksheet.manage_any', 'worksheet.manage_own', 'user.manage'],
         },
     };
 
@@ -80,7 +80,12 @@
         if (!hint) {
             hint = document.createElement('p');
             hint.className = 'inline-edit-admin-hint';
-            hint.textContent = t('管理員：雙擊標題或內文可編輯（Ctrl+Enter 儲存，Esc 取消）', 'Admin: double-click title or body to edit (Ctrl+Enter save, Esc cancel)');
+            hint.textContent = type === 'note'
+                ? t(
+                    '雙擊標題或內文可編輯（Ctrl+Enter 儲存，Esc 取消）。內文可用 ::video、::simulation、::question 嵌入影片、模擬與試題。',
+                    'Double-click title or body to edit (Ctrl+Enter save, Esc cancel). Use ::video, ::simulation, ::question shortcodes to embed content.'
+                )
+                : t('管理員：雙擊標題或內文可編輯（Ctrl+Enter 儲存，Esc 取消）', 'Admin: double-click title or body to edit (Ctrl+Enter save, Esc cancel)');
             const backBtn = root.querySelector('button[id$="-back"], #note-back, #art-back, #ws-back');
             if (backBtn && backBtn.parentNode) {
                 backBtn.insertAdjacentElement('afterend', hint);

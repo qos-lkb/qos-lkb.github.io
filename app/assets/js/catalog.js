@@ -10,9 +10,11 @@
     let learningTools = [];
     let articles = [];
     let learningNotes = [];
+    let learningVideos = [];
     let worksheets = [];
     let contentTrees = {
         notes: { subjects: [], uncategorized: [] },
+        videos: { subjects: [], uncategorized: [] },
         worksheets: { subjects: [], uncategorized: [] },
         articles: { subjects: [], uncategorized: [] },
     };
@@ -51,6 +53,28 @@
                 if (!desc) return '';
                 const short = desc.length > 60 ? desc.slice(0, 57) + '…' : desc;
                 return `<span class="text-xs text-slate-400 line-clamp-1">${escapeHtml(short)}</span>`;
+            },
+        },
+        videos: {
+            subjectAttr: 'data-vid-subject',
+            topicClass: 'vid-topic-btn',
+            itemClass: 'vid-nav-btn',
+            buildRoute: (slug) => '/video/' + encodeURIComponent(slug),
+            pageTitle: () => t('學習影片', 'Learning Videos'),
+            listHint: () => t('依序觀看以下影片', 'Watch the following videos in order'),
+            navEmpty: () => t('尚無已發佈的學習影片。', 'No published learning videos yet.'),
+            topicEmpty: () => t('此課題尚無學習影片。', 'No learning videos in this topic yet.'),
+            listEmptyExtra: () => '',
+            itemExtraHtml: (item) => {
+                const parts = [];
+                if (item.duration_minutes) {
+                    parts.push(`${item.duration_minutes}${t(' 分鐘', ' min')}`);
+                }
+                if (item.provider) {
+                    parts.push(escapeHtml(String(item.provider)));
+                }
+                if (!parts.length) return '';
+                return `<span class="text-xs text-slate-400">${parts.join(' · ')}</span>`;
             },
         },
         articles: {
@@ -137,6 +161,13 @@
             || String(a.title_en || a.title_zh).localeCompare(String(b.title_en || b.title_zh));
     }
 
+    function contentListForKind(kind) {
+        if (kind === 'notes') return learningNotes;
+        if (kind === 'videos') return learningVideos;
+        if (kind === 'worksheets') return worksheets;
+        return articles;
+    }
+
     function contentNavItem(n) {
         return {
             slug: n.slug,
@@ -145,6 +176,8 @@
             reading_time_minutes: n.reading_time_minutes,
             description_zh: n.description_zh,
             description_en: n.description_en,
+            duration_minutes: n.duration_minutes,
+            provider: n.provider,
             list_sort_order: n.list_sort_order || 0,
         };
     }
@@ -245,7 +278,7 @@
     }
 
     function getContentContext(kind, slug) {
-        const list = kind === 'notes' ? learningNotes : kind === 'worksheets' ? worksheets : articles;
+        const list = contentListForKind(kind);
         const item = list.find((n) => n.slug === slug);
         if (!item) return { subjectId: null, topicId: null };
         if (!item.subject_id) return { subjectId: '_other', topicId: '_other' };
@@ -565,14 +598,19 @@
         learningTools = data.learning_tools || [];
         articles = data.articles || [];
         learningNotes = data.learning_notes || [];
+        learningVideos = data.learning_videos || [];
         worksheets = data.worksheets || [];
         contentTrees.notes = buildContentTree(learningNotes);
+        contentTrees.videos = buildContentTree(learningVideos);
         contentTrees.worksheets = buildContentTree(worksheets);
         contentTrees.articles = buildContentTree(articles);
         if (!opts.skipNavRender) {
             if (opts.navMode === 'notes') {
                 renderContentNav('notes', opts.activeSlug || null, opts.subjectId, opts.topicId);
                 showContentTopic('notes', opts.subjectId, opts.topicId);
+            } else if (opts.navMode === 'videos') {
+                renderContentNav('videos', opts.activeSlug || null, opts.subjectId, opts.topicId);
+                showContentTopic('videos', opts.subjectId, opts.topicId);
             } else if (opts.navMode === 'worksheets') {
                 renderContentNav('worksheets', opts.activeSlug || null, opts.subjectId, opts.topicId);
                 showContentTopic('worksheets', opts.subjectId, opts.topicId);
@@ -596,12 +634,13 @@
 
     function rebuildContentTrees() {
         contentTrees.notes = buildContentTree(learningNotes);
+        contentTrees.videos = buildContentTree(learningVideos);
         contentTrees.worksheets = buildContentTree(worksheets);
         contentTrees.articles = buildContentTree(articles);
     }
 
     async function prepareContentSidebar(kind, activeSlug) {
-        const list = kind === 'notes' ? learningNotes : kind === 'worksheets' ? worksheets : articles;
+        const list = contentListForKind(kind);
         if (!list.length) {
             await loadCatalog({ skipNavRender: true });
         }
@@ -623,6 +662,10 @@
         return prepareContentSidebar('articles', activeSlug);
     }
 
+    async function prepareVideosSidebar(activeSlug) {
+        return prepareContentSidebar('videos', activeSlug);
+    }
+
     async function renderContentList(kind, subjectId, topicId, setupHeader) {
         await loadCatalog({ skipNavRender: true });
         if (kind !== 'notes') {
@@ -633,7 +676,7 @@
         renderContentNav(kind, null, subjectId, topicId);
 
         const cfg = CONTENT_KIND[kind];
-        const list = kind === 'notes' ? learningNotes : kind === 'worksheets' ? worksheets : articles;
+        const list = contentListForKind(kind);
         const container = document.getElementById('card-container');
 
         if (!list.length) {
@@ -711,6 +754,15 @@
         });
     }
 
+    async function renderLearningVideosList(subjectId, topicId) {
+        await renderContentList('videos', subjectId, topicId, () => {
+            const titleEl = document.getElementById('page-title');
+            if (titleEl && !titleEl.textContent.trim()) {
+                titleEl.textContent = t('學習影片', 'Learning Videos');
+            }
+        });
+    }
+
     async function renderArticlesList(subjectId, topicId) {
         await renderContentList('articles', subjectId, topicId, () => {
             const titleEl = document.getElementById('page-title');
@@ -733,14 +785,17 @@
         prepareNotesSidebar,
         prepareWorksheetsSidebar,
         prepareArticlesSidebar,
+        prepareVideosSidebar,
         getNoteContext,
         getContentContext,
         renderWorksheetsList,
+        renderLearningVideosList,
         renderLearningToolsList,
         renderArticlesList,
         getLearningTools: () => learningTools,
         getArticles: () => articles,
         getLearningNotes: () => learningNotes,
+        getLearningVideos: () => learningVideos,
         getWorksheets: () => worksheets,
     };
 })(window);

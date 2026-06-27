@@ -95,6 +95,66 @@
         return escapeHtml(name.charAt(0).toUpperCase());
     }
 
+    function impersonatorName(imp, lang) {
+        if (!imp) return '';
+        const zh = (imp.name_zh || '').trim();
+        const en = (imp.name_en || '').trim();
+        const legacy = (imp.display_name || '').trim();
+        const pick = lang || userLang();
+        if (pick === 'en') {
+            return en || zh || legacy || imp.email || '?';
+        }
+        return zh || en || legacy || imp.email || '?';
+    }
+
+    async function stopImpersonation() {
+        const base = siteBase();
+        try {
+            await apiFetch('/auth/stop-impersonation', { method: 'POST', body: { csrf: csrfToken } });
+            location.href = base + '/admin/users.php?impersonate_stopped=1';
+        } catch (e) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = base + '/admin/impersonate.php';
+            form.innerHTML = '<input type="hidden" name="csrf" value="' + escapeHtml(csrfToken) + '"><input type="hidden" name="action" value="stop">';
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+
+    function renderImpersonationBanner(user) {
+        const existing = document.getElementById('impersonation-banner');
+        if (!user || !user.impersonating) {
+            if (existing) existing.remove();
+            document.body.classList.remove('impersonation-active');
+            return;
+        }
+        if (existing) return;
+
+        const imp = user.impersonator || {};
+        const asName = escapeHtml(userName(user));
+        const adminName = escapeHtml(impersonatorName(imp));
+        const banner = document.createElement('div');
+        banner.id = 'impersonation-banner';
+        banner.className = 'impersonation-banner';
+        banner.setAttribute('role', 'status');
+        banner.innerHTML = `
+            <div class="impersonation-banner-inner">
+                <span class="impersonation-banner-text">
+                    ${t('模仿模式：您正以', 'Impersonating: viewing as')} <strong>${asName}</strong>
+                    ${t('的身分瀏覽（管理員：', ' (admin: ')}<strong>${adminName}</strong>）
+                </span>
+                <button type="button" class="impersonation-banner-stop" id="btn-stop-impersonation">
+                    ${t('結束模仿', 'Stop impersonating')}
+                </button>
+            </div>`;
+        document.body.prepend(banner);
+        document.body.classList.add('impersonation-active');
+        banner.querySelector('#btn-stop-impersonation')?.addEventListener('click', () => {
+            void stopImpersonation();
+        });
+    }
+
     function closeMenu() {
         menuOpen = false;
         const root = document.querySelector('.user-menu');
@@ -286,10 +346,14 @@
         const name = escapeHtml(userName(user));
         const email = escapeHtml(user.email);
         const perms = user.permissions || [];
-        const isStudent = user.is_student || (user.roles || []).includes('student');
+        const isStudent = user.is_student || (user.roles || []).includes('student') || perms.includes('worksheet.submit_own');
         const canClass = perms.includes('class.manage_own') || perms.includes('class.manage_any');
+        const canWorksheet = perms.includes('worksheet.manage_own') || perms.includes('worksheet.manage_any');
+        const canAssignWorksheet = perms.includes('worksheet.assign_own') || perms.includes('class.manage_any');
         const canAdmin = perms.includes('simulation.manage_any') || perms.includes('user.manage');
         const canPortal = perms.includes('simulation.manage_own') || canAdmin;
+
+        renderImpersonationBanner(user);
 
         container.innerHTML = `
         <div class="user-menu">
@@ -308,6 +372,10 @@
                 ${isStudent ? `<a href="${base}/app/dashboard" class="user-menu-item" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     ${t('我的學習', 'My learning')}
+                </a>
+                <a href="${base}/app/assignments" class="user-menu-item" role="menuitem">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    ${t('課程習作', 'Assignments')}
                 </a>` : ''}
                 <button type="button" class="user-menu-item" data-action="settings-profile" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
@@ -323,8 +391,14 @@
                 </button>
                 <div class="user-menu-divider"></div>
                 ${canPortal ? `<a href="${base}/portal/simulations.php" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
-                ${canClass ? `<a href="${base}/admin/classes.php" class="user-menu-item" role="menuitem">${t('班級管理', 'Classes')}</a>` : ''}
+                ${canClass ? `<a href="${base}/admin/courses.php" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
+                ${canWorksheet ? `<a href="${base}/admin/worksheets.php" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
+                ${canAssignWorksheet ? `<a href="${base}/admin/courses.php" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}
                 ${canAdmin ? `<a href="${base}/admin/index.php" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
+                ${user.impersonating ? `<button type="button" class="user-menu-item user-menu-item-warn" data-action="stop-impersonation" role="menuitem">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
+                    ${t('結束模仿', 'Stop impersonating')}
+                </button>` : ''}
                 ${(canPortal || canAdmin || canClass) ? '<div class="user-menu-divider"></div>' : ''}
                 <a href="${base}/app/" class="user-menu-item sm:hidden" role="menuitem">${t('前台首頁', 'Home')}</a>
                 <button type="button" class="user-menu-item user-menu-item-danger" data-action="logout" role="menuitem">
@@ -343,6 +417,10 @@
         root.querySelector('[data-action="settings-profile"]')?.addEventListener('click', () => openSettings('profile'));
         root.querySelector('[data-action="settings-password"]')?.addEventListener('click', () => openSettings('password'));
         root.querySelector('[data-action="settings-prefs"]')?.addEventListener('click', () => openSettings('prefs'));
+        root.querySelector('[data-action="stop-impersonation"]')?.addEventListener('click', () => {
+            closeMenu();
+            void stopImpersonation();
+        });
 
         root.querySelector('[data-action="logout"]')?.addEventListener('click', async () => {
             closeMenu();

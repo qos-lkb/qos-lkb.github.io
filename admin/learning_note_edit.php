@@ -7,9 +7,13 @@ require_once dirname(__DIR__) . '/includes/simulations_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
-require_permission('learning_note.manage_any', '../login.php?next=' . rawurlencode('admin/learning_note_edit.php'));
+require_any_permission(['learning_note.manage_any', 'learning_note.manage_own'], '../login.php?next=' . rawurlencode('admin/learning_note_edit.php'));
 
 $pdo = db();
+$user = current_user();
+assert($user !== null);
+$canAny = user_has_permission('learning_note.manage_any');
+$canQuestionBank = user_has_permission('question_bank.manage_any') || user_has_permission('question_bank.manage_own');
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $subjects = sim_all_subjects($pdo);
 $topicsJson = [];
@@ -29,8 +33,27 @@ admin_page_start($id ? '編輯學習筆記' : '新增學習筆記', 'learning_no
                 <div><label class="text-sm font-medium">標題（英）</label><input id="title-en" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
             </div>
             <div><label class="text-sm font-medium">slug</label><input id="slug" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm"></div>
-            <div><label class="text-sm font-medium">內容（中，Markdown）</label><textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="10"></textarea></div>
-            <div><label class="text-sm font-medium">內容（英，Markdown）</label><textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="10"></textarea></div>
+            <div><label class="text-sm font-medium">內容（中，Markdown）</label>
+                <div class="flex flex-wrap gap-2 mb-1">
+                    <button type="button" data-content-embed="video" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ 影片</button>
+                    <button type="button" data-content-embed="simulation" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ 模擬</button>
+                    <?php if ($canQuestionBank): ?>
+                    <button type="button" data-content-embed="question" class="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">+ 題庫題目</button>
+                    <?php endif; ?>
+                </div>
+                <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="12"></textarea>
+                <p class="text-xs text-slate-500 mt-1">可用 <code>::video slug="…"</code>、<code>::simulation slug="…"</code>、<code>::question bank="…" id="12" score="5"</code> 嵌入內容；亦可用上方按鈕插入。</p>
+            </div>
+            <div><label class="text-sm font-medium">內容（英，Markdown）</label>
+                <div class="flex flex-wrap gap-2 mb-1">
+                    <button type="button" data-content-embed="video" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Video</button>
+                    <button type="button" data-content-embed="simulation" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Sim</button>
+                    <?php if ($canQuestionBank): ?>
+                    <button type="button" data-content-embed="question" class="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">+ Question</button>
+                    <?php endif; ?>
+                </div>
+                <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="12"></textarea>
+            </div>
             <div class="grid grid-cols-2 gap-4">
                 <div><label class="text-sm font-medium">科目</label><select id="subject-id" class="w-full border rounded-lg px-3 py-2 mt-1"><option value="">—</option>
                     <?php foreach ($subjects as $s): ?><option value="<?php echo (int) $s['id']; ?>"><?php echo htmlspecialchars($s['name_zh'], ENT_QUOTES, 'UTF-8'); ?></option><?php endforeach; ?>
@@ -40,7 +63,9 @@ admin_page_start($id ? '編輯學習筆記' : '新增學習筆記', 'learning_no
             <div><label class="text-sm font-medium">閱讀時間（分鐘）</label><input type="number" id="reading-time" min="1" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
             <div><label class="text-sm font-medium">排序</label><input type="number" id="list-sort" value="0" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
             <div><label class="text-sm font-medium">狀態</label><select id="status" class="w-full border rounded-lg px-3 py-2 mt-1">
-                <option value="draft">草稿</option><option value="pending_review">待審核</option><option value="published">已發佈</option>
+                <option value="draft">草稿</option>
+                <option value="pending_review">待審核</option>
+                <?php if ($canAny): ?><option value="published">已發佈</option><?php endif; ?>
             </select></div>
             <div class="flex gap-3">
                 <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg">儲存</button>
@@ -49,12 +74,16 @@ admin_page_start($id ? '編輯學習筆記' : '新增學習筆記', 'learning_no
         </form>
 <?php
 admin_page_end([
-    'scripts' => '<script>const TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP) . ';const EDIT_ID=' . $id . ';</script>'
+    'scripts' => '<script>const TOPICS=' . json_encode($topicsJson, JSON_HEX_TAG | JSON_HEX_AMP) . ';const EDIT_ID=' . $id . ';const CAN_ANY=' . ($canAny ? 'true' : 'false') . ';</script>'
         . '<script src="../assets/js/admin-api.js"></script>'
+        . '<script src="../assets/js/admin-content-embed.js"></script>'
         . <<<'HTML'
     <script>
     (async function(){
         await AdminApi.initSession();
+        if (window.AdminContentEmbed) {
+            AdminContentEmbed.init(['body-zh', 'body-en'], { tabs: ['video', 'simulation', 'question'] });
+        }
         const flash=document.getElementById('flash');
         document.getElementById('subject-id').onchange=function(){const t=document.getElementById('topic-id');t.innerHTML='<option value="">—</option>';(TOPICS[this.value]||[]).forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.name_zh;t.appendChild(o);});};
         if(EDIT_ID){

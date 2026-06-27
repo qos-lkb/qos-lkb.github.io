@@ -231,10 +231,10 @@ function admin_role_labels(): array
 function admin_role_descriptions(): array
 {
     return [
-        'admin' => '擁有平台完整管理權限（依下方勾選）。',
-        'teacher' => '教職員帳號；可瀏覽前台並依權限管理教學內容。',
+        'admin' => '擁有平台完整管理權限（依下方勾選）；預設可設計、派發及評分全部工作紙。',
+        'teacher' => '教職員帳號；可設計工作紙、派發予任教班級並給予評分回饋。',
         'contributor' => '可提交模擬或學習資源，通常需經審核後發佈。',
-        'student' => '學生帳號；預設僅使用前台學習功能，無後台管理權限。',
+        'student' => '學生帳號；可完成及呈交老師派發的工作紙習作。',
     ];
 }
 
@@ -282,7 +282,7 @@ function admin_permission_groups(): array
             'prefixes' => ['topic_item.'],
         ],
         'class' => [
-            'label' => '班級與學習',
+            'label' => '課程與學習',
             'prefixes' => ['class.', 'student.'],
         ],
     ];
@@ -344,15 +344,18 @@ function admin_permission_labels(): array
         'article.manage_own' => '管理自己的科學文章',
         'learning_note.manage_any' => '管理全部學習筆記',
         'learning_note.manage_own' => '管理自己的學習筆記',
-        'worksheet.manage_any' => '管理全部工作紙',
-        'worksheet.manage_own' => '管理自己的工作紙',
+        'worksheet.manage_any' => '管理全部工作紙（設計）',
+        'worksheet.manage_own' => '設計自己的工作紙',
+        'worksheet.assign_own' => '派發工作紙予任教班級',
+        'worksheet.grade_own' => '評分及回饋任教班級工作紙',
+        'worksheet.submit_own' => '完成及呈交工作紙',
         'question_bank.manage_any' => '管理全部試題庫',
         'question_bank.manage_own' => '管理自己的試題庫',
         'learning_video.manage_any' => '管理全部學習影片',
         'learning_video.manage_own' => '管理自己的學習影片',
         'topic_item.manage_any' => '管理自學課程編排',
-        'class.manage_any' => '管理全部班級',
-        'class.manage_own' => '管理自己的班級',
+        'class.manage_any' => '管理全部課程',
+        'class.manage_own' => '管理自己的課程',
         'student.profile_own' => '管理自己的學生檔案',
     ];
 }

@@ -2,11 +2,72 @@
     'use strict';
 
     const { apiFetch } = global.ScienceApi;
-    const { t, escapeHtml, getLang } = global.AppRouter;
+    const { t, escapeHtml, getLang, navigate } = global.AppRouter;
     const { renderMarkdownToHtml, enhanceMarkdown } = global.AppMarkdown;
     const { attachMarkdownEditor, buildWorksheetPayload } = global.AppInlineEdit;
 
-    async function renderWorksheet(slug) {
+    function assignmentStatusLabel(status) {
+        const map = {
+            pending: t('未開始', 'Not started'),
+            submitted: t('已提交', 'Submitted'),
+            graded: t('已評分', 'Graded'),
+        };
+        return map[status] || status;
+    }
+
+    function buildAssignmentBanner(assignment, submission, lang) {
+        const title = lang === 'zh'
+            ? (assignment.title_zh || assignment.worksheet_title_zh)
+            : (assignment.title_en || assignment.worksheet_title_en);
+        const instructions = lang === 'zh' ? assignment.instructions_zh : assignment.instructions_en;
+        const sub = submission || {};
+        const due = assignment.due_at
+            ? `<p class="text-xs text-slate-500 mt-1">${t('截止', 'Due')}: ${escapeHtml(String(assignment.due_at).slice(0, 16).replace('T', ' '))}</p>`
+            : '';
+        let scoreHtml = '';
+        if (sub.status === 'graded' && sub.score != null) {
+            const feedback = lang === 'zh' ? sub.feedback_zh : sub.feedback_en;
+            scoreHtml = `<div class="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                <p class="font-semibold text-emerald-900">${t('分數', 'Score')}: ${sub.score} / ${assignment.max_score}</p>
+                ${feedback ? `<p class="text-sm text-emerald-800 mt-1">${escapeHtml(feedback)}</p>` : ''}
+            </div>`;
+        } else if (sub.status === 'submitted') {
+            const autoHint = sub.auto_score != null
+                ? ` ${t('（選擇題自動計分', ' (Auto MCQ score')}: ${sub.auto_score}）`
+                : '';
+            scoreHtml = `<p class="mt-3 text-sm text-indigo-700">${t('已提交，等候老師評分。', 'Submitted — awaiting teacher grading.')}${autoHint}</p>`;
+        }
+
+        const canSubmit = assignment.status === 'active' && sub.status !== 'graded'
+            && (sub.status === 'pending' || sub.status === 'submitted');
+
+        const submitBlock = canSubmit
+            ? `<div class="mt-4 pt-4 border-t border-indigo-100">
+                <label class="block text-xs text-slate-500 mb-1">${t('備註（選填）', 'Note (optional)')}</label>
+                <textarea id="ws-submit-comment" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm mb-2">${escapeHtml(sub.student_comment || '')}</textarea>
+                <button type="button" id="ws-submit-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${sub.status === 'submitted' ? t('重新提交', 'Resubmit') : t('提交習作', 'Submit assignment')}</button>
+                <p id="ws-submit-msg" class="text-xs mt-2 hidden"></p>
+            </div>`
+            : '';
+
+        return `<div id="ws-assignment-banner" class="mb-6 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <p class="text-xs text-indigo-600 uppercase tracking-wide">${escapeHtml(assignment.class_name || t('課程習作', 'Course assignment'))}</p>
+                    <p class="font-bold text-indigo-950">${escapeHtml(title || '')}</p>
+                    ${due}
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-white text-indigo-800 border border-indigo-200">${assignmentStatusLabel(sub.status || 'pending')}</span>
+            </div>
+            ${instructions ? `<p class="text-sm text-slate-700 mt-3 whitespace-pre-wrap">${escapeHtml(instructions)}</p>` : ''}
+            ${scoreHtml}
+            ${submitBlock}
+        </div>`;
+    }
+
+    async function renderWorksheet(slug, opts) {
+        opts = opts || {};
+        const assignmentId = opts.assignmentId || null;
         const main = document.getElementById('main-content');
         const ws = await apiFetch('/worksheets/' + encodeURIComponent(slug));
         const lang = getLang();
@@ -14,21 +75,95 @@
         const desc = lang === 'zh' ? (ws.description_zh || '') : (ws.description_en || '');
         const body = lang === 'zh' ? ws.body_zh : ws.body_en;
 
+        let assignment = opts.assignment || null;
+        let submission = opts.submission || null;
+        if (assignmentId && !assignment) {
+            const ad = await apiFetch('/student/worksheet-assignments/' + assignmentId);
+            assignment = ad.assignment;
+            submission = ad.submission;
+        }
+
+        const backLabel = assignmentId
+            ? t('返回習作列表', 'Back to assignments')
+            : t('返回工作紙列表', 'Back to worksheets');
+        const backRoute = assignmentId ? '/assignments' : (
+            global.AppCourse && global.AppCourse.isCourseMode()
+                ? global.AppCourse.getBackRoute()
+                : '/worksheets'
+        );
+
+        const bannerHtml = assignment ? buildAssignmentBanner(assignment, submission, lang) : '';
+        const langKey = lang === 'zh' ? 'zh' : 'en';
+        const qSummary = ws['question_summary_' + langKey] || ws.question_summary_zh;
+        const summaryHint = qSummary && qSummary.question_count > 0
+            ? `<p class="text-xs text-slate-500 mb-4">${t('本工作紙含', 'This worksheet has')} ${qSummary.question_count} ${t('道試題', 'questions')}${qSummary.total_score > 0 ? ` · ${t('試題共', 'Questions total')} ${qSummary.total_score} ${t('分', 'pts')}` : ''}</p>`
+            : '';
+
         main.innerHTML = `
-            <div class="max-w-3xl mx-auto" id="ws-page">
-                <button type="button" id="ws-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回工作紙列表', 'Back to worksheets')}</button>
+            <div class="reading-page" id="ws-page">
+                <button type="button" id="ws-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${backLabel}</button>
+                ${bannerHtml}
+                ${summaryHint}
                 <h1 id="ws-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                 ${desc ? `<p class="text-slate-600 mb-6">${escapeHtml(desc)}</p>` : ''}
                 <article id="ws-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">${renderMarkdownToHtml(body)}</article>
             </div>`;
 
-        document.getElementById('ws-back').onclick = () => {
-            const back = global.AppCourse && global.AppCourse.isCourseMode()
-                ? global.AppCourse.getBackRoute()
-                : '/worksheets';
-            global.AppRouter.navigate(back);
-        };
+        document.getElementById('ws-back').onclick = () => navigate(backRoute);
+
+        if (assignmentId && global.AppContentEmbeds && global.AppContentEmbeds.setWorksheetContext) {
+            const subStatus = submission?.status || 'pending';
+            let wsState = 'editable';
+            if (subStatus === 'graded') wsState = 'graded';
+            else if (subStatus === 'submitted') wsState = 'submitted';
+            global.AppContentEmbeds.setWorksheetContext({
+                state: wsState,
+                savedResponses: submission?.responses || [],
+            });
+        } else if (global.AppContentEmbeds?.setWorksheetContext) {
+            global.AppContentEmbeds.setWorksheetContext(null);
+        }
+
         await enhanceMarkdown(main);
+
+        if (assignmentId && assignment) {
+            const submitBtn = document.getElementById('ws-submit-btn');
+            if (submitBtn) {
+                submitBtn.onclick = async () => {
+                    const msg = document.getElementById('ws-submit-msg');
+                    const commentEl = document.getElementById('ws-submit-comment');
+                    const responses = global.AppContentEmbeds && global.AppContentEmbeds.collectAnswers
+                        ? global.AppContentEmbeds.collectAnswers(main)
+                        : [];
+                    if (!responses.length && !confirm(t('尚未作答任何題目，確定要提交？', 'No answers recorded. Submit anyway?'))) {
+                        return;
+                    }
+                    if (!confirm(t('確定提交習作？提交後仍可修改並重新提交，直至老師評分。', 'Submit this assignment? You can resubmit until graded.'))) {
+                        return;
+                    }
+                    try {
+                        const r = await apiFetch('/student/worksheet-assignments/' + assignmentId + '/submit', {
+                            method: 'POST',
+                            body: {
+                                student_comment: commentEl ? commentEl.value : '',
+                                responses,
+                            },
+                        });
+                        await renderWorksheet(slug, {
+                            assignmentId,
+                            assignment,
+                            submission: r.submission,
+                        });
+                    } catch (err) {
+                        if (msg) {
+                            msg.textContent = err.message || t('提交失敗', 'Submit failed');
+                            msg.className = 'text-xs mt-2 text-red-600';
+                            msg.classList.remove('hidden');
+                        }
+                    }
+                };
+            }
+        }
 
         if (global.AppLearningTracker) {
             global.AppLearningTracker.trackContentOpen('worksheet', slug, {
@@ -43,22 +178,24 @@
         }
 
         const wsPage = document.getElementById('ws-page');
-        if (global.AppCourse && global.AppCourse.isCourseMode()) {
+        if (global.AppCourse && global.AppCourse.isCourseMode() && !assignmentId) {
             global.AppCourse.attachItemNav(wsPage, 'worksheet', slug);
         }
 
-        attachMarkdownEditor({
-            type: 'worksheet',
-            record: ws,
-            root: wsPage,
-            titleEl: document.getElementById('ws-title'),
-            bodyEl: document.getElementById('ws-body'),
-            buildPayload: (rec) => buildWorksheetPayload(rec),
-            onBodyUpdated: async (bodyEl, markdown) => {
-                bodyEl.innerHTML = renderMarkdownToHtml(markdown);
-                await enhanceMarkdown(main);
-            },
-        });
+        if (!assignmentId) {
+            attachMarkdownEditor({
+                type: 'worksheet',
+                record: ws,
+                root: wsPage,
+                titleEl: document.getElementById('ws-title'),
+                bodyEl: document.getElementById('ws-body'),
+                buildPayload: (rec) => buildWorksheetPayload(rec),
+                onBodyUpdated: async (bodyEl, markdown) => {
+                    bodyEl.innerHTML = renderMarkdownToHtml(markdown);
+                    await enhanceMarkdown(main);
+                },
+            });
+        }
     }
 
     global.AppWorksheet = { renderWorksheet };

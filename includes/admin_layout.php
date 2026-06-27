@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/web_base.php';
 
-const ADMIN_ASSET_VERSION = '20260606n';
+const ADMIN_ASSET_VERSION = '20260626b';
 
 /**
  * Admin shell: header bar, side menu, main content (mirrors app/index.html layout).
@@ -70,9 +70,13 @@ function admin_has_any_access(): bool
         || user_has_permission('article.manage_any')
         || user_has_permission('learning_note.manage_any')
         || user_has_permission('worksheet.manage_any')
+        || user_has_permission('worksheet.manage_own')
+        || user_has_permission('worksheet.assign_own')
+        || user_has_permission('worksheet.grade_own')
         || user_has_permission('learning_video.manage_any')
         || user_has_permission('topic_item.manage_any')
         || user_has_permission('question_bank.manage_any')
+        || user_has_permission('question_bank.manage_own')
         || user_has_permission('class.manage_own')
         || user_has_permission('class.manage_any');
 }
@@ -115,6 +119,8 @@ function admin_menu_sections(): array
     }
     if (user_has_permission('worksheet.manage_any')) {
         $contentItems[] = ['key' => 'worksheets', 'label' => '工作紙', 'href' => 'worksheets.php'];
+    } elseif (user_has_permission('worksheet.manage_own')) {
+        $contentItems[] = ['key' => 'worksheets', 'label' => '我的工作紙', 'href' => 'worksheets.php', 'accent' => 'indigo'];
     }
     if (user_has_permission('simulation.manage_any')) {
         $contentItems[] = ['key' => 'simulations', 'label' => '模擬程式', 'href' => 'simulations.php'];
@@ -127,6 +133,8 @@ function admin_menu_sections(): array
     }
     if (user_has_permission('question_bank.manage_any')) {
         $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => 'question_banks.php'];
+    } elseif (user_has_permission('question_bank.manage_own')) {
+        $contentItems[] = ['key' => 'question_banks', 'label' => '我的試題庫', 'href' => 'question_banks.php', 'accent' => 'indigo'];
     }
     if (user_has_permission('learning_video.manage_any')) {
         $contentItems[] = ['key' => 'learning_videos', 'label' => '學習影片', 'href' => 'learning_videos.php'];
@@ -141,13 +149,16 @@ function admin_menu_sections(): array
         $sections[] = ['label' => '內容管理', 'items' => $contentItems];
     }
 
-    $classItems = [];
+    $courseItems = [];
     if (user_has_permission('class.manage_any') || user_has_permission('class.manage_own')) {
-        $classItems[] = ['key' => 'classes', 'label' => '班級管理', 'href' => 'classes.php', 'accent' => 'blue'];
-        $classItems[] = ['key' => 'class_reports', 'label' => '班級報告', 'href' => 'classes.php', 'accent' => 'teal'];
+        $courseItems[] = ['key' => 'courses', 'label' => '課程管理', 'href' => 'courses.php', 'accent' => 'blue'];
+        $courseItems[] = ['key' => 'course_reports', 'label' => '課程報告', 'href' => 'courses.php', 'accent' => 'teal'];
+        if (user_has_permission('worksheet.assign_own') || user_has_permission('class.manage_any')) {
+            $courseItems[] = ['key' => 'course_worksheets', 'label' => '工作紙派發', 'href' => 'courses.php', 'accent' => 'violet'];
+        }
     }
-    if ($classItems !== []) {
-        $sections[] = ['label' => '學習分析', 'items' => $classItems];
+    if ($courseItems !== []) {
+        $sections[] = ['label' => '學習分析', 'items' => $courseItems];
     }
 
     if (user_has_permission('user.manage')) {
@@ -264,13 +275,13 @@ function admin_dashboard_card_meta(): array
         'review_queue' => ['icon' => 'review', 'tone' => 'amber', 'desc' => '審核待發佈的投稿內容。'],
         'subjects' => ['icon' => 'folder', 'tone' => 'slate', 'desc' => '維護科目、單元與前台側欄目錄結構。'],
         'users' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '新增、編輯使用者並指派角色。'],
-        'classes' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '管理班級、邀請碼與學生名單。'],
-        'class_reports' => ['icon' => 'sheet', 'tone' => 'teal', 'desc' => '檢視班級學習報告與掌握度。'],
+        'courses' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '管理課程、邀請碼與學生名單。'],
+        'course_reports' => ['icon' => 'sheet', 'tone' => 'teal', 'desc' => '檢視課程學習報告與掌握度。'],
         'permissions' => ['icon' => 'lock', 'tone' => 'slate', 'desc' => '調整各角色的系統權限。'],
         'codespace' => ['icon' => 'code', 'tone' => 'slate', 'desc' => 'HTML 即時編輯與預覽（新分頁開啟）。'],
         'db_import' => ['icon' => 'db', 'tone' => 'orange', 'desc' => '上載 SQL 還原或取代整個資料庫。'],
         'db_export' => ['icon' => 'db', 'tone' => 'teal', 'desc' => '下載完整 MySQL 資料庫 SQL 備份。'],
-        'qsis_import' => ['icon' => 'users', 'tone' => 'teal', 'desc' => '從校本 QSIS 資料庫匯入班級與學生帳戶。'],
+        'qsis_import' => ['icon' => 'users', 'tone' => 'teal', 'desc' => '從校本 QSIS 資料庫匯入課程與學生帳戶。'],
     ];
 }
 

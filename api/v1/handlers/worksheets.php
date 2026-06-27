@@ -5,13 +5,15 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/includes/api_response.php';
 require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/worksheets_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/worksheet_assignments_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/worksheet_permissions_lib.php';
 
 function api_handle_worksheets_list_public(PDO $pdo): void
 {
     $rows = ws_fetch_published($pdo);
     api_json_ok(array_map(function (array $r) {
         $out = ws_public_row($r);
-        unset($out['body_zh'], $out['body_en']);
+        unset($out['body_zh'], $out['body_en'], $out['content_blocks_zh'], $out['content_blocks_en']);
         return $out;
     }, $rows));
 }
@@ -24,7 +26,9 @@ function api_handle_worksheet_get(PDO $pdo, string $slug): void
     }
     $user = current_user();
     if (!api_can_view_worksheet($row, $user)) {
-        api_json_error('forbidden', '無權檢視。', 403);
+        if ($user === null || !wa_student_can_view_worksheet($pdo, (int) $row['id'], $user['id'])) {
+            api_json_error('forbidden', '無權檢視。', 403);
+        }
     }
 
     api_json_ok(ws_public_row($row));
@@ -39,6 +43,23 @@ function api_handle_worksheets_pending(PDO $pdo): void
          WHERE ws.status = 'pending_review' ORDER BY ws.updated_at DESC"
     )->fetchAll() ?: [];
     api_json_ok($rows);
+}
+
+function api_handle_teacher_worksheets_list(PDO $pdo): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!worksheet_user_can_assign() && !worksheet_user_can_design()) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+    $canAny = user_has_permission('worksheet.manage_any');
+    $rows = ws_fetch_assignable_for_teacher($pdo, $user['id'], $canAny);
+    api_json_ok(array_map(static function (array $r) use ($user): array {
+        $out = ws_public_row($r);
+        unset($out['body_zh'], $out['body_en'], $out['content_blocks_zh'], $out['content_blocks_en']);
+        $out['is_mine'] = (int) ($r['owner_user_id'] ?? 0) === (int) $user['id'];
+        return $out;
+    }, $rows));
 }
 
 function api_handle_admin_worksheets(PDO $pdo, string $method): void

@@ -14,7 +14,14 @@
             headers['X-CSRF-Token'] = csrfToken;
         }
         const res = await fetch(API_BASE + path, Object.assign({ credentials: 'same-origin' }, options, { headers }));
-        const json = await res.json();
+        const text = await res.text();
+        let json;
+        try {
+            json = JSON.parse(text);
+        } catch {
+            const plain = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            throw new Error(plain.slice(0, 240) || '伺服器回應格式錯誤');
+        }
         if (!res.ok) {
             throw new Error(json.error?.message || 'Request failed');
         }

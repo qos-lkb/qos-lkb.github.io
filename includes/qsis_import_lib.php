@@ -65,21 +65,93 @@ function qsis_school_year_label(PDO $qsis, string $yearId): string
 }
 
 /**
- * @return list<array{class:string,student_count:int,teacher_id:?string}>
+ * @param array<string, mixed> $course
  */
-function qsis_list_classes(PDO $qsis, string $yearId, ?string $formLevel = null): array
+function qsis_course_display_name(array $course): string
 {
-    $sql = "SELECT SS.`class` AS class_name, COUNT(*) AS student_count
-            FROM setting_student SS
-            WHERE SS.yearId = :yearId AND SS.state = '0' AND SS.`class` <> ''";
-    $params = ['yearId' => $yearId];
-
-    if ($formLevel !== null && $formLevel !== '') {
-        $sql .= ' AND LEFT(SS.`class`, 1) = :formLevel';
-        $params['formLevel'] = $formLevel;
+    $zh = trim((string) ($course['coursename_c'] ?? ''));
+    $en = trim((string) ($course['coursename_e'] ?? ''));
+    $name = $zh !== '' ? $zh : $en;
+    if ($name === '') {
+        $name = trim((string) ($course['course_code'] ?? ''));
+    }
+    if ($name === '') {
+        $name = 'Course ' . (int) ($course['course_id'] ?? 0);
     }
 
-    $sql .= ' GROUP BY SS.`class` ORDER BY SS.`class` ASC';
+    return $name;
+}
+
+/**
+ * @return list<array{kla_id:int,kla_code:string,kla_name_zh:?string,kla_name_en:?string}>
+ */
+function qsis_list_klas(PDO $qsis): array
+{
+    try {
+        $rows = $qsis->query(
+            'SELECT kla_id, kla_code, kla_name_zh, kla_name_en FROM v2_kla_record ORDER BY kla_code ASC'
+        )->fetchAll() ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $row) {
+        $out[] = [
+            'kla_id' => (int) ($row['kla_id'] ?? 0),
+            'kla_code' => trim((string) ($row['kla_code'] ?? '')),
+            'kla_name_zh' => trim((string) ($row['kla_name_zh'] ?? '')) ?: null,
+            'kla_name_en' => trim((string) ($row['kla_name_en'] ?? '')) ?: null,
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @param array{kla_code?:string,kla_name_zh?:?string,kla_name_en?:?string} $kla
+ */
+function qsis_kla_display_name(array $kla): string
+{
+    $zh = trim((string) ($kla['kla_name_zh'] ?? ''));
+    if ($zh !== '') {
+        return $zh;
+    }
+    $en = trim((string) ($kla['kla_name_en'] ?? ''));
+    if ($en !== '') {
+        return $en;
+    }
+    $code = trim((string) ($kla['kla_code'] ?? ''));
+
+    return $code !== '' ? $code : 'KLA';
+}
+
+/**
+ * @return list<array{course_id:int,course_code:string,coursename_e:string,coursename_c:string,level:int,subject_id:string,kla_id:?int,kla_code:?string,kla_name:?string,teacher_id:?string,student_count:int}>
+ */
+function qsis_list_courses(PDO $qsis, string $yearId, ?int $klaId = null): array
+{
+    $sql = "SELECT C.course_id, C.course_code, C.coursename_e, C.coursename_c,
+                   C.level, C.subject_id, C.teacher1_id, C.teacher2_id,
+                   K.kla_id, K.kla_code, K.kla_name_zh, K.kla_name_en,
+                   COUNT(DISTINCT E.member_id) AS student_count
+            FROM v2_course_record C
+            INNER JOIN v2_enrolment_record E ON E.course_id = C.course_id AND E.role = 'S'
+            INNER JOIN setting_student S ON S.sid = E.member_id AND S.yearId = :yearId AND S.state = '0'
+            LEFT JOIN v2_subject_record Sub ON C.subject_id = Sub.subject_id
+            LEFT JOIN v2_kla_record K ON K.kla_id = COALESCE(Sub.kla_id, NULLIF(C.kla_id, ''))
+            WHERE 1=1";
+    $params = ['yearId' => $yearId];
+
+    if ($klaId !== null && $klaId > 0) {
+        $sql .= ' AND K.kla_id = :klaId';
+        $params['klaId'] = $klaId;
+    }
+
+    $sql .= ' GROUP BY C.course_id, C.course_code, C.coursename_e, C.coursename_c,
+                     C.level, C.subject_id, C.teacher1_id, C.teacher2_id,
+                     K.kla_id, K.kla_code, K.kla_name_zh, K.kla_name_en
+              ORDER BY K.kla_code ASC, C.level ASC, C.coursename_e ASC, C.course_id ASC';
 
     try {
         $stmt = $qsis->prepare($sql);
@@ -89,15 +161,29 @@ function qsis_list_classes(PDO $qsis, string $yearId, ?string $formLevel = null)
         return [];
     }
 
-    $teachers = qsis_class_teachers_map($qsis, $yearId);
-
     $out = [];
     foreach ($rows as $row) {
-        $className = (string) $row['class_name'];
+        $teacherId = trim((string) ($row['teacher1_id'] ?? ''));
+        if ($teacherId === '') {
+            $teacherId = trim((string) ($row['teacher2_id'] ?? ''));
+        }
         $out[] = [
-            'class' => $className,
+            'course_id' => (int) $row['course_id'],
+            'course_code' => trim((string) ($row['course_code'] ?? '')),
+            'coursename_e' => trim((string) ($row['coursename_e'] ?? '')),
+            'coursename_c' => trim((string) ($row['coursename_c'] ?? '')),
+            'level' => (int) ($row['level'] ?? 0),
+            'subject_id' => trim((string) ($row['subject_id'] ?? '')),
+            'kla_id' => isset($row['kla_id']) && $row['kla_id'] !== null && $row['kla_id'] !== ''
+                ? (int) $row['kla_id'] : null,
+            'kla_code' => trim((string) ($row['kla_code'] ?? '')) ?: null,
+            'kla_name' => qsis_kla_display_name([
+                'kla_code' => (string) ($row['kla_code'] ?? ''),
+                'kla_name_zh' => $row['kla_name_zh'] ?? null,
+                'kla_name_en' => $row['kla_name_en'] ?? null,
+            ]),
+            'teacher_id' => $teacherId !== '' ? $teacherId : null,
             'student_count' => (int) ($row['student_count'] ?? 0),
-            'teacher_id' => $teachers[$className] ?? null,
         ];
     }
 
@@ -105,70 +191,49 @@ function qsis_list_classes(PDO $qsis, string $yearId, ?string $formLevel = null)
 }
 
 /**
- * @return array<string, string> class => teacher_id
+ * @return array<int, array<string, mixed>> course_id => course row
  */
-function qsis_class_teachers_map(PDO $qsis, string $yearId): array
+function qsis_fetch_courses_by_ids(PDO $qsis, string $yearId, array $courseIds): array
 {
+    $all = qsis_list_courses($qsis, $yearId);
+    $wanted = array_flip(array_map('intval', $courseIds));
     $map = [];
-
-    try {
-        $stmt = $qsis->prepare(
-            'SELECT `class`, teacher_id FROM v2_class_teacher WHERE yearId = :yearId'
-        );
-        $stmt->execute(['yearId' => $yearId]);
-        foreach ($stmt->fetchAll() ?: [] as $row) {
-            $map[(string) $row['class']] = trim((string) ($row['teacher_id'] ?? ''));
+    foreach ($all as $row) {
+        $id = (int) $row['course_id'];
+        if (isset($wanted[$id])) {
+            $map[$id] = $row;
         }
-    } catch (Throwable $e) {
-        // v2_class_teacher optional
-    }
-
-    if ($map !== []) {
-        return $map;
-    }
-
-    try {
-        $rows = $qsis->query('SELECT `class`, ct1, ct2, ct3 FROM setting_class')->fetchAll() ?: [];
-        foreach ($rows as $row) {
-            foreach (['ct1', 'ct2', 'ct3'] as $col) {
-                $tid = trim((string) ($row[$col] ?? ''));
-                if ($tid !== '') {
-                    $map[(string) $row['class']] = $tid;
-                    break;
-                }
-            }
-        }
-    } catch (Throwable $e) {
-        // setting_class optional
     }
 
     return $map;
 }
 
 /**
- * @return list<array{sid:string,classNo:int,nameChi:string,nameEng:string,class:string,form_level:?string}>
+ * @return list<array{sid:string,classNo:int,nameChi:string,nameEng:string,class:string,form_level:?string,course_id:int,moi:?string}>
  */
-function qsis_list_students(PDO $qsis, string $yearId, ?array $classNames = null): array
+function qsis_list_students(PDO $qsis, string $yearId, ?array $courseIds = null): array
 {
     $sql = "SELECT SS.sid, SS.classNo, SS.`class` AS class_name,
                    COALESCE(D.nameChi, '') AS nameChi,
-                   COALESCE(D.nameEng, '') AS nameEng
-            FROM setting_student SS
+                   COALESCE(D.nameEng, '') AS nameEng,
+                   E.course_id, E.moi
+            FROM v2_enrolment_record E
+            INNER JOIN setting_student SS ON SS.sid = E.member_id AND SS.yearId = :yearId AND SS.state = '0'
             LEFT JOIN data_student_info D ON D.sid = SS.sid
-            WHERE SS.yearId = :yearId AND SS.state = '0'";
+            WHERE E.role = 'S'";
     $params = ['yearId' => $yearId];
 
-    if ($classNames !== null && $classNames !== []) {
+    if ($courseIds !== null && $courseIds !== []) {
         $placeholders = [];
-        foreach (array_values($classNames) as $i => $className) {
-            $key = 'class' . $i;
+        foreach (array_values($courseIds) as $i => $courseId) {
+            $key = 'course' . $i;
             $placeholders[] = ':' . $key;
-            $params[$key] = $className;
+            $params[$key] = (int) $courseId;
         }
-        $sql .= ' AND SS.`class` IN (' . implode(', ', $placeholders) . ')';
+        $sql .= ' AND E.course_id IN (' . implode(', ', $placeholders) . ')';
     }
 
-    $sql .= ' ORDER BY SS.`class` ASC, SS.classNo ASC, SS.sid ASC';
+    $sql .= ' ORDER BY E.course_id ASC, SS.`class` ASC, SS.classNo ASC, SS.sid ASC';
 
     try {
         $stmt = $qsis->prepare($sql);
@@ -188,6 +253,8 @@ function qsis_list_students(PDO $qsis, string $yearId, ?array $classNames = null
             'nameEng' => trim((string) ($row['nameEng'] ?? '')),
             'class' => $className,
             'form_level' => qsis_form_level_from_class($className),
+            'course_id' => (int) ($row['course_id'] ?? 0),
+            'moi' => classes_normalize_moi($row['moi'] ?? null),
         ];
     }
 
@@ -249,10 +316,31 @@ function qsis_find_local_class_id(PDO $local, string $className, string $schoolY
 }
 
 /**
- * @param array<string, mixed> $options year_id, class_names[], teacher_user_id
- * @return array{ok:bool,error?:string,created?:int,skipped?:int,updated?:int}
+ * @param array<string, mixed> $course
  */
-function qsis_import_classes(PDO $local, PDO $qsis, array $options, int $actingUserId): array
+function qsis_resolve_local_class_name(PDO $local, array $course, string $schoolYear): string
+{
+    $base = qsis_course_display_name($course);
+    if (qsis_find_local_class_id($local, $base, $schoolYear) <= 0) {
+        return $base;
+    }
+
+    $code = trim((string) ($course['course_code'] ?? ''));
+    if ($code !== '') {
+        $withCode = $base . ' [' . $code . ']';
+        if (qsis_find_local_class_id($local, $withCode, $schoolYear) <= 0) {
+            return $withCode;
+        }
+    }
+
+    return $base . ' #' . (int) ($course['course_id'] ?? 0);
+}
+
+/**
+ * @param array<string, mixed> $options year_id, course_ids[], teacher_user_id
+ * @return array{ok:bool,error?:string,created?:int,skipped?:int}
+ */
+function qsis_import_courses(PDO $local, PDO $qsis, array $options, int $actingUserId): array
 {
     $yearId = trim((string) ($options['year_id'] ?? ''));
     if ($yearId === '') {
@@ -262,43 +350,39 @@ function qsis_import_classes(PDO $local, PDO $qsis, array $options, int $actingU
         return ['ok' => false, 'error' => '無法取得 QSIS 學年。'];
     }
 
-    $classNames = $options['class_names'] ?? null;
-    if (!is_array($classNames)) {
-        $classNames = null;
-    } else {
-        $classNames = array_values(array_filter(array_map('strval', $classNames), static fn (string $c): bool => trim($c) !== ''));
-        if ($classNames === []) {
-            $classNames = null;
-        }
+    $courseIds = $options['course_ids'] ?? [];
+    if (!is_array($courseIds)) {
+        $courseIds = [];
+    }
+    $courseIds = array_values(array_filter(array_map('intval', $courseIds), static fn (int $id): bool => $id > 0));
+    if ($courseIds === []) {
+        return ['ok' => false, 'error' => '請選擇至少一門課程。'];
     }
 
     $schoolYear = qsis_school_year_label($qsis, $yearId);
     $fallbackTeacher = (int) ($options['teacher_user_id'] ?? $actingUserId);
+    $courses = qsis_fetch_courses_by_ids($qsis, $yearId, $courseIds);
 
-    $qsisClasses = qsis_list_classes($qsis, $yearId);
-    if ($classNames !== null) {
-        $allowed = array_flip($classNames);
-        $qsisClasses = array_values(array_filter(
-            $qsisClasses,
-            static fn (array $row): bool => isset($allowed[$row['class']])
-        ));
-    }
-
-    if ($qsisClasses === []) {
-        return ['ok' => false, 'error' => 'QSIS 中沒有可匯入的班級。'];
+    if ($courses === []) {
+        return ['ok' => false, 'error' => 'QSIS 中沒有可匯入的課程。'];
     }
 
     $created = 0;
     $skipped = 0;
 
-    foreach ($qsisClasses as $row) {
-        $className = (string) $row['class'];
+    foreach ($courseIds as $courseId) {
+        $course = $courses[$courseId] ?? null;
+        if ($course === null) {
+            continue;
+        }
+
+        $className = qsis_resolve_local_class_name($local, $course, $schoolYear);
         if (qsis_find_local_class_id($local, $className, $schoolYear) > 0) {
             $skipped++;
             continue;
         }
 
-        $teacherId = qsis_find_local_teacher_id($local, (string) ($row['teacher_id'] ?? ''), $fallbackTeacher);
+        $teacherId = qsis_find_local_teacher_id($local, (string) ($course['teacher_id'] ?? ''), $fallbackTeacher);
         $inviteCode = classes_generate_invite_code();
 
         for ($i = 0; $i < 5; $i++) {
@@ -313,7 +397,7 @@ function qsis_import_classes(PDO $local, PDO $qsis, array $options, int $actingU
             } catch (Throwable $e) {
                 $inviteCode = classes_generate_invite_code();
                 if ($i === 4) {
-                    return ['ok' => false, 'error' => '建立班級「' . $className . '」失敗。'];
+                    return ['ok' => false, 'error' => '建立課程「' . $className . '」失敗。'];
                 }
             }
         }
@@ -323,7 +407,42 @@ function qsis_import_classes(PDO $local, PDO $qsis, array $options, int $actingU
 }
 
 /**
- * @param array<string, mixed> $options year_id, class_names[], default_password, enroll, update_existing
+ * @return array<int, string> course_id => local class name
+ */
+function qsis_local_class_names_for_courses(PDO $local, PDO $qsis, string $yearId, array $courseIds): array
+{
+    $schoolYear = qsis_school_year_label($qsis, $yearId);
+    $courses = qsis_fetch_courses_by_ids($qsis, $yearId, $courseIds);
+    $map = [];
+
+    foreach ($courseIds as $courseId) {
+        $courseId = (int) $courseId;
+        $course = $courses[$courseId] ?? null;
+        if ($course === null) {
+            continue;
+        }
+        $candidates = [
+            qsis_course_display_name($course),
+            qsis_course_display_name($course) . ' [' . trim((string) ($course['course_code'] ?? '')) . ']',
+            qsis_course_display_name($course) . ' #' . $courseId,
+        ];
+        foreach ($candidates as $name) {
+            $name = trim($name);
+            if ($name === '' || str_ends_with($name, ' []')) {
+                continue;
+            }
+            if (qsis_find_local_class_id($local, $name, $schoolYear) > 0) {
+                $map[$courseId] = $name;
+                break;
+            }
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * @param array<string, mixed> $options year_id, course_ids[], default_password, enroll, update_existing
  * @return array{ok:bool,error?:string,created?:int,enrolled?:int,skipped?:int,updated?:int}
  */
 function qsis_import_students(PDO $local, PDO $qsis, array $options, int $actingUserId): array
@@ -336,14 +455,13 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
         return ['ok' => false, 'error' => '無法取得 QSIS 學年。'];
     }
 
-    $classNames = $options['class_names'] ?? null;
-    if (!is_array($classNames)) {
-        $classNames = null;
-    } else {
-        $classNames = array_values(array_filter(array_map('strval', $classNames), static fn (string $c): bool => trim($c) !== ''));
-        if ($classNames === []) {
-            $classNames = null;
-        }
+    $courseIds = $options['course_ids'] ?? [];
+    if (!is_array($courseIds)) {
+        $courseIds = [];
+    }
+    $courseIds = array_values(array_filter(array_map('intval', $courseIds), static fn (int $id): bool => $id > 0));
+    if ($courseIds === []) {
+        return ['ok' => false, 'error' => '請選擇至少一門課程。'];
     }
 
     $defaultPassword = trim((string) ($options['default_password'] ?? ''));
@@ -351,8 +469,9 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
     $updateExisting = !empty($options['update_existing']);
     $schoolYear = qsis_school_year_label($qsis, $yearId);
     $studentRoleId = classes_role_id_by_name($local, 'student');
+    $classNameByCourse = qsis_local_class_names_for_courses($local, $qsis, $yearId, $courseIds);
 
-    $students = qsis_list_students($qsis, $yearId, $classNames);
+    $students = qsis_list_students($qsis, $yearId, $courseIds);
     if ($students === []) {
         return ['ok' => false, 'error' => 'QSIS 中沒有可匯入的學生。'];
     }
@@ -361,9 +480,11 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
     $enrolled = 0;
     $skipped = 0;
     $updated = 0;
+    $processedAccounts = [];
 
     foreach ($students as $student) {
         $sid = (string) $student['sid'];
+        $courseId = (int) ($student['course_id'] ?? 0);
         $email = qsis_student_email($sid);
         $nameZh = trim((string) ($student['nameChi'] ?? ''));
         $nameEn = trim((string) ($student['nameEng'] ?? ''));
@@ -372,70 +493,82 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
         }
         $displayName = account_sync_display_name($nameZh, $nameEn);
         $formLevel = $student['form_level'];
-        $className = (string) $student['class'];
 
-        $stmt = $local->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
-        $userId = (int) ($stmt->fetchColumn() ?: 0);
+        if (!isset($processedAccounts[$sid])) {
+            $stmt = $local->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+            $stmt->execute([$email]);
+            $userId = (int) ($stmt->fetchColumn() ?: 0);
 
-        if ($userId <= 0) {
-            $profileStmt = $local->prepare('SELECT user_id FROM student_profiles WHERE student_number = ? LIMIT 1');
-            $profileStmt->execute([$sid]);
-            $userId = (int) ($profileStmt->fetchColumn() ?: 0);
-        }
-
-        if ($userId <= 0) {
-            $password = $defaultPassword !== '' ? $defaultPassword : (bin2hex(random_bytes(4)) . 'Aa1!');
-            if (strlen($password) < 8) {
-                $skipped++;
-                continue;
+            if ($userId <= 0) {
+                $profileStmt = $local->prepare('SELECT user_id FROM student_profiles WHERE student_number = ? LIMIT 1');
+                $profileStmt->execute([$sid]);
+                $userId = (int) ($profileStmt->fetchColumn() ?: 0);
             }
 
-            try {
-                $hash = password_hash($password, PASSWORD_DEFAULT);
-                $ins = $local->prepare(
-                    'INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)'
+            if ($userId <= 0) {
+                $password = $defaultPassword !== '' ? $defaultPassword : (bin2hex(random_bytes(4)) . 'Aa1!');
+                if (strlen($password) < 8) {
+                    $skipped++;
+                    $processedAccounts[$sid] = 0;
+                    continue;
+                }
+
+                try {
+                    $hash = password_hash($password, PASSWORD_DEFAULT);
+                    $ins = $local->prepare(
+                        'INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)'
+                    );
+                    $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
+                    $userId = (int) $local->lastInsertId();
+                    $created++;
+                } catch (Throwable $e) {
+                    $skipped++;
+                    $processedAccounts[$sid] = 0;
+                    continue;
+                }
+            } elseif ($updateExisting) {
+                $upd = $local->prepare(
+                    'UPDATE users SET name_zh = ?, name_en = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
                 );
-                $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
-                $userId = (int) $local->lastInsertId();
-                $created++;
-            } catch (Throwable $e) {
+                $upd->execute([$nameZh, $nameEn, $displayName, $userId]);
+                $updated++;
+            } else {
                 $skipped++;
-                continue;
             }
-        } elseif ($updateExisting) {
-            $upd = $local->prepare(
-                'UPDATE users SET name_zh = ?, name_en = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-            );
-            $upd->execute([$nameZh, $nameEn, $displayName, $userId]);
-            $updated++;
-        } else {
-            $skipped++;
+
+            if ($userId > 0) {
+                if ($studentRoleId > 0) {
+                    $local->prepare('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)')->execute([$userId, $studentRoleId]);
+                }
+
+                $profileExists = classes_student_profile($local, $userId);
+                if ($profileExists) {
+                    $local->prepare(
+                        'UPDATE student_profiles SET student_number = ?, form_level = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?'
+                    )->execute([$sid, $formLevel, $userId]);
+                } else {
+                    $local->prepare(
+                        'INSERT INTO student_profiles (user_id, student_number, form_level, preferred_lang) VALUES (?, ?, ?, ?)'
+                    )->execute([$userId, $sid, $formLevel, 'zh']);
+                }
+            }
+
+            $processedAccounts[$sid] = $userId;
         }
 
-        if ($studentRoleId > 0) {
-            $local->prepare('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)')->execute([$userId, $studentRoleId]);
-        }
-
-        $profileExists = classes_student_profile($local, $userId);
-        if ($profileExists) {
-            $local->prepare(
-                'UPDATE student_profiles SET student_number = ?, form_level = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?'
-            )->execute([$sid, $formLevel, $userId]);
-        } else {
-            $local->prepare(
-                'INSERT INTO student_profiles (user_id, student_number, form_level, preferred_lang) VALUES (?, ?, ?, ?)'
-            )->execute([$userId, $sid, $formLevel, 'zh']);
-        }
-
-        if ($enroll && $className !== '') {
-            $classId = qsis_find_local_class_id($local, $className, $schoolYear);
-            if ($classId > 0) {
-                $local->prepare(
-                    'INSERT INTO class_enrollments (class_id, user_id, status) VALUES (?, ?, \'active\')
-                     ON DUPLICATE KEY UPDATE status = \'active\''
-                )->execute([$classId, $userId]);
-                $enrolled++;
+        $userId = (int) ($processedAccounts[$sid] ?? 0);
+        if ($enroll && $userId > 0 && $courseId > 0) {
+            $localClassName = $classNameByCourse[$courseId] ?? null;
+            if ($localClassName !== null) {
+                $classId = qsis_find_local_class_id($local, $localClassName, $schoolYear);
+                if ($classId > 0) {
+                    classes_upsert_enrollment($local, $classId, $userId, [
+                        'form_class' => (string) ($student['class'] ?? ''),
+                        'class_no' => (int) ($student['classNo'] ?? 0),
+                        'moi' => $student['moi'] ?? null,
+                    ]);
+                    $enrolled++;
+                }
             }
         }
     }
@@ -450,13 +583,13 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
 }
 
 /**
- * @return array{ok:bool,error?:string,classes_created?:int,classes_skipped?:int,students_created?:int,students_enrolled?:int,students_skipped?:int,students_updated?:int}
+ * @return array{ok:bool,error?:string,courses_created?:int,courses_skipped?:int,students_created?:int,students_enrolled?:int,students_skipped?:int,students_updated?:int}
  */
 function qsis_import_all(PDO $local, PDO $qsis, array $options, int $actingUserId): array
 {
-    $classResult = qsis_import_classes($local, $qsis, $options, $actingUserId);
-    if (!$classResult['ok']) {
-        return $classResult;
+    $courseResult = qsis_import_courses($local, $qsis, $options, $actingUserId);
+    if (!$courseResult['ok']) {
+        return $courseResult;
     }
 
     $studentOptions = $options;
@@ -468,8 +601,8 @@ function qsis_import_all(PDO $local, PDO $qsis, array $options, int $actingUserI
 
     return [
         'ok' => true,
-        'classes_created' => (int) ($classResult['created'] ?? 0),
-        'classes_skipped' => (int) ($classResult['skipped'] ?? 0),
+        'courses_created' => (int) ($courseResult['created'] ?? 0),
+        'courses_skipped' => (int) ($courseResult['skipped'] ?? 0),
         'students_created' => (int) ($studentResult['created'] ?? 0),
         'students_enrolled' => (int) ($studentResult['enrolled'] ?? 0),
         'students_skipped' => (int) ($studentResult['skipped'] ?? 0),

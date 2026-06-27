@@ -263,6 +263,7 @@
             stem_en: '',
             explanation_zh: '',
             explanation_en: '',
+            default_score: '',
             media: [],
         };
         if (type === 'mcq') {
@@ -480,6 +481,7 @@
             <td class="p-2"><select class="q-subject w-full border rounded px-1 py-1 text-xs"><option value="">—</option>${buildSubjectOptions(subjId)}</select></td>
             <td class="p-2"><select class="q-topic w-full border rounded px-1 py-1 text-xs">${buildTopicOptions(subjId, topicId)}</select></td>
             <td class="p-2"><select class="q-difficulty w-full border rounded px-1 py-1 text-xs">${diffOpts}</select></td>
+            <td class="p-2"><input type="number" min="0" step="0.5" class="q-score w-full border rounded px-1 py-1 text-xs" placeholder="—" value="${escapeHtml(q.default_score != null ? q.default_score : '')}"></td>
             <td class="p-2"><input class="q-source-zh w-full border rounded px-2 py-1 text-xs" placeholder="DSE 2023 Q5" value="${escapeHtml(q.source_zh || '')}"></td>
             <td class="p-2 whitespace-nowrap">
                 <button type="button" class="toggle-detail text-xs text-indigo-600 hover:underline mr-2">收合</button>
@@ -488,7 +490,7 @@
 
         const detailTr = document.createElement('tr');
         detailTr.className = 'q-detail-row';
-        detailTr.innerHTML = `<td colspan="8" class="p-3 bg-slate-50 border-b border-slate-100"><div class="q-detail">${buildDetailHtml(q)}</div></td>`;
+        detailTr.innerHTML = `<td colspan="9" class="p-3 bg-slate-50 border-b border-slate-100"><div class="q-detail">${buildDetailHtml(q)}</div></td>`;
 
         const subj = metaTr.querySelector('.q-subject');
         const topic = metaTr.querySelector('.q-topic');
@@ -566,6 +568,7 @@
             subject_id: metaTr.querySelector('.q-subject')?.value || '',
             topic_id: metaTr.querySelector('.q-topic')?.value || '',
             difficulty: metaTr.querySelector('.q-difficulty')?.value || '',
+            default_score: metaTr.querySelector('.q-score')?.value.trim() || '',
             source_zh: metaTr.querySelector('.q-source-zh')?.value.trim() || '',
             source_en: detail?.querySelector('.q-source-en')?.value.trim() || '',
             content_format: 'markdown',

@@ -116,6 +116,7 @@ function qb_format_question_row(array $q, bool $includeAnswers): array
         'question_code' => $q['question_code'] ?? null,
         'question_type' => $q['question_type'],
         'sort_order' => (int) $q['sort_order'],
+        'default_score' => isset($q['default_score']) && $q['default_score'] !== null ? (float) $q['default_score'] : null,
         'subject_id' => isset($q['subject_id']) && $q['subject_id'] !== null ? (int) $q['subject_id'] : null,
         'topic_id' => isset($q['topic_id']) && $q['topic_id'] !== null ? (int) $q['topic_id'] : null,
         'difficulty' => $q['difficulty'] ?? null,
@@ -537,6 +538,13 @@ function qb_upsert_question(PDO $pdo, int $bankId, array $q, int $sort, ?int $ba
     }
 
     $questionId = isset($q['id']) ? (int) $q['id'] : 0;
+    $defaultScore = null;
+    if (isset($q['default_score']) && $q['default_score'] !== '' && $q['default_score'] !== null) {
+        $defaultScore = (float) $q['default_score'];
+        if ($defaultScore <= 0) {
+            $defaultScore = null;
+        }
+    }
     if ($questionId > 0) {
         $chk = $pdo->prepare('SELECT id FROM qb_questions WHERE id = ? AND bank_id = ? LIMIT 1');
         $chk->execute([$questionId, $bankId]);
@@ -547,12 +555,12 @@ function qb_upsert_question(PDO $pdo, int $bankId, array $q, int $sort, ?int $ba
 
     if ($questionId > 0) {
         $upd = $pdo->prepare(
-            'UPDATE qb_questions SET question_code=?, question_type=?, sort_order=?, subject_id=?, topic_id=?,
+            'UPDATE qb_questions SET question_code=?, question_type=?, sort_order=?, default_score=?, subject_id=?, topic_id=?,
              difficulty=?, source_zh=?, source_en=?, content_format=?, stem_zh=?, stem_en=?, explanation_zh=?, explanation_en=?,
              model_answer_zh=?, model_answer_en=?, true_false_answer=? WHERE id=? AND bank_id=?'
         );
         $upd->execute([
-            $code, $type, $sort, $subjectId, $topicId,
+            $code, $type, $sort, $defaultScore, $subjectId, $topicId,
             $difficulty,
             $sourceZh !== '' ? $sourceZh : null,
             $sourceEn !== '' ? $sourceEn : null,
@@ -565,13 +573,13 @@ function qb_upsert_question(PDO $pdo, int $bankId, array $q, int $sort, ?int $ba
         ]);
     } else {
         $ins = $pdo->prepare(
-            'INSERT INTO qb_questions (bank_id, question_code, question_type, sort_order, subject_id, topic_id,
+            'INSERT INTO qb_questions (bank_id, question_code, question_type, sort_order, default_score, subject_id, topic_id,
              difficulty, source_zh, source_en, content_format, stem_zh, stem_en, explanation_zh, explanation_en,
              model_answer_zh, model_answer_en, true_false_answer)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $ins->execute([
-            $bankId, $code, $type, $sort, $subjectId, $topicId,
+            $bankId, $code, $type, $sort, $defaultScore, $subjectId, $topicId,
             $difficulty,
             $sourceZh !== '' ? $sourceZh : null,
             $sourceEn !== '' ? $sourceEn : null,

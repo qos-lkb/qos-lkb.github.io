@@ -37,6 +37,7 @@ function api_user_payload(?array $user = null): ?array
     }
     auth_refresh_permissions($user['id']);
 
+    $impersonator = auth_impersonator();
     $payload = [
         'id' => $user['id'],
         'email' => $user['email'],
@@ -45,6 +46,14 @@ function api_user_payload(?array $user = null): ?array
         'display_name' => user_format_name($user),
         'permissions' => array_values($_SESSION['permissions'] ?? []),
         'csrf_token' => csrf_token(),
+        'impersonating' => $impersonator !== null,
+        'impersonator' => $impersonator !== null ? [
+            'id' => $impersonator['id'],
+            'email' => $impersonator['email'],
+            'name_zh' => $impersonator['name_zh'],
+            'name_en' => $impersonator['name_en'],
+            'display_name' => user_format_name($impersonator),
+        ] : null,
     ];
 
     try {

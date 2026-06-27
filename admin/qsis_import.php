@@ -22,19 +22,36 @@ $qsisConfigured = qsis_is_configured();
 $connection = $qsisConfigured ? qsis_test_connection() : ['ok' => false, 'error' => '尚未設定 QSIS 資料庫。'];
 
 $years = [];
-$classes = [];
+$klas = [];
+$courses = [];
+$previewStudents = [];
+$courseNameById = [];
 $selectedYearId = '';
+$selectedKlaId = 0;
 
 if ($connection['ok']) {
     try {
         $qsis = qsis_db();
         $years = qsis_list_years($qsis);
+        $klas = qsis_list_klas($qsis);
         $selectedYearId = trim((string) ($_POST['year_id'] ?? $_GET['year_id'] ?? ''));
         if ($selectedYearId === '') {
             $selectedYearId = qsis_current_year_id($qsis) ?? ($years[0]['yearId'] ?? '');
         }
+        $selectedKlaId = (int) ($_POST['kla_id'] ?? $_GET['kla_id'] ?? 0);
         if ($selectedYearId !== '') {
-            $classes = qsis_list_classes($qsis, $selectedYearId);
+            $courses = qsis_list_courses(
+                $qsis,
+                $selectedYearId,
+                $selectedKlaId > 0 ? $selectedKlaId : null
+            );
+            foreach ($courses as $courseRow) {
+                $courseNameById[(int) $courseRow['course_id']] = qsis_course_display_name($courseRow);
+            }
+            if ($courses !== []) {
+                $courseIds = array_map(static fn (array $row): int => (int) $row['course_id'], $courses);
+                $previewStudents = qsis_list_students($qsis, $selectedYearId, $courseIds);
+            }
         }
     } catch (Throwable $e) {
         $connection = ['ok' => false, 'error' => $e->getMessage()];
@@ -55,79 +72,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connection['ok']) {
         $flash = 'CSRF 驗證失敗。';
     } else {
         $action = (string) ($_POST['action'] ?? '');
-        $classNames = isset($_POST['class_names']) && is_array($_POST['class_names'])
-            ? array_values(array_filter(array_map('strval', $_POST['class_names']), static fn (string $c): bool => trim($c) !== ''))
+        $courseIds = isset($_POST['course_ids']) && is_array($_POST['course_ids'])
+            ? array_values(array_filter(array_map('intval', $_POST['course_ids']), static fn (int $id): bool => $id > 0))
             : [];
 
-        if ($classNames === []) {
+        if ($courseIds === []) {
             $flashType = 'error';
-            $flash = '請至少勾選一個班級。';
+            $flash = '請至少勾選一門課程。';
         } else {
-        $options = [
-            'year_id' => trim((string) ($_POST['year_id'] ?? '')),
-            'class_names' => $classNames,
-            'teacher_user_id' => (int) ($_POST['teacher_user_id'] ?? $user['id']),
-            'default_password' => trim((string) ($_POST['default_password'] ?? '')),
-            'enroll' => !empty($_POST['enroll']),
-            'update_existing' => !empty($_POST['update_existing']),
-        ];
+            $options = [
+                'year_id' => trim((string) ($_POST['year_id'] ?? '')),
+                'course_ids' => $courseIds,
+                'teacher_user_id' => (int) ($_POST['teacher_user_id'] ?? $user['id']),
+                'default_password' => trim((string) ($_POST['default_password'] ?? '')),
+                'enroll' => !empty($_POST['enroll']),
+                'update_existing' => !empty($_POST['update_existing']),
+            ];
 
-        try {
-            $qsis = qsis_db();
-            if ($action === 'import_classes') {
-                $result = qsis_import_classes($pdo, $qsis, $options, $user['id']);
-                if ($result['ok']) {
-                    $flashType = 'success';
-                    $flash = sprintf(
-                        '班級匯入完成：新建 %d、略過 %d（已存在）。',
-                        (int) ($result['created'] ?? 0),
-                        (int) ($result['skipped'] ?? 0)
-                    );
-                } else {
-                    $flashType = 'error';
-                    $flash = $result['error'] ?? '班級匯入失敗。';
+            try {
+                $qsis = qsis_db();
+                if ($action === 'import_courses') {
+                    $result = qsis_import_courses($pdo, $qsis, $options, $user['id']);
+                    if ($result['ok']) {
+                        $flashType = 'success';
+                        $flash = sprintf(
+                            '課程匯入完成：新建 %d、略過 %d（已存在）。',
+                            (int) ($result['created'] ?? 0),
+                            (int) ($result['skipped'] ?? 0)
+                        );
+                    } else {
+                        $flashType = 'error';
+                        $flash = $result['error'] ?? '課程匯入失敗。';
+                    }
+                } elseif ($action === 'import_students') {
+                    $result = qsis_import_students($pdo, $qsis, $options, $user['id']);
+                    if ($result['ok']) {
+                        $flashType = 'success';
+                        $flash = sprintf(
+                            '學生匯入完成：新建 %d、更新 %d、略過 %d；加入課程 %d 人次。',
+                            (int) ($result['created'] ?? 0),
+                            (int) ($result['updated'] ?? 0),
+                            (int) ($result['skipped'] ?? 0),
+                            (int) ($result['enrolled'] ?? 0)
+                        );
+                    } else {
+                        $flashType = 'error';
+                        $flash = $result['error'] ?? '學生匯入失敗。';
+                    }
+                } elseif ($action === 'import_all') {
+                    $result = qsis_import_all($pdo, $qsis, $options, $user['id']);
+                    if ($result['ok']) {
+                        $flashType = 'success';
+                        $flash = sprintf(
+                            '一鍵匯入完成：課程新建 %d（略過 %d）；學生新建 %d、更新 %d、略過 %d、加入課程 %d 人次。',
+                            (int) ($result['courses_created'] ?? 0),
+                            (int) ($result['courses_skipped'] ?? 0),
+                            (int) ($result['students_created'] ?? 0),
+                            (int) ($result['students_updated'] ?? 0),
+                            (int) ($result['students_skipped'] ?? 0),
+                            (int) ($result['students_enrolled'] ?? 0)
+                        );
+                    } else {
+                        $flashType = 'error';
+                        $flash = $result['error'] ?? '匯入失敗。';
+                    }
                 }
-            } elseif ($action === 'import_students') {
-                $result = qsis_import_students($pdo, $qsis, $options, $user['id']);
-                if ($result['ok']) {
-                    $flashType = 'success';
-                    $flash = sprintf(
-                        '學生匯入完成：新建 %d、更新 %d、略過 %d；加入班級 %d 人次。',
-                        (int) ($result['created'] ?? 0),
-                        (int) ($result['updated'] ?? 0),
-                        (int) ($result['skipped'] ?? 0),
-                        (int) ($result['enrolled'] ?? 0)
-                    );
-                } else {
-                    $flashType = 'error';
-                    $flash = $result['error'] ?? '學生匯入失敗。';
-                }
-            } elseif ($action === 'import_all') {
-                $result = qsis_import_all($pdo, $qsis, $options, $user['id']);
-                if ($result['ok']) {
-                    $flashType = 'success';
-                    $flash = sprintf(
-                        '一鍵匯入完成：班級新建 %d（略過 %d）；學生新建 %d、更新 %d、略過 %d、加入班級 %d 人次。',
-                        (int) ($result['classes_created'] ?? 0),
-                        (int) ($result['classes_skipped'] ?? 0),
-                        (int) ($result['students_created'] ?? 0),
-                        (int) ($result['students_updated'] ?? 0),
-                        (int) ($result['students_skipped'] ?? 0),
-                        (int) ($result['students_enrolled'] ?? 0)
-                    );
-                } else {
-                    $flashType = 'error';
-                    $flash = $result['error'] ?? '匯入失敗。';
-                }
-            }
 
-            if ($selectedYearId !== '') {
-                $classes = qsis_list_classes($qsis, $selectedYearId);
+                if ($selectedYearId !== '') {
+                    $courses = qsis_list_courses(
+                        $qsis,
+                        $selectedYearId,
+                        $selectedKlaId > 0 ? $selectedKlaId : null
+                    );
+                    $courseNameById = [];
+                    foreach ($courses as $courseRow) {
+                        $courseNameById[(int) $courseRow['course_id']] = qsis_course_display_name($courseRow);
+                    }
+                    if ($courses !== []) {
+                        $courseIds = array_map(static fn (array $row): int => (int) $row['course_id'], $courses);
+                        $previewStudents = qsis_list_students($qsis, $selectedYearId, $courseIds);
+                    } else {
+                        $previewStudents = [];
+                    }
+                }
+            } catch (Throwable $e) {
+                $flashType = 'error';
+                $flash = '匯入失敗：' . $e->getMessage();
             }
-        } catch (Throwable $e) {
-            $flashType = 'error';
-            $flash = '匯入失敗：' . $e->getMessage();
-        }
         }
     }
 }
@@ -152,16 +183,16 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
             <?php else: ?>
                 <p class="text-sm text-red-600">連線失敗：<?php echo htmlspecialchars((string) ($connection['error'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
             <?php endif; ?>
-            <p class="text-xs text-slate-500 mt-2">此連線為<strong>唯讀</strong>用途，僅從校本 QSIS 讀取學生與班級資料。</p>
+            <p class="text-xs text-slate-500 mt-2">此連線為<strong>唯讀</strong>用途，從 QSIS 讀取課程與選課學生資料。</p>
         </div>
 
         <?php if ($connection['ok']): ?>
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-6">
             <h2 class="text-lg font-bold text-slate-800 mb-4">匯入設定</h2>
-            <form method="get" class="mb-4">
+            <form method="get" class="mb-4 grid sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700">QSIS 學年</label>
-                    <select name="year_id" class="mt-1 w-full sm:max-w-md border rounded-lg px-3 py-2" onchange="this.form.submit()">
+                    <select name="year_id" class="mt-1 w-full border rounded-lg px-3 py-2" onchange="this.form.submit()">
                         <?php foreach ($years as $year): ?>
                         <option value="<?php echo htmlspecialchars($year['yearId'], ENT_QUOTES, 'UTF-8'); ?>"
                             <?php echo $selectedYearId === $year['yearId'] ? 'selected' : ''; ?>>
@@ -178,14 +209,32 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">學習領域（KLA）</label>
+                    <select name="kla_id" class="mt-1 w-full border rounded-lg px-3 py-2" onchange="this.form.submit()">
+                        <option value="0" <?php echo $selectedKlaId <= 0 ? 'selected' : ''; ?>>全部 KLA</option>
+                        <?php foreach ($klas as $kla): ?>
+                        <option value="<?php echo (int) $kla['kla_id']; ?>" <?php echo $selectedKlaId === (int) $kla['kla_id'] ? 'selected' : ''; ?>>
+                            <?php
+                            $klaLabel = qsis_kla_display_name($kla);
+                            if ($kla['kla_code'] !== '' && $klaLabel !== $kla['kla_code']) {
+                                $klaLabel .= ' [' . $kla['kla_code'] . ']';
+                            }
+                            echo htmlspecialchars($klaLabel, ENT_QUOTES, 'UTF-8');
+                            ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </form>
 
             <form method="post" class="space-y-4">
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="year_id" value="<?php echo htmlspecialchars($selectedYearId, ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="kla_id" value="<?php echo (int) $selectedKlaId; ?>">
                 <div class="grid sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-slate-700">預設導師（無法對應 QSIS 班主任時）</label>
+                        <label class="block text-sm font-medium text-slate-700">預設任教老師（無法對應 QSIS 教師代碼時）</label>
                         <select name="teacher_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">
                             <?php foreach ($teachers as $t): ?>
                             <option value="<?php echo (int) $t['id']; ?>" <?php echo (int) $t['id'] === (int) $user['id'] ? 'selected' : ''; ?>>
@@ -206,33 +255,48 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
 
             <div class="mt-6 pt-6 border-t border-slate-100">
                 <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <h2 class="text-lg font-bold text-slate-800">QSIS 班級預覽</h2>
+                    <h2 class="text-lg font-bold text-slate-800">QSIS 課程預覽</h2>
                     <label class="text-sm text-slate-600">
-                        <input type="checkbox" id="select-all-classes" class="mr-1" checked> 全選
+                        <input type="checkbox" id="select-all-courses" class="mr-1" checked> 全選
                     </label>
                 </div>
-                <?php if ($classes === []): ?>
-                    <p class="text-sm text-slate-500">此學年沒有在學班級資料。</p>
+                <?php if ($courses === []): ?>
+                    <p class="text-sm text-slate-500"><?php echo $selectedKlaId > 0 ? '此學年與 KLA 沒有含在學學生的課程資料。' : '此學年沒有含在學學生的課程資料。'; ?></p>
                 <?php else: ?>
                 <div class="overflow-x-auto mb-4">
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-100 text-left">
                             <tr>
                                 <th class="p-3 w-10"></th>
-                                <th class="p-3">班別</th>
+                                <th class="p-3">課程編號</th>
+                                <th class="p-3">課程名稱</th>
+                                <th class="p-3">KLA</th>
+                                <th class="p-3">科目</th>
+                                <th class="p-3">級別</th>
                                 <th class="p-3">學生人數</th>
-                                <th class="p-3">QSIS 班主任</th>
+                                <th class="p-3">任教老師</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($classes as $classRow): ?>
+                            <?php foreach ($courses as $courseRow):
+                                $displayName = qsis_course_display_name($courseRow);
+                                ?>
                             <tr class="border-t border-slate-100">
                                 <td class="p-3">
-                                    <input type="checkbox" name="class_names[]" value="<?php echo htmlspecialchars((string) $classRow['class'], ENT_QUOTES, 'UTF-8'); ?>" class="class-checkbox" checked>
+                                    <input type="checkbox" name="course_ids[]" value="<?php echo (int) $courseRow['course_id']; ?>" class="course-checkbox" checked>
                                 </td>
-                                <td class="p-3 font-medium"><?php echo htmlspecialchars((string) $classRow['class'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td class="p-3"><?php echo (int) $classRow['student_count']; ?></td>
-                                <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars((string) ($classRow['teacher_id'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td class="p-3 font-mono text-xs"><?php echo (int) $courseRow['course_id']; ?></td>
+                                <td class="p-3 font-medium">
+                                    <?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php if ($courseRow['course_code'] !== ''): ?>
+                                    <span class="text-xs text-slate-400 block"><?php echo htmlspecialchars((string) $courseRow['course_code'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars((string) ($courseRow['kla_name'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars((string) $courseRow['subject_id'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td class="p-3"><?php echo (int) $courseRow['level']; ?></td>
+                                <td class="p-3"><?php echo (int) $courseRow['student_count']; ?></td>
+                                <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars((string) ($courseRow['teacher_id'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -240,12 +304,51 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
                 </div>
                 <?php endif; ?>
 
+                <?php if ($previewStudents !== []): ?>
+                <div class="mt-6 mb-4">
+                    <h3 class="text-base font-bold text-slate-800 mb-2">學生預覽（<?php echo count($previewStudents); ?> 人次）</h3>
+                    <p class="text-xs text-slate-500 mb-3">匯入學生時會一併寫入班別、班號及 MOI（<strong>E</strong>=英文應考、<strong>C</strong>=中文應考；資料來自 QSIS <code class="bg-slate-100 px-1 rounded">v2_enrolment_record.moi</code>）。</p>
+                    <div class="overflow-x-auto max-h-80 overflow-y-auto border border-slate-200 rounded-lg">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-slate-100 text-left sticky top-0">
+                                <tr>
+                                    <th class="p-2">學號</th>
+                                    <th class="p-2">中文名</th>
+                                    <th class="p-2">英文名</th>
+                                    <th class="p-2">課程</th>
+                                    <th class="p-2">班別</th>
+                                    <th class="p-2">班號</th>
+                                    <th class="p-2">MOI</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($previewStudents as $studentRow):
+                                    $courseId = (int) ($studentRow['course_id'] ?? 0);
+                                    $courseLabel = $courseNameById[$courseId] ?? ('#' . $courseId);
+                                    $moi = $studentRow['moi'] ?? null;
+                                    ?>
+                                <tr class="border-t border-slate-100">
+                                    <td class="p-2 font-mono text-xs"><?php echo htmlspecialchars((string) $studentRow['sid'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="p-2"><?php echo htmlspecialchars((string) ($studentRow['nameChi'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="p-2"><?php echo htmlspecialchars((string) ($studentRow['nameEng'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="p-2"><?php echo htmlspecialchars($courseLabel, ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="p-2"><?php echo htmlspecialchars((string) ($studentRow['class'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="p-2"><?php echo (int) ($studentRow['classNo'] ?? 0) > 0 ? (int) $studentRow['classNo'] : '—'; ?></td>
+                                    <td class="p-2 font-mono text-xs"><?php echo $moi ? htmlspecialchars($moi, ENT_QUOTES, 'UTF-8') : '—'; ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div class="flex flex-wrap gap-3 items-center">
                     <button type="submit" name="action" value="import_all" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium">
-                        一鍵匯入班級＋學生
+                        一鍵匯入課程＋學生
                     </button>
-                    <button type="submit" name="action" value="import_classes" class="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800">
-                        只匯入班級
+                    <button type="submit" name="action" value="import_courses" class="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800">
+                        只匯入課程
                     </button>
                     <button type="submit" name="action" value="import_students" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
                         只匯入學生
@@ -255,12 +358,13 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
                 <div class="mt-4 space-y-2 text-sm text-slate-600">
                     <label class="flex items-center gap-2">
                         <input type="checkbox" name="enroll" value="1" checked>
-                        匯入學生時自動加入對應本地班級（須先匯入或已存在同名班級）
+                        匯入學生時自動加入對應本地課程（須先匯入或已存在同名課程）
                     </label>
                     <label class="flex items-center gap-2">
                         <input type="checkbox" name="update_existing" value="1">
                         更新已存在學生的中英文名（依 QSIS 資料）
                     </label>
+                    <p class="text-xs text-slate-500 pl-6">重新匯入時亦會更新已選課學生的班別、班號與 MOI。</p>
                 </div>
             </div>
             </form>
@@ -270,10 +374,12 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
         <div class="bg-slate-50 rounded-xl border border-slate-200 p-6 text-sm text-slate-600">
             <h3 class="font-semibold text-slate-800 mb-2">說明</h3>
             <ul class="list-disc pl-5 space-y-1">
-                <li>班級名稱沿用 QSIS 行政班代碼（如 1A、2B），學年取自 QSIS <code class="text-xs bg-white px-1 rounded">setting_year</code>。</li>
-                <li>班主任會嘗試以 QSIS 教師代碼對應本地教師帳戶（電郵前綴或顯示名稱）；對應失敗則使用上方「預設導師」。</li>
-                <li>已存在同名同學年班級或同電郵／學號學生會略過，不會覆寫密碼。</li>
-                <li>匯入後可至 <a href="classes.php" class="text-indigo-600 underline">班級管理</a> 檢視邀請碼與名單。</li>
+                <li>課程資料來自 QSIS <code class="text-xs bg-white px-1 rounded">v2_course_record</code>，並依科目／課程的 <code class="text-xs bg-white px-1 rounded">kla_id</code> 對應 <code class="text-xs bg-white px-1 rounded">v2_kla_record</code> 篩選學習領域。</li>
+                <li>學生名單來自 <code class="text-xs bg-white px-1 rounded">v2_enrolment_record</code>（角色 S）；每位學生的 <code class="text-xs bg-white px-1 rounded">moi</code>（E/C）會寫入本地選課紀錄。</li>
+                <li>匯入後在本系統建立對應「課程」條目（名稱為課程中文／英文名稱），學年取自 QSIS <code class="text-xs bg-white px-1 rounded">setting_year</code>。</li>
+                <li>任教老師會嘗試以 QSIS <code class="text-xs bg-white px-1 rounded">teacher1_id</code> 對應本地教師帳戶；對應失敗則使用上方「預設任教老師」。</li>
+                <li>已存在同名同學年課程或同電郵／學號學生會略過，不會覆寫密碼。</li>
+                <li>匯入後可至 <a href="courses.php" class="text-indigo-600 underline">課程管理</a> 檢視邀請碼與名單。</li>
             </ul>
         </div>
 <?php
@@ -281,8 +387,8 @@ admin_page_end([
     'scripts' => <<<'HTML'
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var master = document.getElementById('select-all-classes');
-    var boxes = document.querySelectorAll('.class-checkbox');
+    var master = document.getElementById('select-all-courses');
+    var boxes = document.querySelectorAll('.course-checkbox');
     if (!master || !boxes.length) return;
     master.addEventListener('change', function () {
         boxes.forEach(function (cb) { cb.checked = master.checked; });

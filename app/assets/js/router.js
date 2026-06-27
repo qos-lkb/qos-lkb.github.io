@@ -82,6 +82,11 @@
             await afterRoute();
             return;
         }
+        if (path === '/learning-videos') {
+            await routes['/learning-videos']();
+            await afterRoute();
+            return;
+        }
         if (path === '/articles') {
             await routes['/articles']();
             await afterRoute();
@@ -124,6 +129,17 @@
         }
         if (path === '/dashboard') {
             await routes['/dashboard']();
+            await afterRoute();
+            return;
+        }
+        if (path === '/assignments') {
+            await routes['/assignments']();
+            await afterRoute();
+            return;
+        }
+        const assignment = path.match(/^\/assignment\/(\d+)$/);
+        if (assignment) {
+            await routes['/assignment/:id'](assignment[1]);
             await afterRoute();
             return;
         }

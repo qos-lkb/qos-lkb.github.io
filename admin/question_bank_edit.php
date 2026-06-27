@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/includes/question_bank_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
-require_permission('question_bank.manage_any', '../login.php?next=' . rawurlencode('admin/question_bank_edit.php'));
+require_any_permission(['question_bank.manage_any', 'question_bank.manage_own'], '../login.php?next=' . rawurlencode('admin/question_bank_edit.php'));
 
 $pdo = db();
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
@@ -102,6 +102,7 @@ admin_page_start($id ? '編輯試題庫' : '新增試題庫', 'question_banks', 
                                 <th class="p-2 min-w-[7rem]">科目</th>
                                 <th class="p-2 min-w-[7rem]">課題</th>
                                 <th class="p-2 w-16">難度</th>
+                                <th class="p-2 w-16">分數</th>
                                 <th class="p-2 min-w-[8rem]">來源</th>
                                 <th class="p-2 w-24">操作</th>
                             </tr>

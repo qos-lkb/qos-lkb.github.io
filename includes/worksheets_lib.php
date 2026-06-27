@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/simulations_lib.php';
+require_once __DIR__ . '/worksheet_blocks_lib.php';
 
 function ws_ensure_unique_slug(PDO $pdo, string $base, ?int $exceptId = null): string
 {
@@ -55,6 +56,44 @@ function ws_get_by_slug(PDO $pdo, string $slug): ?array
 /**
  * @return array<int, array<string, mixed>>
  */
+function ws_fetch_assignable_for_teacher(PDO $pdo, int $userId, bool $canAny): array
+{
+    if ($canAny) {
+        $sql = 'SELECT ws.*, sub.name_zh AS subject_zh, sub.name_en AS subject_en,
+                       t.name_zh AS topic_zh, t.name_en AS topic_en
+                FROM worksheets ws
+                LEFT JOIN subjects sub ON sub.id = ws.subject_id
+                LEFT JOIN topics t ON t.id = ws.topic_id
+                ORDER BY ws.updated_at DESC';
+        return $pdo->query($sql)->fetchAll() ?: [];
+    }
+
+    $sql = 'SELECT ws.*, sub.name_zh AS subject_zh, sub.name_en AS subject_en,
+                   t.name_zh AS topic_zh, t.name_en AS topic_en
+            FROM worksheets ws
+            LEFT JOIN subjects sub ON sub.id = ws.subject_id
+            LEFT JOIN topics t ON t.id = ws.topic_id
+            WHERE ws.owner_user_id = ? OR ws.status = \'published\'
+            ORDER BY ws.owner_user_id = ? DESC, ws.updated_at DESC';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$userId, $userId]);
+    return $stmt->fetchAll() ?: [];
+}
+
+function ws_teacher_can_assign(array $worksheet, array $teacher): bool
+{
+    if (($worksheet['status'] ?? '') === 'published') {
+        return true;
+    }
+    if (user_has_permission('worksheet.manage_any')) {
+        return true;
+    }
+    return (int) ($worksheet['owner_user_id'] ?? 0) === (int) $teacher['id'];
+}
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
 function ws_fetch_published(PDO $pdo): array
 {
     $sql = 'SELECT ws.*, sub.name_zh AS subject_zh, sub.name_en AS subject_en,
@@ -69,6 +108,13 @@ function ws_fetch_published(PDO $pdo): array
 
 function ws_public_row(array $row): array
 {
+    $bodyZh = (string) ($row['body_zh'] ?? '');
+    $bodyEn = (string) ($row['body_en'] ?? '');
+    $blocksZh = ws_parse_content_blocks($bodyZh);
+    $blocksEn = ws_parse_content_blocks($bodyEn);
+    $summaryZh = ws_summarize_question_scores($blocksZh);
+    $summaryEn = ws_summarize_question_scores($blocksEn);
+
     return [
         'id' => (int) $row['id'],
         'slug' => $row['slug'],
@@ -76,8 +122,12 @@ function ws_public_row(array $row): array
         'title_en' => $row['title_en'],
         'description_zh' => $row['description_zh'],
         'description_en' => $row['description_en'],
-        'body_zh' => (string) ($row['body_zh'] ?? ''),
-        'body_en' => (string) ($row['body_en'] ?? ''),
+        'body_zh' => $bodyZh,
+        'body_en' => $bodyEn,
+        'content_blocks_zh' => $blocksZh,
+        'content_blocks_en' => $blocksEn,
+        'question_summary_zh' => $summaryZh,
+        'question_summary_en' => $summaryEn,
         'subject_id' => $row['subject_id'] !== null ? (int) $row['subject_id'] : null,
         'topic_id' => $row['topic_id'] !== null ? (int) $row['topic_id'] : null,
         'subject_zh' => $row['subject_zh'] ?? null,
