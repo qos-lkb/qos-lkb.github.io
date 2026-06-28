@@ -8,6 +8,11 @@
 
 ## 2026-06-28
 
+### 資料庫 schema 整併
+- 新增根目錄 **`schema.sql`**：完整 MariaDB schema（含 seed 角色／權限／系統帳號）。
+- 刪除 **`migrations/`** 逐步遷移檔（001–018）；新環境改為一次匯入 `schema.sql`。
+- 更新 README、architecture、rule、change_log 與 `.cursorrules` 說明。
+
 ### 文件與 Cursor 規則
 - 更新 **`README.md`**、**`architecture.md`**、**`rule.md`**：反映工作紙派發、課程管理、SDL、遷移 001–018、SPA 模組等現況。
 - **`ARCHITECTURE.md`** 改為導覽頁，指向 canonical 的 `architecture.md`。
@@ -196,36 +201,22 @@
 
 ---
 
-## 遷移檔一覽 | Migrations
+## 資料庫 schema | Database
 
-| 檔案 | 內容 |
-|------|------|
-| `001_api_learning_content.sql` | 互動學習工具、科學文章、quiz／article 題目、權限 |
-| `002_permissions_description.sql` | 權限描述欄位 |
-| `003_learning_notes_worksheets.sql` | 學習筆記、工作紙 |
-| `004_worksheets_markdown.sql` | 工作紙 Markdown 支援 |
-| `005_self_study_courses.sql` | 學習影片、課題混合編排 |
-| `006_question_bank.sql` | 試題庫與各題型 |
-| `007_roles_student_teacher.sql` | 教師／學生角色 |
-| `008_question_bank_redesign.sql` | 試題庫逐題 metadata、圖片上傳 |
-| `009_sdl_adaptive_learning.sql` | SDL：班級、學習事件、作答、掌握度、目標 |
-| `010_user_names_bilingual.sql` | 使用者中英文名 |
-| `011_class_enrollment_form_class.sql` | 選課：行政班、班號 |
-| `012_class_enrollment_moi.sql` | 選課：MOI（E/C） |
-| `013_learning_video_providers.sql` | 影片 provider 擴充 |
-| `014_worksheet_assignments.sql` | 工作紙派發、提交 |
-| `015_teacher_worksheet_permissions.sql` | *(已棄用，請改執行 016)* |
-| `016_worksheet_role_permissions.sql` | 工作紙派發／評分／提交權限 |
-| `017_worksheet_question_scores.sql` | 試題分數、提交 JSON、自動計分 |
-| `018_learning_video_bilingual.sql` | 學習影片雙語嵌入 URL |
+新環境請匯入 **[`schema.sql`](schema.sql)**（會 DROP 既有資料表後重建）。
 
-新環境請依序執行 **`001` 至 `018`**（詳見 [architecture.md](architecture.md)）。
+```bash
+mysql -u USER -p DB_NAME < schema.sql
+```
+
+舊版 **`migrations/001`–`018`** 已整併入 `schema.sql` 並自儲存庫移除。
 
 ---
 
 ## 相關文件
 
 - [architecture.md](architecture.md) — 架構與部署
+- [schema.sql](schema.sql) — 完整資料庫 schema
 - [README.md](README.md) — 快速開始
 - [rule.md](rule.md) — 開發規範
 - [.cursorrules](.cursorrules) — Cursor AI 專案規則

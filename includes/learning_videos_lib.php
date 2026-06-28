@@ -55,7 +55,7 @@ function lv_save_pdo_error(PDOException $e): array
     if (preg_match('/provider|Data truncated|1265|22001/i', $msg)) {
         return [
             'ok' => false,
-            'error' => '資料庫欄位尚未更新，請執行 migrations/013_learning_video_providers.sql 及 018_learning_video_bilingual.sql 後再試。',
+            'error' => '資料庫結構不完整，請重新匯入根目錄 schema.sql 後再試。',
         ];
     }
     return ['ok' => false, 'error' => '儲存影片時發生資料庫錯誤。'];

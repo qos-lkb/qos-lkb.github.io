@@ -52,7 +52,7 @@ science_sims/
 ├── includes/                 # 設定、DB、auth、內容 lib
 ├── admin/                    # 後台（含 courses、classes、qsis_import）
 ├── portal/                   # 貢獻者入口
-├── migrations/               # 001–018 SQL 遷移
+├── schema.sql                # 完整資料庫 schema（新環境一次匯入）
 ├── physics/, chem/, biology/, science/, astronomy/, …
 ├── .cursorrules              # Cursor AI 專案規則（摘要）
 ├── .cursor/rules/            # Cursor 細分規則（依檔案類型）
@@ -69,7 +69,7 @@ science_sims/
 
 1. 安裝 **PHP 8+**、**MariaDB**。
 2. 複製 **`.env.example`** 為 **`.env`**，填入 `DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS` 等。
-3. 依序執行 **`migrations/001`** 至 **`018`**（見 [architecture.md](architecture.md) 遷移一覽）。
+3. 匯入 **`schema.sql`** 建立完整資料庫結構（見 [architecture.md](architecture.md)）。
 4. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。
 5. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
 
@@ -116,6 +116,8 @@ python3 -m http.server 8000
 
 - [change_log.md](change_log.md) — 依 Git 整理的變更紀錄
 - [architecture.md](architecture.md) — 架構、API、部署、資料模型
+- [schema.sql](schema.sql) — 完整資料庫 schema
+- [data_dictionary.md](data_dictionary.md) — 資料表欄位字典（`php update_data_dictionary.php` 產生）
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 架構文件導覽
 - [rule.md](rule.md) — 開發規範（模擬 HTML、PHP、SPA、工作紙嵌入）
 - [.cursorrules](.cursorrules) — Cursor AI 專案規則摘要

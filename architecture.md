@@ -28,7 +28,7 @@ The same codebase may be deployed as:
 
 - **HTML5**, **CSS3**, **Vanilla JS**; **Tailwind CSS** via CDN on many pages.
 - **PHP 8+** (`declare(strict_types=1);`) for admin, auth, API, DB access.
-- **MariaDB / MySQL** for catalogue, learning content, users, roles, classes, assignments (see migrations).
+- **MariaDB / MySQL** for catalogue, learning content, users, roles, classes, assignments (see **`schema.sql`**).
 - **Timezone**: `Asia/Hong_Kong` across PHP, MySQL session, and frontend display.
 
 ### CDN libraries (representative)
@@ -66,30 +66,30 @@ The same codebase may be deployed as:
 
 ---
 
-## Database migrations
+## Database schema
 
-Apply **in numeric order** on MariaDB. Do not skip files.
+Single canonical file: **[`schema.sql`](schema.sql)** — full MariaDB schema for fresh installs.
 
-| Migration | Summary |
-|-----------|---------|
-| `001` | API learning content tables (simulations, tools, articles, …) |
-| `002` | Permission descriptions |
-| `003` | Learning notes and worksheets |
-| `004` | Worksheet Markdown columns |
-| `005` | Self-study courses (`topic_learning_items`) |
-| `006` | Question banks |
-| `007` | Roles: student / teacher |
-| `008` | Question bank redesign |
-| `009` | SDL / adaptive learning (classes, events, attempts, mastery, goals) |
-| `010` | User bilingual names (`name_zh`, `name_en`) |
-| `011` | Class enrollment: form class, class number |
-| `012` | Class enrollment: MOI (E/C) |
-| `013` | Learning video providers (VARCHAR) |
-| `014` | Worksheet assignments, submissions |
-| `015` | *(deprecated — use `016` instead)* |
-| `016` | Worksheet role permissions (assign, grade, submit) |
-| `017` | Question default scores; submission `responses_json`, auto-score |
-| `018` | Learning video bilingual embed URLs |
+```bash
+mysql -u USER -p DB_NAME < schema.sql
+```
+
+- **No FOREIGN KEY** constraints; relations enforced in PHP libs.
+- **Timezone**: set `APP_TIMEZONE=Asia/Hong_Kong` in `.env`; schema sets session `+08:00`.
+- **Seed data**: roles (`admin`, `teacher`, `student`), all permissions, default role grants, system user (`system@science-sims.internal`).
+- **Admin account**: create via `admin/users.php` after import (no bundled default password).
+- **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via `admin/db_export.php`.
+
+### Tables (summary)
+
+| Group | Tables |
+|-------|--------|
+| Auth | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `api_rate_limits` |
+| Catalogue | `subjects`, `topics`, `simulations`, `tags`, `simulation_tags` |
+| Content | `learning_tools`, `quiz_*`, `science_articles`, `article_*`, `learning_notes`, `worksheets`, `learning_videos`, `topic_learning_items` |
+| Question banks | `question_banks`, `qb_questions`, `qb_mcq_options`, `qb_question_parts`, `qb_fill_blanks`, `qb_question_media` |
+| Classes & SDL | `classes`, `class_enrollments`, `student_profiles`, `learning_events`, `learning_attempts`, `learning_responses`, `topic_mastery`, `learning_goals`, `content_bookmarks` |
+| Assignments | `worksheet_assignments`, `worksheet_assignment_students`, `worksheet_submissions` |
 
 ---
 
@@ -238,7 +238,7 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 
 - **Roles**: `admin`, `teacher`, `student`.
 - **Content**: `*.manage_own` (contributors) and `*.manage_any` (admins).
-- **Worksheets**: `worksheet.assign_own`, `worksheet.grade_own`, `worksheet.submit_own` (see migration `016`).
+- **Worksheets**: `worksheet.assign_own`, `worksheet.grade_own`, `worksheet.submit_own` (seeded in **`schema.sql`**).
 - **Classes**: `class.manage_own`, `class.manage_any`.
 
 ### Admin pages (representative)
@@ -277,7 +277,7 @@ science_sims/
 ├── includes/              # PHP config, DB, auth, content libs
 ├── admin/                 # Back office
 ├── portal/                # Contributor portal
-├── migrations/            # SQL migrations 001–018
+├── schema.sql             # Full database schema (canonical)
 │
 ├── physics/               # HKDSE-style units (01, 02, …, e01–e03)
 ├── chem/ / chemistry/
@@ -345,7 +345,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 1. PHP 8+ with PDO MySQL, MariaDB with schema applied.
 2. Copy `.env.example` → `.env`, set `DB_*` and optional `DEFAULT_REDIRECT_URL`.
-3. Run migrations **`001` through `018`** in order on MariaDB.
+3. Import **`schema.sql`** on MariaDB.
 4. Point vhost document root at project root; open **`/app/`**.
 
 ### GitHub Pages (static subset)
@@ -370,7 +370,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - Follow **`rule.md`** for naming, HTML skeleton, PHP/SPA conventions, and worksheet embed syntax.
 - New simulations: add HTML under the correct subject folder; register via **admin / DB workflow**.
 - Learning content: use **admin/** or **portal/** editors (REST API backend).
-- Schema changes: add numbered SQL under **`migrations/`** only.
+- Schema changes: edit **`schema.sql`** and document in **`change_log.md`**; existing DBs need manual ALTER or export/re-import.
 - Document significant changes in **`change_log.md`**.
 - Prefer **small, focused diffs**; match existing style in each directory.
 - Cursor AI: see **`.cursorrules`** and **`.cursor/rules/`**.
@@ -381,6 +381,8 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 - **`README.md`** — Overview, quick start, links.
 - **`change_log.md`** — Version history from Git.
+- **`schema.sql`** — Full database schema for fresh installs.
+- **`data_dictionary.md`** — Table/column reference (run `php update_data_dictionary.php`).
 - **`rule.md`** — File naming, structure, accessibility, PHP/SPA rules.
 - **`dev/plan.md`** — Optional curriculum / project ideation list (Traditional Chinese).
 

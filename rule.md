@@ -581,9 +581,10 @@ declare(strict_types=1);
 - API handlers in **`api/v1/handlers/`** call lib functions; register routes in **`api/v1/router.php`**
 - Do not duplicate authorization checks—use existing `require_permission()`, `api_require_*` helpers
 
-**Rule 14.3**: Schema changes only via numbered SQL in **`migrations/`**
-- Apply migrations in order (`001` … `018` and beyond)
-- Do not use foreign keys unless the project already does so for that table; maintain relations in application code when that is the established pattern
+**Rule 14.3**: Schema changes via **`schema.sql`** (canonical full schema for fresh installs)
+- Edit **`schema.sql`** and note changes in **`change_log.md`**
+- Re-importing **`schema.sql`** drops all tables — back up production data first
+- Do not use FOREIGN KEY constraints; maintain relations in application libs
 
 **Rule 14.4**: Mutating HTTP requests require CSRF
 - Web forms: hidden `csrf` field + `verify_csrf()`
@@ -641,13 +642,12 @@ declare(strict_types=1);
 
 **Rule 16.2**: Question scores
 - Set **`default_score`** on question bank items when used in gradable worksheets
-- Assignment submissions store answers in **`responses_json`**; auto-score when configured (migration `017`)
+- Assignment submissions store answers in **`responses_json`**; auto-score when configured
 
 **Rule 16.3**: Learning videos support bilingual embeds
-- Prefer **`embed_url_zh`** / **`embed_url_en`** (and matching providers) after migration `018`
-- Keep legacy `embed_url` populated when migrating old rows
+- Prefer **`embed_url_zh`** / **`embed_url_en`** (and matching providers)
 
-**Rule 16.4**: Worksheet permissions (see migration `016`)
+**Rule 16.4**: Worksheet permissions (seeded in **`schema.sql`**)
 - **Admin**: design any worksheet, assign, grade
 - **Teacher**: `worksheet.manage_own`, `worksheet.assign_own`, `worksheet.grade_own` on own classes
 - **Student**: `worksheet.submit_own` for assigned work only
