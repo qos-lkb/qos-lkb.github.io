@@ -16,6 +16,12 @@ This document outlines the rules, conventions, and best practices for developing
 8. [Accessibility Rules](#accessibility-rules)
 9. [Git and Version Control Rules](#git-and-version-control-rules)
 10. [Documentation Rules](#documentation-rules)
+11. [Language and Localization Rules](#language-and-localization-rules)
+12. [Testing Rules](#testing-rules)
+13. [Special Rules for Physics Simulations](#special-rules-for-physics-simulations)
+14. [PHP and API Development Rules](#php-and-api-development-rules)
+15. [SPA Frontend Rules (`app/`)](#spa-frontend-rules-app)
+16. [Worksheet and Learning Content Rules](#worksheet-and-learning-content-rules)
 
 ---
 
@@ -246,9 +252,15 @@ background: #3b82f6; /* blue-500 */
 - **Learning notes**, **worksheets**, **learning tools**, **articles**, **learning videos**, and **question banks** are stored in MariaDB
 - Contributors save as `draft` or `pending_review`; admins publish via admin or review queue
 - Use **`admin/`** or **`portal/`** editors; SPA reads published items via **`/api/v1/`**
-- Course curriculum ordering uses **`admin/course_curriculum.php`** (`topic_learning_items`)
+- Self-study curriculum ordering: **`admin/course_curriculum.php`** (`topic_learning_items`)
+- Teacher **courses / classes**: **`admin/courses.php`**, **`admin/course_edit.php`**; enrollment may include form class, class number, MOI (`011`–`012`)
+- **Worksheet assignments**: teachers assign via admin or API; students submit at **`/app/assignments`**; grading via teacher API or admin reports
 
-**Rule 5.5**: Keep related files together
+**Rule 5.5**: Do not rely on legacy CSV or static index generation for new content
+- **`index.csv`** and CSV-driven **`index.php`** listing are deprecated
+- Register simulations and learning items in the database only
+
+**Rule 5.6**: Keep related files together
 - Multiple versions of same simulation → same directory
 - Related experiments → same unit folder
 
@@ -553,6 +565,99 @@ const c = 299792458; // Speed of light (m/s)
 
 ---
 
+## PHP and API Development Rules
+
+### Scope
+
+Applies to **`includes/`**, **`admin/`**, **`api/v1/`**, and root PHP entry points.
+
+**Rule 14.1**: Use strict typing on new and substantially edited PHP files
+```php
+<?php
+declare(strict_types=1);
+```
+
+**Rule 14.2**: Put reusable business logic in `includes/*_lib.php`; keep admin pages thin
+- API handlers in **`api/v1/handlers/`** call lib functions; register routes in **`api/v1/router.php`**
+- Do not duplicate authorization checks—use existing `require_permission()`, `api_require_*` helpers
+
+**Rule 14.3**: Schema changes only via numbered SQL in **`migrations/`**
+- Apply migrations in order (`001` … `018` and beyond)
+- Do not use foreign keys unless the project already does so for that table; maintain relations in application code when that is the established pattern
+
+**Rule 14.4**: Mutating HTTP requests require CSRF
+- Web forms: hidden `csrf` field + `verify_csrf()`
+- API: header **`X-CSRF-Token`** or JSON body `csrf`
+
+**Rule 14.5**: Match existing response and error patterns
+- REST: `api_json_ok()` / `api_json_error()` from **`api_response.php`**
+- Admin flash messages and redirects follow neighbouring admin pages
+
+**Rule 14.6**: Timezone and bilingual fields
+- Store/display times in **`Asia/Hong_Kong`**
+- User-facing strings: provide **`_zh`** and **`_en`** columns or attributes where the schema supports them
+
+---
+
+## SPA Frontend Rules (`app/`)
+
+**Rule 15.1**: No bundler—add scripts to **`app/index.html`** in dependency order
+- Use IIFE or `global` pattern consistent with existing modules (`router.js`, `api.js`, …)
+- New routes: register in **`app.js`** via `AppRouter.register()`; add path handling in **`router.js`** if needed
+
+**Rule 15.2**: All API calls go through **`api.js`** (`apiFetch`)
+- Include CSRF token on POST/PUT/DELETE
+- Handle `401` / `403` with login redirect where existing pages do
+
+**Rule 15.3**: Render untrusted Markdown/HTML through **DOMPurify**
+- Use **`markdown.js`** and **`content-embeds.js`** for worksheets and notes
+- Do not use `innerHTML` with raw server content without sanitization
+
+**Rule 15.4**: Simulations in SPA use the API iframe endpoint
+- **`GET /api/v1/simulations/{slug}/html`** inside a sandboxed iframe
+- Do not hard-code filesystem paths to simulation HTML in client code
+
+**Rule 15.5**: Bilingual UI
+- Use `AppRouter.t('中文', 'English')` or `data-zh` / `data-en` attributes
+- Persist language via existing `localStorage` keys used in **`router.js`**
+
+**Rule 15.6**: Track learning events consistently
+- Page views: hook through **`learning-tracker.js`** after route dispatch when applicable
+- Do not bypass existing SDL event batching without good reason
+
+---
+
+## Worksheet and Learning Content Rules
+
+**Rule 16.1**: Worksheet body is Markdown with optional embed directives (one per line)
+```
+::simulation slug="0105_gas_laws"
+::video slug="intro-forces"
+::article slug="gas-laws-intro"
+::question bank="physics-mcq" id="42" score="2"
+```
+- Parsed by **`worksheet_blocks_lib.php`**; rendered in SPA by **`content-embeds.js`**
+- Use `slug=` for simulation, video, article; use `bank=` + `id=` or `code=` for questions
+
+**Rule 16.2**: Question scores
+- Set **`default_score`** on question bank items when used in gradable worksheets
+- Assignment submissions store answers in **`responses_json`**; auto-score when configured (migration `017`)
+
+**Rule 16.3**: Learning videos support bilingual embeds
+- Prefer **`embed_url_zh`** / **`embed_url_en`** (and matching providers) after migration `018`
+- Keep legacy `embed_url` populated when migrating old rows
+
+**Rule 16.4**: Worksheet permissions (see migration `016`)
+- **Admin**: design any worksheet, assign, grade
+- **Teacher**: `worksheet.manage_own`, `worksheet.assign_own`, `worksheet.grade_own` on own classes
+- **Student**: `worksheet.submit_own` for assigned work only
+
+**Rule 16.5**: Admin embed editors
+- When adding embed pickers in admin, follow **`admin-worksheet-embed.js`** / **`admin-content-embed.js`** patterns
+- Preview embed syntax before save; invalid slugs should fail validation server-side
+
+---
+
 ## Enforcement
 
 These rules should be followed for all new code and updates. When reviewing code:
@@ -576,6 +681,8 @@ Some older files may not follow all these rules. When updating old files:
 
 ---
 
-**Last Updated**: 2026-06-13  
+**Last Updated**: 2026-06-28  
 **Maintained by**: Mr. B. Leung
+
+**See also**: [`architecture.md`](architecture.md) (API & data model), [`.cursorrules`](.cursorrules) (Cursor AI summary).
 

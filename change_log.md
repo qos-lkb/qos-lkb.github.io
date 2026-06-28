@@ -6,22 +6,87 @@
 
 ---
 
+## 2026-06-28
+
+### 文件與 Cursor 規則
+- 更新 **`README.md`**、**`architecture.md`**、**`rule.md`**：反映工作紙派發、課程管理、SDL、遷移 001–018、SPA 模組等現況。
+- **`ARCHITECTURE.md`** 改為導覽頁，指向 canonical 的 `architecture.md`。
+- 新增根目錄 **`.cursorrules`**（Cursor AI 專案規則摘要）；細分規則見 `.cursor/rules/`。
+- 本 **`change_log.md`** 補登 2026-06-14 至 2026-06-27 提交。
+
+---
+
+## 2026-06-27
+
+### 工作紙派發、課程管理與嵌入內容
+- **工作紙派發**：教師派發予班級、學生於 `/app/assignments` 提交、教師評分回饋；API `worksheet_assignments.php`；lib `worksheet_assignments_lib.php`、`worksheet_permissions_lib.php`。
+- **工作紙區塊**：Markdown 嵌入模擬／影片／文章／試題（`::simulation`、`::question` 等）；`worksheet_blocks_lib.php`、SPA `content-embeds.js`、後台 `admin-worksheet-embed.js`。
+- **試題自動計分**：提交 `responses_json`、`auto_score`；試題庫 `default_score`（migration `017`）。
+- **課程管理後台**：`admin/courses.php`、`course_edit.php`、`course_reports.php`、`course_worksheets.php`；與原 `classes.php` 職能整合／重構。
+- **帳戶模仿**：`admin/impersonate.php`；API `POST /auth/stop-impersonation`。
+- **學習影片雙語嵌入**：`embed_url_zh` / `embed_url_en`（migration `018`）；`learning_videos_lib.php` 擴充。
+- **QSIS 匯入**強化；工作紙／影片／使用者相關後台與 SPA 調整。
+- Migrations **`011`–`018`**（班別班號、MOI、影片 provider、派發表、權限、計分、雙語影片）。
+- `e3e0370` — Update Database.
+
+---
+
+## 2026-06-26
+
+### QSIS 匯入與使用者雙語姓名
+- **`admin/qsis_import.php`**：從 QSIS 資料庫匯入學生；`includes/qsis_import_lib.php`、`qsis_db.php`。
+- 使用者 **`name_zh` / `name_en`**（migration `010`）；`user_names_lib.php`。
+- 註冊、帳戶選單、後台使用者編輯配合調整。
+- `1771e90` — Added Classes.
+
+### SDL 自學導向學習與適性推薦
+- Migration **`009_sdl_adaptive_learning.sql`**：學習事件、作答紀錄、掌握度、每週目標、班級等。
+- SPA **`/dashboard`**（`dashboard.js`）、**`learning-tracker.js`** 頁面瀏覽／時數追蹤。
+- API **`/learning/*`**：dashboard、events、attempts、mastery、progress、goals、recommendations、adaptive-quiz。
+- 教師班級：`admin/classes.php`、`class_edit.php`、`class_reports.php`；API **`/teacher/classes/*`**。
+- Lib：`adaptive_lib.php`、`learning_analytics_lib.php`、`learning_assessment_lib.php`、`classes_lib.php`。
+- 學生自助註冊 **`register.php`**（邀請碼）。
+- `e4522c1` — SDL and Adaptive.
+
+---
+
+## 2026-06-14
+
+### 後台科目頁版面
+- **`admin/subjects.php`** 版面與其他後台頁一致。
+- `cf61f27`
+
+---
+
 ## 2026-06-13
 
 ### 試題庫、角色與帳戶選單
 - 新增 **試題庫**（MCQ、短答、長答子題、填充、是非）；後台 `admin/question_banks.php`、API `/question-banks`。
-- 角色調整：原 `user` → **`teacher`**；新增 **`student`**（migration `007_roles_student_teacher.sql`）。
+- 角色調整：原 `user` → **`teacher`**；新增 **`student`**（migration `007`）。
 - 權限矩陣頁面強化；SPA 新增 **帳戶選單**（個人資料、登出等）。
 - `3cf4952` — Add question bank, role updates, permission matrix, and account menu.
 
+### 試題庫 schema 重設計
+- Migration **`008_question_bank_redesign.sql`**：逐題 metadata、MathJax、圖片上傳（`uploads/question_bank/`）。
+- 後台編輯器與 `question_bank_lib.php` 大幅擴充。
+- `068bb10`, `7cbf165`
+
+### 後台儀表板與資料庫匯入
+- **`admin/index.php`** 新版 hero、統計、圖示卡片；`admin/assets/css/admin.css`。
+- **`admin/db_import.php`** 匯入 UX 調整；`db_import_sql.php`。
+- `1ea69a7`, `724ca30`, `4ed02b5`
+
+### 文件
+- 新增 **`change_log.md`**；更新 architecture、README、rules。
+- `9ffb5b0`
+
 ### 學習筆記 PDF 匯出
 - 筆記閱讀頁支援 **PDF 下載**（jsPDF）。
-- `8f60520` — Add PDF export for learning notes on note pages.
+- `8f60520`
 
 ### 學習筆記與課程導覽修正
 - 後台筆記拖曳排序改為從 **1** 起算。
 - 自學課程「下一項」先進入 **模擬預覽頁** 再開啟模態視窗。
-- 課程內模擬改為 **預覽頁** 後才嵌入 iframe。
 - `4f93d77`, `09f6a6d`, `7b648ec`
 
 ---
@@ -142,8 +207,19 @@
 | `005_self_study_courses.sql` | 學習影片、課題混合編排 |
 | `006_question_bank.sql` | 試題庫與各題型 |
 | `007_roles_student_teacher.sql` | 教師／學生角色 |
+| `008_question_bank_redesign.sql` | 試題庫逐題 metadata、圖片上傳 |
+| `009_sdl_adaptive_learning.sql` | SDL：班級、學習事件、作答、掌握度、目標 |
+| `010_user_names_bilingual.sql` | 使用者中英文名 |
+| `011_class_enrollment_form_class.sql` | 選課：行政班、班號 |
+| `012_class_enrollment_moi.sql` | 選課：MOI（E/C） |
+| `013_learning_video_providers.sql` | 影片 provider 擴充 |
+| `014_worksheet_assignments.sql` | 工作紙派發、提交 |
+| `015_teacher_worksheet_permissions.sql` | *(已棄用，請改執行 016)* |
+| `016_worksheet_role_permissions.sql` | 工作紙派發／評分／提交權限 |
+| `017_worksheet_question_scores.sql` | 試題分數、提交 JSON、自動計分 |
+| `018_learning_video_bilingual.sql` | 學習影片雙語嵌入 URL |
 
-新環境請依序執行上述 migrations（詳見 [architecture.md](architecture.md)）。
+新環境請依序執行 **`001` 至 `018`**（詳見 [architecture.md](architecture.md)）。
 
 ---
 
@@ -152,8 +228,9 @@
 - [architecture.md](architecture.md) — 架構與部署
 - [README.md](README.md) — 快速開始
 - [rule.md](rule.md) — 開發規範
+- [.cursorrules](.cursorrules) — Cursor AI 專案規則
 
 ---
 
-**最後更新**：2026-06-13  
+**最後更新**：2026-06-28  
 **維護者**：Mr. Bryan Leung

@@ -1,14 +1,14 @@
 # 科學模擬實驗平台 | Science Simulations Platform
 
-專為香港中學文憑試（HKDSE）及中學科學課程設計的互動模擬與學習資源：**物理、化學、生物、綜合科學、天文**等獨立 HTML 實驗頁，並搭配 **PHP + MariaDB** 動態目錄、自學課程、筆記／工作紙、試題庫與管理後台。
+專為香港中學文憑試（HKDSE）及中學科學課程設計的互動模擬與學習資源：**物理、化學、生物、綜合科學、天文**等獨立 HTML 實驗頁，並搭配 **PHP + MariaDB** 動態目錄、自學課程、筆記／工作紙、試題庫、課程班別與管理後台。
 
-An interactive science platform for HKDSE and secondary science: standalone HTML labs plus an optional **PHP + MariaDB** stack for catalogue, self-study courses, notes, worksheets, question banks, and administration.
+An interactive science platform for HKDSE and secondary science: standalone HTML labs plus an optional **PHP + MariaDB** stack for catalogue, self-study courses, notes, worksheets, question banks, class management, and administration.
 
 ## 專案簡介 | Project overview
 
 | 模式 | 說明 |
 |------|------|
-| **SPA 前端（推薦）** | **`app/`** — 模擬目錄、自學課程、學習筆記、工作紙、互動工具、科學文章；經 **REST API** 讀取資料庫。 |
+| **SPA 前端（推薦）** | **`app/`** — 模擬目錄、自學課程、學習筆記、工作紙、互動工具、科學文章、學習儀表板；經 **REST API** 讀取資料庫。 |
 | **舊版入口** | `index.php` 302 轉址至 `app/`。 |
 | **靜態單頁** | 各子目錄 `.html` 可直接開啟；適合 GitHub Pages **單檔分享**（整站動態功能需 PHP）。 |
 | **選用轉址** | 根目錄 `index.html` 可經 `default_redirect_url.php` 讀取 `.env` 的 `DEFAULT_REDIRECT_URL` 並轉址。 |
@@ -20,18 +20,21 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 
 - 雙語介面（繁中／英）、響應式排版（Tailwind）
 - **自學課程**：依科目／課題混合編排筆記、模擬、工作紙、文章、互動工具、嵌入影片
-- **學習筆記**（含 PDF 匯出）、**工作紙**、**試題庫**（MCQ、短答、長答、填充、是非）
+- **學習筆記**（含 PDF 匯出）、**工作紙**（Markdown + 嵌入模擬／影片／試題）、**試題庫**（MCQ、短答、長答、填充、是非）
 - **模擬程式**：側欄瀏覽、搜尋；課程流程先 **預覽頁** 再模態 iframe；PNG 截圖
 - **互動學習工具**（四選一 MCQ）、**科學文章**（Markdown + 理解題）
-- **管理後台**（`admin/`）：使用者／角色（admin、teacher、student）、權限矩陣、各科內容 CRUD、課程編排、審核佇列
+- **SDL 學習儀表板**（`/app/dashboard`）：學習時數、掌握度、適性推薦、每週目標
+- **課程班別**：教師／管理員建立課程、邀請碼選課、QSIS 匯入、班別／班號／MOI 紀錄
+- **工作紙派發**：教師派發予班級、學生於 `/app/assignments` 完成提交、教師評分與回饋、試題自動計分
+- **管理後台**（`admin/`）：使用者／角色（admin、teacher、student）、權限矩陣、各科內容 CRUD、課程編排、審核佇列、帳戶模仿（除錯）
 - **帳戶選單**：SPA 與後台共用個人設定與登出
 - 模擬本體多為 **Vanilla JS**；少數使用 Three.js、Chart.js、MathJax、React standalone
 
 ## 技術棧 | Technology stack
 
 - **HTML5 / CSS3 / JavaScript**；**Tailwind CSS**（CDN）
-- **PHP 8+**、`PDO`、**MariaDB / MySQL**；時區 **Asia/Hong_Kong**
-- **Vanilla JS SPA**（`app/`）+ **REST API**（`api/v1/`）
+- **PHP 8+**（`declare(strict_types=1);`）、`PDO`、**MariaDB / MySQL**；時區 **Asia/Hong_Kong**
+- **Vanilla JS SPA**（`app/`，無 bundler）+ **REST API**（`api/v1/`）
 - CDN：**Three.js**、**Chart.js**、**MathJax**、**html2canvas**、**DOMPurify**、**jsPDF**
 
 詳見 [architecture.md](architecture.md)。
@@ -41,16 +44,18 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 ```
 science_sims/
 ├── app/                      # SPA 前端（主要入口）
-├── api/                      # REST API
-├── assets/js/, assets/css/   # 共用腳本（含 user-menu）
+├── api/v1/                   # REST API（router + handlers）
+├── assets/js/, assets/css/   # 後台共用腳本（含 user-menu、admin-api）
 ├── codespace/                # HTML 即時編輯
 ├── index.php                 # 302 → app/
 ├── index.html                # 選用轉址
 ├── includes/                 # 設定、DB、auth、內容 lib
-├── admin/                    # 後台
+├── admin/                    # 後台（含 courses、classes、qsis_import）
 ├── portal/                   # 貢獻者入口
-├── migrations/               # 001–009 SQL 遷移
+├── migrations/               # 001–018 SQL 遷移
 ├── physics/, chem/, biology/, science/, astronomy/, …
+├── .cursorrules              # Cursor AI 專案規則（摘要）
+├── .cursor/rules/            # Cursor 細分規則（依檔案類型）
 ├── change_log.md             # 變更紀錄
 ├── architecture.md, rule.md, README.md
 └── .env, .env.example
@@ -64,7 +69,7 @@ science_sims/
 
 1. 安裝 **PHP 8+**、**MariaDB**。
 2. 複製 **`.env.example`** 為 **`.env`**，填入 `DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS` 等。
-3. 依序執行 **`migrations/001`** 至 **`009`**（見 [architecture.md](architecture.md)）；`009` 含 SDL／適性學習全部資料表。
+3. 依序執行 **`migrations/001`** 至 **`018`**（見 [architecture.md](architecture.md) 遷移一覽）。
 4. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。
 5. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
 
@@ -88,6 +93,13 @@ python3 -m http.server 8000
 3. 透過 **`admin/simulations.php`**（或 portal）登記 URL、科目／課題、中英標題，並設為 **已發佈**。
 4. 多瀏覽器測試後提交；重大變更請更新 **`change_log.md`**。
 
+## 新增學習內容 | Adding learning content
+
+- **筆記、文章、互動工具、影片、試題庫**：經 `admin/` 或 `portal/` 編輯，走 `draft` → `pending_review` → `published` 流程。
+- **工作紙**：`admin/worksheet_edit.php`；Markdown 內可嵌入模擬、影片、試題（語法見 **`rule.md`** §16）。
+- **自學課程編排**：`admin/course_curriculum.php`（`topic_learning_items`）。
+- **課程班別**：`admin/courses.php`；派發工作紙見 `admin/course_worksheets.php` 或 SPA 教師流程。
+
 ## 瀏覽器相容性 | Browser compatibility
 
 建議最新版 **Chrome、Firefox、Safari、Edge**；Three.js 需 **WebGL**；SPA 使用 **ES6+**。
@@ -105,7 +117,8 @@ python3 -m http.server 8000
 - [change_log.md](change_log.md) — 依 Git 整理的變更紀錄
 - [architecture.md](architecture.md) — 架構、API、部署、資料模型
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 架構文件導覽
-- [rule.md](rule.md) — 開發規範
+- [rule.md](rule.md) — 開發規範（模擬 HTML、PHP、SPA、工作紙嵌入）
+- [.cursorrules](.cursorrules) — Cursor AI 專案規則摘要
 - [prompt.md](prompt.md) — 建立新模擬之提示範本
 - [dev/plan.md](dev/plan.md) — 各科模擬／教學構想（參考）
 
@@ -117,7 +130,7 @@ python3 -m http.server 8000
 
 ---
 
-**最後更新 | Last updated**：2026-06-13
+**最後更新 | Last updated**：2026-06-28
 
 如有問題或建議，歡迎開 Issue 或 Pull Request。  
 Questions or suggestions: Issues / PRs welcome.

@@ -1,0 +1,93 @@
+# Science Simulations — Cursor 專案規則
+
+本儲存庫是 **HKDSE／中學科學** 互動模擬與學習平台：獨立 HTML 模擬 + **PHP 8+ / MariaDB** SPA、REST API、管理後台。詳盡規範見 `rule.md`、`architecture.md`、`README.md`；細分規則亦在 `.cursor/rules/`。
+
+## 溝通與變更範圍
+
+- 與使用者以 **繁體中文** 說明；程式註解依既有檔案語言。
+- **僅修改與任務直接相關的檔案**；勿在未要求時引入打包工具、新框架或重寫整站架構。
+- 變更風格須與同目錄、同類型檔案一致。
+- **勿**在未要求時新增 markdown 文件或建立 git commit。
+
+## 技術取向
+
+- **模擬頁**：HTML5 + Vanilla JS；Tailwind CSS（CDN）；部分用 Three.js、Chart.js、MathJax；少數 React + Babel standalone。
+- **動態功能**：Vanilla JS SPA（`app/`）、REST API（`api/v1/`）、PHP `includes/` 函式庫、`admin/` 後台。
+- **時區**：`Asia/Hong_Kong`（PHP、MySQL、前端顯示）。
+- **目錄資料**：以 **MariaDB** 為主；`index.csv` 為舊版遺留，新內容勿依賴 CSV 作為唯一來源。
+
+## 目錄約定
+
+| 路徑 | 用途 |
+|------|------|
+| `physics/`、`chem/`、`biology/`、`science/`、`astronomy/`、`other/` 等 | 獨立模擬 HTML |
+| `app/` | 使用者 SPA（無 bundler 的 ES modules / IIFE） |
+| `api/v1/` | REST 前端控制器 + `handlers/` |
+| `includes/` | 設定、DB、auth、各內容 `*_lib.php` |
+| `admin/`、`portal/` | 後台與貢獻者入口 |
+| `migrations/` | SQL  schema 變更（依序套用） |
+| `assets/js/`、`assets/css/` | 後台共用 JS/CSS（如 `user-menu.js`） |
+
+---
+
+## 模擬 HTML（`physics/` 等）
+
+詳見 `rule.md` 的命名、HTML、JS、CSS、無障礙章節。
+
+- **檔名**：小寫 `snake_case`；物理主線 `0X0Y_description.html`；選修加 `e` 前綴（如 `e02/e0201_….html`）。
+- **骨架**：`<!DOCTYPE html>`、`lang`（`zh-Hant` 或 `en`）、`charset=UTF-8`、`viewport`、有意義的 `<title>`；語意標籤 + Tailwind。
+- **依賴**：沿用鄰近模擬的 CDN 版本；勿無故升 major 或混用衝突的 Three/React。
+- **可運作性**：模擬應在無建置步驟下以靜態伺服器或雙擊即可運作（除非明確依賴 PHP）。
+- **資產**：截圖等放該科別慣用目錄（如 `physics/screenshots/`）。
+
+---
+
+## PHP（`includes/`、`admin/`、`api/`）
+
+- 新檔與重大改動使用 `declare(strict_types=1);`（與現有 lib 一致）。
+- 業務邏輯放 `includes/*_lib.php`；API 路由在 `api/v1/router.php`，處理器在 `api/v1/handlers/`。
+- **Auth**：Session cookie（`SCI_SIM_SESSID`）；變更請求需 `X-CSRF-Token`。
+- **RBAC**：角色 `admin`、`teacher`、`student`；權限見 `user_admin.php`（`*.manage_own` / `*.manage_any`）。
+- 內容 workflow：`draft` → `pending_review` → `published`。
+- Schema 變更只透過 `migrations/` 新增 SQL，勿手改 production 表結構。
+- 避免在輸出已開始後 `header()`；檔案上傳沿用既有驗證與路徑邏輯。
+
+### 舊版 PHP 入口
+
+- `index.php`：302 → `app/`（CSV 驅動列表已 deprecated）。
+- `index_csv_editor.php`、`simulation_view.php`：legacy；新功能走 API + SPA。
+
+---
+
+## REST API（`api/v1/`）
+
+- 回應格式沿用 `includes/api_response.php`。
+- 新增端點：在 `router.php` 註冊路由，邏輯放 `handlers/`，必要時擴充對應 `*_lib.php`。
+- 公開讀取 vs 需登入 vs admin 權限，對齊既有 handler 的 `api_require_*` 模式。
+
+---
+
+## SPA 前端（`app/`）
+
+- **無 bundler**：以 `<script>` 載入的 Vanilla JS 模組（`api.js`、`router.js`、`catalog.js` 等）。
+- 路由由 `router.js` 的 `register()` / hash 處理；新頁面需註冊 handler 並更新 `app/index.html` 載入順序（若需新檔）。
+- Markdown 渲染須經 **DOMPurify** 消毒；模擬以 sandboxed iframe 載入 `/api/v1/simulations/{slug}/html`。
+- 共用帳戶選單：`assets/js/user-menu.js` + `assets/css/user-menu.css`（SPA 與 admin 共用）。
+
+---
+
+## index.csv（legacy）
+
+若仍編修 CSV，欄位順序須與 `index.php` 的 `parseCSV` 一致：
+
+`Category`, `Title`, `URL`, `Screenshot`, `Category_ZH`, `Category_EN`, `Title_ZH`, `Title_EN`, `Last_Updated`
+
+- **URL**：相對網站根目錄；**Last_Updated**：`YYYY-MM-DD`；雙語欄位應補齊。
+
+---
+
+## 品質要點
+
+- 無障礙：鍵盤可操作、適當 `aria-*`、對比與 `alt`（見 `rule.md`）。
+- 效能：避免不必要的 CDN 重複載入；模擬內 animation 注意 mobile。
+- Git：遵循 repo 既有 commit 風格；僅在使用者明確要求時 commit / push。

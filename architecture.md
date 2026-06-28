@@ -8,9 +8,9 @@ The same codebase may be deployed as:
 
 | Mode | Entry | Purpose |
 |------|--------|---------|
-| **SPA frontend (recommended)** | `app/` | Catalogue, self-study courses, notes, worksheets, quizzes, articles, question banks |
+| **SPA frontend (recommended)** | `app/` | Catalogue, self-study courses, notes, worksheets, quizzes, articles, SDL dashboard, assignments |
 | **Legacy redirect** | `index.php` | 302 → `app/` |
-| **REST API** | `api/v1/` | JSON endpoints for catalogue, auth, CRUD, review |
+| **REST API** | `api/v1/` | JSON endpoints for catalogue, auth, CRUD, review, classes, worksheet assignments |
 | **Optional redirect** | `index.html` | If `.env` sets validated `DEFAULT_REDIRECT_URL`, sync XHR then `location.replace` |
 | **Static hosting** | Individual HTML under `physics/`, `chem/`, … | GitHub Pages–style; **no DB** |
 | **Code Space** | `codespace/index.html` | Standalone HTML/CSS/JS live editor (linked from admin) |
@@ -28,7 +28,7 @@ The same codebase may be deployed as:
 
 - **HTML5**, **CSS3**, **Vanilla JS**; **Tailwind CSS** via CDN on many pages.
 - **PHP 8+** (`declare(strict_types=1);`) for admin, auth, API, DB access.
-- **MariaDB / MySQL** for catalogue, learning content, users, roles (see migrations).
+- **MariaDB / MySQL** for catalogue, learning content, users, roles, classes, assignments (see migrations).
 - **Timezone**: `Asia/Hong_Kong` across PHP, MySQL session, and frontend display.
 
 ### CDN libraries (representative)
@@ -46,17 +46,50 @@ The same codebase may be deployed as:
 
 ### PHP includes (`includes/`)
 
-- **`config.php`** — Loads root `.env` (`config_load_dotenv`), merges `config.local.php`, DB DSN from env.
-- **`db.php`** — PDO connection.
-- **`auth.php`**, **`bootstrap.php`** — Sessions, `bootstrap_public()`.
-- **`simulations_lib.php`**, **`simulation_save.php`** — Simulation CRUD.
-- **`learning_tools_lib.php`**, **`articles_lib.php`** — MCQ tools and science articles.
-- **`learning_notes_lib.php`**, **`worksheets_lib.php`** — Notes and worksheets.
-- **`learning_videos_lib.php`**, **`topic_items_lib.php`** — Course videos and mixed curriculum items.
-- **`question_bank_lib.php`** — Question banks (MCQ, short/long answer, fill-blank, T/F).
-- **`account_lib.php`** — Profile helpers for account menu / auth API.
-- **`api_response.php`**, **`api_auth.php`**, **`api_rate_limit.php`** — REST JSON helpers.
-- **`user_admin.php`** — Roles (`admin`, `teacher`, `student`), permissions matrix.
+| File | Role |
+|------|------|
+| `config.php` | Loads `.env`, merges `config.local.php`, DB DSN |
+| `db.php` | PDO connection |
+| `auth.php`, `bootstrap.php` | Sessions, CSRF, impersonation, `bootstrap_public()` |
+| `simulations_lib.php`, `simulation_save.php` | Simulation CRUD |
+| `learning_tools_lib.php`, `articles_lib.php` | MCQ tools and science articles |
+| `learning_notes_lib.php`, `worksheets_lib.php` | Notes and worksheets |
+| `worksheet_blocks_lib.php` | Parse worksheet Markdown embed blocks |
+| `worksheet_assignments_lib.php`, `worksheet_permissions_lib.php` | Assignments, submissions, grading |
+| `learning_videos_lib.php`, `topic_items_lib.php` | Course videos and curriculum items |
+| `question_bank_lib.php` | Question banks (multi-type) |
+| `classes_lib.php`, `qsis_import_lib.php` | Class/course management, QSIS import |
+| `adaptive_lib.php`, `learning_analytics_lib.php`, `learning_assessment_lib.php` | SDL, mastery, attempts |
+| `user_names_lib.php`, `account_lib.php` | Bilingual names, profile helpers |
+| `api_response.php`, `api_auth.php`, `api_rate_limit.php` | REST JSON helpers |
+| `user_admin.php` | Roles (`admin`, `teacher`, `student`), permissions matrix |
+
+---
+
+## Database migrations
+
+Apply **in numeric order** on MariaDB. Do not skip files.
+
+| Migration | Summary |
+|-----------|---------|
+| `001` | API learning content tables (simulations, tools, articles, …) |
+| `002` | Permission descriptions |
+| `003` | Learning notes and worksheets |
+| `004` | Worksheet Markdown columns |
+| `005` | Self-study courses (`topic_learning_items`) |
+| `006` | Question banks |
+| `007` | Roles: student / teacher |
+| `008` | Question bank redesign |
+| `009` | SDL / adaptive learning (classes, events, attempts, mastery, goals) |
+| `010` | User bilingual names (`name_zh`, `name_en`) |
+| `011` | Class enrollment: form class, class number |
+| `012` | Class enrollment: MOI (E/C) |
+| `013` | Learning video providers (VARCHAR) |
+| `014` | Worksheet assignments, submissions |
+| `015` | *(deprecated — use `016` instead)* |
+| `016` | Worksheet role permissions (assign, grade, submit) |
+| `017` | Question default scores; submission `responses_json`, auto-score |
+| `018` | Learning video bilingual embed URLs |
 
 ---
 
@@ -64,7 +97,9 @@ The same codebase may be deployed as:
 
 Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SIM_SESSID`); mutating requests require `X-CSRF-Token`.
 
-### Public / authenticated read
+Handlers live under [`api/v1/handlers/`](api/v1/handlers/); routing in [`api/v1/router.php`](api/v1/router.php).
+
+### Public / catalogue
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -75,12 +110,27 @@ Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SI
 | GET | `/learning-notes/{slug}`, `/worksheets/{slug}` | Notes / worksheets |
 | GET | `/learning-videos/{slug}` | Embedded video metadata |
 | GET | `/question-banks/{slug}` | Question bank (student view) |
-| GET | `/auth/me` | Current user |
-| POST | `/auth/login`, `/auth/logout` | Session login / logout (POST+CSRF) |
+| GET | `/subjects` | Subject list |
+
+Answer keys for quizzes: `GET …/{slug}/answers` on learning-tools, articles, question-banks (authenticated / role-gated as implemented).
+
+### Auth & account
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/auth/me` | Current user (includes impersonation state) |
+| POST | `/auth/login`, `/auth/logout` | Session login / logout |
 | POST | `/auth/register` | Student self-registration (invite code) |
 | POST | `/auth/student-profile` | Update student profile |
+| POST | `/auth/profile`, `/auth/change-password` | Account settings |
+| POST | `/auth/stop-impersonation` | End admin impersonation session |
+
+### Student SDL (`/learning/*`)
+
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/learning/dashboard` | Student SDL dashboard data |
-| POST | `/learning/events` | Batch learning events (authenticated) |
+| POST | `/learning/events` | Batch learning events |
 | GET | `/learning/events/summary` | Learning time summary |
 | POST/GET | `/learning/attempts` | Submit or list quiz attempts |
 | GET | `/learning/mastery` | Topic mastery scores |
@@ -88,13 +138,29 @@ Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SI
 | POST | `/learning/goals` | Save weekly learning goal |
 | GET | `/learning/recommendations` | Adaptive recommendations |
 | GET | `/learning/adaptive-quiz` | Adaptive quiz for topic |
+
+### Student worksheet assignments
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/student/worksheet-assignments` | List assigned worksheets |
+| GET | `/student/worksheet-assignments/{id}` | Assignment detail + worksheet |
+| POST | `/student/worksheet-assignments/{id}/submit` | Submit responses |
+
+### Teacher classes & assignments
+
+| Method | Path | Description |
+|--------|------|-------------|
 | GET/POST | `/teacher/classes` | Teacher class list / create |
 | POST | `/teacher/classes/{id}/enroll` | Enroll students by email |
 | POST | `/teacher/classes/{id}/invite` | Reset class invite code |
 | GET | `/teacher/classes/{id}/report` | Class learning report |
 | GET | `/teacher/classes/{id}/report.csv` | Export class report CSV |
 | GET | `/teacher/classes/{id}/students/{user_id}` | Student detail in class |
-| POST | `/auth/profile`, `/auth/change-password` | Account settings |
+| GET/POST | `/teacher/classes/{id}/worksheet-assignments` | List / create class assignments |
+| GET/POST | `/teacher/worksheet-assignments/{id}` | Assignment detail / update |
+| POST | `/teacher/worksheet-submissions/{id}/grade` | Grade submission + feedback |
+| GET | `/teacher/worksheets` | Worksheets available to teacher |
 
 ### Admin / contributor (RBAC)
 
@@ -108,10 +174,11 @@ Front controller: [`api/index.php`](api/index.php). Session cookie auth (`SCI_SI
 | GET/POST/DELETE | `/admin/learning-videos` | Learning video CRUD |
 | GET/POST/DELETE | `/admin/question-banks` | Question bank CRUD |
 | GET/POST/DELETE | `/admin/topic-items` | Course curriculum item ordering |
+| GET/POST/DELETE | `/admin/classes` | Class CRUD (admin) |
 | GET | `/review-queue` | Pending review items |
 | POST | `/review/{type}/{id}/publish\|reject` | Approve or reject content |
 
-Apply schema in order: [`migrations/001`](migrations/001_api_learning_content.sql) through [`009`](migrations/009_sdl_adaptive_learning.sql) (`009` = classes, learning events, attempts, mastery, goals).
+Pending lists for contributors: `GET /{type}/pending` on learning-tools, articles, learning-notes, worksheets, learning-videos.
 
 ---
 
@@ -126,18 +193,24 @@ Vanilla JS modules (no bundler):
 | `catalog.js`, `simulation.js` | Simulation catalogue and preview/modal |
 | `course.js`, `video.js` | Self-study courses and embedded videos |
 | `note.js`, `note-pdf.js` | Learning notes + PDF export |
-| `worksheet.js` | Worksheets |
+| `worksheet.js`, `assignments.js` | Worksheets; class assignment list & submit flow |
+| `dashboard.js`, `learning-tracker.js` | SDL dashboard; page-view / time tracking |
 | `quiz.js`, `article.js` | Interactive tools and science articles |
+| `markdown.js`, `content-embeds.js`, `inline-edit.js` | Markdown render, embeds, inline editing |
 | `sidebar.js`, `modal-capture.js` | Layout, fullscreen, PNG capture |
 
-### Main nav sections
+### Main routes
 
-- **自學課程** — `/courses`, `/course/{subject}/{topic}`
-- **課程及學習筆記** — `/learning-notes`, `/note/{slug}`
-- **工作紙** — `/worksheets`, `/worksheet/{slug}`
-- **模擬程式** — `/simulations`, `/simulation/{slug}` (preview before modal)
-- **科學文章** — `/articles`, `/article/{slug}`
-- **互動學習工具** — `/learning-tools`, `/quiz/{slug}`
+| Section | Paths |
+|---------|-------|
+| 自學課程 | `/courses`, `/course/{subject}/{topic}` |
+| 課程及學習筆記 | `/learning-notes`, `/note/{slug}` |
+| 工作紙 | `/worksheets`, `/worksheet/{slug}` |
+| 模擬程式 | `/simulations`, `/simulation/{slug}` (preview before modal) |
+| 科學文章 | `/articles`, `/article/{slug}` |
+| 互動學習工具 | `/learning-tools`, `/quiz/{slug}` |
+| SDL 儀表板 | `/dashboard` |
+| 工作紙作業 | `/assignments`, `/worksheet/{slug}?assignment={id}` |
 
 Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`. Markdown content is rendered client-side with **DOMPurify**.
 
@@ -154,16 +227,34 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 | `learning_tools`, `quiz_*` | Four-option MCQ sets |
 | `science_articles`, `article_*` | Markdown articles + comprehension |
 | `learning_notes` | Bilingual notes (Markdown) |
-| `worksheets` | Worksheet content |
-| `learning_videos` | YouTube/Vimeo embeds |
-| `topic_learning_items` | Mixed ordering per topic (course curriculum) |
+| `worksheets` | Worksheet content (Markdown + embed blocks) |
+| `learning_videos` | Bilingual embed URLs (YouTube, Vimeo, …) |
+| `topic_learning_items` | Mixed ordering per topic (self-study curriculum) |
 | `question_banks`, `qb_*` | Multi-type question banks |
+| `classes`, `class_enrollments` | Teacher courses; form class, class no, MOI |
+| `worksheet_assignments`, `worksheet_assignment_students`, `worksheet_submissions` | Class worksheet workflow |
 
-- **Roles**: `admin`, `teacher` (formerly `user`), `student`.
-- **Permissions**: `*.manage_own` (contributors) and `*.manage_any` (admins); `user.manage`, `topic_item.manage_any`, etc.
-- **`admin/`** — Users, permissions, subjects, simulations, all content types, course curriculum, review queue, DB export.
+### Roles & permissions
+
+- **Roles**: `admin`, `teacher`, `student`.
+- **Content**: `*.manage_own` (contributors) and `*.manage_any` (admins).
+- **Worksheets**: `worksheet.assign_own`, `worksheet.grade_own`, `worksheet.submit_own` (see migration `016`).
+- **Classes**: `class.manage_own`, `class.manage_any`.
+
+### Admin pages (representative)
+
+| Area | Files |
+|------|-------|
+| Users & roles | `users.php`, `user_edit.php`, `permissions.php`, `impersonate.php` |
+| Catalogue | `subjects.php`, `simulations.php`, `simulation_edit.php` |
+| Learning content | `learning_notes.php`, `worksheets.php`, `worksheet_edit.php`, `articles.php`, `learning_tools.php`, `learning_videos.php`, `question_banks.php` |
+| Curriculum | `course_curriculum.php` |
+| Classes / courses | `courses.php`, `course_edit.php`, `course_reports.php`, `course_worksheets.php`, `classes.php`, `class_edit.php`, `class_reports.php`, `qsis_import.php` |
+| Ops | `review_queue.php`, `db_export.php`, `db_import.php` |
+
 - **`portal/`** — Contributor entry for owned content.
-- **`assets/js/user-menu.js`**, **`assets/css/user-menu.css`** — Shared account dropdown (SPA + admin).
+- **`assets/js/`** — `admin-api.js`, `admin-question-bank.js`, `admin-worksheet-embed.js`, `admin-content-embed.js`, `user-menu.js`.
+- **`assets/css/user-menu.css`** — Shared account dropdown (SPA + admin).
 
 ---
 
@@ -172,39 +263,34 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 ```
 science_sims/
 ├── app/                   # SPA frontend (main user UI)
-├── api/                   # REST API front controller
-├── assets/js/             # admin-api.js, admin-question-bank.js, user-menu.js
-├── assets/css/            # user-menu.css
+├── api/v1/                # REST router + handlers
+├── assets/js/, assets/css/
 ├── codespace/             # HTML/CSS/JS live editor
 ├── index.php              # Legacy redirect → app/
 ├── index.html             # Optional redirect shell
 ├── default_redirect_url.php
-├── login.php, logout.php  # logout: POST + CSRF only
+├── login.php, logout.php, register.php
 ├── simulation_view.php    # Deprecated; prefer API html endpoint
 ├── markdown_reader.php    # Whitelist + admin for sensitive .md
 ├── index_csv_editor.php   # Legacy redirect to admin
 │
-├── includes/              # PHP config, DB, auth, API, content libs
+├── includes/              # PHP config, DB, auth, content libs
 ├── admin/                 # Back office
 ├── portal/                # Contributor portal
-├── migrations/            # SQL migrations 001–007
+├── migrations/            # SQL migrations 001–018
 │
-├── physics/               # HKDSE-style units (01, 02, 03a, …, e01–e03)
-├── chem/ / chemistry/     # Chemistry sims (naming varies by history)
-├── biology/
-├── science/               # Integrated science
-├── astronomy/
-├── s4_physics/, other/, geography/, music/ …
+├── physics/               # HKDSE-style units (01, 02, …, e01–e03)
+├── chem/ / chemistry/
+├── biology/, science/, astronomy/, …
 ├── dev/                   # Planning notes (e.g. plan.md)
 │
-├── architecture.md        # This file (canonical architecture doc)
-├── ARCHITECTURE.md        # Pointer to this file
-├── change_log.md          # Git-derived changelog
-├── README.md, rule.md, prompt.md, link.txt
-└── .env, .env.example     # Env template (do not commit real .env)
+├── .cursorrules           # Cursor AI project rules (summary)
+├── .cursor/rules/         # Cursor file-specific rules
+├── architecture.md        # This file (canonical)
+├── ARCHITECTURE.md        # Doc index → this file
+├── change_log.md, README.md, rule.md, prompt.md
+└── .env, .env.example
 ```
-
-Adjust folder names to match your checkout (`chem` vs `chemistry`, etc.).
 
 ---
 
@@ -216,19 +302,32 @@ Self-contained pages, CDN scripts, optional inline JS. No bundler required. Suit
 
 ### 2. SPA catalogue (`app/`)
 
-- Client fetches **`GET /api/v1/catalog`** (and type-specific list endpoints) and renders subjects → topics → cards.
+- Client fetches **`GET /api/v1/catalog`** and type-specific list endpoints.
 - **Course mode** merges notes, sims, worksheets, articles, tools, and videos via `topic_learning_items`.
 - **Preview page** for simulations in course flow before opening the modal iframe.
 
-### 3. Auth & permissions
+### 3. Worksheet embed blocks
 
-Session-based login; admin routes and API mutations check RBAC capabilities. Account menu exposes profile and logout in SPA.
+Worksheet Markdown is parsed server-side (`worksheet_blocks_lib.php`) into blocks. Directive lines embed resources:
 
-### 4. Bilingual UI
+```
+::simulation slug="0105_gas_laws"
+::video slug="intro-forces"
+::article slug="gas-laws-intro"
+::question bank="physics-mcq" id="42" score="2"
+```
 
-`AppRouter.t(zh, en)`, `data-zh` / `data-en` on simulations; language persisted in `localStorage`.
+Rendered in SPA via `content-embeds.js`; assignment submissions store answers in `worksheet_submissions.responses_json` with optional auto-scoring.
 
-### 5. Security notes
+### 4. Auth & permissions
+
+Session-based login; admin routes and API mutations check RBAC capabilities. Admins may **impersonate** users via `admin/impersonate.php` (audit via session flags; stop via `/auth/stop-impersonation`).
+
+### 5. Bilingual UI
+
+`AppRouter.t(zh, en)`, `data-zh` / `data-en` on simulations; language persisted in `localStorage`. User display names: `name_zh` / `name_en`. Videos: separate `embed_url_zh` / `embed_url_en`.
+
+### 6. Security notes
 
 - **`.env`** must not be web-readable; root `.htaccess` denies dotfiles.
 - Admin/API mutating requests use **CSRF** (`X-CSRF-Token` or JSON `csrf`).
@@ -246,7 +345,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Acc
 
 1. PHP 8+ with PDO MySQL, MariaDB with schema applied.
 2. Copy `.env.example` → `.env`, set `DB_*` and optional `DEFAULT_REDIRECT_URL`.
-3. Run migrations **`001` through `007`** in order on MariaDB.
+3. Run migrations **`001` through `018`** in order on MariaDB.
 4. Point vhost document root at project root; open **`/app/`**.
 
 ### GitHub Pages (static subset)
@@ -268,11 +367,13 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Acc
 
 ## Development guidelines
 
-- Follow **`rule.md`** for naming, HTML skeleton, and quality bar.
+- Follow **`rule.md`** for naming, HTML skeleton, PHP/SPA conventions, and worksheet embed syntax.
 - New simulations: add HTML under the correct subject folder; register via **admin / DB workflow**.
 - Learning content: use **admin/** or **portal/** editors (REST API backend).
+- Schema changes: add numbered SQL under **`migrations/`** only.
 - Document significant changes in **`change_log.md`**.
 - Prefer **small, focused diffs**; match existing style in each directory.
+- Cursor AI: see **`.cursorrules`** and **`.cursor/rules/`**.
 
 ---
 
@@ -280,10 +381,10 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Acc
 
 - **`README.md`** — Overview, quick start, links.
 - **`change_log.md`** — Version history from Git.
-- **`rule.md`** — File naming, structure, accessibility.
+- **`rule.md`** — File naming, structure, accessibility, PHP/SPA rules.
 - **`dev/plan.md`** — Optional curriculum / project ideation list (Traditional Chinese).
 
 ---
 
-**Last updated**: 2026-06-13  
+**Last updated**: 2026-06-28  
 **Maintainer**: Mr. Bryan Leung (see README)
