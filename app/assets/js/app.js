@@ -12,6 +12,67 @@
         summer: { zh: '暑期功課', en: 'Summer HW' },
     };
 
+    const TAB_ROUTES = {
+        courses: '/courses',
+        notes: '/learning-notes',
+        worksheets: '/worksheets',
+        videos: '/learning-videos',
+        simulations: '/simulations',
+        articles: '/articles',
+        learning: '/learning-tools',
+        summer: '/summer-homework',
+    };
+
+    /** @type {Record<string, boolean>|null} */
+    let navVisibility = null;
+
+    function applyNavVisibility(items) {
+        navVisibility = items && typeof items === 'object' ? items : null;
+        document.querySelectorAll('.nav-tab').forEach((btn) => {
+            const key = btn.dataset.tab;
+            const show = !navVisibility || navVisibility[key] !== false;
+            btn.classList.toggle('hidden', !show);
+            btn.toggleAttribute('hidden', !show);
+            if (!show) {
+                btn.classList.remove('active');
+                btn.classList.add('text-indigo-200');
+            }
+        });
+    }
+
+    function firstVisibleTabRoute() {
+        const order = Object.keys(TAB_ROUTES);
+        for (const key of order) {
+            if (!navVisibility || navVisibility[key] !== false) {
+                return TAB_ROUTES[key];
+            }
+        }
+        return '/courses';
+    }
+
+    function isTabVisible(tab) {
+        return !navVisibility || navVisibility[tab] !== false;
+    }
+
+    async function refreshNavVisibility() {
+        try {
+            if (!window.ScienceApi || !ScienceApi.apiFetch) {
+                applyNavVisibility(null);
+                return;
+            }
+            const data = await ScienceApi.apiFetch('/nav-menu');
+            applyNavVisibility(data && data.items ? data.items : null);
+        } catch (e) {
+            applyNavVisibility(null);
+        }
+
+        const active = document.querySelector('.nav-tab.active');
+        const activeTab = active?.dataset?.tab;
+        if (activeTab && !isTabVisible(activeTab) && window.AppRouter?.navigate) {
+            AppRouter.navigate(firstVisibleTabRoute(), true);
+        }
+    }
+
     let catalogLoaded = false;
     let firstCategoryId = null;
 
@@ -56,8 +117,9 @@
 
     function setActiveTab(tab) {
         document.querySelectorAll('.nav-tab').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tab === tab);
-            btn.classList.toggle('text-indigo-200', btn.dataset.tab !== tab);
+            const on = btn.dataset.tab === tab && isTabVisible(tab);
+            btn.classList.toggle('active', on);
+            btn.classList.toggle('text-indigo-200', !on);
         });
         const sidebar = document.getElementById('sidebar');
         const showSidebar = SIDEBAR_TABS.has(tab);
@@ -275,20 +337,11 @@
             },
         });
 
-        const tabRoutes = {
-            courses: '/courses',
-            notes: '/learning-notes',
-            worksheets: '/worksheets',
-            videos: '/learning-videos',
-            simulations: '/simulations',
-            articles: '/articles',
-            learning: '/learning-tools',
-            summer: '/summer-homework',
-        };
-
         document.querySelectorAll('.nav-tab').forEach(btn => {
             btn.addEventListener('click', () => {
-                const route = tabRoutes[btn.dataset.tab];
+                const tab = btn.dataset.tab;
+                if (!isTabVisible(tab)) return;
+                const route = TAB_ROUTES[tab];
                 if (route) AppRouter.navigate(route);
             });
         });
@@ -302,7 +355,15 @@
         document.getElementById('sim-modal')?.addEventListener('click', (e) => {
             if (e.target.id === 'sim-modal') AppCatalog.closeModal();
         });
+
+        await refreshNavVisibility();
     }
+
+    window.AppNav = {
+        refresh: refreshNavVisibility,
+        apply: applyNavVisibility,
+        isTabVisible,
+    };
 
     document.addEventListener('DOMContentLoaded', boot);
 })();

@@ -71,6 +71,7 @@ function api_v1_dispatch(): void
         'POST /auth/stop-impersonation' => 'api_handle_auth_stop_impersonation',
         'GET /auth/me' => 'api_handle_auth_me',
         'GET /subjects' => 'api_handle_subjects',
+        'GET /nav-menu' => 'api_handle_nav_menu',
     ];
 
     $key = $routeKey;
@@ -190,6 +191,10 @@ function api_v1_dispatch(): void
     }
     if ($path === '/admin/summer-homework') {
         api_handle_admin_summer_homework($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/nav-menu') {
+        api_handle_admin_nav_menu($pdo, $method);
         return;
     }
     if ($path === '/auth/profile') {
@@ -550,3 +555,4 @@ require_once __DIR__ . '/handlers/teacher.php';
 require_once __DIR__ . '/handlers/worksheet_assignments.php';
 require_once __DIR__ . '/handlers/learning.php';
 require_once __DIR__ . '/handlers/summer_homework.php';
+require_once __DIR__ . '/handlers/nav_menu.php';

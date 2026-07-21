@@ -22,22 +22,29 @@
     async function updateAuthNav() {
         if (global.AppUserMenu) {
             global.AppUserMenu.updateAuthNav('auth-nav');
-            return;
-        }
-
-        const user = getUser();
-        const el = document.getElementById('auth-nav');
-        if (!el) return;
-
-        if (user) {
-            el.innerHTML = `<span class="hidden sm:inline text-indigo-200 text-xs">${escapeHtml(userName(user))}</span>`;
         } else {
-            el.innerHTML = `<a href="../login.php?next=${encodeURIComponent('app/')}" class="user-menu-login">${t('登入', 'Login')}</a>`;
+            const user = getUser();
+            const el = document.getElementById('auth-nav');
+            if (!el) return;
+
+            if (user) {
+                el.innerHTML = `<span class="hidden sm:inline text-indigo-200 text-xs">${escapeHtml(userName(user))}</span>`;
+            } else {
+                el.innerHTML = `<a href="../login.php?next=${encodeURIComponent('app/')}" class="user-menu-login">${t('登入', 'Login')}</a>`;
+            }
+        }
+        if (global.AppNav && typeof global.AppNav.refresh === 'function') {
+            try {
+                await global.AppNav.refresh();
+            } catch (e) {
+                /* ignore */
+            }
         }
     }
 
     function escapeHtml(text) {
-        return String(text).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return String(text).replace(/[&<>"']/g, (m) => map[m]);
     }
 
     async function initAuth() {
@@ -49,7 +56,7 @@
         } catch (e) {
             console.warn('Session load failed', e);
         }
-        updateAuthNav();
+        await updateAuthNav();
     }
 
     global.AppAuth = { initAuth, updateAuthNav };

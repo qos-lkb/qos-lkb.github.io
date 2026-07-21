@@ -171,6 +171,7 @@ function admin_menu_sections(): array
             'label' => '平台設定',
             'items' => [
                 ['key' => 'subjects', 'label' => '科目與單元', 'href' => 'subjects.php'],
+                ['key' => 'nav_menu', 'label' => '前台選單可見性', 'href' => 'nav_menu.php'],
             ],
         ];
         $sections[] = [
@@ -281,6 +282,7 @@ function admin_dashboard_card_meta(): array
         'course_curriculum' => ['icon' => 'course', 'tone' => 'indigo', 'desc' => '編排自學課程與前台課程樹結構。'],
         'review_queue' => ['icon' => 'review', 'tone' => 'amber', 'desc' => '審核待發佈的投稿內容。'],
         'subjects' => ['icon' => 'folder', 'tone' => 'slate', 'desc' => '維護科目、單元與前台側欄目錄結構。'],
+        'nav_menu' => ['icon' => 'course', 'tone' => 'indigo', 'desc' => '控制各類使用者在前台上方選單可見的項目。'],
         'users' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '新增、編輯使用者並指派角色。'],
         'courses' => ['icon' => 'users', 'tone' => 'blue', 'desc' => '管理課程、邀請碼與學生名單。'],
         'course_reports' => ['icon' => 'sheet', 'tone' => 'teal', 'desc' => '檢視課程學習報告與掌握度。'],

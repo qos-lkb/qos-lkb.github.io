@@ -48,6 +48,7 @@ const DD_TABLE_DESCRIPTIONS = [
     'summer_homework_mcq_options' => '暑期功課選擇題選項',
     'summer_homework_fill_blanks' => '暑期功課填充題答案',
     'summer_homework_attempts' => '暑期功課作答紀錄（及格／重做）',
+    'spa_nav_visibility' => '前台 SPA 上方選單依對象（訪客／學生／教師／管理員）的可見性',
 ];
 
 /** @var array<string, string> */

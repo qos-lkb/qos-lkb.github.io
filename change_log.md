@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-07-22
+
+### 前台選單可見性（管理員）
+- 新增資料表 **`spa_nav_visibility`**（`schema.sql`／既有庫執行 `schema_spa_nav_visibility.sql`）。
+- 後台 **平台設定 → 前台選單可見性**：矩陣控制訪客／學生／教師／管理員可見的 SPA 上方選單。
+- API：`GET /nav-menu`（依目前身分回傳可見項目）；`GET|PUT /admin/nav-menu`（`user.manage`）。
+
 ## 2026-06-28
 
 ### 暑期功課（中一／中二）
