@@ -465,6 +465,8 @@ CREATE TABLE classes (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     school_year VARCHAR(32) NOT NULL DEFAULT '',
+    form_level ENUM('1', '2', '3', '4', '5', '6') NULL DEFAULT NULL,
+    course_subject ENUM('integrated_science', 'physics', 'chemistry', 'biology') NULL DEFAULT NULL,
     subject_id INT UNSIGNED NULL,
     invite_code VARCHAR(32) NOT NULL,
     teacher_user_id INT UNSIGNED NOT NULL,
@@ -474,6 +476,8 @@ CREATE TABLE classes (
     UNIQUE KEY uq_classes_invite (invite_code),
     KEY idx_classes_teacher (teacher_user_id),
     KEY idx_classes_subject (subject_id),
+    KEY idx_classes_form_level (form_level),
+    KEY idx_classes_course_subject (course_subject),
     KEY idx_classes_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -8,6 +8,10 @@
 
 ## 2026-07-22
 
+### 課程管理：年級與科目
+- `classes` 新增 **`form_level`**（中一至中六）與 **`course_subject`**（綜合科學／物理／化學／生物）。
+- 後台課程列表與編輯表單顯示／必填；既有庫請執行 `schema_classes_form_subject.sql`。
+
 ### 前台選單可見性（管理員）
 - 新增資料表 **`spa_nav_visibility`**（`schema.sql`／既有庫執行 `schema_spa_nav_visibility.sql`）。
 - 後台 **平台設定 → 前台選單可見性**：矩陣控制訪客／學生／教師／管理員可見的 SPA 上方選單。

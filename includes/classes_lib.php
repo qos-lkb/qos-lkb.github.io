@@ -12,6 +12,94 @@ function classes_generate_invite_code(): string
     return strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
 }
 
+/**
+ * @return array<string, string> value => zh label
+ */
+function classes_form_level_options(): array
+{
+    return [
+        '1' => '中一',
+        '2' => '中二',
+        '3' => '中三',
+        '4' => '中四',
+        '5' => '中五',
+        '6' => '中六',
+    ];
+}
+
+/**
+ * @return array<string, string> value => zh label
+ */
+function classes_course_subject_options(): array
+{
+    return [
+        'integrated_science' => '綜合科學',
+        'physics' => '物理',
+        'chemistry' => '化學',
+        'biology' => '生物',
+    ];
+}
+
+function classes_form_level_label(?string $value): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+    $opts = classes_form_level_options();
+    return $opts[$value] ?? $value;
+}
+
+function classes_course_subject_label(?string $value): string
+{
+    if ($value === null || $value === '') {
+        return '—';
+    }
+    $opts = classes_course_subject_options();
+    return $opts[$value] ?? $value;
+}
+
+/**
+ * Whether classes.form_level / course_subject columns exist.
+ */
+function classes_has_form_subject_columns(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM classes LIKE 'form_level'");
+        $cached = $stmt !== false && $stmt->fetch() !== false;
+    } catch (Throwable $e) {
+        $cached = false;
+    }
+    return $cached;
+}
+
+/**
+ * @return string|null normalized form level or null if empty/invalid
+ */
+function classes_normalize_form_level(mixed $value): ?string
+{
+    $v = trim((string) ($value ?? ''));
+    if ($v === '') {
+        return null;
+    }
+    return array_key_exists($v, classes_form_level_options()) ? $v : null;
+}
+
+/**
+ * @return string|null normalized course subject or null if empty/invalid
+ */
+function classes_normalize_course_subject(mixed $value): ?string
+{
+    $v = trim((string) ($value ?? ''));
+    if ($v === '') {
+        return null;
+    }
+    return array_key_exists($v, classes_course_subject_options()) ? $v : null;
+}
+
 function classes_role_id_by_name(PDO $pdo, string $name): int
 {
     $stmt = $pdo->prepare('SELECT id FROM roles WHERE name = ? LIMIT 1');
@@ -208,7 +296,8 @@ function classes_list_for_teacher(PDO $pdo, int $teacherUserId, bool $canAny): a
 function classes_list_for_student(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT c.id, c.name, c.school_year, c.subject_id, ce.status, ce.joined_at, ce.form_class, ce.class_no, ce.moi
+        'SELECT c.id, c.name, c.school_year, c.form_level, c.course_subject, c.subject_id,
+                ce.status, ce.joined_at, ce.form_class, ce.class_no, ce.moi
          FROM class_enrollments ce
          INNER JOIN classes c ON c.id = ce.class_id
          WHERE ce.user_id = ? AND ce.status IN (\'active\', \'pending\')
@@ -336,12 +425,25 @@ function classes_save_from_post(PDO $pdo, array $post, int $actingUserId): array
     $id = isset($post['id']) ? (int) $post['id'] : 0;
     $name = trim((string) ($post['name'] ?? ''));
     $schoolYear = trim((string) ($post['school_year'] ?? ''));
-    $subjectId = isset($post['subject_id']) && $post['subject_id'] !== '' ? (int) $post['subject_id'] : null;
+    $formLevel = classes_normalize_form_level($post['form_level'] ?? '');
+    $courseSubject = classes_normalize_course_subject($post['course_subject'] ?? '');
     $teacherUserId = (int) ($post['teacher_user_id'] ?? $actingUserId);
     $isActive = isset($post['is_active']) ? 1 : 0;
 
     if ($name === '') {
         return ['ok' => false, 'error' => '請輸入課程名稱。'];
+    }
+    if ($formLevel === null) {
+        return ['ok' => false, 'error' => '請選擇年級（中一至中六）。'];
+    }
+    if ($courseSubject === null) {
+        return ['ok' => false, 'error' => '請選擇科目（綜合科學、物理、化學或生物）。'];
+    }
+    if (!classes_has_form_subject_columns($pdo)) {
+        return [
+            'ok' => false,
+            'error' => '資料庫尚未升級：請執行 schema_classes_form_subject.sql 後再儲存年級／科目。',
+        ];
     }
 
     $acting = current_user();
@@ -358,10 +460,15 @@ function classes_save_from_post(PDO $pdo, array $post, int $actingUserId): array
         if (!classes_can_manage($pdo, $existing, $acting)) {
             return ['ok' => false, 'error' => '沒有權限編輯此課程。'];
         }
-        $upd = $pdo->prepare(
-            'UPDATE classes SET name = ?, school_year = ?, subject_id = ?, teacher_user_id = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-        );
-        $upd->execute([$name, $schoolYear, $subjectId, $teacherUserId, $isActive, $id]);
+        try {
+            $upd = $pdo->prepare(
+                'UPDATE classes SET name = ?, school_year = ?, form_level = ?, course_subject = ?,
+                 teacher_user_id = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            );
+            $upd->execute([$name, $schoolYear, $formLevel, $courseSubject, $teacherUserId, $isActive, $id]);
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => '儲存失敗：' . $e->getMessage()];
+        }
         return ['ok' => true, 'id' => $id];
     }
 
@@ -369,11 +476,19 @@ function classes_save_from_post(PDO $pdo, array $post, int $actingUserId): array
     for ($i = 0; $i < 5; $i++) {
         try {
             $ins = $pdo->prepare(
-                'INSERT INTO classes (name, school_year, subject_id, invite_code, teacher_user_id, is_active) VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO classes (name, school_year, form_level, course_subject, invite_code, teacher_user_id, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
             );
-            $ins->execute([$name, $schoolYear, $subjectId, $inviteCode, $teacherUserId, $isActive]);
+            $ins->execute([$name, $schoolYear, $formLevel, $courseSubject, $inviteCode, $teacherUserId, $isActive]);
             return ['ok' => true, 'id' => (int) $pdo->lastInsertId()];
         } catch (Throwable $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'form_level') !== false || stripos($msg, 'course_subject') !== false || stripos($msg, 'Unknown column') !== false) {
+                return [
+                    'ok' => false,
+                    'error' => '資料庫尚未升級：請執行 schema_classes_form_subject.sql。',
+                ];
+            }
             $inviteCode = classes_generate_invite_code();
         }
     }
@@ -381,10 +496,10 @@ function classes_save_from_post(PDO $pdo, array $post, int $actingUserId): array
 }
 
 /**
- * 課程列表內聯更新（學年、任教老師）。
+ * 課程列表內聯更新（年級、科目、學年、任教老師）。
  *
- * @param array<string, mixed> $post 期望 id, school_year, teacher_user_id
- * @return array{ok:bool,error?:string,school_year?:string,teacher_user_id?:int,teacher_name?:string}
+ * @param array<string, mixed> $post 期望 id, school_year, teacher_user_id, form_level?, course_subject?
+ * @return array{ok:bool,error?:string,school_year?:string,teacher_user_id?:int,teacher_name?:string,form_level?:?string,form_level_label?:string,course_subject?:?string,course_subject_label?:string}
  */
 function classes_inline_update(PDO $pdo, array $post, array $user): array
 {
@@ -405,11 +520,45 @@ function classes_inline_update(PDO $pdo, array $post, array $user): array
         return ['ok' => false, 'error' => '沒有權限編輯此課程。'];
     }
 
-    $schoolYear = trim((string) ($post['school_year'] ?? ''));
+    $editingField = trim((string) ($post['field'] ?? ''));
+
+    $schoolYear = array_key_exists('school_year', $post)
+        ? trim((string) $post['school_year'])
+        : trim((string) ($class['school_year'] ?? ''));
+
+    // Empty posted values mean "keep existing" (JS always sends all fields).
+    $formLevel = classes_normalize_form_level($class['form_level'] ?? null);
+    if (array_key_exists('form_level', $post)) {
+        $rawForm = trim((string) $post['form_level']);
+        if ($rawForm !== '') {
+            $normalized = classes_normalize_form_level($rawForm);
+            if ($normalized === null) {
+                return ['ok' => false, 'error' => '年級無效。'];
+            }
+            $formLevel = $normalized;
+        } elseif ($editingField === 'form_level') {
+            return ['ok' => false, 'error' => '請選擇年級。'];
+        }
+    }
+
+    $courseSubject = classes_normalize_course_subject($class['course_subject'] ?? null);
+    if (array_key_exists('course_subject', $post)) {
+        $rawSubj = trim((string) $post['course_subject']);
+        if ($rawSubj !== '') {
+            $normalized = classes_normalize_course_subject($rawSubj);
+            if ($normalized === null) {
+                return ['ok' => false, 'error' => '科目無效。'];
+            }
+            $courseSubject = $normalized;
+        } elseif ($editingField === 'course_subject') {
+            return ['ok' => false, 'error' => '請選擇科目。'];
+        }
+    }
+
     $canAny = user_has_permission('class.manage_any');
     $teacherUserId = (int) ($class['teacher_user_id'] ?? 0);
 
-    if ($canAny) {
+    if ($canAny && array_key_exists('teacher_user_id', $post)) {
         $teacherUserId = (int) ($post['teacher_user_id'] ?? $teacherUserId);
         if ($teacherUserId <= 0) {
             return ['ok' => false, 'error' => '請選擇任教老師。'];
@@ -427,14 +576,37 @@ function classes_inline_update(PDO $pdo, array $post, array $user): array
         }
     }
 
-    try {
-        $upd = $pdo->prepare(
-            'UPDATE classes SET school_year = ?, teacher_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-        );
-        $upd->execute([$schoolYear, $teacherUserId, $id]);
-    } catch (Throwable $e) {
-        return ['ok' => false, 'error' => '儲存失敗。'];
+    $hasFormSubject = classes_has_form_subject_columns($pdo);
+    if (in_array($editingField, ['form_level', 'course_subject'], true) && !$hasFormSubject) {
+        return [
+            'ok' => false,
+            'error' => '資料庫尚未升級：請執行 schema_classes_form_subject.sql。',
+        ];
     }
+
+    try {
+        if ($hasFormSubject) {
+            $upd = $pdo->prepare(
+                'UPDATE classes SET school_year = ?, form_level = ?, course_subject = ?, teacher_user_id = ?,
+                 updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            );
+            $upd->execute([$schoolYear, $formLevel, $courseSubject, $teacherUserId, $id]);
+        } else {
+            $upd = $pdo->prepare(
+                'UPDATE classes SET school_year = ?, teacher_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            );
+            $upd->execute([$schoolYear, $teacherUserId, $id]);
+        }
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => '儲存失敗：' . $e->getMessage()];
+    }
+
+    // Re-read to confirm persisted values.
+    $fresh = classes_fetch_by_id($pdo, $id) ?: $class;
+    $formLevel = classes_normalize_form_level($fresh['form_level'] ?? null);
+    $courseSubject = classes_normalize_course_subject($fresh['course_subject'] ?? null);
+    $schoolYear = trim((string) ($fresh['school_year'] ?? $schoolYear));
+    $teacherUserId = (int) ($fresh['teacher_user_id'] ?? $teacherUserId);
 
     $nameStmt = $pdo->prepare('SELECT name_zh, name_en, display_name FROM users WHERE id = ? LIMIT 1');
     $nameStmt->execute([$teacherUserId]);
@@ -445,6 +617,10 @@ function classes_inline_update(PDO $pdo, array $post, array $user): array
         'school_year' => $schoolYear,
         'teacher_user_id' => $teacherUserId,
         'teacher_name' => user_format_name($teacherRow),
+        'form_level' => $formLevel,
+        'form_level_label' => classes_form_level_label($formLevel),
+        'course_subject' => $courseSubject,
+        'course_subject_label' => classes_course_subject_label($courseSubject),
     ];
 }
 
@@ -740,6 +916,18 @@ function classes_public_row(array $row): array
         'id' => (int) $row['id'],
         'name' => (string) $row['name'],
         'school_year' => (string) ($row['school_year'] ?? ''),
+        'form_level' => isset($row['form_level']) && $row['form_level'] !== null && $row['form_level'] !== ''
+            ? (string) $row['form_level']
+            : null,
+        'form_level_label' => classes_form_level_label(
+            isset($row['form_level']) ? (string) $row['form_level'] : null
+        ),
+        'course_subject' => isset($row['course_subject']) && $row['course_subject'] !== null && $row['course_subject'] !== ''
+            ? (string) $row['course_subject']
+            : null,
+        'course_subject_label' => classes_course_subject_label(
+            isset($row['course_subject']) ? (string) $row['course_subject'] : null
+        ),
         'subject_id' => $row['subject_id'] !== null ? (int) $row['subject_id'] : null,
         'invite_code' => (string) ($row['invite_code'] ?? ''),
         'teacher_user_id' => (int) $row['teacher_user_id'],

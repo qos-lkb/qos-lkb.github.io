@@ -45,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $rows = classes_list_for_teacher($pdo, $user['id'], $canAny);
 $teacherOptions = $canAny ? classes_teacher_options($pdo) : [];
+$formLevelOptions = classes_form_level_options();
+$courseSubjectOptions = classes_course_subject_options();
+$hasFormSubjectCols = classes_has_form_subject_columns($pdo);
 $csrf = csrf_token();
 
 admin_page_start('課程管理', 'courses', [
@@ -56,6 +59,13 @@ admin_page_start('課程管理', 'courses', [
 ?>
         <?php if ($flash !== ''): ?>
             <p class="text-sm text-slate-700 mb-4"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?></p>
+        <?php endif; ?>
+        <?php if (!$hasFormSubjectCols): ?>
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                資料庫尚未加入年級／科目欄位。請執行
+                <code class="font-mono text-xs">schema_classes_form_subject.sql</code>
+                後再編輯這兩欄。
+            </div>
         <?php endif; ?>
         <p id="courses-inline-flash" class="text-sm mb-3 hidden"></p>
 
@@ -81,6 +91,8 @@ admin_page_start('課程管理', 'courses', [
                         </th>
                         <?php endif; ?>
                         <th class="p-3">課程</th>
+                        <th class="p-3">年級</th>
+                        <th class="p-3">科目</th>
                         <th class="p-3">學年</th>
                         <th class="p-3">任教老師</th>
                         <th class="p-3">學生人數</th>
@@ -90,10 +102,17 @@ admin_page_start('課程管理', 'courses', [
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($rows as $r): ?>
+                    <?php foreach ($rows as $r):
+                        $flVal = isset($r['form_level']) && $r['form_level'] !== null && $r['form_level'] !== ''
+                            ? (string) $r['form_level'] : '';
+                        $csVal = isset($r['course_subject']) && $r['course_subject'] !== null && $r['course_subject'] !== ''
+                            ? (string) $r['course_subject'] : '';
+                        ?>
                     <tr class="border-t border-slate-100 courses-row"
                         data-course-id="<?php echo (int) $r['id']; ?>"
                         data-school-year="<?php echo htmlspecialchars((string) ($r['school_year'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                        data-form-level="<?php echo htmlspecialchars($flVal, ENT_QUOTES, 'UTF-8'); ?>"
+                        data-course-subject="<?php echo htmlspecialchars($csVal, ENT_QUOTES, 'UTF-8'); ?>"
                         data-teacher-id="<?php echo (int) ($r['teacher_user_id'] ?? 0); ?>"
                         data-teacher-name="<?php echo htmlspecialchars((string) ($r['teacher_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                         <td class="p-3 w-10">
@@ -101,6 +120,14 @@ admin_page_start('課程管理', 'courses', [
                                 class="course-checkbox rounded border-slate-300" aria-label="選取課程">
                         </td>
                         <td class="p-3 font-medium"><?php echo htmlspecialchars((string) $r['name'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="p-3 courses-cell-form-level<?php echo $hasFormSubjectCols ? ' courses-cell-editable' : ''; ?>"
+                            <?php echo $hasFormSubjectCols ? ' title="雙擊編輯"' : ''; ?>>
+                            <?php echo htmlspecialchars(classes_form_level_label($flVal !== '' ? $flVal : null), ENT_QUOTES, 'UTF-8'); ?>
+                        </td>
+                        <td class="p-3 courses-cell-course-subject<?php echo $hasFormSubjectCols ? ' courses-cell-editable' : ''; ?>"
+                            <?php echo $hasFormSubjectCols ? ' title="雙擊編輯"' : ''; ?>>
+                            <?php echo htmlspecialchars(classes_course_subject_label($csVal !== '' ? $csVal : null), ENT_QUOTES, 'UTF-8'); ?>
+                        </td>
                         <td class="p-3 courses-cell-school-year courses-cell-editable" title="雙擊編輯"><?php echo htmlspecialchars((string) ($r['school_year'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 courses-cell-teacher<?php echo $canAny ? ' courses-cell-editable' : ''; ?>"<?php echo $canAny ? ' title="雙擊編輯"' : ''; ?>><?php echo htmlspecialchars((string) ($r['teacher_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo (int) ($r['student_count'] ?? 0); ?></td>
@@ -120,7 +147,7 @@ admin_page_start('課程管理', 'courses', [
                     </tr>
                     <?php endforeach; ?>
                     <?php if ($rows === []): ?>
-                    <tr><td colspan="7" class="p-6 text-slate-500 text-center">尚無課程</td></tr>
+                    <tr><td colspan="10" class="p-6 text-slate-500 text-center">尚無課程</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -137,7 +164,16 @@ admin_page_start('課程管理', 'courses', [
                     <label class="block text-sm font-medium text-slate-700">目標課程</label>
                     <select name="class_id" required class="mt-1 w-full border rounded-lg px-3 py-2">
                         <?php foreach ($rows as $r): ?>
-                        <option value="<?php echo (int) $r['id']; ?>"><?php echo htmlspecialchars((string) $r['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                        <option value="<?php echo (int) $r['id']; ?>">
+                            <?php
+                            echo htmlspecialchars((string) $r['name'], ENT_QUOTES, 'UTF-8');
+                            $fl = classes_form_level_label(isset($r['form_level']) ? (string) $r['form_level'] : null);
+                            $cs = classes_course_subject_label(isset($r['course_subject']) ? (string) $r['course_subject'] : null);
+                            if ($fl !== '—' || $cs !== '—') {
+                                echo '（' . htmlspecialchars($fl . ' · ' . $cs, ENT_QUOTES, 'UTF-8') . '）';
+                            }
+                            ?>
+                        </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -151,15 +187,21 @@ admin_page_start('課程管理', 'courses', [
         <?php endif; ?>
 <?php
 $teachersJson = json_encode($teacherOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+$formLevelJson = json_encode($formLevelOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+$courseSubjectJson = json_encode($courseSubjectOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $csrfJson = json_encode($csrf, JSON_UNESCAPED_UNICODE);
 $canAnyJson = $canAny ? 'true' : 'false';
+$hasFormSubjectJson = $hasFormSubjectCols ? 'true' : 'false';
 admin_page_end([
     'scripts' => <<<HTML
 <script>
 (function () {
     const csrf = {$csrfJson};
     const teacherOptions = {$teachersJson};
+    const formLevelOptions = {$formLevelJson};
+    const courseSubjectOptions = {$courseSubjectJson};
     const canAny = {$canAnyJson};
+    const hasFormSubject = {$hasFormSubjectJson};
     const table = document.getElementById('courses-table');
     const flashEl = document.getElementById('courses-inline-flash');
     /** @type {{cell:HTMLElement,row:HTMLElement,field:string,control:HTMLElement}|null} */
@@ -176,6 +218,8 @@ admin_page_end([
     function getRowValues(row) {
         return {
             schoolYear: row.dataset.schoolYear || '',
+            formLevel: row.dataset.formLevel || '',
+            courseSubject: row.dataset.courseSubject || '',
             teacherId: parseInt(row.dataset.teacherId || '0', 10) || 0,
             teacherName: row.dataset.teacherName || '',
         };
@@ -186,9 +230,16 @@ admin_page_end([
         return opt ? opt.label : '—';
     }
 
+    function labelFromMap(map, value) {
+        if (!value) return '—';
+        return map[value] || value;
+    }
+
     function restoreCellDisplay(cell, row, field) {
         const values = getRowValues(row);
         if (field === 'school_year') cell.textContent = values.schoolYear;
+        else if (field === 'form_level') cell.textContent = labelFromMap(formLevelOptions, values.formLevel);
+        else if (field === 'course_subject') cell.textContent = labelFromMap(courseSubjectOptions, values.courseSubject);
         else cell.textContent = values.teacherName || teacherLabelFromId(values.teacherId);
         cell.classList.remove('bg-indigo-50', 'ring-2', 'ring-indigo-200');
     }
@@ -197,6 +248,52 @@ admin_page_end([
         if (!editing || saving) return;
         restoreCellDisplay(editing.cell, editing.row, editing.field);
         editing = null;
+    }
+
+    function buildSelect(optionsMap, selectedValue) {
+        const select = document.createElement('select');
+        select.className = 'courses-inline-control w-full border rounded-lg px-2 py-1 text-sm bg-white';
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '請選擇';
+        select.appendChild(empty);
+        Object.keys(optionsMap).forEach(function (key) {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = optionsMap[key];
+            if (key === selectedValue) opt.selected = true;
+            select.appendChild(opt);
+        });
+        return select;
+    }
+
+    function buildTeacherSelect(selectedId) {
+        const select = document.createElement('select');
+        select.className = 'courses-inline-control w-full border rounded-lg px-2 py-1 text-sm bg-white';
+        teacherOptions.forEach(function (teacher) {
+            const opt = document.createElement('option');
+            opt.value = String(teacher.id);
+            opt.textContent = teacher.label;
+            if (teacher.id === selectedId) opt.selected = true;
+            select.appendChild(opt);
+        });
+        return select;
+    }
+
+    function bindSelectCommit(control, cell, row, field) {
+        control.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                editing = { cell: cell, row: row, field: field, control: control };
+                cancelEdit();
+            }
+        });
+        control.addEventListener('blur', function () {
+            if (editing && editing.control === control) commitEdit();
+        });
+        control.addEventListener('change', function () {
+            if (editing && editing.control === control) control.blur();
+        });
     }
 
     async function commitEdit() {
@@ -208,6 +305,8 @@ admin_page_end([
         const before = getRowValues(row);
 
         let schoolYear = before.schoolYear;
+        let formLevel = before.formLevel;
+        let courseSubject = before.courseSubject;
         let teacherId = before.teacherId;
         let changed = false;
 
@@ -215,6 +314,14 @@ admin_page_end([
             const newValue = control.value.trim();
             changed = newValue !== before.schoolYear;
             schoolYear = newValue;
+        } else if (field === 'form_level') {
+            const newValue = control.value;
+            changed = newValue !== before.formLevel;
+            formLevel = newValue;
+        } else if (field === 'course_subject') {
+            const newValue = control.value;
+            changed = newValue !== before.courseSubject;
+            courseSubject = newValue;
         } else {
             const newId = parseInt(control.value, 10) || 0;
             changed = newId !== before.teacherId;
@@ -232,8 +339,11 @@ admin_page_end([
         const body = new FormData();
         body.append('csrf', csrf);
         body.append('action', 'inline_update');
+        body.append('field', field);
         body.append('id', row.dataset.courseId);
         body.append('school_year', schoolYear);
+        body.append('form_level', formLevel);
+        body.append('course_subject', courseSubject);
         body.append('teacher_user_id', String(teacherId));
 
         try {
@@ -246,9 +356,13 @@ admin_page_end([
                 return;
             }
             row.dataset.schoolYear = data.school_year || '';
+            row.dataset.formLevel = data.form_level || '';
+            row.dataset.courseSubject = data.course_subject || '';
             row.dataset.teacherId = String(data.teacher_user_id || 0);
             row.dataset.teacherName = data.teacher_name || '';
             if (field === 'school_year') cell.textContent = data.school_year || '';
+            else if (field === 'form_level') cell.textContent = data.form_level_label || '—';
+            else if (field === 'course_subject') cell.textContent = data.course_subject_label || '—';
             else cell.textContent = data.teacher_name || '—';
             cell.classList.remove('bg-indigo-50', 'ring-2', 'ring-indigo-200');
             showFlash('已更新課程 #' + row.dataset.courseId + '。', false);
@@ -258,19 +372,6 @@ admin_page_end([
         } finally {
             saving = false;
         }
-    }
-
-    function buildTeacherSelect(selectedId) {
-        const select = document.createElement('select');
-        select.className = 'courses-inline-control w-full border rounded-lg px-2 py-1 text-sm bg-white';
-        teacherOptions.forEach(function (teacher) {
-            const opt = document.createElement('option');
-            opt.value = String(teacher.id);
-            opt.textContent = teacher.label;
-            if (teacher.id === selectedId) opt.selected = true;
-            select.appendChild(opt);
-        });
-        return select;
     }
 
     async function startEdit(cell, field) {
@@ -310,21 +411,19 @@ admin_page_end([
             cell.appendChild(control);
             control.focus();
             control.select();
+        } else if (field === 'form_level') {
+            control = buildSelect(formLevelOptions, values.formLevel);
+            bindSelectCommit(control, cell, row, field);
+            cell.appendChild(control);
+            control.focus();
+        } else if (field === 'course_subject') {
+            control = buildSelect(courseSubjectOptions, values.courseSubject);
+            bindSelectCommit(control, cell, row, field);
+            cell.appendChild(control);
+            control.focus();
         } else {
             control = buildTeacherSelect(values.teacherId);
-            control.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    editing = { cell: cell, row: row, field: field, control: control };
-                    cancelEdit();
-                }
-            });
-            control.addEventListener('blur', function () {
-                if (editing && editing.control === control) commitEdit();
-            });
-            control.addEventListener('change', function () {
-                if (editing && editing.control === control) control.blur();
-            });
+            bindSelectCommit(control, cell, row, field);
             cell.appendChild(control);
             control.focus();
         }
@@ -337,6 +436,8 @@ admin_page_end([
         if (!cell || e.target.closest('input, select, option, a, button, form')) return;
         let field = '';
         if (cell.classList.contains('courses-cell-school-year')) field = 'school_year';
+        else if (cell.classList.contains('courses-cell-form-level') && hasFormSubject) field = 'form_level';
+        else if (cell.classList.contains('courses-cell-course-subject') && hasFormSubject) field = 'course_subject';
         else if (cell.classList.contains('courses-cell-teacher') && canAny) field = 'teacher';
         if (!field) return;
         void startEdit(cell, field);

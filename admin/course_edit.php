@@ -5,7 +5,6 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/classes_lib.php';
 require_once dirname(__DIR__) . '/includes/user_names_lib.php';
-require_once dirname(__DIR__) . '/includes/simulations_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
@@ -39,7 +38,9 @@ if ($canAny) {
     )->fetchAll() ?: [];
 }
 
-$subjects = sim_all_subjects($pdo);
+$formLevelOptions = classes_form_level_options();
+$courseSubjectOptions = classes_course_subject_options();
+$hasFormSubjectCols = classes_has_form_subject_columns($pdo);
 $error = '';
 $inviteFlash = '';
 
@@ -88,6 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'id' => (int) ($_POST['id'] ?? 0),
             'name' => $_POST['name'] ?? '',
             'school_year' => $_POST['school_year'] ?? '',
+            'form_level' => $_POST['form_level'] ?? null,
+            'course_subject' => $_POST['course_subject'] ?? null,
             'subject_id' => $_POST['subject_id'] ?? null,
             'teacher_user_id' => (int) ($_POST['teacher_user_id'] ?? $acting['id']),
             'is_active' => isset($_POST['is_active']) ? 1 : 0,
@@ -102,6 +105,12 @@ admin_page_start($id ? '編輯課程' : '新增課程', 'courses', [
 ?>
         <?php if ($error !== ''): ?>
             <p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
+        <?php endif; ?>
+        <?php if (!$hasFormSubjectCols): ?>
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                資料庫尚未加入年級／科目欄位，儲存會失敗。請先執行
+                <code class="font-mono text-xs">mysql … &lt; schema_classes_form_subject.sql</code>
+            </div>
         <?php endif; ?>
         <?php if ($inviteFlash !== ''): ?>
             <p class="text-emerald-700 text-sm"><?php echo htmlspecialchars($inviteFlash, ENT_QUOTES, 'UTF-8'); ?></p>
@@ -118,16 +127,31 @@ admin_page_start($id ? '編輯課程' : '新增課程', 'courses', [
                 <label class="block text-sm font-medium text-slate-700">學年</label>
                 <input type="text" name="school_year" value="<?php echo htmlspecialchars((string) ($row['school_year'] ?? date('Y') . '-' . (date('Y') + 1)), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="2025-2026">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700">科目（可選）</label>
-                <select name="subject_id" class="mt-1 w-full border rounded-lg px-3 py-2">
-                    <option value="">—</option>
-                    <?php foreach ($subjects as $s): ?>
-                    <option value="<?php echo (int) $s['id']; ?>" <?php echo isset($row['subject_id']) && (int) $row['subject_id'] === (int) $s['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars((string) $s['name_zh'], ENT_QUOTES, 'UTF-8'); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">年級 <span class="text-red-500">*</span></label>
+                    <select name="form_level" required class="mt-1 w-full border rounded-lg px-3 py-2">
+                        <option value="">請選擇</option>
+                        <?php foreach ($formLevelOptions as $val => $label): ?>
+                        <option value="<?php echo htmlspecialchars($val, ENT_QUOTES, 'UTF-8'); ?>"
+                            <?php echo (string) ($row['form_level'] ?? '') === (string) $val ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">科目 <span class="text-red-500">*</span></label>
+                    <select name="course_subject" required class="mt-1 w-full border rounded-lg px-3 py-2">
+                        <option value="">請選擇</option>
+                        <?php foreach ($courseSubjectOptions as $val => $label): ?>
+                        <option value="<?php echo htmlspecialchars($val, ENT_QUOTES, 'UTF-8'); ?>"
+                            <?php echo (string) ($row['course_subject'] ?? '') === (string) $val ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <?php if ($canAny): ?>
             <div>
