@@ -63,6 +63,7 @@ function api_v1_dispatch(): void
         'GET /learning-videos' => 'api_handle_learning_videos_list_public',
         'GET /learning-videos/pending' => 'api_handle_learning_videos_pending',
         'GET /question-banks' => 'api_handle_question_banks_list_public',
+        'GET /summer-homework' => 'api_handle_summer_homework_list',
         'GET /review-queue' => 'api_handle_review_queue',
         'POST /auth/login' => 'api_handle_auth_login',
         'POST /auth/register' => 'api_handle_auth_register',
@@ -122,6 +123,18 @@ function api_v1_dispatch(): void
         api_handle_question_bank_answers($pdo, rawurldecode($m[1]));
         return;
     }
+    if (preg_match('#^GET /summer-homework/([^/]+)$#', $routeKey, $m)) {
+        api_handle_summer_homework_get($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^POST /summer-homework/([^/]+)/submit$#', $routeKey, $m)) {
+        api_handle_summer_homework_submit($pdo, rawurldecode($m[1]));
+        return;
+    }
+    if (preg_match('#^GET /admin/summer-homework/(\d+)$#', $routeKey, $m)) {
+        api_handle_admin_summer_homework_get($pdo, (int) $m[1]);
+        return;
+    }
     if (preg_match('#^GET /admin/question-banks/(\d+)$#', $routeKey, $m)) {
         api_handle_admin_question_bank_get($pdo, (int) $m[1]);
         return;
@@ -173,6 +186,10 @@ function api_v1_dispatch(): void
     }
     if ($path === '/admin/question-banks') {
         api_handle_admin_question_banks($pdo, $method);
+        return;
+    }
+    if ($path === '/admin/summer-homework') {
+        api_handle_admin_summer_homework($pdo, $method);
         return;
     }
     if ($path === '/auth/profile') {
@@ -532,3 +549,4 @@ require_once __DIR__ . '/handlers/students.php';
 require_once __DIR__ . '/handlers/teacher.php';
 require_once __DIR__ . '/handlers/worksheet_assignments.php';
 require_once __DIR__ . '/handlers/learning.php';
+require_once __DIR__ . '/handlers/summer_homework.php';

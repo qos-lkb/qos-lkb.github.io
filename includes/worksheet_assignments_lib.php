@@ -400,28 +400,63 @@ function wa_submit(PDO $pdo, int $assignmentId, int $userId, array $payload): ar
     if (!$sub) {
         return ['ok' => false, 'error' => '找不到提交紀錄。'];
     }
-    if (($sub['status'] ?? '') === 'graded') {
-        return ['ok' => false, 'error' => '已評分，無法重新提交。'];
-    }
 
     $comment = trim((string) ($payload['student_comment'] ?? ''));
     $responses = is_array($payload['responses'] ?? null) ? $payload['responses'] : [];
     $responsesJson = $responses !== [] ? json_encode($responses, JSON_UNESCAPED_UNICODE) : null;
     $worksheetId = (int) ($a['worksheet_id'] ?? 0);
-    $autoScore = $responses !== [] ? wa_compute_auto_score($pdo, $worksheetId, $responses) : null;
+    $newAutoScore = $responses !== [] ? wa_compute_auto_score($pdo, $worksheetId, $responses) : null;
 
-    $upd = $pdo->prepare(
-        'UPDATE worksheet_submissions SET status = \'submitted\', submitted_at = CURRENT_TIMESTAMP,
-         student_comment = ?, responses_json = ?, auto_score = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE assignment_id = ? AND user_id = ?'
-    );
-    $upd->execute([
-        $comment !== '' ? $comment : null,
-        $responsesJson,
-        $autoScore,
-        $assignmentId,
-        $userId,
-    ]);
+    $prevAuto = isset($sub['auto_score']) && $sub['auto_score'] !== null && $sub['auto_score'] !== ''
+        ? (float) $sub['auto_score']
+        : null;
+    $prevScore = isset($sub['score']) && $sub['score'] !== null && $sub['score'] !== ''
+        ? (float) $sub['score']
+        : null;
+    $wasGraded = ($sub['status'] ?? '') === 'graded';
+
+    // Keep the highest auto score across attempts.
+    $autoScore = $newAutoScore;
+    if ($prevAuto !== null && $newAutoScore !== null) {
+        $autoScore = max($prevAuto, $newAutoScore);
+    } elseif ($prevAuto !== null && $newAutoScore === null) {
+        $autoScore = $prevAuto;
+    }
+
+    if ($wasGraded) {
+        // After grading, students may redo; keep the highest official score.
+        $bestScore = $prevScore;
+        if ($newAutoScore !== null) {
+            $bestScore = $prevScore !== null ? max($prevScore, $newAutoScore) : $newAutoScore;
+        }
+        $upd = $pdo->prepare(
+            'UPDATE worksheet_submissions SET submitted_at = CURRENT_TIMESTAMP,
+             student_comment = ?, responses_json = ?, auto_score = ?, score = ?,
+             updated_at = CURRENT_TIMESTAMP
+             WHERE assignment_id = ? AND user_id = ?'
+        );
+        $upd->execute([
+            $comment !== '' ? $comment : null,
+            $responsesJson,
+            $autoScore,
+            $bestScore,
+            $assignmentId,
+            $userId,
+        ]);
+    } else {
+        $upd = $pdo->prepare(
+            'UPDATE worksheet_submissions SET status = \'submitted\', submitted_at = CURRENT_TIMESTAMP,
+             student_comment = ?, responses_json = ?, auto_score = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE assignment_id = ? AND user_id = ?'
+        );
+        $upd->execute([
+            $comment !== '' ? $comment : null,
+            $responsesJson,
+            $autoScore,
+            $assignmentId,
+            $userId,
+        ]);
+    }
     return ['ok' => true];
 }
 

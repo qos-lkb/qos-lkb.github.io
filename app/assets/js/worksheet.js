@@ -15,7 +15,9 @@
         return map[status] || status;
     }
 
-    function buildAssignmentBanner(assignment, submission, lang) {
+    function buildAssignmentBanner(assignment, submission, lang, opts) {
+        opts = opts || {};
+        const forceRedo = !!opts.forceRedo;
         const title = lang === 'zh'
             ? (assignment.title_zh || assignment.worksheet_title_zh)
             : (assignment.title_en || assignment.worksheet_title_en);
@@ -28,8 +30,10 @@
         if (sub.status === 'graded' && sub.score != null) {
             const feedback = lang === 'zh' ? sub.feedback_zh : sub.feedback_en;
             scoreHtml = `<div class="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                <p class="font-semibold text-emerald-900">${t('分數', 'Score')}: ${sub.score} / ${assignment.max_score}</p>
+                <p class="font-semibold text-emerald-900">${t('最高分數', 'Best score')}: ${sub.score} / ${assignment.max_score}</p>
+                ${sub.auto_score != null ? `<p class="text-xs text-emerald-800 mt-1">${t('選擇題自動計分（最高）', 'Best auto MCQ score')}: ${sub.auto_score}</p>` : ''}
                 ${feedback ? `<p class="text-sm text-emerald-800 mt-1">${escapeHtml(feedback)}</p>` : ''}
+                ${!forceRedo ? `<p class="text-xs text-emerald-800 mt-2">${t('可重做爭取更高分；低於最高分時不會降低紀錄。', 'You may redo for a higher score; a lower attempt will not reduce your record.')}</p>` : ''}
             </div>`;
         } else if (sub.status === 'submitted') {
             const autoHint = sub.auto_score != null
@@ -38,17 +42,27 @@
             scoreHtml = `<p class="mt-3 text-sm text-indigo-700">${t('已提交，等候老師評分。', 'Submitted — awaiting teacher grading.')}${autoHint}</p>`;
         }
 
-        const canSubmit = assignment.status === 'active' && sub.status !== 'graded'
-            && (sub.status === 'pending' || sub.status === 'submitted');
+        const canSubmit = assignment.status === 'active'
+            && (sub.status === 'pending' || sub.status === 'submitted' || (sub.status === 'graded' && forceRedo));
+        const showRedoBtn = assignment.status === 'active' && sub.status === 'graded' && !forceRedo;
 
-        const submitBlock = canSubmit
-            ? `<div class="mt-4 pt-4 border-t border-indigo-100">
+        let submitBlock = '';
+        if (showRedoBtn) {
+            submitBlock = `<div class="mt-4 pt-4 border-t border-indigo-100">
+                <button type="button" id="ws-redo-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${t('重做習作', 'Redo assignment')}</button>
+            </div>`;
+        } else if (canSubmit) {
+            const submitLabel = sub.status === 'graded'
+                ? t('提交重做結果', 'Submit redo')
+                : (sub.status === 'submitted' ? t('重新提交', 'Resubmit') : t('提交習作', 'Submit assignment'));
+            submitBlock = `<div class="mt-4 pt-4 border-t border-indigo-100">
                 <label class="block text-xs text-slate-500 mb-1">${t('備註（選填）', 'Note (optional)')}</label>
                 <textarea id="ws-submit-comment" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm mb-2">${escapeHtml(sub.student_comment || '')}</textarea>
-                <button type="button" id="ws-submit-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${sub.status === 'submitted' ? t('重新提交', 'Resubmit') : t('提交習作', 'Submit assignment')}</button>
+                <button type="button" id="ws-submit-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${submitLabel}</button>
                 <p id="ws-submit-msg" class="text-xs mt-2 hidden"></p>
-            </div>`
-            : '';
+                ${sub.status === 'graded' ? `<p class="text-xs text-slate-500 mt-2">${t('重做後若分數較高會更新最高分；較低則保留原最高分。', 'If the redo scores higher, the best score is updated; otherwise the previous best is kept.')}</p>` : ''}
+            </div>`;
+        }
 
         return `<div id="ws-assignment-banner" class="mb-6 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
             <div class="flex flex-wrap items-start justify-between gap-2">
@@ -77,6 +91,7 @@
 
         let assignment = opts.assignment || null;
         let submission = opts.submission || null;
+        const forceRedo = !!opts.forceRedo;
         if (assignmentId && !assignment) {
             const ad = await apiFetch('/student/worksheet-assignments/' + assignmentId);
             assignment = ad.assignment;
@@ -92,7 +107,7 @@
                 : '/worksheets'
         );
 
-        const bannerHtml = assignment ? buildAssignmentBanner(assignment, submission, lang) : '';
+        const bannerHtml = assignment ? buildAssignmentBanner(assignment, submission, lang, { forceRedo }) : '';
         const langKey = lang === 'zh' ? 'zh' : 'en';
         const qSummary = ws['question_summary_' + langKey] || ws.question_summary_zh;
         const summaryHint = qSummary && qSummary.question_count > 0
@@ -114,11 +129,12 @@
         if (assignmentId && global.AppContentEmbeds && global.AppContentEmbeds.setWorksheetContext) {
             const subStatus = submission?.status || 'pending';
             let wsState = 'editable';
-            if (subStatus === 'graded') wsState = 'graded';
+            if (subStatus === 'graded' && !forceRedo) wsState = 'graded';
             else if (subStatus === 'submitted') wsState = 'submitted';
+            else if (subStatus === 'graded' && forceRedo) wsState = 'editable';
             global.AppContentEmbeds.setWorksheetContext({
                 state: wsState,
-                savedResponses: submission?.responses || [],
+                savedResponses: forceRedo ? [] : (submission?.responses || []),
             });
         } else if (global.AppContentEmbeds?.setWorksheetContext) {
             global.AppContentEmbeds.setWorksheetContext(null);
@@ -127,6 +143,17 @@
         await enhanceMarkdown(main);
 
         if (assignmentId && assignment) {
+            const redoBtn = document.getElementById('ws-redo-btn');
+            if (redoBtn) {
+                redoBtn.onclick = () => {
+                    renderWorksheet(slug, {
+                        assignmentId,
+                        assignment,
+                        submission,
+                        forceRedo: true,
+                    });
+                };
+            }
             const submitBtn = document.getElementById('ws-submit-btn');
             if (submitBtn) {
                 submitBtn.onclick = async () => {
@@ -138,7 +165,10 @@
                     if (!responses.length && !confirm(t('尚未作答任何題目，確定要提交？', 'No answers recorded. Submit anyway?'))) {
                         return;
                     }
-                    if (!confirm(t('確定提交習作？提交後仍可修改並重新提交，直至老師評分。', 'Submit this assignment? You can resubmit until graded.'))) {
+                    const confirmMsg = submission?.status === 'graded'
+                        ? t('確定提交重做結果？分數較高會更新最高分，較低則保留原最高分。', 'Submit this redo? A higher score updates your best; a lower one keeps the previous best.')
+                        : t('確定提交習作？提交後仍可修改並重新提交，直至老師評分。', 'Submit this assignment? You can resubmit until graded.');
+                    if (!confirm(confirmMsg)) {
                         return;
                     }
                     try {
@@ -153,6 +183,7 @@
                             assignmentId,
                             assignment,
                             submission: r.submission,
+                            forceRedo: false,
                         });
                     } catch (err) {
                         if (msg) {

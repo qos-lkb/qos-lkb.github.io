@@ -9,6 +9,7 @@
         simulations: { zh: '模擬程式', en: 'Simulations' },
         articles: { zh: '科學文章', en: 'Science Articles' },
         learning: { zh: '互動學習工具', en: 'Interactive Tools' },
+        summer: { zh: '暑期功課', en: 'Summer HW' },
     };
 
     let catalogLoaded = false;
@@ -256,6 +257,22 @@
                 });
                 if (window.AppAssignments) await AppAssignments.renderAssignment(id);
             },
+            '/summer-homework': async () => {
+                setActiveTab('summer');
+                if (window.AppSummerHomework) await AppSummerHomework.renderList(null);
+            },
+            '/summer-homework/s1': async () => {
+                setActiveTab('summer');
+                if (window.AppSummerHomework) await AppSummerHomework.renderList('1');
+            },
+            '/summer-homework/s2': async () => {
+                setActiveTab('summer');
+                if (window.AppSummerHomework) await AppSummerHomework.renderList('2');
+            },
+            '/summer-homework/:slug': async (slug) => {
+                setActiveTab('summer');
+                if (window.AppSummerHomework) await AppSummerHomework.renderItem(slug);
+            },
         });
 
         const tabRoutes = {
@@ -266,6 +283,7 @@
             simulations: '/simulations',
             articles: '/articles',
             learning: '/learning-tools',
+            summer: '/summer-homework',
         };
 
         document.querySelectorAll('.nav-tab').forEach(btn => {

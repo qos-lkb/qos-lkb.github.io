@@ -275,6 +275,7 @@ function admin_permission_groups(): array
                 'worksheet.',
                 'question_bank.',
                 'learning_video.',
+                'summer_homework.',
             ],
         ],
         'course' => [
@@ -357,6 +358,9 @@ function admin_permission_labels(): array
         'class.manage_any' => '管理全部課程',
         'class.manage_own' => '管理自己的課程',
         'student.profile_own' => '管理自己的學生檔案',
+        'summer_homework.manage_any' => '管理全部暑期功課',
+        'summer_homework.manage_own' => '管理自己的暑期功課',
+        'summer_homework.submit_own' => '完成暑期功課習作',
     ];
 }
 

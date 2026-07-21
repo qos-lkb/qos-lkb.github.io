@@ -78,7 +78,9 @@ function admin_has_any_access(): bool
         || user_has_permission('question_bank.manage_any')
         || user_has_permission('question_bank.manage_own')
         || user_has_permission('class.manage_own')
-        || user_has_permission('class.manage_any');
+        || user_has_permission('class.manage_any')
+        || user_has_permission('summer_homework.manage_any')
+        || user_has_permission('summer_homework.manage_own');
 }
 
 function admin_btn(string $href, string $label, string $type = 'primary'): string
@@ -130,6 +132,9 @@ function admin_menu_sections(): array
     }
     if (user_has_permission('learning_tool.manage_any')) {
         $contentItems[] = ['key' => 'learning_tools', 'label' => '互動學習工具', 'href' => 'learning_tools.php'];
+    }
+    if (user_has_permission('summer_homework.manage_any') || user_has_permission('summer_homework.manage_own')) {
+        $contentItems[] = ['key' => 'summer_homework', 'label' => '暑期功課', 'href' => 'summer_homework.php', 'accent' => 'amber'];
     }
     if (user_has_permission('question_bank.manage_any')) {
         $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => 'question_banks.php'];
@@ -270,6 +275,7 @@ function admin_dashboard_card_meta(): array
         'simulations' => ['icon' => 'sim', 'tone' => 'violet', 'desc' => '檢視、編輯與排序全部互動模擬程式。'],
         'articles' => ['icon' => 'article', 'tone' => 'emerald', 'desc' => '管理科學文章與閱讀測驗。'],
         'learning_tools' => ['icon' => 'quiz', 'tone' => 'cyan', 'desc' => '管理互動學習工具與小測。'],
+        'summer_homework' => ['icon' => 'note', 'tone' => 'amber', 'desc' => '中一／中二暑期功課：閱讀或影片 + 選擇／填充題。'],
         'question_banks' => ['icon' => 'bank', 'tone' => 'rose', 'desc' => '維護試題庫與題目資料。'],
         'learning_videos' => ['icon' => 'video', 'tone' => 'fuchsia', 'desc' => '管理學習影片與發佈狀態。'],
         'course_curriculum' => ['icon' => 'course', 'tone' => 'indigo', 'desc' => '編排自學課程與前台課程樹結構。'],

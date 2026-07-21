@@ -137,6 +137,27 @@
             await afterRoute();
             return;
         }
+        if (path === '/summer-homework' || path === '/summer-homework/') {
+            await routes['/summer-homework']();
+            await afterRoute();
+            return;
+        }
+        if (path === '/summer-homework/s1') {
+            await routes['/summer-homework/s1']();
+            await afterRoute();
+            return;
+        }
+        if (path === '/summer-homework/s2') {
+            await routes['/summer-homework/s2']();
+            await afterRoute();
+            return;
+        }
+        const summerItem = path.match(/^\/summer-homework\/([^/]+)$/);
+        if (summerItem && summerItem[1] !== 's1' && summerItem[1] !== 's2') {
+            await routes['/summer-homework/:slug'](decodeURIComponent(summerItem[1]));
+            await afterRoute();
+            return;
+        }
         const assignment = path.match(/^\/assignment\/(\d+)$/);
         if (assignment) {
             await routes['/assignment/:id'](assignment[1]);

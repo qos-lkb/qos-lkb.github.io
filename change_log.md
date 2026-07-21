@@ -8,6 +8,14 @@
 
 ## 2026-06-28
 
+### 暑期功課（中一／中二）
+- 新 Git 分支 **`暑期功課`**：S1／S2 暑期習作平台。
+- 每份習作含 **閱讀篇章或影片**，加上 **選擇題** 與 **填充題**；預設 **80%** 及格，未及格可重做。
+- **及格後仍可重做**；系統保留 **最高分數**（較低的重做不會覆蓋）。
+- 工作紙習作於老師評分後亦可重做，同樣只保留最高分。
+- 資料表：`summer_homework_*`（見 `schema.sql`／既有庫請執行 `schema_summer_homework.sql`）。
+- 前台：`/app/summer-homework`；後台：`admin/summer_homework.php`。
+
 ### 資料庫 schema 整併
 - 新增根目錄 **`schema.sql`**：完整 MariaDB schema（含 seed 角色／權限／系統帳號）。
 - 刪除 **`migrations/`** 逐步遷移檔（001–018）；新環境改為一次匯入 `schema.sql`。

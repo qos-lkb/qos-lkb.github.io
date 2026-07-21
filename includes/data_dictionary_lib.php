@@ -43,6 +43,11 @@ const DD_TABLE_DESCRIPTIONS = [
     'worksheet_assignments' => '工作紙派發（班級、截止、滿分）',
     'worksheet_assignment_students' => '派發對象（全班或指定學生）',
     'worksheet_submissions' => '學生提交、評分、自動計分 JSON',
+    'summer_homework_items' => '暑期功課習作（中一／中二；篇章或影片）',
+    'summer_homework_questions' => '暑期功課題目（選擇／填充）',
+    'summer_homework_mcq_options' => '暑期功課選擇題選項',
+    'summer_homework_fill_blanks' => '暑期功課填充題答案',
+    'summer_homework_attempts' => '暑期功課作答紀錄（及格／重做）',
 ];
 
 /** @var array<string, string> */
