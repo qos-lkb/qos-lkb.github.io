@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim((string) ($_POST['email'] ?? ''));
         $pass = (string) ($_POST['password'] ?? '');
         if (!attempt_login($email, $pass)) {
-            $error = '登入失敗，請檢查電郵與密碼。';
+            $error = '登入失敗，請檢查帳戶名稱與密碼。';
         } else {
             $next = $_GET['next'] ?? 'app/';
             if (!is_string($next) || str_contains($next, '://') || str_starts_with($next, '//')) {
@@ -48,12 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="post" class="space-y-4">
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <div>
-                <label class="block text-sm font-medium text-slate-700">電郵</label>
-                <input type="email" name="email" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="username">
+                <label class="block text-sm font-medium text-slate-700">帳戶名稱</label>
+                <input type="text" name="email" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="username" placeholder="例如 s20171060" spellcheck="false">
+                <p class="mt-1 text-xs text-slate-500">請輸入與 QSIS 相同的帳戶名（學號／教師代碼），無需 <code class="font-mono">@qos.edu.hk</code>。</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700">密碼</label>
                 <input type="password" name="password" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="current-password">
+                <p class="mt-1 text-xs text-slate-500">使用校本 QSIS 密碼登入。</p>
             </div>
             <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">登入</button>
         </form>

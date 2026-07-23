@@ -16,15 +16,16 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
     }
 
     $id = isset($post['id']) ? (int) $post['id'] : 0;
-    $email = trim((string) ($post['email'] ?? ''));
+    require_once __DIR__ . '/qsis_auth_lib.php';
+    $email = auth_normalize_login_identity((string) ($post['email'] ?? ''));
     $nameZh = trim((string) ($post['name_zh'] ?? ''));
     $nameEn = trim((string) ($post['name_en'] ?? ''));
     $password = (string) ($post['password'] ?? '');
     $isActive = isset($post['is_active']) ? 1 : 0;
     $roleIds = isset($post['roles']) && is_array($post['roles']) ? array_map('intval', $post['roles']) : [];
 
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return ['ok' => false, 'error' => '請輸入有效電郵。'];
+    if (!auth_is_valid_login_id($email)) {
+        return ['ok' => false, 'error' => '請輸入有效帳戶名稱（與 QSIS 一致）或外部電郵。'];
     }
     $nameValid = account_validate_names($nameZh, $nameEn);
     if (!$nameValid['ok']) {

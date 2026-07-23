@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/user_names_lib.php';
+require_once __DIR__ . '/qsis_auth_lib.php';
 
 function auth_session_start(): void
 {
@@ -240,15 +241,28 @@ function auth_stop_impersonation(PDO $pdo): array
 function attempt_login(string $email, string $password): bool
 {
     auth_session_start();
-    $pdo = db();
-    $stmt = $pdo->prepare('SELECT id, email, password_hash, display_name, name_zh, name_en, is_active FROM users WHERE email = ? LIMIT 1');
-    $stmt->execute([$email]);
-    $u = $stmt->fetch();
-    if (!$u || !(int) $u['is_active']) {
+    $identity = auth_normalize_login_identity($email);
+    if ($identity === '' || $password === '') {
         return false;
     }
-    if (!password_verify($password, $u['password_hash'])) {
+
+    $pdo = db();
+    $u = auth_find_local_user_by_login($pdo, $identity);
+    if ($u === null || !(int) $u['is_active']) {
         return false;
+    }
+
+    // Prefer QSIS password when the account exists there; do not fall back to local hash.
+    $qsisResult = qsis_verify_password_for_login($identity, $password);
+    if ($qsisResult === 'ok') {
+        // authenticated via QSIS
+    } elseif ($qsisResult === 'fail') {
+        return false;
+    } else {
+        // QSIS unavailable or no matching QSIS user → local password (admins / external).
+        if (!password_verify($password, (string) $u['password_hash'])) {
+            return false;
+        }
     }
 
     session_regenerate_id(true);

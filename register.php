@@ -59,8 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="post" class="space-y-4">
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <div>
-                <label class="block text-sm font-medium text-slate-700">電郵</label>
-                <input type="email" name="email" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="username">
+                <label class="block text-sm font-medium text-slate-700">帳戶名稱</label>
+                <input type="text" name="email" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="username" placeholder="例如 s20171060" spellcheck="false">
+                <p class="mt-1 text-xs text-slate-500">請填 QSIS 帳戶名（學號），無需 @qos.edu.hk。</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700">中文名</label>

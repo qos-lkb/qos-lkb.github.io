@@ -170,7 +170,7 @@ function config_qsis_db_from_env(): ?array
 }
 
 /**
- * 匯入 QSIS 學生時用以產生登入電郵的網域（例：student.qos.edu.hk → sid@student.qos.edu.hk）。
+ * 學校帳戶網域（僅用於辨識／剝離舊版 users.email 中的 @網域；登入與儲存改用 QSIS username）。
  */
 function config_qsis_student_email_domain(): string
 {

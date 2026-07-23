@@ -276,12 +276,8 @@ function qsis_form_level_from_class(string $className): ?string
 
 function qsis_student_email(string $sid): string
 {
-    $domain = config_qsis_student_email_domain();
-    if ($domain === '') {
-        $domain = 'student.qsis.local';
-    }
-
-    return strtolower(trim($sid)) . '@' . $domain;
+    // Login id = QSIS username (sid); no @qos.edu.hk — keep both DBs aligned.
+    return strtolower(trim($sid));
 }
 
 function qsis_find_local_teacher_id(PDO $local, string $qsisTeacherId, int $fallbackUserId): int
@@ -495,9 +491,10 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
         $formLevel = $student['form_level'];
 
         if (!isset($processedAccounts[$sid])) {
-            $stmt = $local->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-            $stmt->execute([$email]);
-            $userId = (int) ($stmt->fetchColumn() ?: 0);
+            require_once __DIR__ . '/qsis_auth_lib.php';
+            $loginId = auth_normalize_login_identity($email);
+            $existing = auth_find_local_user_by_login($local, $loginId);
+            $userId = $existing !== null ? (int) $existing['id'] : 0;
 
             if ($userId <= 0) {
                 $profileStmt = $local->prepare('SELECT user_id FROM student_profiles WHERE student_number = ? LIMIT 1');
@@ -518,7 +515,7 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
                     $ins = $local->prepare(
                         'INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)'
                     );
-                    $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
+                    $ins->execute([$loginId, $hash, $nameZh, $nameEn, $displayName]);
                     $userId = (int) $local->lastInsertId();
                     $created++;
                 } catch (Throwable $e) {
@@ -528,11 +525,21 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
                 }
             } elseif ($updateExisting) {
                 $upd = $local->prepare(
-                    'UPDATE users SET name_zh = ?, name_en = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+                    'UPDATE users SET email = ?, name_zh = ?, name_en = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
                 );
-                $upd->execute([$nameZh, $nameEn, $displayName, $userId]);
+                $upd->execute([$loginId, $nameZh, $nameEn, $displayName, $userId]);
                 $updated++;
             } else {
+                // Still align login id with QSIS username when possible.
+                if ($existing !== null && (string) $existing['email'] !== $loginId) {
+                    try {
+                        $local->prepare(
+                            'UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+                        )->execute([$loginId, $userId]);
+                    } catch (Throwable $e) {
+                        // ignore unique conflicts
+                    }
+                }
                 $skipped++;
             }
 

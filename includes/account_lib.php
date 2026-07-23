@@ -55,6 +55,8 @@ function account_change_password(PDO $pdo, int $userId, string $currentPassword,
         return ['ok' => false, 'error' => '新密碼不可與目前密碼相同。'];
     }
 
+    require_once __DIR__ . '/qsis_auth_lib.php';
+
     $stmt = $pdo->prepare('SELECT email, password_hash FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$userId]);
     $row = $stmt->fetch();
@@ -64,6 +66,12 @@ function account_change_password(PDO $pdo, int $userId, string $currentPassword,
     if ($row['email'] === 'system@science-sims.internal') {
         return ['ok' => false, 'error' => '不可修改系統帳號密碼。'];
     }
+
+    $email = (string) $row['email'];
+    if (qsis_user_exists_for_email($email)) {
+        return ['ok' => false, 'error' => '此帳戶使用校本 QSIS 密碼，請於 QSIS／學校系統更改密碼。'];
+    }
+
     if (!password_verify($currentPassword, (string) $row['password_hash'])) {
         return ['ok' => false, 'error' => '目前密碼不正確。'];
     }

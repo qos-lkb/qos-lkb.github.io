@@ -161,7 +161,7 @@ admin_page_start('課程管理', 'courses', [
         <?php if ($rows !== [] && $canEditStudents): ?>
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
             <h2 class="text-lg font-bold text-slate-800 mb-2">批次匯入學生（CSV）</h2>
-            <p class="text-sm text-slate-500 mb-4">僅管理員可用。格式：email, name_zh, name_en, password, form_class, class_no, moi（moi 為 E 或 C；各欄可留空；姓名至少填一項）</p>
+            <p class="text-sm text-slate-500 mb-4">僅管理員可用。格式：login_id, name_zh, name_en, password, form_class, class_no, moi（login_id 為 QSIS 帳戶名，不含 @qos.edu.hk；moi 為 E 或 C；各欄可留空；姓名至少填一項）</p>
             <form method="post" class="space-y-4">
                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="action" value="import_csv">
@@ -184,7 +184,7 @@ admin_page_start('課程管理', 'courses', [
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700">CSV 內容</label>
-                    <textarea name="csv_content" rows="6" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="email,name_zh,name_en,password,form_class,class_no,moi&#10;student@example.com,陳小明,Chan Siu Ming,,6A,12,E"></textarea>
+                    <textarea name="csv_content" rows="6" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="login_id,name_zh,name_en,password,form_class,class_no,moi&#10;s20171060,陳小明,Chan Siu Ming,,6A,12,E"></textarea>
                 </div>
                 <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">匯入</button>
             </form>

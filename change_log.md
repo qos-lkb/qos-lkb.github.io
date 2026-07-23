@@ -8,6 +8,17 @@
 
 ## 2026-07-23
 
+### 登入：帳戶名與 QSIS 對齊（不用 @qos.edu.hk）
+- 本站 `users.email` 與 QSIS `user.username` 一致：學校帳戶只存帳戶名（如 `s20171060`），**不使用** `@qos.edu.hk`。
+- 登入請輸入帳戶名；若仍輸入 `sid@qos.edu.hk` 會自動剝離網域。密碼以 QSIS `password_hash` 驗證。
+- 既有庫執行 `schema_users_login_id.sql` 批次剝離學校網域；登入時亦會自動遷移舊電郵格式。
+- 新增／更新：`includes/qsis_auth_lib.php`。
+
+### 登入：自動補網域＋QSIS 密碼
+- （已由「帳戶名與 QSIS 對齊」取代：不再補上 `@qos.edu.hk`。）
+- 若帳戶存在於 QSIS `user` 表，以 **QSIS `password_hash`** 驗證（bcrypt／遺留 MD5）；不再使用本站 `users.password_hash`。
+- 本站無對應 QSIS 帳號的使用者（如外部管理員）仍可用本地密碼；QSIS 使用者請於校本系統改密碼。
+
 ### 文件同步（暑期功課呈交／選項分析）
 - 更新 **`architecture.md`**、**`README.md`**、**`rule.md`**、**`暑期功課/README.md`**、**`change_log.md`**：紀錄每次呈交、`grading_json` 選項快照、錯選百分率分析、截止日期、MOI、班級報表與後台入口。
 - 注意：macOS 預設大小寫不敏感時，`ARCHITECTURE.md` 與 `architecture.md` 為同一檔；以 **`architecture.md`** 為唯一架構文件。

@@ -472,13 +472,15 @@ function classes_save_student_profile(PDO $pdo, int $userId, array $data): array
  */
 function classes_register_student(PDO $pdo, string $email, string $password, string $nameZh, string $nameEn, string $inviteCode): array
 {
-    $email = trim($email);
+    require_once __DIR__ . '/qsis_auth_lib.php';
+
+    $email = auth_normalize_login_identity($email);
     $nameZh = trim($nameZh);
     $nameEn = trim($nameEn);
     $inviteCode = strtoupper(trim($inviteCode));
 
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return ['ok' => false, 'error' => '請輸入有效電郵。'];
+    if (!auth_is_valid_login_id($email)) {
+        return ['ok' => false, 'error' => '請輸入有效帳戶名稱或電郵。'];
     }
     if (strlen($password) < 8) {
         return ['ok' => false, 'error' => '密碼至少 8 字元。'];
@@ -877,13 +879,13 @@ function classes_enroll_users(PDO $pdo, int $classId, array $emails, array $user
     $enrolled = 0;
 
     foreach ($emails as $email) {
-        $email = trim((string) $email);
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        require_once __DIR__ . '/qsis_auth_lib.php';
+        $email = auth_normalize_login_identity((string) $email);
+        if (!auth_is_valid_login_id($email)) {
             continue;
         }
-        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
-        $uid = (int) ($stmt->fetchColumn() ?: 0);
+        $existing = auth_find_local_user_by_login($pdo, $email);
+        $uid = $existing !== null ? (int) $existing['id'] : 0;
         if ($uid <= 0) {
             continue;
         }
@@ -1046,18 +1048,18 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
             continue;
         }
         $parts = str_getcsv($line);
-        $email = trim((string) ($parts[0] ?? ''));
+        require_once __DIR__ . '/qsis_auth_lib.php';
+        $email = auth_normalize_login_identity((string) ($parts[0] ?? ''));
         $nameZh = trim((string) ($parts[1] ?? ''));
         $nameEn = trim((string) ($parts[2] ?? ''));
         $password = trim((string) ($parts[3] ?? ''));
         $formClass = trim((string) ($parts[4] ?? ''));
         $classNoRaw = trim((string) ($parts[5] ?? ''));
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!auth_is_valid_login_id($email)) {
             continue;
         }
         if ($nameZh === '' && $nameEn === '') {
-            $localPart = strstr($email, '@', true) ?: $email;
-            $nameZh = $localPart;
+            $nameZh = str_contains($email, '@') ? (strstr($email, '@', true) ?: $email) : $email;
         }
         $displayName = account_sync_display_name($nameZh, $nameEn);
         if ($password === '') {
@@ -1067,9 +1069,8 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
             continue;
         }
 
-        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
-        $uid = (int) ($stmt->fetchColumn() ?: 0);
+        $existing = auth_find_local_user_by_login($pdo, $email);
+        $uid = $existing !== null ? (int) $existing['id'] : 0;
         if ($uid <= 0) {
             try {
                 $hash = password_hash($password, PASSWORD_DEFAULT);

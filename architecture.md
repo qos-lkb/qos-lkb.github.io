@@ -59,6 +59,7 @@ The same codebase may be deployed as:
 | `learning_videos_lib.php`, `topic_items_lib.php` | Course videos and curriculum items |
 | `question_bank_lib.php` | Question banks (multi-type) |
 | `classes_lib.php`, `qsis_import_lib.php` | Class/course management, QSIS import |
+| `qsis_auth_lib.php` | Login id = QSIS username (no `@qos.edu.hk`); verify QSIS `password_hash` |
 | `summer_homework_lib.php` | S1/S2 summer homework: grading, due dates, class report, attempt analytics |
 | `adaptive_lib.php`, `learning_analytics_lib.php`, `learning_assessment_lib.php` | SDL, mastery, attempts |
 | `user_names_lib.php`, `account_lib.php` | Bilingual names, profile helpers |
@@ -90,6 +91,7 @@ mysql -u USER -p DB_NAME < schema.sql
 | `schema_summer_homework_grading.sql` | `grading_json` on attempts |
 | `schema_classes_form_subject.sql` | `form_level`, `course_subject` on `classes` |
 | `schema_spa_nav_visibility.sql` | SPA top-nav visibility matrix |
+| `schema_users_login_id.sql` | Strip `@qos.edu.hk` from `users.email` → match QSIS username |
 
 ### Tables (summary)
 
@@ -371,6 +373,10 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 ### 5. Auth & permissions
 
 Session-based login; admin routes and API mutations check RBAC capabilities. Admins may **impersonate** users via `admin/impersonate.php` (audit via session flags; stop via `/auth/stop-impersonation`).
+
+**Login identity**: school accounts use the **same login id as QSIS `user.username`** (e.g. `s20171060`) — **no** `@qos.edu.hk`. If a user still types `sid@qos.edu.hk`, the domain is stripped. Legacy DB rows are migrated on login / via `schema_users_login_id.sql`.
+
+**Password**: when QSIS is configured and a matching `qss_admin.user` row exists, verify against QSIS `password_hash` (bcrypt or legacy MD5). Local `users.password_hash` is used only for accounts **not** present in QSIS. Password changes for QSIS-linked accounts must be done in the school QSIS system.
 
 ### 6. Bilingual UI
 

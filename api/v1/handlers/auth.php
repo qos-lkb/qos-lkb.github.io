@@ -13,10 +13,13 @@ function api_handle_auth_login(PDO $pdo): void
     $password = (string) ($body['password'] ?? '');
 
     if ($email === '' || $password === '') {
-        api_json_error('validation_error', '請填寫電郵與密碼。', 422);
+        api_json_error('validation_error', '請填寫帳戶名稱與密碼。', 422);
     }
 
-    $rateKey = api_rate_limit_key('login', api_client_ip() . '|' . strtolower($email));
+    require_once dirname(__DIR__, 3) . '/includes/qsis_auth_lib.php';
+    $emailNormalized = auth_normalize_login_identity($email);
+
+    $rateKey = api_rate_limit_key('login', api_client_ip() . '|' . strtolower($emailNormalized !== '' ? $emailNormalized : $email));
     if (!api_rate_limit_check($pdo, $rateKey, 5, 900)) {
         api_json_error('rate_limited', '登入嘗試過於頻繁，請稍後再試。', 429);
     }

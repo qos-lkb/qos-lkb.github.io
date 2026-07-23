@@ -107,11 +107,11 @@ admin_page_start('學生與修讀語言 — ' . (string) $class['name'], 'course
 
         <?php if ($canEdit): ?>
         <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-8">
-            <h2 class="font-bold text-slate-800 mb-3">加入學生（電郵）</h2>
+            <h2 class="font-bold text-slate-800 mb-3">加入學生（帳戶名稱）</h2>
             <form method="post" class="space-y-3">
                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="action" value="enroll">
-                <textarea name="emails" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="多個電郵以逗號或換行分隔（帳戶須已存在）"></textarea>
+                <textarea name="emails" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="多個帳戶名以逗號或換行分隔（須已存在；如 s20171060）"></textarea>
                 <button type="submit" class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">加入課程</button>
             </form>
         </div>
@@ -131,7 +131,7 @@ admin_page_start('學生與修讀語言 — ' . (string) $class['name'], 'course
                     <thead class="bg-slate-100 text-left">
                         <tr>
                             <th class="p-3">姓名</th>
-                            <th class="p-3">電郵</th>
+                            <th class="p-3">帳戶</th>
                             <th class="p-3">學號</th>
                             <th class="p-3">班別</th>
                             <th class="p-3">班號</th>

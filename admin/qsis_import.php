@@ -163,9 +163,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connection['ok']) {
     }
 }
 
-$emailDomain = config_qsis_student_email_domain();
-$emailDomainDisplay = $emailDomain !== '' ? $emailDomain : 'student.qsis.local';
-
 admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
 ?>
         <?php if ($flash !== ''): ?>
@@ -249,7 +246,7 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
                     </div>
                 </div>
                 <p class="text-xs text-slate-500 mt-3">
-                    學生登入電郵格式：<code class="bg-slate-100 px-1 rounded">{學號}@<?php echo htmlspecialchars($emailDomainDisplay, ENT_QUOTES, 'UTF-8'); ?></code>
+                    學生登入帳戶與 QSIS 一致：僅<strong>學號</strong>（例如 <code class="bg-slate-100 px-1 rounded">s20171060</code>），不使用 <code class="bg-slate-100 px-1 rounded">@qos.edu.hk</code>。
                     （可在 .env 設定 <code class="bg-slate-100 px-1 rounded">QSIS_STUDENT_EMAIL_DOMAIN</code>）
                 </p>
 

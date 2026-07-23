@@ -61,8 +61,9 @@ admin_page_start($id ? '編輯使用者' : '新增使用者', 'users', [
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="id" value="<?php echo (int) ($row['id'] ?? 0); ?>">
             <div>
-                <label class="block text-sm font-medium text-slate-700">電郵</label>
-                <input type="email" name="email" required value="<?php echo htmlspecialchars((string) ($row['email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2" <?php echo ($row['email'] ?? '') === 'system@science-sims.internal' ? 'readonly' : ''; ?>>
+                <label class="block text-sm font-medium text-slate-700">帳戶名稱／電郵</label>
+                <input type="text" name="email" required value="<?php echo htmlspecialchars((string) ($row['email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="mt-1 w-full border rounded-lg px-3 py-2" <?php echo ($row['email'] ?? '') === 'system@science-sims.internal' ? 'readonly' : ''; ?> autocomplete="username" spellcheck="false">
+                <p class="mt-1 text-xs text-slate-500">學校帳戶請填 QSIS 帳戶名（不含 @qos.edu.hk）；外部帳戶可填完整電郵。</p>
             </div>
             <div class="grid sm:grid-cols-2 gap-4">
                 <div>

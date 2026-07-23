@@ -26,6 +26,7 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 - **互動學習工具**（四選一 MCQ）、**科學文章**（Markdown + 理解題）
 - **SDL 學習儀表板**（`/app/dashboard`）：學習時數、掌握度、適性推薦、每週目標
 - **課程班別**：教師／管理員建立課程（年級、科目）、邀請碼選課、QSIS 匯入、班別／班號／MOI；**僅管理員**可改班內學生與 MOI
+- **登入**：帳戶名與 QSIS 相同（如學號，**不用** `@qos.edu.hk`）；密碼以校本 **QSIS** 為準
 - **工作紙派發**：教師派發予班級、學生於 `/app/assignments` 完成提交、教師評分與回饋、試題自動計分
 - **管理後台**（`admin/`）：使用者／角色（admin、teacher、student）、權限矩陣、各科內容 CRUD、暑期功課分析、課程編排、前台選單可見性、審核佇列、帳戶模仿（除錯）
 - **帳戶選單**：SPA 與後台共用個人設定與登出
