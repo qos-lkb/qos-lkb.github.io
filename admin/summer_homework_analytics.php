@@ -8,8 +8,8 @@ require_once dirname(__DIR__) . '/includes/user_names_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
-if (!user_has_permission('summer_homework.manage_any') && !user_has_permission('summer_homework.manage_own')) {
-    require_permission('summer_homework.manage_any', '../login.php?next=' . rawurlencode('admin/summer_homework_analytics.php'));
+if (!sh_can_review(current_user())) {
+    require_permission('summer_homework.manage_own', '../login.php?next=' . rawurlencode('admin/summer_homework_analytics.php'));
 }
 
 $pdo = db();
@@ -26,11 +26,12 @@ if ($itemId <= 0) {
 }
 
 $item = sh_get_by_id($pdo, $itemId);
-if ($item === null || !sh_can_manage_row($user, $item)) {
+if ($item === null || !sh_can_review_item($user, $item)) {
     http_response_code(403);
     exit('沒有權限。');
 }
 
+$canManage = sh_can_manage_row($user, $item);
 $title = (string) ($item['title_zh'] ?: $item['title_en']);
 $formLabel = ((string) $item['form_level'] === '2') ? '中二' : '中一';
 $analytics = sh_item_attempt_analytics($pdo, $itemId);
@@ -68,7 +69,8 @@ if ($filterUserId > 0) {
 
 admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
     'actions' => admin_btn('summer_homework.php', '返回列表', 'secondary')
-        . admin_btn('summer_homework_edit.php?id=' . $itemId, '編輯習作', 'secondary')
+        . admin_btn('summer_homework_view.php?id=' . $itemId, '內容／答案', 'secondary')
+        . ($canManage ? admin_btn('summer_homework_edit.php?id=' . $itemId, '編輯習作', 'secondary') : '')
         . ($filterUserId > 0
             ? admin_btn('summer_homework_analytics.php?id=' . $itemId, '清除學生篩選', 'secondary')
             : ''),

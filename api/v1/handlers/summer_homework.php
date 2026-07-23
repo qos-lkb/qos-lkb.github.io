@@ -93,7 +93,10 @@ function api_handle_summer_homework_get(PDO $pdo, string $slug): void
     }
 
     $out = sh_public_row($row);
-    $out['questions'] = sh_fetch_questions($pdo, (int) $row['id'], false);
+    $includeAnswers = sh_can_review($user);
+    $out['questions'] = sh_fetch_questions($pdo, (int) $row['id'], $includeAnswers);
+    $out['include_answers'] = $includeAnswers;
+    $out['can_review'] = $includeAnswers;
     if ($user !== null) {
         $out['progress'] = sh_user_progress_for_item($pdo, (int) $user['id'], (int) $row['id'], $row);
     } else {
@@ -146,21 +149,19 @@ function api_handle_admin_summer_homework(PDO $pdo, string $method): void
     if ($method === 'GET') {
         $user = require_api_user();
         auth_refresh_permissions($user['id']);
-        $canAny = user_has_permission('summer_homework.manage_any');
-        $canOwn = user_has_permission('summer_homework.manage_own');
-        if (!$canAny && !$canOwn) {
+        if (!sh_can_review($user)) {
             api_json_error('forbidden', '無權限。', 403);
         }
-        if ($canAny) {
+        $canAny = user_has_permission('summer_homework.manage_any');
+        // Teachers / reviewers see all items; manage_any also sees all.
+        // Only restrict to own items when user can manage_own but somehow not review-all —
+        // sh_can_review already covers manage_own, so list all for reviewers.
+        if ($canAny || sh_can_review($user)) {
             $rows = $pdo->query(
                 'SELECT * FROM summer_homework_items ORDER BY form_level ASC, list_sort_order ASC, updated_at DESC'
             )->fetchAll() ?: [];
         } else {
-            $stmt = $pdo->prepare(
-                'SELECT * FROM summer_homework_items WHERE owner_user_id = ? ORDER BY form_level ASC, list_sort_order ASC, updated_at DESC'
-            );
-            $stmt->execute([(int) $user['id']]);
-            $rows = $stmt->fetchAll() ?: [];
+            $rows = [];
         }
         api_json_ok(array_map('sh_public_row', $rows));
         return;
@@ -213,10 +214,12 @@ function api_handle_admin_summer_homework_get(PDO $pdo, int $id): void
     if (!$row) {
         api_json_error('not_found', '找不到習作。', 404);
     }
-    if (!sh_can_manage_row($user, $row)) {
+    if (!sh_can_review_item($user, $row)) {
         api_json_error('forbidden', '無權檢視。', 403);
     }
     $out = sh_public_row($row);
     $out['questions'] = sh_fetch_questions($pdo, $id, true);
+    $out['can_manage'] = sh_can_manage_row($user, $row);
+    $out['can_review'] = true;
     api_json_ok($out);
 }

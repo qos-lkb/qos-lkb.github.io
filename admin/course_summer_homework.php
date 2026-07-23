@@ -60,7 +60,7 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
         ($report['class']['form_level_label'] ?? '—')
         . ' · '
         . ($report['class']['course_subject_label'] ?? '—')
-        . ' · 準時／遲交以最高分那次呈交時間判斷'
+        . ' · 準時／遲交以最高分那次呈交時間判斷；點標題可檢視內容與答案'
     ),
 ]);
 ?>
@@ -78,7 +78,11 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
                         <th class="p-3 sticky left-0 bg-slate-100 z-10">學生</th>
                         <?php foreach ($items as $item): ?>
                         <th class="p-3 min-w-[11rem]">
-                            <div class="font-semibold text-slate-800"><?php echo htmlspecialchars((string) ($item['title_zh'] ?: $item['title_en']), ENT_QUOTES, 'UTF-8'); ?></div>
+                            <div class="font-semibold">
+                                <a class="text-indigo-700 hover:underline" href="summer_homework_view.php?id=<?php echo (int) $item['id']; ?>" title="檢視內容、題目與答案">
+                                    <?php echo htmlspecialchars((string) ($item['title_zh'] ?: $item['title_en']), ENT_QUOTES, 'UTF-8'); ?>
+                                </a>
+                            </div>
                             <div class="text-xs font-normal text-slate-500 mt-0.5">
                                 <?php if (!empty($item['due_at'])): ?>
                                     截止 <?php echo htmlspecialchars(substr((string) $item['due_at'], 0, 16), ENT_QUOTES, 'UTF-8'); ?>

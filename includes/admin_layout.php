@@ -133,7 +133,11 @@ function admin_menu_sections(): array
     if (user_has_permission('learning_tool.manage_any')) {
         $contentItems[] = ['key' => 'learning_tools', 'label' => '互動學習工具', 'href' => 'learning_tools.php'];
     }
-    if (user_has_permission('summer_homework.manage_any') || user_has_permission('summer_homework.manage_own')) {
+    if (user_has_permission('summer_homework.manage_any')
+        || user_has_permission('summer_homework.manage_own')
+        || user_has_permission('class.manage_any')
+        || user_has_permission('class.manage_own')
+    ) {
         $contentItems[] = ['key' => 'summer_homework', 'label' => '暑期功課', 'href' => 'summer_homework.php', 'accent' => 'amber'];
     }
     if (user_has_permission('question_bank.manage_any')) {

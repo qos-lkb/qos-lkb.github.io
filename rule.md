@@ -455,7 +455,7 @@ function calculateGasConstant(P, V, n, T) {
 **Rule 10.3**: Keep README, architecture, and changelog updated
 - Document new patterns in **`architecture.md`**
 - Summarize releases in **`change_log.md`**
-- Summer-homework module details in **`暑期功課/README.md`**
+- Summer-homework module details in **`README.md`**（§ 暑期功課）
 - Refresh feature lists in **`README.md`** when user-facing behaviour changes
 - Update file structure and quick-start steps in **`README.md`**
 - Note breaking changes in all three when relevant
@@ -663,7 +663,7 @@ declare(strict_types=1);
 
 ## Summer Homework Rules
 
-Module guide: **`暑期功課/README.md`**. Architecture pattern: **`architecture.md`** §4.
+Module guide: **`README.md`**（§ 暑期功課）. Architecture pattern: **`architecture.md`** §4.
 
 **Rule 17.1**: Always retain every submission
 - Each submit **`INSERT`**s into `summer_homework_attempts` (UI shows best score only)

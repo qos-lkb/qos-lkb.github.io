@@ -273,7 +273,7 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 - **Content**: `*.manage_own` (contributors) and `*.manage_any` (admins).
 - **Worksheets**: `worksheet.assign_own`, `worksheet.grade_own`, `worksheet.submit_own` (seeded in **`schema.sql`**).
 - **Classes**: `class.manage_own`, `class.manage_any` — **only admin** may edit class roster / MOI (`classes_can_edit_students()`).
-- **Summer homework**: `summer_homework.manage_own`, `summer_homework.manage_any`, `summer_homework.submit_own`.
+- **Summer homework**: `summer_homework.manage_own`, `summer_homework.manage_any`, `summer_homework.submit_own`. Teachers/admins with review access (`sh_can_review`) may view all items' answers and analytics; editing remains owner/`manage_any` only.
 
 ### Admin pages (representative)
 
@@ -282,7 +282,7 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 | Users & roles | `users.php`, `user_edit.php`, `permissions.php`, `impersonate.php` |
 | Catalogue | `subjects.php`, `simulations.php`, `simulation_edit.php` |
 | Learning content | `learning_notes.php`, `worksheets.php`, `worksheet_edit.php`, `articles.php`, `learning_tools.php`, `learning_videos.php`, `question_banks.php` |
-| Summer homework | `summer_homework.php`, `summer_homework_edit.php`, `summer_homework_analytics.php` |
+| Summer homework | `summer_homework.php`, `summer_homework_edit.php`, `summer_homework_view.php`, `summer_homework_analytics.php` |
 | Curriculum | `course_curriculum.php` |
 | Classes / courses | `courses.php`, `course_edit.php`, `course_students.php`, `course_reports.php`, `course_worksheets.php`, `course_summer_homework.php`, `classes.php`, `class_edit.php`, `class_reports.php`, `qsis_import.php` |
 | Platform | `nav_menu.php` (SPA top-nav visibility) |
@@ -315,7 +315,6 @@ science_sims/
 ├── portal/                # Contributor portal
 ├── schema.sql             # Full database schema (canonical)
 ├── schema_*.sql           # Incremental upgrades for existing DBs
-├── 暑期功課/              # Summer homework module docs (README)
 │
 ├── physics/               # HKDSE-style units (01, 02, …, e01–e03)
 ├── chem/ / chemistry/
@@ -368,7 +367,7 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 - **Class report**: `admin/course_summer_homework.php` via `sh_class_report()`.
 - **Item analytics**: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` — miss rates, **per-option select %**, **wrong-option share %** among incorrect attempts, student summaries, attempt drill-down.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.
-- Module docs: **[`暑期功課/README.md`](暑期功課/README.md)**.
+- Module docs: **[`README.md`](README.md)** § 暑期功課.
 
 ### 5. Auth & permissions
 
@@ -426,7 +425,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - New simulations: add HTML under the correct subject folder; register via **admin / DB workflow**.
 - Learning content: use **admin/** or **portal/** editors (REST API backend).
 - Schema changes: edit **`schema.sql`** and document in **`change_log.md`**; for existing DBs prefer an additive **`schema_*.sql`** upgrade script.
-- Document significant changes in **`change_log.md`**; summer-homework module notes in **`暑期功課/README.md`**.
+- Document significant changes in **`change_log.md`**; summer-homework module notes in **`README.md`**.
 - Prefer **small, focused diffs**; match existing style in each directory.
 - Cursor AI: see **`.cursorrules`** and **`.cursor/rules/`**.
 
@@ -434,12 +433,11 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 ## Related docs
 
-- **`README.md`** — Overview, quick start, links.
+- **`README.md`** — Overview, quick start, summer homework guide, links.
 - **`change_log.md`** — Version history from Git.
 - **`schema.sql`** — Full database schema for fresh installs.
 - **`data_dictionary.md`** — Table/column reference (run `php update_data_dictionary.php`).
 - **`rule.md`** — File naming, structure, accessibility, PHP/SPA rules.
-- **`暑期功課/README.md`** — Summer homework rules, upgrades, admin analytics / option rates.
 - **`dev/plan.md`** — Optional curriculum / project ideation list (Traditional Chinese).
 
 > **Note (macOS / case-insensitive volumes):** `ARCHITECTURE.md` and `architecture.md` resolve to the **same file**. Keep this document as the single canonical architecture source; do not maintain a separate thin index under the other casing.

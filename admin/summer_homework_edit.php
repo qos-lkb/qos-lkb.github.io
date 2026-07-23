@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
+require_once dirname(__DIR__) . '/includes/summer_homework_lib.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
@@ -11,9 +12,25 @@ if (!user_has_permission('summer_homework.manage_any') && !user_has_permission('
 }
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+$user = current_user();
+assert($user !== null);
+
+if ($id > 0) {
+    $existing = sh_get_by_id(db(), $id);
+    if ($existing === null) {
+        header('Location: summer_homework.php');
+        exit;
+    }
+    if (!sh_can_manage_row($user, $existing)) {
+        // Teachers may review but not edit others' items.
+        header('Location: summer_homework_view.php?id=' . $id);
+        exit;
+    }
+}
 
 admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_homework', [
     'actions' => admin_btn('summer_homework.php', '返回列表', 'secondary')
+        . ($id ? admin_btn('summer_homework_view.php?id=' . $id, '內容／答案', 'secondary') : '')
         . ($id ? admin_btn('summer_homework_analytics.php?id=' . $id, '呈交分析', 'secondary') : ''),
     'wide' => true,
 ]);

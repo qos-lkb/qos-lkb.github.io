@@ -262,12 +262,32 @@ function sh_can_manage_row(?array $user, array $row): bool
     return isset($row['owner_user_id']) && (int) $row['owner_user_id'] === (int) $user['id'];
 }
 
+/**
+ * Admin / teacher may review all summer homework (content, answers, analytics).
+ * Does not grant create/edit/delete of others' items — use sh_can_manage_row for that.
+ */
+function sh_can_review(?array $user): bool
+{
+    if ($user === null) {
+        return false;
+    }
+    return user_has_permission('summer_homework.manage_any')
+        || user_has_permission('summer_homework.manage_own')
+        || user_has_permission('class.manage_any')
+        || user_has_permission('class.manage_own');
+}
+
+function sh_can_review_item(?array $user, array $row): bool
+{
+    return sh_can_review($user);
+}
+
 function sh_can_view_item(array $row, ?array $user): bool
 {
     if ($row['status'] === 'published') {
         return true;
     }
-    return sh_can_manage_row($user, $row);
+    return sh_can_review_item($user, $row) || sh_can_manage_row($user, $row);
 }
 
 /**

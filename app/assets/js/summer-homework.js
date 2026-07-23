@@ -421,6 +421,9 @@
         }
 
         let html = `<h2 class="text-lg font-bold mb-4">${st('跟進題目', 'Follow-up questions', lang)}</h2>`;
+        if (item.include_answers || item.can_review) {
+            html = `<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${st('教師／管理員檢視模式：已顯示正確答案。', 'Teacher/admin review mode: correct answers are shown.', lang)}</div>` + html;
+        }
         questions.forEach((q, qi) => {
             const stem = lang === 'zh' ? q.stem_zh : q.stem_en;
             html += `<div class="mb-6 pb-6 border-b border-slate-100 last:border-0" data-qid="${q.id}" data-type="${q.question_type}">
@@ -428,17 +431,22 @@
             if (q.question_type === 'mcq') {
                 (q.options || []).forEach((o, oi) => {
                     const text = lang === 'zh' ? o.text_zh : o.text_en;
-                    html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                    const isCorrect = !!(item.include_answers || item.can_review) && !!o.is_correct;
+                    html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${isCorrect ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="radio" name="q-${q.id}" value="${oi}" class="mt-1">
-                        <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}</span>
+                        <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
                     </label>`;
                 });
             } else {
                 const blanks = q.blanks || [{ blank_index: 1 }];
                 blanks.forEach((b, bi) => {
+                    const ansHint = (item.include_answers || item.can_review)
+                        ? `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml((b.acceptable_answer_zh || '') + ' / ' + (b.acceptable_answer_en || ''))}</p>`
+                        : '';
                     html += `<div class="mb-2">
                         <label class="text-xs text-slate-500">${st('空格', 'Blank', lang)} ${bi + 1}</label>
                         <input type="text" class="sh-blank w-full border rounded-lg px-3 py-2 mt-1" data-blank="${bi}" autocomplete="off">
+                        ${ansHint}
                     </div>`;
                 });
             }

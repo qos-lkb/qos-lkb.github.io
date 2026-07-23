@@ -8,6 +8,14 @@
 
 ## 2026-07-23
 
+### 暑期功課：教師／管理員可檢視分析與答案
+- 教師（`summer_homework.manage_own`／`class.manage_*`）與管理員可檢視**全部**習作的呈交分析、內容與正確答案。
+- 編輯／刪除仍限擁有者或 `manage_any`；新增後台頁 `admin/summer_homework_view.php`。
+- Lib：`sh_can_review()`／`sh_can_review_item()`。
+
+### 文件：暑期功課說明併入 README
+- 原 **`暑期功課/README.md`** 內容併入根目錄 **`README.md`**（§ 暑期功課），並刪除 `暑期功課/` 目錄；相關文件連結已更新。
+
 ### 登入：帳戶名與 QSIS 對齊（不用 @qos.edu.hk）
 - 本站 `users.email` 與 QSIS `user.username` 一致：學校帳戶只存帳戶名（如 `s20171060`），**不使用** `@qos.edu.hk`。
 - 登入請輸入帳戶名；若仍輸入 `sid@qos.edu.hk` 會自動剝離網域。密碼以 QSIS `password_hash` 驗證。
