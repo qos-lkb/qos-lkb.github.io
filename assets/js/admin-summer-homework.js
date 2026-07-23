@@ -183,6 +183,12 @@
                 document.getElementById('pass-percent').value = detail.pass_percent || 80;
                 document.getElementById('list-sort').value = detail.list_sort_order || 0;
                 document.getElementById('status').value = detail.status || 'draft';
+                const dueEl = document.getElementById('due-at');
+                if (dueEl && detail.due_at) {
+                    dueEl.value = String(detail.due_at).replace(' ', 'T').slice(0, 16);
+                }
+                const lateEl = document.getElementById('allow-late');
+                if (lateEl) lateEl.checked = detail.allow_late_submit !== false && detail.allow_late_submit !== 0;
                 document.getElementById('body-zh').value = detail.body_zh || '';
                 document.getElementById('body-en').value = detail.body_en || '';
                 document.getElementById('video-url').value = detail.video_embed_url || '';
@@ -209,6 +215,8 @@
                 form_level: document.getElementById('form-level').value,
                 content_type: document.getElementById('content-type').value,
                 pass_percent: parseFloat(document.getElementById('pass-percent').value) || 80,
+                due_at: document.getElementById('due-at').value || '',
+                allow_late_submit: document.getElementById('allow-late').checked ? 1 : 0,
                 list_sort_order: parseInt(document.getElementById('list-sort').value, 10) || 0,
                 status: document.getElementById('status').value,
                 body_zh: document.getElementById('body-zh').value,

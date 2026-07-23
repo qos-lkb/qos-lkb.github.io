@@ -13,7 +13,8 @@ if (!user_has_permission('summer_homework.manage_any') && !user_has_permission('
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
 admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_homework', [
-    'actions' => admin_btn('summer_homework.php', '返回列表', 'secondary'),
+    'actions' => admin_btn('summer_homework.php', '返回列表', 'secondary')
+        . ($id ? admin_btn('summer_homework_analytics.php?id=' . $id, '呈交分析', 'secondary') : ''),
     'wide' => true,
 ]);
 ?>
@@ -50,10 +51,30 @@ admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_home
                     </select>
                 </div>
             </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm font-medium">呈交截止日期</label>
+                    <input type="datetime-local" id="due-at" class="w-full border rounded-lg px-3 py-2 mt-1">
+                    <p class="text-xs text-slate-500 mt-1">留空表示不設截止。時區：香港</p>
+                </div>
+                <div class="flex items-end pb-1">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="allow-late" value="1" checked class="rounded border-slate-300 text-indigo-600">
+                        截止後仍允許呈交（遲交）
+                    </label>
+                </div>
+            </div>
 
             <div id="passage-fields" class="space-y-3">
-                <div><label class="text-sm font-medium">篇章（中，Markdown）</label><textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="6"></textarea></div>
-                <div><label class="text-sm font-medium">篇章（英，Markdown）</label><textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="6"></textarea></div>
+                <div>
+                    <label class="text-sm font-medium">篇章（中，Markdown）</label>
+                    <p class="text-xs text-slate-500 mt-0.5">支援公式：行內 <code>$E=mc^2$</code>、區塊 <code>$$...$$</code></p>
+                    <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="6"></textarea>
+                </div>
+                <div>
+                    <label class="text-sm font-medium">篇章（英，Markdown）</label>
+                    <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="6"></textarea>
+                </div>
             </div>
             <div id="video-fields" class="space-y-3 hidden">
                 <div><label class="text-sm font-medium">影片嵌入 URL</label><input id="video-url" class="w-full border rounded-lg px-3 py-2 mt-1" placeholder="https://www.youtube.com/embed/..."></div>
@@ -74,6 +95,7 @@ admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_home
                         <button type="button" id="add-fill" class="text-sm text-indigo-600">+ 填充題</button>
                     </div>
                 </div>
+                <p class="text-xs text-slate-500 mb-2">題幹與選項可用 <code>$...$</code>／<code>$$...$$</code> 寫公式（學生端以 MathJax 顯示）。</p>
                 <div id="questions" class="space-y-4"></div>
             </div>
             <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium">儲存</button>

@@ -33,7 +33,8 @@ $wsActions = $canDesignWs
 admin_page_start('工作紙派發 — ' . (string) $class['name'], 'course_worksheets', [
     'actions' => $wsActions
         . admin_btn('courses.php', '返回課程', 'secondary')
-        . admin_btn('course_reports.php?id=' . $classId, '學習報告', 'secondary'),
+        . admin_btn('course_reports.php?id=' . $classId, '學習報告', 'secondary')
+        . admin_btn('course_summer_homework.php?id=' . $classId, '暑期功課', 'secondary'),
     'wide' => true,
 ]);
 ?>

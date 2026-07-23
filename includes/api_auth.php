@@ -64,12 +64,18 @@ function api_user_payload(?array $user = null): ?array
         $payload['is_student'] = $enriched['is_student'];
         $payload['is_teacher'] = $enriched['is_teacher'];
         $payload['profile'] = $enriched['profile'];
+        $payload['summer_form_level'] = $enriched['summer_form_level'] ?? null;
+        $payload['summer_moi'] = $enriched['summer_moi'] ?? null;
+        $payload['summer_content_lang'] = $enriched['summer_content_lang'] ?? null;
         $payload['classes'] = $enriched['classes'];
     } catch (Throwable $e) {
         $payload['roles'] = [];
         $payload['is_student'] = false;
         $payload['is_teacher'] = false;
         $payload['profile'] = null;
+        $payload['summer_form_level'] = null;
+        $payload['summer_moi'] = null;
+        $payload['summer_content_lang'] = null;
         $payload['classes'] = [];
     }
 

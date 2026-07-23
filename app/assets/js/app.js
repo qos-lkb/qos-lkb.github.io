@@ -13,6 +13,7 @@
     };
 
     const TAB_ROUTES = {
+        summer: '/summer-homework',
         courses: '/courses',
         notes: '/learning-notes',
         worksheets: '/worksheets',
@@ -20,7 +21,6 @@
         simulations: '/simulations',
         articles: '/articles',
         learning: '/learning-tools',
-        summer: '/summer-homework',
     };
 
     /** @type {Record<string, boolean>|null} */
@@ -158,6 +158,25 @@
         }
     }
 
+    async function showHome() {
+        setActiveTab('summer');
+        if (window.AppSummerHomework) {
+            await AppSummerHomework.renderHome();
+        }
+    }
+
+    async function showSummerList(formFilter) {
+        setActiveTab('summer');
+        if (!window.AppSummerHomework) return;
+        const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
+        // Teachers/admins: hub is course list; S1/S2 routes still allow previewing published items.
+        if (user && user.is_teacher && formFilter == null) {
+            await AppSummerHomework.renderHome();
+            return;
+        }
+        await AppSummerHomework.renderList(formFilter);
+    }
+
     async function showCoursesHome() {
         restoreMainShell();
         setActiveTab('courses');
@@ -192,8 +211,8 @@
         updateSiteBranding();
 
         AppRouter.init({
-            '/': showCoursesHome,
-            '/index.html': showCoursesHome,
+            '/': showHome,
+            '/index.html': showHome,
             '/courses': showCoursesHome,
             '/course/:subject': async (subjectSlug) => {
                 restoreMainShell();
@@ -320,16 +339,13 @@
                 if (window.AppAssignments) await AppAssignments.renderAssignment(id);
             },
             '/summer-homework': async () => {
-                setActiveTab('summer');
-                if (window.AppSummerHomework) await AppSummerHomework.renderList(null);
+                await showSummerList(null);
             },
             '/summer-homework/s1': async () => {
-                setActiveTab('summer');
-                if (window.AppSummerHomework) await AppSummerHomework.renderList('1');
+                await showSummerList('1');
             },
             '/summer-homework/s2': async () => {
-                setActiveTab('summer');
-                if (window.AppSummerHomework) await AppSummerHomework.renderList('2');
+                await showSummerList('2');
             },
             '/summer-homework/:slug': async (slug) => {
                 setActiveTab('summer');

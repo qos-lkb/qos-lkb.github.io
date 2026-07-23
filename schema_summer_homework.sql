@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS summer_homework_attempts (
     percent DECIMAL(5,2) NOT NULL DEFAULT 0,
     passed TINYINT(1) NOT NULL DEFAULT 0,
     responses_json JSON NULL,
+    grading_json JSON NULL,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_sh_attempts_user (user_id),
     KEY idx_sh_attempts_item (item_id),

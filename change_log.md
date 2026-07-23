@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-07-23
+
+### 文件同步（暑期功課呈交／選項分析）
+- 更新 **`architecture.md`**、**`README.md`**、**`rule.md`**、**`暑期功課/README.md`**、**`change_log.md`**：紀錄每次呈交、`grading_json` 選項快照、錯選百分率分析、截止日期、MOI、班級報表與後台入口。
+- 注意：macOS 預設大小寫不敏感時，`ARCHITECTURE.md` 與 `architecture.md` 為同一檔；以 **`architecture.md`** 為唯一架構文件。
+- **`data_dictionary.md`** 請於本機執行 `php update_data_dictionary.php` 自最新 `schema.sql` 重新產生（含 `summer_homework_*`）。
+
+### 首頁依身分分流
+- SPA 首頁 `/app/` 改為暑期功課入口：學生只見自己年級習作；教師／管理員見任教課程列表（連至班級暑期功課報表）。
+- API 對純學生強制依 `student_profiles`／就讀班級 `form_level` 過濾；非中一／中二顯示說明。
+
+### 課程學生與修讀語言（管理員）
+- 新增 `admin/course_students.php`：編輯班別、班號、修讀語言（MOI）、加入／移出學生。
+- 僅 **管理員**（`class.manage_any`／admin 角色）可編輯；教師可檢視。CSV 匯入亦限管理員。
+
+### 暑期功課內容語言依 MOI
+- 學生在暑期功課頁的標題／篇章／題目語言由選課 **修讀語言（MOI）** 決定（E→英文、C→中文），無視頂部中／EN 切換。
+- 教師／訪客仍跟從介面語言。
+
+### 工作紙／暑期功課 MathJax
+- 篇章與題幹／選項支援 `$...$`／`$$...$$` 公式；學生 SPA 於渲染後呼叫 MathJax typeset。
+
+### 暑期功課：完整呈交歷史
+- 每次提交皆 **INSERT** 一筆 `summer_homework_attempts`（含 `responses_json`）；介面仍只顯示最高分。
+- 新增 **`grading_json`**（評分明細／對錯，含填充題作答文字與選擇題選項快照），既有庫執行 `schema_summer_homework_grading.sql`。
+- Lib：`sh_list_attempts_for_user_item`、`sh_item_attempt_analytics`（作答次數、錯題率、**各選項被選／錯選百分率**）。
+- 後台：**暑期功課 → 分析**（`admin/summer_homework_analytics.php`）— 錯題率、選項分布、學生呈交摘要、每次作答明細。
+
+### 暑期功課：截止日期與班級呈交報表
+- `summer_homework_items` 新增 **`due_at`**、**`allow_late_submit`**（預設允許遲交）；既有庫執行 `schema_summer_homework_due.sql`。
+- 提交閘道：過期且不允許遲交時拒絕；結果回傳 `submitted_at`、最高分 attempt 時間與準時／遲交狀態。
+- 前台 SPA 顯示截止資訊；封鎖時停用提交。
+- 教師課程頁新增 **`admin/course_summer_homework.php`**：依班級年級（中一／中二）彙總學生準時／遲交／欠交與最高分。
+
 ## 2026-07-22
 
 ### 課程管理：年級與科目

@@ -134,6 +134,105 @@ function classes_user_is_teacher(PDO $pdo, int $userId): bool
 }
 
 /**
+ * Resolve a student's form level for summer homework (prefer profile, then enrolled classes).
+ * Returns '1'|'2' when eligible; '3'|'4'|'5'|'6' when known but not S1/S2; null if unknown.
+ */
+function classes_resolve_form_level_for_summer(PDO $pdo, int $userId): ?string
+{
+    $profile = classes_student_profile($pdo, $userId);
+    if ($profile !== null && isset($profile['form_level']) && $profile['form_level'] !== null && $profile['form_level'] !== '') {
+        $fl = (string) $profile['form_level'];
+        if (in_array($fl, ['1', '2', '3', '4', '5', '6'], true)) {
+            return $fl;
+        }
+    }
+
+    $classes = classes_list_for_student($pdo, $userId);
+    $fallback = null;
+    foreach ($classes as $c) {
+        if (!isset($c['form_level']) || $c['form_level'] === null || $c['form_level'] === '') {
+            continue;
+        }
+        $fl = (string) $c['form_level'];
+        if ($fl === '1' || $fl === '2') {
+            return $fl;
+        }
+        if ($fallback === null && in_array($fl, ['3', '4', '5', '6'], true)) {
+            $fallback = $fl;
+        }
+    }
+
+    return $fallback;
+}
+
+/**
+ * Resolve MOI (E/C) for summer homework from the student's course enrollment.
+ * Prefers a class matching their summer form level; then integrated_science; then any MOI set.
+ *
+ * @return 'E'|'C'|null
+ */
+function classes_resolve_moi_for_summer(PDO $pdo, int $userId): ?string
+{
+    $classes = classes_list_for_student($pdo, $userId);
+    if ($classes === []) {
+        return null;
+    }
+
+    $formLevel = classes_resolve_form_level_for_summer($pdo, $userId);
+    $candidates = [];
+    foreach ($classes as $c) {
+        $moi = classes_normalize_moi($c['moi'] ?? null);
+        if ($moi === null) {
+            continue;
+        }
+        $cForm = isset($c['form_level']) && $c['form_level'] !== null && $c['form_level'] !== ''
+            ? (string) $c['form_level']
+            : null;
+        $subject = isset($c['course_subject']) ? (string) $c['course_subject'] : '';
+        $score = 0;
+        if ($formLevel !== null && $cForm === $formLevel) {
+            $score += 100;
+        }
+        if ($cForm === '1' || $cForm === '2') {
+            $score += 20;
+        }
+        if ($subject === 'integrated_science') {
+            $score += 10;
+        } elseif (in_array($subject, ['physics', 'chemistry', 'biology'], true)) {
+            $score += 5;
+        }
+        $candidates[] = ['moi' => $moi, 'score' => $score];
+    }
+
+    if ($candidates === []) {
+        return null;
+    }
+
+    usort($candidates, static function (array $a, array $b): int {
+        return $b['score'] <=> $a['score'];
+    });
+
+    return $candidates[0]['moi'];
+}
+
+/**
+ * Map MOI to SPA content language: E→en, C→zh.
+ *
+ * @return 'zh'|'en'|null
+ */
+function classes_moi_to_content_lang(?string $moi): ?string
+{
+    $moi = classes_normalize_moi($moi);
+    if ($moi === 'E') {
+        return 'en';
+    }
+    if ($moi === 'C') {
+        return 'zh';
+    }
+    return null;
+}
+
+/**
  * @return array<string, mixed>|null
  */
 function classes_fetch_by_id(PDO $pdo, int $id): ?array
@@ -167,7 +266,19 @@ function classes_can_manage(PDO $pdo, array $classRow, array $user): bool
     if (!user_has_permission('class.manage_own')) {
         return false;
     }
-    return (int) $classRow['teacher_user_id'] === $user['id'];
+    return (int) ($classRow['teacher_user_id'] ?? 0) === (int) $user['id'];
+}
+
+/**
+ * 班內學生名單／修讀語言（MOI）等選課資料：僅管理員可編輯。
+ */
+function classes_can_edit_students(PDO $pdo, array $user): bool
+{
+    if (user_has_permission('class.manage_any')) {
+        return true;
+    }
+    require_once __DIR__ . '/auth.php';
+    return auth_user_is_admin($pdo, (int) $user['id']);
 }
 
 function classes_normalize_form_class(?string $value): ?string
@@ -755,6 +866,9 @@ function classes_enroll_users(PDO $pdo, int $classId, array $emails, array $user
     if ($class === null) {
         return ['ok' => false, 'error' => '找不到課程。'];
     }
+    if (!classes_can_edit_students($pdo, $user)) {
+        return ['ok' => false, 'error' => '只有管理員可以編輯班內學生。'];
+    }
     if (!classes_can_manage($pdo, $class, $user)) {
         return ['ok' => false, 'error' => '沒有權限。'];
     }
@@ -781,6 +895,103 @@ function classes_enroll_users(PDO $pdo, int $classId, array $emails, array $user
     }
 
     return ['ok' => true, 'enrolled' => $enrolled];
+}
+
+/**
+ * Update one student's enrollment meta (班別／班號／修讀語言).
+ *
+ * @param array{form_class?:string|null,class_no?:int|string|null,moi?:string|null} $meta
+ * @return array{ok:bool,error?:string}
+ */
+function classes_update_student_enrollment(PDO $pdo, int $classId, int $studentUserId, array $meta, array $actingUser): array
+{
+    $class = classes_fetch_by_id($pdo, $classId);
+    if ($class === null) {
+        return ['ok' => false, 'error' => '找不到課程。'];
+    }
+    if (!classes_can_edit_students($pdo, $actingUser)) {
+        return ['ok' => false, 'error' => '只有管理員可以編輯班內學生與修讀語言。'];
+    }
+    if (!classes_can_manage($pdo, $class, $actingUser)) {
+        return ['ok' => false, 'error' => '沒有權限。'];
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT id FROM class_enrollments WHERE class_id = ? AND user_id = ? AND status = \'active\' LIMIT 1'
+    );
+    $stmt->execute([$classId, $studentUserId]);
+    if (!(int) ($stmt->fetchColumn() ?: 0)) {
+        return ['ok' => false, 'error' => '找不到該學生的選課紀錄。'];
+    }
+
+    classes_upsert_enrollment($pdo, $classId, $studentUserId, [
+        'form_class' => $meta['form_class'] ?? null,
+        'class_no' => $meta['class_no'] ?? null,
+        'moi' => $meta['moi'] ?? null,
+    ]);
+
+    return ['ok' => true];
+}
+
+/**
+ * @param list<array{user_id:int,form_class?:string,class_no?:string,moi?:string}> $rows
+ * @return array{ok:bool,error?:string,updated?:int}
+ */
+function classes_save_students_enrollments_batch(PDO $pdo, int $classId, array $rows, array $actingUser): array
+{
+    $class = classes_fetch_by_id($pdo, $classId);
+    if ($class === null) {
+        return ['ok' => false, 'error' => '找不到課程。'];
+    }
+    if (!classes_can_edit_students($pdo, $actingUser)) {
+        return ['ok' => false, 'error' => '只有管理員可以編輯班內學生與修讀語言。'];
+    }
+    if (!classes_can_manage($pdo, $class, $actingUser)) {
+        return ['ok' => false, 'error' => '沒有權限。'];
+    }
+
+    $updated = 0;
+    foreach ($rows as $row) {
+        $uid = (int) ($row['user_id'] ?? 0);
+        if ($uid <= 0) {
+            continue;
+        }
+        $r = classes_update_student_enrollment($pdo, $classId, $uid, [
+            'form_class' => $row['form_class'] ?? null,
+            'class_no' => $row['class_no'] ?? null,
+            'moi' => $row['moi'] ?? null,
+        ], $actingUser);
+        if ($r['ok']) {
+            $updated++;
+        }
+    }
+
+    return ['ok' => true, 'updated' => $updated];
+}
+
+/**
+ * @return array{ok:bool,error?:string}
+ */
+function classes_remove_student_from_class(PDO $pdo, int $classId, int $studentUserId, array $actingUser): array
+{
+    $class = classes_fetch_by_id($pdo, $classId);
+    if ($class === null) {
+        return ['ok' => false, 'error' => '找不到課程。'];
+    }
+    if (!classes_can_edit_students($pdo, $actingUser)) {
+        return ['ok' => false, 'error' => '只有管理員可以編輯班內學生。'];
+    }
+    if (!classes_can_manage($pdo, $class, $actingUser)) {
+        return ['ok' => false, 'error' => '沒有權限。'];
+    }
+
+    $del = $pdo->prepare('DELETE FROM class_enrollments WHERE class_id = ? AND user_id = ?');
+    $del->execute([$classId, $studentUserId]);
+    if ($del->rowCount() < 1) {
+        return ['ok' => false, 'error' => '找不到該學生的選課紀錄。'];
+    }
+
+    return ['ok' => true];
 }
 
 /**
@@ -817,6 +1028,9 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
     $class = classes_fetch_by_id($pdo, $classId);
     if ($class === null) {
         return ['ok' => false, 'error' => '找不到課程。'];
+    }
+    if (!classes_can_edit_students($pdo, $actingUser)) {
+        return ['ok' => false, 'error' => '只有管理員可以匯入／編輯班內學生。'];
     }
     if (!classes_can_manage($pdo, $class, $actingUser) && !user_has_permission('user.manage')) {
         return ['ok' => false, 'error' => '沒有權限。'];
@@ -947,6 +1161,8 @@ function classes_enrich_user_payload(PDO $pdo, array $user): array
     $profile = classes_student_profile($pdo, $user['id']);
     $classList = classes_list_for_student($pdo, $user['id']);
 
+    $summerMoi = classes_resolve_moi_for_summer($pdo, (int) $user['id']);
+
     return [
         'id' => $user['id'],
         'email' => $user['email'],
@@ -961,11 +1177,21 @@ function classes_enrich_user_payload(PDO $pdo, array $user): array
             'form_level' => $profile['form_level'],
             'preferred_lang' => $profile['preferred_lang'],
         ] : null,
+        'summer_form_level' => classes_resolve_form_level_for_summer($pdo, (int) $user['id']),
+        'summer_moi' => $summerMoi,
+        'summer_content_lang' => classes_moi_to_content_lang($summerMoi),
         'classes' => array_map(static function (array $c): array {
             return [
                 'id' => (int) $c['id'],
                 'name' => (string) $c['name'],
                 'school_year' => (string) $c['school_year'],
+                'form_level' => isset($c['form_level']) && $c['form_level'] !== null && $c['form_level'] !== ''
+                    ? (string) $c['form_level'] : null,
+                'form_level_label' => classes_form_level_label(
+                    isset($c['form_level']) ? (string) $c['form_level'] : null
+                ),
+                'course_subject' => isset($c['course_subject']) && $c['course_subject'] !== null && $c['course_subject'] !== ''
+                    ? (string) $c['course_subject'] : null,
                 'status' => (string) $c['status'],
                 'form_class' => isset($c['form_class']) && $c['form_class'] !== null && $c['form_class'] !== ''
                     ? (string) $c['form_class'] : null,

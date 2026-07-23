@@ -43,11 +43,11 @@ const DD_TABLE_DESCRIPTIONS = [
     'worksheet_assignments' => '工作紙派發（班級、截止、滿分）',
     'worksheet_assignment_students' => '派發對象（全班或指定學生）',
     'worksheet_submissions' => '學生提交、評分、自動計分 JSON',
-    'summer_homework_items' => '暑期功課習作（中一／中二；篇章或影片）',
+    'summer_homework_items' => '暑期功課習作（中一／中二；篇章或影片；含 due_at／allow_late_submit）',
     'summer_homework_questions' => '暑期功課題目（選擇／填充）',
     'summer_homework_mcq_options' => '暑期功課選擇題選項',
     'summer_homework_fill_blanks' => '暑期功課填充題答案',
-    'summer_homework_attempts' => '暑期功課作答紀錄（及格／重做）',
+    'summer_homework_attempts' => '暑期功課每次呈交紀錄（responses_json 原始作答；grading_json 評分＋MCQ 選項快照；介面顯示最高分）',
     'spa_nav_visibility' => '前台 SPA 上方選單依對象（訪客／學生／教師／管理員）的可見性',
 ];
 
@@ -66,9 +66,14 @@ const DD_COLUMN_HINTS = [
     'bank_id' => 'question_banks.id',
     'question_id' => '題目 id（依上下文）',
     'status' => '狀態（見 ENUM 值）',
-    'responses_json' => '工作紙作答 JSON（自動計分）',
+    'responses_json' => '工作紙／暑期功課作答 JSON',
+    'grading_json' => '暑期功課該次呈交的評分明細（對錯、選項索引／選項快照、填充答案；供錯題與選項分析）',
     'moi' => '應考語言：E=英文、C=中文',
     'invite_code' => '班級邀請／註冊碼',
+    'due_at' => '呈交／截止時間（HK 時區語意）',
+    'allow_late_submit' => '截止後是否仍可呈交（1=可遲交，0=封鎖）',
+    'submitted_at' => '實際呈交時間',
+    'pass_percent' => '及格百分比門檻',
 ];
 
 function dd_project_root(): string

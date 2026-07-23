@@ -68,6 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'enroll' && $id > 0) {
         if (!verify_csrf($_POST['csrf'] ?? null)) {
             $error = 'CSRF 驗證失敗。';
+        } elseif (!classes_can_edit_students($pdo, $acting)) {
+            $error = '只有管理員可以編輯班內學生。請前往「學生與修讀語言」頁面（管理員）。';
         } else {
             $emails = preg_split('/[\s,;]+/', (string) ($_POST['emails'] ?? '')) ?: [];
             $r = classes_enroll_users($pdo, $id, $emails, $acting);
@@ -100,7 +102,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 admin_page_start($id ? '編輯課程' : '新增課程', 'courses', [
-    'actions' => admin_btn('courses.php', '返回列表', 'secondary'),
+    'actions' => admin_btn('courses.php', '返回列表', 'secondary')
+        . ($id
+            ? admin_btn('course_students.php?id=' . $id, '學生與修讀語言', 'secondary')
+                . admin_btn('course_reports.php?id=' . $id, '學習報告', 'secondary')
+                . admin_btn('course_summer_homework.php?id=' . $id, '暑期功課', 'secondary')
+                . admin_btn('course_worksheets.php?id=' . $id, '工作紙派發', 'secondary')
+            : ''),
 ]);
 ?>
         <?php if ($error !== ''): ?>
@@ -183,24 +191,20 @@ admin_page_start($id ? '編輯課程' : '新增課程', 'courses', [
         </form>
 
         <?php if ($id > 0 && $row): ?>
+        <?php $canEditStudents = classes_can_edit_students($pdo, $acting); ?>
         <form method="post" class="inline mb-8">
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="action" value="reset_invite">
             <button type="submit" class="text-sm text-indigo-600 hover:underline" onclick="return confirm('重設邀請碼？舊碼將失效。');">重設邀請碼</button>
         </form>
 
-        <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-8">
-            <h2 class="font-bold text-slate-800 mb-3">加入學生（電郵）</h2>
-            <form method="post" class="space-y-3">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="action" value="enroll">
-                <textarea name="emails" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="多個電郵以逗號或換行分隔"></textarea>
-                <button type="submit" class="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm">加入課程</button>
-            </form>
-        </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
-            <h2 class="p-4 font-bold text-slate-800 border-b">學生名單（<?php echo count($students); ?>）</h2>
+        <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm mb-4">
+            <div class="p-4 border-b flex flex-wrap items-center justify-between gap-3">
+                <h2 class="font-bold text-slate-800">學生名單（<?php echo count($students); ?>）</h2>
+                <a href="course_students.php?id=<?php echo (int) $id; ?>" class="text-sm text-indigo-600 hover:underline">
+                    <?php echo $canEditStudents ? '編輯學生與修讀語言' : '查看學生與修讀語言'; ?>
+                </a>
+            </div>
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-100 text-left">
                     <tr>
@@ -231,11 +235,14 @@ admin_page_start($id ? '編輯課程' : '新增課程', 'courses', [
                     </tr>
                     <?php endforeach; ?>
                     <?php if ($students === []): ?>
-                    <tr><td colspan="9" class="p-6 text-slate-500 text-center">尚無學生</td></tr>
+                    <tr><td colspan="8" class="p-6 text-slate-500 text-center">尚無學生</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+        <?php if (!$canEditStudents): ?>
+            <p class="text-sm text-slate-500 mb-8">加入／移出學生與修改修讀語言僅限管理員操作。</p>
+        <?php endif; ?>
         <?php endif; ?>
 <?php
 admin_page_end();

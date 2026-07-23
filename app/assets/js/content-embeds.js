@@ -300,10 +300,41 @@
     }
 
     function renderStemHtml(stem, format) {
-        if (format === 'markdown' && global.AppMarkdown) {
-            return global.AppMarkdown.renderMarkdownToHtml(stem || '');
+        if (global.AppMarkdown) {
+            if (format === 'markdown' && global.AppMarkdown.renderMarkdownToHtml) {
+                return global.AppMarkdown.renderMarkdownToHtml(stem || '');
+            }
+            if (global.AppMarkdown.renderPlainWithMathToHtml) {
+                return global.AppMarkdown.renderPlainWithMathToHtml(stem || '');
+            }
+            if (global.AppMarkdown.renderMarkdownToHtml) {
+                return global.AppMarkdown.renderMarkdownToHtml(stem || '');
+            }
         }
         return escapeHtml(stem || '').replace(/\n/g, '<br>');
+    }
+
+    function renderOptionHtml(text, format) {
+        if (global.AppMarkdown) {
+            if (format === 'markdown' && global.AppMarkdown.renderMarkdownToHtml) {
+                return global.AppMarkdown.renderMarkdownToHtml(text || '');
+            }
+            if (global.AppMarkdown.renderPlainWithMathToHtml) {
+                return global.AppMarkdown.renderPlainWithMathToHtml(text || '');
+            }
+        }
+        return escapeHtml(text || '');
+    }
+
+    function enhanceQuestionMath(root) {
+        if (!global.AppMarkdown || !root) return;
+        if (typeof global.AppMarkdown.typesetMath === 'function') {
+            global.AppMarkdown.typesetMath(root);
+            return;
+        }
+        if (typeof global.AppMarkdown.enhanceMarkdown === 'function') {
+            global.AppMarkdown.enhanceMarkdown(root);
+        }
     }
 
     function renderQuestionMedia(media) {
@@ -369,7 +400,7 @@
                                 else if (selected === i) cls += ' incorrect';
                             } else if (selected === i) cls += ' selected';
                             return `<button type="button" class="${cls}" data-opt="${i}" ${locked ? 'disabled' : ''}>
-                                <span class="font-bold text-indigo-600 mr-2">${MCQ_LABELS[i] || i + 1}</span>${escapeHtml(text)}
+                                <span class="font-bold text-indigo-600 mr-2">${MCQ_LABELS[i] || i + 1}</span><span class="content-embed-q-opt-text">${renderOptionHtml(text, question.content_format)}</span>
                             </button>`;
                         }).join('')}
                     </div>
@@ -430,14 +461,17 @@
         render();
         if (selected != null && isWorksheetMode()) syncRecord();
         if (global.AppMarkdown) {
-            global.AppMarkdown.enhanceMarkdown(root.querySelector('.content-embed-q-stem'));
+            enhanceQuestionMath(root);
         }
     }
 
     function renderExplanation(answer, lang) {
         const ex = lang === 'zh' ? answer.explanation_zh : answer.explanation_en;
         if (!ex) return '';
-        return `<p class="content-embed-q-explanation text-sm text-slate-600 mt-3 p-3 bg-slate-50 rounded-lg">${escapeHtml(ex)}</p>`;
+        const html = global.AppMarkdown && global.AppMarkdown.renderPlainWithMathToHtml
+            ? global.AppMarkdown.renderPlainWithMathToHtml(ex)
+            : escapeHtml(ex);
+        return `<div class="content-embed-q-explanation text-sm text-slate-600 mt-3 p-3 bg-slate-50 rounded-lg prose-article">${html}</div>`;
     }
 
     function bindTrueFalseQuestion(root, question, answer, meta) {
@@ -519,7 +553,7 @@
         render();
         if (selected != null && isWorksheetMode()) recordAnswer(selected === correctVal);
         if (global.AppMarkdown) {
-            global.AppMarkdown.enhanceMarkdown(root.querySelector('.content-embed-q-stem'));
+            enhanceQuestionMath(root);
         }
     }
 
@@ -568,7 +602,7 @@
             box.innerHTML = `<strong>${escapeHtml(t('參考答案', 'Model answer'))}:</strong> ${renderStemHtml(model || '', 'plain')}`;
         });
         if (global.AppMarkdown) {
-            global.AppMarkdown.enhanceMarkdown(root.querySelector('.content-embed-q-stem'));
+            enhanceQuestionMath(root);
         }
     }
 
@@ -638,7 +672,7 @@
             });
         });
         if (global.AppMarkdown) {
-            global.AppMarkdown.enhanceMarkdown(root.querySelector('.content-embed-q-stem'));
+            enhanceQuestionMath(root);
         }
     }
 
@@ -705,7 +739,7 @@
             box.innerHTML = lines.map((l) => `<div>${escapeHtml(l)}</div>`).join('');
         });
         if (global.AppMarkdown) {
-            global.AppMarkdown.enhanceMarkdown(root.querySelector('.content-embed-q-stem'));
+            enhanceQuestionMath(root);
         }
     }
 

@@ -166,13 +166,14 @@
         const store = [];
         let text = markdown || '';
 
+        // Block math first so remaining $...$ are inline only.
         text = text.replace(/\$\$([\s\S]+?)\$\$/g, (match) => {
             const key = store.length;
             store.push(match);
             return MATH_PLACEHOLDER + key + '\uE001';
         });
 
-        text = text.replace(/(?<!\$)\$(?!\$)((?:\\.|[^$\n\\])+?)\$(?!\$)/g, (match) => {
+        text = text.replace(/\$((?:\\.|[^$\n\\])+?)\$/g, (match) => {
             const key = store.length;
             store.push(match);
             return MATH_PLACEHOLDER + key + '\uE001';
@@ -183,6 +184,26 @@
 
     function restoreMath(html, store) {
         return html.replace(new RegExp(MATH_PLACEHOLDER + '(\\d+)' + '\uE001', 'g'), (_, i) => store[parseInt(i, 10)] || '');
+    }
+
+    /**
+     * Plain / short text that may contain $...$ / $$...$$ (stems, options).
+     * Escapes HTML but leaves TeX delimiters for MathJax.
+     */
+    function renderPlainWithMathToHtml(text) {
+        const { text: protectedText, store } = protectMath(String(text || ''));
+        const html = escapeHtml(protectedText).replace(/\n/g, '<br>');
+        return restoreMath(html, store);
+    }
+
+    /**
+     * Prefer markdown when format is markdown; otherwise plain+math.
+     */
+    function renderRichTextToHtml(text, format) {
+        if (format === 'markdown') {
+            return renderMarkdownToHtml(text || '');
+        }
+        return renderPlainWithMathToHtml(text || '');
     }
 
     function promoteMermaidBlocks(html) {
@@ -445,6 +466,9 @@
 
     global.AppMarkdown = {
         renderMarkdownToHtml,
+        renderPlainWithMathToHtml,
+        renderRichTextToHtml,
         enhanceMarkdown,
+        typesetMath,
     };
 })(window);

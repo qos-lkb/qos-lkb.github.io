@@ -32,6 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'import_csv') {
         if (!verify_csrf($_POST['csrf'] ?? null)) {
             $flash = 'CSRF 驗證失敗。';
+        } elseif (!classes_can_edit_students($pdo, $user)) {
+            $flash = '只有管理員可以匯入班內學生。';
         } else {
             $classId = (int) ($_POST['class_id'] ?? 0);
             $csv = (string) ($_POST['csv_content'] ?? '');
@@ -44,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $rows = classes_list_for_teacher($pdo, $user['id'], $canAny);
+$canEditStudents = classes_can_edit_students($pdo, $user);
 $teacherOptions = $canAny ? classes_teacher_options($pdo) : [];
 $formLevelOptions = classes_form_level_options();
 $courseSubjectOptions = classes_course_subject_options();
@@ -135,7 +138,9 @@ admin_page_start('課程管理', 'courses', [
                         <td class="p-3"><?php echo (int) $r['is_active'] ? '啟用' : '停用'; ?></td>
                         <td class="p-3 whitespace-nowrap">
                             <a href="course_edit.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline">編輯</a>
+                            <a href="course_students.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">學生</a>
                             <a href="course_reports.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">報告</a>
+                            <a href="course_summer_homework.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">暑期功課</a>
                             <a href="course_worksheets.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">習作</a>
                             <form method="post" class="inline ml-2" onsubmit="return confirm('確定刪除此課程？學生選課紀錄將一併移除。');">
                                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
@@ -153,10 +158,10 @@ admin_page_start('課程管理', 'courses', [
             </table>
         </div>
 
-        <?php if ($rows !== []): ?>
+        <?php if ($rows !== [] && $canEditStudents): ?>
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
             <h2 class="text-lg font-bold text-slate-800 mb-2">批次匯入學生（CSV）</h2>
-            <p class="text-sm text-slate-500 mb-4">格式：email, name_zh, name_en, password, form_class, class_no, moi（moi 為 E 或 C；各欄可留空；姓名至少填一項）</p>
+            <p class="text-sm text-slate-500 mb-4">僅管理員可用。格式：email, name_zh, name_en, password, form_class, class_no, moi（moi 為 E 或 C；各欄可留空；姓名至少填一項）</p>
             <form method="post" class="space-y-4">
                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="action" value="import_csv">

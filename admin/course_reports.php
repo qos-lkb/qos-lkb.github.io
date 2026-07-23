@@ -34,6 +34,8 @@ $exportUrl = '../api/v1/teacher/classes/' . $id . '/report.csv';
 
 admin_page_start('課程學習報告 — ' . (string) $class['name'], 'course_reports', [
     'actions' => admin_btn('courses.php', '返回課程列表', 'secondary')
+        . admin_btn('course_students.php?id=' . $id, '學生與修讀語言', 'secondary')
+        . admin_btn('course_summer_homework.php?id=' . $id, '暑期功課', 'secondary')
         . admin_btn('course_worksheets.php?id=' . $id, '工作紙派發', 'secondary')
         . ' ' . admin_btn($exportUrl, '匯出 CSV', 'secondary'),
     'wide' => true,

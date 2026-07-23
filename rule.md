@@ -22,6 +22,7 @@ This document outlines the rules, conventions, and best practices for developing
 14. [PHP and API Development Rules](#php-and-api-development-rules)
 15. [SPA Frontend Rules (`app/`)](#spa-frontend-rules-app)
 16. [Worksheet and Learning Content Rules](#worksheet-and-learning-content-rules)
+17. [Summer Homework Rules](#summer-homework-rules)
 
 ---
 
@@ -454,6 +455,8 @@ function calculateGasConstant(P, V, n, T) {
 **Rule 10.3**: Keep README, architecture, and changelog updated
 - Document new patterns in **`architecture.md`**
 - Summarize releases in **`change_log.md`**
+- Summer-homework module details in **`暑期功課/README.md`**
+- Refresh feature lists in **`README.md`** when user-facing behaviour changes
 - Update file structure and quick-start steps in **`README.md`**
 - Note breaking changes in all three when relevant
 
@@ -655,6 +658,30 @@ declare(strict_types=1);
 **Rule 16.5**: Admin embed editors
 - When adding embed pickers in admin, follow **`admin-worksheet-embed.js`** / **`admin-content-embed.js`** patterns
 - Preview embed syntax before save; invalid slugs should fail validation server-side
+
+---
+
+## Summer Homework Rules
+
+Module guide: **`暑期功課/README.md`**. Architecture pattern: **`architecture.md`** §4.
+
+**Rule 17.1**: Always retain every submission
+- Each submit **`INSERT`**s into `summer_homework_attempts` (UI shows best score only)
+- Store **`responses_json`** (raw) and **`grading_json`** (scored details + MCQ option snapshot)
+
+**Rule 17.2**: MCQ analytics require selected option index
+- Client sends `selected_option_index`; grader snapshots options (label / text / `is_correct`) into `grading_json`
+- Admin analytics: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` (select % and wrong-option share %)
+
+**Rule 17.3**: Due dates
+- Optional `due_at` + `allow_late_submit` on items; late/on-time judged from **best** attempt time
+- Class matrix: `admin/course_summer_homework.php`
+
+**Rule 17.4**: Student content language follows MOI
+- Enrollment MOI E→en, C→zh for homework body; ignore SPA UI language toggle for students
+
+**Rule 17.5**: Schema upgrades for existing DBs
+- Prefer `schema_summer_homework*.sql` scripts; also update **`schema.sql`** and **`change_log.md`**
 
 ---
 

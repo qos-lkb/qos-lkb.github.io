@@ -8,7 +8,7 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 
 | 模式 | 說明 |
 |------|------|
-| **SPA 前端（推薦）** | **`app/`** — 模擬目錄、自學課程、學習筆記、工作紙、互動工具、科學文章、學習儀表板；經 **REST API** 讀取資料庫。 |
+| **SPA 前端（推薦）** | **`app/`** — 暑期功課入口、模擬目錄、自學課程、學習筆記、工作紙、互動工具、科學文章、學習儀表板；經 **REST API** 讀取資料庫。 |
 | **舊版入口** | `index.php` 302 轉址至 `app/`。 |
 | **靜態單頁** | 各子目錄 `.html` 可直接開啟；適合 GitHub Pages **單檔分享**（整站動態功能需 PHP）。 |
 | **選用轉址** | 根目錄 `index.html` 可經 `default_redirect_url.php` 讀取 `.env` 的 `DEFAULT_REDIRECT_URL` 並轉址。 |
@@ -19,16 +19,17 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 ## 功能特色 | Features
 
 - 雙語介面（繁中／英）、響應式排版（Tailwind）
+- **暑期功課**（中一／中二）：閱讀或影片 + 選擇／填充；每次呈交保留完整紀錄與選項快照；截止／遲交；班級報表與**錯題／選項分析**（詳見 [`暑期功課/README.md`](暑期功課/README.md)）
 - **自學課程**：依科目／課題混合編排筆記、模擬、工作紙、文章、互動工具、嵌入影片
 - **學習筆記**（含 PDF 匯出）、**工作紙**（Markdown + 嵌入模擬／影片／試題）、**試題庫**（MCQ、短答、長答、填充、是非）
 - **模擬程式**：側欄瀏覽、搜尋；課程流程先 **預覽頁** 再模態 iframe；PNG 截圖
 - **互動學習工具**（四選一 MCQ）、**科學文章**（Markdown + 理解題）
 - **SDL 學習儀表板**（`/app/dashboard`）：學習時數、掌握度、適性推薦、每週目標
-- **課程班別**：教師／管理員建立課程、邀請碼選課、QSIS 匯入、班別／班號／MOI 紀錄
+- **課程班別**：教師／管理員建立課程（年級、科目）、邀請碼選課、QSIS 匯入、班別／班號／MOI；**僅管理員**可改班內學生與 MOI
 - **工作紙派發**：教師派發予班級、學生於 `/app/assignments` 完成提交、教師評分與回饋、試題自動計分
-- **管理後台**（`admin/`）：使用者／角色（admin、teacher、student）、權限矩陣、各科內容 CRUD、課程編排、審核佇列、帳戶模仿（除錯）
+- **管理後台**（`admin/`）：使用者／角色（admin、teacher、student）、權限矩陣、各科內容 CRUD、暑期功課分析、課程編排、前台選單可見性、審核佇列、帳戶模仿（除錯）
 - **帳戶選單**：SPA 與後台共用個人設定與登出
-- 模擬本體多為 **Vanilla JS**；少數使用 Three.js、Chart.js、MathJax、React standalone
+- 模擬本體多為 **Vanilla JS**；少數使用 Three.js、Chart.js、MathJax、React standalone；SPA 篇章／題目支援 MathJax
 
 ## 技術棧 | Technology stack
 
@@ -53,6 +54,8 @@ science_sims/
 ├── admin/                    # 後台（含 courses、classes、qsis_import）
 ├── portal/                   # 貢獻者入口
 ├── schema.sql                # 完整資料庫 schema（新環境一次匯入）
+├── schema_*.sql              # 既有庫增量升級（暑期功課、課程年級等）
+├── 暑期功課/                 # 暑期功課模組說明
 ├── physics/, chem/, biology/, science/, astronomy/, …
 ├── .cursorrules              # Cursor AI 專案規則（摘要）
 ├── .cursor/rules/            # Cursor 細分規則（依檔案類型）
@@ -61,7 +64,7 @@ science_sims/
 └── .env, .env.example
 ```
 
-> **注意**：模擬與學習內容清單由 **資料庫與後台** 維護；舊版 **`index.csv`** 已停用。
+> **注意**：模擬與學習內容清單由 **資料庫與後台** 維護；舊版 **`index.csv`** 已停用。在大小寫不敏感磁碟（如預設 macOS）上，`ARCHITECTURE.md` 與 `architecture.md` 為同一檔。
 
 ## 快速開始 | Quick start
 
@@ -98,7 +101,8 @@ python3 -m http.server 8000
 - **筆記、文章、互動工具、影片、試題庫**：經 `admin/` 或 `portal/` 編輯，走 `draft` → `pending_review` → `published` 流程。
 - **工作紙**：`admin/worksheet_edit.php`；Markdown 內可嵌入模擬、影片、試題（語法見 **`rule.md`** §16）。
 - **自學課程編排**：`admin/course_curriculum.php`（`topic_learning_items`）。
-- **課程班別**：`admin/courses.php`；派發工作紙見 `admin/course_worksheets.php` 或 SPA 教師流程。
+- **課程班別**：`admin/courses.php`；學生與 MOI 見 `admin/course_students.php`；派發工作紙見 `admin/course_worksheets.php`；暑期功課班級報表見 `admin/course_summer_homework.php`。
+- **暑期功課**：`admin/summer_homework.php`（編輯／分析）；模組說明見 **[`暑期功課/README.md`](暑期功課/README.md)**。
 
 ## 瀏覽器相容性 | Browser compatibility
 
@@ -115,11 +119,11 @@ python3 -m http.server 8000
 ## 相關文件 | Related documentation
 
 - [change_log.md](change_log.md) — 依 Git 整理的變更紀錄
-- [architecture.md](architecture.md) — 架構、API、部署、資料模型
+- [architecture.md](architecture.md) — 架構、API、部署、資料模型（含暑期功課呈交／分析；大小寫不敏感磁碟上等同 `ARCHITECTURE.md`）
 - [schema.sql](schema.sql) — 完整資料庫 schema
 - [data_dictionary.md](data_dictionary.md) — 資料表欄位字典（`php update_data_dictionary.php` 產生）
-- [ARCHITECTURE.md](ARCHITECTURE.md) — 架構文件導覽
-- [rule.md](rule.md) — 開發規範（模擬 HTML、PHP、SPA、工作紙嵌入）
+- [暑期功課/README.md](暑期功課/README.md) — 暑期功課規則、升級腳本、選項分析資料結構
+- [rule.md](rule.md) — 開發規範（模擬 HTML、PHP、SPA、工作紙嵌入、暑期功課）
 - [.cursorrules](.cursorrules) — Cursor AI 專案規則摘要
 - [prompt.md](prompt.md) — 建立新模擬之提示範本
 - [dev/plan.md](dev/plan.md) — 各科模擬／教學構想（參考）
@@ -132,7 +136,7 @@ python3 -m http.server 8000
 
 ---
 
-**最後更新 | Last updated**：2026-06-28
+**最後更新 | Last updated**：2026-07-23
 
 如有問題或建議，歡迎開 Issue 或 Pull Request。  
 Questions or suggestions: Issues / PRs welcome.

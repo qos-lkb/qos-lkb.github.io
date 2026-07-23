@@ -651,6 +651,8 @@ CREATE TABLE summer_homework_items (
     video_embed_url VARCHAR(512) NULL DEFAULT NULL,
     video_provider VARCHAR(32) NULL DEFAULT 'youtube',
     pass_percent DECIMAL(5,2) NOT NULL DEFAULT 80.00,
+    due_at DATETIME NULL DEFAULT NULL,
+    allow_late_submit TINYINT(1) NOT NULL DEFAULT 1,
     list_sort_order INT NOT NULL DEFAULT 0,
     owner_user_id INT UNSIGNED NULL,
     status ENUM('draft', 'pending_review', 'published') NOT NULL DEFAULT 'draft',
@@ -659,7 +661,8 @@ CREATE TABLE summer_homework_items (
     UNIQUE KEY uq_sh_items_slug (slug),
     KEY idx_sh_items_form (form_level),
     KEY idx_sh_items_status (status),
-    KEY idx_sh_items_owner (owner_user_id)
+    KEY idx_sh_items_owner (owner_user_id),
+    KEY idx_sh_items_due (due_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE summer_homework_questions (
@@ -704,6 +707,7 @@ CREATE TABLE summer_homework_attempts (
     percent DECIMAL(5,2) NOT NULL DEFAULT 0,
     passed TINYINT(1) NOT NULL DEFAULT 0,
     responses_json JSON NULL,
+    grading_json JSON NULL,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_sh_attempts_user (user_id),
     KEY idx_sh_attempts_item (item_id),

@@ -8,28 +8,72 @@ require_once dirname(__DIR__, 3) . '/includes/summer_homework_lib.php';
 
 function api_handle_summer_homework_list(PDO $pdo): void
 {
+    require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
+
     $form = isset($_GET['form']) ? (string) $_GET['form'] : null;
     if ($form !== null && $form !== '1' && $form !== '2') {
         $form = null;
     }
-    $rows = sh_fetch_published($pdo, $form);
     $user = current_user();
+    $formLocked = false;
+    $studentFormLevel = null;
+    $message = null;
+    $contentLang = null;
+    $summerMoi = null;
+
+    // Students (non-teacher) only see homework for their own form level.
+    if ($user !== null
+        && classes_user_is_student($pdo, (int) $user['id'])
+        && !classes_user_is_teacher($pdo, (int) $user['id'])
+    ) {
+        $formLocked = true;
+        $studentFormLevel = classes_resolve_form_level_for_summer($pdo, (int) $user['id']);
+        $summerMoi = classes_resolve_moi_for_summer($pdo, (int) $user['id']);
+        $contentLang = classes_moi_to_content_lang($summerMoi);
+        if ($studentFormLevel === '1' || $studentFormLevel === '2') {
+            $form = $studentFormLevel;
+        } else {
+            $reason = $studentFormLevel === null
+                ? '尚未設定年級，請聯絡教師更新個人資料或加入中一／中二課程。'
+                : '暑期功課僅供中一、中二同學；你目前的年級沒有對應習作。';
+            api_json_ok([
+                'items' => [],
+                'form_locked' => true,
+                'student_form_level' => $studentFormLevel,
+                'content_lang' => $contentLang,
+                'summer_moi' => $summerMoi,
+                'message' => $reason,
+            ]);
+            return;
+        }
+    }
+
+    $rows = sh_fetch_published($pdo, $form);
     $out = [];
     foreach ($rows as $row) {
         $item = sh_public_row($row);
         unset($item['body_zh'], $item['body_en']);
         if ($user !== null) {
-            $item['progress'] = sh_user_progress_for_item($pdo, (int) $user['id'], (int) $row['id']);
+            $item['progress'] = sh_user_progress_for_item($pdo, (int) $user['id'], (int) $row['id'], $row);
         } else {
             $item['progress'] = null;
         }
         $out[] = $item;
     }
-    api_json_ok(['items' => $out]);
+    api_json_ok([
+        'items' => $out,
+        'form_locked' => $formLocked,
+        'student_form_level' => $studentFormLevel,
+        'content_lang' => $contentLang,
+        'summer_moi' => $summerMoi,
+        'message' => $message,
+    ]);
 }
 
 function api_handle_summer_homework_get(PDO $pdo, string $slug): void
 {
+    require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
+
     $row = sh_get_by_slug($pdo, $slug);
     if (!$row) {
         api_json_error('not_found', '找不到暑期功課。', 404);
@@ -38,13 +82,33 @@ function api_handle_summer_homework_get(PDO $pdo, string $slug): void
     if (!sh_can_view_item($row, $user)) {
         api_json_error('forbidden', '無權檢視。', 403);
     }
+    if ($user !== null
+        && classes_user_is_student($pdo, (int) $user['id'])
+        && !classes_user_is_teacher($pdo, (int) $user['id'])
+    ) {
+        $studentForm = classes_resolve_form_level_for_summer($pdo, (int) $user['id']);
+        if ($studentForm !== (string) $row['form_level']) {
+            api_json_error('forbidden', '此習作不屬於你的年級。', 403);
+        }
+    }
 
     $out = sh_public_row($row);
     $out['questions'] = sh_fetch_questions($pdo, (int) $row['id'], false);
     if ($user !== null) {
-        $out['progress'] = sh_user_progress_for_item($pdo, (int) $user['id'], (int) $row['id']);
+        $out['progress'] = sh_user_progress_for_item($pdo, (int) $user['id'], (int) $row['id'], $row);
     } else {
         $out['progress'] = null;
+    }
+    if ($user !== null
+        && classes_user_is_student($pdo, (int) $user['id'])
+        && !classes_user_is_teacher($pdo, (int) $user['id'])
+    ) {
+        $summerMoi = classes_resolve_moi_for_summer($pdo, (int) $user['id']);
+        $out['summer_moi'] = $summerMoi;
+        $out['content_lang'] = classes_moi_to_content_lang($summerMoi);
+    } else {
+        $out['summer_moi'] = null;
+        $out['content_lang'] = null;
     }
     api_json_ok($out);
 }
@@ -53,10 +117,19 @@ function api_handle_summer_homework_submit(PDO $pdo, string $slug): void
 {
     $user = require_api_user();
     api_verify_csrf_or_fail();
+    require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
 
     $row = sh_get_by_slug($pdo, $slug);
     if (!$row || $row['status'] !== 'published') {
         api_json_error('not_found', '找不到已發佈的暑期功課。', 404);
+    }
+    if (classes_user_is_student($pdo, (int) $user['id'])
+        && !classes_user_is_teacher($pdo, (int) $user['id'])
+    ) {
+        $studentForm = classes_resolve_form_level_for_summer($pdo, (int) $user['id']);
+        if ($studentForm !== (string) $row['form_level']) {
+            api_json_error('forbidden', '此習作不屬於你的年級。', 403);
+        }
     }
 
     $body = api_read_json_body();
