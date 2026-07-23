@@ -45,6 +45,12 @@ function account_update_profile(PDO $pdo, int $userId, string $nameZh, string $n
  */
 function account_change_password(PDO $pdo, int $userId, string $currentPassword, string $newPassword): array
 {
+    // Temporarily disabled — flip to true with UI CHANGE_PASSWORD_ENABLED in assets/js/user-menu.js
+    $changePasswordEnabled = false;
+    if (!$changePasswordEnabled) {
+        return ['ok' => false, 'error' => '更改密碼功能暫未開放。QSIS 帳戶請於校本系統更改密碼。'];
+    }
+
     if ($currentPassword === '') {
         return ['ok' => false, 'error' => '請輸入目前密碼。'];
     }

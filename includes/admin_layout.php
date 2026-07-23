@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/web_base.php';
 
-const ADMIN_ASSET_VERSION = '20260626b';
+const ADMIN_ASSET_VERSION = '20260723pw';
 
 /**
  * Admin shell: header bar, side menu, main content (mirrors app/index.html layout).

@@ -8,6 +8,10 @@
 
 ## 2026-07-23
 
+### 暫時關閉使用者自助更改密碼
+- 帳號選單與設定 modal 隱藏「更改密碼」；`account_change_password()` 回傳暫不開放。
+- 還原：將 `assets/js/user-menu.js` 的 `CHANGE_PASSWORD_ENABLED` 與 `account_lib.php` 的 `$changePasswordEnabled` 設為 `true`。
+
 ### 暑期功課：教師／管理員可檢視分析與答案
 - 教師（`summer_homework.manage_own`／`class.manage_*`）與管理員可檢視**全部**習作的呈交分析、內容與正確答案。
 - 編輯／刪除仍限擁有者或 `manage_any`；新增後台頁 `admin/summer_homework_view.php`。
