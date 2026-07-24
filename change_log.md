@@ -8,6 +8,11 @@
 
 ## 2026-07-24
 
+### 暑期功課：未及格不標「準時」
+- 已呈交但未達及格線：狀態為 **未及格**（不再顯示準時／遲交）。
+- 準時／遲交僅在**已及格**後，依最高分那次呈交時間判斷。
+- 前台列表／習作頁加強「未及格，請再次完成」提示；班級報表主標籤顯示「未及格」。
+
 ### 登入改為僅驗證 QSIS 密碼；移除本站 password_hash
 - `attempt_login()` **不再**回退本站 `users.password_hash`；必須 QSIS 驗證成功。
 - 既有庫執行：`mysql … < schema_users_drop_password.sql`（刪除 `users.password_hash`）。

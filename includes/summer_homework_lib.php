@@ -203,6 +203,8 @@ function sh_submissions_closed(?string $dueAt, bool $allowLateSubmit): bool
 }
 
 /**
+ * Timing-only status for a submission timestamp vs due date.
+ *
  * @return 'missing'|'on_time'|'late'
  */
 function sh_submission_status(?string $dueAt, ?string $bestSubmittedAt): string
@@ -221,11 +223,30 @@ function sh_submission_status(?string $dueAt, ?string $bestSubmittedAt): string
     return $subTs <= $dueTs ? 'on_time' : 'late';
 }
 
+/**
+ * Display status for reports / student UI.
+ * Failed (attempted but not passed) is never labelled on_time/late.
+ *
+ * @return 'missing'|'failed'|'on_time'|'late'
+ */
+function sh_progress_display_status(bool $passed, int $attempts, ?string $dueAt, ?string $bestSubmittedAt): string
+{
+    if ($attempts <= 0) {
+        return 'missing';
+    }
+    if (!$passed) {
+        return 'failed';
+    }
+
+    return sh_submission_status($dueAt, $bestSubmittedAt);
+}
+
 function sh_submission_status_label(string $status): string
 {
     return match ($status) {
         'on_time' => '準時',
         'late' => '遲交',
+        'failed' => '未及格',
         default => '欠交',
     };
 }
@@ -714,7 +735,12 @@ function sh_submit_attempt(PDO $pdo, int $userId, int $itemId, array $responses)
     $bestSubmittedAt = $best !== null ? (string) $best['submitted_at'] : $submittedAt;
     $scoreImproved = $previousBestPercent === null || $graded['percent'] > $previousBestPercent;
     $everPassed = $previouslyPassed || $graded['passed'];
-    $status = sh_submission_status($dueAt, $bestSubmittedAt);
+    $status = sh_progress_display_status(
+        $everPassed,
+        1,
+        $dueAt,
+        $bestSubmittedAt
+    );
 
     return [
         'ok' => true,
@@ -734,7 +760,7 @@ function sh_submit_attempt(PDO $pdo, int $userId, int $itemId, array $responses)
             'due_at' => $dueAt,
             'allow_late_submit' => $allowLate,
             'submission_status' => $status,
-            'is_late' => $status === 'late',
+            'is_late' => sh_submission_status($dueAt, $bestSubmittedAt) === 'late',
             'details' => $graded['details'],
             'must_redo' => !$everPassed,
         ],
@@ -776,13 +802,14 @@ function sh_user_progress_for_item(PDO $pdo, int $userId, int $itemId, ?array $i
 
     $best = sh_best_attempt_for_user_item($pdo, $userId, $itemId);
     $bestSubmittedAt = $best !== null ? (string) $best['submitted_at'] : null;
+    $passed = (int) ($countRow['any_pass'] ?? 0) === 1;
 
     return [
-        'passed' => (int) ($countRow['any_pass'] ?? 0) === 1,
+        'passed' => $passed,
         'percent' => $best !== null ? (float) $best['percent'] : null,
         'attempts' => $attempts,
         'best_submitted_at' => $bestSubmittedAt,
-        'submission_status' => sh_submission_status($dueAt, $bestSubmittedAt),
+        'submission_status' => sh_progress_display_status($passed, $attempts, $dueAt, $bestSubmittedAt),
         'score' => $best !== null ? (float) $best['score'] : null,
         'max_score' => $best !== null ? (float) $best['max_score'] : null,
     ];
