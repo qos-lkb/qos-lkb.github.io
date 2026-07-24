@@ -14,7 +14,8 @@
 - **模擬頁**：HTML5 + Vanilla JS；Tailwind CSS（CDN）；部分用 Three.js、Chart.js、MathJax；少數 React + Babel standalone。
 - **動態功能**：Vanilla JS SPA（`app/`）、REST API（`api/v1/`）、PHP `includes/` 函式庫、`admin/` 後台。
 - **時區**：`Asia/Hong_Kong`（PHP、MySQL、前端顯示）。
-- **目錄資料**：以 **MariaDB** 為主；`index.csv` 為舊版遺留，新內容勿依賴 CSV 作為唯一來源。
+- **目錄資料**：以 **MariaDB** 為權威；模擬 **HTML 以磁碟檔為 source of truth**，經 `scripts/sync_simulations_to_db.php` 同步；**勿**再使用 `index.csv`。
+- **前後端**：業務資料面為 **`/api/v1`**（見 `docs/openapi.yaml`）；後台正收斂為 API-only UI。
 
 ## 目錄約定
 
@@ -35,7 +36,7 @@
 
 詳見 `rule.md` 的命名、HTML、JS、CSS、無障礙章節。
 
-- **檔名**：小寫 `snake_case`；物理主線 `0X0Y_description.html`；選修加 `e` 前綴（如 `e02/e0201_….html`）。
+- **檔名**：小寫 `snake_case`；物理主線 `0X0Y_description.html`；選修加 `e` 前綴（如 `e02/e0201_….html`）。新模擬自 `templates/sim_skeleton.html` 起步；通過 `php scripts/check_sim_standards.php`（見 `docs/sim_standards.md`）。
 - **骨架**：`<!DOCTYPE html>`、`lang`（`zh-Hant` 或 `en`）、`charset=UTF-8`、`viewport`、有意義的 `<title>`；語意標籤 + Tailwind。
 - **依賴**：沿用鄰近模擬的 CDN 版本；勿無故升 major 或混用衝突的 Three/React。
 - **可運作性**：模擬應在無建置步驟下以靜態伺服器或雙擊即可運作（除非明確依賴 PHP）。
@@ -55,35 +56,29 @@
 
 ### 舊版 PHP 入口
 
-- `index.php`：302 → `app/`（CSV 驅動列表已 deprecated）。
-- `index_csv_editor.php`、`simulation_view.php`：legacy；新功能走 API + SPA。
+- `index.php`：302 → `app/`。
+- `simulation_view.php`、`index_csv_editor.php`：僅 302 轉址；新功能走 API + SPA。
+- `scripts/apply_schema.php`：既有庫增量升級；`scripts/sync_simulations_to_db.php`：磁碟 HTML → DB。
 
 ---
 
 ## REST API（`api/v1/`）
 
 - 回應格式沿用 `includes/api_response.php`。
-- 新增端點：在 `router.php` 註冊路由，邏輯放 `handlers/`，必要時擴充對應 `*_lib.php`。
+- 新增端點：在 `router.php` 註冊路由，邏輯放 `handlers/`，必要時擴充對應 `*_lib.php` 或 `src/`。
 - 公開讀取 vs 需登入 vs admin 權限，對齊既有 handler 的 `api_require_*` 模式。
+- 契約 stub：`docs/openapi.yaml`。
 
 ---
 
 ## SPA 前端（`app/`）
 
-- **無 bundler**：以 `<script>` 載入的 Vanilla JS 模組（`api.js`、`router.js`、`catalog.js` 等）。
-- 路由由 `router.js` 的 `register()` / hash 處理；新頁面需註冊 handler 並更新 `app/index.html` 載入順序（若需新檔）。
-- Markdown 渲染須經 **DOMPurify** 消毒；模擬以 sandboxed iframe 載入 `/api/v1/simulations/{slug}/html`。
-- 共用帳戶選單：`assets/js/user-menu.js` + `assets/css/user-menu.css`（SPA 與 admin 共用）。
-
----
-
-## index.csv（legacy）
-
-若仍編修 CSV，欄位順序須與 `index.php` 的 `parseCSV` 一致：
-
-`Category`, `Title`, `URL`, `Screenshot`, `Category_ZH`, `Category_EN`, `Title_ZH`, `Title_EN`, `Last_Updated`
-
-- **URL**：相對網站根目錄；**Last_Updated**：`YYYY-MM-DD`；雙語欄位應補齊。
+- **Vite + ESM**：來源 `app/src/`；建置 `cd app && npm run build` → `app/dist/`；`index.php` 優先服務 dist。
+- 開發：`cd app && npm run dev`（可 proxy API）。
+- 路由由 `AppRouter.PATH_MATCHERS` 宣告；新頁在 `src/modules/app.js` 註冊 handler。
+- Markdown 須經 **DOMPurify**；模擬 iframe 載入 `/api/v1/simulations/{slug}/html`。
+- 後台遷移中：SPA `/admin`、`/admin/subjects`；完整 CRUD 仍可開 `/admin/*.php`。
+- 共用帳戶選單：`assets/js/user-menu.js`（打包進 SPA）+ `assets/css/user-menu.css`。
 
 ---
 
@@ -92,3 +87,4 @@
 - 無障礙：鍵盤可操作、適當 `aria-*`、對比與 `alt`（見 `rule.md`）。
 - 效能：避免不必要的 CDN 重複載入；模擬內 animation 注意 mobile。
 - Git：遵循 repo 既有 commit 風格；僅在使用者明確要求時 commit / push。
+- 參考雜檔放 `docs/reference/`，勿堆在專案根目錄。

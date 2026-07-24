@@ -6,7 +6,63 @@
 
 ---
 
+## 2026-07-25
+
+### 一次升級 SQL
+- 新增 `schema_upgrade_all.sql`：合併 Phase 0–7 全部增量 `schema_*.sql`，可單檔匯入既有庫；並寫入 `schema_migrations`。
+
 ## 2026-07-24
+
+### 重構 Phase 7：learning_tools／quiz_* → question_bank
+- 凍結 LT 寫入（API 410）；後台 `learning_tools*` 轉址試題庫；選單只推題庫。
+- 遷移腳本＋`legacy_learning_tool_map`；課程 `content_type` 支援 `question_bank`。
+- 學習端 `/quiz/:slug` 改走題庫（相容舊 LT slug）；catalog 在 LT 空時回傳已發佈題庫。
+- 文件：`docs/phase7_question_bank_merge.md`；可選 `schema_drop_quiz_legacy.sql`。
+
+### 重構 Phase 6：模擬 HTML 標準化（首波）
+- 新增 `templates/sim_skeleton.html`、`docs/sim_standards.md`、`scripts/check_sim_standards.php`、`assets/sim-common/`。
+- 違規檔名改為 `snake_case`（含 `other/`、`science/electrolysis_of_water`、`0211_elevator`、`e0301_air_conditioner`）；截圖路徑對齊並更新 DB。
+- `0103_thermal_equilibrium.html` 改用 React **production** CDN；禁止 `*.development.js`。
+- `sync_simulations_to_db.php` 支援 `scripts/sim_path_aliases.php`；CI 跑 standards check。
+- 更新 `rule.md` 檔名／CDN 規則。
+
+### 重構 Phase 5：安全與 Workflow 硬化
+- 登入／註冊限流對齊 API 與 `login.php`／`register.php`（5／15 分鐘）。
+- 模擬 HTML CSP 收緊（`includes/simulation_security.php`）；SPA iframe sandbox 移除 `allow-same-origin`。
+- `admin/db_import.php`：非 local／staging 預設拒絕；需輸入片語 `DELETE ALL TABLES`；寫入 `admin_audit_log`。
+- 移除殭屍 `POST /auth/change-password`；新增 `POST /auth/dev-login`（僅 `APP_ENV=local`）。
+- 模仿模式 1 小時 TTL＋審計；模擬狀態 UI 標明「免審」（draft／published）。
+- 遷移：`schema_admin_audit_log.sql`；安全清單更新 `architecture.md`。
+
+### 重構 Phase 4：Portal 併入 Admin、科目頁轉 SPA
+- `portal/*.php` 全部改為 302 → 對應 `admin/*.php`（保留 query）；見 `portal/README.md`。
+- `admin/subjects.php` → SPA `/app/admin/subjects`；後台選單／帳戶選單改連 SPA／admin（不再指向 portal）。
+- 新增 `includes/spa_redirect.php`（`spa_app_path`／`portal_redirect_to_admin`）。
+
+### 重構 Phase 3：Vite SPA 建置 + 宣告式路由 + 後台／登入入口
+- `app/` 引入 Vite：`src/main.js` 打包模組；`npm run build` → `app/dist/`；`index.php` 優先服務 dist（並改寫 asset 路徑）。
+- 廢除 `document.write` 腳本串；來源為 `index.html` + ESM；未建置時退回 `index.legacy.html`。
+- `AppRouter` 改宣告式 `PATH_MATCHERS`；新增 SPA 路由 `/login`、`/admin`、`/admin/subjects`（打 `/admin/subjects` API）。
+- CI 增加 `spa-build` job。
+
+### 重構 Phase 2：表驅動 Router + 科目／單元 Admin API
+- `api/v1/build_router.php`：以 `ScienceSims\Http\Router` 註冊全部路由；`router.php` 僅負責 bootstrap／dispatch。
+- Catalog／subjects 處理器移至 `api/v1/handlers/catalog.php`。
+- 新增 `includes/subjects_lib.php` 與 Admin API：`/admin/subjects`、`/admin/topics/{id}`、reorder；`admin/subjects.php` 改呼叫同一 lib。
+- 缺口清單：`docs/api_gaps.md`；擴充 `docs/openapi.yaml`。
+
+### 重構 Phase 1：Legacy 入口與目錄規則清理
+- `simulation_view.php`、`index_csv_editor.php` 改為 **302 轉址**（分別至 API HTML／`admin/simulations.php`）。
+- 刪除已無引用的 `assets/js/admin-worksheet-embed.js`（改用 `admin-content-embed.js`）。
+- 根目錄參考檔（書摘、PDF、`index.csv.bak`、`pdf_viewer.html` 等）移至 **`docs/reference/`**。
+- 更新 `.cursorrules`、`.cursor/rules/*`：MariaDB + `/api/v1` + 磁碟 HTML SoT；移除以 CSV 為準的指引。
+
+### 重構 Phase 0／1 起步：Composer、測試、schema 遷移、全 API 方向
+- 新增 `composer.json`（PHPUnit、PSR-4 `ScienceSims\` → `src/`）、`phpunit.xml`、`.github/workflows/ci.yml`。
+- 抽出 `includes/summer_homework_grading.php`（純計分函式）並加單元測試；新增 `ScienceSims\Http\ApiPath`／`Router`、`ScienceSims\Schema\MigrationRunner`。
+- `scripts/apply_schema.php` + `schema_migrations` 表（`schema_migrations.sql`／`schema.sql`）；`scripts/sync_simulations_to_db.php`（磁碟 HTML → DB）。
+- Catalog／模擬 metadata 的 `html_url`／`view_url` 改指向 `/api/v1/simulations/{slug}/html`（不再用 `simulation_view.php`）。
+- 初版契約：`docs/openapi.yaml`。
 
 ### 暑期功課：儲存時重算既有呈交分數
 - 更新習作（含答案／及格線）後，依最新題目對所有 `summer_homework_attempts` 重新計分並更新 `score`／`percent`／`passed`／`grading_json`。

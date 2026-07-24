@@ -5,10 +5,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/user_names_lib.php';
 require_once __DIR__ . '/qsis_auth_lib.php';
+require_once __DIR__ . '/admin_audit_lib.php';
+
+/** Max seconds an impersonation session may last before auto-stop. */
+const AUTH_IMPERSONATION_TTL_SECONDS = 3600;
 
 function auth_session_start(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
+        auth_enforce_impersonation_ttl();
         return;
     }
 
@@ -26,6 +31,44 @@ function auth_session_start(): void
     ]);
 
     session_start();
+    auth_enforce_impersonation_ttl();
+}
+
+/**
+ * End impersonation when TTL exceeded (silent restore to admin).
+ */
+function auth_enforce_impersonation_ttl(): void
+{
+    static $busy = false;
+    if ($busy || session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    $imp = $_SESSION['impersonator'] ?? null;
+    if (!is_array($imp) || empty($imp['user_id'])) {
+        return;
+    }
+    $started = (int) ($imp['started_at'] ?? 0);
+    if ($started <= 0) {
+        // Legacy sessions without started_at: stamp now so TTL begins.
+        $_SESSION['impersonator']['started_at'] = time();
+        return;
+    }
+    if ((time() - $started) < AUTH_IMPERSONATION_TTL_SECONDS) {
+        return;
+    }
+
+    $busy = true;
+    try {
+        $pdo = db();
+        admin_audit_log($pdo, 'impersonation.timeout', (int) $imp['user_id'], [
+            'target_user_id' => (int) ($_SESSION['user_id'] ?? 0),
+        ]);
+        auth_stop_impersonation($pdo);
+    } catch (Throwable) {
+        unset($_SESSION['impersonator']);
+    } finally {
+        $busy = false;
+    }
 }
 
 function auth_refresh_permissions(int $userId): void
@@ -206,8 +249,14 @@ function auth_start_impersonation(PDO $pdo, int $targetUserId): array
         'name_zh' => $current['name_zh'],
         'name_en' => $current['name_en'],
         'display_name' => $current['display_name'],
+        'started_at' => time(),
     ];
     auth_apply_user_to_session($target);
+
+    admin_audit_log($pdo, 'impersonation.start', $actorId, [
+        'target_user_id' => $targetUserId,
+        'target_email' => (string) $target['email'],
+    ]);
 
     return ['ok' => true];
 }
@@ -223,17 +272,60 @@ function auth_stop_impersonation(PDO $pdo): array
         return ['ok' => false, 'error' => '目前並非模仿模式。'];
     }
 
+    $targetId = (int) ($_SESSION['user_id'] ?? 0);
+
     $stmt = $pdo->prepare('SELECT id, email, display_name, name_zh, name_en, is_active FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$imp['id']]);
     $admin = $stmt->fetch();
     if (!$admin || !(int) $admin['is_active']) {
         unset($_SESSION['impersonator']);
         logout_user();
+        admin_audit_log($pdo, 'impersonation.stop_failed', $imp['id'], [
+            'target_user_id' => $targetId,
+            'reason' => 'admin_inactive',
+        ]);
         return ['ok' => false, 'error' => '原管理員帳號已失效，已登出。'];
     }
 
     unset($_SESSION['impersonator']);
     auth_apply_user_to_session($admin);
+
+    admin_audit_log($pdo, 'impersonation.stop', $imp['id'], [
+        'target_user_id' => $targetId,
+    ]);
+
+    return ['ok' => true];
+}
+
+/**
+ * Passwordless login for local development only (APP_ENV=local).
+ *
+ * @return array{ok:bool,error?:string}
+ */
+function auth_dev_login_as(PDO $pdo, string $loginIdentity): array
+{
+    if (!config_is_local_env()) {
+        return ['ok' => false, 'error' => '僅本機環境（APP_ENV=local）可使用開發登入。'];
+    }
+
+    $identity = auth_normalize_login_identity($loginIdentity);
+    if ($identity === '') {
+        return ['ok' => false, 'error' => '請提供帳戶名稱。'];
+    }
+
+    $u = auth_find_local_user_by_login($pdo, $identity);
+    if ($u === null || !(int) $u['is_active']) {
+        return ['ok' => false, 'error' => '找不到啟用中的使用者。'];
+    }
+
+    auth_session_start();
+    session_regenerate_id(true);
+    unset($_SESSION['impersonator']);
+    auth_apply_user_to_session($u);
+
+    admin_audit_log($pdo, 'auth.dev_login', (int) $u['id'], [
+        'identity' => $identity,
+    ]);
 
     return ['ok' => true];
 }

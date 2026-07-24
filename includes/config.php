@@ -182,6 +182,53 @@ function config_qsis_student_email_domain(): string
 }
 
 /**
+ * Application environment: local | staging | production (default).
+ */
+function config_app_env(): string
+{
+    config_load_dotenv();
+    $raw = strtolower(trim((string) (getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? ''))));
+    if (in_array($raw, ['local', 'development', 'dev'], true)) {
+        return 'local';
+    }
+    if (in_array($raw, ['staging', 'stage'], true)) {
+        return 'staging';
+    }
+    if ($raw === 'production' || $raw === 'prod' || $raw === '') {
+        return 'production';
+    }
+
+    return $raw;
+}
+
+function config_is_local_env(): bool
+{
+    return config_app_env() === 'local';
+}
+
+/**
+ * Full DB wipe / SQL import is allowed only on local/staging, or when APP_ALLOW_DB_WIPE=1.
+ */
+function config_allows_db_wipe(): bool
+{
+    config_load_dotenv();
+    $override = strtolower(trim((string) (getenv('APP_ALLOW_DB_WIPE') ?: ($_ENV['APP_ALLOW_DB_WIPE'] ?? ''))));
+    if (in_array($override, ['1', 'true', 'yes'], true)) {
+        return true;
+    }
+
+    return in_array(config_app_env(), ['local', 'staging'], true);
+}
+
+/**
+ * Typed confirmation phrase required for destructive DB import.
+ */
+function config_db_wipe_confirm_phrase(): string
+{
+    return 'DELETE ALL TABLES';
+}
+
+/**
  * @return array<string, mixed>
  */
 function app_config(): array

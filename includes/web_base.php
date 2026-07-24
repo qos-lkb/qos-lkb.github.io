@@ -19,7 +19,7 @@ function web_base_path(): string
         return $base;
     }
 
-    // .../api/index.php → 上兩層；.../simulation_view.php → 上一層
+    // .../api/index.php → 上兩層；根目錄 PHP（如 login.php）→ 上一層
     if (str_contains($script, '/api/')) {
         $base = rtrim(dirname(dirname($script)), '/');
     } else {

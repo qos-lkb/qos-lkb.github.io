@@ -101,6 +101,7 @@ $tagsStr = is_array($tagSlugs) ? implode(', ', $tagSlugs) : '';
             <option value="draft" <?php echo $status === 'draft' ? 'selected' : ''; ?>>草稿</option>
             <option value="published" <?php echo $status === 'published' ? 'selected' : ''; ?>>已發佈</option>
         </select>
+        <p class="mt-1 text-xs text-slate-500">模擬為<strong>免審</strong>流程（僅草稿／已發佈；與筆記／文章等「待審核」不同）。</p>
     </div>
 
     <div>

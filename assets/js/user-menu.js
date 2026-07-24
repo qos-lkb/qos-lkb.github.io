@@ -395,11 +395,12 @@
                     ${t('偏好設定', 'Preferences')}
                 </button>
                 <div class="user-menu-divider"></div>
-                ${canPortal ? `<a href="${base}/portal/simulations.php" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
+                ${canPortal ? `<a href="${base}/admin/simulations.php" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
                 ${canClass ? `<a href="${base}/admin/courses.php" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
                 ${canWorksheet ? `<a href="${base}/admin/worksheets.php" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
                 ${canAssignWorksheet ? `<a href="${base}/admin/courses.php" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}
-                ${canAdmin ? `<a href="${base}/admin/index.php" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
+                ${canAdmin ? `<a href="${base}/app/admin" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
+                ${canAdmin ? `<a href="${base}/admin/index.php" class="user-menu-item" role="menuitem">${t('完整後台（PHP）', 'Full admin (PHP)')}</a>` : ''}
                 ${user.impersonating ? `<button type="button" class="user-menu-item user-menu-item-warn" data-action="stop-impersonation" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
                     ${t('結束模仿', 'Stop impersonating')}

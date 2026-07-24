@@ -10,6 +10,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- Drop existing tables (reverse alphabetical; safe for empty or rebuild DB)
 -- ---------------------------------------------------------------------------
 
+DROP TABLE IF EXISTS schema_migrations;
 DROP TABLE IF EXISTS spa_nav_visibility;
 DROP TABLE IF EXISTS summer_homework_attempts;
 DROP TABLE IF EXISTS summer_homework_short_answers;
@@ -29,6 +30,7 @@ DROP TABLE IF EXISTS learning_events;
 DROP TABLE IF EXISTS student_profiles;
 DROP TABLE IF EXISTS class_enrollments;
 DROP TABLE IF EXISTS classes;
+DROP TABLE IF EXISTS legacy_learning_tool_map;
 DROP TABLE IF EXISTS qb_question_media;
 DROP TABLE IF EXISTS qb_fill_blanks;
 DROP TABLE IF EXISTS qb_question_parts;
@@ -45,6 +47,7 @@ DROP TABLE IF EXISTS science_articles;
 DROP TABLE IF EXISTS quiz_options;
 DROP TABLE IF EXISTS quiz_questions;
 DROP TABLE IF EXISTS learning_tools;
+DROP TABLE IF EXISTS admin_audit_log;
 DROP TABLE IF EXISTS api_rate_limits;
 DROP TABLE IF EXISTS simulation_tags;
 DROP TABLE IF EXISTS simulations;
@@ -172,6 +175,17 @@ CREATE TABLE api_rate_limits (
     attempt_count INT UNSIGNED NOT NULL DEFAULT 1,
     window_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_api_rate_limits_key (rate_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE admin_audit_log (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id INT UNSIGNED NULL,
+    action VARCHAR(64) NOT NULL,
+    detail_json TEXT NULL,
+    ip VARCHAR(45) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_admin_audit_action_created (action, created_at),
+    KEY idx_admin_audit_actor_created (actor_user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
@@ -346,7 +360,7 @@ CREATE TABLE learning_videos (
 CREATE TABLE topic_learning_items (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     topic_id INT UNSIGNED NOT NULL,
-    content_type ENUM('note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video') NOT NULL,
+    content_type ENUM('note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video', 'question_bank') NOT NULL,
     content_id INT UNSIGNED NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -358,6 +372,16 @@ CREATE TABLE topic_learning_items (
 -- ---------------------------------------------------------------------------
 -- Question banks
 -- ---------------------------------------------------------------------------
+
+CREATE TABLE legacy_learning_tool_map (
+    old_tool_id INT UNSIGNED NOT NULL,
+    old_slug VARCHAR(190) NOT NULL,
+    bank_id INT UNSIGNED NOT NULL,
+    migrated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (old_tool_id),
+    UNIQUE KEY uq_legacy_lt_map_slug (old_slug),
+    KEY idx_legacy_lt_map_bank (bank_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE question_banks (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -740,6 +764,14 @@ CREATE TABLE spa_nav_visibility (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (item_key, audience),
     KEY idx_spa_nav_audience (audience)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Applied schema_*.sql upgrades (scripts/apply_schema.php)
+CREATE TABLE schema_migrations (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_schema_migrations_filename (filename)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

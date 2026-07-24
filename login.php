@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/api_rate_limit.php';
+require_once __DIR__ . '/includes/qsis_auth_lib.php';
 
 bootstrap_public();
 
@@ -18,9 +20,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $email = trim((string) ($_POST['email'] ?? ''));
         $pass = (string) ($_POST['password'] ?? '');
-        if (!attempt_login($email, $pass)) {
+        $identity = auth_normalize_login_identity($email);
+        $pdo = db();
+        $rate = api_auth_rate_limit_begin($pdo, 'login', $identity !== '' ? $identity : $email);
+        if (!$rate['ok']) {
+            $error = '登入嘗試過於頻繁，請稍後再試。';
+        } elseif (!attempt_login($email, $pass)) {
             $error = '登入失敗，請檢查帳戶名稱與密碼。';
         } else {
+            api_rate_limit_reset($pdo, $rate['key']);
             $next = $_GET['next'] ?? 'app/';
             if (!is_string($next) || str_contains($next, '://') || str_starts_with($next, '//')) {
                 $next = 'app/';

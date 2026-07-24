@@ -52,7 +52,7 @@ The same codebase may be deployed as:
 | `db.php` | PDO connection |
 | `auth.php`, `bootstrap.php` | Sessions, CSRF, impersonation, `bootstrap_public()` |
 | `simulations_lib.php`, `simulation_save.php` | Simulation CRUD |
-| `learning_tools_lib.php`, `articles_lib.php` | MCQ tools and science articles |
+| `learning_tools_lib.php`, `lt_qb_migrate_lib.php`, `articles_lib.php` | Legacy MCQ tools (frozen) + migrate helpers; science articles |
 | `learning_notes_lib.php`, `worksheets_lib.php` | Notes and worksheets |
 | `worksheet_blocks_lib.php` | Parse worksheet Markdown embed blocks |
 | `worksheet_assignments_lib.php`, `worksheet_permissions_lib.php` | Assignments, submissions, grading |
@@ -82,7 +82,7 @@ mysql -u USER -p DB_NAME < schema.sql
 - **Seed data**: roles (`admin`, `teacher`, `student`), all permissions, default role grants, system user (`system@science-sims.internal`).
 - **Admin account**: create via `admin/users.php` after import (no bundled default password).
 - **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via `admin/db_export.php`.
-- **Incremental upgrades** (idempotent / re-runnable where noted): apply the matching `schema_*.sql` on existing DBs instead of full re-import:
+- **Incremental upgrades**: prefer **`php scripts/apply_schema.php`** (records rows in `schema_migrations`). Manual: apply matching `schema_*.sql` on existing DBs. Check status with `php scripts/apply_schema.php --status`.
 
 | Script | Adds |
 |--------|------|
@@ -93,6 +93,12 @@ mysql -u USER -p DB_NAME < schema.sql
 | `schema_classes_form_subject.sql` | `form_level`, `course_subject` on `classes` |
 | `schema_spa_nav_visibility.sql` | SPA top-nav visibility matrix |
 | `schema_users_login_id.sql` | Strip `@qos.edu.hk` from `users.email` → match QSIS username |
+| `schema_users_drop_password.sql` | Drop local `users.password_hash` |
+| `schema_migrations.sql` | `schema_migrations` tracking table |
+
+### Full API direction
+
+Learner SPA and admin UI are converging on **`/api/v1` only** (session + CSRF). Contract stub: [`docs/openapi.yaml`](docs/openapi.yaml). Gap list: [`docs/api_gaps.md`](docs/api_gaps.md). Routes registered in [`api/v1/build_router.php`](api/v1/build_router.php). Simulation HTML on disk can be synced with `php scripts/sync_simulations_to_db.php` (path→slug aliases in `scripts/sim_path_aliases.php`). New sims: [`templates/sim_skeleton.html`](templates/sim_skeleton.html) + checklist [`docs/sim_standards.md`](docs/sim_standards.md); lint with `php scripts/check_sim_standards.php`.
 
 ### Tables (summary)
 
@@ -100,7 +106,7 @@ mysql -u USER -p DB_NAME < schema.sql
 |-------|--------|
 | Auth | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `api_rate_limits` |
 | Catalogue | `subjects`, `topics`, `simulations`, `tags`, `simulation_tags` |
-| Content | `learning_tools`, `quiz_*`, `science_articles`, `article_*`, `learning_notes`, `worksheets`, `learning_videos`, `topic_learning_items` |
+| Content | `question_banks`, `qb_*`, `science_articles`, `article_*`, `learning_notes`, `worksheets`, `learning_videos`, `topic_learning_items`（`learning_tools`／`quiz_*` 已凍結，見 Phase 7） |
 | Question banks | `question_banks`, `qb_questions`, `qb_mcq_options`, `qb_question_parts`, `qb_fill_blanks`, `qb_question_media` |
 | Classes & SDL | `classes` (incl. `form_level`, `course_subject`), `class_enrollments` (MOI), `student_profiles`, `learning_events`, `learning_attempts`, `learning_responses`, `topic_mastery`, `learning_goals`, `content_bookmarks` |
 | Assignments | `worksheet_assignments`, `worksheet_assignment_students`, `worksheet_submissions` |
@@ -122,7 +128,7 @@ Handlers live under [`api/v1/handlers/`](api/v1/handlers/); routing in [`api/v1/
 | GET | `/catalog` | Simulations tree + published learning content |
 | GET | `/courses`, `/courses/{subject}` | Self-study course structure |
 | GET | `/simulations/{slug}`, `/simulations/{slug}/html` | Simulation metadata / iframe HTML |
-| GET | `/learning-tools/{slug}`, `/articles/{slug}` | Interactive quiz / article |
+| GET | `/learning-tools/{slug}`, `/question-banks/{slug}`, `/articles/{slug}` | Quiz（相容 LT）／試題庫／文章 |
 | GET | `/learning-notes/{slug}`, `/worksheets/{slug}` | Notes / worksheets |
 | GET | `/learning-videos/{slug}` | Embedded video metadata |
 | GET | `/question-banks/{slug}` | Question bank (student view) |
@@ -138,7 +144,8 @@ Answer keys for quizzes: `GET …/{slug}/answers` on learning-tools, articles, q
 | POST | `/auth/login`, `/auth/logout` | Session login / logout |
 | POST | `/auth/register` | Student self-registration (invite code) |
 | POST | `/auth/student-profile` | Update student profile |
-| POST | `/auth/profile`, `/auth/change-password` | Account settings |
+| POST | `/auth/profile` | Account settings |
+| POST | `/auth/dev-login` | Local-only passwordless login (`APP_ENV=local`) |
 | POST | `/auth/stop-impersonation` | End admin impersonation session |
 
 ### Student SDL (`/learning/*`)
@@ -195,7 +202,8 @@ Handler: `api/v1/handlers/summer_homework.php`. Business logic: `includes/summer
 | Method | Path | Description |
 |--------|------|-------------|
 | GET/POST/DELETE | `/admin/simulations` | Simulation CRUD |
-| GET/POST/DELETE | `/admin/learning-tools` | Learning tool CRUD |
+| GET/POST/DELETE | `/admin/question-banks` | Question bank CRUD（canonical） |
+| GET/POST/DELETE | `/admin/learning-tools` | **Frozen** — writes return 410（Phase 7） |
 | GET/POST/DELETE | `/admin/articles` | Article CRUD |
 | GET/POST/DELETE | `/admin/learning-notes` | Learning note CRUD |
 | GET/POST/DELETE | `/admin/worksheets` | Worksheet CRUD |
@@ -240,7 +248,7 @@ Vanilla JS modules (no bundler):
 | 工作紙 | `/worksheets`, `/worksheet/{slug}` |
 | 模擬程式 | `/simulations`, `/simulation/{slug}` (preview before modal) |
 | 科學文章 | `/articles`, `/article/{slug}` |
-| 互動學習工具 | `/learning-tools`, `/quiz/{slug}` |
+| 試題庫測驗 | `/learning-tools`, `/quiz/{slug}`（資料來自 question banks） |
 | SDL 儀表板 | `/dashboard` |
 | 工作紙作業 | `/assignments`, `/worksheet/{slug}?assignment={id}` |
 
@@ -250,13 +258,14 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 
 ## Data & admin (current model)
 
-- **Catalogue data** comes from **MariaDB**, not `index.csv` (legacy CSV deprecated).
+- **Catalogue data** comes from **MariaDB** (`/api/v1/catalog`). Disk HTML is source of truth; sync with `scripts/sync_simulations_to_db.php`. `index.csv` is retired (`docs/reference/index.csv.bak`).
 - **Content types** (each with `draft` → `pending_review` → `published` workflow):
 
 | Tables | Purpose |
 |--------|---------|
 | `simulations`, `subjects`, `topics` | Simulation catalogue |
-| `learning_tools`, `quiz_*` | Four-option MCQ sets |
+| `question_banks`, `qb_*` | Canonical multi-type question banks |
+| `learning_tools`, `quiz_*` | **Legacy** four-option MCQ（frozen; migrate then DROP） |
 | `science_articles`, `article_*` | Markdown articles + comprehension |
 | `learning_notes` | Bilingual notes (Markdown) |
 | `worksheets` | Worksheet content (Markdown + embed blocks) |
@@ -282,15 +291,15 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 |------|-------|
 | Users & roles | `users.php`, `user_edit.php`, `permissions.php`, `impersonate.php` |
 | Catalogue | `subjects.php`, `simulations.php`, `simulation_edit.php` |
-| Learning content | `learning_notes.php`, `worksheets.php`, `worksheet_edit.php`, `articles.php`, `learning_tools.php`, `learning_videos.php`, `question_banks.php` |
+| Learning content | `learning_notes.php`, `worksheets.php`, `worksheet_edit.php`, `articles.php`, `question_banks.php`（`learning_tools.php` → 302） |
 | Summer homework | `summer_homework.php`, `summer_homework_edit.php`, `summer_homework_view.php`, `summer_homework_analytics.php` |
 | Curriculum | `course_curriculum.php` |
 | Classes / courses | `courses.php`, `course_edit.php`, `course_students.php`, `course_reports.php`, `course_worksheets.php`, `course_summer_homework.php`, `classes.php`, `class_edit.php`, `class_reports.php`, `qsis_import.php` |
 | Platform | `nav_menu.php` (SPA top-nav visibility) |
 | Ops | `review_queue.php`, `db_export.php`, `db_import.php` |
 
-- **`portal/`** — Contributor entry for owned content.
-- **`assets/js/`** — `admin-api.js`, `admin-question-bank.js`, `admin-worksheet-embed.js`, `admin-content-embed.js`, `user-menu.js`.
+- **`portal/`** — Deprecated; PHP files 302 to `admin/` (contributor permissions unchanged on admin pages).
+- **`assets/js/`** — `admin-api.js`, `admin-question-bank.js`, `admin-content-embed.js`, `user-menu.js`.
 - **`assets/css/user-menu.css`** — Shared account dropdown (SPA + admin).
 
 ---
@@ -299,21 +308,31 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 
 ```
 science_sims/
-├── app/                   # SPA frontend (main user UI)
+├── app/                   # SPA frontend (Vite; build → app/dist/)
+│   ├── src/main.js        # ESM entry
+│   ├── src/modules/       # Converted app modules
+│   ├── index.php          # Prefers dist/, else index.legacy.html
+│   └── package.json
 ├── api/v1/                # REST router + handlers
 ├── assets/js/, assets/css/
 ├── codespace/             # HTML/CSS/JS live editor
 ├── index.php              # Legacy redirect → app/
 ├── index.html             # Optional redirect shell
-├── default_redirect_url.php
+├── default_redirect_url.php # Optional index.html redirect helper
 ├── login.php, logout.php, register.php
-├── simulation_view.php    # Deprecated; prefer API html endpoint
+├── simulation_view.php      # 302 → /api/v1/simulations/{slug}/html
 ├── markdown_reader.php    # Whitelist + admin for sensitive .md
-├── index_csv_editor.php   # Legacy redirect to admin
+├── index_csv_editor.php     # 302 → admin/simulations.php
+├── docs/openapi.yaml        # API contract stub
+├── docs/reference/          # Non-runtime teaching/legacy files
+├── scripts/apply_schema.php
+├── scripts/sync_simulations_to_db.php
+├── src/                     # PSR-4 ScienceSims\
+├── tests/                   # PHPUnit
 │
 ├── includes/              # PHP config, DB, auth, content libs
-├── admin/                 # Back office
-├── portal/                # Contributor portal
+├── admin/                 # Back office (moving toward API-only UI)
+├── portal/                # Deprecated redirects → admin/
 ├── schema.sql             # Full database schema (canonical)
 ├── schema_*.sql           # Incremental upgrades for existing DBs
 │
@@ -389,7 +408,13 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - **`.env`** must not be web-readable; root `.htaccess` denies dotfiles.
 - Admin/API mutating requests use **CSRF** (`X-CSRF-Token` or JSON `csrf`).
 - **`logout.php`**: POST only (GET shows confirmation form).
-- **Login rate limit**: 5 attempts / 15 min per IP+email (`api_rate_limits` table).
+- **Login / register rate limit**: 5 attempts / 15 min per IP+identity (`api_rate_limits`); applies to API and `login.php` / `register.php`.
+- **`POST /auth/dev-login`**: passwordless login only when `APP_ENV=local`; audited.
+- **Passwords**: verified against QSIS only; no self-service change-password API (removed).
+- **Impersonation**: admin-only; 1-hour TTL auto-stop; start/stop/timeout written to `admin_audit_log`.
+- **DB wipe import** (`admin/db_import.php`): blocked unless `APP_ENV` is `local`/`staging` or `APP_ALLOW_DB_WIPE=1`; requires checkbox + typed phrase `DELETE ALL TABLES`; audited.
+- **Simulation HTML**: CSP via `simulation_html_csp()` (HTTPS CDNs allowed; `frame-ancestors 'self'`); SPA iframe sandbox **omits** `allow-same-origin` (opaque origin; modal screenshot may fall back).
+- **Simulation workflow**: draft ↔ published only (**免審**); other content types use `pending_review`.
 - **`DEFAULT_REDIRECT_URL`**: validated via `REDIRECT_URL_WHITELIST` / HTTPS check.
 - **`markdown_reader.php`**: public whitelist only; other files require `user.manage`.
 - **Markdown / HTML content**: client-side sanitization (DOMPurify).
@@ -415,6 +440,8 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 | Variable | Role |
 |----------|------|
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, … | Database |
+| `APP_ENV` | `local` / `staging` / `production` (default); gates dev-login & DB wipe |
+| `APP_ALLOW_DB_WIPE` | Emergency override to allow production DB import wipe |
 | `DEFAULT_REDIRECT_URL` | Optional validated redirect for `index.html` |
 | `REDIRECT_URL_WHITELIST` | Comma-separated allowed redirect hosts |
 | `CORS_ALLOWED_ORIGINS` | Optional cross-origin API access |
@@ -426,7 +453,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 - Follow **`rule.md`** for naming, HTML skeleton, PHP/SPA conventions, and worksheet embed syntax.
 - New simulations: add HTML under the correct subject folder; register via **admin / DB workflow**.
-- Learning content: use **admin/** or **portal/** editors (REST API backend).
+- Learning content: use **admin/** editors (portal redirects here); SPA reads published items via **`/api/v1/`**. Subjects: SPA `/app/admin/subjects`.
 - Schema changes: edit **`schema.sql`** and document in **`change_log.md`**; for existing DBs prefer an additive **`schema_*.sql`** upgrade script.
 - Document significant changes in **`change_log.md`**; summer-homework module notes in **`README.md`**.
 - Prefer **small, focused diffs**; match existing style in each directory.

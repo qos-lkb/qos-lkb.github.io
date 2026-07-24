@@ -191,6 +191,7 @@ function la_resolve_content_item(PDO $pdo, string $contentType, string $contentI
         'worksheet' => ['worksheets', 'worksheet'],
         'article' => ['science_articles', 'article'],
         'learning_tool' => ['learning_tools', 'quiz'],
+        'question_bank' => ['question_banks', 'quiz'],
         'video' => ['learning_videos', 'video'],
         'simulation' => ['simulations', 'simulation'],
     ];

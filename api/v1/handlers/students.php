@@ -9,6 +9,9 @@ require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
 
 function api_handle_auth_register(PDO $pdo): void
 {
+    require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
+    require_once dirname(__DIR__, 3) . '/includes/qsis_auth_lib.php';
+
     $body = api_read_json_body();
     $email = trim((string) ($body['email'] ?? ''));
     $password = (string) ($body['password'] ?? '');
@@ -17,10 +20,18 @@ function api_handle_auth_register(PDO $pdo): void
     $nameEn = trim((string) ($body['name_en'] ?? ''));
     $inviteCode = trim((string) ($body['invite_code'] ?? ''));
 
+    $identity = auth_normalize_login_identity($email);
+    $rate = api_auth_rate_limit_begin($pdo, 'register', $identity !== '' ? $identity : $email);
+    if (!$rate['ok']) {
+        api_json_error('rate_limited', '註冊嘗試過於頻繁，請稍後再試。', 429);
+    }
+
     $r = classes_register_student($pdo, $email, $password, $nameZh, $nameEn, $inviteCode);
     if (!$r['ok']) {
         api_json_error('validation_error', $r['error'] ?? '註冊失敗。', 422);
     }
+
+    api_rate_limit_reset($pdo, $rate['key']);
 
     if (!attempt_login($email, $password)) {
         api_json_error('server_error', '帳戶已建立但自動登入失敗，請手動登入。', 500);

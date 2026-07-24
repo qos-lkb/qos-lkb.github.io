@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/includes/api_response.php';
 require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_save.php';
-
+require_once dirname(__DIR__, 3) . '/includes/simulation_security.php';
 require_once dirname(__DIR__, 3) . '/includes/web_base.php';
 
 function api_handle_simulation_get(PDO $pdo, string $slug): void
@@ -28,7 +28,7 @@ function api_handle_simulation_get(PDO $pdo, string $slug): void
         'subject_id' => $sim['subject_id'] !== null ? (int) $sim['subject_id'] : null,
         'topic_id' => $sim['topic_id'] !== null ? (int) $sim['topic_id'] : null,
         'status' => $sim['status'],
-        'html_url' => web_base_path() . '/simulation_view.php?slug=' . rawurlencode($slug),
+        'html_url' => web_base_path() . '/api/v1/simulations/' . rawurlencode($slug) . '/html',
         'tags' => sim_get_tag_slugs($pdo, (int) $sim['id']),
     ]);
 }
@@ -52,12 +52,7 @@ function api_handle_simulation_html(PDO $pdo, string $slug): void
 
     header('Content-Type: text/html; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
-    header(
-        'Content-Security-Policy: default-src * data: blob:; ' .
-        "script-src * 'unsafe-inline' 'unsafe-eval'; " .
-        "style-src * 'unsafe-inline'; " .
-        'img-src * data: blob:; font-src * data:; connect-src *; frame-ancestors \'self\';'
-    );
+    header('Content-Security-Policy: ' . simulation_html_csp());
 
     $html = (string) $sim['html'];
     $baseHref = web_base_path();

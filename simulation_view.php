@@ -2,69 +2,23 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/includes/bootstrap.php';
-require_once __DIR__ . '/includes/simulations_lib.php';
-require_once __DIR__ . '/includes/web_base.php';
+/**
+ * @deprecated Use GET /api/v1/simulations/{slug}/html
+ * Thin redirect kept for old bookmarks and external links.
+ */
 
-bootstrap_public();
+require_once __DIR__ . '/includes/web_base.php';
 
 $slug = isset($_GET['slug']) ? trim((string) $_GET['slug']) : '';
 if ($slug === '') {
     http_response_code(400);
+    header('Content-Type: text/plain; charset=utf-8');
     exit('Bad request');
 }
 
-try {
-    $pdo = db();
-} catch (Throwable $e) {
-    http_response_code(503);
-    exit('Service unavailable');
-}
+$base = web_base_path();
+$target = ($base !== '' ? $base : '') . '/api/v1/simulations/' . rawurlencode($slug) . '/html';
 
-$sim = sim_get_by_slug($pdo, $slug);
-if (!$sim) {
-    http_response_code(404);
-    exit('Not found');
-}
-
-$allowed = false;
-if ($sim['status'] === 'published') {
-    $allowed = true;
-} else {
-    $u = current_user();
-    if ($u !== null) {
-        if (user_has_permission('simulation.manage_any')) {
-            $allowed = true;
-        } elseif ($sim['owner_user_id'] !== null && (int) $sim['owner_user_id'] === $u['id']) {
-            $allowed = true;
-        }
-    }
-}
-
-if (!$allowed) {
-    http_response_code(403);
-    exit('Forbidden');
-}
-
-header('Content-Type: text/html; charset=utf-8');
-header('X-Content-Type-Options: nosniff');
-header('X-Deprecated-Endpoint: simulation_view.php — prefer /api/v1/simulations/{slug}/html via app/');
-header(
-    'Content-Security-Policy: default-src * data: blob:; ' .
-    "script-src * 'unsafe-inline' 'unsafe-eval'; " .
-    "style-src * 'unsafe-inline'; " .
-    'img-src * data: blob:; font-src * data:; connect-src *; frame-ancestors \'self\';'
-);
-
-$html = (string) $sim['html'];
-$baseHref = web_base_path();
-if ($baseHref !== '') {
-    $baseTag = '<base href="' . htmlspecialchars($baseHref . '/', ENT_QUOTES, 'UTF-8') . '">';
-    if (stripos($html, '<head>') !== false) {
-        $html = preg_replace('/<head>/i', '<head>' . $baseTag, $html, 1) ?? ($baseTag . $html);
-    } else {
-        $html = $baseTag . $html;
-    }
-}
-
-echo $html;
+header('X-Deprecated-Endpoint: simulation_view.php');
+header('Location: ' . $target, true, 302);
+exit;

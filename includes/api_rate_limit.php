@@ -48,3 +48,18 @@ function api_client_ip(): string
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     return is_string($ip) ? $ip : '0.0.0.0';
 }
+
+/**
+ * Shared login/register limits: 5 attempts / 15 minutes per IP+identity.
+ *
+ * @return array{ok:bool,key:string}
+ */
+function api_auth_rate_limit_begin(PDO $pdo, string $action, string $identity): array
+{
+    $identity = strtolower(trim($identity));
+    $key = api_rate_limit_key($action, api_client_ip() . '|' . ($identity !== '' ? $identity : '_'));
+    $ok = api_rate_limit_check($pdo, $key, 5, 900);
+
+    return ['ok' => $ok, 'key' => $key];
+}
+

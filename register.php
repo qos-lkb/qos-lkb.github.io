@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/api_rate_limit.php';
+require_once __DIR__ . '/includes/qsis_auth_lib.php';
+require_once __DIR__ . '/includes/classes_lib.php';
 
 bootstrap_public();
 
@@ -18,22 +21,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = '工作階段逾期，請重試。';
     } else {
         $pdo = db();
-        require_once __DIR__ . '/includes/classes_lib.php';
-        $r = classes_register_student(
-            $pdo,
-            trim((string) ($_POST['email'] ?? '')),
-            (string) ($_POST['password'] ?? ''),
-            trim((string) ($_POST['name_zh'] ?? '')),
-            trim((string) ($_POST['name_en'] ?? '')),
-            trim((string) ($_POST['invite_code'] ?? ''))
-        );
-        if (!$r['ok']) {
-            $error = $r['error'] ?? '註冊失敗。';
-        } elseif (attempt_login(trim((string) $_POST['email']), (string) $_POST['password'])) {
-            header('Location: app/');
-            exit;
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $identity = auth_normalize_login_identity($email);
+        $rate = api_auth_rate_limit_begin($pdo, 'register', $identity !== '' ? $identity : $email);
+        if (!$rate['ok']) {
+            $error = '註冊嘗試過於頻繁，請稍後再試。';
         } else {
-            $success = '帳戶已建立，請登入。';
+            $r = classes_register_student(
+                $pdo,
+                $email,
+                (string) ($_POST['password'] ?? ''),
+                trim((string) ($_POST['name_zh'] ?? '')),
+                trim((string) ($_POST['name_en'] ?? '')),
+                trim((string) ($_POST['invite_code'] ?? ''))
+            );
+            if (!$r['ok']) {
+                $error = $r['error'] ?? '註冊失敗。';
+            } else {
+                api_rate_limit_reset($pdo, $rate['key']);
+                if (attempt_login($email, (string) $_POST['password'])) {
+                    header('Location: app/');
+                    exit;
+                }
+                $success = '帳戶已建立，請登入。';
+            }
         }
     }
 }

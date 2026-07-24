@@ -201,6 +201,20 @@ function lt_resolve_status(string $requested, bool $canPublishAny): string
  */
 function lt_save_from_payload(PDO $pdo, array $user, array $payload, bool $canPublishAny, bool $isAdmin): array
 {
+    unset($pdo, $user, $payload, $canPublishAny, $isAdmin);
+
+    return [
+        'ok' => false,
+        'error' => '互動學習工具已凍結（Phase 7）。請改用「試題庫」管理題目（admin/question_banks.php）。若需遷移既有資料，執行 php scripts/migrate_learning_tools_to_question_banks.php',
+    ];
+}
+
+/**
+ * @deprecated Phase 7 — kept for migrate / delete cleanup only.
+ * @return array{ok:bool,error?:string,id?:int}
+ */
+function lt_save_from_payload_legacy_unlocked(PDO $pdo, array $user, array $payload, bool $canPublishAny, bool $isAdmin): array
+{
     $id = isset($payload['id']) ? (int) $payload['id'] : 0;
     $titleZh = trim((string) ($payload['title_zh'] ?? ''));
     $titleEn = trim((string) ($payload['title_en'] ?? ''));

@@ -15,8 +15,40 @@ require_once dirname(__DIR__, 2) . '/includes/learning_videos_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/topic_items_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/question_bank_lib.php';
 
+$__science_sims_autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+if (is_readable($__science_sims_autoload)) {
+    require_once $__science_sims_autoload;
+}
+
+require_once __DIR__ . '/handlers/auth.php';
+require_once __DIR__ . '/handlers/simulations.php';
+require_once __DIR__ . '/handlers/learning_tools.php';
+require_once __DIR__ . '/handlers/articles.php';
+require_once __DIR__ . '/handlers/learning_notes.php';
+require_once __DIR__ . '/handlers/worksheets.php';
+require_once __DIR__ . '/handlers/courses.php';
+require_once __DIR__ . '/handlers/learning_videos.php';
+require_once __DIR__ . '/handlers/topic_items.php';
+require_once __DIR__ . '/handlers/review.php';
+require_once __DIR__ . '/handlers/question_bank.php';
+require_once __DIR__ . '/handlers/students.php';
+require_once __DIR__ . '/handlers/teacher.php';
+require_once __DIR__ . '/handlers/worksheet_assignments.php';
+require_once __DIR__ . '/handlers/learning.php';
+require_once __DIR__ . '/handlers/summer_homework.php';
+require_once __DIR__ . '/handlers/nav_menu.php';
+require_once __DIR__ . '/handlers/catalog.php';
+require_once __DIR__ . '/build_router.php';
+
 function api_v1_path(): string
 {
+    if (class_exists(\ScienceSims\Http\ApiPath::class)) {
+        return \ScienceSims\Http\ApiPath::fromRequestUri(
+            (string) ($_SERVER['REQUEST_URI'] ?? '/'),
+            (string) ($_SERVER['SCRIPT_NAME'] ?? '')
+        );
+    }
+
     $uri = $_SERVER['REQUEST_URI'] ?? '/';
     $path = parse_url($uri, PHP_URL_PATH);
     if (!is_string($path)) {
@@ -41,7 +73,6 @@ function api_v1_dispatch(): void
 {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     $path = api_v1_path();
-    $routeKey = $method . ' ' . $path;
 
     try {
         $pdo = db();
@@ -49,514 +80,10 @@ function api_v1_dispatch(): void
         api_json_error('db_unavailable', '無法連線資料庫。', 503);
     }
 
-    $routes = [
-        'GET /catalog' => 'api_handle_catalog',
-        'GET /courses' => 'api_handle_courses_list',
-        'GET /learning-tools' => 'api_handle_learning_tools_list_public',
-        'GET /learning-tools/pending' => 'api_handle_learning_tools_pending',
-        'GET /articles' => 'api_handle_articles_list_public',
-        'GET /articles/pending' => 'api_handle_articles_pending',
-        'GET /learning-notes' => 'api_handle_learning_notes_list_public',
-        'GET /learning-notes/pending' => 'api_handle_learning_notes_pending',
-        'GET /worksheets' => 'api_handle_worksheets_list_public',
-        'GET /worksheets/pending' => 'api_handle_worksheets_pending',
-        'GET /learning-videos' => 'api_handle_learning_videos_list_public',
-        'GET /learning-videos/pending' => 'api_handle_learning_videos_pending',
-        'GET /question-banks' => 'api_handle_question_banks_list_public',
-        'GET /summer-homework' => 'api_handle_summer_homework_list',
-        'GET /review-queue' => 'api_handle_review_queue',
-        'POST /auth/login' => 'api_handle_auth_login',
-        'POST /auth/register' => 'api_handle_auth_register',
-        'POST /auth/logout' => 'api_handle_auth_logout',
-        'POST /auth/stop-impersonation' => 'api_handle_auth_stop_impersonation',
-        'GET /auth/me' => 'api_handle_auth_me',
-        'GET /subjects' => 'api_handle_subjects',
-        'GET /nav-menu' => 'api_handle_nav_menu',
-    ];
-
-    $key = $routeKey;
-    if (isset($routes[$key])) {
-        $routes[$key]($pdo);
-        return;
-    }
-
-    if (preg_match('#^GET /simulations/([^/]+)$#', $routeKey, $m)) {
-        api_handle_simulation_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /simulations/([^/]+)/html$#', $routeKey, $m)) {
-        api_handle_simulation_html($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /learning-tools/([^/]+)$#', $routeKey, $m)) {
-        api_handle_learning_tool_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /learning-tools/([^/]+)/answers$#', $routeKey, $m)) {
-        api_handle_learning_tool_answers($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /articles/([^/]+)$#', $routeKey, $m)) {
-        api_handle_article_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /articles/([^/]+)/answers$#', $routeKey, $m)) {
-        api_handle_article_answers($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /learning-notes/([^/]+)$#', $routeKey, $m)) {
-        api_handle_learning_note_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /worksheets/([^/]+)$#', $routeKey, $m)) {
-        api_handle_worksheet_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /learning-videos/([^/]+)$#', $routeKey, $m)) {
-        api_handle_learning_video_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /question-banks/([^/]+)$#', $routeKey, $m)) {
-        api_handle_question_bank_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /question-banks/([^/]+)/answers$#', $routeKey, $m)) {
-        api_handle_question_bank_answers($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /summer-homework/([^/]+)$#', $routeKey, $m)) {
-        api_handle_summer_homework_get($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^POST /summer-homework/([^/]+)/submit$#', $routeKey, $m)) {
-        api_handle_summer_homework_submit($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /admin/summer-homework/(\d+)$#', $routeKey, $m)) {
-        api_handle_admin_summer_homework_get($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /admin/summer-homework/attempts/(\d+)/marks$#', $routeKey, $m)) {
-        api_handle_admin_summer_homework_mark_attempt($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^GET /admin/question-banks/(\d+)$#', $routeKey, $m)) {
-        api_handle_admin_question_bank_get($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /admin/question-banks/(\d+)/media$#', $routeKey, $m)) {
-        api_handle_admin_question_bank_media_upload($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^DELETE /admin/question-banks/(\d+)/media/(\d+)$#', $routeKey, $m)) {
-        api_handle_admin_question_bank_media_delete($pdo, (int) $m[1], (int) $m[2]);
-        return;
-    }
-    if (preg_match('#^GET /courses/([^/]+)$#', $routeKey, $m)) {
-        api_handle_courses_subject($pdo, rawurldecode($m[1]));
-        return;
-    }
-    if (preg_match('#^GET /admin/topic-items/(\d+)$#', $routeKey, $m)) {
-        api_handle_topic_items_list($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^GET /admin/topic-items/(\d+)/available/([^/]+)$#', $routeKey, $m)) {
-        api_handle_topic_items_available($pdo, (int) $m[1], rawurldecode($m[2]));
-        return;
-    }
-
-    if ($path === '/admin/simulations') {
-        api_handle_admin_simulations($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/learning-tools') {
-        api_handle_admin_learning_tools($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/articles') {
-        api_handle_admin_articles($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/learning-notes') {
-        api_handle_admin_learning_notes($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/worksheets') {
-        api_handle_admin_worksheets($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/learning-videos') {
-        api_handle_admin_learning_videos($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/question-banks') {
-        api_handle_admin_question_banks($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/summer-homework') {
-        api_handle_admin_summer_homework($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/nav-menu') {
-        api_handle_admin_nav_menu($pdo, $method);
-        return;
-    }
-    if ($path === '/auth/profile') {
-        if ($method === 'POST') {
-            api_handle_auth_update_profile($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/auth/change-password') {
-        if ($method === 'POST') {
-            api_handle_auth_change_password($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/auth/student-profile') {
-        if ($method === 'POST') {
-            api_handle_student_profile_update($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/events') {
-        if ($method === 'POST') {
-            api_handle_learning_events($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/events/summary') {
-        if ($method === 'GET') {
-            api_handle_learning_events_summary($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/attempts') {
-        if ($method === 'POST') {
-            api_handle_learning_attempts_post($pdo);
-        } elseif ($method === 'GET') {
-            api_handle_learning_attempts_list($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/mastery') {
-        if ($method === 'GET') {
-            api_handle_learning_mastery($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/progress') {
-        if ($method === 'GET') {
-            api_handle_learning_progress($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/dashboard') {
-        if ($method === 'GET') {
-            api_handle_learning_dashboard($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/goals') {
-        if ($method === 'POST') {
-            api_handle_learning_goals_post($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/recommendations') {
-        if ($method === 'GET') {
-            api_handle_learning_recommendations($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/learning/adaptive-quiz') {
-        if ($method === 'GET') {
-            api_handle_learning_adaptive_quiz($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/teacher/classes') {
-        if ($method === 'GET') {
-            api_handle_teacher_classes_list($pdo);
-        } elseif ($method === 'POST') {
-            api_handle_teacher_class_create($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if ($path === '/admin/classes') {
-        api_handle_admin_classes($pdo, $method);
-        return;
-    }
-    if ($path === '/admin/topic-items') {
-        api_handle_admin_topic_items($pdo, $method);
-        return;
-    }
-    if (preg_match('#^POST /review/learning-tools/(\d+)/publish$#', $routeKey, $m)) {
-        api_handle_review_lt_publish($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/learning-tools/(\d+)/reject$#', $routeKey, $m)) {
-        api_handle_review_lt_reject($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/articles/(\d+)/publish$#', $routeKey, $m)) {
-        api_handle_review_art_publish($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/articles/(\d+)/reject$#', $routeKey, $m)) {
-        api_handle_review_art_reject($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/learning-notes/(\d+)/publish$#', $routeKey, $m)) {
-        api_handle_review_ln_publish($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/learning-notes/(\d+)/reject$#', $routeKey, $m)) {
-        api_handle_review_ln_reject($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/worksheets/(\d+)/publish$#', $routeKey, $m)) {
-        api_handle_review_ws_publish($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/worksheets/(\d+)/reject$#', $routeKey, $m)) {
-        api_handle_review_ws_reject($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/learning-videos/(\d+)/publish$#', $routeKey, $m)) {
-        api_handle_review_lv_publish($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /review/learning-videos/(\d+)/reject$#', $routeKey, $m)) {
-        api_handle_review_lv_reject($pdo, (int) $m[1]);
-        return;
-    }
-
-    if (preg_match('#^POST /teacher/classes/(\d+)/enroll$#', $routeKey, $m)) {
-        api_handle_teacher_class_enroll($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /teacher/classes/(\d+)/invite$#', $routeKey, $m)) {
-        api_handle_teacher_class_invite($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^GET /teacher/classes/(\d+)/report$#', $routeKey, $m)) {
-        api_handle_teacher_class_report($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^GET /teacher/classes/(\d+)/report\.csv$#', $routeKey, $m)) {
-        api_teacher_class_report_csv($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^GET /teacher/classes/(\d+)/students/(\d+)$#', $routeKey, $m)) {
-        api_handle_teacher_class_student_detail($pdo, (int) $m[1], (int) $m[2]);
-        return;
-    }
-
-    if (preg_match('#^GET /teacher/classes/(\d+)/worksheet-assignments$#', $routeKey, $m)) {
-        api_handle_teacher_class_worksheet_assignments($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /teacher/classes/(\d+)/worksheet-assignments$#', $routeKey, $m)) {
-        api_handle_teacher_class_worksheet_assignments($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^GET /teacher/worksheet-assignments/(\d+)$#', $routeKey, $m)) {
-        api_handle_teacher_worksheet_assignment_detail($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /teacher/worksheet-assignments/(\d+)$#', $routeKey, $m)) {
-        api_handle_teacher_worksheet_assignment_detail($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /teacher/worksheet-submissions/(\d+)/grade$#', $routeKey, $m)) {
-        api_handle_teacher_worksheet_submission_grade($pdo, (int) $m[1]);
-        return;
-    }
-    if ($path === '/teacher/worksheets') {
-        api_handle_teacher_worksheets_list($pdo);
-        return;
-    }
-
-    if ($path === '/student/worksheet-assignments') {
-        if ($method === 'GET') {
-            api_handle_student_worksheet_assignments_list($pdo);
-        } else {
-            api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
-        }
-        return;
-    }
-    if (preg_match('#^GET /student/worksheet-assignments/(\d+)$#', $routeKey, $m)) {
-        api_handle_student_worksheet_assignment_get($pdo, (int) $m[1]);
-        return;
-    }
-    if (preg_match('#^POST /student/worksheet-assignments/(\d+)/submit$#', $routeKey, $m)) {
-        api_handle_student_worksheet_assignment_submit($pdo, (int) $m[1]);
+    $router = api_v1_build_router($pdo);
+    if ($router->dispatch($method, $path)) {
         return;
     }
 
     api_json_error('not_found', '找不到資源。', 404);
 }
-
-function api_catalog_base(): string
-{
-    return web_base_path() . '/api/v1';
-}
-
-function api_catalog_fetch_learning_notes(PDO $pdo): array
-{
-    try {
-        return ln_fetch_published($pdo);
-    } catch (Throwable $e) {
-        return [];
-    }
-}
-
-function api_catalog_fetch_worksheets(PDO $pdo): array
-{
-    try {
-        return ws_fetch_published($pdo);
-    } catch (Throwable $e) {
-        return [];
-    }
-}
-
-function api_handle_catalog(PDO $pdo): void
-{
-    $rows = sim_fetch_published_for_index($pdo);
-    $struct = sim_build_index_structures_for_api($rows);
-    $ltRows = lt_fetch_published($pdo);
-    $artRows = art_fetch_published($pdo);
-    $noteRows = api_catalog_fetch_learning_notes($pdo);
-    $wsRows = api_catalog_fetch_worksheets($pdo);
-    try {
-        $videoRows = lv_fetch_published($pdo);
-    } catch (Throwable $e) {
-        $videoRows = [];
-    }
-
-    api_json_ok([
-        'simulations' => $struct,
-        'learning_tools' => array_map('lt_public_row', $ltRows),
-        'articles' => array_map(function (array $r) {
-            $out = art_public_row($r);
-            unset($out['body_zh'], $out['body_en']);
-            return $out;
-        }, $artRows),
-        'learning_notes' => array_map(function (array $r) {
-            $out = ln_public_row($r);
-            unset($out['body_zh'], $out['body_en']);
-            return $out;
-        }, $noteRows),
-        'learning_videos' => array_map(function (array $r) {
-            $out = lv_public_row($r);
-            unset($out['embed_url'], $out['embed_url_zh'], $out['embed_url_en']);
-            return $out;
-        }, $videoRows),
-        'worksheets' => array_map(function (array $r) {
-            $out = ws_public_row($r);
-            unset($out['body_zh'], $out['body_en']);
-            return $out;
-        }, $wsRows),
-        'user' => api_user_payload(),
-        'site_base' => web_base_path(),
-    ]);
-}
-
-/**
- * @param array<int, array<string, mixed>> $rows
- */
-function sim_build_index_structures_for_api(array $rows): array
-{
-    $struct = sim_build_index_structures($rows);
-    $webBase = web_base_path();
-
-    foreach ($struct['subjects'] as &$subject) {
-        foreach ($subject['topics'] as &$topic) {
-            foreach ($topic['items'] as &$item) {
-                $slug = $item['slug'];
-                $viewUrl = ($webBase !== '' ? $webBase : '') . '/simulation_view.php?slug=' . rawurlencode($slug);
-                $item['url'] = $viewUrl;
-                $item['view_url'] = $viewUrl;
-                $item['export_url'] = ($webBase !== '' ? $webBase : '') . '/simulation_export.php?slug=' . rawurlencode($slug);
-
-                $shot = (string) ($item['screenshot'] ?? '');
-                if ($shot !== '') {
-                    $item['screenshot'] = web_resolve_path($shot);
-                }
-            }
-            unset($item);
-        }
-        unset($topic);
-    }
-    unset($subject);
-
-    return $struct;
-}
-
-function api_handle_subjects(PDO $pdo): void
-{
-    $subjects = sim_all_subjects($pdo);
-    $out = [];
-    foreach ($subjects as $s) {
-        $out[] = [
-            'id' => (int) $s['id'],
-            'slug' => $s['slug'],
-            'name_zh' => $s['name_zh'],
-            'name_en' => $s['name_en'],
-            'topics' => array_map(function (array $t) {
-                return [
-                    'id' => (int) $t['id'],
-                    'slug' => $t['slug'],
-                    'name_zh' => $t['name_zh'],
-                    'name_en' => $t['name_en'],
-                ];
-            }, sim_topics_for_subject($pdo, (int) $s['id'])),
-        ];
-    }
-    api_json_ok($out);
-}
-
-require_once __DIR__ . '/handlers/auth.php';
-require_once __DIR__ . '/handlers/simulations.php';
-require_once __DIR__ . '/handlers/learning_tools.php';
-require_once __DIR__ . '/handlers/articles.php';
-require_once __DIR__ . '/handlers/learning_notes.php';
-require_once __DIR__ . '/handlers/worksheets.php';
-require_once __DIR__ . '/handlers/courses.php';
-require_once __DIR__ . '/handlers/learning_videos.php';
-require_once __DIR__ . '/handlers/topic_items.php';
-require_once __DIR__ . '/handlers/review.php';
-require_once __DIR__ . '/handlers/question_bank.php';
-require_once __DIR__ . '/handlers/students.php';
-require_once __DIR__ . '/handlers/teacher.php';
-require_once __DIR__ . '/handlers/worksheet_assignments.php';
-require_once __DIR__ . '/handlers/learning.php';
-require_once __DIR__ . '/handlers/summer_homework.php';
-require_once __DIR__ . '/handlers/nav_menu.php';

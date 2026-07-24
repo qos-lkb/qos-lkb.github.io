@@ -53,7 +53,7 @@ science_sims/
 ├── index.html                # 選用轉址
 ├── includes/                 # 設定、DB、auth、內容 lib
 ├── admin/                    # 後台（含 courses、classes、qsis_import）
-├── portal/                   # 貢獻者入口
+├── portal/                   # 已下線：僅 302 → admin/（見 portal/README.md）
 ├── schema.sql                # 完整資料庫 schema（新環境一次匯入）
 ├── schema_*.sql              # 既有庫增量升級（暑期功課、課程年級等）
 ├── physics/, chem/, biology/, science/, astronomy/, …
@@ -70,11 +70,16 @@ science_sims/
 
 ### 1. PHP + 資料庫（完整功能）
 
+### 1. PHP + 資料庫（完整功能）
+
 1. 安裝 **PHP 8+**、**MariaDB**。
 2. 複製 **`.env.example`** 為 **`.env`**，填入 `DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS` 等。
-3. 匯入 **`schema.sql`** 建立完整資料庫結構（見 [architecture.md](architecture.md)）。
-4. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。
-5. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
+3. 匯入 **`schema.sql`** 建立完整資料庫結構（見 [architecture.md](architecture.md)）。**既有庫一次升級**請匯入 **`schema_upgrade_all.sql`**（或 `composer install` 後 `php scripts/apply_schema.php`；`--status` 可查進度）。
+4. 開發依賴：`composer install`；單元測試：`composer test`（CI 見 `.github/workflows/ci.yml`）。
+5. **SPA 建置**（推薦）：`cd app && npm install && npm run build`；`app/index.php` 會優先服務 `app/dist/`。未建置時退回 `index.legacy.html`。
+6. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。SPA 路由含 `/login`、`/admin`、`/admin/subjects`（後台遷移中）。
+7. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
+8. 選填：磁碟模擬 HTML 同步至 DB — `php scripts/sync_simulations_to_db.php`（`--dry-run` 預覽）。API 契約 stub：[`docs/openapi.yaml`](docs/openapi.yaml)。
 
 ### 2. 僅預覽單一模擬（無 PHP）
 
@@ -98,7 +103,7 @@ python3 -m http.server 8000
 
 ## 新增學習內容 | Adding learning content
 
-- **筆記、文章、互動工具、影片、試題庫**：經 `admin/` 或 `portal/` 編輯，走 `draft` → `pending_review` → `published` 流程。
+- **筆記、文章、互動工具、影片、試題庫**：經 `admin/` 編輯（`portal/` 已轉址至此），走 `draft` → `pending_review` → `published` 流程。科目／單元可走 SPA **`/app/admin/subjects`**。
 - **工作紙**：`admin/worksheet_edit.php`；Markdown 內可嵌入模擬、影片、試題（語法見 **`rule.md`** §16）。
 - **自學課程編排**：`admin/course_curriculum.php`（`topic_learning_items`）。
 - **課程班別**：`admin/courses.php`；學生與 MOI 見 `admin/course_students.php`；派發工作紙見 `admin/course_worksheets.php`；暑期功課班級報表見 `admin/course_summer_homework.php`。

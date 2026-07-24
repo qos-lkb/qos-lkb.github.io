@@ -19,8 +19,8 @@ function api_handle_auth_login(PDO $pdo): void
     require_once dirname(__DIR__, 3) . '/includes/qsis_auth_lib.php';
     $emailNormalized = auth_normalize_login_identity($email);
 
-    $rateKey = api_rate_limit_key('login', api_client_ip() . '|' . strtolower($emailNormalized !== '' ? $emailNormalized : $email));
-    if (!api_rate_limit_check($pdo, $rateKey, 5, 900)) {
+    $rate = api_auth_rate_limit_begin($pdo, 'login', $emailNormalized !== '' ? $emailNormalized : $email);
+    if (!$rate['ok']) {
         api_json_error('rate_limited', '登入嘗試過於頻繁，請稍後再試。', 429);
     }
 
@@ -28,7 +28,7 @@ function api_handle_auth_login(PDO $pdo): void
         api_json_error('invalid_credentials', '電郵或密碼錯誤。', 401);
     }
 
-    api_rate_limit_reset($pdo, $rateKey);
+    api_rate_limit_reset($pdo, $rate['key']);
     $user = current_user();
     assert($user !== null);
     api_json_ok(api_user_payload($user));
@@ -70,23 +70,19 @@ function api_handle_auth_update_profile(PDO $pdo): void
     api_json_ok(api_user_payload());
 }
 
-function api_handle_auth_change_password(PDO $pdo): void
+function api_handle_auth_dev_login(PDO $pdo): void
 {
-    $user = require_api_user();
-    api_verify_csrf_or_fail();
-    require_once dirname(__DIR__, 3) . '/includes/account_lib.php';
-
+    require_once dirname(__DIR__, 3) . '/includes/auth.php';
     $body = api_read_json_body();
-    $r = account_change_password(
-        $pdo,
-        $user['id'],
-        (string) ($body['current_password'] ?? ''),
-        (string) ($body['new_password'] ?? '')
-    );
+    $email = trim((string) ($body['email'] ?? $body['login'] ?? ''));
+    $r = auth_dev_login_as($pdo, $email);
     if (!$r['ok']) {
-        api_json_error('validation_error', $r['error'] ?? '更改密碼失敗。', 422);
+        $code = config_is_local_env() ? 422 : 403;
+        api_json_error(config_is_local_env() ? 'validation_error' : 'forbidden', $r['error'] ?? '開發登入失敗。', $code);
     }
-    api_json_ok(['changed' => true]);
+    $user = current_user();
+    assert($user !== null);
+    api_json_ok(api_user_payload($user));
 }
 
 function api_handle_auth_stop_impersonation(PDO $pdo): void

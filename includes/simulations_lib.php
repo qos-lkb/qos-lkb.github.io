@@ -80,7 +80,7 @@ function sim_build_index_structures(array $rows): array
         }
 
         $slug = $r['slug'];
-        $viewUrl = 'simulation_view.php?slug=' . rawurlencode($slug);
+        $viewUrl = 'api/v1/simulations/' . rawurlencode($slug) . '/html';
         $exportUrl = 'simulation_export.php?slug=' . rawurlencode($slug);
         $titleEn = $r['title_en'] ?: $slug;
         $titleZh = $r['title_zh'] ?: $titleEn;

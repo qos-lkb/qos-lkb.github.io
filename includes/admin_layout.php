@@ -130,9 +130,6 @@ function admin_menu_sections(): array
     if (user_has_permission('article.manage_any')) {
         $contentItems[] = ['key' => 'articles', 'label' => '科學文章', 'href' => 'articles.php'];
     }
-    if (user_has_permission('learning_tool.manage_any')) {
-        $contentItems[] = ['key' => 'learning_tools', 'label' => '互動學習工具', 'href' => 'learning_tools.php'];
-    }
     if (user_has_permission('summer_homework.manage_any')
         || user_has_permission('summer_homework.manage_own')
         || user_has_permission('class.manage_any')
@@ -140,9 +137,9 @@ function admin_menu_sections(): array
     ) {
         $contentItems[] = ['key' => 'summer_homework', 'label' => '暑期功課', 'href' => 'summer_homework.php', 'accent' => 'amber'];
     }
-    if (user_has_permission('question_bank.manage_any')) {
+    if (user_has_permission('question_bank.manage_any') || user_has_permission('learning_tool.manage_any')) {
         $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => 'question_banks.php'];
-    } elseif (user_has_permission('question_bank.manage_own')) {
+    } elseif (user_has_permission('question_bank.manage_own') || user_has_permission('learning_tool.manage_own')) {
         $contentItems[] = ['key' => 'question_banks', 'label' => '我的試題庫', 'href' => 'question_banks.php', 'accent' => 'indigo'];
     }
     if (user_has_permission('learning_video.manage_any')) {
@@ -174,7 +171,7 @@ function admin_menu_sections(): array
         $sections[] = [
             'label' => '平台設定',
             'items' => [
-                ['key' => 'subjects', 'label' => '科目與單元', 'href' => 'subjects.php'],
+                ['key' => 'subjects', 'label' => '科目與單元', 'href' => admin_site_asset_url('app/admin/subjects')],
                 ['key' => 'nav_menu', 'label' => '前台選單可見性', 'href' => 'nav_menu.php'],
             ],
         ];

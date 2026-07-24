@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once dirname(__DIR__) . '/includes/db_import_sql.php';
 require_once dirname(__DIR__) . '/includes/admin_layout.php';
+require_once dirname(__DIR__) . '/includes/admin_audit_lib.php';
 
 bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/db_import.php'));
@@ -13,6 +14,9 @@ require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/db_
 $flashType = null;
 $flash = '';
 $schemaName = '';
+$wipeAllowed = config_allows_db_wipe();
+$confirmPhrase = config_db_wipe_confirm_phrase();
+$appEnv = config_app_env();
 
 try {
     $schemaName = db_export_schema_name();
@@ -24,12 +28,34 @@ try {
 const DB_IMPORT_MAX_BYTES = 512 * 1024 * 1024;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import' && $flashType !== 'error') {
+    $actor = current_user();
+    $actorId = $actor !== null ? (int) $actor['id'] : null;
+
     if (!verify_csrf($_POST['csrf'] ?? null)) {
         $flashType = 'error';
         $flash = 'CSRF 驗證失敗。';
+    } elseif (!$wipeAllowed) {
+        $flashType = 'error';
+        $flash = '目前環境（APP_ENV=' . $appEnv . '）禁止清空資料庫。僅 local／staging 可匯入，或於 .env 設 APP_ALLOW_DB_WIPE=1。';
+        try {
+            admin_audit_log(db(), 'db_import.blocked', $actorId, [
+                'reason' => 'env_gate',
+                'app_env' => $appEnv,
+            ]);
+        } catch (Throwable) {
+        }
     } elseif (empty($_POST['confirm_wipe'])) {
         $flashType = 'error';
         $flash = '請勾選確認：您了解此操作會刪除現有全部資料表。';
+    } elseif (trim((string) ($_POST['confirm_phrase'] ?? '')) !== $confirmPhrase) {
+        $flashType = 'error';
+        $flash = '請在確認欄正確輸入「' . $confirmPhrase . '」。';
+        try {
+            admin_audit_log(db(), 'db_import.blocked', $actorId, [
+                'reason' => 'confirm_phrase',
+            ]);
+        } catch (Throwable) {
+        }
     } elseif (!isset($_FILES['sql_file']) || !is_array($_FILES['sql_file'])) {
         $flashType = 'error';
         $flash = '請選擇要上載的 SQL 檔案。';
@@ -70,7 +96,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
                     }
 
                     $pdo = db();
+                    admin_audit_log($pdo, 'db_import.start', $actorId, [
+                        'filename' => $origName,
+                        'bytes' => $size,
+                        'schema' => $schemaName,
+                        'app_env' => $appEnv,
+                    ]);
+
                     $result = db_import_from_sql($pdo, $sql);
+
+                    admin_audit_log($pdo, 'db_import.success', $actorId, [
+                        'filename' => $origName,
+                        'dropped' => $result['dropped'],
+                        'executed' => $result['executed'],
+                        'tables' => $result['tables'],
+                    ]);
 
                     $flashType = 'success';
                     $flash = sprintf(
@@ -81,6 +121,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
                         $result['tables']
                     );
                 } catch (Throwable $e) {
+                    try {
+                        admin_audit_log(db(), 'db_import.failed', $actorId, [
+                            'filename' => $origName,
+                            'error' => $e->getMessage(),
+                        ]);
+                    } catch (Throwable) {
+                    }
                     $flashType = 'error';
                     $flash = '匯入失敗：' . $e->getMessage()
                         . '（若中途中斷，資料庫可能處於不完整狀態，請重新匯入或還原備份。）';
@@ -103,6 +150,17 @@ admin_page_start('匯入資料庫', 'db_import');
             建議先至 <a href="db_export.php" class="text-indigo-600 hover:underline">匯出資料庫</a> 備份。
         </p>
 
+        <p class="text-sm rounded-lg px-4 py-3 border <?php echo $wipeAllowed
+            ? 'bg-amber-50 border-amber-200 text-amber-900'
+            : 'bg-red-50 border-red-200 text-red-800'; ?>">
+            目前 <code class="font-mono text-xs">APP_ENV=<?php echo htmlspecialchars($appEnv, ENT_QUOTES, 'UTF-8'); ?></code>。
+            <?php if ($wipeAllowed): ?>
+                此環境允許清空匯入；仍須勾選確認並輸入片語 <code class="font-mono text-xs"><?php echo htmlspecialchars($confirmPhrase, ENT_QUOTES, 'UTF-8'); ?></code>。
+            <?php else: ?>
+                生產環境預設<strong>拒絕</strong>清空匯入。若為緊急還原，請先備份後於 .env 設 <code class="font-mono text-xs">APP_ALLOW_DB_WIPE=1</code>（用畢請立即移除）。
+            <?php endif; ?>
+        </p>
+
         <?php if ($flash !== ''): ?>
             <p class="text-sm rounded-lg px-4 py-3 border <?php echo $flashType === 'success'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
@@ -111,24 +169,36 @@ admin_page_start('匯入資料庫', 'db_import');
             </p>
         <?php endif; ?>
 
-        <form method="post" enctype="multipart/form-data" class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
+        <form method="post" enctype="multipart/form-data" class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5 <?php echo $wipeAllowed ? '' : 'opacity-60 pointer-events-none'; ?>">
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="action" value="import">
 
             <div>
                 <label for="sql_file" class="block text-sm font-medium text-slate-700 mb-1">SQL 檔案</label>
                 <input type="file" id="sql_file" name="sql_file" accept=".sql,text/plain,application/sql" required
-                       class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                       class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                       <?php echo $wipeAllowed ? '' : 'disabled'; ?>>
                 <p class="text-xs text-slate-500 mt-1">副檔名須為 .sql；最大 <?php echo (int) (DB_IMPORT_MAX_BYTES / 1024 / 1024); ?> MB。</p>
             </div>
 
             <label class="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
-                <input type="checkbox" name="confirm_wipe" value="1" required class="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                <input type="checkbox" name="confirm_wipe" value="1" required class="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                       <?php echo $wipeAllowed ? '' : 'disabled'; ?>>
                 <span>我了解此操作會<strong class="text-red-700">永久刪除</strong>目前資料庫內所有資料表與資料，並以所上載的 SQL 取代。</span>
             </label>
 
+            <div>
+                <label for="confirm_phrase" class="block text-sm font-medium text-slate-700 mb-1">二次確認片語</label>
+                <input type="text" id="confirm_phrase" name="confirm_phrase" required autocomplete="off"
+                       placeholder="<?php echo htmlspecialchars($confirmPhrase, ENT_QUOTES, 'UTF-8'); ?>"
+                       class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"
+                       <?php echo $wipeAllowed ? '' : 'disabled'; ?>>
+                <p class="text-xs text-slate-500 mt-1">請完整輸入：<code class="font-mono"><?php echo htmlspecialchars($confirmPhrase, ENT_QUOTES, 'UTF-8'); ?></code></p>
+            </div>
+
             <button type="submit"
-                    class="bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-red-700"
+                    class="bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                    <?php echo $wipeAllowed ? '' : 'disabled'; ?>
                     onclick="return confirm('確定要刪除全部資料表並匯入 SQL？此操作無法復原。');">
                 刪除全部資料表並匯入
             </button>

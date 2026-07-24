@@ -46,18 +46,21 @@ This document outlines the rules, conventions, and best practices for developing
 
 **Rule 1.3**: Elective files must include `e` prefix: `e{number}/{e}{unit}{topic}_{description}.html`
 - ✅ `e02/e0201_photoelectric_effect.html`
-- ✅ `e03/e0301_air-conditioner.html`
+- ✅ `e03/e0301_air_conditioner.html`
 
 **Rule 1.4**: Other subject files use simple descriptive names
 - ✅ `biology/osmosis.html`
 - ✅ `chemistry/atomic_structure.html`
 - ✅ `astronomy/hr_diagram.html`
 
-**Rule 1.5**: Avoid special characters except underscores and hyphens
-- ✅ Allowed: `-`, `_`
+**Rule 1.5**: Prefer underscores; hyphens discouraged for new files
+- ✅ Preferred: `_`
+- ⚠️ Hyphens (`-`) allowed only for legacy; new files use `_`
 - ❌ Avoid: spaces, `@`, `#`, `$`, `%`, `&`, `*`, etc.
 
 **Rule 1.6**: Keep file names concise but descriptive (max 50 characters recommended)
+
+**Rule 1.7**: New / renamed sims must pass `php scripts/check_sim_standards.php` and the checklist in [`docs/sim_standards.md`](docs/sim_standards.md). Start from [`templates/sim_skeleton.html`](templates/sim_skeleton.html).
 
 ---
 
@@ -92,7 +95,9 @@ This document outlines the rules, conventions, and best practices for developing
 2. MathJax (if needed)
 3. Chart.js (if needed)
 4. Three.js (if needed)
-5. React/Babel (if needed)
+5. React/Babel (if needed) — **production** builds only (`react.production.min.js`); never `*.development.js`
+
+**Rule 2.5a**: Simulations must not depend on the SPA Vite bundle (`app/dist/`, `app/src/modules/`). Shared optional snippets may live under `assets/sim-common/`.
 
 **Rule 2.6**: Use consistent indentation (4 spaces or tabs - be consistent)
 ```html
@@ -252,7 +257,7 @@ background: #3b82f6; /* blue-500 */
 **Rule 5.4**: Database-managed learning content follows the same publish workflow
 - **Learning notes**, **worksheets**, **learning tools**, **articles**, **learning videos**, and **question banks** are stored in MariaDB
 - Contributors save as `draft` or `pending_review`; admins publish via admin or review queue
-- Use **`admin/`** or **`portal/`** editors; SPA reads published items via **`/api/v1/`**
+- Use **`admin/`** editors (or SPA `/app/admin` where available); SPA reads published items via **`/api/v1/`**. `portal/` only redirects.
 - Self-study curriculum ordering: **`admin/course_curriculum.php`** (`topic_learning_items`)
 - Teacher **courses / classes**: **`admin/courses.php`**, **`admin/course_edit.php`**; enrollment may include form class, class number, MOI (`011`–`012`)
 - **Worksheet assignments**: teachers assign via admin or API; students submit at **`/app/assignments`**; grading via teacher API or admin reports
@@ -656,7 +661,7 @@ declare(strict_types=1);
 - **Student**: `worksheet.submit_own` for assigned work only
 
 **Rule 16.5**: Admin embed editors
-- When adding embed pickers in admin, follow **`admin-worksheet-embed.js`** / **`admin-content-embed.js`** patterns
+- When adding embed pickers in admin, follow **`admin-content-embed.js`** patterns
 - Preview embed syntax before save; invalid slugs should fail validation server-side
 
 ---
@@ -704,12 +709,12 @@ These rules should be followed for all new code and updates. When reviewing code
 Some older files may not follow all these rules. When updating old files:
 - Gradually bring them up to standard
 - Prioritize functionality over style
-- Document exceptions if necessary
+- Document path exemptions in [`docs/sim_standards.md`](docs/sim_standards.md) and `$EXEMPTIONS` in `scripts/check_sim_standards.php`
 
 ---
 
-**Last Updated**: 2026-06-28  
+**Last Updated**: 2026-07-24  
 **Maintained by**: Mr. B. Leung
 
-**See also**: [`architecture.md`](architecture.md) (API & data model), [`.cursorrules`](.cursorrules) (Cursor AI summary).
+**See also**: [`architecture.md`](architecture.md) (API & data model), [`docs/sim_standards.md`](docs/sim_standards.md) (sim checklist), [`.cursorrules`](.cursorrules) (Cursor AI summary).
 

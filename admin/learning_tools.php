@@ -2,37 +2,20 @@
 
 declare(strict_types=1);
 
+/**
+ * @deprecated Phase 7 — learning tools merged into question banks.
+ * Redirects to admin/question_banks.php
+ */
+
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
-require_once dirname(__DIR__) . '/includes/admin_layout.php';
 
 bootstrap_public();
-require_permission('learning_tool.manage_any', '../login.php?next=' . rawurlencode('admin/learning_tools.php'));
+require_any_permission(
+    ['question_bank.manage_any', 'question_bank.manage_own', 'learning_tool.manage_any', 'learning_tool.manage_own'],
+    '../login.php?next=' . rawurlencode('admin/question_banks.php')
+);
 
-$pdo = db();
-$list = $pdo->query('SELECT id, slug, title_zh, title_en, status, updated_at FROM learning_tools ORDER BY updated_at DESC')->fetchAll() ?: [];
-
-admin_page_start('互動學習工具', 'learning_tools', [
-    'actions' => admin_btn('learning_tool_edit.php', '新增') . admin_btn('review_queue.php', '審核佇列', 'secondary'),
-    'wide' => true,
-]);
-?>
-        <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-100 text-left">
-                    <tr><th class="p-3">標題</th><th class="p-3">slug</th><th class="p-3">狀態</th><th class="p-3">更新</th><th class="p-3"></th></tr>
-                </thead>
-                <tbody>
-                <?php foreach ($list as $row): ?>
-                    <tr class="border-t border-slate-100">
-                        <td class="p-3"><?php echo htmlspecialchars($row['title_zh'], ENT_QUOTES, 'UTF-8'); ?></td>
-                        <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8'); ?></td>
-                        <td class="p-3"><?php echo htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?></td>
-                        <td class="p-3 text-xs text-slate-500"><?php echo htmlspecialchars((string) $row['updated_at'], ENT_QUOTES, 'UTF-8'); ?></td>
-                        <td class="p-3"><a class="text-indigo-600 hover:underline" href="learning_tool_edit.php?id=<?php echo (int) $row['id']; ?>">編輯</a></td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-<?php
-admin_page_end();
+$query = $_SERVER['QUERY_STRING'] ?? '';
+$target = 'question_banks.php' . ($query !== '' ? '?' . $query : '');
+header('Location: ' . $target, true, 302);
+exit;
