@@ -12,6 +12,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS spa_nav_visibility;
 DROP TABLE IF EXISTS summer_homework_attempts;
+DROP TABLE IF EXISTS summer_homework_short_answers;
 DROP TABLE IF EXISTS summer_homework_fill_blanks;
 DROP TABLE IF EXISTS summer_homework_mcq_options;
 DROP TABLE IF EXISTS summer_homework_questions;
@@ -667,12 +668,16 @@ CREATE TABLE summer_homework_items (
 CREATE TABLE summer_homework_questions (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     item_id INT UNSIGNED NOT NULL,
-    question_type ENUM('mcq', 'fill_blank') NOT NULL,
+    question_type ENUM('mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer') NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
     stem_zh TEXT NOT NULL,
     stem_en TEXT NOT NULL,
     explanation_zh TEXT NULL,
     explanation_en TEXT NULL,
+    correct_bool TINYINT(1) NULL DEFAULT NULL,
+    max_score DECIMAL(6,2) NOT NULL DEFAULT 1.00,
+    rubric_zh TEXT NULL,
+    rubric_en TEXT NULL,
     KEY idx_sh_questions_item (item_id),
     KEY idx_sh_questions_type (question_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -697,6 +702,15 @@ CREATE TABLE summer_homework_fill_blanks (
     KEY idx_sh_fill_question (question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE summer_homework_short_answers (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    question_id INT UNSIGNED NOT NULL,
+    sort_order TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    acceptable_answer_zh VARCHAR(512) NOT NULL DEFAULT '',
+    acceptable_answer_en VARCHAR(512) NOT NULL DEFAULT '',
+    KEY idx_sh_short_question (question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE summer_homework_attempts (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
@@ -707,6 +721,7 @@ CREATE TABLE summer_homework_attempts (
     passed TINYINT(1) NOT NULL DEFAULT 0,
     responses_json JSON NULL,
     grading_json JSON NULL,
+    teacher_marks_json JSON NULL,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_sh_attempts_user (user_id),
     KEY idx_sh_attempts_item (item_id),

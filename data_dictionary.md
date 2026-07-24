@@ -9,7 +9,7 @@ php update_data_dictionary.php
 
 > **注意**：本專案不使用 FOREIGN KEY；關聯由 PHP 應用層維護。
 
-**最後更新**：2026-06-28 10:42 HKT
+**最後更新**：2026-07-24 13:50 HKT
 
 ## 目錄 | Table of contents
 
@@ -61,12 +61,21 @@ php update_data_dictionary.php
   - [`worksheet_assignments`](#worksheet-assignments)
   - [`worksheet_assignment_students`](#worksheet-assignment-students)
   - [`worksheet_submissions`](#worksheet-submissions)
+- [Summer homework (S1 / S2): passage or video + MC / fill-blank, 80% pass](#summer-homework-s1-s2-passage-or-video-mc-fill-blank-80-pass)
+  - [`summer_homework_items`](#summer-homework-items)
+  - [`summer_homework_questions`](#summer-homework-questions)
+  - [`summer_homework_mcq_options`](#summer-homework-mcq-options)
+  - [`summer_homework_fill_blanks`](#summer-homework-fill-blanks)
+  - [`summer_homework_short_answers`](#summer-homework-short-answers)
+  - [`summer_homework_attempts`](#summer-homework-attempts)
+- [SPA top-nav visibility by audience (guest / student / teacher / admin)](#spa-top-nav-visibility-by-audience-guest-student-teacher-admin)
+  - [`spa_nav_visibility`](#spa-nav-visibility)
 
 ## 概覽 | Overview
 
 | 資料表 | 說明 | 引擎 |
 |--------|------|------|
-| `users` | 使用者帳戶（電郵、密碼雜湊、中英文名、啟用狀態） | InnoDB |
+| `users` | 使用者帳戶（login id／與 QSIS username 對齊；中英文名；啟用狀態；密碼僅存 QSIS） | InnoDB |
 | `roles` | 角色定義（admin、teacher、student） | InnoDB |
 | `user_roles` | 使用者與角色的多對多關聯 | InnoDB |
 | `permissions` | 權限代碼與說明 | InnoDB |
@@ -93,7 +102,7 @@ php update_data_dictionary.php
 | `qb_question_parts` | 長答子題 | InnoDB |
 | `qb_fill_blanks` | 填充題可接受答案 | InnoDB |
 | `qb_question_media` | 試題附件／圖片 | InnoDB |
-| `classes` | 教師課程／班級（邀請碼） | InnoDB |
+| `classes` | 教師課程／班級（邀請碼、年級 form_level、科目 course_subject） | InnoDB |
 | `class_enrollments` | 學生選課紀錄（班別、班號、MOI） | InnoDB |
 | `student_profiles` | 學生延伸資料（學號、級別、語言偏好） | InnoDB |
 | `learning_events` | SDL 學習行為事件（頁面瀏覽、時數） | InnoDB |
@@ -105,6 +114,13 @@ php update_data_dictionary.php
 | `worksheet_assignments` | 工作紙派發（班級、截止、滿分） | InnoDB |
 | `worksheet_assignment_students` | 派發對象（全班或指定學生） | InnoDB |
 | `worksheet_submissions` | 學生提交、評分、自動計分 JSON | InnoDB |
+| `summer_homework_items` | 暑期功課習作（中一／中二；篇章或影片；含 due_at／allow_late_submit） | InnoDB |
+| `summer_homework_questions` | 暑期功課題目（mcq／fill_blank／true_false／short_answer／long_answer） | InnoDB |
+| `summer_homework_mcq_options` | 暑期功課選擇題選項 | InnoDB |
+| `summer_homework_fill_blanks` | 暑期功課填充題可接受答案（同 blank_index 可多列） | InnoDB |
+| `summer_homework_short_answers` | 暑期功課短答題可接受答案（可多列） | InnoDB |
+| `summer_homework_attempts` | 暑期功課每次呈交（responses_json；grading_json；teacher_marks_json 長答教師評分） | InnoDB |
+| `spa_nav_visibility` | 前台 SPA 上方選單依對象（訪客／學生／教師／管理員）的可見性 | InnoDB |
 
 ## Core: users, roles, permissions
 
@@ -793,15 +809,17 @@ API 速率限制（如登入嘗試）
 
 ### `classes`
 
-教師課程／班級（邀請碼）
+教師課程／班級（邀請碼、年級 form_level、科目 course_subject）
 
-**引擎**：`InnoDB` · **欄位數**：9
+**引擎**：`InnoDB` · **欄位數**：11
 
 | 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
 |------|------|:----:|------|:---:|------|
 | `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
 | `name` | `VARCHAR(255)` | NO | — | — | — |
 | `school_year` | `VARCHAR(32)` | NO | `''` | — | — |
+| `form_level` | `ENUM('1', '2', '3', '4', '5', '6') DEFAULT` | YES | `NULL` | — | — |
+| `course_subject` | `ENUM('integrated_science', 'physics', 'chemistry', 'biology') DEFAULT` | YES | `NULL` | — | — |
 | `subject_id` | `INT UNSIGNED` | YES | — | — | subjects.id |
 | `invite_code` | `VARCHAR(32)` | NO | — | — | 班級邀請／註冊碼 |
 | `teacher_user_id` | `INT UNSIGNED` | NO | — | — | — |
@@ -816,6 +834,8 @@ API 速率限制（如登入嘗試）
 | `uq_classes_invite` | UNIQUE | `invite_code` |
 | `idx_classes_teacher` | KEY | `teacher_user_id` |
 | `idx_classes_subject` | KEY | `subject_id` |
+| `idx_classes_form_level` | KEY | `form_level` |
+| `idx_classes_course_subject` | KEY | `course_subject` |
 | `idx_classes_active` | KEY | `is_active` |
 
 ### `class_enrollments`
@@ -902,9 +922,9 @@ SDL 學習行為事件（頁面瀏覽、時數）
 | `subject_id` | `INT UNSIGNED` | YES | — | — | subjects.id |
 | `topic_id` | `INT UNSIGNED` | YES | — | — | topics.id |
 | `score` | `SMALLINT UNSIGNED` | NO | `0` | — | — |
-| `max_score` | `SMALLINT UNSIGNED` | NO | `0` | — | — |
+| `max_score` | `SMALLINT UNSIGNED` | NO | `0` | — | 題目滿分（長答可調；自動題多為 1） |
 | `started_at` | `TIMESTAMP` | YES | — | — | — |
-| `submitted_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+| `submitted_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | 實際呈交時間 |
 
 #### 索引 | Indexes
 
@@ -1020,8 +1040,8 @@ SDL 學習行為事件（頁面瀏覽、時數）
 | `title_en` | `VARCHAR(255)` | YES | — | — | — |
 | `instructions_zh` | `TEXT` | YES | — | — | — |
 | `instructions_en` | `TEXT` | YES | — | — | — |
-| `due_at` | `TIMESTAMP` | YES | — | — | — |
-| `max_score` | `DECIMAL(6,2)` | NO | `100.00` | — | — |
+| `due_at` | `TIMESTAMP` | YES | — | — | 呈交／截止時間（HK 時區語意） |
+| `max_score` | `DECIMAL(6,2)` | NO | `100.00` | — | 題目滿分（長答可調；自動題多為 1） |
 | `status` | `ENUM('draft', 'active', 'closed')` | NO | `'active'` | — | 狀態（見 ENUM 值） |
 | `assign_all` | `TINYINT(1)` | NO | `1` | — | — |
 | `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
@@ -1066,14 +1086,14 @@ SDL 學習行為事件（頁面瀏覽、時數）
 | `assignment_id` | `INT UNSIGNED` | NO | — | — | worksheet_assignments.id |
 | `user_id` | `INT UNSIGNED` | NO | — | — | users.id |
 | `status` | `ENUM('pending', 'submitted', 'graded')` | NO | `'pending'` | — | 狀態（見 ENUM 值） |
-| `submitted_at` | `TIMESTAMP` | YES | — | — | — |
+| `submitted_at` | `TIMESTAMP` | YES | — | — | 實際呈交時間 |
 | `score` | `DECIMAL(6,2)` | YES | — | — | — |
 | `feedback_zh` | `TEXT` | YES | — | — | — |
 | `feedback_en` | `TEXT` | YES | — | — | — |
 | `graded_by_user_id` | `INT UNSIGNED` | YES | — | — | — |
 | `graded_at` | `TIMESTAMP` | YES | — | — | — |
 | `student_comment` | `TEXT` | YES | — | — | — |
-| `responses_json` | `JSON` | YES | — | — | 工作紙作答 JSON（自動計分） |
+| `responses_json` | `JSON` | YES | — | — | 工作紙／暑期功課作答 JSON |
 | `auto_score` | `DECIMAL(6,2)` | YES | — | — | — |
 | `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
 | `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
@@ -1085,6 +1105,186 @@ SDL 學習行為事件（頁面瀏覽、時數）
 | `uq_ws_submission` | UNIQUE | `assignment_id,user_id` |
 | `idx_ws_sub_user` | KEY | `user_id` |
 | `idx_ws_sub_status` | KEY | `status` |
+
+## Summer homework (S1 / S2): passage or video + MC / fill-blank, 80% pass
+
+### `summer_homework_items`
+
+暑期功課習作（中一／中二；篇章或影片；含 due_at／allow_late_submit）
+
+**引擎**：`InnoDB` · **欄位數**：18
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `slug` | `VARCHAR(190)` | NO | — | — | URL 識別碼（唯一） |
+| `title_zh` | `VARCHAR(255)` | NO | `''` | — | — |
+| `title_en` | `VARCHAR(255)` | NO | `''` | — | — |
+| `form_level` | `ENUM('1', '2')` | NO | — | — | — |
+| `content_type` | `ENUM('passage', 'video')` | NO | `'passage'` | — | — |
+| `body_zh` | `MEDIUMTEXT` | YES | — | — | — |
+| `body_en` | `MEDIUMTEXT` | YES | — | — | — |
+| `video_embed_url` | `VARCHAR(512) DEFAULT` | YES | `NULL` | — | — |
+| `video_provider` | `VARCHAR(32)` | YES | `'youtube'` | — | — |
+| `pass_percent` | `DECIMAL(5,2)` | NO | `80.00` | — | 及格百分比門檻 |
+| `due_at` | `DATETIME DEFAULT` | YES | `NULL` | — | 呈交／截止時間（HK 時區語意） |
+| `allow_late_submit` | `TINYINT(1)` | NO | `1` | — | 截止後是否仍可呈交（1=可遲交，0=封鎖） |
+| `list_sort_order` | `INT` | NO | `0` | — | — |
+| `owner_user_id` | `INT UNSIGNED` | YES | — | — | 內容擁有者 users.id |
+| `status` | `ENUM('draft', 'pending_review', 'published')` | NO | `'draft'` | — | 狀態（見 ENUM 值） |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `uq_sh_items_slug` | UNIQUE | `slug` |
+| `idx_sh_items_form` | KEY | `form_level` |
+| `idx_sh_items_status` | KEY | `status` |
+| `idx_sh_items_owner` | KEY | `owner_user_id` |
+| `idx_sh_items_due` | KEY | `due_at` |
+
+### `summer_homework_questions`
+
+暑期功課題目（mcq／fill_blank／true_false／short_answer／long_answer）
+
+**引擎**：`InnoDB` · **欄位數**：12
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `item_id` | `INT UNSIGNED` | NO | — | — | — |
+| `question_type` | `ENUM('mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer')` | NO | — | — | — |
+| `sort_order` | `INT` | NO | `0` | — | — |
+| `stem_zh` | `TEXT` | NO | — | — | — |
+| `stem_en` | `TEXT` | NO | — | — | — |
+| `explanation_zh` | `TEXT` | YES | — | — | — |
+| `explanation_en` | `TEXT` | YES | — | — | — |
+| `correct_bool` | `TINYINT(1) DEFAULT` | YES | `NULL` | — | 是非題正解（1=是／true） |
+| `max_score` | `DECIMAL(6,2)` | NO | `1.00` | — | 題目滿分（長答可調；自動題多為 1） |
+| `rubric_zh` | `TEXT` | YES | — | — | 長答評分指引（中） |
+| `rubric_en` | `TEXT` | YES | — | — | 長答評分指引（英） |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_sh_questions_item` | KEY | `item_id` |
+| `idx_sh_questions_type` | KEY | `question_type` |
+
+### `summer_homework_mcq_options`
+
+暑期功課選擇題選項
+
+**引擎**：`InnoDB` · **欄位數**：6
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `question_id` | `INT UNSIGNED` | NO | — | — | 題目 id（依上下文） |
+| `sort_order` | `TINYINT UNSIGNED` | NO | `0` | — | — |
+| `text_zh` | `VARCHAR(512)` | NO | `''` | — | — |
+| `text_en` | `VARCHAR(512)` | NO | `''` | — | — |
+| `is_correct` | `TINYINT(1)` | NO | `0` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_sh_mcq_question` | KEY | `question_id` |
+
+### `summer_homework_fill_blanks`
+
+暑期功課填充題可接受答案（同 blank_index 可多列）
+
+**引擎**：`InnoDB` · **欄位數**：6
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `question_id` | `INT UNSIGNED` | NO | — | — | 題目 id（依上下文） |
+| `blank_index` | `TINYINT UNSIGNED` | NO | `1` | — | — |
+| `acceptable_answer_zh` | `VARCHAR(512)` | NO | `''` | — | — |
+| `acceptable_answer_en` | `VARCHAR(512)` | NO | `''` | — | — |
+| `sort_order` | `TINYINT UNSIGNED` | NO | `0` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_sh_fill_question` | KEY | `question_id` |
+
+### `summer_homework_short_answers`
+
+暑期功課短答題可接受答案（可多列）
+
+**引擎**：`InnoDB` · **欄位數**：5
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `question_id` | `INT UNSIGNED` | NO | — | — | 題目 id（依上下文） |
+| `sort_order` | `TINYINT UNSIGNED` | NO | `0` | — | — |
+| `acceptable_answer_zh` | `VARCHAR(512)` | NO | `''` | — | — |
+| `acceptable_answer_en` | `VARCHAR(512)` | NO | `''` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_sh_short_question` | KEY | `question_id` |
+
+### `summer_homework_attempts`
+
+暑期功課每次呈交（responses_json；grading_json；teacher_marks_json 長答教師評分）
+
+**引擎**：`InnoDB` · **欄位數**：11
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `BIGINT UNSIGNED` | NO | — | PK, AI | — |
+| `user_id` | `INT UNSIGNED` | NO | — | — | users.id |
+| `item_id` | `INT UNSIGNED` | NO | — | — | — |
+| `score` | `DECIMAL(6,2)` | NO | `0` | — | — |
+| `max_score` | `DECIMAL(6,2)` | NO | `0` | — | 題目滿分（長答可調；自動題多為 1） |
+| `percent` | `DECIMAL(5,2)` | NO | `0` | — | — |
+| `passed` | `TINYINT(1)` | NO | `0` | — | — |
+| `responses_json` | `JSON` | YES | — | — | 工作紙／暑期功課作答 JSON |
+| `grading_json` | `JSON` | YES | — | — | 暑期功課該次呈交的評分明細（對錯、選項索引／選項快照、填充／短答／是非；供分析） |
+| `teacher_marks_json` | `JSON` | YES | — | — | 長答題教師評分與評語（question_id → score／comment） |
+| `submitted_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | 實際呈交時間 |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_sh_attempts_user` | KEY | `user_id` |
+| `idx_sh_attempts_item` | KEY | `item_id` |
+| `idx_sh_attempts_user_item` | KEY | `user_id,item_id` |
+| `idx_sh_attempts_passed` | KEY | `user_id,item_id,passed` |
+
+## SPA top-nav visibility by audience (guest / student / teacher / admin)
+
+### `spa_nav_visibility`
+
+前台 SPA 上方選單依對象（訪客／學生／教師／管理員）的可見性
+
+**引擎**：`InnoDB` · **欄位數**：4
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `item_key` | `VARCHAR(64)` | NO | — | — | — |
+| `audience` | `ENUM('guest', 'student', 'teacher', 'admin')` | NO | — | — | — |
+| `is_visible` | `TINYINT(1)` | NO | `1` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `PRIMARY` | PRIMARY | `item_key,audience` |
+| `idx_spa_nav_audience` | KEY | `audience` |
 
 ---
 

@@ -33,6 +33,27 @@ $students = $report['students'];
 $rows = $report['rows'];
 $message = $report['message'] ?? null;
 
+$statusFilter = isset($_GET['status']) ? (string) $_GET['status'] : '';
+if (!in_array($statusFilter, ['', 'missing', 'on_time', 'late'], true)) {
+    $statusFilter = '';
+}
+
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    require_once dirname(__DIR__) . '/includes/user_names_lib.php';
+    $csvRows = sh_class_report_csv_rows($report);
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="summer_homework_class_' . $id . '.csv"');
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+    if ($out !== false) {
+        foreach ($csvRows as $line) {
+            fputcsv($out, $line);
+        }
+        fclose($out);
+    }
+    exit;
+}
+
 /** @var array<string, array<int, array<string, mixed>>> $byStudent */
 $byStudent = [];
 foreach ($rows as $r) {
@@ -42,6 +63,19 @@ foreach ($rows as $r) {
         $byStudent[$uid] = [];
     }
     $byStudent[$uid][$iid] = $r;
+}
+
+if ($statusFilter !== '') {
+    $students = array_values(array_filter($students, static function (array $stu) use ($byStudent, $items, $statusFilter): bool {
+        $uid = (int) ($stu['id'] ?? $stu['user_id'] ?? 0);
+        foreach ($items as $item) {
+            $cell = $byStudent[$uid][(int) $item['id']] ?? null;
+            if ($cell !== null && (string) ($cell['status'] ?? '') === $statusFilter) {
+                return true;
+            }
+        }
+        return false;
+    }));
 }
 
 $statusClass = [
@@ -54,7 +88,8 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
     'actions' => admin_btn('courses.php', '返回課程列表', 'secondary')
         . admin_btn('course_students.php?id=' . $id, '學生與修讀語言', 'secondary')
         . admin_btn('course_reports.php?id=' . $id, '學習報告', 'secondary')
-        . admin_btn('course_worksheets.php?id=' . $id, '工作紙派發', 'secondary'),
+        . admin_btn('course_worksheets.php?id=' . $id, '工作紙派發', 'secondary')
+        . admin_btn('course_summer_homework.php?id=' . $id . '&export=csv', '匯出 CSV', 'secondary'),
     'wide' => true,
     'subtitle' => trim(
         ($report['class']['form_level_label'] ?? '—')
@@ -69,6 +104,19 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
                 <?php echo htmlspecialchars((string) $message, ENT_QUOTES, 'UTF-8'); ?>
             </div>
         <?php endif; ?>
+
+        <form method="get" class="mb-4 flex flex-wrap items-center gap-3 text-sm">
+            <input type="hidden" name="id" value="<?php echo $id; ?>">
+            <label class="text-slate-600">篩選狀態
+                <select name="status" class="ml-1 border rounded-lg px-2 py-1.5" onchange="this.form.submit()">
+                    <option value="" <?php echo $statusFilter === '' ? 'selected' : ''; ?>>全部</option>
+                    <option value="missing" <?php echo $statusFilter === 'missing' ? 'selected' : ''; ?>>未交</option>
+                    <option value="on_time" <?php echo $statusFilter === 'on_time' ? 'selected' : ''; ?>>準時</option>
+                    <option value="late" <?php echo $statusFilter === 'late' ? 'selected' : ''; ?>>欠交</option>
+                </select>
+            </label>
+            <span class="text-slate-400">顯示至少一項符合該狀態的學生</span>
+        </form>
 
         <?php if ($items !== [] && $students !== []): ?>
         <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
@@ -99,9 +147,17 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
                 <?php foreach ($students as $stu):
                     $uid = (int) ($stu['id'] ?? $stu['user_id'] ?? 0);
                     $name = user_format_name($stu);
+                    $anyNotPassed = false;
+                    foreach ($items as $item) {
+                        $cell = $byStudent[$uid][(int) $item['id']] ?? null;
+                        if ($cell !== null && (int) ($cell['attempts'] ?? 0) > 0 && empty($cell['passed'])) {
+                            $anyNotPassed = true;
+                            break;
+                        }
+                    }
                     ?>
-                    <tr class="border-t border-slate-100 align-top">
-                        <td class="p-3 sticky left-0 bg-white font-medium whitespace-nowrap">
+                    <tr class="border-t border-slate-100 align-top <?php echo $anyNotPassed ? 'bg-amber-50/50' : ''; ?>">
+                        <td class="p-3 sticky left-0 <?php echo $anyNotPassed ? 'bg-amber-50' : 'bg-white'; ?> font-medium whitespace-nowrap">
                             <?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>
                             <div class="text-xs text-slate-500 font-normal"><?php echo htmlspecialchars((string) ($stu['email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></div>
                         </td>

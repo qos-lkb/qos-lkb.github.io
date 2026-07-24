@@ -8,6 +8,17 @@
 
 ## 2026-07-24
 
+### 暑期功課：題型擴充與基礎強化
+- **題目 upsert**：重存習作保留既有 `question_id`（歷史 `responses_json`／分析可對上同一題）。
+- **儲存驗證**：無題目、stem 皆空、MC 無正解／選項空、填充無答案等拒絕儲存。
+- **計分拆分**：`sh_grade_mcq`／`fill_blank`／`true_false`／`short_answer`／`long_answer`；`details[]` 含 `question_id`、`type`、`correct`、`score`、`max`。
+- **新題型**：是非、短答（多可接受答案）、長答（教師評閱；**不擋自動及格**）。MC 選項 2–6；填充每空可多答案。
+- Schema：`schema_summer_homework_qtypes.sql`（ENUM、`correct_bool`／`max_score`／`rubric_*`、`summer_homework_short_answers`、`teacher_marks_json`）。
+- 學生 SPA：提交後逐題對錯／解釋；列表顯示實際 `pass_percent`。
+- 後台：班級報表狀態篩選＋CSV 匯出；分析頁新題型統計／長答評分；內容檢視支援新題型。
+- API：`POST /admin/summer-homework/attempts/{id}/marks`；提交需 `summer_homework.submit_own`（或管理權限）。
+- 已重產 **`data_dictionary.md`**（含新表／欄位說明）。
+
 ### 暑期功課：狀態改為未交／準時／欠交；呈交時間＝首次及格
 - **未交**：尚未及格（含未呈交或未達及格線）。
 - **準時**：首次及格 ≤ 截止日期；**欠交**：首次及格在截止日期之後。

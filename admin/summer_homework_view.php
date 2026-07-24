@@ -90,11 +90,19 @@ admin_page_start('檢視暑期功課 — ' . $title, 'summer_homework', [
                 <?php
                 $stem = (string) ($q['stem_zh'] ?: $q['stem_en']);
                 $type = (string) $q['question_type'];
+                $typeLabel = match ($type) {
+                    'mcq' => '選擇',
+                    'fill_blank' => '填充',
+                    'true_false' => '是非',
+                    'short_answer' => '短答',
+                    'long_answer' => '長答',
+                    default => $type,
+                };
                 ?>
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                     <p class="font-medium text-slate-900 mb-3">
                         <?php echo (int) $qi + 1; ?>.
-                        <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 mr-1"><?php echo $type === 'mcq' ? '選擇' : '填充'; ?></span>
+                        <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 mr-1"><?php echo htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'); ?></span>
                         <?php echo htmlspecialchars($stem, ENT_QUOTES, 'UTF-8'); ?>
                     </p>
                     <?php if ($type === 'mcq'): ?>
@@ -114,15 +122,60 @@ admin_page_start('檢視暑期功課 — ' . $title, 'summer_homework', [
                                 </li>
                             <?php endforeach; ?>
                         </ul>
+                    <?php elseif ($type === 'true_false'): ?>
+                        <p class="text-sm text-emerald-800 font-medium">
+                            正確答案：<?php echo !empty($q['correct_bool']) ? '是' : '否'; ?>
+                        </p>
+                    <?php elseif ($type === 'short_answer'): ?>
+                        <ul class="text-sm space-y-1">
+                            <?php foreach (($q['acceptable_answers'] ?? []) as $ans): ?>
+                                <?php if (!is_array($ans)) {
+                                    continue;
+                                } ?>
+                                <li class="font-mono text-emerald-800">
+                                    <?php echo htmlspecialchars((string) ($ans['acceptable_answer_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                    /
+                                    <?php echo htmlspecialchars((string) ($ans['acceptable_answer_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php elseif ($type === 'long_answer'): ?>
+                        <p class="text-sm text-slate-600">
+                            滿分 <?php echo htmlspecialchars((string) ($q['max_score'] ?? 5), ENT_QUOTES, 'UTF-8'); ?>
+                            （教師評閱；不計入自動及格％）
+                        </p>
+                        <?php
+                        $rubZh = trim((string) ($q['rubric_zh'] ?? ''));
+                        $rubEn = trim((string) ($q['rubric_en'] ?? ''));
+                        if ($rubZh !== '' || $rubEn !== ''):
+                            ?>
+                            <div class="mt-2 text-xs text-slate-600 space-y-1">
+                                <?php if ($rubZh !== ''): ?><p><span class="text-slate-400">評分指引（中）：</span><?php echo htmlspecialchars($rubZh, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
+                                <?php if ($rubEn !== ''): ?><p><span class="text-slate-400">評分指引（英）：</span><?php echo htmlspecialchars($rubEn, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     <?php else: ?>
                         <?php foreach ($q['blanks'] as $blank): ?>
                             <div class="text-sm mb-2">
                                 <span class="text-slate-500">空格 <?php echo (int) ($blank['blank_index'] ?? 0); ?>：</span>
-                                <span class="font-mono text-emerald-800">
-                                    <?php echo htmlspecialchars((string) ($blank['acceptable_answer_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                    /
-                                    <?php echo htmlspecialchars((string) ($blank['acceptable_answer_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                </span>
+                                <?php if (!empty($blank['acceptable_answers']) && is_array($blank['acceptable_answers'])): ?>
+                                    <?php foreach ($blank['acceptable_answers'] as $ans): ?>
+                                        <?php if (!is_array($ans)) {
+                                            continue;
+                                        } ?>
+                                        <span class="font-mono text-emerald-800 mr-2">
+                                            <?php echo htmlspecialchars((string) ($ans['acceptable_answer_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                            /
+                                            <?php echo htmlspecialchars((string) ($ans['acceptable_answer_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <span class="font-mono text-emerald-800">
+                                        <?php echo htmlspecialchars((string) ($blank['acceptable_answer_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                        /
+                                        <?php echo htmlspecialchars((string) ($blank['acceptable_answer_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                    </span>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>

@@ -122,6 +122,16 @@ function api_handle_summer_homework_submit(PDO $pdo, string $slug): void
     api_verify_csrf_or_fail();
     require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
 
+    auth_refresh_permissions((int) $user['id']);
+    $canSubmit = user_has_permission('summer_homework.submit_own')
+        || user_has_permission('summer_homework.manage_own')
+        || user_has_permission('summer_homework.manage_any')
+        || user_has_permission('class.manage_own')
+        || user_has_permission('class.manage_any');
+    if (!$canSubmit) {
+        api_json_error('forbidden', '沒有呈交暑期功課的權限。', 403);
+    }
+
     $row = sh_get_by_slug($pdo, $slug);
     if (!$row || $row['status'] !== 'published') {
         api_json_error('not_found', '找不到已發佈的暑期功課。', 404);
@@ -142,6 +152,23 @@ function api_handle_summer_homework_submit(PDO $pdo, string $slug): void
         api_json_error('submit_failed', $result['error'] ?? '提交失敗。', 400);
     }
     api_json_ok($result['result']);
+}
+
+function api_handle_admin_summer_homework_mark_attempt(PDO $pdo, int $attemptId): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions((int) $user['id']);
+    if (!sh_can_review($user)) {
+        api_json_error('forbidden', '無權限。', 403);
+    }
+    $body = api_read_json_body();
+    $marks = isset($body['marks']) && is_array($body['marks']) ? $body['marks'] : [];
+    $r = sh_save_teacher_marks($pdo, $attemptId, $marks, $user);
+    if (!$r['ok']) {
+        api_json_error('validation_error', $r['error'] ?? '評分失敗。', 422);
+    }
+    api_json_ok(['saved' => true]);
 }
 
 function api_handle_admin_summer_homework(PDO $pdo, string $method): void

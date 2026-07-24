@@ -12,6 +12,75 @@ function sh_normalize_fill_answer(string $s): string
     return $s;
 }
 
+/** @return list<string> */
+function sh_question_types(): array
+{
+    return ['mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer'];
+}
+
+function sh_normalize_question_type(string $type): string
+{
+    $type = trim($type);
+    return in_array($type, sh_question_types(), true) ? $type : 'mcq';
+}
+
+/**
+ * Whether a column exists (cached per request).
+ */
+function sh_table_has_column(PDO $pdo, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+        $cache[$key] = (int) $stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        $cache[$key] = false;
+    }
+    return $cache[$key];
+}
+
+function sh_delete_question_children(PDO $pdo, array $questionIds): void
+{
+    if ($questionIds === []) {
+        return;
+    }
+    $in = implode(',', array_fill(0, count($questionIds), '?'));
+    $pdo->prepare("DELETE FROM summer_homework_mcq_options WHERE question_id IN ($in)")->execute($questionIds);
+    $pdo->prepare("DELETE FROM summer_homework_fill_blanks WHERE question_id IN ($in)")->execute($questionIds);
+    if (sh_table_has_column($pdo, 'summer_homework_short_answers', 'id')
+        || sh_table_exists_short_answers($pdo)
+    ) {
+        try {
+            $pdo->prepare("DELETE FROM summer_homework_short_answers WHERE question_id IN ($in)")->execute($questionIds);
+        } catch (Throwable $e) {
+            // table may not exist yet
+        }
+    }
+}
+
+function sh_table_exists_short_answers(PDO $pdo): bool
+{
+    static $exists = null;
+    if ($exists !== null) {
+        return $exists;
+    }
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'summer_homework_short_answers'");
+        $exists = $stmt !== false && (bool) $stmt->fetch();
+    } catch (Throwable $e) {
+        $exists = false;
+    }
+    return $exists;
+}
+
 function sh_ensure_unique_slug(PDO $pdo, string $base, ?int $exceptId = null): string
 {
     $slug = substr(sim_slugify($base), 0, 190);
@@ -88,11 +157,28 @@ function sh_fetch_questions(PDO $pdo, int $itemId, bool $includeAnswers = false)
     $stmt->execute([$itemId]);
     $questions = $stmt->fetchAll() ?: [];
     $optStmt = $pdo->prepare('SELECT * FROM summer_homework_mcq_options WHERE question_id = ? ORDER BY sort_order, id');
-    $blankStmt = $pdo->prepare('SELECT * FROM summer_homework_fill_blanks WHERE question_id = ? ORDER BY sort_order, blank_index, id');
+    $blankStmt = $pdo->prepare('SELECT * FROM summer_homework_fill_blanks WHERE question_id = ? ORDER BY blank_index, sort_order, id');
+    $shortStmt = null;
+    if (sh_table_exists_short_answers($pdo)) {
+        $shortStmt = $pdo->prepare(
+            'SELECT * FROM summer_homework_short_answers WHERE question_id = ? ORDER BY sort_order, id'
+        );
+    }
 
     foreach ($questions as &$q) {
         $qid = (int) $q['id'];
-        $type = (string) $q['question_type'];
+        $type = sh_normalize_question_type((string) $q['question_type']);
+        $q['question_type'] = $type;
+        $q['options'] = [];
+        $q['blanks'] = [];
+        $q['acceptable_answers'] = [];
+        $q['max_score'] = isset($q['max_score']) ? (float) $q['max_score'] : 1.0;
+        if (array_key_exists('correct_bool', $q) && $q['correct_bool'] !== null) {
+            $q['correct_bool'] = (int) $q['correct_bool'] === 1;
+        } else {
+            $q['correct_bool'] = null;
+        }
+
         if ($type === 'mcq') {
             $optStmt->execute([$qid]);
             $opts = $optStmt->fetchAll() ?: [];
@@ -103,22 +189,60 @@ function sh_fetch_questions(PDO $pdo, int $itemId, bool $includeAnswers = false)
                 unset($o);
             }
             $q['options'] = $opts;
-            $q['blanks'] = [];
         } elseif ($type === 'fill_blank') {
             $blankStmt->execute([$qid]);
-            $blanks = $blankStmt->fetchAll() ?: [];
+            $rows = $blankStmt->fetchAll() ?: [];
+            /** @var array<int, array<string, mixed>> $grouped */
+            $grouped = [];
+            foreach ($rows as $row) {
+                $bi = (int) ($row['blank_index'] ?? 1);
+                if (!isset($grouped[$bi])) {
+                    $grouped[$bi] = [
+                        'blank_index' => $bi,
+                        'sort_order' => (int) ($row['sort_order'] ?? 0),
+                        'acceptable_answers' => [],
+                    ];
+                }
+                $az = (string) ($row['acceptable_answer_zh'] ?? '');
+                $ae = (string) ($row['acceptable_answer_en'] ?? '');
+                if ($includeAnswers) {
+                    $grouped[$bi]['acceptable_answers'][] = [
+                        'acceptable_answer_zh' => $az,
+                        'acceptable_answer_en' => $ae,
+                    ];
+                }
+                // Legacy single-field compatibility for older UI
+                if ($includeAnswers && empty($grouped[$bi]['acceptable_answer_zh']) && $az !== '') {
+                    $grouped[$bi]['acceptable_answer_zh'] = $az;
+                    $grouped[$bi]['acceptable_answer_en'] = $ae;
+                }
+            }
+            ksort($grouped);
+            $q['blanks'] = array_values($grouped);
             if (!$includeAnswers) {
-                foreach ($blanks as &$b) {
-                    unset($b['acceptable_answer_zh'], $b['acceptable_answer_en']);
+                foreach ($q['blanks'] as &$b) {
+                    unset($b['acceptable_answers'], $b['acceptable_answer_zh'], $b['acceptable_answer_en']);
                 }
                 unset($b);
             }
-            $q['blanks'] = $blanks;
-            $q['options'] = [];
-        } else {
-            $q['options'] = [];
-            $q['blanks'] = [];
+        } elseif ($type === 'true_false') {
+            if (!$includeAnswers) {
+                unset($q['correct_bool']);
+            }
+        } elseif ($type === 'short_answer') {
+            if ($shortStmt !== null) {
+                $shortStmt->execute([$qid]);
+                $answers = $shortStmt->fetchAll() ?: [];
+                if ($includeAnswers) {
+                    $q['acceptable_answers'] = $answers;
+                }
+            }
+        } elseif ($type === 'long_answer') {
+            if (!$includeAnswers) {
+                unset($q['rubric_zh'], $q['rubric_en']);
+            }
         }
+
         if (!$includeAnswers) {
             unset($q['explanation_zh'], $q['explanation_en']);
         }
@@ -380,6 +504,10 @@ function sh_save_item(PDO $pdo, array $payload, array $user): array
     $listSort = (int) ($payload['list_sort_order'] ?? 0);
     /** @var list<array<string, mixed>> $questions */
     $questions = isset($payload['questions']) && is_array($payload['questions']) ? $payload['questions'] : [];
+    $qValid = sh_validate_questions($questions);
+    if (!$qValid['ok']) {
+        return $qValid;
+    }
 
     if ($id > 0) {
         $row = sh_get_by_id($pdo, $id);
@@ -428,23 +556,151 @@ function sh_save_item(PDO $pdo, array $payload, array $user): array
 
 /**
  * @param list<array<string, mixed>> $questions
+ * @return array{ok:bool,error?:string}
+ */
+function sh_validate_questions(array $questions): array
+{
+    $usable = 0;
+    foreach ($questions as $i => $q) {
+        if (!is_array($q)) {
+            continue;
+        }
+        $type = sh_normalize_question_type((string) ($q['question_type'] ?? 'mcq'));
+        $stemZh = trim((string) ($q['stem_zh'] ?? ''));
+        $stemEn = trim((string) ($q['stem_en'] ?? ''));
+        if ($stemZh === '' && $stemEn === '') {
+            continue;
+        }
+        $usable++;
+        $n = $i + 1;
+        if ($type === 'mcq') {
+            $opts = isset($q['options']) && is_array($q['options']) ? $q['options'] : [];
+            $hasText = false;
+            $hasCorrect = false;
+            foreach ($opts as $opt) {
+                if (!is_array($opt)) {
+                    continue;
+                }
+                $tz = trim((string) ($opt['text_zh'] ?? ''));
+                $te = trim((string) ($opt['text_en'] ?? ''));
+                if ($tz !== '' || $te !== '') {
+                    $hasText = true;
+                }
+                if (!empty($opt['is_correct']) && ($tz !== '' || $te !== '')) {
+                    $hasCorrect = true;
+                }
+            }
+            if (!$hasText) {
+                return ['ok' => false, 'error' => "題目 {$n}：選擇題請至少填一個選項。"];
+            }
+            if (!$hasCorrect) {
+                return ['ok' => false, 'error' => "題目 {$n}：選擇題請指定正確選項。"];
+            }
+        } elseif ($type === 'fill_blank') {
+            $blanks = isset($q['blanks']) && is_array($q['blanks']) ? $q['blanks'] : [];
+            if ($blanks === []) {
+                return ['ok' => false, 'error' => "題目 {$n}：填充題請至少一個空格。"];
+            }
+            foreach ($blanks as $bi => $blank) {
+                if (!is_array($blank)) {
+                    continue;
+                }
+                $answers = isset($blank['acceptable_answers']) && is_array($blank['acceptable_answers'])
+                    ? $blank['acceptable_answers']
+                    : [[
+                        'acceptable_answer_zh' => (string) ($blank['acceptable_answer_zh'] ?? ''),
+                        'acceptable_answer_en' => (string) ($blank['acceptable_answer_en'] ?? ''),
+                    ]];
+                $okAns = false;
+                foreach ($answers as $ans) {
+                    if (!is_array($ans)) {
+                        continue;
+                    }
+                    if (trim((string) ($ans['acceptable_answer_zh'] ?? '')) !== ''
+                        || trim((string) ($ans['acceptable_answer_en'] ?? '')) !== ''
+                    ) {
+                        $okAns = true;
+                        break;
+                    }
+                }
+                if (!$okAns) {
+                    return ['ok' => false, 'error' => '題目 ' . $n . '：空格 ' . ($bi + 1) . ' 請填可接受答案。'];
+                }
+            }
+        } elseif ($type === 'true_false') {
+            if (!array_key_exists('correct_bool', $q)) {
+                return ['ok' => false, 'error' => "題目 {$n}：是非題請指定正確答案（是／否）。"];
+            }
+        } elseif ($type === 'short_answer') {
+            $answers = isset($q['acceptable_answers']) && is_array($q['acceptable_answers'])
+                ? $q['acceptable_answers']
+                : [];
+            $okAns = false;
+            foreach ($answers as $ans) {
+                if (!is_array($ans)) {
+                    continue;
+                }
+                if (trim((string) ($ans['acceptable_answer_zh'] ?? '')) !== ''
+                    || trim((string) ($ans['acceptable_answer_en'] ?? '')) !== ''
+                ) {
+                    $okAns = true;
+                    break;
+                }
+            }
+            if (!$okAns) {
+                return ['ok' => false, 'error' => "題目 {$n}：短答題請至少一個可接受答案。"];
+            }
+        } elseif ($type === 'long_answer') {
+            $max = isset($q['max_score']) ? (float) $q['max_score'] : 0.0;
+            if ($max <= 0) {
+                return ['ok' => false, 'error' => "題目 {$n}：長答題滿分須大於 0。"];
+            }
+        }
+    }
+    if ($usable === 0) {
+        return ['ok' => false, 'error' => '請至少新增一題有效題目（題幹不可全空）。'];
+    }
+
+    return ['ok' => true];
+}
+
+/**
+ * Upsert questions (stable ids). Children are replaced per question.
+ *
+ * @param list<array<string, mixed>> $questions
  */
 function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
 {
     $old = $pdo->prepare('SELECT id FROM summer_homework_questions WHERE item_id = ?');
     $old->execute([$itemId]);
     $oldIds = array_map('intval', $old->fetchAll(PDO::FETCH_COLUMN) ?: []);
-    if ($oldIds !== []) {
-        $in = implode(',', array_fill(0, count($oldIds), '?'));
-        $pdo->prepare("DELETE FROM summer_homework_mcq_options WHERE question_id IN ($in)")->execute($oldIds);
-        $pdo->prepare("DELETE FROM summer_homework_fill_blanks WHERE question_id IN ($in)")->execute($oldIds);
-        $pdo->prepare('DELETE FROM summer_homework_questions WHERE item_id = ?')->execute([$itemId]);
-    }
+    $keptIds = [];
 
-    $qIns = $pdo->prepare(
-        'INSERT INTO summer_homework_questions (item_id, question_type, sort_order, stem_zh, stem_en, explanation_zh, explanation_en)
-         VALUES (?,?,?,?,?,?,?)'
-    );
+    $hasExtraCols = sh_table_has_column($pdo, 'summer_homework_questions', 'correct_bool');
+    $hasShort = sh_table_exists_short_answers($pdo);
+
+    $qIns = $hasExtraCols
+        ? $pdo->prepare(
+            'INSERT INTO summer_homework_questions
+             (item_id, question_type, sort_order, stem_zh, stem_en, explanation_zh, explanation_en,
+              correct_bool, max_score, rubric_zh, rubric_en)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+        )
+        : $pdo->prepare(
+            'INSERT INTO summer_homework_questions
+             (item_id, question_type, sort_order, stem_zh, stem_en, explanation_zh, explanation_en)
+             VALUES (?,?,?,?,?,?,?)'
+        );
+    $qUpd = $hasExtraCols
+        ? $pdo->prepare(
+            'UPDATE summer_homework_questions SET question_type=?, sort_order=?, stem_zh=?, stem_en=?,
+             explanation_zh=?, explanation_en=?, correct_bool=?, max_score=?, rubric_zh=?, rubric_en=?
+             WHERE id=? AND item_id=?'
+        )
+        : $pdo->prepare(
+            'UPDATE summer_homework_questions SET question_type=?, sort_order=?, stem_zh=?, stem_en=?,
+             explanation_zh=?, explanation_en=? WHERE id=? AND item_id=?'
+        );
     $oIns = $pdo->prepare(
         'INSERT INTO summer_homework_mcq_options (question_id, sort_order, text_zh, text_en, is_correct) VALUES (?,?,?,?,?)'
     );
@@ -452,12 +708,18 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
         'INSERT INTO summer_homework_fill_blanks (question_id, blank_index, acceptable_answer_zh, acceptable_answer_en, sort_order)
          VALUES (?,?,?,?,?)'
     );
+    $sIns = $hasShort
+        ? $pdo->prepare(
+            'INSERT INTO summer_homework_short_answers (question_id, sort_order, acceptable_answer_zh, acceptable_answer_en)
+             VALUES (?,?,?,?)'
+        )
+        : null;
 
     foreach ($questions as $i => $q) {
-        $type = (string) ($q['question_type'] ?? 'mcq');
-        if ($type !== 'mcq' && $type !== 'fill_blank') {
-            $type = 'mcq';
+        if (!is_array($q)) {
+            continue;
         }
+        $type = sh_normalize_question_type((string) ($q['question_type'] ?? 'mcq'));
         $stemZh = trim((string) ($q['stem_zh'] ?? ''));
         $stemEn = trim((string) ($q['stem_en'] ?? ''));
         if ($stemZh === '' && $stemEn === '') {
@@ -469,20 +731,50 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
         if ($stemZh === '') {
             $stemZh = $stemEn;
         }
-        $qIns->execute([
-            $itemId,
-            $type,
-            (int) ($q['sort_order'] ?? $i),
-            $stemZh,
-            $stemEn,
-            (string) ($q['explanation_zh'] ?? ''),
-            (string) ($q['explanation_en'] ?? ''),
-        ]);
-        $qid = (int) $pdo->lastInsertId();
+        $explZh = (string) ($q['explanation_zh'] ?? '');
+        $explEn = (string) ($q['explanation_en'] ?? '');
+        $sort = (int) ($q['sort_order'] ?? $i);
+        $correctBool = null;
+        if ($type === 'true_false') {
+            $correctBool = !empty($q['correct_bool']) ? 1 : 0;
+        }
+        $maxScore = $type === 'long_answer'
+            ? max(0.5, (float) ($q['max_score'] ?? 5))
+            : 1.0;
+        $rubricZh = (string) ($q['rubric_zh'] ?? '');
+        $rubricEn = (string) ($q['rubric_en'] ?? '');
+
+        $qid = isset($q['id']) ? (int) $q['id'] : 0;
+        if ($qid > 0 && in_array($qid, $oldIds, true)) {
+            if ($hasExtraCols) {
+                $qUpd->execute([
+                    $type, $sort, $stemZh, $stemEn, $explZh, $explEn,
+                    $correctBool, $maxScore, $rubricZh, $rubricEn, $qid, $itemId,
+                ]);
+            } else {
+                $qUpd->execute([$type, $sort, $stemZh, $stemEn, $explZh, $explEn, $qid, $itemId]);
+            }
+            $keptIds[] = $qid;
+            sh_delete_question_children($pdo, [$qid]);
+        } else {
+            if ($hasExtraCols) {
+                $qIns->execute([
+                    $itemId, $type, $sort, $stemZh, $stemEn, $explZh, $explEn,
+                    $correctBool, $maxScore, $rubricZh, $rubricEn,
+                ]);
+            } else {
+                $qIns->execute([$itemId, $type, $sort, $stemZh, $stemEn, $explZh, $explEn]);
+            }
+            $qid = (int) $pdo->lastInsertId();
+            $keptIds[] = $qid;
+        }
 
         if ($type === 'mcq') {
             $opts = isset($q['options']) && is_array($q['options']) ? $q['options'] : [];
             foreach ($opts as $oi => $opt) {
+                if (!is_array($opt)) {
+                    continue;
+                }
                 $tz = trim((string) ($opt['text_zh'] ?? ''));
                 $te = trim((string) ($opt['text_en'] ?? ''));
                 if ($tz === '' && $te === '') {
@@ -502,11 +794,49 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
                     !empty($opt['is_correct']) ? 1 : 0,
                 ]);
             }
-        } else {
+        } elseif ($type === 'fill_blank') {
             $blanks = isset($q['blanks']) && is_array($q['blanks']) ? $q['blanks'] : [];
             foreach ($blanks as $bi => $blank) {
-                $az = trim((string) ($blank['acceptable_answer_zh'] ?? ''));
-                $ae = trim((string) ($blank['acceptable_answer_en'] ?? ''));
+                if (!is_array($blank)) {
+                    continue;
+                }
+                $blankIndex = (int) ($blank['blank_index'] ?? ($bi + 1));
+                $answers = isset($blank['acceptable_answers']) && is_array($blank['acceptable_answers'])
+                    ? $blank['acceptable_answers']
+                    : [[
+                        'acceptable_answer_zh' => (string) ($blank['acceptable_answer_zh'] ?? ''),
+                        'acceptable_answer_en' => (string) ($blank['acceptable_answer_en'] ?? ''),
+                    ]];
+                $si = 0;
+                foreach ($answers as $ans) {
+                    if (!is_array($ans)) {
+                        continue;
+                    }
+                    $az = trim((string) ($ans['acceptable_answer_zh'] ?? ''));
+                    $ae = trim((string) ($ans['acceptable_answer_en'] ?? ''));
+                    if ($az === '' && $ae === '') {
+                        continue;
+                    }
+                    if ($ae === '') {
+                        $ae = $az;
+                    }
+                    if ($az === '') {
+                        $az = $ae;
+                    }
+                    $bIns->execute([$qid, $blankIndex, $az, $ae, $si]);
+                    $si++;
+                }
+            }
+        } elseif ($type === 'short_answer' && $sIns !== null) {
+            $answers = isset($q['acceptable_answers']) && is_array($q['acceptable_answers'])
+                ? $q['acceptable_answers']
+                : [];
+            foreach ($answers as $si => $ans) {
+                if (!is_array($ans)) {
+                    continue;
+                }
+                $az = trim((string) ($ans['acceptable_answer_zh'] ?? ''));
+                $ae = trim((string) ($ans['acceptable_answer_en'] ?? ''));
                 if ($az === '' && $ae === '') {
                     continue;
                 }
@@ -516,15 +846,17 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
                 if ($az === '') {
                     $az = $ae;
                 }
-                $bIns->execute([
-                    $qid,
-                    (int) ($blank['blank_index'] ?? ($bi + 1)),
-                    $az,
-                    $ae,
-                    (int) ($blank['sort_order'] ?? $bi),
-                ]);
+                $sIns->execute([$qid, (int) $si, $az, $ae]);
             }
         }
+    }
+
+    $toDelete = array_values(array_diff($oldIds, $keptIds));
+    if ($toDelete !== []) {
+        sh_delete_question_children($pdo, $toDelete);
+        $in = implode(',', array_fill(0, count($toDelete), '?'));
+        $pdo->prepare("DELETE FROM summer_homework_questions WHERE id IN ($in) AND item_id = ?")
+            ->execute([...$toDelete, $itemId]);
     }
 }
 
@@ -543,11 +875,7 @@ function sh_delete_item(PDO $pdo, int $id, array $user): array
     $old = $pdo->prepare('SELECT id FROM summer_homework_questions WHERE item_id = ?');
     $old->execute([$id]);
     $oldIds = array_map('intval', $old->fetchAll(PDO::FETCH_COLUMN) ?: []);
-    if ($oldIds !== []) {
-        $in = implode(',', array_fill(0, count($oldIds), '?'));
-        $pdo->prepare("DELETE FROM summer_homework_mcq_options WHERE question_id IN ($in)")->execute($oldIds);
-        $pdo->prepare("DELETE FROM summer_homework_fill_blanks WHERE question_id IN ($in)")->execute($oldIds);
-    }
+    sh_delete_question_children($pdo, $oldIds);
     $pdo->prepare('DELETE FROM summer_homework_questions WHERE item_id = ?')->execute([$id]);
     $pdo->prepare('DELETE FROM summer_homework_attempts WHERE item_id = ?')->execute([$id]);
     $pdo->prepare('DELETE FROM summer_homework_items WHERE id = ?')->execute([$id]);
@@ -555,10 +883,10 @@ function sh_delete_item(PDO $pdo, int $id, array $user): array
 }
 
 /**
- * Grade responses. MC: 1 point each. Fill blank: 1 point per blank.
+ * Grade responses. Auto-scored types count toward pass %; long_answer is excluded (manual).
  *
  * @param list<array<string, mixed>> $questionsWithAnswers
- * @param array<string, mixed> $responses question_id => {selected_option_index?:int, blanks?:list<string>}
+ * @param array<string, mixed> $responses
  * @return array{score:float,max_score:float,percent:float,passed:bool,details:list<array<string,mixed>>}
  */
 function sh_grade_responses(array $questionsWithAnswers, array $responses, float $passPercent = 80.0): array
@@ -569,70 +897,26 @@ function sh_grade_responses(array $questionsWithAnswers, array $responses, float
 
     foreach ($questionsWithAnswers as $q) {
         $qid = (int) $q['id'];
-        $type = (string) $q['question_type'];
+        $type = sh_normalize_question_type((string) $q['question_type']);
         $resp = $responses[(string) $qid] ?? $responses[$qid] ?? null;
-        if ($type === 'mcq') {
-            $max += 1;
-            $correctIdx = null;
-            $optionSnapshot = [];
-            foreach ($q['options'] as $i => $o) {
-                $idx = (int) $i;
-                $isCorrect = !empty($o['is_correct']);
-                if ($isCorrect && $correctIdx === null) {
-                    $correctIdx = $idx;
-                }
-                $optionSnapshot[] = [
-                    'index' => $idx,
-                    'label' => chr(65 + $idx),
-                    'text_zh' => (string) ($o['text_zh'] ?? ''),
-                    'text_en' => (string) ($o['text_en'] ?? ''),
-                    'is_correct' => $isCorrect,
-                ];
-            }
-            $selected = is_array($resp) && isset($resp['selected_option_index'])
-                ? (int) $resp['selected_option_index']
-                : null;
-            $ok = $correctIdx !== null && $selected === $correctIdx;
-            if ($ok) {
-                $score += 1;
-            }
-            $details[] = [
+        $detail = match ($type) {
+            'mcq' => sh_grade_mcq($q, $resp),
+            'fill_blank' => sh_grade_fill_blank($q, $resp),
+            'true_false' => sh_grade_true_false($q, $resp),
+            'short_answer' => sh_grade_short_answer($q, $resp),
+            'long_answer' => sh_grade_long_answer($q, $resp),
+            default => [
                 'question_id' => $qid,
-                'type' => 'mcq',
-                'correct' => $ok,
-                'selected_option_index' => $selected,
-                'correct_option_index' => $correctIdx,
-                // Snapshot at submit time so option-distribution analysis survives later edits.
-                'options' => $optionSnapshot,
-            ];
-        } elseif ($type === 'fill_blank') {
-            $blanks = $q['blanks'] ?? [];
-            $answers = is_array($resp) && isset($resp['blanks']) && is_array($resp['blanks'])
-                ? $resp['blanks']
-                : [];
-            $blankDetails = [];
-            foreach ($blanks as $bi => $blank) {
-                $max += 1;
-                $given = isset($answers[$bi]) ? (string) $answers[$bi] : (isset($answers[(string) $bi]) ? (string) $answers[(string) $bi] : '');
-                $acceptZh = sh_normalize_fill_answer((string) ($blank['acceptable_answer_zh'] ?? ''));
-                $acceptEn = sh_normalize_fill_answer((string) ($blank['acceptable_answer_en'] ?? ''));
-                $norm = sh_normalize_fill_answer($given);
-                $ok = $norm !== '' && ($norm === $acceptZh || $norm === $acceptEn);
-                if ($ok) {
-                    $score += 1;
-                }
-                $blankDetails[] = [
-                    'blank_index' => (int) ($blank['blank_index'] ?? ($bi + 1)),
-                    'given' => $given,
-                    'correct' => $ok,
-                ];
-            }
-            $details[] = [
-                'question_id' => $qid,
-                'type' => 'fill_blank',
-                'blanks' => $blankDetails,
-                'correct' => $blankDetails !== [] && !in_array(false, array_column($blankDetails, 'correct'), true),
-            ];
+                'type' => $type,
+                'correct' => false,
+                'score' => 0.0,
+                'max' => 0.0,
+            ],
+        };
+        $details[] = $detail;
+        if (empty($detail['exclude_from_auto'])) {
+            $score += (float) ($detail['score'] ?? 0);
+            $max += (float) ($detail['max'] ?? 0);
         }
     }
 
@@ -645,6 +929,190 @@ function sh_grade_responses(array $questionsWithAnswers, array $responses, float
         'percent' => $percent,
         'passed' => $passed,
         'details' => $details,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $q
+ * @param mixed $resp
+ * @return array<string, mixed>
+ */
+function sh_grade_mcq(array $q, mixed $resp): array
+{
+    $qid = (int) $q['id'];
+    $correctIdx = null;
+    $optionSnapshot = [];
+    foreach ($q['options'] ?? [] as $i => $o) {
+        $idx = (int) $i;
+        $isCorrect = !empty($o['is_correct']);
+        if ($isCorrect && $correctIdx === null) {
+            $correctIdx = $idx;
+        }
+        $optionSnapshot[] = [
+            'index' => $idx,
+            'label' => chr(65 + $idx),
+            'text_zh' => (string) ($o['text_zh'] ?? ''),
+            'text_en' => (string) ($o['text_en'] ?? ''),
+            'is_correct' => $isCorrect,
+        ];
+    }
+    $selected = is_array($resp) && isset($resp['selected_option_index'])
+        ? (int) $resp['selected_option_index']
+        : null;
+    $ok = $correctIdx !== null && $selected === $correctIdx;
+
+    return [
+        'question_id' => $qid,
+        'type' => 'mcq',
+        'correct' => $ok,
+        'score' => $ok ? 1.0 : 0.0,
+        'max' => 1.0,
+        'selected_option_index' => $selected,
+        'correct_option_index' => $correctIdx,
+        'options' => $optionSnapshot,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $q
+ * @param mixed $resp
+ * @return array<string, mixed>
+ */
+function sh_grade_fill_blank(array $q, mixed $resp): array
+{
+    $qid = (int) $q['id'];
+    $blanks = $q['blanks'] ?? [];
+    $answers = is_array($resp) && isset($resp['blanks']) && is_array($resp['blanks'])
+        ? $resp['blanks']
+        : [];
+    $blankDetails = [];
+    $score = 0.0;
+    $max = 0.0;
+    foreach ($blanks as $bi => $blank) {
+        $max += 1;
+        $given = isset($answers[$bi])
+            ? (string) $answers[$bi]
+            : (isset($answers[(string) $bi]) ? (string) $answers[(string) $bi] : '');
+        $norm = sh_normalize_fill_answer($given);
+        $acceptList = [];
+        if (isset($blank['acceptable_answers']) && is_array($blank['acceptable_answers'])) {
+            foreach ($blank['acceptable_answers'] as $ans) {
+                if (!is_array($ans)) {
+                    continue;
+                }
+                $acceptList[] = sh_normalize_fill_answer((string) ($ans['acceptable_answer_zh'] ?? ''));
+                $acceptList[] = sh_normalize_fill_answer((string) ($ans['acceptable_answer_en'] ?? ''));
+            }
+        } else {
+            $acceptList[] = sh_normalize_fill_answer((string) ($blank['acceptable_answer_zh'] ?? ''));
+            $acceptList[] = sh_normalize_fill_answer((string) ($blank['acceptable_answer_en'] ?? ''));
+        }
+        $acceptList = array_values(array_filter($acceptList, static fn (string $s): bool => $s !== ''));
+        $ok = $norm !== '' && in_array($norm, $acceptList, true);
+        if ($ok) {
+            $score += 1;
+        }
+        $blankDetails[] = [
+            'blank_index' => (int) ($blank['blank_index'] ?? ($bi + 1)),
+            'given' => $given,
+            'correct' => $ok,
+            'acceptable_answers' => $acceptList,
+        ];
+    }
+
+    return [
+        'question_id' => $qid,
+        'type' => 'fill_blank',
+        'blanks' => $blankDetails,
+        'correct' => $blankDetails !== [] && !in_array(false, array_column($blankDetails, 'correct'), true),
+        'score' => $score,
+        'max' => $max,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $q
+ * @param mixed $resp
+ * @return array<string, mixed>
+ */
+function sh_grade_true_false(array $q, mixed $resp): array
+{
+    $qid = (int) $q['id'];
+    $correct = !empty($q['correct_bool']);
+    $selected = null;
+    if (is_array($resp) && array_key_exists('selected_bool', $resp)) {
+        $selected = (bool) $resp['selected_bool'];
+    } elseif (is_array($resp) && array_key_exists('value', $resp)) {
+        $selected = (bool) $resp['value'];
+    }
+    $ok = $selected !== null && $selected === $correct;
+
+    return [
+        'question_id' => $qid,
+        'type' => 'true_false',
+        'correct' => $ok,
+        'score' => $ok ? 1.0 : 0.0,
+        'max' => 1.0,
+        'selected_bool' => $selected,
+        'correct_bool' => $correct,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $q
+ * @param mixed $resp
+ * @return array<string, mixed>
+ */
+function sh_grade_short_answer(array $q, mixed $resp): array
+{
+    $qid = (int) $q['id'];
+    $given = is_array($resp) ? trim((string) ($resp['text'] ?? $resp['answer'] ?? '')) : '';
+    $norm = sh_normalize_fill_answer($given);
+    $acceptList = [];
+    foreach ($q['acceptable_answers'] ?? [] as $ans) {
+        if (!is_array($ans)) {
+            continue;
+        }
+        $acceptList[] = sh_normalize_fill_answer((string) ($ans['acceptable_answer_zh'] ?? ''));
+        $acceptList[] = sh_normalize_fill_answer((string) ($ans['acceptable_answer_en'] ?? ''));
+    }
+    $acceptList = array_values(array_filter($acceptList, static fn (string $s): bool => $s !== ''));
+    $ok = $norm !== '' && in_array($norm, $acceptList, true);
+
+    return [
+        'question_id' => $qid,
+        'type' => 'short_answer',
+        'correct' => $ok,
+        'score' => $ok ? 1.0 : 0.0,
+        'max' => 1.0,
+        'given' => $given,
+        'acceptable_answers' => $acceptList,
+    ];
+}
+
+/**
+ * Long answer: not auto-scored; excluded from pass percent.
+ *
+ * @param array<string, mixed> $q
+ * @param mixed $resp
+ * @return array<string, mixed>
+ */
+function sh_grade_long_answer(array $q, mixed $resp): array
+{
+    $qid = (int) $q['id'];
+    $text = is_array($resp) ? trim((string) ($resp['text'] ?? '')) : '';
+    $maxScore = max(0.5, (float) ($q['max_score'] ?? 5));
+
+    return [
+        'question_id' => $qid,
+        'type' => 'long_answer',
+        'correct' => null,
+        'needs_marking' => true,
+        'exclude_from_auto' => true,
+        'score' => 0.0,
+        'max' => $maxScore,
+        'manual_score' => null,
+        'given' => $text,
     ];
 }
 
@@ -1170,6 +1638,17 @@ function sh_item_attempt_analytics(PDO $pdo, int $itemId): array
             }
         } elseif ($type === 'fill_blank') {
             $stats[$qid]['blank_stats'] = [];
+        } elseif ($type === 'true_false') {
+            $stats[$qid]['true_count'] = 0;
+            $stats[$qid]['false_count'] = 0;
+            $stats[$qid]['correct_bool'] = array_key_exists('correct_bool', $q)
+                ? ($q['correct_bool'] === null ? null : (bool) $q['correct_bool'])
+                : null;
+        } elseif ($type === 'short_answer') {
+            $stats[$qid]['wrong_answer_counts'] = [];
+        } elseif ($type === 'long_answer') {
+            $stats[$qid]['needs_marking'] = 0;
+            $stats[$qid]['marked'] = 0;
         }
     }
 
@@ -1297,6 +1776,99 @@ function sh_item_attempt_analytics(PDO $pdo, int $itemId): array
                             }
                         }
                     }
+                } elseif (($s['type'] ?? '') === 'true_false') {
+                    if ($detail === null && !is_array($resp)) {
+                        continue;
+                    }
+                    $selected = null;
+                    $isCorrect = null;
+                    if (is_array($detail)) {
+                        if (array_key_exists('selected_bool', $detail)) {
+                            $selected = $detail['selected_bool'] === null
+                                ? null
+                                : (bool) $detail['selected_bool'];
+                        }
+                        if (array_key_exists('correct', $detail)) {
+                            $isCorrect = $detail['correct'] === null ? null : !empty($detail['correct']);
+                        }
+                        if (array_key_exists('correct_bool', $detail) && $detail['correct_bool'] !== null) {
+                            $s['correct_bool'] = (bool) $detail['correct_bool'];
+                        }
+                    }
+                    if ($selected === null && is_array($resp) && array_key_exists('selected_bool', $resp)) {
+                        $selected = $resp['selected_bool'] === null ? null : (bool) $resp['selected_bool'];
+                    }
+                    if ($isCorrect === null && $selected !== null && array_key_exists('correct_bool', $s) && $s['correct_bool'] !== null) {
+                        $isCorrect = $selected === (bool) $s['correct_bool'];
+                    }
+                    $s['attempts']++;
+                    if ($selected === null) {
+                        $s['unanswered']++;
+                        $s['incorrect']++;
+                    } elseif ($isCorrect === true) {
+                        $s['correct']++;
+                    } else {
+                        $s['incorrect']++;
+                    }
+                    if ($selected === true) {
+                        $s['true_count'] = (int) ($s['true_count'] ?? 0) + 1;
+                    } elseif ($selected === false) {
+                        $s['false_count'] = (int) ($s['false_count'] ?? 0) + 1;
+                    }
+                } elseif (($s['type'] ?? '') === 'short_answer') {
+                    if ($detail === null && !is_array($resp)) {
+                        continue;
+                    }
+                    $given = '';
+                    $isCorrect = null;
+                    if (is_array($detail)) {
+                        $given = trim((string) ($detail['given'] ?? ''));
+                        if (array_key_exists('correct', $detail)) {
+                            $isCorrect = !empty($detail['correct']);
+                        }
+                    }
+                    if ($given === '' && is_array($resp)) {
+                        $given = trim((string) ($resp['text'] ?? ''));
+                    }
+                    $s['attempts']++;
+                    if ($given === '') {
+                        $s['unanswered']++;
+                        $s['incorrect']++;
+                    } elseif ($isCorrect === true) {
+                        $s['correct']++;
+                    } else {
+                        $s['incorrect']++;
+                        if ($given !== '') {
+                            if (!isset($s['wrong_answer_counts']) || !is_array($s['wrong_answer_counts'])) {
+                                $s['wrong_answer_counts'] = [];
+                            }
+                            $key = mb_strtolower($given);
+                            if (!isset($s['wrong_answer_counts'][$key])) {
+                                $s['wrong_answer_counts'][$key] = ['answer' => $given, 'count' => 0];
+                            }
+                            $s['wrong_answer_counts'][$key]['count']++;
+                        }
+                    }
+                } elseif (($s['type'] ?? '') === 'long_answer') {
+                    if ($detail === null && !is_array($resp)) {
+                        continue;
+                    }
+                    $given = '';
+                    if (is_array($detail)) {
+                        $given = trim((string) ($detail['given'] ?? ''));
+                    }
+                    if ($given === '' && is_array($resp)) {
+                        $given = trim((string) ($resp['text'] ?? ''));
+                    }
+                    $s['attempts']++;
+                    if ($given === '') {
+                        $s['unanswered']++;
+                    }
+                    if (is_array($detail) && !empty($detail['needs_marking'])) {
+                        $s['needs_marking'] = (int) ($s['needs_marking'] ?? 0) + 1;
+                    } else {
+                        $s['marked'] = (int) ($s['marked'] ?? 0) + 1;
+                    }
                 }
             }
             unset($s);
@@ -1346,6 +1918,23 @@ function sh_item_attempt_analytics(PDO $pdo, int $itemId): array
             unset($b);
             $row['blanks'] = $blanks;
         }
+        if (($s['type'] ?? '') === 'true_false') {
+            $row['true_count'] = (int) ($s['true_count'] ?? 0);
+            $row['false_count'] = (int) ($s['false_count'] ?? 0);
+            $row['correct_bool'] = $s['correct_bool'] ?? null;
+        }
+        if (($s['type'] ?? '') === 'short_answer' && isset($s['wrong_answer_counts']) && is_array($s['wrong_answer_counts'])) {
+            $wrongs = array_values($s['wrong_answer_counts']);
+            usort($wrongs, static fn (array $a, array $b): int => ((int) $b['count']) <=> ((int) $a['count']));
+            $row['common_wrong_answers'] = array_slice($wrongs, 0, 5);
+        }
+        if (($s['type'] ?? '') === 'long_answer') {
+            $row['needs_marking'] = (int) ($s['needs_marking'] ?? 0);
+            $row['marked'] = (int) ($s['marked'] ?? 0);
+            $row['miss_rate_percent'] = null;
+            $row['correct'] = 0;
+            $row['incorrect'] = 0;
+        }
         $questionOut[] = $row;
     }
 
@@ -1359,4 +1948,117 @@ function sh_item_attempt_analytics(PDO $pdo, int $itemId): array
         'questions' => $questionOut,
         'grading_json_available' => sh_attempts_has_grading_json($pdo),
     ];
+}
+
+/**
+ * Save teacher marks for long_answer questions on one attempt.
+ *
+ * @param array<string, array{score?:float,comment?:string}> $marks question_id => mark
+ * @return array{ok:bool,error?:string}
+ */
+function sh_save_teacher_marks(PDO $pdo, int $attemptId, array $marks, array $user): array
+{
+    if (!sh_can_review($user)) {
+        return ['ok' => false, 'error' => '無權評分。'];
+    }
+    $stmt = $pdo->prepare('SELECT * FROM summer_homework_attempts WHERE id = ? LIMIT 1');
+    $stmt->execute([$attemptId]);
+    $attempt = $stmt->fetch();
+    if (!$attempt) {
+        return ['ok' => false, 'error' => '找不到呈交紀錄。'];
+    }
+    if (!sh_table_has_column($pdo, 'summer_homework_attempts', 'teacher_marks_json')) {
+        return ['ok' => false, 'error' => '請先執行 schema_summer_homework_qtypes.sql。'];
+    }
+
+    $questions = sh_fetch_questions($pdo, (int) $attempt['item_id'], true);
+    $byId = [];
+    foreach ($questions as $q) {
+        $byId[(int) $q['id']] = $q;
+    }
+
+    $existing = sh_decode_json_column($attempt['teacher_marks_json'] ?? null) ?? [];
+    if (!is_array($existing)) {
+        $existing = [];
+    }
+
+    foreach ($marks as $qidRaw => $mark) {
+        $qid = (int) $qidRaw;
+        if (!isset($byId[$qid]) || ($byId[$qid]['question_type'] ?? '') !== 'long_answer') {
+            continue;
+        }
+        if (!is_array($mark)) {
+            continue;
+        }
+        $max = (float) ($byId[$qid]['max_score'] ?? 5);
+        $score = isset($mark['score']) ? (float) $mark['score'] : 0.0;
+        if ($score < 0) {
+            $score = 0.0;
+        }
+        if ($score > $max) {
+            $score = $max;
+        }
+        $existing[(string) $qid] = [
+            'score' => $score,
+            'max' => $max,
+            'comment' => trim((string) ($mark['comment'] ?? '')),
+            'marked_by' => (int) ($user['id'] ?? 0),
+            'marked_at' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    $pdo->prepare(
+        'UPDATE summer_homework_attempts SET teacher_marks_json = ? WHERE id = ?'
+    )->execute([json_encode($existing, JSON_UNESCAPED_UNICODE), $attemptId]);
+
+    return ['ok' => true];
+}
+
+/**
+ * CSV rows for class summer homework report.
+ *
+ * @return list<list<string>>
+ */
+function sh_class_report_csv_rows(array $report): array
+{
+    $items = $report['items'] ?? [];
+    $students = $report['students'] ?? [];
+    $rows = $report['rows'] ?? [];
+    /** @var array<string, array<string, mixed>> $by */
+    $by = [];
+    foreach ($rows as $r) {
+        $by[(int) $r['student_user_id'] . ':' . (int) $r['item_id']] = $r;
+    }
+
+    $header = ['學生', '帳戶'];
+    foreach ($items as $item) {
+        $title = (string) ($item['title_zh'] ?: $item['title_en']);
+        $header[] = $title . '｜狀態';
+        $header[] = $title . '｜最高％';
+        $header[] = $title . '｜首次及格';
+    }
+    $out = [$header];
+    foreach ($students as $stu) {
+        $uid = (int) ($stu['id'] ?? $stu['user_id'] ?? 0);
+        $line = [
+            user_format_name($stu),
+            (string) ($stu['email'] ?? ''),
+        ];
+        foreach ($items as $item) {
+            $cell = $by[$uid . ':' . (int) $item['id']] ?? null;
+            if ($cell === null) {
+                $line[] = '';
+                $line[] = '';
+                $line[] = '';
+                continue;
+            }
+            $line[] = (string) ($cell['status_label'] ?? '');
+            $line[] = $cell['percent'] !== null ? (string) $cell['percent'] : '';
+            $line[] = !empty($cell['first_passed_at'])
+                ? substr((string) $cell['first_passed_at'], 0, 16)
+                : '';
+        }
+        $out[] = $line;
+    }
+    return $out;
 }

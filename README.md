@@ -19,7 +19,7 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 ## 功能特色 | Features
 
 - 雙語介面（繁中／英）、響應式排版（Tailwind）
-- **暑期功課**（中一／中二）：閱讀或影片 + 選擇／填充；每次呈交保留完整紀錄與選項快照；截止／遲交；班級報表與**錯題／選項分析**（詳見下方 [暑期功課](#暑期功課--summer-homework)）
+- **暑期功課**（中一／中二）：閱讀或影片 + 選擇／填充／是非／短答／長答；每次呈交保留完整紀錄；截止／遲交；班級報表與**錯題分析**（詳見下方 [暑期功課](#暑期功課--summer-homework)）
 - **自學課程**：依科目／課題混合編排筆記、模擬、工作紙、文章、互動工具、嵌入影片
 - **學習筆記**（含 PDF 匯出）、**工作紙**（Markdown + 嵌入模擬／影片／試題）、**試題庫**（MCQ、短答、長答、填充、是非）
 - **模擬程式**：側欄瀏覽、搜尋；課程流程先 **預覽頁** 再模態 iframe；PNG 截圖
@@ -112,15 +112,19 @@ python3 -m http.server 8000
 
 ### 規則
 
-- 每份習作包含：**閱讀篇章** 或 **影片**，以及跟進 **選擇題（MC）** 與／或 **填充題**。
-- 計分：每題 MC 1 分；每個填充空格 1 分。
-- **達及格線（預設 80%）→ 及格**；否則 **不及格並須重做**。
+- 每份習作包含：**閱讀篇章** 或 **影片**，以及跟進題目。
+- **題型**：選擇題（MC，2–6 選項）、填充題（每空可多個可接受答案）、是非題、短答題、長答題（教師評閱）。
+- 計分：自動評分題各題／各空 1 分；長答有 `max_score` 但 **不計入自動及格百分比**（另存 `teacher_marks_json`）。
+- **達及格線（預設 80%，可調）→ 及格**；否則 **不及格並須重做**。長答不擋自動及格。
 - **及格後仍可重做**；若本次分數更高則更新最高分，較低則保留原最高分。
 - 列表／報表顯示的百分比為該生的 **最高分數**；資料庫 **每次呈交都會新增一列** `summer_homework_attempts`（含 `responses_json` 與 `grading_json`）。
+- 重存習作時題目採 **upsert**（保留 `question_id`），避免歷史呈交對不上題號。
 - 選擇題每次呈交會記錄：
   - `responses_json`：`selected_option_index`
   - `grading_json.details[]`：`selected_option_index`、`correct_option_index`、以及當下各選項 **文字／是否正確** 的快照（`options[]`）
   - 分析頁可計算：**各選項被選百分率**、**錯選佔比**（該錯誤選項 ÷ 答錯次數）
+- 是非／短答／填充同樣寫入 `details[]`（含 `given`／`selected_bool`／可接受答案正規化比對）。
+- 長答：`correct: null`、`needs_marking: true`、`exclude_from_auto: true`；教師於分析頁評分寫入 `teacher_marks_json`。
 - 每份習作可設 **呈交截止日期（`due_at`）**：
   - **允許遲交**（`allow_late_submit = 1`，預設）：截止後仍可提交；首次及格若在截止後則報表標為「欠交」。
   - **截止後封鎖**（`allow_late_submit = 0`）：過期後 API／前台拒絕提交。
@@ -142,11 +146,14 @@ mysql -u USER -p DB_NAME < schema_summer_homework_due.sql
 
 # 呈交評分明細 grading_json（可重跑；供錯題／選項分析）
 mysql -u USER -p DB_NAME < schema_summer_homework_grading.sql
+
+# 新題型（是非／短答／長答）＋教師評分欄（可重跑）
+mysql -u USER -p DB_NAME < schema_summer_homework_qtypes.sql
 ```
 
 #### 全新安裝
 
-匯入完整 `schema.sql`（已含暑期功課表、截止日期、`grading_json` 與權限）。
+匯入完整 `schema.sql`（已含暑期功課表、截止日期、`grading_json`、新題型與權限）。
 
 #### 學生
 
@@ -167,7 +174,10 @@ mysql -u USER -p DB_NAME < schema_summer_homework_grading.sql
 ```json
 {
   "12": { "selected_option_index": 2 },
-  "13": { "blanks": ["answer1", "answer2"] }
+  "13": { "blanks": ["answer1", "answer2"] },
+  "14": { "selected_bool": true },
+  "15": { "text": "short answer" },
+  "16": { "text": "longer free-response text…" }
 }
 ```
 
@@ -187,6 +197,8 @@ mysql -u USER -p DB_NAME < schema_summer_homework_grading.sql
       "question_id": 12,
       "type": "mcq",
       "correct": false,
+      "score": 0,
+      "max": 1,
       "selected_option_index": 2,
       "correct_option_index": 0,
       "options": [
@@ -198,9 +210,38 @@ mysql -u USER -p DB_NAME < schema_summer_homework_grading.sql
       "question_id": 13,
       "type": "fill_blank",
       "correct": true,
+      "score": 2,
+      "max": 2,
       "blanks": [
         { "blank_index": 1, "given": "answer1", "correct": true }
       ]
+    },
+    {
+      "question_id": 14,
+      "type": "true_false",
+      "correct": true,
+      "score": 1,
+      "max": 1,
+      "selected_bool": true,
+      "correct_bool": true
+    },
+    {
+      "question_id": 15,
+      "type": "short_answer",
+      "correct": false,
+      "score": 0,
+      "max": 1,
+      "given": "…"
+    },
+    {
+      "question_id": 16,
+      "type": "long_answer",
+      "correct": null,
+      "score": 0,
+      "max": 5,
+      "needs_marking": true,
+      "exclude_from_auto": true,
+      "given": "…"
     }
   ]
 }

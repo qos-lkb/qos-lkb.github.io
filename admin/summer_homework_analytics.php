@@ -84,6 +84,13 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                 <code class="font-mono text-xs">schema_summer_homework_grading.sql</code>。
             </div>
         <?php endif; ?>
+        <?php if (!sh_table_has_column($pdo, 'summer_homework_questions', 'correct_bool')): ?>
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                新題型欄位尚未升級。請執行
+                <code class="font-mono text-xs">schema_summer_homework_qtypes.sql</code>
+                （是非／短答／長答、教師評分）。
+            </div>
+        <?php endif; ?>
 
         <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
@@ -142,7 +149,16 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                     ?>
                     <tr class="border-t border-slate-100 align-top">
                         <td class="p-3"><?php echo $qi; ?></td>
-                        <td class="p-3"><?php echo $qs['type'] === 'mcq' ? '選擇' : '填充'; ?></td>
+                        <td class="p-3"><?php
+                            echo match ((string) ($qs['type'] ?? '')) {
+                                'mcq' => '選擇',
+                                'fill_blank' => '填充',
+                                'true_false' => '是非',
+                                'short_answer' => '短答',
+                                'long_answer' => '長答',
+                                default => htmlspecialchars((string) ($qs['type'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                            };
+                        ?></td>
                         <td class="p-3 max-w-md"><?php echo htmlspecialchars($stemShort !== '' ? $stemShort : ('#' . $qid), ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo (int) $qs['attempts']; ?></td>
                         <td class="p-3"><?php echo (int) $qs['correct']; ?></td>
@@ -241,6 +257,46 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
+                    <?php if (($qs['type'] ?? '') === 'true_false'): ?>
+                        <tr class="border-t border-slate-50 bg-slate-50/60 text-xs">
+                            <td class="p-2 pl-8 text-slate-500" colspan="3">
+                                └ 選「是」 <?php echo (int) ($qs['true_count'] ?? 0); ?>
+                                · 選「否」 <?php echo (int) ($qs['false_count'] ?? 0); ?>
+                                · 正解：<?php
+                                    $cb = $qs['correct_bool'] ?? null;
+                                    echo $cb === null ? '—' : ($cb ? '是' : '否');
+                                ?>
+                            </td>
+                            <td colspan="4"></td>
+                        </tr>
+                    <?php endif; ?>
+                    <?php if (($qs['type'] ?? '') === 'short_answer' && !empty($qs['common_wrong_answers']) && is_array($qs['common_wrong_answers'])): ?>
+                        <tr class="border-t border-slate-50 bg-slate-50/60 text-xs">
+                            <td class="p-2 pl-8 text-slate-500" colspan="7">
+                                └ 常見錯答：
+                                <?php
+                                $parts = [];
+                                foreach ($qs['common_wrong_answers'] as $wa) {
+                                    if (!is_array($wa)) {
+                                        continue;
+                                    }
+                                    $parts[] = htmlspecialchars((string) ($wa['answer'] ?? ''), ENT_QUOTES, 'UTF-8')
+                                        . '（' . (int) ($wa['count'] ?? 0) . '）';
+                                }
+                                echo $parts !== [] ? implode('、', $parts) : '—';
+                                ?>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                    <?php if (($qs['type'] ?? '') === 'long_answer'): ?>
+                        <tr class="border-t border-slate-50 bg-slate-50/60 text-xs">
+                            <td class="p-2 pl-8 text-slate-500" colspan="7">
+                                └ 待評 <?php echo (int) ($qs['needs_marking'] ?? 0); ?>
+                                · 已有標記／非待評標記 <?php echo (int) ($qs['marked'] ?? 0); ?>
+                                （長答不計入自動及格％；請於呈交明細評分）
+                            </td>
+                        </tr>
+                    <?php endif; ?>
                 <?php endforeach; ?>
                 </tbody>
             </table>
@@ -271,8 +327,12 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                     <tr><td colspan="8" class="p-6 text-slate-500 text-center">尚無呈交紀錄。</td></tr>
                 <?php endif; ?>
                 <?php foreach ($students as $s): ?>
-                    <?php $active = $filterUserId === (int) $s['user_id']; ?>
-                    <tr class="border-t border-slate-100 <?php echo $active ? 'bg-indigo-50/50' : ''; ?>">
+                    <?php
+                    $active = $filterUserId === (int) $s['user_id'];
+                    $notPassed = empty($s['passed']);
+                    $rowTone = $active ? 'bg-indigo-50/50' : ($notPassed ? 'bg-amber-50/70' : '');
+                    ?>
+                    <tr class="border-t border-slate-100 <?php echo $rowTone; ?>">
                         <td class="p-3 font-medium"><?php echo htmlspecialchars((string) $s['display_name'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 text-xs text-slate-600"><?php echo htmlspecialchars((string) $s['email'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3"><?php echo (int) $s['attempts']; ?></td>
@@ -282,7 +342,9 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                                 <span class="text-xs text-slate-500">（<?php echo htmlspecialchars((string) $s['best_score'], ENT_QUOTES, 'UTF-8'); ?>/<?php echo htmlspecialchars((string) $s['best_max_score'], ENT_QUOTES, 'UTF-8'); ?>）</span>
                             <?php endif; ?>
                         </td>
-                        <td class="p-3"><?php echo !empty($s['passed']) ? '是' : '否'; ?></td>
+                        <td class="p-3 <?php echo $notPassed ? 'text-amber-900 font-semibold' : 'text-emerald-800'; ?>">
+                            <?php echo $notPassed ? '否' : '是'; ?>
+                        </td>
                         <td class="p-3 text-xs whitespace-nowrap"><?php
                             echo !empty($s['first_passed_at'])
                                 ? htmlspecialchars(substr((string) $s['first_passed_at'], 0, 16), ENT_QUOTES, 'UTF-8')
@@ -430,6 +492,46 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
+                        <?php elseif ((string) $q['question_type'] === 'true_false'): ?>
+                            <?php
+                            $selB = is_array($detail) && array_key_exists('selected_bool', $detail)
+                                ? $detail['selected_bool']
+                                : (is_array($resp) && array_key_exists('selected_bool', $resp) ? $resp['selected_bool'] : null);
+                            $corB = is_array($detail) && array_key_exists('correct_bool', $detail)
+                                ? $detail['correct_bool']
+                                : ($q['correct_bool'] ?? null);
+                            ?>
+                            <p class="text-sm">學生：<?php echo $selB === null ? '—' : ($selB ? '是' : '否'); ?>
+                                · 正解：<?php echo $corB === null ? '—' : ($corB ? '是' : '否'); ?></p>
+                        <?php elseif ((string) $q['question_type'] === 'short_answer'): ?>
+                            <?php
+                            $given = is_array($detail) && isset($detail['given'])
+                                ? (string) $detail['given']
+                                : (is_array($resp) ? (string) ($resp['text'] ?? '') : '');
+                            ?>
+                            <p class="text-sm font-mono"><?php echo $given !== '' ? htmlspecialchars($given, ENT_QUOTES, 'UTF-8') : '（空白）'; ?></p>
+                        <?php elseif ((string) $q['question_type'] === 'long_answer'): ?>
+                            <?php
+                            $given = is_array($detail) && isset($detail['given'])
+                                ? (string) $detail['given']
+                                : (is_array($resp) ? (string) ($resp['text'] ?? '') : '');
+                            $marksJson = sh_decode_json_column($selectedAttempt['teacher_marks_json'] ?? null) ?? [];
+                            $tm = is_array($marksJson) ? ($marksJson[(string) $q['id']] ?? $marksJson[(int) $q['id']] ?? null) : null;
+                            ?>
+                            <div class="text-sm whitespace-pre-wrap bg-slate-50 border rounded-lg p-3 mb-3"><?php echo $given !== '' ? htmlspecialchars($given, ENT_QUOTES, 'UTF-8') : '（空白）'; ?></div>
+                            <form class="sh-mark-form space-y-2 text-sm" data-attempt="<?php echo (int) ($selectedAttempt['id'] ?? 0); ?>" data-qid="<?php echo (int) $q['id']; ?>">
+                                <label>教師評分（滿分 <?php echo htmlspecialchars((string) ($q['max_score'] ?? 5), ENT_QUOTES, 'UTF-8'); ?>）
+                                    <input type="number" step="0.5" min="0" max="<?php echo htmlspecialchars((string) ($q['max_score'] ?? 5), ENT_QUOTES, 'UTF-8'); ?>"
+                                           class="mark-score border rounded px-2 py-1 w-24 ml-1"
+                                           value="<?php echo htmlspecialchars((string) ($tm['score'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                </label>
+                                <div>
+                                    <label class="block text-slate-600">評語</label>
+                                    <input type="text" class="mark-comment w-full border rounded px-2 py-1" value="<?php echo htmlspecialchars((string) ($tm['comment'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                </div>
+                                <button type="submit" class="text-indigo-600 text-sm">儲存評分</button>
+                                <span class="mark-flash text-xs text-slate-500"></span>
+                            </form>
                         <?php else: ?>
                             <?php
                             $blankDetails = is_array($detail['blanks'] ?? null) ? $detail['blanks'] : [];
@@ -446,6 +548,19 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                                     ? (string) $bd['given']
                                     : (isset($givenBlanks[$bi]) ? (string) $givenBlanks[$bi] : (isset($givenBlanks[(string) $bi]) ? (string) $givenBlanks[(string) $bi] : ''));
                                 $blankOk = is_array($bd) ? !empty($bd['correct']) : null;
+                                $acceptHint = '';
+                                if (!empty($blank['acceptable_answers']) && is_array($blank['acceptable_answers'])) {
+                                    $parts = [];
+                                    foreach ($blank['acceptable_answers'] as $ans) {
+                                        if (!is_array($ans)) {
+                                            continue;
+                                        }
+                                        $parts[] = trim((string) ($ans['acceptable_answer_zh'] ?? '') . ' / ' . (string) ($ans['acceptable_answer_en'] ?? ''));
+                                    }
+                                    $acceptHint = implode('；', array_filter($parts));
+                                } else {
+                                    $acceptHint = trim((string) ($blank['acceptable_answer_zh'] ?? '') . ' / ' . (string) ($blank['acceptable_answer_en'] ?? ''));
+                                }
                                 ?>
                                 <div class="text-sm mb-2">
                                     <span class="text-slate-500">空格 <?php echo (int) ($blank['blank_index'] ?? ($bi + 1)); ?>：</span>
@@ -454,10 +569,7 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                                         <span class="text-emerald-700 text-xs ml-2">正確</span>
                                     <?php elseif ($blankOk === false): ?>
                                         <span class="text-red-700 text-xs ml-2">錯誤</span>
-                                        <span class="text-xs text-slate-500 ml-2">可接受：
-                                            <?php echo htmlspecialchars((string) ($blank['acceptable_answer_zh'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                            / <?php echo htmlspecialchars((string) ($blank['acceptable_answer_en'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                        </span>
+                                        <span class="text-xs text-slate-500 ml-2">可接受：<?php echo htmlspecialchars($acceptHint, ENT_QUOTES, 'UTF-8'); ?></span>
                                     <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
@@ -469,4 +581,31 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
         </div>
         <?php endif; ?>
 <?php
-admin_page_end();
+admin_page_end([
+    'scripts' => '<script src="../assets/js/admin-api.js"></script>
+<script>
+document.querySelectorAll(".sh-mark-form").forEach(function(form){
+  form.addEventListener("submit", async function(e){
+    e.preventDefault();
+    var attemptId = form.getAttribute("data-attempt");
+    var qid = form.getAttribute("data-qid");
+    var flash = form.querySelector(".mark-flash");
+    try {
+      await AdminApi.initSession();
+      var marks = {};
+      marks[qid] = {
+        score: parseFloat(form.querySelector(".mark-score").value || "0"),
+        comment: form.querySelector(".mark-comment").value || ""
+      };
+      await AdminApi.apiFetch("/admin/summer-homework/attempts/" + attemptId + "/marks", {
+        method: "POST",
+        body: { marks: marks }
+      });
+      if (flash) { flash.textContent = "已儲存"; flash.className = "mark-flash text-xs text-emerald-700"; }
+    } catch (err) {
+      if (flash) { flash.textContent = err.message || "失敗"; flash.className = "mark-flash text-xs text-red-600"; }
+    }
+  });
+});
+</script>',
+]);

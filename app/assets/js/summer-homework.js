@@ -296,10 +296,10 @@
             ? st('中二', 'S2', lang)
             : (lockedForm === '1' ? st('中一', 'S1', lang) : '');
         const intro = formLocked && (lockedForm === '1' || lockedForm === '2')
-            ? st(`以下為你年級（${formLabel}）需要完成的暑期功課。達 80% 或以上為及格；及格後仍可重做並保留最高分。`,
-                `Summer homework for your form (${formLabel}). Score ≥ 80% to pass. You may redo after passing; the highest score is kept.`, lang)
-            : st('專為中一、中二同學而設。完成閱讀或影片後作答；達 80% 或以上為及格。及格後仍可重做，系統會保留最高分數。',
-                'For S1 and S2 students. After the passage or video, answer the questions. Score ≥ 80% to pass. You may redo after passing; the highest score is kept.', lang);
+            ? st(`以下為你年級（${formLabel}）需要完成的暑期功課。達到各習作及格線即為及格；及格後仍可重做並保留最高分。`,
+                `Summer homework for your form (${formLabel}). Reach each item’s pass mark to pass. You may redo after passing; the highest score is kept.`, lang)
+            : st('專為中一、中二同學而設。完成閱讀或影片後作答；達到各習作及格線即為及格。及格後仍可重做，系統會保留最高分數。',
+                'For S1 and S2 students. After the passage or video, answer the questions. Reach each item’s pass mark to pass. You may redo after passing; the highest score is kept.', lang);
 
         const moiHint = (studentLocked && (data.summer_moi === 'E' || data.summer_moi === 'C'))
             ? `<p class="text-xs text-slate-500 mt-2">${st(
@@ -446,9 +446,10 @@
         }
         questions.forEach((q, qi) => {
             const stem = lang === 'zh' ? q.stem_zh : q.stem_en;
-            html += `<div class="mb-6 pb-6 border-b border-slate-100 last:border-0" data-qid="${q.id}" data-type="${q.question_type}">
+            const type = q.question_type || 'mcq';
+            html += `<div class="mb-6 pb-6 border-b border-slate-100 last:border-0" data-qid="${q.id}" data-type="${type}">
                 <div class="font-medium text-slate-900 mb-3 prose-article sh-q-stem">${qi + 1}. ${renderRichText(stem)}</div>`;
-            if (q.question_type === 'mcq') {
+            if (type === 'mcq') {
                 (q.options || []).forEach((o, oi) => {
                     const text = lang === 'zh' ? o.text_zh : o.text_en;
                     const isCorrect = !!(item.include_answers || item.can_review) && !!o.is_correct;
@@ -457,12 +458,40 @@
                         <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
                     </label>`;
                 });
+            } else if (type === 'true_false') {
+                const showAns = !!(item.include_answers || item.can_review);
+                const correctTrue = q.correct_bool === true || q.correct_bool === 1;
+                html += `<div class="flex flex-wrap gap-3">
+                    <label class="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-50 ${showAns && correctTrue ? 'border-emerald-400 bg-emerald-50' : ''}">
+                        <input type="radio" name="q-${q.id}" value="1" class="sh-tf"> ${st('是／對', 'True', lang)}
+                    </label>
+                    <label class="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-50 ${showAns && !correctTrue ? 'border-emerald-400 bg-emerald-50' : ''}">
+                        <input type="radio" name="q-${q.id}" value="0" class="sh-tf"> ${st('否／錯', 'False', lang)}
+                    </label>
+                </div>`;
+            } else if (type === 'short_answer') {
+                let ansHint = '';
+                if ((item.include_answers || item.can_review) && Array.isArray(q.acceptable_answers)) {
+                    const texts = q.acceptable_answers.map((a) => (lang === 'zh' ? a.acceptable_answer_zh : a.acceptable_answer_en) || a.acceptable_answer_zh || a.acceptable_answer_en).filter(Boolean);
+                    ansHint = `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml(texts.join(' / '))}</p>`;
+                }
+                html += `<input type="text" class="sh-short w-full border rounded-lg px-3 py-2" autocomplete="off">${ansHint}`;
+            } else if (type === 'long_answer') {
+                const maxS = q.max_score != null ? q.max_score : 5;
+                html += `<p class="text-xs text-slate-500 mb-1">${st('長答（教師評閱，不計入自動及格分）', 'Long answer (teacher-marked; not in auto pass score)', lang)} · ${st('滿分', 'Max', lang)} ${maxS}</p>
+                    <textarea class="sh-long w-full border rounded-lg px-3 py-2" rows="5"></textarea>`;
             } else {
                 const blanks = q.blanks || [{ blank_index: 1 }];
                 blanks.forEach((b, bi) => {
-                    const ansHint = (item.include_answers || item.can_review)
-                        ? `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml((b.acceptable_answer_zh || '') + ' / ' + (b.acceptable_answer_en || ''))}</p>`
-                        : '';
+                    let ansHint = '';
+                    if (item.include_answers || item.can_review) {
+                        const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [{
+                            acceptable_answer_zh: b.acceptable_answer_zh || '',
+                            acceptable_answer_en: b.acceptable_answer_en || '',
+                        }];
+                        const texts = answers.map((a) => ((a.acceptable_answer_zh || '') + ' / ' + (a.acceptable_answer_en || '')).trim()).filter((t) => t !== '/' && t !== '');
+                        ansHint = `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml(texts.join('；'))}</p>`;
+                    }
                     html += `<div class="mb-2">
                         <label class="text-xs text-slate-500">${st('空格', 'Blank', lang)} ${bi + 1}</label>
                         <input type="text" class="sh-blank w-full border rounded-lg px-3 py-2 mt-1" data-blank="${bi}" autocomplete="off">
@@ -486,6 +515,15 @@
                     responses[qid] = {
                         selected_option_index: sel ? parseInt(sel.value, 10) : null,
                     };
+                } else if (type === 'true_false') {
+                    const sel = block.querySelector('input.sh-tf:checked');
+                    responses[qid] = {
+                        selected_bool: sel ? sel.value === '1' : null,
+                    };
+                } else if (type === 'short_answer') {
+                    responses[qid] = { text: block.querySelector('.sh-short')?.value || '' };
+                } else if (type === 'long_answer') {
+                    responses[qid] = { text: block.querySelector('.sh-long')?.value || '' };
                 } else {
                     const blanks = [...block.querySelectorAll('.sh-blank')].map((inp) => inp.value);
                     responses[qid] = { blanks };
@@ -511,6 +549,42 @@
                 }
             }
         });
+    }
+
+    function formatDetailsHtml(details, lang) {
+        if (!Array.isArray(details) || details.length === 0) return '';
+        const rows = details.map((d, i) => {
+            const type = d.type || '';
+            let status = '';
+            if (d.needs_marking) {
+                status = `<span class="text-slate-600">${st('待教師評閱', 'Awaiting teacher mark', lang)}</span>`;
+            } else if (d.correct === true) {
+                status = `<span class="text-emerald-700 font-medium">${st('正確', 'Correct', lang)}</span>`;
+            } else if (d.correct === false) {
+                status = `<span class="text-amber-800 font-medium">${st('不正確', 'Incorrect', lang)}</span>`;
+            }
+            let extra = '';
+            if (type === 'mcq' && d.correct_option_index != null) {
+                extra = `<span class="text-slate-500"> · ${st('正解', 'Answer', lang)} ${String.fromCharCode(65 + Number(d.correct_option_index))}</span>`;
+            } else if (type === 'true_false' && d.correct_bool != null) {
+                extra = `<span class="text-slate-500"> · ${st('正解', 'Answer', lang)} ${d.correct_bool ? st('是', 'True', lang) : st('否', 'False', lang)}</span>`;
+            } else if (type === 'short_answer' && Array.isArray(d.acceptable_answers) && d.acceptable_answers.length) {
+                extra = `<span class="text-slate-500"> · ${st('可接受', 'Acceptable', lang)}: ${escapeHtml(d.acceptable_answers.join(' / '))}</span>`;
+            } else if (type === 'fill_blank' && Array.isArray(d.blanks)) {
+                const miss = d.blanks.filter((b) => !b.correct).map((b) => b.blank_index).join(', ');
+                if (miss) extra = `<span class="text-slate-500"> · ${st('錯空格', 'Wrong blanks', lang)}: ${escapeHtml(miss)}</span>`;
+            } else if (type === 'long_answer') {
+                extra = `<span class="text-slate-500"> · ${st('已交文字', 'Submitted text', lang)} ${d.given ? st('有', 'yes', lang) : st('無', 'no', lang)}</span>`;
+            }
+            const pts = d.exclude_from_auto
+                ? ''
+                : ` <span class="text-slate-400">(${d.score != null ? d.score : 0}/${d.max != null ? d.max : 1})</span>`;
+            return `<li class="text-sm py-1">${st('題', 'Q', lang)} ${i + 1}: ${status}${pts}${extra}</li>`;
+        }).join('');
+        return `<div class="mt-4 pt-4 border-t border-slate-200/80">
+            <p class="text-sm font-semibold text-slate-800 mb-2">${st('逐題結果', 'Per-question results', lang)}</p>
+            <ul class="list-none space-y-0.5">${rows}</ul>
+        </div>`;
     }
 
     function showResult(result, slug, lang) {
@@ -554,6 +628,7 @@
             ${result.is_late && everPassed ? `<p class="mt-2 text-sm text-orange-800 font-medium">${st('首次及格時間在截止日期之後，狀態為「欠交」。', 'First pass was after the due date — status is “Overdue completion”.', lang)}</p>` : ''}
             ${everPassed && result.first_passed_at ? `<p class="mt-1 text-sm ${bodyClass}">${st('首次及格時間', 'First passed at', lang)}: ${escapeHtml(formatDue(result.first_passed_at))}</p>` : ''}
             ${bestNote}
+            ${formatDetailsHtml(result.details, lang)}
             ${passed
                 ? `<p class="mt-3 text-sm text-emerald-800">${st('做得好！可返回列表，或重做爭取更高分。', 'Well done! Continue with other assessments, or redo for a higher score.', lang)}</p>`
                 : (everPassed

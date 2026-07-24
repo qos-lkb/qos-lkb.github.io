@@ -89,6 +89,7 @@ mysql -u USER -p DB_NAME < schema.sql
 | `schema_summer_homework.sql` | Summer homework tables + permissions |
 | `schema_summer_homework_due.sql` | `due_at`, `allow_late_submit` on items |
 | `schema_summer_homework_grading.sql` | `grading_json` on attempts |
+| `schema_summer_homework_qtypes.sql` | New SH question types + `teacher_marks_json` |
 | `schema_classes_form_subject.sql` | `form_level`, `course_subject` on `classes` |
 | `schema_spa_nav_visibility.sql` | SPA top-nav visibility matrix |
 | `schema_users_login_id.sql` | Strip `@qos.edu.hk` from `users.email` → match QSIS username |
@@ -359,14 +360,16 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 ### 4. Summer homework (attempts & analytics)
 
 - **Items** (`summer_homework_items`): form_level `1`|`2`, reading or video body, `pass_percent` (default 80), optional `due_at` + `allow_late_submit`.
-- **Questions**: MCQ and/or fill-blank; scoring = 1 point per MCQ + 1 per blank.
+- **Questions**: `mcq` (2–6 options), `fill_blank` (multiple acceptable answers per blank), `true_false`, `short_answer`, `long_answer` (manual marks; excluded from auto pass %). Upsert on save keeps stable `question_id`.
 - **Every submit** `INSERT`s into `summer_homework_attempts` (UI still shows **best** percent only).
-  - `responses_json` — raw answers (`selected_option_index` / blanks).
-  - `grading_json` — score summary + per-question details; MCQ includes `selected_option_index`, `correct_option_index`, and an **options snapshot** (label/text/is_correct) at submit time.
+  - `responses_json` — raw answers (`selected_option_index` / blanks / `selected_bool` / `text`).
+  - `grading_json` — score summary + per-question `details[]` (`question_id`, `type`, `correct`, `score`, `max`, …); MCQ includes options snapshot.
+  - `teacher_marks_json` — optional teacher scores/comments for long-answer items.
 - **Due status**: **準時** / **欠交** / **未交** from **first passing** attempt’s `submitted_at` vs `due_at` (not best-score attempt). Incomplete (never passed) = 未交; first pass after due = 欠交.
-- **Class report**: `admin/course_summer_homework.php` via `sh_class_report()`.
-- **Item analytics**: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` — miss rates, **per-option select %**, **wrong-option share %** among incorrect attempts, student summaries, attempt drill-down.
+- **Class report**: `admin/course_summer_homework.php` via `sh_class_report()` — status filter + CSV export.
+- **Item analytics**: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` — miss rates, option/TF/short-answer stats, long-answer pending marks, student summaries, attempt drill-down + marking UI.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.
+- Upgrade scripts: `schema_summer_homework*.sql`, including **`schema_summer_homework_qtypes.sql`**.
 - Module docs: **[`README.md`](README.md)** § 暑期功課.
 
 ### 5. Auth & permissions

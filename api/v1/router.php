@@ -136,6 +136,10 @@ function api_v1_dispatch(): void
         api_handle_admin_summer_homework_get($pdo, (int) $m[1]);
         return;
     }
+    if (preg_match('#^POST /admin/summer-homework/attempts/(\d+)/marks$#', $routeKey, $m)) {
+        api_handle_admin_summer_homework_mark_attempt($pdo, (int) $m[1]);
+        return;
+    }
     if (preg_match('#^GET /admin/question-banks/(\d+)$#', $routeKey, $m)) {
         api_handle_admin_question_bank_get($pdo, (int) $m[1]);
         return;

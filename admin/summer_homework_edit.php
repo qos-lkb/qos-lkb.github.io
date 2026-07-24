@@ -105,11 +105,14 @@ admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_home
             </div>
 
             <div>
-                <div class="flex justify-between items-center mb-2">
-                    <label class="text-sm font-medium">跟進題目（選擇題／填充題）</label>
-                    <div class="flex gap-2">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                    <label class="text-sm font-medium">跟進題目</label>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1">
                         <button type="button" id="add-mcq" class="text-sm text-indigo-600">+ 選擇題</button>
                         <button type="button" id="add-fill" class="text-sm text-indigo-600">+ 填充題</button>
+                        <button type="button" id="add-tf" class="text-sm text-indigo-600">+ 是非題</button>
+                        <button type="button" id="add-short" class="text-sm text-indigo-600">+ 短答題</button>
+                        <button type="button" id="add-long" class="text-sm text-indigo-600">+ 長答題</button>
                     </div>
                 </div>
                 <p class="text-xs text-slate-500 mb-2">題幹與選項可用 <code>$...$</code>／<code>$$...$$</code> 寫公式（學生端以 MathJax 顯示）。</p>
@@ -120,6 +123,6 @@ admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_home
 <?php
 admin_page_end([
     'scripts' => '<script>const EDIT_ID=' . $id . ';</script>'
-        . '<script src="../assets/js/admin-api.js"></script>'
-        . '<script src="../assets/js/admin-summer-homework.js"></script>',
+        . '<script src="../assets/js/admin-api.js?v=' . ADMIN_ASSET_VERSION . '"></script>'
+        . '<script src="../assets/js/admin-summer-homework.js?v=' . ADMIN_ASSET_VERSION . '"></script>',
 ]);
