@@ -363,7 +363,7 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 - **Every submit** `INSERT`s into `summer_homework_attempts` (UI still shows **best** percent only).
   - `responses_json` — raw answers (`selected_option_index` / blanks).
   - `grading_json` — score summary + per-question details; MCQ includes `selected_option_index`, `correct_option_index`, and an **options snapshot** (label/text/is_correct) at submit time.
-- **Due status**: on-time / late / missing judged from the **best** attempt’s `submitted_at` vs `due_at`.
+- **Due status**: **準時** / **欠交** / **未交** from **first passing** attempt’s `submitted_at` vs `due_at` (not best-score attempt). Incomplete (never passed) = 未交; first pass after due = 欠交.
 - **Class report**: `admin/course_summer_homework.php` via `sh_class_report()`.
 - **Item analytics**: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` — miss rates, **per-option select %**, **wrong-option share %** among incorrect attempts, student summaries, attempt drill-down.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.

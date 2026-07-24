@@ -261,7 +261,7 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                         <th class="p-3">次數</th>
                         <th class="p-3">最高分</th>
                         <th class="p-3">及格</th>
-                        <th class="p-3">首次呈交</th>
+                        <th class="p-3">首次及格</th>
                         <th class="p-3">最近呈交</th>
                         <th class="p-3"></th>
                     </tr>
@@ -283,7 +283,11 @@ admin_page_start('呈交分析 — ' . $title, 'summer_homework', [
                             <?php endif; ?>
                         </td>
                         <td class="p-3"><?php echo !empty($s['passed']) ? '是' : '否'; ?></td>
-                        <td class="p-3 text-xs whitespace-nowrap"><?php echo htmlspecialchars(substr((string) $s['first_submitted_at'], 0, 16), ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td class="p-3 text-xs whitespace-nowrap"><?php
+                            echo !empty($s['first_passed_at'])
+                                ? htmlspecialchars(substr((string) $s['first_passed_at'], 0, 16), ENT_QUOTES, 'UTF-8')
+                                : '—';
+                        ?></td>
                         <td class="p-3 text-xs whitespace-nowrap"><?php echo htmlspecialchars(substr((string) $s['last_submitted_at'], 0, 16), ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 whitespace-nowrap">
                             <a class="text-indigo-600 hover:underline" href="summer_homework_analytics.php?id=<?php echo $itemId; ?>&amp;user_id=<?php echo (int) $s['user_id']; ?>">詳細</a>

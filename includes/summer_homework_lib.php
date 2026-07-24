@@ -203,20 +203,20 @@ function sh_submissions_closed(?string $dueAt, bool $allowLateSubmit): bool
 }
 
 /**
- * Timing-only status for a submission timestamp vs due date.
+ * Timing vs due date for a completion timestamp (first pass).
  *
  * @return 'missing'|'on_time'|'late'
  */
-function sh_submission_status(?string $dueAt, ?string $bestSubmittedAt): string
+function sh_submission_status(?string $dueAt, ?string $completedAt): string
 {
-    if ($bestSubmittedAt === null || $bestSubmittedAt === '') {
+    if ($completedAt === null || $completedAt === '') {
         return 'missing';
     }
     if ($dueAt === null || $dueAt === '') {
         return 'on_time';
     }
     $dueTs = strtotime($dueAt);
-    $subTs = strtotime($bestSubmittedAt);
+    $subTs = strtotime($completedAt);
     if ($dueTs === false || $subTs === false) {
         return 'on_time';
     }
@@ -224,30 +224,28 @@ function sh_submission_status(?string $dueAt, ?string $bestSubmittedAt): string
 }
 
 /**
- * Display status for reports / student UI.
- * Failed (attempted but not passed) is never labelled on_time/late.
+ * Report / student display status.
+ * - 未交 (missing): never passed (未完成)
+ * - 準時 (on_time): first pass on or before due
+ * - 欠交 (late): first pass after due
  *
- * @return 'missing'|'failed'|'on_time'|'late'
+ * @return 'missing'|'on_time'|'late'
  */
-function sh_progress_display_status(bool $passed, int $attempts, ?string $dueAt, ?string $bestSubmittedAt): string
+function sh_progress_display_status(bool $passed, ?string $dueAt, ?string $firstPassedAt): string
 {
-    if ($attempts <= 0) {
+    if (!$passed || $firstPassedAt === null || $firstPassedAt === '') {
         return 'missing';
     }
-    if (!$passed) {
-        return 'failed';
-    }
 
-    return sh_submission_status($dueAt, $bestSubmittedAt);
+    return sh_submission_status($dueAt, $firstPassedAt);
 }
 
 function sh_submission_status_label(string $status): string
 {
     return match ($status) {
         'on_time' => '準時',
-        'late' => '遲交',
-        'failed' => '未及格',
-        default => '欠交',
+        'late' => '欠交',
+        default => '未交',
     };
 }
 
@@ -262,6 +260,24 @@ function sh_best_attempt_for_user_item(PDO $pdo, int $userId, int $itemId): ?arr
         'SELECT * FROM summer_homework_attempts
          WHERE user_id = ? AND item_id = ?
          ORDER BY percent DESC, submitted_at ASC, id ASC
+         LIMIT 1'
+    );
+    $stmt->execute([$userId, $itemId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * First passing attempt (earliest submitted_at among passed = 1).
+ *
+ * @return array<string, mixed>|null
+ */
+function sh_first_pass_attempt_for_user_item(PDO $pdo, int $userId, int $itemId): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT * FROM summer_homework_attempts
+         WHERE user_id = ? AND item_id = ? AND passed = 1
+         ORDER BY submitted_at ASC, id ASC
          LIMIT 1'
     );
     $stmt->execute([$userId, $itemId]);
@@ -733,14 +749,11 @@ function sh_submit_attempt(PDO $pdo, int $userId, int $itemId, array $responses)
     $best = sh_best_attempt_for_user_item($pdo, $userId, $itemId);
     $bestPercent = $best !== null ? (float) $best['percent'] : $graded['percent'];
     $bestSubmittedAt = $best !== null ? (string) $best['submitted_at'] : $submittedAt;
+    $firstPass = sh_first_pass_attempt_for_user_item($pdo, $userId, $itemId);
+    $firstPassedAt = $firstPass !== null ? (string) $firstPass['submitted_at'] : null;
     $scoreImproved = $previousBestPercent === null || $graded['percent'] > $previousBestPercent;
     $everPassed = $previouslyPassed || $graded['passed'];
-    $status = sh_progress_display_status(
-        $everPassed,
-        1,
-        $dueAt,
-        $bestSubmittedAt
-    );
+    $status = sh_progress_display_status($everPassed, $dueAt, $firstPassedAt);
 
     return [
         'ok' => true,
@@ -752,6 +765,7 @@ function sh_submit_attempt(PDO $pdo, int $userId, int $itemId, array $responses)
             'submitted_at' => $submittedAt,
             'best_percent' => $bestPercent,
             'best_submitted_at' => $bestSubmittedAt,
+            'first_passed_at' => $firstPassedAt,
             'previous_best_percent' => $previousBestPercent,
             'score_improved' => $scoreImproved,
             'passed' => $graded['passed'],
@@ -760,7 +774,7 @@ function sh_submit_attempt(PDO $pdo, int $userId, int $itemId, array $responses)
             'due_at' => $dueAt,
             'allow_late_submit' => $allowLate,
             'submission_status' => $status,
-            'is_late' => sh_submission_status($dueAt, $bestSubmittedAt) === 'late',
+            'is_late' => $status === 'late',
             'details' => $graded['details'],
             'must_redo' => !$everPassed,
         ],
@@ -769,7 +783,16 @@ function sh_submit_attempt(PDO $pdo, int $userId, int $itemId, array $responses)
 
 /**
  * @param array<string, mixed>|null $itemRow
- * @return array{passed:bool,percent:?float,attempts:int,best_submitted_at:?string,submission_status:string,score:?float,max_score:?float}
+ * @return array{
+ *   passed:bool,
+ *   percent:?float,
+ *   attempts:int,
+ *   best_submitted_at:?string,
+ *   first_passed_at:?string,
+ *   submission_status:string,
+ *   score:?float,
+ *   max_score:?float
+ * }
  */
 function sh_user_progress_for_item(PDO $pdo, int $userId, int $itemId, ?array $itemRow = null): array
 {
@@ -794,6 +817,7 @@ function sh_user_progress_for_item(PDO $pdo, int $userId, int $itemId, ?array $i
             'percent' => null,
             'attempts' => 0,
             'best_submitted_at' => null,
+            'first_passed_at' => null,
             'submission_status' => 'missing',
             'score' => null,
             'max_score' => null,
@@ -801,15 +825,17 @@ function sh_user_progress_for_item(PDO $pdo, int $userId, int $itemId, ?array $i
     }
 
     $best = sh_best_attempt_for_user_item($pdo, $userId, $itemId);
-    $bestSubmittedAt = $best !== null ? (string) $best['submitted_at'] : null;
+    $firstPass = sh_first_pass_attempt_for_user_item($pdo, $userId, $itemId);
+    $firstPassedAt = $firstPass !== null ? (string) $firstPass['submitted_at'] : null;
     $passed = (int) ($countRow['any_pass'] ?? 0) === 1;
 
     return [
         'passed' => $passed,
         'percent' => $best !== null ? (float) $best['percent'] : null,
         'attempts' => $attempts,
-        'best_submitted_at' => $bestSubmittedAt,
-        'submission_status' => sh_progress_display_status($passed, $attempts, $dueAt, $bestSubmittedAt),
+        'best_submitted_at' => $best !== null ? (string) $best['submitted_at'] : null,
+        'first_passed_at' => $firstPassedAt,
+        'submission_status' => sh_progress_display_status($passed, $dueAt, $firstPassedAt),
         'score' => $best !== null ? (float) $best['score'] : null,
         'max_score' => $best !== null ? (float) $best['max_score'] : null,
     ];
@@ -887,6 +913,7 @@ function sh_class_report(PDO $pdo, int $classId): array
                 'score' => $progress['score'],
                 'max_score' => $progress['max_score'],
                 'best_submitted_at' => $progress['best_submitted_at'],
+                'first_passed_at' => $progress['first_passed_at'],
                 'attempts' => $progress['attempts'],
                 'passed' => $progress['passed'],
             ];
@@ -983,6 +1010,7 @@ function sh_student_summaries_for_item(PDO $pdo, int $itemId): array
     foreach ($rows as $row) {
         $uid = (int) $row['user_id'];
         $best = sh_best_attempt_for_user_item($pdo, $uid, $itemId);
+        $firstPass = sh_first_pass_attempt_for_user_item($pdo, $uid, $itemId);
         $out[] = [
             'user_id' => $uid,
             'email' => (string) ($row['email'] ?? ''),
@@ -992,6 +1020,7 @@ function sh_student_summaries_for_item(PDO $pdo, int $itemId): array
             'best_score' => $best !== null ? (float) $best['score'] : null,
             'best_max_score' => $best !== null ? (float) $best['max_score'] : null,
             'best_submitted_at' => $best !== null ? (string) $best['submitted_at'] : null,
+            'first_passed_at' => $firstPass !== null ? (string) $firstPass['submitted_at'] : null,
             'passed' => (int) ($row['any_pass'] ?? 0) === 1,
             'first_submitted_at' => (string) ($row['first_submitted_at'] ?? ''),
             'last_submitted_at' => (string) ($row['last_submitted_at'] ?? ''),

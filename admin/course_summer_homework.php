@@ -47,7 +47,6 @@ foreach ($rows as $r) {
 $statusClass = [
     'on_time' => 'bg-sky-100 text-sky-900',
     'late' => 'bg-orange-100 text-orange-900',
-    'failed' => 'bg-amber-100 text-amber-950',
     'missing' => 'bg-slate-100 text-slate-600',
 ];
 
@@ -61,7 +60,7 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
         ($report['class']['form_level_label'] ?? '—')
         . ' · '
         . ($report['class']['course_subject_label'] ?? '—')
-        . ' · 未及格不會標為準時；準時／遲交僅適用於已及格；點標題可檢視內容與答案'
+        . ' · 未完成＝未交；截止後才及格＝欠交；呈交時間＝首次及格；點標題可檢視內容與答案'
     ),
 ]);
 ?>
@@ -128,18 +127,23 @@ admin_page_start('暑期功課紀錄 — ' . (string) $class['name'], 'courses',
                                         <?php endif; ?>
                                     </div>
                                     <div class="text-xs text-slate-500 mt-0.5">
-                                        <?php echo $cell['best_submitted_at']
-                                            ? htmlspecialchars(substr((string) $cell['best_submitted_at'], 0, 16), ENT_QUOTES, 'UTF-8')
-                                            : '—'; ?>
+                                        <?php
+                                        $recordAt = !empty($cell['first_passed_at'])
+                                            ? (string) $cell['first_passed_at']
+                                            : '';
+                                        echo $recordAt !== ''
+                                            ? '首次及格 ' . htmlspecialchars(substr($recordAt, 0, 16), ENT_QUOTES, 'UTF-8')
+                                            : '尚未及格';
+                                        ?>
                                         · <a class="text-indigo-600 hover:underline" href="summer_homework_analytics.php?id=<?php echo $iid; ?>&amp;user_id=<?php echo $uid; ?>"><?php echo (int) $cell['attempts']; ?> 次</a>
                                         <?php if (!empty($cell['passed'])): ?>
                                             · <span class="text-emerald-700 font-medium">及格</span>
-                                        <?php elseif ((int) $cell['attempts'] > 0): ?>
+                                        <?php else: ?>
                                             · <span class="text-amber-800 font-medium">須重做</span>
                                         <?php endif; ?>
                                     </div>
                                 <?php else: ?>
-                                    <div class="mt-1.5 text-xs text-slate-400">尚未呈交</div>
+                                    <div class="mt-1.5 text-xs text-slate-400">未交</div>
                                 <?php endif; ?>
                             </td>
                         <?php endforeach; ?>
