@@ -15,9 +15,14 @@ require_once dirname(__DIR__, 2) . '/includes/learning_videos_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/topic_items_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/question_bank_lib.php';
 
-$__science_sims_autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+$__science_sims_root = dirname(__DIR__, 2);
+$__science_sims_autoload = $__science_sims_root . '/vendor/autoload.php';
 if (is_readable($__science_sims_autoload)) {
     require_once $__science_sims_autoload;
+} else {
+    // Cloud hosts without Composer: load PSR-4 classes directly from src/.
+    require_once $__science_sims_root . '/src/Http/ApiPath.php';
+    require_once $__science_sims_root . '/src/Http/Router.php';
 }
 
 require_once __DIR__ . '/handlers/auth.php';
@@ -80,9 +85,35 @@ function api_v1_dispatch(): void
         api_json_error('db_unavailable', '無法連線資料庫。', 503);
     }
 
-    $router = api_v1_build_router($pdo);
-    if ($router->dispatch($method, $path)) {
-        return;
+    try {
+        if (!class_exists(\ScienceSims\Http\Router::class)) {
+            api_json_error(
+                'server_misconfigured',
+                '缺少 Router 類別（請確認已部署 src/Http/Router.php，或於伺服器執行 composer install）。',
+                500
+            );
+        }
+        $router = api_v1_build_router($pdo);
+        if ($router->dispatch($method, $path)) {
+            return;
+        }
+    } catch (Throwable $e) {
+        $msg = $e->getMessage();
+        if (stripos($msg, 'summer_homework') !== false || stripos($msg, "doesn't exist") !== false || stripos($msg, 'Unknown table') !== false) {
+            api_json_error(
+                'schema_missing',
+                '資料表未就緒。請對正確資料庫匯入 schema_upgrade_all.sql（或 schema_summer_homework.sql）。詳情：' . $msg,
+                500
+            );
+        }
+        if (stripos($msg, 'Unknown column') !== false) {
+            api_json_error(
+                'schema_outdated',
+                '資料庫欄位未升級。請匯入 schema_upgrade_all.sql。詳情：' . $msg,
+                500
+            );
+        }
+        api_json_error('server_error', '伺服器錯誤：' . $msg, 500);
     }
 
     api_json_error('not_found', '找不到資源。', 404);

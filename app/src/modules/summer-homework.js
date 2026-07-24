@@ -248,7 +248,7 @@ const global = window;
             data = await apiFetch('/summer-homework' + q);
         } catch (e) {
             main.innerHTML = `<div class="max-w-4xl mx-auto"><p class="text-red-600">${escapeHtml(e.message || st('載入失敗', 'Failed to load', bootLang))}</p>
-                <p class="text-sm text-slate-500 mt-2">${st('若為新功能，請先匯入 schema_summer_homework.sql。', 'If this is a new install, import schema_summer_homework.sql first.', bootLang)}</p></div>`;
+                <p class="text-sm text-slate-500 mt-2">${st('請用瀏覽器直接開啟 /api/v1/summer-homework 查看錯誤內容。若提示 schema，請確認已對「網站實際連線的那個資料庫」匯入 schema_upgrade_all.sql。', 'Open /api/v1/summer-homework in the browser to see the API error. If it mentions schema, import schema_upgrade_all.sql into the same database your site .env points to.', bootLang)}</p></div>`;
             return;
         }
 
