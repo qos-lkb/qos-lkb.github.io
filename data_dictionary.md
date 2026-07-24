@@ -110,15 +110,14 @@ php update_data_dictionary.php
 
 ### `users`
 
-使用者帳戶（電郵、密碼雜湊、中英文名、啟用狀態）
+使用者帳戶（login id／與 QSIS username 對齊；中英文名；啟用狀態；密碼僅存 QSIS）
 
-**引擎**：`InnoDB` · **欄位數**：9
+**引擎**：`InnoDB` · **欄位數**：8
 
 | 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
 |------|------|:----:|------|:---:|------|
 | `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
 | `email` | `VARCHAR(255)` | NO | — | — | — |
-| `password_hash` | `VARCHAR(255)` | NO | — | — | — |
 | `display_name` | `VARCHAR(255)` | NO | `''` | — | — |
 | `name_zh` | `VARCHAR(255)` | NO | `''` | — | — |
 | `name_en` | `VARCHAR(255)` | NO | `''` | — | — |

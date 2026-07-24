@@ -63,7 +63,6 @@ DROP TABLE IF EXISTS users;
 CREATE TABLE users (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL DEFAULT '',
     name_zh VARCHAR(255) NOT NULL DEFAULT '',
     name_en VARCHAR(255) NOT NULL DEFAULT '',
@@ -795,10 +794,9 @@ WHERE r.name = 'student' AND p.name IN (
 );
 
 -- System account (CSV import / orphaned content owner; cannot log in)
-INSERT INTO users (email, password_hash, display_name, name_zh, name_en, is_active)
+INSERT INTO users (email, display_name, name_zh, name_en, is_active)
 VALUES (
     'system@science-sims.internal',
-    '$2y$10$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     'System',
     'System',
     'System',

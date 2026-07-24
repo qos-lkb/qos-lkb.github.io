@@ -438,7 +438,7 @@ function qsis_local_class_names_for_courses(PDO $local, PDO $qsis, string $yearI
 }
 
 /**
- * @param array<string, mixed> $options year_id, course_ids[], default_password, enroll, update_existing
+ * @param array<string, mixed> $options year_id, course_ids[], enroll, update_existing
  * @return array{ok:bool,error?:string,created?:int,enrolled?:int,skipped?:int,updated?:int}
  */
 function qsis_import_students(PDO $local, PDO $qsis, array $options, int $actingUserId): array
@@ -460,7 +460,6 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
         return ['ok' => false, 'error' => '請選擇至少一門課程。'];
     }
 
-    $defaultPassword = trim((string) ($options['default_password'] ?? ''));
     $enroll = !empty($options['enroll']);
     $updateExisting = !empty($options['update_existing']);
     $schoolYear = qsis_school_year_label($qsis, $yearId);
@@ -503,19 +502,11 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
             }
 
             if ($userId <= 0) {
-                $password = $defaultPassword !== '' ? $defaultPassword : (bin2hex(random_bytes(4)) . 'Aa1!');
-                if (strlen($password) < 8) {
-                    $skipped++;
-                    $processedAccounts[$sid] = 0;
-                    continue;
-                }
-
                 try {
-                    $hash = password_hash($password, PASSWORD_DEFAULT);
                     $ins = $local->prepare(
-                        'INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)'
+                        'INSERT INTO users (email, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, 1)'
                     );
-                    $ins->execute([$loginId, $hash, $nameZh, $nameEn, $displayName]);
+                    $ins->execute([$loginId, $nameZh, $nameEn, $displayName]);
                     $userId = (int) $local->lastInsertId();
                     $created++;
                 } catch (Throwable $e) {

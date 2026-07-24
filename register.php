@@ -73,8 +73,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <p class="text-xs text-slate-500 -mt-2">至少填寫中文名或英文名其中一項。</p>
             <div>
-                <label class="block text-sm font-medium text-slate-700">密碼（至少 8 字元）</label>
-                <input type="password" name="password" required minlength="8" class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="new-password">
+                <label class="block text-sm font-medium text-slate-700">QSIS 密碼</label>
+                <input type="password" name="password" required class="mt-1 w-full border rounded-lg px-3 py-2" autocomplete="current-password">
+                <p class="mt-1 text-xs text-slate-500">使用校本 QSIS 密碼驗證身分；本站不會儲存密碼。</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700">課程邀請碼</label>

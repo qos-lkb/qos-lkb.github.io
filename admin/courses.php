@@ -161,7 +161,7 @@ admin_page_start('課程管理', 'courses', [
         <?php if ($rows !== [] && $canEditStudents): ?>
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
             <h2 class="text-lg font-bold text-slate-800 mb-2">批次匯入學生（CSV）</h2>
-            <p class="text-sm text-slate-500 mb-4">僅管理員可用。格式：login_id, name_zh, name_en, password, form_class, class_no, moi（login_id 為 QSIS 帳戶名，不含 @qos.edu.hk；moi 為 E 或 C；各欄可留空；姓名至少填一項）</p>
+            <p class="text-sm text-slate-500 mb-4">僅管理員可用。格式：login_id, name_zh, name_en, password（已忽略）, form_class, class_no, moi（login_id 為 QSIS 帳戶名，不含 @qos.edu.hk；moi 為 E 或 C；密碼欄可留空，登入改由 QSIS 驗證；姓名至少填一項）</p>
             <form method="post" class="space-y-4">
                 <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="action" value="import_csv">

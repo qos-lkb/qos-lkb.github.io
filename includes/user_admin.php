@@ -20,7 +20,6 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
     $email = auth_normalize_login_identity((string) ($post['email'] ?? ''));
     $nameZh = trim((string) ($post['name_zh'] ?? ''));
     $nameEn = trim((string) ($post['name_en'] ?? ''));
-    $password = (string) ($post['password'] ?? '');
     $isActive = isset($post['is_active']) ? 1 : 0;
     $roleIds = isset($post['roles']) && is_array($post['roles']) ? array_map('intval', $post['roles']) : [];
 
@@ -32,10 +31,6 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
         return $nameValid;
     }
     $displayName = account_sync_display_name($nameZh, $nameEn);
-
-    if ($id === 0 && strlen($password) < 8) {
-        return ['ok' => false, 'error' => '新使用者密碼至少 8 字元。'];
-    }
 
     if ($id > 0) {
         $stmt = $pdo->prepare('SELECT id, email FROM users WHERE id = ? LIMIT 1');
@@ -52,18 +47,8 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
             return ['ok' => false, 'error' => '不可停用自己。'];
         }
 
-        if ($password !== '' && strlen($password) < 8) {
-            return ['ok' => false, 'error' => '密碼至少 8 字元。'];
-        }
-
-        if ($password !== '') {
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $upd = $pdo->prepare('UPDATE users SET email = ?, name_zh = ?, name_en = ?, display_name = ?, is_active = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $upd->execute([$email, $nameZh, $nameEn, $displayName, $isActive, $hash, $id]);
-        } else {
-            $upd = $pdo->prepare('UPDATE users SET email = ?, name_zh = ?, name_en = ?, display_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $upd->execute([$email, $nameZh, $nameEn, $displayName, $isActive, $id]);
-        }
+        $upd = $pdo->prepare('UPDATE users SET email = ?, name_zh = ?, name_en = ?, display_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $upd->execute([$email, $nameZh, $nameEn, $displayName, $isActive, $id]);
 
         $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$id]);
         foreach ($roleIds as $rid) {
@@ -75,11 +60,10 @@ function admin_save_user_from_post(PDO $pdo, array $post, int $actingUserId): ar
         return ['ok' => true, 'id' => $id];
     }
 
-    // 新增
-    $hash = password_hash($password, PASSWORD_DEFAULT);
+    // 新增（密碼僅存於 QSIS，本站不儲存）
     try {
-        $ins = $pdo->prepare('INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, ?)');
-        $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName, $isActive]);
+        $ins = $pdo->prepare('INSERT INTO users (email, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?)');
+        $ins->execute([$email, $nameZh, $nameEn, $displayName, $isActive]);
         $newId = (int) $pdo->lastInsertId();
     } catch (Throwable $e) {
         return ['ok' => false, 'error' => '建立失敗（可能電郵重複）。'];

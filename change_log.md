@@ -8,6 +8,11 @@
 
 ## 2026-07-24
 
+### 登入改為僅驗證 QSIS 密碼；移除本站 password_hash
+- `attempt_login()` **不再**回退本站 `users.password_hash`；必須 QSIS 驗證成功。
+- 既有庫執行：`mysql … < schema_users_drop_password.sql`（刪除 `users.password_hash`）。
+- `schema.sql` 新建庫已不含密碼欄；後台／匯入／註冊不再寫入本站密碼。
+
 ### 訪客首頁
 - 未登入開啟 `/app/` 顯示歡迎頁（品牌、簡介、登入與模擬／課程／暑期捷徑）；已登入學生／教師行為不變。
 - 新增 `app/assets/js/guest-home.js`；`/summer-homework` 仍為公開習作列表。
@@ -15,8 +20,7 @@
 ## 2026-07-23
 
 ### 暫時關閉使用者自助更改密碼
-- 帳號選單與設定 modal 隱藏「更改密碼」；`account_change_password()` 回傳暫不開放。
-- 還原：將 `assets/js/user-menu.js` 的 `CHANGE_PASSWORD_ENABLED` 與 `account_lib.php` 的 `$changePasswordEnabled` 設為 `true`。
+- （已由「僅驗證 QSIS 密碼」取代：本站不再儲存密碼，更改密碼請於 QSIS。）
 
 ### 暑期功課：教師／管理員可檢視分析與答案
 - 教師（`summer_homework.manage_own`／`class.manage_*`）與管理員可檢視**全部**習作的呈交分析、內容與正確答案。
@@ -33,9 +37,8 @@
 - 新增／更新：`includes/qsis_auth_lib.php`。
 
 ### 登入：自動補網域＋QSIS 密碼
-- （已由「帳戶名與 QSIS 對齊」取代：不再補上 `@qos.edu.hk`。）
-- 若帳戶存在於 QSIS `user` 表，以 **QSIS `password_hash`** 驗證（bcrypt／遺留 MD5）；不再使用本站 `users.password_hash`。
-- 本站無對應 QSIS 帳號的使用者（如外部管理員）仍可用本地密碼；QSIS 使用者請於校本系統改密碼。
+- （已由「帳戶名與 QSIS 對齊」及「僅驗證 QSIS 密碼」取代。）
+- 歷史：曾以 QSIS 為優先、本站 `password_hash` 為後備；後備已移除。
 
 ### 文件同步（暑期功課呈交／選項分析）
 - 更新 **`architecture.md`**、**`README.md`**、**`rule.md`**、**`暑期功課/README.md`**、**`change_log.md`**：紀錄每次呈交、`grading_json` 選項快照、錯選百分率分析、截止日期、MOI、班級報表與後台入口。

@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connection['ok']) {
                 'year_id' => trim((string) ($_POST['year_id'] ?? '')),
                 'course_ids' => $courseIds,
                 'teacher_user_id' => (int) ($_POST['teacher_user_id'] ?? $user['id']),
-                'default_password' => trim((string) ($_POST['default_password'] ?? '')),
+                'default_password' => '',
                 'enroll' => !empty($_POST['enroll']),
                 'update_existing' => !empty($_POST['update_existing']),
             ];
@@ -229,24 +229,19 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
             <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="year_id" value="<?php echo htmlspecialchars($selectedYearId, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="kla_id" value="<?php echo (int) $selectedKlaId; ?>">
-                <div class="grid sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">預設任教老師（無法對應 QSIS 教師代碼時）</label>
-                        <select name="teacher_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">
-                            <?php foreach ($teachers as $t): ?>
-                            <option value="<?php echo (int) $t['id']; ?>" <?php echo (int) $t['id'] === (int) $user['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars(user_format_name($t) . ' (' . $t['email'] . ')', ENT_QUOTES, 'UTF-8'); ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">新學生預設密碼（選填，至少 8 字元）</label>
-                        <input type="text" name="default_password" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="留空則自動產生隨機密碼">
-                    </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">預設任教老師（無法對應 QSIS 教師代碼時）</label>
+                    <select name="teacher_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">
+                        <?php foreach ($teachers as $t): ?>
+                        <option value="<?php echo (int) $t['id']; ?>" <?php echo (int) $t['id'] === (int) $user['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars(user_format_name($t) . ' (' . $t['email'] . ')', ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <p class="text-xs text-slate-500 mt-3">
                     學生登入帳戶與 QSIS 一致：僅<strong>學號</strong>（例如 <code class="bg-slate-100 px-1 rounded">s20171060</code>），不使用 <code class="bg-slate-100 px-1 rounded">@qos.edu.hk</code>。
+                    密碼僅以 QSIS 驗證，本站不產生／不儲存密碼。
                     （可在 .env 設定 <code class="bg-slate-100 px-1 rounded">QSIS_STUDENT_EMAIL_DOMAIN</code>）
                 </p>
 

@@ -41,50 +41,13 @@ function account_update_profile(PDO $pdo, int $userId, string $nameZh, string $n
 }
 
 /**
+ * Self-service password change is disabled — passwords live in QSIS only.
+ *
  * @return array{ok:bool,error?:string}
  */
 function account_change_password(PDO $pdo, int $userId, string $currentPassword, string $newPassword): array
 {
-    // Temporarily disabled — flip to true with UI CHANGE_PASSWORD_ENABLED in assets/js/user-menu.js
-    $changePasswordEnabled = false;
-    if (!$changePasswordEnabled) {
-        return ['ok' => false, 'error' => '更改密碼功能暫未開放。QSIS 帳戶請於校本系統更改密碼。'];
-    }
+    unset($pdo, $userId, $currentPassword, $newPassword);
 
-    if ($currentPassword === '') {
-        return ['ok' => false, 'error' => '請輸入目前密碼。'];
-    }
-    if (strlen($newPassword) < 8) {
-        return ['ok' => false, 'error' => '新密碼至少 8 字元。'];
-    }
-    if ($currentPassword === $newPassword) {
-        return ['ok' => false, 'error' => '新密碼不可與目前密碼相同。'];
-    }
-
-    require_once __DIR__ . '/qsis_auth_lib.php';
-
-    $stmt = $pdo->prepare('SELECT email, password_hash FROM users WHERE id = ? LIMIT 1');
-    $stmt->execute([$userId]);
-    $row = $stmt->fetch();
-    if (!$row) {
-        return ['ok' => false, 'error' => '找不到使用者。'];
-    }
-    if ($row['email'] === 'system@science-sims.internal') {
-        return ['ok' => false, 'error' => '不可修改系統帳號密碼。'];
-    }
-
-    $email = (string) $row['email'];
-    if (qsis_user_exists_for_email($email)) {
-        return ['ok' => false, 'error' => '此帳戶使用校本 QSIS 密碼，請於 QSIS／學校系統更改密碼。'];
-    }
-
-    if (!password_verify($currentPassword, (string) $row['password_hash'])) {
-        return ['ok' => false, 'error' => '目前密碼不正確。'];
-    }
-
-    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-    $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        ->execute([$hash, $userId]);
-
-    return ['ok' => true];
+    return ['ok' => false, 'error' => '本站不儲存密碼。請於校本 QSIS／學校系統更改密碼。'];
 }

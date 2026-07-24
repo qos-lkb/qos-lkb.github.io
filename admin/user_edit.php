@@ -76,10 +76,7 @@ admin_page_start($id ? '編輯使用者' : '新增使用者', 'users', [
                 </div>
             </div>
             <p class="text-xs text-slate-500 -mt-2">至少填寫中文名或英文名其中一項。</p>
-            <div>
-                <label class="block text-sm font-medium text-slate-700">密碼<?php echo $id ? '（留空則不變更）' : '（至少 8 字元）'; ?></label>
-                <input type="password" name="password" class="mt-1 w-full border rounded-lg px-3 py-2" <?php echo $id ? '' : 'required minlength="8"'; ?> autocomplete="new-password">
-            </div>
+            <p class="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">登入密碼由校本 <strong>QSIS</strong> 驗證；本站不儲存或設定密碼。請確保帳戶名與 QSIS <code class="font-mono text-xs">user.username</code> 一致。</p>
             <div class="flex items-center gap-2">
                 <input type="checkbox" name="is_active" id="is_active" value="1" <?php echo !isset($row['is_active']) || (int) $row['is_active'] ? 'checked' : ''; ?> <?php echo ($row['email'] ?? '') === 'system@science-sims.internal' ? 'disabled' : ''; ?>>
                 <label for="is_active" class="text-sm text-slate-700">啟用</label>

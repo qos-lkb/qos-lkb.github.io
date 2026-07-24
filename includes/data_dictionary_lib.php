@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /** @var array<string, string> */
 const DD_TABLE_DESCRIPTIONS = [
-    'users' => '使用者帳戶（login id／與 QSIS username 對齊；password_hash；中英文名；啟用狀態）',
+    'users' => '使用者帳戶（login id／與 QSIS username 對齊；中英文名；啟用狀態；密碼僅存 QSIS）',
     'roles' => '角色定義（admin、teacher、student）',
     'user_roles' => '使用者與角色的多對多關聯',
     'permissions' => '權限代碼與說明',

@@ -111,7 +111,7 @@ function auth_find_local_user_by_login(PDO $pdo, string $rawIdentity): ?array
     }
 
     $stmt = $pdo->prepare(
-        'SELECT id, email, password_hash, display_name, name_zh, name_en, is_active
+        'SELECT id, email, display_name, name_zh, name_en, is_active
          FROM users WHERE email = ? LIMIT 1'
     );
     $stmt->execute([$identity]);
@@ -205,7 +205,12 @@ function qsis_password_hash_matches(string $storedHash, string $plainPassword): 
 }
 
 /**
+ * Verify login password against QSIS only.
+ *
  * @return 'ok'|'fail'|'unavailable'
+ *   ok          — QSIS user found and password matches
+ *   fail        — QSIS reachable; user missing, disabled, or wrong password
+ *   unavailable — QSIS not configured or connection error
  */
 function qsis_verify_password_for_login(string $emailOrUsername, string $password): string
 {
@@ -215,7 +220,7 @@ function qsis_verify_password_for_login(string $emailOrUsername, string $passwor
 
     $username = auth_qsis_username_from_email($emailOrUsername);
     if ($username === '') {
-        return 'unavailable';
+        return 'fail';
     }
 
     try {
@@ -226,7 +231,14 @@ function qsis_verify_password_for_login(string $emailOrUsername, string $passwor
 
     $row = qsis_fetch_auth_user($username);
     if ($row === null) {
-        return 'unavailable';
+        // Distinguish "no such QSIS user" from connection failure inside fetch.
+        try {
+            qsis_db()->query('SELECT 1')->fetchColumn();
+        } catch (Throwable $e) {
+            return 'unavailable';
+        }
+
+        return 'fail';
     }
     if ($row['is_disabled'] === 1) {
         return 'fail';

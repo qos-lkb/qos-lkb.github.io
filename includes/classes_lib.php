@@ -482,8 +482,15 @@ function classes_register_student(PDO $pdo, string $email, string $password, str
     if (!auth_is_valid_login_id($email)) {
         return ['ok' => false, 'error' => '請輸入有效帳戶名稱或電郵。'];
     }
-    if (strlen($password) < 8) {
-        return ['ok' => false, 'error' => '密碼至少 8 字元。'];
+    if ($password === '') {
+        return ['ok' => false, 'error' => '請輸入 QSIS 密碼。'];
+    }
+    $qsisAuth = qsis_verify_password_for_login($email, $password);
+    if ($qsisAuth === 'unavailable') {
+        return ['ok' => false, 'error' => '無法連接 QSIS 驗證密碼，請稍後再試。'];
+    }
+    if ($qsisAuth !== 'ok') {
+        return ['ok' => false, 'error' => 'QSIS 帳戶或密碼不正確。'];
     }
     $nameValid = account_validate_names($nameZh, $nameEn);
     if (!$nameValid['ok']) {
@@ -507,11 +514,9 @@ function classes_register_student(PDO $pdo, string $email, string $password, str
     try {
         $pdo->beginTransaction();
 
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $ins = $pdo->prepare('INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)');
-        $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
+        $ins = $pdo->prepare('INSERT INTO users (email, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, 1)');
+        $ins->execute([$email, $nameZh, $nameEn, $displayName]);
         $userId = (int) $pdo->lastInsertId();
-
         $pdo->prepare('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)')->execute([$userId, $studentRoleId]);
         $pdo->prepare('INSERT INTO student_profiles (user_id, preferred_lang) VALUES (?, ?)')->execute([$userId, 'zh']);
         classes_upsert_enrollment($pdo, (int) $class['id'], $userId);
@@ -1052,7 +1057,7 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
         $email = auth_normalize_login_identity((string) ($parts[0] ?? ''));
         $nameZh = trim((string) ($parts[1] ?? ''));
         $nameEn = trim((string) ($parts[2] ?? ''));
-        $password = trim((string) ($parts[3] ?? ''));
+        // parts[3] was legacy local password — ignored (auth via QSIS only)
         $formClass = trim((string) ($parts[4] ?? ''));
         $classNoRaw = trim((string) ($parts[5] ?? ''));
         if (!auth_is_valid_login_id($email)) {
@@ -1062,20 +1067,13 @@ function classes_import_students_csv(PDO $pdo, string $csvContent, int $classId,
             $nameZh = str_contains($email, '@') ? (strstr($email, '@', true) ?: $email) : $email;
         }
         $displayName = account_sync_display_name($nameZh, $nameEn);
-        if ($password === '') {
-            $password = bin2hex(random_bytes(4)) . 'Aa1!';
-        }
-        if (strlen($password) < 8) {
-            continue;
-        }
 
         $existing = auth_find_local_user_by_login($pdo, $email);
         $uid = $existing !== null ? (int) $existing['id'] : 0;
         if ($uid <= 0) {
             try {
-                $hash = password_hash($password, PASSWORD_DEFAULT);
-                $ins = $pdo->prepare('INSERT INTO users (email, password_hash, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, ?, 1)');
-                $ins->execute([$email, $hash, $nameZh, $nameEn, $displayName]);
+                $ins = $pdo->prepare('INSERT INTO users (email, name_zh, name_en, display_name, is_active) VALUES (?, ?, ?, ?, 1)');
+                $ins->execute([$email, $nameZh, $nameEn, $displayName]);
                 $uid = (int) $pdo->lastInsertId();
                 $pdo->prepare('INSERT INTO student_profiles (user_id, preferred_lang) VALUES (?, ?)')->execute([$uid, 'zh']);
                 $created++;

@@ -241,6 +241,8 @@ function auth_stop_impersonation(PDO $pdo): array
 function attempt_login(string $email, string $password): bool
 {
     auth_session_start();
+    require_once __DIR__ . '/qsis_auth_lib.php';
+
     $identity = auth_normalize_login_identity($email);
     if ($identity === '' || $password === '') {
         return false;
@@ -252,17 +254,9 @@ function attempt_login(string $email, string $password): bool
         return false;
     }
 
-    // Prefer QSIS password when the account exists there; do not fall back to local hash.
-    $qsisResult = qsis_verify_password_for_login($identity, $password);
-    if ($qsisResult === 'ok') {
-        // authenticated via QSIS
-    } elseif ($qsisResult === 'fail') {
+    // Passwords are verified only against QSIS; local users.password_hash is removed.
+    if (qsis_verify_password_for_login($identity, $password) !== 'ok') {
         return false;
-    } else {
-        // QSIS unavailable or no matching QSIS user → local password (admins / external).
-        if (!password_verify($password, (string) $u['password_hash'])) {
-            return false;
-        }
     }
 
     session_regenerate_id(true);

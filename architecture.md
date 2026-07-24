@@ -59,7 +59,7 @@ The same codebase may be deployed as:
 | `learning_videos_lib.php`, `topic_items_lib.php` | Course videos and curriculum items |
 | `question_bank_lib.php` | Question banks (multi-type) |
 | `classes_lib.php`, `qsis_import_lib.php` | Class/course management, QSIS import |
-| `qsis_auth_lib.php` | Login id = QSIS username (no `@qos.edu.hk`); verify QSIS `password_hash` |
+| `qsis_auth_lib.php` | Login id = QSIS username (no `@qos.edu.hk`); verify QSIS `password_hash` only |
 | `summer_homework_lib.php` | S1/S2 summer homework: grading, due dates, class report, attempt analytics |
 | `adaptive_lib.php`, `learning_analytics_lib.php`, `learning_assessment_lib.php` | SDL, mastery, attempts |
 | `user_names_lib.php`, `account_lib.php` | Bilingual names, profile helpers |
@@ -375,7 +375,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 **Login identity**: school accounts use the **same login id as QSIS `user.username`** (e.g. `s20171060`) — **no** `@qos.edu.hk`. If a user still types `sid@qos.edu.hk`, the domain is stripped. Legacy DB rows are migrated on login / via `schema_users_login_id.sql`.
 
-**Password**: when QSIS is configured and a matching `qss_admin.user` row exists, verify against QSIS `password_hash` (bcrypt or legacy MD5). Local `users.password_hash` is used only for accounts **not** present in QSIS. Password changes for QSIS-linked accounts must be done in the school QSIS system.
+**Password**: login always verifies against **QSIS** `user.password_hash` (bcrypt or legacy MD5). This platform does **not** store passwords (`users.password_hash` removed; migrate with `schema_users_drop_password.sql`). Password changes must be done in the school QSIS system. QSIS must be configured in `.env` (`QSIS_DB_*`) or login will fail.
 
 ### 6. Bilingual UI
 
