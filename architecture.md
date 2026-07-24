@@ -360,7 +360,7 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 ### 4. Summer homework (attempts & analytics)
 
 - **Items** (`summer_homework_items`): form_level `1`|`2`, reading or video body, `pass_percent` (default 80), optional `due_at` + `allow_late_submit`.
-- **Questions**: `mcq` (2–6 options), `fill_blank` (multiple acceptable answers per blank), `true_false`, `short_answer`, `long_answer` (manual marks; excluded from auto pass %). Upsert on save keeps stable `question_id`.
+- **Questions**: `mcq` (2–6 options), `fill_blank` (multiple acceptable answers per blank), `true_false`, `short_answer`, `long_answer` (manual marks; excluded from auto pass %). Upsert on save keeps stable `question_id`. Saving an item **re-grades all existing attempts** against the latest answers / `pass_percent` (keeps `responses_json`, `submitted_at`, `teacher_marks_json`).
 - **Every submit** `INSERT`s into `summer_homework_attempts` (UI still shows **best** percent only).
   - `responses_json` — raw answers (`selected_option_index` / blanks / `selected_bool` / `text`).
   - `grading_json` — score summary + per-question `details[]` (`question_id`, `type`, `correct`, `score`, `max`, …); MCQ includes options snapshot.

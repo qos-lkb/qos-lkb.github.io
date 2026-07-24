@@ -8,6 +8,12 @@
 
 ## 2026-07-24
 
+### 暑期功課：儲存時重算既有呈交分數
+- 更新習作（含答案／及格線）後，依最新題目對所有 `summer_homework_attempts` 重新計分並更新 `score`／`percent`／`passed`／`grading_json`。
+- 保留原作答 `responses_json`、`submitted_at` 與長答 `teacher_marks_json`；首次及格狀態隨重算後的 `passed` 自動調整。
+- 若舊呈交的 `question_id` 已因昔日全刪再建而對不上，會依題目順序對齊作答後再計分。
+- 後台儲存成功時顯示重算筆數。
+
 ### 暑期功課：題型擴充與基礎強化
 - **題目 upsert**：重存習作保留既有 `question_id`（歷史 `responses_json`／分析可對上同一題）。
 - **儲存驗證**：無題目、stem 皆空、MC 無正解／選項空、填充無答案等拒絕儲存。

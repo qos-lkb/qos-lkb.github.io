@@ -35,7 +35,21 @@ admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_home
     'wide' => true,
 ]);
 ?>
-        <p id="flash" class="text-red-600 text-sm hidden mb-3"></p>
+        <p id="flash" class="text-sm hidden mb-3"></p>
+        <?php
+        $regradedFlash = isset($_GET['regraded']) ? (int) $_GET['regraded'] : 0;
+        if ($regradedFlash > 0):
+            ?>
+            <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var flash = document.getElementById('flash');
+                if (!flash) return;
+                flash.textContent = '已儲存，並依最新答案重算 <?php echo $regradedFlash; ?> 筆呈交分數（及格狀態亦已更新）。';
+                flash.classList.remove('hidden', 'text-red-600');
+                flash.classList.add('text-emerald-700');
+            });
+            </script>
+        <?php endif; ?>
         <form id="edit-form" class="space-y-4 bg-white rounded-xl border p-6 shadow-sm">
             <input type="hidden" id="item-id" value="<?php echo $id; ?>">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

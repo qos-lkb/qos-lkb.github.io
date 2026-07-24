@@ -209,6 +209,9 @@ function api_handle_admin_summer_homework(PDO $pdo, string $method): void
         $row = sh_get_by_id($pdo, (int) $r['id']);
         $out = sh_public_row($row ?: []);
         $out['questions'] = sh_fetch_questions($pdo, (int) $r['id'], true);
+        if (isset($r['regraded_attempts'])) {
+            $out['regraded_attempts'] = (int) $r['regraded_attempts'];
+        }
         api_json_ok($out);
         return;
     }

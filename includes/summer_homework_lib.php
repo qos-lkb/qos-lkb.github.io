@@ -453,7 +453,7 @@ function sh_can_view_item(array $row, ?array $user): bool
 
 /**
  * @param array<string, mixed> $payload
- * @return array{ok:bool,error?:string,id?:int}
+ * @return array{ok:bool,error?:string,id?:int,regraded_attempts?:int}
  */
 function sh_save_item(PDO $pdo, array $payload, array $user): array
 {
@@ -523,18 +523,39 @@ function sh_save_item(PDO $pdo, array $payload, array $user): array
             $ownerId = (int) $payload['owner_user_id'];
         }
 
-        $upd = $pdo->prepare(
-            'UPDATE summer_homework_items SET slug=?, title_zh=?, title_en=?, form_level=?, content_type=?,
-             body_zh=?, body_en=?, video_embed_url=?, video_provider=?, pass_percent=?, due_at=?, allow_late_submit=?,
-             list_sort_order=?, status=?, owner_user_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
-        );
-        $upd->execute([
-            $slug, $titleZh, $titleEn, $formLevel, $contentType,
-            $bodyZh, $bodyEn, $videoUrl !== '' ? $videoUrl : null, $videoProvider, $passPercent,
-            $dueAt, $allowLate, $listSort, $status, $ownerId, $id,
-        ]);
-        sh_replace_questions($pdo, $id, $questions);
-        return ['ok' => true, 'id' => $id];
+        $startedTx = false;
+        try {
+            if (!$pdo->inTransaction()) {
+                $pdo->beginTransaction();
+                $startedTx = true;
+            }
+            $upd = $pdo->prepare(
+                'UPDATE summer_homework_items SET slug=?, title_zh=?, title_en=?, form_level=?, content_type=?,
+                 body_zh=?, body_en=?, video_embed_url=?, video_provider=?, pass_percent=?, due_at=?, allow_late_submit=?,
+                 list_sort_order=?, status=?, owner_user_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
+            );
+            $upd->execute([
+                $slug, $titleZh, $titleEn, $formLevel, $contentType,
+                $bodyZh, $bodyEn, $videoUrl !== '' ? $videoUrl : null, $videoProvider, $passPercent,
+                $dueAt, $allowLate, $listSort, $status, $ownerId, $id,
+            ]);
+            sh_replace_questions($pdo, $id, $questions);
+            // Re-score existing attempts against the latest answers / pass mark.
+            $regrade = sh_regrade_item_attempts($pdo, $id, $passPercent);
+            if ($startedTx) {
+                $pdo->commit();
+            }
+            return [
+                'ok' => true,
+                'id' => $id,
+                'regraded_attempts' => (int) ($regrade['updated'] ?? 0),
+            ];
+        } catch (Throwable $e) {
+            if ($startedTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['ok' => false, 'error' => '儲存或重算分數失敗，請重試。'];
+        }
     }
 
     $slug = sh_ensure_unique_slug($pdo, $slugInput !== '' ? $slugInput : $titleEn);
@@ -930,6 +951,137 @@ function sh_grade_responses(array $questionsWithAnswers, array $responses, float
         'passed' => $passed,
         'details' => $details,
     ];
+}
+
+/**
+ * Map attempt responses onto current question ids.
+ * Prefer id keys when they still match; otherwise map by sort order
+ * (legacy attempts after delete-and-recreate of questions).
+ *
+ * @param list<array<string, mixed>> $questions
+ * @param array<string|int, mixed> $responses
+ * @return array<string, mixed>
+ */
+function sh_align_responses_to_questions(array $questions, array $responses): array
+{
+    if ($questions === [] || $responses === []) {
+        return is_array($responses) ? $responses : [];
+    }
+
+    $idHits = 0;
+    foreach ($questions as $q) {
+        $qid = (int) ($q['id'] ?? 0);
+        if ($qid <= 0) {
+            continue;
+        }
+        if (array_key_exists((string) $qid, $responses) || array_key_exists($qid, $responses)) {
+            $idHits++;
+        }
+    }
+
+    $threshold = max(1, (int) ceil(count($questions) / 2));
+    if ($idHits >= $threshold) {
+        return $responses;
+    }
+
+    $oldKeys = array_keys($responses);
+    usort($oldKeys, static fn ($a, $b): int => (int) $a <=> (int) $b);
+
+    $aligned = [];
+    foreach ($questions as $i => $q) {
+        if (!isset($oldKeys[$i])) {
+            break;
+        }
+        $qid = (int) ($q['id'] ?? 0);
+        if ($qid <= 0) {
+            continue;
+        }
+        $k = $oldKeys[$i];
+        $aligned[(string) $qid] = $responses[$k] ?? $responses[(string) $k] ?? null;
+    }
+
+    return $aligned;
+}
+
+/**
+ * Re-grade all attempts for an item using current questions/answers and pass %.
+ * Preserves responses_json, submitted_at, and teacher_marks_json; refreshes score columns + grading_json.
+ *
+ * @return array{ok:bool,updated:int,error?:string}
+ */
+function sh_regrade_item_attempts(PDO $pdo, int $itemId, ?float $passPercent = null): array
+{
+    $row = sh_get_by_id($pdo, $itemId);
+    if ($row === null) {
+        return ['ok' => false, 'updated' => 0, 'error' => '找不到習作。'];
+    }
+    if ($passPercent === null) {
+        $passPercent = (float) $row['pass_percent'];
+    }
+
+    $questions = sh_fetch_questions($pdo, $itemId, true);
+    $hasGrading = sh_attempts_has_grading_json($pdo);
+    $stmt = $pdo->prepare(
+        'SELECT id, responses_json FROM summer_homework_attempts WHERE item_id = ? ORDER BY id ASC'
+    );
+    $stmt->execute([$itemId]);
+
+    if ($hasGrading) {
+        $upd = $pdo->prepare(
+            'UPDATE summer_homework_attempts
+             SET score = ?, max_score = ?, percent = ?, passed = ?, grading_json = ?
+             WHERE id = ? AND item_id = ?'
+        );
+    } else {
+        $upd = $pdo->prepare(
+            'UPDATE summer_homework_attempts
+             SET score = ?, max_score = ?, percent = ?, passed = ?
+             WHERE id = ? AND item_id = ?'
+        );
+    }
+
+    $updated = 0;
+    while ($attempt = $stmt->fetch()) {
+        $attemptId = (int) $attempt['id'];
+        $responses = sh_decode_json_column($attempt['responses_json'] ?? null);
+        if (!is_array($responses)) {
+            $responses = [];
+        }
+        $aligned = sh_align_responses_to_questions($questions, $responses);
+        $graded = sh_grade_responses($questions, $aligned, $passPercent);
+        if ($hasGrading) {
+            $gradingPayload = [
+                'score' => $graded['score'],
+                'max_score' => $graded['max_score'],
+                'percent' => $graded['percent'],
+                'passed' => $graded['passed'],
+                'pass_percent' => $passPercent,
+                'details' => $graded['details'],
+                'regraded_at' => date('Y-m-d H:i:s'),
+            ];
+            $upd->execute([
+                $graded['score'],
+                $graded['max_score'],
+                $graded['percent'],
+                $graded['passed'] ? 1 : 0,
+                json_encode($gradingPayload, JSON_UNESCAPED_UNICODE),
+                $attemptId,
+                $itemId,
+            ]);
+        } else {
+            $upd->execute([
+                $graded['score'],
+                $graded['max_score'],
+                $graded['percent'],
+                $graded['passed'] ? 1 : 0,
+                $attemptId,
+                $itemId,
+            ]);
+        }
+        $updated++;
+    }
+
+    return ['ok' => true, 'updated' => $updated];
 }
 
 /**

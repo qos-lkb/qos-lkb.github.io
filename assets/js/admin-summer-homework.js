@@ -575,11 +575,18 @@
                     method: 'POST',
                     body: payload,
                 });
-                window.location.href = 'summer_homework_edit.php?id=' + saved.id;
+                const regraded = parseInt(saved.regraded_attempts || '0', 10) || 0;
+                let url = 'summer_homework_edit.php?id=' + saved.id;
+                if (regraded > 0) {
+                    url += '&regraded=' + regraded;
+                }
+                window.location.href = url;
             } catch (err) {
                 const flash = document.getElementById('flash');
                 flash.textContent = err.message || '儲存失敗';
                 flash.classList.remove('hidden');
+                flash.classList.add('text-red-600');
+                flash.classList.remove('text-emerald-700');
             }
         };
     })();

@@ -119,6 +119,7 @@ python3 -m http.server 8000
 - **及格後仍可重做**；若本次分數更高則更新最高分，較低則保留原最高分。
 - 列表／報表顯示的百分比為該生的 **最高分數**；資料庫 **每次呈交都會新增一列** `summer_homework_attempts`（含 `responses_json` 與 `grading_json`）。
 - 重存習作時題目採 **upsert**（保留 `question_id`），避免歷史呈交對不上題號。
+- **儲存更新習作後**會依最新答案／及格線 **重算所有既有呈交** 的分數與及格狀態（保留原作答與呈交時間）。
 - 選擇題每次呈交會記錄：
   - `responses_json`：`selected_option_index`
   - `grading_json.details[]`：`selected_option_index`、`correct_option_index`、以及當下各選項 **文字／是否正確** 的快照（`options[]`）
