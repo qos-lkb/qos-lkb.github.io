@@ -159,6 +159,14 @@
     }
 
     async function showHome() {
+        const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
+        if (!user) {
+            setActiveTab('');
+            if (window.AppGuestHome) {
+                AppGuestHome.renderGuestHome();
+            }
+            return;
+        }
         setActiveTab('summer');
         if (window.AppSummerHomework) {
             await AppSummerHomework.renderHome();
