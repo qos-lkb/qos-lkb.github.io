@@ -17,9 +17,6 @@ const global = window;
             : String(route || '');
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function setShell() {
         const sidebar = document.getElementById('sidebar');
@@ -89,7 +86,7 @@ const global = window;
      *   titleZh: string, titleEn: string,
      *   anyPerm: string, ownPerm: string,
      *   listPath: string, deletePath: string,
-     *   editPhp?: string, editSpaBase?: string,
+     *   editSpaBase: string,
      *   previewRoute?: (slug: string) => string,
      *   showReview?: boolean,
      *   toolbarExtra?: string,
@@ -133,10 +130,8 @@ const global = window;
                     : '';
                 const extra = (cfg.extraCells ? cfg.extraCells(row, ctx) : [])
                     .map((cell) => `<td class="p-3">${cell}</td>`).join('');
-                const editHref = cfg.editSpaBase
-                    ? spaHref(`${cfg.editSpaBase}/${id}/edit`)
-                    : legacyAdmin(cfg.editPhp + '?id=' + id);
-                const editNav = cfg.editSpaBase ? ` data-spa-nav="${escapeHtml(`${cfg.editSpaBase}/${id}/edit`)}"` : '';
+                const editHref = spaHref(`${cfg.editSpaBase}/${id}/edit`);
+                const editNav = ` data-spa-nav="${escapeHtml(`${cfg.editSpaBase}/${id}/edit`)}"`;
                 return `<tr class="border-t border-slate-100">
                     <td class="p-3">${escapeHtml(row.title_zh || row.title_en || '—')}</td>
                     <td class="p-3 font-mono text-xs">${escapeHtml(slug)}</td>
@@ -153,11 +148,8 @@ const global = window;
 
             const headExtra = extraHeaders.map((h) => `<th class="p-3">${escapeHtml(h)}</th>`).join('');
             const colSpan = 5 + extraHeaders.length;
-            const newHref = cfg.editSpaBase
-                ? spaHref(`${cfg.editSpaBase}/new`)
-                : legacyAdmin(cfg.editPhp);
-            const newNav = cfg.editSpaBase ? ` data-spa-nav="${escapeHtml(`${cfg.editSpaBase}/new`)}"` : '';
-
+            const newHref = spaHref(`${cfg.editSpaBase}/new`);
+            const newNav = ` data-spa-nav="${escapeHtml(`${cfg.editSpaBase}/new`)}"`;
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
                     <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>

@@ -17,9 +17,6 @@ const global = window;
             : String(route || '');
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function setShell() {
         const sidebar = document.getElementById('sidebar');
@@ -129,9 +126,7 @@ const global = window;
                 const id = Number(it.id);
                 const titleText = it.title_zh || it.title_en || '—';
                 const editTarget = meta.edit ? meta.edit(id, it) : null;
-                const editHref = editTarget
-                    ? (editTarget.spa ? spaHref(editTarget.spa) : legacyAdmin(editTarget.php))
-                    : '';
+                const editHref = editTarget && editTarget.spa ? spaHref(editTarget.spa) : '';
                 const editNav = editTarget && editTarget.spa
                     ? ` data-spa-nav="${escapeHtml(editTarget.spa)}"`
                     : '';

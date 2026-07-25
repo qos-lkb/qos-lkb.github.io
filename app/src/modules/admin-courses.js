@@ -23,9 +23,6 @@ const global = window;
         if (sidebar) sidebar.style.display = 'none';
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function optionsHtml(map, selected) {
         const entries = Object.entries(map || {});
@@ -114,7 +111,6 @@ const global = window;
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
                     <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    <a href="${escapeHtml(legacyAdmin('courses.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('完整 PHP 列表', 'Full PHP list'))}</a>
                 </div>
                 <p id="admin-courses-flash" class="text-sm mb-3 hidden"></p>
                 <form id="admin-course-create" class="mb-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end bg-white border border-slate-200 rounded-xl p-4">

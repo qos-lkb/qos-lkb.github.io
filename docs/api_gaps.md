@@ -18,4 +18,4 @@
 
 - 契約：[`docs/openapi.yaml`](openapi.yaml)
 - 路由表：[`api/v1/build_router.php`](../api/v1/build_router.php)
-- 狀態：**後台主線已收斂**為 API + SPA；`admin/`／`portal/` 為轉址殼；admin JS 按路由懶載入
+- 狀態：**後台主線已收斂**為 API + SPA；`admin/`／`portal/` 為轉址殼；admin／前台 JS **按路由**懶載入（主包約 59KB）

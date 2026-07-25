@@ -39,7 +39,10 @@ const GROUP_LOADERS = {
     ]),
     curriculum: () => import('./admin-course-curriculum.js'),
     ops: () => import('./admin-ops.js'),
-    'danger-ops': () => import('./admin-danger-ops.js'),
+    'danger-ops': async () => {
+        await import('./markdown.js');
+        await import('./admin-danger-ops.js');
+    },
     users: () => import('./admin-users.js'),
 };
 

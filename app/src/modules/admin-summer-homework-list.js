@@ -17,9 +17,6 @@ const global = window;
             : String(route || '');
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function setShell() {
         const sidebar = document.getElementById('sidebar');

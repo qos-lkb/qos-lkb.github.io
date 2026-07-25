@@ -23,9 +23,6 @@ const global = window;
         if (sidebar) sidebar.style.display = 'none';
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function statusLabel(s) {
         return {

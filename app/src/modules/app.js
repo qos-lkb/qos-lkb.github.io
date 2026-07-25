@@ -171,7 +171,22 @@
         await renderFn();
     }
 
+    async function ensureFrontModules(pathOrGroup) {
+        if (window.AppFrontLoader && typeof AppFrontLoader.ensureAppRoute === 'function') {
+            await AppFrontLoader.ensureAppRoute(pathOrGroup);
+        }
+    }
+
+    /** Wrap a front route handler so required modules load before render. */
+    function front(pathHint, fn) {
+        return async (...args) => {
+            await ensureFrontModules(pathHint);
+            return fn(...args);
+        };
+    }
+
     async function ensureCatalog() {
+        await ensureFrontModules('catalog');
         if (!catalogLoaded) {
             await AppCatalog.loadCatalog();
             catalogLoaded = true;
@@ -184,6 +199,7 @@
     }
 
     async function showHome() {
+        await ensureFrontModules('/');
         const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
         if (!user) {
             setActiveTab('');
@@ -199,6 +215,7 @@
     }
 
     async function showSummerList(formFilter) {
+        await ensureFrontModules('/summer-homework');
         setActiveTab('summer');
         if (!window.AppSummerHomework) return;
         const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
@@ -211,6 +228,7 @@
     }
 
     async function showCoursesHome() {
+        await ensureFrontModules('/courses');
         restoreMainShell();
         setActiveTab('courses');
         if (window.AppCourse) {
@@ -229,7 +247,8 @@
     document.addEventListener('langchange', async () => {
         updateNavLabels();
         updateSiteBranding();
-        await AppCatalog.loadCatalog({ skipNavRender: true });
+        await ensureFrontModules('catalog');
+        if (window.AppCatalog) await AppCatalog.loadCatalog({ skipNavRender: true });
         if (window.AppCourse) await AppCourse.loadCourses(true);
         const path = location.pathname.replace(/.*\/app/, '') || '/';
         AppRouter.dispatch(path.replace(/\/index\.html/i, '') || '/');
@@ -252,7 +271,6 @@
         // Paint first: register routes and dispatch immediately (guest shell already in HTML).
         if (window.AppUserMenu) AppUserMenu.init();
         if (window.AppLearningTracker) AppLearningTracker.init();
-        if (window.SimModal) SimModal.init();
         if (window.AppSidebar) AppSidebar.init();
         updateNavLabels();
         updateSiteBranding();
@@ -273,54 +291,54 @@
             '/': showHome,
             '/index.html': showHome,
             '/courses': showCoursesHome,
-            '/course/:subject': async (subjectSlug) => {
+            '/course/:subject': front('/course/', async (subjectSlug) => {
                 restoreMainShell();
                 setActiveTab('courses');
                 if (window.AppCourse) await AppCourse.renderSubject(subjectSlug);
-            },
-            '/course/:subject/:topic': async (subjectSlug, topicSlug) => {
+            }),
+            '/course/:subject/:topic': front('/course/', async (subjectSlug, topicSlug) => {
                 restoreMainShell();
                 setActiveTab('courses');
                 if (window.AppCourse) await AppCourse.renderTopic(subjectSlug, topicSlug);
-            },
+            }),
             '/simulations': showSimulationsHome,
-            '/learning-notes': async () => {
+            '/learning-notes': front('/learning-notes', async () => {
                 restoreMainShell();
                 setActiveTab('notes');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderLearningNotesList();
-            },
-            '/worksheets': async () => {
+            }),
+            '/worksheets': front('/worksheets', async () => {
                 restoreMainShell();
                 setActiveTab('worksheets');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderWorksheetsList();
-            },
-            '/learning-videos': async () => {
+            }),
+            '/learning-videos': front('/learning-videos', async () => {
                 restoreMainShell();
                 setActiveTab('videos');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderLearningVideosList();
-            },
-            '/learning-tools': async () => {
+            }),
+            '/learning-tools': front('/learning-tools', async () => {
                 restoreMainShell();
                 setActiveTab('learning');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await ensureCatalog();
                 AppCatalog.renderLearningToolsList();
-            },
-            '/articles': async () => {
+            }),
+            '/articles': front('/articles', async () => {
                 restoreMainShell();
                 setActiveTab('articles');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderArticlesList();
-            },
-            '/quiz/:slug': async (slug) => {
+            }),
+            '/quiz/:slug': front('/quiz/', async (slug) => {
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'learning');
                 document.getElementById('sidebar').style.display = window.AppCourse && AppCourse.isCourseMode() ? '' : 'none';
                 await AppQuiz.renderQuiz(slug);
-            },
-            '/article/:slug': async (slug) => {
+            }),
+            '/article/:slug': front('/article/', async (slug) => {
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'articles');
                 await AppCatalog.loadCatalog({ skipNavRender: true });
                 if (window.AppCourse && AppCourse.isCourseMode()) {
@@ -330,8 +348,8 @@
                     await AppCatalog.prepareArticlesSidebar(slug);
                 }
                 await AppArticle.renderArticle(slug);
-            },
-            '/note/:slug': async (slug) => {
+            }),
+            '/note/:slug': front('/note/', async (slug) => {
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'notes');
                 await AppCatalog.loadCatalog({ skipNavRender: true });
                 if (window.AppCourse && AppCourse.isCourseMode()) {
@@ -341,8 +359,8 @@
                     await AppCatalog.prepareNotesSidebar(slug);
                 }
                 await AppNote.renderNote(slug);
-            },
-            '/worksheet/:slug': async (slug) => {
+            }),
+            '/worksheet/:slug': front('/worksheet/', async (slug) => {
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'worksheets');
                 await AppCatalog.loadCatalog({ skipNavRender: true });
                 if (window.AppCourse && AppCourse.isCourseMode()) {
@@ -352,8 +370,8 @@
                     await AppCatalog.prepareWorksheetsSidebar(slug);
                 }
                 await AppWorksheet.renderWorksheet(slug);
-            },
-            '/video/:slug': async (slug) => {
+            }),
+            '/video/:slug': front('/video/', async (slug) => {
                 const inCourse = window.AppCourse && AppCourse.isCourseMode();
                 setActiveTab(inCourse ? 'courses' : 'videos');
                 const sidebar = document.getElementById('sidebar');
@@ -366,8 +384,8 @@
                     await AppCatalog.prepareVideosSidebar(slug);
                 }
                 await AppVideo.renderVideo(slug);
-            },
-            '/simulation/:slug': async (slug) => {
+            }),
+            '/simulation/:slug': front('/simulation/', async (slug) => {
                 if (window.AppCatalog && AppCatalog.closeModal) AppCatalog.closeModal();
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'simulations');
                 if (window.AppCourse && AppCourse.isCourseMode()) {
@@ -375,28 +393,28 @@
                     if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
                 }
                 await AppSimulation.renderSimulation(slug);
-            },
-            '/dashboard': async () => {
+            }),
+            '/dashboard': front('/dashboard', async () => {
                 document.querySelectorAll('.nav-tab').forEach(btn => {
                     btn.classList.remove('active');
                     btn.classList.add('text-indigo-200');
                 });
                 if (window.AppDashboard) await AppDashboard.renderDashboard();
-            },
-            '/assignments': async () => {
+            }),
+            '/assignments': front('/assignments', async () => {
                 document.querySelectorAll('.nav-tab').forEach(btn => {
                     btn.classList.remove('active');
                     btn.classList.add('text-indigo-200');
                 });
                 if (window.AppAssignments) await AppAssignments.renderAssignmentsList();
-            },
-            '/assignment/:id': async (id) => {
+            }),
+            '/assignment/:id': front('/assignment/', async (id) => {
                 document.querySelectorAll('.nav-tab').forEach(btn => {
                     btn.classList.remove('active');
                     btn.classList.add('text-indigo-200');
                 });
                 if (window.AppAssignments) await AppAssignments.renderAssignment(id);
-            },
+            }),
             '/summer-homework': async () => {
                 await showSummerList(null);
             },
@@ -406,18 +424,18 @@
             '/summer-homework/s2': async () => {
                 await showSummerList('2');
             },
-            '/summer-homework/:slug': async (slug) => {
+            '/summer-homework/:slug': front('/summer-homework', async (slug) => {
                 setActiveTab('summer');
                 if (window.AppSummerHomework) await AppSummerHomework.renderItem(slug);
-            },
-            '/login': async () => {
+            }),
+            '/login': front('/login', async () => {
                 restoreMainShell();
                 clearNavTabActive();
                 if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
                     await AppAuth.whenReady();
                 }
                 if (window.AppLogin) await AppLogin.renderLogin();
-            },
+            }),
             '/admin': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminHome();

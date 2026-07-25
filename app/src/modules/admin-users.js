@@ -23,9 +23,6 @@ const global = window;
         if (sidebar) sidebar.style.display = 'none';
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function requireUsersAccess() {
         if (!global.ScienceApi.getUser()) {
@@ -100,8 +97,7 @@ const global = window;
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
                     <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    <a href="${escapeHtml(legacyAdmin('permissions.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('角色權限', 'Permissions'))}</a>
-                    <a href="${escapeHtml(legacyAdmin('users.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('完整 PHP 列表', 'Full PHP list'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/permissions'))}" data-spa-nav="/admin/permissions" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('角色權限', 'Permissions'))}</a>
                 </div>
                 <p id="admin-users-flash" class="text-sm mb-3 hidden"></p>
                 <form id="admin-user-create" class="mb-6 space-y-3 bg-white border border-slate-200 rounded-xl p-4">

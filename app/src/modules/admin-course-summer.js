@@ -23,9 +23,6 @@ const global = window;
         if (sidebar) sidebar.style.display = 'none';
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function requireCoursesAccess() {
         if (!global.ScienceApi.getUser()) {
@@ -95,7 +92,7 @@ const global = window;
                     : t('無截止', 'No due date');
                 return `<th class="p-3 min-w-[11rem]">
                     <div class="font-semibold">
-                        <a class="text-indigo-700 hover:underline" href="${escapeHtml(legacyAdmin('summer_homework_view.php?id=' + item.id))}">${escapeHtml(titleText)}</a>
+                        <a class="text-indigo-700 hover:underline" href="${escapeHtml(spaHref('/admin/summer-homework/' + Number(item.id) + '/view'))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/view">${escapeHtml(titleText)}</a>
                     </div>
                     <div class="text-xs font-normal text-slate-500 mt-0.5">${escapeHtml(due)}</div>
                     <a class="text-xs text-indigo-600 hover:underline mt-1 inline-block" href="${escapeHtml(spaHref(`/admin/summer-homework/${Number(item.id)}/analytics`))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>

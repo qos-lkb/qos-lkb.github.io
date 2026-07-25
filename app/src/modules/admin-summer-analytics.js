@@ -16,9 +16,6 @@ const global = window;
         if (sidebar) sidebar.style.display = 'none';
     }
 
-    function legacyAdmin(path) {
-        return ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/' + path;
-    }
 
     function truncate(s, n) {
         const str = String(s || '');
@@ -93,7 +90,7 @@ const global = window;
             return;
         }
         if (itemId <= 0) {
-            location.href = legacyAdmin('summer_homework.php');
+            global.AppRouter.navigate('/admin/summer-homework');
             return;
         }
 
@@ -373,8 +370,8 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(legacyAdmin('summer_homework.php'))}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 習作列表', '← Homework list'))}</a>
-                    <a href="${escapeHtml(legacyAdmin('summer_homework_view.php?id=' + itemId))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 習作列表', '← Homework list'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/view'))}" data-spa-nav="/admin/summer-homework/${itemId}/view" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
                     ${canManage ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/edit'))}" data-spa-nav="/admin/summer-homework/${itemId}/edit" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('編輯習作', 'Edit item'))}</a>` : ''}
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-1">${escapeHtml(itemTitle)}</h2>

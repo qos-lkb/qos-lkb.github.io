@@ -248,19 +248,19 @@ background: #3b82f6; /* blue-500 */
 - Elective 2 → `physics/e02/`
 - Elective 3 → `physics/e03/`
 
-**Rule 5.3**: Register new simulations via the database / admin workflow
-- Add the simulation record in **`admin/simulations.php`** (or contributor portal)
+**Rule 5.3**: Register new simulations via the database / SPA admin workflow
+- Add the simulation record in SPA **`/app/admin/simulations`** (legacy `admin/*.php` only redirects)
 - Set subject, topic, bilingual titles, HTML path, and **published** status when ready
 - Do **not** rely on `index.csv` or manual `index.html` links (legacy flows are deprecated)
 - Place the HTML file in the correct subject directory before registering
 
 **Rule 5.4**: Database-managed learning content follows the same publish workflow
 - **Learning notes**, **worksheets**, **learning tools**, **articles**, **learning videos**, and **question banks** are stored in MariaDB
-- Contributors save as `draft` or `pending_review`; admins publish via admin or review queue
-- Use **`admin/`** editors (or SPA `/app/admin` where available); SPA reads published items via **`/api/v1/`**. `portal/` only redirects.
-- Self-study curriculum ordering: **`admin/course_curriculum.php`** (`topic_learning_items`)
-- Teacher **courses / classes**: **`admin/courses.php`**, **`admin/course_edit.php`**; enrollment may include form class, class number, MOI (`011`–`012`)
-- **Worksheet assignments**: teachers assign via admin or API; students submit at **`/app/assignments`**; grading via teacher API or admin reports
+- Contributors save as `draft` or `pending_review`; admins publish via SPA review queue
+- Use SPA **`/app/admin/…`** editors; SPA reads published items via **`/api/v1/`**. `admin/`／`portal/` PHP only redirects.
+- Self-study curriculum ordering: **`/app/admin/course-curriculum`** (`topic_learning_items`)
+- Teacher **courses / classes**: **`/app/admin/courses`**（含 edit／students／report／worksheets／summer）；enrollment may include form class, class number, MOI (`011`–`012`)
+- **Worksheet assignments**: teachers assign via SPA course worksheets or API; students submit at **`/app/assignments`**; grading via teacher API or SPA reports
 
 **Rule 5.5**: Do not rely on legacy CSV or static index generation for new content
 - **`index.csv`** and CSV-driven **`index.php`** listing are deprecated
@@ -676,11 +676,11 @@ Module guide: **`README.md`**（§ 暑期功課）. Architecture pattern: **`arc
 
 **Rule 17.2**: MCQ analytics require selected option index
 - Client sends `selected_option_index`; grader snapshots options (label / text / `is_correct`) into `grading_json`
-- Admin analytics: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` (select % and wrong-option share %)
+- Admin analytics: SPA `/app/admin/summer-homework/{id}/analytics` via `sh_item_attempt_analytics()` (select % and wrong-option share %)
 
 **Rule 17.3**: Due dates
 - Optional `due_at` + `allow_late_submit` on items; late/on-time judged from **best** attempt time
-- Class matrix: `admin/course_summer_homework.php`
+- Class matrix: SPA `/app/admin/courses/{id}/summer`
 
 **Rule 17.4**: Student content language follows MOI
 - Enrollment MOI E→en, C→zh for homework body; ignore SPA UI language toggle for students

@@ -283,8 +283,6 @@ const global = window;
             bodyHtml = `<pre class="whitespace-pre-wrap text-xs">${escapeHtml(data.markdown || '')}</pre>`;
         }
 
-        const readerHref = '../' + (data.reader_url || 'markdown_reader.php?file=data_dictionary.md');
-
         box.innerHTML = `
             ${opsNav()}
             <p id="dd-flash" class="text-sm mb-4 hidden"></p>
@@ -302,12 +300,11 @@ const global = window;
                     <button type="button" id="dd-regenerate-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
                         ${escapeHtml(t('重新產生', 'Regenerate'))}
                     </button>
-                    ${exists ? `<a href="${escapeHtml(readerHref)}" target="_blank" rel="noopener" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">${escapeHtml(t('公開閱讀器', 'Public reader'))}</a>` : ''}
                 </div>
             </div>
             ${exists
                 ? `<article id="dd-body" class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 sm:p-8 overflow-x-auto prose prose-slate max-w-none">${bodyHtml}</article>`
-                : `<div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-6 text-sm">${escapeHtml(t('尚未找到 data_dictionary.md。請按「重新產生」，或於本機執行 php update_data_dictionary.php。', 'data_dictionary.md missing. Regenerate, or run php update_data_dictionary.php locally.'))}</div>`}`;
+                : `<div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-6 text-sm">${escapeHtml(t('尚未找到 data_dictionary.md。請按「重新產生」。', 'data_dictionary.md missing. Click Regenerate.'))}</div>`}`;
         bindSpaNav(box);
 
         document.getElementById('dd-regenerate-btn').addEventListener('click', async () => {

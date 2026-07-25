@@ -8,6 +8,14 @@
 
 ## 2026-07-25
 
+### SPA：清除非登入 PHP 連結
+- 後台模組改連 SPA（使用者／課程／暑期分析等）；移除 `legacyAdmin` 與「完整 PHP 列表」。
+- 資料字典不再連 `markdown_reader.php`。
+
+### SPA：前台按路由懶載入
+- 新增 `app-loader`：暑期／目錄／課程／內容頁／儀表板等按需載入；主包僅保留殼層與 auth。
+- `rule.md` 後台路徑改為 SPA-first。
+
 ### SPA：舊 learning_tools 審核對應試題庫
 - `/review-queue` 回傳 `mapped_bank_id`；已遷移項可編輯試題庫，未遷移顯示說明。
 - Legacy `summer-homework.js` 教師首頁改連 SPA（不再指 PHP）。
