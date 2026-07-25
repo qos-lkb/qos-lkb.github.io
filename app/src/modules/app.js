@@ -399,6 +399,69 @@
                 });
                 if (window.AppAdmin) await AppAdmin.renderAdminSubjects();
             },
+            '/admin/courses': async () => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminCourses();
+            },
+            '/admin/courses/:id': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminCourseEdit(id);
+            },
+            '/admin/courses/:id/students': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminCourseStudents(id);
+            },
+            '/admin/courses/:id/report': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminCourseReport(id);
+            },
+            '/admin/courses/:id/summer': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminCourseSummer(id);
+            },
+            '/admin/courses/:id/worksheets': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminCourseWorksheets(id);
+            },
+            '/admin/summer-homework/:id/analytics': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminSummerAnalytics(id);
+            },
+            '/admin/users': async () => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminUsers();
+            },
+            '/admin/users/:id': async (id) => {
+                document.querySelectorAll('.nav-tab').forEach((btn) => {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-indigo-200');
+                });
+                if (window.AppAdmin) await AppAdmin.renderAdminUserEdit(id);
+            },
         });
 
         document.querySelectorAll('.nav-tab').forEach(btn => {

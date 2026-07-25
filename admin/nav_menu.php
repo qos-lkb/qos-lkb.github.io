@@ -10,23 +10,6 @@ bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/nav_menu.php'));
 
 $pdo = db();
-$error = '';
-$ok = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf($_POST['csrf'] ?? null)) {
-        $error = 'CSRF 驗證失敗。';
-    } else {
-        $vis = isset($_POST['vis']) && is_array($_POST['vis']) ? $_POST['vis'] : [];
-        $r = spa_nav_save_matrix($pdo, $vis);
-        if ($r['ok']) {
-            $ok = '已更新前台上方選單可見性。';
-        } else {
-            $error = $r['error'] ?? '儲存失敗。';
-        }
-    }
-}
-
 $matrix = spa_nav_get_matrix($pdo);
 $items = spa_nav_item_defs();
 $audiences = spa_nav_audience_defs();
@@ -37,12 +20,7 @@ admin_page_start('前台選單可見性', 'nav_menu', [
 ]);
 ?>
 
-<?php if ($ok !== ''): ?>
-    <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"><?php echo htmlspecialchars($ok, ENT_QUOTES, 'UTF-8'); ?></div>
-<?php endif; ?>
-<?php if ($error !== ''): ?>
-    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
-<?php endif; ?>
+<div id="nav-flash" class="mb-4 hidden rounded-lg px-4 py-3 text-sm"></div>
 
 <?php if (!$tableOk): ?>
     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -57,8 +35,7 @@ admin_page_start('前台選單可見性', 'nav_menu', [
         <h2 class="font-bold text-slate-900">上方選單矩陣</h2>
         <p class="text-sm text-slate-600 mt-1">勾選表示該類使用者可在前台看到該選單。同一使用者若兼具多個角色，只要其中一個角色勾選即顯示。</p>
     </div>
-    <form method="post" class="p-4 md:p-5 overflow-x-auto">
-        <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+    <form id="nav-menu-form" class="p-4 md:p-5 overflow-x-auto">
         <table class="min-w-full text-sm border-collapse">
             <thead>
                 <tr class="bg-slate-50 text-left">
@@ -86,9 +63,10 @@ admin_page_start('前台選單可見性', 'nav_menu', [
                                     <input
                                         type="checkbox"
                                         id="<?php echo htmlspecialchars($id, ENT_QUOTES, 'UTF-8'); ?>"
-                                        name="vis[<?php echo htmlspecialchars($item['key'], ENT_QUOTES, 'UTF-8'); ?>][<?php echo htmlspecialchars($aud['key'], ENT_QUOTES, 'UTF-8'); ?>]"
+                                        data-item="<?php echo htmlspecialchars($item['key'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-audience="<?php echo htmlspecialchars($aud['key'], ENT_QUOTES, 'UTF-8'); ?>"
                                         value="1"
-                                        class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        class="nav-vis-cb h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                         <?php echo $checked ? 'checked' : ''; ?>
                                         <?php echo $tableOk ? '' : 'disabled'; ?>
                                     >
@@ -107,18 +85,55 @@ admin_page_start('前台選單可見性', 'nav_menu', [
     </form>
 </div>
 
+<?php
+admin_page_end([
+    'scripts' => <<<'HTML'
+<script src="../assets/js/admin-api.js"></script>
 <script>
-(function () {
-    const form = document.querySelector('form');
+(async function () {
+    const form = document.getElementById('nav-menu-form');
+    const flash = document.getElementById('nav-flash');
     if (!form) return;
+
+    function showFlash(msg, isError) {
+        if (!flash) return;
+        flash.textContent = msg;
+        flash.classList.remove('hidden', 'border-emerald-200', 'bg-emerald-50', 'text-emerald-900', 'border-red-200', 'bg-red-50', 'text-red-800');
+        flash.classList.add('border', isError ? 'border-red-200' : 'border-emerald-200', isError ? 'bg-red-50' : 'bg-emerald-50', isError ? 'text-red-800' : 'text-emerald-900');
+    }
+
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
+    }
+
     document.getElementById('nav-check-all')?.addEventListener('click', () => {
-        form.querySelectorAll('input[type=checkbox]').forEach((el) => { el.checked = true; });
+        form.querySelectorAll('input.nav-vis-cb').forEach((el) => { el.checked = true; });
     });
     document.getElementById('nav-uncheck-all')?.addEventListener('click', () => {
-        form.querySelectorAll('input[type=checkbox]').forEach((el) => { el.checked = false; });
+        form.querySelectorAll('input.nav-vis-cb').forEach((el) => { el.checked = false; });
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const matrix = {};
+        form.querySelectorAll('input.nav-vis-cb').forEach((el) => {
+            const item = el.getAttribute('data-item');
+            const audience = el.getAttribute('data-audience');
+            if (!item || !audience) return;
+            if (!matrix[item]) matrix[item] = {};
+            matrix[item][audience] = el.checked ? '1' : '';
+        });
+        try {
+            await AdminApi.apiFetch('/admin/nav-menu', { method: 'POST', body: { matrix } });
+            showFlash('已更新前台上方選單可見性。', false);
+        } catch (err) {
+            showFlash(err.message || '儲存失敗', true);
+        }
     });
 })();
 </script>
-
-<?php
-admin_page_end();
+HTML,
+]);

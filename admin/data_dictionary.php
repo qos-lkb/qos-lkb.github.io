@@ -11,29 +11,6 @@ bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/data_dictionary.php'));
 
 $mdPath = dd_output_path();
-$flash = '';
-$flashError = false;
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'regenerate') {
-    if (!verify_csrf($_POST['csrf'] ?? null)) {
-        $flash = 'CSRF 驗證失敗。';
-        $flashError = true;
-    } else {
-        $result = dd_generate();
-        if ($result['ok']) {
-            $flash = '已更新 data_dictionary.md（' . (int) ($result['table_count'] ?? 0) . ' 張資料表）。';
-        } else {
-            $flash = $result['error'] ?? '產生失敗。';
-            $flashError = true;
-        }
-    }
-} elseif (isset($_GET['ok'])) {
-    $flash = '已更新 data_dictionary.md（' . (int) ($_GET['tables'] ?? 0) . ' 張資料表）。';
-} elseif (isset($_GET['error'])) {
-    $flash = (string) $_GET['error'];
-    $flashError = true;
-}
-
 $markdown = '';
 $htmlContent = '';
 $fileMeta = [
@@ -59,7 +36,6 @@ $schemaMtime = is_readable(dd_schema_path())
     ? date('Y-m-d H:i:s', filemtime(dd_schema_path()))
     : '—';
 
-$csrf = csrf_token();
 $mdCss = markdown_reader_css();
 
 admin_page_start('資料字典', 'data_dictionary', [
@@ -68,11 +44,7 @@ admin_page_start('資料字典', 'data_dictionary', [
     'actions' => admin_btn('../update_data_dictionary.php', 'Web 產生器', 'secondary'),
 ]);
 ?>
-        <?php if ($flash !== ''): ?>
-            <p class="text-sm mb-4 <?php echo $flashError ? 'text-red-700' : 'text-emerald-700'; ?>">
-                <?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?>
-            </p>
-        <?php endif; ?>
+        <p id="dd-flash" class="text-sm mb-4 hidden"></p>
 
         <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
             <div class="text-sm text-slate-600 space-y-1">
@@ -87,21 +59,19 @@ admin_page_start('資料字典', 'data_dictionary', [
                     <?php endif; ?>
                 </p>
             </div>
-            <form method="post" class="flex flex-wrap gap-2">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="action" value="regenerate">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+            <div class="flex flex-wrap gap-2">
+                <button type="button" id="dd-regenerate-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
                     重新產生
                 </button>
                 <?php if ($fileMeta['exists']): ?>
                 <a href="../markdown_reader.php?file=data_dictionary.md" target="_blank" rel="noopener"
                    class="admin-action-btn admin-action-btn-secondary text-sm">公開閱讀器</a>
                 <?php endif; ?>
-            </form>
+            </div>
         </div>
 
         <?php if (!$fileMeta['exists']): ?>
-            <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-6 text-sm">
+            <div id="dd-missing" class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-6 text-sm">
                 尚未找到 <code>data_dictionary.md</code>。請按上方「重新產生」，或執行
                 <code>php update_data_dictionary.php</code>。
             </div>
@@ -111,4 +81,37 @@ admin_page_start('資料字典', 'data_dictionary', [
             </article>
         <?php endif; ?>
 <?php
-admin_page_end();
+admin_page_end([
+    'scripts' => <<<'HTML'
+<script src="../assets/js/admin-api.js"></script>
+<script>
+(async function () {
+    const btn = document.getElementById('dd-regenerate-btn');
+    const flash = document.getElementById('dd-flash');
+    function showFlash(msg, isError) {
+        if (!flash) return;
+        flash.textContent = msg;
+        flash.classList.remove('hidden', 'text-red-700', 'text-emerald-700');
+        flash.classList.add(isError ? 'text-red-700' : 'text-emerald-700');
+    }
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
+    }
+    btn?.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+            const data = await AdminApi.apiFetch('/admin/data-dictionary/regenerate', { method: 'POST', body: {} });
+            showFlash('已更新 data_dictionary.md（' + (data.table_count || 0) + ' 張資料表）。重新載入中…', false);
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showFlash(err.message || '產生失敗', true);
+            btn.disabled = false;
+        }
+    });
+})();
+</script>
+HTML,
+]);

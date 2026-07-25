@@ -25,30 +25,6 @@ if ($id > 0) {
     $editSim['_tags'] = sim_get_tag_slugs($pdo, $id);
 }
 
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $res = simulation_save_from_request($pdo, $u, $_POST, true);
-    if ($res['ok']) {
-        header('Location: simulations.php');
-        exit;
-    }
-    $error = $res['error'] ?? '儲存失敗';
-    $editSim = [
-        'id' => (int) ($_POST['id'] ?? 0),
-        'title_zh' => $_POST['title_zh'] ?? '',
-        'title_en' => $_POST['title_en'] ?? '',
-        'slug' => $_POST['slug'] ?? '',
-        'html' => $_POST['html'] ?? '',
-        'screenshot_path' => $_POST['screenshot_path'] ?? '',
-        'subject_id' => $_POST['subject_id'] ?? '',
-        'topic_id' => $_POST['topic_id'] ?? '',
-        'list_sort_order' => isset($_POST['list_sort_order']) && $_POST['list_sort_order'] !== '' ? (int) $_POST['list_sort_order'] : 0,
-        'status' => $_POST['status'] ?? 'draft',
-        'owner_user_id' => $_POST['owner_user_id'] ?? $u['id'],
-        '_tags' => array_filter(array_map('trim', preg_split('/[,，]/u', (string) ($_POST['tags'] ?? '')) ?: [])),
-    ];
-}
-
 $subjects = sim_all_subjects($pdo);
 $topicsBySubject = [];
 foreach ($subjects as $s) {
@@ -63,7 +39,7 @@ if (!$editSim) {
     ];
 }
 
-$formAction = 'simulation_edit.php';
+$formAction = '#';
 $isAdmin = true;
 $csrf = csrf_token();
 
@@ -71,9 +47,51 @@ admin_page_start($id ? '編輯模擬' : '新增模擬', 'simulations', [
     'actions' => admin_btn('simulations.php', '返回列表', 'secondary'),
 ]);
 ?>
-        <?php if ($error !== ''): ?>
-            <p class="text-red-600 text-sm"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
-        <?php endif; ?>
+        <p id="flash" class="text-red-600 text-sm hidden mb-3"></p>
         <?php include dirname(__DIR__) . '/includes/simulation_form_fragment.php'; ?>
 <?php
-admin_page_end();
+$editIdJs = (int) $id;
+admin_page_end([
+    'scripts' => <<<HTML
+<script src="../assets/js/admin-api.js"></script>
+<script>
+(async function () {
+    const flash = document.getElementById('flash');
+    const form = document.querySelector('form');
+    if (!form) return;
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        if (flash) {
+            flash.textContent = err.message || '無法初始化 API 工作階段';
+            flash.classList.remove('hidden');
+        }
+        return;
+    }
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const payload = {};
+        fd.forEach((value, key) => {
+            if (key === 'csrf') return;
+            payload[key] = value;
+        });
+        payload.id = {$editIdJs} || parseInt(payload.id || '0', 10) || 0;
+        if (flash) {
+            flash.classList.add('hidden');
+            flash.textContent = '';
+        }
+        try {
+            await AdminApi.apiFetch('/admin/simulations', { method: 'POST', body: payload });
+            location.href = 'simulations.php';
+        } catch (err) {
+            if (flash) {
+                flash.textContent = err.message || '儲存失敗';
+                flash.classList.remove('hidden');
+            }
+        }
+    });
+})();
+</script>
+HTML,
+]);

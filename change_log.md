@@ -8,6 +8,45 @@
 
 ## 2026-07-25
 
+### SPA：暑期呈交分析
+- 新增 `/admin/summer-homework/{id}/analytics`（KPI、錯題分析、學生摘要、作答明細、長答評分）。
+- `summer_homework_analytics.php` 302 → SPA（保留 `user_id`／`attempt_id`）。
+
+### SPA：暑期功課矩陣＋工作紙派發
+- 新增 `/admin/courses/{id}/summer`（狀態篩選、矩陣、CSV）、`/admin/courses/{id}/worksheets`（派發／評分）。
+- `course_summer_homework.php`／`course_worksheets.php` 302 → SPA。
+
+### SPA：課程學生／學習報告
+- 新增 `/admin/courses/{id}/students`（加入／批次 MOI／移出）、`/admin/courses/{id}/report`（KPI＋CSV）。
+- `course_students.php`／`course_reports.php` 302 → SPA。
+
+### SPA 深層編輯：課程／使用者
+- 新增路由 `/admin/courses/{id}`、`/admin/users/{id}`（REST 讀寫、重設邀請碼、學生名單預覽）。
+- `course_edit.php`／`user_edit.php` 302 → SPA；`GET /admin/users/{id}` 與 `GET /admin/classes/{id}` 回傳編輯用選項。
+
+### SPA 後台加深＋impersonate 退役
+- `/admin/courses`、`/admin/users` 支援經 REST **新增**（課程／使用者）；列表刪除／模仿亦走 API。
+- `admin/impersonate.php` 改 410；帳戶選單停止模仿僅打 `POST /auth/stop-impersonation`（移除 form fallback）。
+
+### SPA 後台＋學習報告 API 化
+- SPA 新增 `/admin/courses`、`/admin/users`（列表經 REST；編輯深連 PHP）。
+- `course_reports.php` 改打 `GET /teacher/classes/{id}/report` 與 CSV 下載。
+
+### REST API：暑期分析與班級暑期 CSV
+- 新增 `GET /admin/summer-homework/{id}/analytics`、`…/attempts`；`GET /admin/classes/{id}/summer-homework`、`…/summer-homework.csv`。
+- `course_summer_homework.php` 匯出改打 AdminApi；呈交列表補 `teacher_marks`。
+
+### REST API：課程頁遷移＋P1 運維端點
+- `courses.php`／`course_edit.php`／`course_students.php` 改打 `/admin/classes*`。
+- 新增 `POST /admin/db/export|import`、`POST /admin/qsis/import`、`GET /admin/qsis/status|courses`、`POST /admin/data-dictionary/regenerate`；對應後台頁改打 AdminApi（import 保留 Phase 5 擋板）。
+- `AdminApi` 支援 FormData 與 `rawResponse`（SQL 下載）。
+
+### REST API：補齊 P0（users／classes）並對齊契約
+- 新增 `/admin/users`、`/admin/users/{id}`、inline、impersonate；`/admin/permissions`。
+- 補齊 `/admin/classes` 寫入：update／delete／bulk、invite、students enroll／CSV／batch／remove。
+- 後台 `users`／`permissions`／`nav_menu`／`simulations` 改打 `AdminApi`；OpenAPI 對齊 `build_router.php`。
+- 更新 `docs/api_gaps.md`（P0 標為已完成）。
+
 ### 一次升級 SQL
 - 新增 `schema_upgrade_all.sql`：合併 Phase 0–7 全部增量 `schema_*.sql`，可單檔匯入既有庫；並寫入 `schema_migrations`。
 

@@ -1295,6 +1295,9 @@ function sh_list_attempts_for_item(PDO $pdo, int $itemId, ?int $userId = null): 
             'name_en' => (string) ($row['name_en'] ?? ''),
             'responses' => sh_decode_json_column($row['responses_json'] ?? null),
             'grading' => sh_decode_json_column($row['grading_json'] ?? null),
+            'teacher_marks' => sh_decode_json_column($row['teacher_marks_json'] ?? null),
+            // Keep raw key for admin analytics.php which still reads teacher_marks_json.
+            'teacher_marks_json' => $row['teacher_marks_json'] ?? null,
         ];
     }
     return $out;

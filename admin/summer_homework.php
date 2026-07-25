@@ -80,7 +80,7 @@ admin_page_start('暑期功課', 'summer_homework', [
                         <td class="p-3 text-xs text-slate-500"><?php echo htmlspecialchars((string) $row['updated_at'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 whitespace-nowrap">
                             <a class="text-indigo-600 hover:underline" href="summer_homework_view.php?id=<?php echo (int) $row['id']; ?>">內容／答案</a>
-                            <a class="text-indigo-600 hover:underline ml-2" href="summer_homework_analytics.php?id=<?php echo (int) $row['id']; ?>">分析</a>
+                            <a class="text-indigo-600 hover:underline ml-2" href="../app/admin/summer-homework/<?php echo (int) $row['id']; ?>/analytics">分析</a>
                             <?php if ($canEdit): ?>
                                 <a class="text-indigo-600 hover:underline ml-2" href="summer_homework_edit.php?id=<?php echo (int) $row['id']; ?>">編輯</a>
                             <?php endif; ?>

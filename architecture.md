@@ -98,7 +98,7 @@ mysql -u USER -p DB_NAME < schema.sql
 
 ### Full API direction
 
-Learner SPA and admin UI are converging on **`/api/v1` only** (session + CSRF). Contract stub: [`docs/openapi.yaml`](docs/openapi.yaml). Gap list: [`docs/api_gaps.md`](docs/api_gaps.md). Routes registered in [`api/v1/build_router.php`](api/v1/build_router.php). Simulation HTML on disk can be synced with `php scripts/sync_simulations_to_db.php` (path→slug aliases in `scripts/sim_path_aliases.php`). New sims: [`templates/sim_skeleton.html`](templates/sim_skeleton.html) + checklist [`docs/sim_standards.md`](docs/sim_standards.md); lint with `php scripts/check_sim_standards.php`.
+Learner SPA and admin UI are converging on **`/api/v1` only** (session + CSRF). Contract: [`docs/openapi.yaml`](docs/openapi.yaml). Gap list: [`docs/api_gaps.md`](docs/api_gaps.md)（核心／運維／暑期報表已補）. Routes registered in [`api/v1/build_router.php`](api/v1/build_router.php). Simulation HTML on disk can be synced with `php scripts/sync_simulations_to_db.php` (path→slug aliases in `scripts/sim_path_aliases.php`). New sims: [`templates/sim_skeleton.html`](templates/sim_skeleton.html) + checklist [`docs/sim_standards.md`](docs/sim_standards.md); lint with `php scripts/check_sim_standards.php`.
 
 ### Tables (summary)
 
@@ -289,10 +289,10 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 
 | Area | Files |
 |------|-------|
-| Users & roles | `users.php`, `user_edit.php`, `permissions.php`, `impersonate.php` |
+| Users & roles | `users.php`, `user_edit.php`, `permissions.php`（`impersonate.php` 已 410，改走 REST） |
 | Catalogue | `subjects.php`, `simulations.php`, `simulation_edit.php` |
 | Learning content | `learning_notes.php`, `worksheets.php`, `worksheet_edit.php`, `articles.php`, `question_banks.php`（`learning_tools.php` → 302） |
-| Summer homework | `summer_homework.php`, `summer_homework_edit.php`, `summer_homework_view.php`, `summer_homework_analytics.php` |
+| Summer homework | `summer_homework.php`, `summer_homework_edit.php`, `summer_homework_view.php`（分析改 SPA `/admin/summer-homework/{id}/analytics`） |
 | Curriculum | `course_curriculum.php` |
 | Classes / courses | `courses.php`, `course_edit.php`, `course_students.php`, `course_reports.php`, `course_worksheets.php`, `course_summer_homework.php`, `classes.php`, `class_edit.php`, `class_reports.php`, `qsis_import.php` |
 | Platform | `nav_menu.php` (SPA top-nav visibility) |
@@ -386,14 +386,14 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
   - `teacher_marks_json` — optional teacher scores/comments for long-answer items.
 - **Due status**: **準時** / **欠交** / **未交** from **first passing** attempt’s `submitted_at` vs `due_at` (not best-score attempt). Incomplete (never passed) = 未交; first pass after due = 欠交.
 - **Class report**: `admin/course_summer_homework.php` via `sh_class_report()` — status filter + CSV export.
-- **Item analytics**: `admin/summer_homework_analytics.php` via `sh_item_attempt_analytics()` — miss rates, option/TF/short-answer stats, long-answer pending marks, student summaries, attempt drill-down + marking UI.
+- **Item analytics**: SPA `/app/admin/summer-homework/{id}/analytics` via `GET /admin/summer-homework/{id}/analytics` + attempts/marks APIs (`sh_item_attempt_analytics()`). Legacy `admin/summer_homework_analytics.php` 302s to SPA.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.
 - Upgrade scripts: `schema_summer_homework*.sql`, including **`schema_summer_homework_qtypes.sql`**.
 - Module docs: **[`README.md`](README.md)** § 暑期功課.
 
 ### 5. Auth & permissions
 
-Session-based login; admin routes and API mutations check RBAC capabilities. Admins may **impersonate** users via `admin/impersonate.php` (audit via session flags; stop via `/auth/stop-impersonation`).
+Session-based login; admin routes and API mutations check RBAC capabilities. Admins may **impersonate** via `POST /api/v1/admin/users/{id}/impersonate` (audit via session flags; stop via `POST /api/v1/auth/stop-impersonation`). Legacy `admin/impersonate.php` returns 410.
 
 **Login identity**: school accounts use the **same login id as QSIS `user.username`** (e.g. `s20171060`) — **no** `@qos.edu.hk`. If a user still types `sid@qos.edu.hk`, the domain is stripped. Legacy DB rows are migrated on login / via `schema_users_login_id.sql`.
 

@@ -47,6 +47,15 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addMethods(['GET', 'POST'], '/admin/nav-menu', static fn () => api_handle_admin_nav_menu($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/classes', static fn () => api_handle_admin_classes($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/topic-items', static fn () => api_handle_admin_topic_items($pdo, $method()));
+    $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/users', static fn () => api_handle_admin_users($pdo, $method()));
+    $router->addMethods(['GET', 'PUT', 'POST'], '/admin/permissions', static fn () => api_handle_admin_permissions($pdo, $method()));
+
+    $router->addExact('POST', '/admin/db/export', static fn () => api_handle_admin_db_export($pdo));
+    $router->addExact('POST', '/admin/db/import', static fn () => api_handle_admin_db_import($pdo));
+    $router->addExact('POST', '/admin/data-dictionary/regenerate', static fn () => api_handle_admin_data_dictionary_regenerate());
+    $router->addExact('GET', '/admin/qsis/status', static fn () => api_handle_admin_qsis_status($pdo));
+    $router->addExact('GET', '/admin/qsis/courses', static fn () => api_handle_admin_qsis_courses());
+    $router->addExact('POST', '/admin/qsis/import', static fn () => api_handle_admin_qsis_import($pdo));
 
     $router->addMethods(['GET', 'POST'], '/admin/subjects', static fn () => api_handle_admin_subjects($pdo, $method()));
     $router->addExact('POST', '/admin/subjects/reorder', static fn () => api_handle_admin_subjects_reorder($pdo));
@@ -96,7 +105,11 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^GET /summer-homework/([^/]+)$', static fn (array $p) => api_handle_summer_homework_get($pdo, rawurldecode($p[1])));
 
     $router->addPattern('^POST /admin/summer-homework/attempts/(\d+)/marks$', static fn (array $p) => api_handle_admin_summer_homework_mark_attempt($pdo, (int) $p[1]));
+    $router->addPattern('^GET /admin/summer-homework/(\d+)/analytics$', static fn (array $p) => api_handle_admin_summer_homework_analytics($pdo, (int) $p[1]));
+    $router->addPattern('^GET /admin/summer-homework/(\d+)/attempts$', static fn (array $p) => api_handle_admin_summer_homework_attempts($pdo, (int) $p[1]));
     $router->addPattern('^GET /admin/summer-homework/(\d+)$', static fn (array $p) => api_handle_admin_summer_homework_get($pdo, (int) $p[1]));
+    $router->addPattern('^GET /admin/classes/(\d+)/summer-homework\.csv$', static fn (array $p) => api_handle_admin_class_summer_homework_csv($pdo, (int) $p[1]));
+    $router->addPattern('^GET /admin/classes/(\d+)/summer-homework$', static fn (array $p) => api_handle_admin_class_summer_homework($pdo, (int) $p[1]));
     $router->addPattern('^POST /admin/question-banks/(\d+)/media$', static fn (array $p) => api_handle_admin_question_bank_media_upload($pdo, (int) $p[1]));
     $router->addPattern('^DELETE /admin/question-banks/(\d+)/media/(\d+)$', static fn (array $p) => api_handle_admin_question_bank_media_delete($pdo, (int) $p[1], (int) $p[2]));
     $router->addPattern('^GET /admin/question-banks/(\d+)$', static fn (array $p) => api_handle_admin_question_bank_get($pdo, (int) $p[1]));
@@ -104,6 +117,36 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^GET /courses/([^/]+)$', static fn (array $p) => api_handle_courses_subject($pdo, rawurldecode($p[1])));
     $router->addPattern('^GET /admin/topic-items/(\d+)/available/([^/]+)$', static fn (array $p) => api_handle_topic_items_available($pdo, (int) $p[1], rawurldecode($p[2])));
     $router->addPattern('^GET /admin/topic-items/(\d+)$', static fn (array $p) => api_handle_topic_items_list($pdo, (int) $p[1]));
+
+    $router->addPattern(
+        '^(GET|PATCH|PUT|POST|DELETE) /admin/users/(\d+)$',
+        static fn (array $p) => api_handle_admin_user_item($pdo, (int) $p[2], strtoupper($p[1]))
+    );
+    $router->addPattern(
+        '^POST /admin/users/(\d+)/inline$',
+        static fn (array $p) => api_handle_admin_user_inline($pdo, (int) $p[1])
+    );
+    $router->addPattern(
+        '^POST /admin/users/(\d+)/impersonate$',
+        static fn (array $p) => api_handle_admin_user_impersonate($pdo, (int) $p[1])
+    );
+
+    $router->addPattern(
+        '^(GET|PATCH|PUT|POST|DELETE) /admin/classes/(\d+)$',
+        static fn (array $p) => api_handle_admin_class_item($pdo, (int) $p[2], strtoupper($p[1]))
+    );
+    $router->addPattern(
+        '^POST /admin/classes/(\d+)/invite$',
+        static fn (array $p) => api_handle_admin_class_invite($pdo, (int) $p[1])
+    );
+    $router->addPattern(
+        '^POST /admin/classes/(\d+)/students$',
+        static fn (array $p) => api_handle_admin_class_students($pdo, (int) $p[1], 'POST')
+    );
+    $router->addPattern(
+        '^(PUT|PATCH|POST|DELETE) /admin/classes/(\d+)/students/(\d+)$',
+        static fn (array $p) => api_handle_admin_class_student_item($pdo, (int) $p[2], (int) $p[3], strtoupper($p[1]))
+    );
 
     $router->addPattern(
         '^(PATCH|PUT|POST|DELETE) /admin/subjects/(\d+)$',

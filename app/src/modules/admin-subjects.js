@@ -29,6 +29,9 @@ const global = window;
         }
 
         const canSubjects = global.ScienceApi.hasPermission('user.manage');
+        const canUsers = canSubjects;
+        const canCourses = global.ScienceApi.hasPermission('class.manage_any')
+            || global.ScienceApi.hasPermission('class.manage_own');
         const legacyAdmin = ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/';
 
         box.innerHTML = `
@@ -36,6 +39,8 @@ const global = window;
                 <p class="text-slate-600 text-sm">${escapeHtml(t('SPA 後台入口（逐步遷移中）。', 'SPA admin entry (migration in progress).'))}</p>
                 <ul class="space-y-2">
                     ${canSubjects ? `<li><a href="./admin/subjects" data-spa-nav="/admin/subjects" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('科目與單元', 'Subjects & topics'))}</a></li>` : ''}
+                    ${canCourses ? `<li><a href="./admin/courses" data-spa-nav="/admin/courses" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('課程管理', 'Courses'))}</a></li>` : ''}
+                    ${canUsers ? `<li><a href="./admin/users" data-spa-nav="/admin/users" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('使用者', 'Users'))}</a></li>` : ''}
                     <li><a href="${escapeHtml(legacyAdmin)}" class="text-slate-700 hover:underline">${escapeHtml(t('完整 PHP 後台', 'Full PHP admin'))}</a></li>
                 </ul>
             </div>`;

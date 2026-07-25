@@ -15,22 +15,12 @@ $acting = current_user();
 assert($acting !== null);
 $canImpersonate = auth_user_is_admin($pdo, (int) $acting['id']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inline_update') {
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(admin_inline_update_user($pdo, $_POST, $acting['id']), JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 $flash = '';
 if (isset($_GET['impersonate_stopped'])) {
     $flash = '已結束模仿模式，恢復為您的管理員身分。';
 }
 if (!empty($_GET['impersonate_error'])) {
     $flash = (string) $_GET['impersonate_error'];
-}
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
-    $r = admin_delete_user($pdo, $_POST, $acting['id']);
-    $flash = $r['ok'] ? '已刪除使用者。' : ($r['error'] ?? '錯誤');
 }
 
 $rows = $pdo->query(
@@ -53,8 +43,6 @@ foreach ($allRoles as $role) {
         'slug' => (string) $role['name'],
     ];
 }
-
-$csrf = csrf_token();
 
 admin_page_start('使用者', 'users', [
     'actions' => admin_btn('user_edit.php', '新增') . ' ' . admin_btn('courses.php', '課程管理', 'secondary'),
@@ -106,19 +94,9 @@ admin_page_start('使用者', 'users', [
                             <?php if (!$isSystem): ?>
                             <a href="user_edit.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline users-edit-link">編輯</a>
                             <?php if ($canImpersonate && (int) $r['id'] !== (int) $acting['id']): ?>
-                            <form method="post" action="impersonate.php" class="inline ml-2" onsubmit="return confirm('確定以「<?php echo htmlspecialchars((string) ($r['name_zh'] ?: $r['name_en'] ?: $r['email']), ENT_QUOTES, 'UTF-8'); ?>」的身分瀏覽前台？');">
-                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
-                                <input type="hidden" name="action" value="start">
-                                <input type="hidden" name="user_id" value="<?php echo (int) $r['id']; ?>">
-                                <button type="submit" class="text-amber-700 hover:underline" title="以該使用者身分瀏覽前台">模仿</button>
-                            </form>
+                            <button type="button" class="users-impersonate-btn text-amber-700 hover:underline ml-2" data-id="<?php echo (int) $r['id']; ?>" data-label="<?php echo htmlspecialchars((string) ($r['name_zh'] ?: $r['name_en'] ?: $r['email']), ENT_QUOTES, 'UTF-8'); ?>" title="以該使用者身分瀏覽前台">模仿</button>
                             <?php endif; ?>
-                            <form method="post" class="inline ml-2" onsubmit="return confirm('確定刪除？');">
-                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="id" value="<?php echo (int) $r['id']; ?>">
-                                <button type="submit" class="text-red-600 hover:underline">刪除</button>
-                            </form>
+                            <button type="button" class="users-delete-btn text-red-600 hover:underline ml-2" data-id="<?php echo (int) $r['id']; ?>">刪除</button>
                             <?php else: ?>
                             <span class="text-slate-400">—</span>
                             <?php endif; ?>
@@ -130,12 +108,11 @@ admin_page_start('使用者', 'users', [
         </div>
 <?php
 $rolesJson = json_encode($roleOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-$csrfJson = json_encode($csrf, JSON_UNESCAPED_UNICODE);
 admin_page_end([
     'scripts' => <<<HTML
+<script src="../assets/js/admin-api.js"></script>
 <script>
-(function () {
-    const csrf = {$csrfJson};
+(async function () {
     const roleOptions = {$rolesJson};
     const table = document.getElementById('users-table');
     const flashEl = document.getElementById('users-inline-flash');
@@ -148,6 +125,13 @@ admin_page_end([
         flashEl.textContent = msg;
         flashEl.classList.remove('hidden', 'text-emerald-700', 'text-red-600');
         flashEl.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
+    }
+
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
     }
 
     function parseRoleIds(row) {
@@ -230,23 +214,11 @@ admin_page_end([
         }
 
         saving = true;
-        const body = new FormData();
-        body.append('csrf', csrf);
-        body.append('action', 'inline_update');
-        body.append('id', row.dataset.userId);
-        body.append('name_zh', nameZh);
-        body.append('name_en', nameEn);
-        roleIds.forEach(function (id) { body.append('roles[]', String(id)); });
-
         try {
-            const res = await fetch('users.php', { method: 'POST', body: body, credentials: 'same-origin' });
-            const data = await res.json();
-            if (!data.ok) {
-                showFlash(data.error || '儲存失敗。', true);
-                restoreCellDisplay(cell, row, field);
-                saving = false;
-                return;
-            }
+            const data = await AdminApi.apiFetch('/admin/users/' + row.dataset.userId + '/inline', {
+                method: 'POST',
+                body: { name_zh: nameZh, name_en: nameEn, roles: roleIds },
+            });
             row.dataset.nameZh = data.name_zh || '';
             row.dataset.nameEn = data.name_en || '';
             row.dataset.roleIds = (data.role_ids || []).join(',');
@@ -256,7 +228,7 @@ admin_page_end([
             cell.classList.remove('bg-indigo-50', 'ring-2', 'ring-indigo-200');
             showFlash('已更新使用者 #' + row.dataset.userId + '。', false);
         } catch (e) {
-            showFlash('儲存失敗，請重試。', true);
+            showFlash(e.message || '儲存失敗，請重試。', true);
             restoreCellDisplay(cell, row, field);
         } finally {
             saving = false;
@@ -342,6 +314,35 @@ admin_page_end([
         else if (cell.classList.contains('users-cell-roles')) field = 'roles';
         if (!field) return;
         void startEdit(cell, field);
+    });
+
+    document.querySelectorAll('.users-delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+            if (!id || !confirm('確定刪除？')) return;
+            try {
+                await AdminApi.apiFetch('/admin/users', { method: 'DELETE', body: { id: id } });
+                const row = btn.closest('tr');
+                if (row) row.remove();
+                showFlash('已刪除使用者。', false);
+            } catch (err) {
+                showFlash(err.message || '刪除失敗', true);
+            }
+        });
+    });
+
+    document.querySelectorAll('.users-impersonate-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+            const label = btn.getAttribute('data-label') || '';
+            if (!id || !confirm('確定以「' + label + '」的身分瀏覽前台？')) return;
+            try {
+                await AdminApi.apiFetch('/admin/users/' + id + '/impersonate', { method: 'POST', body: {} });
+                location.href = '../app/';
+            } catch (err) {
+                showFlash(err.message || '模仿失敗', true);
+            }
+        });
     });
 })();
 </script>

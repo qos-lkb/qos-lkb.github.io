@@ -14,10 +14,6 @@ $pdo = db();
 $user = current_user();
 assert($user !== null);
 
-/** @var 'success'|'error'|null */
-$flashType = null;
-$flash = '';
-
 $qsisConfigured = qsis_is_configured();
 $connection = $qsisConfigured ? qsis_test_connection() : ['ok' => false, 'error' => '尚未設定 QSIS 資料庫。'];
 
@@ -34,11 +30,11 @@ if ($connection['ok']) {
         $qsis = qsis_db();
         $years = qsis_list_years($qsis);
         $klas = qsis_list_klas($qsis);
-        $selectedYearId = trim((string) ($_POST['year_id'] ?? $_GET['year_id'] ?? ''));
+        $selectedYearId = trim((string) ($_GET['year_id'] ?? ''));
         if ($selectedYearId === '') {
             $selectedYearId = qsis_current_year_id($qsis) ?? ($years[0]['yearId'] ?? '');
         }
-        $selectedKlaId = (int) ($_POST['kla_id'] ?? $_GET['kla_id'] ?? 0);
+        $selectedKlaId = (int) ($_GET['kla_id'] ?? 0);
         if ($selectedYearId !== '') {
             $courses = qsis_list_courses(
                 $qsis,
@@ -66,110 +62,9 @@ $teachers = $pdo->query(
      ORDER BY u.display_name ASC"
 )->fetchAll() ?: [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connection['ok']) {
-    if (!verify_csrf($_POST['csrf'] ?? null)) {
-        $flashType = 'error';
-        $flash = 'CSRF 驗證失敗。';
-    } else {
-        $action = (string) ($_POST['action'] ?? '');
-        $courseIds = isset($_POST['course_ids']) && is_array($_POST['course_ids'])
-            ? array_values(array_filter(array_map('intval', $_POST['course_ids']), static fn (int $id): bool => $id > 0))
-            : [];
-
-        if ($courseIds === []) {
-            $flashType = 'error';
-            $flash = '請至少勾選一門課程。';
-        } else {
-            $options = [
-                'year_id' => trim((string) ($_POST['year_id'] ?? '')),
-                'course_ids' => $courseIds,
-                'teacher_user_id' => (int) ($_POST['teacher_user_id'] ?? $user['id']),
-                'default_password' => '',
-                'enroll' => !empty($_POST['enroll']),
-                'update_existing' => !empty($_POST['update_existing']),
-            ];
-
-            try {
-                $qsis = qsis_db();
-                if ($action === 'import_courses') {
-                    $result = qsis_import_courses($pdo, $qsis, $options, $user['id']);
-                    if ($result['ok']) {
-                        $flashType = 'success';
-                        $flash = sprintf(
-                            '課程匯入完成：新建 %d、略過 %d（已存在）。',
-                            (int) ($result['created'] ?? 0),
-                            (int) ($result['skipped'] ?? 0)
-                        );
-                    } else {
-                        $flashType = 'error';
-                        $flash = $result['error'] ?? '課程匯入失敗。';
-                    }
-                } elseif ($action === 'import_students') {
-                    $result = qsis_import_students($pdo, $qsis, $options, $user['id']);
-                    if ($result['ok']) {
-                        $flashType = 'success';
-                        $flash = sprintf(
-                            '學生匯入完成：新建 %d、更新 %d、略過 %d；加入課程 %d 人次。',
-                            (int) ($result['created'] ?? 0),
-                            (int) ($result['updated'] ?? 0),
-                            (int) ($result['skipped'] ?? 0),
-                            (int) ($result['enrolled'] ?? 0)
-                        );
-                    } else {
-                        $flashType = 'error';
-                        $flash = $result['error'] ?? '學生匯入失敗。';
-                    }
-                } elseif ($action === 'import_all') {
-                    $result = qsis_import_all($pdo, $qsis, $options, $user['id']);
-                    if ($result['ok']) {
-                        $flashType = 'success';
-                        $flash = sprintf(
-                            '一鍵匯入完成：課程新建 %d（略過 %d）；學生新建 %d、更新 %d、略過 %d、加入課程 %d 人次。',
-                            (int) ($result['courses_created'] ?? 0),
-                            (int) ($result['courses_skipped'] ?? 0),
-                            (int) ($result['students_created'] ?? 0),
-                            (int) ($result['students_updated'] ?? 0),
-                            (int) ($result['students_skipped'] ?? 0),
-                            (int) ($result['students_enrolled'] ?? 0)
-                        );
-                    } else {
-                        $flashType = 'error';
-                        $flash = $result['error'] ?? '匯入失敗。';
-                    }
-                }
-
-                if ($selectedYearId !== '') {
-                    $courses = qsis_list_courses(
-                        $qsis,
-                        $selectedYearId,
-                        $selectedKlaId > 0 ? $selectedKlaId : null
-                    );
-                    $courseNameById = [];
-                    foreach ($courses as $courseRow) {
-                        $courseNameById[(int) $courseRow['course_id']] = qsis_course_display_name($courseRow);
-                    }
-                    if ($courses !== []) {
-                        $courseIds = array_map(static fn (array $row): int => (int) $row['course_id'], $courses);
-                        $previewStudents = qsis_list_students($qsis, $selectedYearId, $courseIds);
-                    } else {
-                        $previewStudents = [];
-                    }
-                }
-            } catch (Throwable $e) {
-                $flashType = 'error';
-                $flash = '匯入失敗：' . $e->getMessage();
-            }
-        }
-    }
-}
-
 admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
 ?>
-        <?php if ($flash !== ''): ?>
-            <p class="text-sm mb-4 <?php echo $flashType === 'success' ? 'text-emerald-700' : 'text-red-600'; ?>">
-                <?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?>
-            </p>
-        <?php endif; ?>
+        <p id="qsis-flash" class="text-sm mb-4 hidden"></p>
 
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-6">
             <h2 class="text-lg font-bold text-slate-800 mb-2">QSIS 資料庫連線</h2>
@@ -225,8 +120,7 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
                 </div>
             </form>
 
-            <form method="post" class="space-y-4">
-            <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+            <form id="qsis-import-form" class="space-y-4">
             <input type="hidden" name="year_id" value="<?php echo htmlspecialchars($selectedYearId, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="kla_id" value="<?php echo (int) $selectedKlaId; ?>">
                 <div>
@@ -336,13 +230,13 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
                 <?php endif; ?>
 
                 <div class="flex flex-wrap gap-3 items-center">
-                    <button type="submit" name="action" value="import_all" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium">
+                    <button type="button" data-mode="all" class="qsis-import-btn bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium">
                         一鍵匯入課程＋學生
                     </button>
-                    <button type="submit" name="action" value="import_courses" class="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800">
+                    <button type="button" data-mode="courses" class="qsis-import-btn bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800">
                         只匯入課程
                     </button>
-                    <button type="submit" name="action" value="import_students" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
+                    <button type="button" data-mode="students" class="qsis-import-btn bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
                         只匯入學生
                     </button>
                 </div>
@@ -377,15 +271,72 @@ admin_page_start('QSIS 匯入', 'qsis_import', ['wide' => true]);
 <?php
 admin_page_end([
     'scripts' => <<<'HTML'
+<script src="../assets/js/admin-api.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+(async function () {
     var master = document.getElementById('select-all-courses');
     var boxes = document.querySelectorAll('.course-checkbox');
-    if (!master || !boxes.length) return;
-    master.addEventListener('change', function () {
-        boxes.forEach(function (cb) { cb.checked = master.checked; });
+    if (master && boxes.length) {
+        master.addEventListener('change', function () {
+            boxes.forEach(function (cb) { cb.checked = master.checked; });
+        });
+    }
+
+    const form = document.getElementById('qsis-import-form');
+    const flash = document.getElementById('qsis-flash');
+    function showFlash(msg, isError) {
+        if (!flash) return;
+        flash.textContent = msg;
+        flash.classList.remove('hidden', 'text-emerald-700', 'text-red-600');
+        flash.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
+    }
+    if (!form) return;
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
+    }
+
+    document.querySelectorAll('.qsis-import-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const mode = btn.getAttribute('data-mode') || 'all';
+            const courseIds = Array.from(form.querySelectorAll('.course-checkbox:checked')).map((el) => parseInt(el.value, 10)).filter((n) => n > 0);
+            if (!courseIds.length) {
+                showFlash('請至少勾選一門課程。', true);
+                return;
+            }
+            const payload = {
+                mode: mode,
+                year_id: form.year_id.value,
+                course_ids: courseIds,
+                teacher_user_id: parseInt(form.teacher_user_id.value, 10) || 0,
+                enroll: !!(form.enroll && form.enroll.checked),
+                update_existing: !!(form.update_existing && form.update_existing.checked),
+            };
+            btn.disabled = true;
+            try {
+                const data = await AdminApi.apiFetch('/admin/qsis/import', { method: 'POST', body: payload });
+                let msg = '匯入完成。';
+                if (mode === 'courses') {
+                    msg = '課程匯入完成：新建 ' + (data.created || 0) + '、略過 ' + (data.skipped || 0) + '（已存在）。';
+                } else if (mode === 'students') {
+                    msg = '學生匯入完成：新建 ' + (data.created || 0) + '、更新 ' + (data.updated || 0)
+                        + '、略過 ' + (data.skipped || 0) + '；加入課程 ' + (data.enrolled || 0) + ' 人次。';
+                } else {
+                    msg = '一鍵匯入完成：課程新建 ' + (data.courses_created || 0) + '（略過 ' + (data.courses_skipped || 0)
+                        + '）；學生新建 ' + (data.students_created || 0) + '、更新 ' + (data.students_updated || 0)
+                        + '、略過 ' + (data.students_skipped || 0) + '、加入課程 ' + (data.students_enrolled || 0) + ' 人次。';
+                }
+                showFlash(msg, false);
+            } catch (err) {
+                showFlash(err.message || '匯入失敗', true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
     });
-});
+})();
 </script>
 HTML,
 ]);

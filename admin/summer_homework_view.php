@@ -36,7 +36,7 @@ $statusLabel = ['draft' => '草稿', 'pending_review' => '待審核', 'published
 
 admin_page_start('檢視暑期功課 — ' . $title, 'summer_homework', [
     'actions' => admin_btn('summer_homework.php', '返回列表', 'secondary')
-        . admin_btn('summer_homework_analytics.php?id=' . $id, '呈交分析', 'secondary')
+        . admin_btn('../app/admin/summer-homework/' . $id . '/analytics', '呈交分析', 'secondary')
         . ($canManage ? admin_btn('summer_homework_edit.php?id=' . $id, '編輯', 'primary') : ''),
     'wide' => true,
     'subtitle' => $formLabel

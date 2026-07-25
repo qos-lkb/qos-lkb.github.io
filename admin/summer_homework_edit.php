@@ -31,7 +31,7 @@ if ($id > 0) {
 admin_page_start($id ? '編輯暑期功課' : '新增暑期功課', 'summer_homework', [
     'actions' => admin_btn('summer_homework.php', '返回列表', 'secondary')
         . ($id ? admin_btn('summer_homework_view.php?id=' . $id, '內容／答案', 'secondary') : '')
-        . ($id ? admin_btn('summer_homework_analytics.php?id=' . $id, '呈交分析', 'secondary') : ''),
+        . ($id ? admin_btn('../app/admin/summer-homework/' . $id . '/analytics', '呈交分析', 'secondary') : ''),
     'wide' => true,
 ]);
 ?>

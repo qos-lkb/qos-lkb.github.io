@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/includes/api_response.php';
 require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/summer_homework_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
 
 function api_handle_summer_homework_list(PDO $pdo): void
 {
@@ -252,4 +253,130 @@ function api_handle_admin_summer_homework_get(PDO $pdo, int $id): void
     $out['can_manage'] = sh_can_manage_row($user, $row);
     $out['can_review'] = true;
     api_json_ok($out);
+}
+
+function api_handle_admin_summer_homework_analytics(PDO $pdo, int $id): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    $row = sh_get_by_id($pdo, $id);
+    if ($row === null) {
+        api_json_error('not_found', '找不到習作。', 404);
+    }
+    if (!sh_can_review_item($user, $row)) {
+        api_json_error('forbidden', '無權檢視。', 403);
+    }
+
+    api_json_ok([
+        'item' => sh_public_row($row),
+        'analytics' => sh_item_attempt_analytics($pdo, $id),
+        'students' => sh_student_summaries_for_item($pdo, $id),
+        'questions' => sh_fetch_questions($pdo, $id, true),
+        'can_manage' => sh_can_manage_row($user, $row),
+    ]);
+}
+
+function api_handle_admin_summer_homework_attempts(PDO $pdo, int $id): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    $row = sh_get_by_id($pdo, $id);
+    if ($row === null) {
+        api_json_error('not_found', '找不到習作。', 404);
+    }
+    if (!sh_can_review_item($user, $row)) {
+        api_json_error('forbidden', '無權檢視。', 403);
+    }
+
+    $filterUserId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
+    $attempts = sh_list_attempts_for_item($pdo, $id, $filterUserId > 0 ? $filterUserId : null);
+    api_json_ok([
+        'item_id' => $id,
+        'user_id' => $filterUserId > 0 ? $filterUserId : null,
+        'attempts' => $attempts,
+    ]);
+}
+
+function api_handle_admin_class_summer_homework(PDO $pdo, int $classId): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('class.manage_any') && !user_has_permission('class.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    $class = classes_fetch_by_id($pdo, $classId);
+    if ($class === null) {
+        api_json_error('not_found', '找不到課程。', 404);
+    }
+    if (!classes_can_manage($pdo, $class, $user)) {
+        api_json_error('forbidden', '沒有權限管理此課程。', 403);
+    }
+
+    $report = sh_class_report($pdo, $classId);
+    $statusFilter = isset($_GET['status']) ? (string) $_GET['status'] : '';
+    if (!in_array($statusFilter, ['', 'missing', 'on_time', 'late'], true)) {
+        $statusFilter = '';
+    }
+
+    if ($statusFilter !== '') {
+        $items = $report['items'];
+        $rows = $report['rows'];
+        /** @var array<int, array<int, array<string, mixed>>> $byStudent */
+        $byStudent = [];
+        foreach ($rows as $r) {
+            $uid = (int) $r['student_user_id'];
+            $iid = (int) $r['item_id'];
+            $byStudent[$uid][$iid] = $r;
+        }
+        $report['students'] = array_values(array_filter(
+            $report['students'],
+            static function (array $stu) use ($byStudent, $items, $statusFilter): bool {
+                $uid = (int) ($stu['id'] ?? $stu['user_id'] ?? 0);
+                foreach ($items as $item) {
+                    $cell = $byStudent[$uid][(int) $item['id']] ?? null;
+                    if ($cell !== null && (string) ($cell['status'] ?? '') === $statusFilter) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        ));
+        $report['status_filter'] = $statusFilter;
+    }
+
+    api_json_ok($report);
+}
+
+function api_handle_admin_class_summer_homework_csv(PDO $pdo, int $classId): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('class.manage_any') && !user_has_permission('class.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    $class = classes_fetch_by_id($pdo, $classId);
+    if ($class === null) {
+        api_json_error('not_found', '找不到課程。', 404);
+    }
+    if (!classes_can_manage($pdo, $class, $user)) {
+        api_json_error('forbidden', '沒有權限管理此課程。', 403);
+    }
+
+    $report = sh_class_report($pdo, $classId);
+    $csvRows = sh_class_report_csv_rows($report);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="summer_homework_class_' . $classId . '.csv"');
+    header('Cache-Control: no-store');
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+    if ($out !== false) {
+        foreach ($csvRows as $line) {
+            fputcsv($out, $line);
+        }
+        fclose($out);
+    }
+    exit;
 }

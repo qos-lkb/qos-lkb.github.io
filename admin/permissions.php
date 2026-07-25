@@ -10,26 +10,11 @@ bootstrap_public();
 require_permission('user.manage', '../login.php?next=' . rawurlencode('admin/permissions.php'));
 
 $pdo = db();
-$acting = current_user();
-assert($acting !== null);
 
 $permissionGroups = admin_permissions_grouped($pdo);
 $roles = admin_fetch_roles_with_permissions($pdo);
 $roleDescriptions = admin_role_descriptions();
 $roleCount = count($roles);
-
-$error = '';
-$ok = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $res = admin_save_all_role_permissions_from_post($pdo, $_POST, $acting['id']);
-    if ($res['ok']) {
-        $ok = '已更新所有角色權限。';
-        $roles = admin_fetch_roles_with_permissions($pdo);
-    } else {
-        $error = $res['error'] ?? '儲存失敗。';
-    }
-}
 
 $checked = [];
 foreach ($roles as $role) {
@@ -50,19 +35,12 @@ admin_page_start('角色權限', 'permissions', ['wide' => true]);
                 </p>
             </div>
 
-            <?php if ($error !== ''): ?>
-                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
-            <?php endif; ?>
-            <?php if ($ok !== ''): ?>
-                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"><?php echo htmlspecialchars($ok, ENT_QUOTES, 'UTF-8'); ?></div>
-            <?php endif; ?>
+            <div id="perm-flash" class="hidden rounded-lg border px-4 py-3 text-sm"></div>
 
             <?php if ($roles === []): ?>
                 <p class="text-slate-500 text-sm">尚無角色資料。</p>
             <?php else: ?>
-            <form method="post" class="perm-matrix-form bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-
+            <form id="perm-matrix-form" class="perm-matrix-form bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                 <div class="perm-matrix-scroll overflow-x-auto">
                     <table class="perm-matrix min-w-full text-sm border-collapse">
                         <thead>
@@ -114,7 +92,7 @@ admin_page_start('角色權限', 'permissions', ['wide' => true]);
                                                 <label class="perm-matrix-check-label inline-flex items-center justify-center w-full min-h-[2.5rem] cursor-pointer rounded-lg hover:bg-indigo-50/50">
                                                     <input type="checkbox"
                                                         class="perm-matrix-checkbox w-4 h-4 accent-indigo-600"
-                                                        name="role_perms[<?php echo $rid; ?>][]"
+                                                        data-role-id="<?php echo $rid; ?>"
                                                         value="<?php echo $pid; ?>"
                                                         <?php echo $isChecked ? 'checked' : ''; ?>
                                                         aria-label="<?php echo htmlspecialchars($ariaLabel, ENT_QUOTES, 'UTF-8'); ?>">
@@ -136,4 +114,46 @@ admin_page_start('角色權限', 'permissions', ['wide' => true]);
             <?php endif; ?>
         </div>
 <?php
-admin_page_end();
+admin_page_end([
+    'scripts' => <<<'HTML'
+<script src="../assets/js/admin-api.js"></script>
+<script>
+(async function () {
+    const form = document.getElementById('perm-matrix-form');
+    const flash = document.getElementById('perm-flash');
+    if (!form) return;
+
+    function showFlash(msg, isError) {
+        if (!flash) return;
+        flash.textContent = msg;
+        flash.classList.remove('hidden', 'border-red-200', 'bg-red-50', 'text-red-700', 'border-green-200', 'bg-green-50', 'text-green-800');
+        flash.classList.add('border', isError ? 'border-red-200' : 'border-green-200', isError ? 'bg-red-50' : 'bg-green-50', isError ? 'text-red-700' : 'text-green-800');
+    }
+
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const rolePerms = {};
+        form.querySelectorAll('.perm-matrix-checkbox').forEach((el) => {
+            const rid = el.getAttribute('data-role-id');
+            if (!rid) return;
+            if (!rolePerms[rid]) rolePerms[rid] = [];
+            if (el.checked) rolePerms[rid].push(parseInt(el.value, 10));
+        });
+        try {
+            await AdminApi.apiFetch('/admin/permissions', { method: 'PUT', body: { role_perms: rolePerms } });
+            showFlash('已更新所有角色權限。', false);
+        } catch (err) {
+            showFlash(err.message || '儲存失敗', true);
+        }
+    });
+})();
+</script>
+HTML,
+]);

@@ -34,10 +34,14 @@ function api_handle_teacher_class_create(PDO $pdo): void
         'csrf' => csrf_token(),
         'name' => (string) ($body['name'] ?? ''),
         'school_year' => (string) ($body['school_year'] ?? date('Y') . '-' . (date('Y') + 1)),
-        'subject_id' => $body['subject_id'] ?? '',
+        'form_level' => (string) ($body['form_level'] ?? ''),
+        'course_subject' => (string) ($body['course_subject'] ?? ''),
         'teacher_user_id' => (int) ($body['teacher_user_id'] ?? $user['id']),
-        'is_active' => !empty($body['is_active']) ? 1 : 0,
     ];
+    // Form checkbox semantics: key present ⇒ active. Default new classes to active.
+    if (!array_key_exists('is_active', $body) || !empty($body['is_active'])) {
+        $post['is_active'] = 1;
+    }
     $r = classes_save_from_post($pdo, $post, $user['id']);
     if (!$r['ok']) {
         api_json_error('validation_error', $r['error'] ?? '建立失敗。', 422);

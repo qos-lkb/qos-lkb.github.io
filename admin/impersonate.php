@@ -2,46 +2,44 @@
 
 declare(strict_types=1);
 
+/**
+ * Legacy impersonation form endpoint — retired.
+ * Use REST: POST /api/v1/admin/users/{id}/impersonate
+ *           POST /api/v1/auth/stop-impersonation
+ */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
 bootstrap_public();
-require_login('../login.php?next=' . rawurlencode('admin/users.php'));
 
-$pdo = db();
-$action = (string) ($_POST['action'] ?? $_GET['action'] ?? '');
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo 'Method not allowed';
-    exit;
+$next = '../app/admin/users';
+if (isset($_GET['next']) && is_string($_GET['next']) && str_starts_with($_GET['next'], '../')) {
+    $next = $_GET['next'];
 }
 
-if (!verify_csrf($_POST['csrf'] ?? null)) {
-    http_response_code(403);
-    echo 'CSRF 驗證失敗。';
-    exit;
-}
-
-if ($action === 'start') {
-    $targetId = (int) ($_POST['user_id'] ?? 0);
-    $r = auth_start_impersonation($pdo, $targetId);
-    if (!$r['ok']) {
-        header('Location: users.php?impersonate_error=' . rawurlencode($r['error'] ?? '模仿失敗。'));
-        exit;
-    }
-    header('Location: ../app/');
-    exit;
-}
-
-if ($action === 'stop') {
-    $r = auth_stop_impersonation($pdo);
-    if (!$r['ok']) {
-        header('Location: ../login.php');
-        exit;
-    }
-    header('Location: users.php?impersonate_stopped=1');
-    exit;
-}
-
-http_response_code(400);
-echo '無效的操作。';
+http_response_code(410);
+header('Content-Type: text/html; charset=utf-8');
+?>
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>模仿模式 API 已遷移</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 p-8">
+    <div class="max-w-lg mx-auto bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
+        <h1 class="text-lg font-bold">此入口已停用（410）</h1>
+        <p class="text-sm text-slate-600">模仿模式請改用 REST API：</p>
+        <ul class="text-sm list-disc pl-5 space-y-1 font-mono text-xs">
+            <li>POST /api/v1/admin/users/{id}/impersonate</li>
+            <li>POST /api/v1/auth/stop-impersonation</li>
+        </ul>
+        <p class="text-sm">
+            <a class="text-indigo-700 hover:underline" href="<?php echo htmlspecialchars($next, ENT_QUOTES, 'UTF-8'); ?>">返回使用者管理</a>
+            ·
+            <a class="text-indigo-700 hover:underline" href="users.php">PHP 使用者列表</a>
+        </p>
+    </div>
+</body>
+</html>

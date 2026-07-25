@@ -14,44 +14,12 @@ $user = current_user();
 assert($user !== null);
 $canAny = user_has_permission('class.manage_any');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inline_update') {
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(classes_inline_update($pdo, $_POST, $user), JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-$flash = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = (string) ($_POST['action'] ?? '');
-    if ($action === 'delete') {
-        $r = classes_delete($pdo, $_POST, $user);
-        $flash = $r['ok'] ? '已刪除課程。' : ($r['error'] ?? '刪除失敗');
-    } elseif ($action === 'delete_bulk') {
-        $r = classes_delete_many($pdo, $_POST, $user);
-        $flash = $r['ok'] ? ($r['message'] ?? '已刪除所選課程。') : ($r['error'] ?? '刪除失敗');
-    } elseif ($action === 'import_csv') {
-        if (!verify_csrf($_POST['csrf'] ?? null)) {
-            $flash = 'CSRF 驗證失敗。';
-        } elseif (!classes_can_edit_students($pdo, $user)) {
-            $flash = '只有管理員可以匯入班內學生。';
-        } else {
-            $classId = (int) ($_POST['class_id'] ?? 0);
-            $csv = (string) ($_POST['csv_content'] ?? '');
-            $r = classes_import_students_csv($pdo, $csv, $classId, $user);
-            $flash = $r['ok']
-                ? '已匯入，新建 ' . (int) ($r['created'] ?? 0) . ' 個帳戶。'
-                : ($r['error'] ?? '匯入失敗');
-        }
-    }
-}
-
 $rows = classes_list_for_teacher($pdo, $user['id'], $canAny);
 $canEditStudents = classes_can_edit_students($pdo, $user);
 $teacherOptions = $canAny ? classes_teacher_options($pdo) : [];
 $formLevelOptions = classes_form_level_options();
 $courseSubjectOptions = classes_course_subject_options();
 $hasFormSubjectCols = classes_has_form_subject_columns($pdo);
-$csrf = csrf_token();
 
 admin_page_start('課程管理', 'courses', [
     'actions' => (user_has_permission('worksheet.manage_own') || user_has_permission('worksheet.manage_any')
@@ -60,9 +28,6 @@ admin_page_start('課程管理', 'courses', [
     'wide' => true,
 ]);
 ?>
-        <?php if ($flash !== ''): ?>
-            <p class="text-sm text-slate-700 mb-4"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?></p>
-        <?php endif; ?>
         <?php if (!$hasFormSubjectCols): ?>
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
                 資料庫尚未加入年級／科目欄位。請執行
@@ -73,9 +38,7 @@ admin_page_start('課程管理', 'courses', [
         <p id="courses-inline-flash" class="text-sm mb-3 hidden"></p>
 
         <?php if ($rows !== []): ?>
-        <form method="post" id="courses-bulk-form" class="mb-3 flex flex-wrap items-center gap-3">
-            <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="hidden" name="action" value="delete_bulk">
+        <form id="courses-bulk-form" class="mb-3 flex flex-wrap items-center gap-3">
             <button type="submit" id="courses-bulk-delete-btn" disabled
                 class="text-sm px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed">
                 刪除所選（<span id="courses-selected-count">0</span>）
@@ -142,12 +105,7 @@ admin_page_start('課程管理', 'courses', [
                             <a href="course_reports.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">報告</a>
                             <a href="course_summer_homework.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">暑期功課</a>
                             <a href="course_worksheets.php?id=<?php echo (int) $r['id']; ?>" class="text-indigo-600 hover:underline ml-2">習作</a>
-                            <form method="post" class="inline ml-2" onsubmit="return confirm('確定刪除此課程？學生選課紀錄將一併移除。');">
-                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="id" value="<?php echo (int) $r['id']; ?>">
-                                <button type="submit" class="text-red-600 hover:underline">刪除</button>
-                            </form>
+                            <button type="button" class="course-delete-btn text-red-600 hover:underline ml-2" data-id="<?php echo (int) $r['id']; ?>">刪除</button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -162,9 +120,7 @@ admin_page_start('課程管理', 'courses', [
         <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
             <h2 class="text-lg font-bold text-slate-800 mb-2">批次匯入學生（CSV）</h2>
             <p class="text-sm text-slate-500 mb-4">僅管理員可用。格式：login_id, name_zh, name_en, password（已忽略）, form_class, class_no, moi（login_id 為 QSIS 帳戶名，不含 @qos.edu.hk；moi 為 E 或 C；密碼欄可留空，登入改由 QSIS 驗證；姓名至少填一項）</p>
-            <form method="post" class="space-y-4">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="action" value="import_csv">
+            <form id="courses-import-form" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700">目標課程</label>
                     <select name="class_id" required class="mt-1 w-full border rounded-lg px-3 py-2">
@@ -194,14 +150,13 @@ admin_page_start('課程管理', 'courses', [
 $teachersJson = json_encode($teacherOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $formLevelJson = json_encode($formLevelOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $courseSubjectJson = json_encode($courseSubjectOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-$csrfJson = json_encode($csrf, JSON_UNESCAPED_UNICODE);
 $canAnyJson = $canAny ? 'true' : 'false';
 $hasFormSubjectJson = $hasFormSubjectCols ? 'true' : 'false';
 admin_page_end([
     'scripts' => <<<HTML
+<script src="../assets/js/admin-api.js"></script>
 <script>
-(function () {
-    const csrf = {$csrfJson};
+(async function () {
     const teacherOptions = {$teachersJson};
     const formLevelOptions = {$formLevelJson};
     const courseSubjectOptions = {$courseSubjectJson};
@@ -218,6 +173,13 @@ admin_page_end([
         flashEl.textContent = msg;
         flashEl.classList.remove('hidden', 'text-emerald-700', 'text-red-600');
         flashEl.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
+    }
+
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
     }
 
     function getRowValues(row) {
@@ -341,25 +303,19 @@ admin_page_end([
         }
 
         saving = true;
-        const body = new FormData();
-        body.append('csrf', csrf);
-        body.append('action', 'inline_update');
-        body.append('field', field);
-        body.append('id', row.dataset.courseId);
-        body.append('school_year', schoolYear);
-        body.append('form_level', formLevel);
-        body.append('course_subject', courseSubject);
-        body.append('teacher_user_id', String(teacherId));
-
         try {
-            const res = await fetch('courses.php', { method: 'POST', body: body, credentials: 'same-origin' });
-            const data = await res.json();
-            if (!data.ok) {
-                showFlash(data.error || '儲存失敗。', true);
-                restoreCellDisplay(cell, row, field);
-                saving = false;
-                return;
-            }
+            const data = await AdminApi.apiFetch('/admin/classes', {
+                method: 'POST',
+                body: {
+                    action: 'inline_update',
+                    field: field,
+                    id: parseInt(row.dataset.courseId, 10),
+                    school_year: schoolYear,
+                    form_level: formLevel,
+                    course_subject: courseSubject,
+                    teacher_user_id: teacherId,
+                },
+            });
             row.dataset.schoolYear = data.school_year || '';
             row.dataset.formLevel = data.form_level || '';
             row.dataset.courseSubject = data.course_subject || '';
@@ -372,7 +328,7 @@ admin_page_end([
             cell.classList.remove('bg-indigo-50', 'ring-2', 'ring-indigo-200');
             showFlash('已更新課程 #' + row.dataset.courseId + '。', false);
         } catch (e) {
-            showFlash('儲存失敗，請重試。', true);
+            showFlash(e.message || '儲存失敗，請重試。', true);
             restoreCellDisplay(cell, row, field);
         } finally {
             saving = false;
@@ -448,6 +404,22 @@ admin_page_end([
         void startEdit(cell, field);
     });
 
+    table?.addEventListener('click', async function (e) {
+        const btn = e.target.closest('.course-delete-btn');
+        if (!btn) return;
+        const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+        if (!id) return;
+        if (!confirm('確定刪除此課程？學生選課紀錄將一併移除。')) return;
+        try {
+            await AdminApi.apiFetch('/admin/classes/' + id, { method: 'DELETE', body: {} });
+            const row = btn.closest('tr');
+            if (row) row.remove();
+            showFlash('已刪除課程。', false);
+        } catch (err) {
+            showFlash(err.message || '刪除失敗', true);
+        }
+    });
+
     const bulkForm = document.getElementById('courses-bulk-form');
     const bulkBtn = document.getElementById('courses-bulk-delete-btn');
     const selectedCountEl = document.getElementById('courses-selected-count');
@@ -472,14 +444,43 @@ admin_page_end([
         rowBoxes.forEach(function (cb) { cb.checked = selectAll.checked; });
         updateBulkSelection();
     });
-    bulkForm?.addEventListener('submit', function (e) {
-        const n = document.querySelectorAll('.course-checkbox:checked').length;
-        if (n === 0) {
-            e.preventDefault();
-            return;
+    bulkForm?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const checked = Array.from(document.querySelectorAll('.course-checkbox:checked'));
+        const ids = checked.map(function (cb) { return parseInt(cb.value, 10); }).filter(function (n) { return n > 0; });
+        if (ids.length === 0) return;
+        if (!confirm('確定刪除所選 ' + ids.length + ' 門課程？學生選課紀錄將一併移除。')) return;
+        try {
+            await AdminApi.apiFetch('/admin/classes', {
+                method: 'POST',
+                body: { action: 'delete_bulk', ids: ids },
+            });
+            checked.forEach(function (cb) {
+                const row = cb.closest('tr');
+                if (row) row.remove();
+            });
+            updateBulkSelection();
+            showFlash('已刪除所選課程。', false);
+        } catch (err) {
+            showFlash(err.message || '刪除失敗', true);
         }
-        if (!confirm('確定刪除所選 ' + n + ' 門課程？學生選課紀錄將一併移除。')) {
-            e.preventDefault();
+    });
+
+    document.getElementById('courses-import-form')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = e.target;
+        const classId = parseInt(form.class_id.value, 10) || 0;
+        const csv = (form.csv_content.value || '').trim();
+        if (!classId || !csv) return;
+        try {
+            const data = await AdminApi.apiFetch('/admin/classes/' + classId + '/students', {
+                method: 'POST',
+                body: { action: 'import_csv', csv: csv },
+            });
+            showFlash('已匯入，新建 ' + (data.created || 0) + ' 個帳戶。', false);
+            form.csv_content.value = '';
+        } catch (err) {
+            showFlash(err.message || '匯入失敗', true);
         }
     });
 })();

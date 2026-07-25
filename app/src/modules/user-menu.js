@@ -113,14 +113,9 @@ const LANG_KEY = 'science_sims_ui_lang';
         const base = siteBase();
         try {
             await apiFetch('/auth/stop-impersonation', { method: 'POST', body: { csrf: csrfToken } });
-            location.href = base + '/admin/users.php?impersonate_stopped=1';
+            location.href = base + '/app/admin/users';
         } catch (e) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = base + '/admin/impersonate.php';
-            form.innerHTML = '<input type="hidden" name="csrf" value="' + escapeHtml(csrfToken) + '"><input type="hidden" name="action" value="stop">';
-            document.body.appendChild(form);
-            form.submit();
+            alert((e && e.message) || '無法結束模仿模式。');
         }
     }
 

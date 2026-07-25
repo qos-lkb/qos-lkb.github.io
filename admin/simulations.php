@@ -13,12 +13,6 @@ $pdo = db();
 $u = current_user();
 assert($u !== null);
 
-$flash = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
-    $r = simulation_delete_from_request($pdo, $u, $_POST, true);
-    $flash = $r['ok'] ? '已刪除。' : ($r['error'] ?? '錯誤');
-}
-
 $list = $pdo->query(
     'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, s.list_sort_order,
             sub.name_zh AS subject_zh, sub.name_en AS subject_en,
@@ -38,9 +32,7 @@ admin_page_start('模擬程式', 'simulations', [
     'wide' => true,
 ]);
 ?>
-        <?php if ($flash !== ''): ?>
-            <p class="text-sm text-slate-700"><?php echo htmlspecialchars($flash, ENT_QUOTES, 'UTF-8'); ?></p>
-        <?php endif; ?>
+        <p id="sims-flash" class="text-sm mb-3 hidden"></p>
         <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-100 text-left">
@@ -58,7 +50,7 @@ admin_page_start('模擬程式', 'simulations', [
                 </thead>
                 <tbody>
                     <?php foreach ($list as $row): ?>
-                    <tr class="border-t border-slate-100">
+                    <tr class="border-t border-slate-100" data-sim-id="<?php echo (int) $row['id']; ?>">
                         <td class="p-3"><?php echo htmlspecialchars($row['title_zh'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 font-mono text-xs"><?php echo htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 text-xs text-slate-600"><?php
@@ -79,12 +71,7 @@ admin_page_start('模擬程式', 'simulations', [
                         <td class="p-3 text-slate-500"><?php echo htmlspecialchars($row['updated_at'], ENT_QUOTES, 'UTF-8'); ?></td>
                         <td class="p-3 whitespace-nowrap">
                             <a href="simulation_edit.php?id=<?php echo (int) $row['id']; ?>" class="text-indigo-600 hover:underline">編輯</a>
-                            <form method="post" class="inline ml-2" onsubmit="return confirm('確定刪除？');">
-                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
-                                <button type="submit" class="text-red-600 hover:underline">刪除</button>
-                            </form>
+                            <button type="button" class="sim-delete-btn text-red-600 hover:underline ml-2" data-id="<?php echo (int) $row['id']; ?>">刪除</button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -92,4 +79,39 @@ admin_page_start('模擬程式', 'simulations', [
             </table>
         </div>
 <?php
-admin_page_end();
+admin_page_end([
+    'scripts' => <<<'HTML'
+<script src="../assets/js/admin-api.js"></script>
+<script>
+(async function () {
+    const flash = document.getElementById('sims-flash');
+    function showFlash(msg, isError) {
+        if (!flash) return;
+        flash.textContent = msg;
+        flash.classList.remove('hidden', 'text-emerald-700', 'text-red-600');
+        flash.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
+    }
+    try {
+        await AdminApi.initSession();
+    } catch (err) {
+        showFlash(err.message || '無法初始化 API 工作階段', true);
+        return;
+    }
+    document.querySelectorAll('.sim-delete-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+            if (!id || !confirm('確定刪除？')) return;
+            try {
+                await AdminApi.apiFetch('/admin/simulations', { method: 'DELETE', body: { id } });
+                const row = btn.closest('tr');
+                if (row) row.remove();
+                showFlash('已刪除。', false);
+            } catch (err) {
+                showFlash(err.message || '刪除失敗', true);
+            }
+        });
+    });
+})();
+</script>
+HTML,
+]);
