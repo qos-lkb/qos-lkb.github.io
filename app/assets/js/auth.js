@@ -34,11 +34,7 @@
             }
         }
         if (global.AppNav && typeof global.AppNav.refresh === 'function') {
-            try {
-                await global.AppNav.refresh();
-            } catch (e) {
-                /* ignore */
-            }
+            void global.AppNav.refresh().catch(() => {});
         }
     }
 
@@ -56,7 +52,7 @@
         } catch (e) {
             console.warn('Session load failed', e);
         }
-        await updateAuthNav();
+        updateAuthNav();
     }
 
     global.AppAuth = { initAuth, updateAuthNav };

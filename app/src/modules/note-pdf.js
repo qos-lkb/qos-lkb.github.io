@@ -87,10 +87,33 @@ const global = window;
         return root;
     }
 
-    async function capturePrintLayout(root) {
+    async function ensurePdfDeps() {
+        if (typeof html2canvas !== 'function' && typeof global.__loadScript === 'function') {
+            await global.__loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+        }
+        if ((!global.jspdf || !global.jspdf.jsPDF) && typeof global.__loadScript === 'function') {
+            const base = global.__APP_BASE__ || './';
+            const candidates = [
+                base + 'dist/vendor/jspdf.umd.min.js',
+                base + 'vendor/jspdf.umd.min.js',
+            ];
+            for (const src of candidates) {
+                try {
+                    await global.__loadScript(src);
+                    if (global.jspdf && global.jspdf.jsPDF) break;
+                } catch (e) { /* try next */ }
+            }
+        }
         if (typeof html2canvas !== 'function') {
             throw new Error(t('html2canvas 未載入。', 'html2canvas is not loaded.'));
         }
+        if (!global.jspdf || !global.jspdf.jsPDF) {
+            throw new Error(t('jsPDF 未載入。', 'jsPDF is not loaded.'));
+        }
+    }
+
+    async function capturePrintLayout(root) {
+        await ensurePdfDeps();
         return html2canvas(root, {
             backgroundColor: '#ffffff',
             scale: Math.min(global.devicePixelRatio || 1, 2),

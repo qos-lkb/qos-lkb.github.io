@@ -228,10 +228,18 @@ const global = window;
         });
     }
 
-    async function html2canvasCapture(targetEl, sourceEl, extraOptions) {
+    async function ensureHtml2Canvas() {
+        if (typeof html2canvas === 'function') return;
+        if (typeof global.__loadScript === 'function') {
+            await global.__loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+        }
         if (typeof html2canvas !== 'function') {
             throw new Error('html2canvas not loaded');
         }
+    }
+
+    async function html2canvasCapture(targetEl, sourceEl, extraOptions) {
+        await ensureHtml2Canvas();
         const sourceWin = (sourceEl || targetEl).ownerDocument.defaultView;
         const windowWidth = sourceWin ? sourceWin.innerWidth : targetEl.clientWidth;
         const windowHeight = sourceWin ? sourceWin.innerHeight : targetEl.clientHeight;

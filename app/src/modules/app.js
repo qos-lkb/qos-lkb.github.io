@@ -208,13 +208,34 @@
         AppRouter.dispatch(path.replace(/\/index\.html/i, '') || '/');
     });
 
+    function currentAppPath() {
+        let p = location.pathname || '/';
+        const appIdx = p.indexOf('/app');
+        if (appIdx >= 0) {
+            p = p.slice(appIdx + 4) || '/';
+        }
+        return p.replace(/\/index\.html$/i, '') || '/';
+    }
+
+    function isHomePath(path) {
+        return path === '/' || path === '/summer-homework' || path === '/summer-homework/';
+    }
+
     async function boot() {
-        await AppAuth.initAuth();
+        // Paint first: register routes and dispatch immediately (guest shell already in HTML).
+        if (window.AppUserMenu) AppUserMenu.init();
         if (window.AppLearningTracker) AppLearningTracker.init();
         if (window.SimModal) SimModal.init();
         if (window.AppSidebar) AppSidebar.init();
         updateNavLabels();
         updateSiteBranding();
+
+        // Show login link immediately while session loads.
+        const authNav = document.getElementById('auth-nav');
+        if (authNav && !authNav.innerHTML.trim()) {
+            const base = (window.__SITE_BASE__ || '') + '/login.php?next=' + encodeURIComponent('app/');
+            authNav.innerHTML = `<a href="${base}" class="user-menu-login">登入</a>`;
+        }
 
         AppRouter.init({
             '/': showHome,
@@ -399,7 +420,19 @@
             if (e.target.id === 'sim-modal') AppCatalog.closeModal();
         });
 
-        await refreshNavVisibility();
+        // Session + nav menu in background — do not block first paint.
+        void (async () => {
+            try {
+                await AppAuth.initAuth();
+            } catch (e) {
+                console.warn('Auth init failed', e);
+            }
+            void refreshNavVisibility();
+            // First dispatch ran with no session; refresh home for logged-in users.
+            if (window.ScienceApi?.getUser?.() && isHomePath(currentAppPath())) {
+                AppRouter.dispatch(currentAppPath());
+            }
+        })();
     }
 
     window.AppNav = {

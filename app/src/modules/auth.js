@@ -19,7 +19,7 @@ const global = window;
         return zh || en || legacy || user.email || '?';
     }
 
-    async function updateAuthNav() {
+    function updateAuthNav() {
         if (global.AppUserMenu) {
             global.AppUserMenu.updateAuthNav('auth-nav');
         } else {
@@ -33,12 +33,9 @@ const global = window;
                 el.innerHTML = `<a href="../login.php?next=${encodeURIComponent('app/')}" class="user-menu-login">${t('登入', 'Login')}</a>`;
             }
         }
+        // Nav visibility is refreshed from boot() — never block first paint on /nav-menu.
         if (global.AppNav && typeof global.AppNav.refresh === 'function') {
-            try {
-                await global.AppNav.refresh();
-            } catch (e) {
-                /* ignore */
-            }
+            void global.AppNav.refresh().catch(() => {});
         }
     }
 
@@ -56,7 +53,7 @@ const global = window;
         } catch (e) {
             console.warn('Session load failed', e);
         }
-        await updateAuthNav();
+        updateAuthNav();
     }
 
     global.AppAuth = { initAuth, updateAuthNav };

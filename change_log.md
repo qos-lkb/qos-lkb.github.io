@@ -11,6 +11,13 @@
 ### 一次升級 SQL
 - 新增 `schema_upgrade_all.sql`：合併 Phase 0–7 全部增量 `schema_*.sql`，可單檔匯入既有庫；並寫入 `schema_migrations`。
 
+## 2026-07-25
+
+### SPA：加快首頁首屏
+- 移除 Tailwind Play CDN（改靜態 `tailwind.min.css`），延後 marked／DOMPurify；html2canvas／jsPDF 改按需載入。
+- HTML 直接輸出訪客首頁骨架，不再先顯示「載入中…」。
+- 開機先註冊路由並畫首頁；`/auth/me` 與選單可見性改背景載入，登入後再升級為學生／教師首頁。
+
 ## 2026-07-24
 
 ### 重構 Phase 7：learning_tools／quiz_* → question_bank
