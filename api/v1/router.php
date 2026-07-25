@@ -105,7 +105,7 @@ function api_v1_dispatch(): void
         if (stripos($msg, 'summer_homework') !== false || stripos($msg, "doesn't exist") !== false || stripos($msg, 'Unknown table') !== false) {
             api_json_error(
                 'schema_missing',
-                '資料表未就緒。請對正確資料庫匯入 schema_upgrade_all.sql（或 schema_summer_homework.sql）。詳情：' . $msg,
+                '資料表未就緒。請對正確資料庫匯入 schema_upgrade_all.sql（或全新安裝 schema.sql）。詳情：' . $msg,
                 500
             );
         }

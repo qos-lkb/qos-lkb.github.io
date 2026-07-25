@@ -1,11 +1,10 @@
 -- =============================================================================
--- science_sims — 一次升級既有資料庫（Refactor Phase 0–7 增量）
+-- science_sims — 既有資料庫單一升級檔
 -- 適用：已有舊庫、不要砍資料。全新環境請改用 schema.sql。
 -- 用法：
 --   mysql -u USER -p DB_NAME < schema_upgrade_all.sql
--- 或 phpMyAdmin／Adminer 匯入本檔。
--- 可重跑（多數步驟冪等）。不含 DROP learning_tools／quiz_*（見遷移腳本）。
--- 產生日期：2026-07-25
+--   或：php scripts/apply_schema.php
+-- 可重跑（多數步驟冪等）。不含 DROP learning_tools／quiz_*（見 schema_drop_quiz_legacy.sql）。
 -- =============================================================================
 
 SET NAMES utf8mb4;
@@ -266,6 +265,60 @@ PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 -- END schema_summer_homework_qtypes.sql
 
 -- ---------------------------------------------------------------------------
+-- BEGIN schema_summer_homework_media.sql
+-- ---------------------------------------------------------------------------
+-- Upgrade: summer homework media, content references, and enhanced question grading
+-- Safe to re-run.
+
+CREATE TABLE IF NOT EXISTS summer_homework_media (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    item_id INT UNSIGNED NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
+    original_name VARCHAR(255) NOT NULL DEFAULT '',
+    mime_type VARCHAR(128) NOT NULL DEFAULT 'image/jpeg',
+    file_size INT UNSIGNED NOT NULL DEFAULT 0,
+    alt_zh VARCHAR(255) NULL DEFAULT NULL,
+    alt_en VARCHAR(255) NULL DEFAULT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_sh_media_item (item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @db := DATABASE();
+
+SET @has_content_refs := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'summer_homework_items' AND COLUMN_NAME = 'content_refs_json'
+);
+SET @sql_content_refs := IF(
+    @has_content_refs = 0,
+    'ALTER TABLE summer_homework_items ADD COLUMN content_refs_json JSON NULL DEFAULT NULL AFTER body_en',
+    'SELECT 1'
+);
+PREPARE stmt_content_refs FROM @sql_content_refs;
+EXECUTE stmt_content_refs;
+DEALLOCATE PREPARE stmt_content_refs;
+
+ALTER TABLE summer_homework_questions
+    MODIFY COLUMN question_type ENUM(
+        'mcq', 'multi_select', 'fill_blank', 'true_false', 'short_answer', 'long_answer'
+    ) NOT NULL;
+
+SET @has_match_mode := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'summer_homework_questions' AND COLUMN_NAME = 'match_mode'
+);
+SET @sql_match_mode := IF(
+    @has_match_mode = 0,
+    'ALTER TABLE summer_homework_questions ADD COLUMN match_mode VARCHAR(16) NOT NULL DEFAULT ''exact'' AFTER explanation_en',
+    'SELECT 1'
+);
+PREPARE stmt_match_mode FROM @sql_match_mode;
+EXECUTE stmt_match_mode;
+DEALLOCATE PREPARE stmt_match_mode;
+-- END schema_summer_homework_media.sql
+
+-- ---------------------------------------------------------------------------
 -- BEGIN schema_classes_form_subject.sql
 -- ---------------------------------------------------------------------------
 -- Upgrade: classes form_level + course_subject
@@ -487,20 +540,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 -- END schema_migrations.sql
 
 -- ---------------------------------------------------------------------------
--- Record all upgrades in schema_migrations (for apply_schema.php --status)
+-- Record upgrade in schema_migrations (for apply_schema.php --status)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO schema_migrations (filename) VALUES
-  ('schema_summer_homework.sql'),
-  ('schema_summer_homework_due.sql'),
-  ('schema_summer_homework_grading.sql'),
-  ('schema_summer_homework_qtypes.sql'),
-  ('schema_classes_form_subject.sql'),
-  ('schema_spa_nav_visibility.sql'),
-  ('schema_users_login_id.sql'),
-  ('schema_users_drop_password.sql'),
-  ('schema_admin_audit_log.sql'),
-  ('schema_phase7_qb_merge.sql'),
-  ('schema_migrations.sql');
+  ('schema_upgrade_all.sql');
 
 SELECT 'schema_upgrade_all.sql finished' AS status, COUNT(*) AS migrations_tracked
 FROM schema_migrations;

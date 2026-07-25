@@ -10,7 +10,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Applies ordered schema_*.sql upgrade scripts and records them in schema_migrations.
+ * Applies schema_upgrade_all.sql and records it in schema_migrations.
  */
 final class MigrationRunner
 {
@@ -28,17 +28,7 @@ final class MigrationRunner
     public static function defaultManifest(): array
     {
         return [
-            'schema_summer_homework.sql',
-            'schema_summer_homework_due.sql',
-            'schema_summer_homework_grading.sql',
-            'schema_summer_homework_qtypes.sql',
-            'schema_classes_form_subject.sql',
-            'schema_spa_nav_visibility.sql',
-            'schema_users_login_id.sql',
-            'schema_users_drop_password.sql',
-            'schema_admin_audit_log.sql',
-            'schema_phase7_qb_merge.sql',
-            'schema_migrations.sql',
+            'schema_upgrade_all.sql',
         ];
     }
 
@@ -94,7 +84,7 @@ final class MigrationRunner
                 continue;
             }
             $this->runSqlFile($path);
-            $ins = $this->pdo->prepare('INSERT INTO schema_migrations (filename) VALUES (?)');
+            $ins = $this->pdo->prepare('INSERT IGNORE INTO schema_migrations (filename) VALUES (?)');
             $ins->execute([$file]);
             $applied[] = $file;
         }

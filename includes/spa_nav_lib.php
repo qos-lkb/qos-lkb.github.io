@@ -120,7 +120,7 @@ function spa_nav_get_matrix(PDO $pdo): array
 function spa_nav_save_matrix(PDO $pdo, array $posted): array
 {
     if (!spa_nav_table_exists($pdo)) {
-        return ['ok' => false, 'error' => '資料表尚未建立，請先執行 schema_spa_nav_visibility.sql。'];
+        return ['ok' => false, 'error' => '資料表尚未建立，請先執行 schema_upgrade_all.sql。'];
     }
 
     spa_nav_ensure_defaults($pdo);

@@ -82,20 +82,13 @@ mysql -u USER -p DB_NAME < schema.sql
 - **Seed data**: roles (`admin`, `teacher`, `student`), all permissions, default role grants, system user (`system@science-sims.internal`).
 - **Admin account**: create via SPA `/app/admin/users` after import (no bundled default password).
 - **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via SPA `/app/admin/db-export`.
-- **Incremental upgrades**: prefer **`php scripts/apply_schema.php`** (records rows in `schema_migrations`). Manual: apply matching `schema_*.sql` on existing DBs. Check status with `php scripts/apply_schema.php --status`.
+- **Incremental upgrades**: prefer **`php scripts/apply_schema.php`** or import **`schema_upgrade_all.sql`** (records `schema_migrations`). Check with `php scripts/apply_schema.php --status`.
 
-| Script | Adds |
-|--------|------|
-| `schema_summer_homework.sql` | Summer homework tables + permissions |
-| `schema_summer_homework_due.sql` | `due_at`, `allow_late_submit` on items |
-| `schema_summer_homework_grading.sql` | `grading_json` on attempts |
-| `schema_summer_homework_qtypes.sql` | New SH question types + `teacher_marks_json` |
-| `schema_summer_homework_media.sql` | Media library, `content_refs_json`, `multi_select`, `match_mode` |
-| `schema_classes_form_subject.sql` | `form_level`, `course_subject` on `classes` |
-| `schema_spa_nav_visibility.sql` | SPA top-nav visibility matrix |
-| `schema_users_login_id.sql` | Strip `@qos.edu.hk` from `users.email` → match QSIS username |
-| `schema_users_drop_password.sql` | Drop local `users.password_hash` |
-| `schema_migrations.sql` | `schema_migrations` tracking table |
+| File | Purpose |
+|------|---------|
+| `schema.sql` | Full schema for new databases |
+| `schema_upgrade_all.sql` | Single idempotent upgrade for existing DBs |
+| `schema_drop_quiz_legacy.sql` | Optional DROP of legacy quiz / learning_tools tables |
 
 ### Full API direction
 
@@ -339,7 +332,7 @@ science_sims/
 ├── admin/                 # Redirect shells → /app/admin/…
 ├── portal/                # Deprecated redirects → SPA
 ├── schema.sql             # Full database schema (canonical)
-├── schema_*.sql           # Incremental upgrades for existing DBs
+├── schema.sql / schema_upgrade_all.sql / schema_drop_quiz_legacy.sql
 │
 ├── physics/               # HKDSE-style units (01, 02, …, e01–e03)
 ├── chem/ / chemistry/
@@ -393,7 +386,7 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 - **Class report**: SPA `/app/admin/courses/{id}/summer` via `sh_class_report()` — status filter + CSV export.
 - **Item analytics**: SPA `/app/admin/summer-homework/{id}/analytics` via `GET /admin/summer-homework/{id}/analytics` + attempts/marks APIs (`sh_item_attempt_analytics()`). Legacy `admin/summer_homework_analytics.php` 302s to SPA.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.
-- Upgrade scripts: `schema_summer_homework*.sql`, including **`schema_summer_homework_qtypes.sql`** and **`schema_summer_homework_media.sql`** (`summer_homework_media`, `content_refs_json`, `multi_select`, `match_mode`).
+- Upgrade script: **`schema_upgrade_all.sql`** (includes summer homework media, `content_refs_json`, `multi_select`, `match_mode`, and prior SH / classes / nav / auth patches).
 - Content embeds: `::note` / `::article` / `::video` / `::simulation` / `::question` (see `app/src/modules/content-embeds.js`).
 - Module docs: **[`README.md`](README.md)** § 暑期功課.
 
@@ -401,9 +394,9 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 
 Session-based login; admin routes and API mutations check RBAC capabilities. Admins may **impersonate** via `POST /api/v1/admin/users/{id}/impersonate` (audit via session flags; stop via `POST /api/v1/auth/stop-impersonation`). Legacy `admin/impersonate.php` returns 410.
 
-**Login identity**: school accounts use the **same login id as QSIS `user.username`** (e.g. `s20171060`) — **no** `@qos.edu.hk`. If a user still types `sid@qos.edu.hk`, the domain is stripped. Legacy DB rows are migrated on login / via `schema_users_login_id.sql`.
+**Login identity**: school accounts use the **same login id as QSIS `user.username`** (e.g. `s20171060`) — **no** `@qos.edu.hk`. If a user still types `sid@qos.edu.hk`, the domain is stripped. Legacy DB rows are migrated on login / via **`schema_upgrade_all.sql`**.
 
-**Password**: login always verifies against **QSIS** `user.password_hash` (bcrypt or legacy MD5). This platform does **not** store passwords (`users.password_hash` removed; migrate with `schema_users_drop_password.sql`). Password changes must be done in the school QSIS system. QSIS must be configured in `.env` (`QSIS_DB_*`) or login will fail.
+**Password**: login always verifies against **QSIS** `user.password_hash` (bcrypt or legacy MD5). This platform does **not** store passwords (`users.password_hash` removed; migrate with **`schema_upgrade_all.sql`**). Password changes must be done in the school QSIS system. QSIS must be configured in `.env` (`QSIS_DB_*`) or login will fail.
 
 ### 6. Bilingual UI
 
@@ -433,7 +426,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 1. PHP 8+ with PDO MySQL, MariaDB with schema applied.
 2. Copy `.env.example` → `.env`, set `DB_*` and optional `DEFAULT_REDIRECT_URL`.
-3. Import **`schema.sql`** on MariaDB (or apply incremental `schema_*.sql` on existing DBs).
+3. Import **`schema.sql`** on MariaDB (or **`schema_upgrade_all.sql`** on existing DBs).
 4. Point vhost document root at project root; open **`/app/`**.
 
 ### GitHub Pages (static subset)
@@ -460,7 +453,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - Follow **`rule.md`** for naming, HTML skeleton, PHP/SPA conventions, and worksheet embed syntax.
 - New simulations: add HTML under the correct subject folder; register via **SPA `/app/admin/simulations`**.
 - Learning content: use **SPA `/app/admin/…`** editors (`admin/`／`portal/` redirect shells); SPA reads published items via **`/api/v1/`**. Subjects: SPA `/app/admin/subjects`.
-- Schema changes: edit **`schema.sql`** and document in **`change_log.md`**; for existing DBs prefer an additive **`schema_*.sql`** upgrade script.
+- Schema changes: edit **`schema.sql`** and document in **`change_log.md`**; for existing DBs update **`schema_upgrade_all.sql`**.
 - Document significant changes in **`change_log.md`**; summer-homework module notes in **`README.md`**.
 - Prefer **small, focused diffs**; match existing style in each directory.
 - Cursor AI: see **`.cursorrules`** and **`.cursor/rules/`**.

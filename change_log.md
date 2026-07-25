@@ -8,8 +8,12 @@
 
 ## 2026-07-25
 
+### Schema：合併分階段增量為單一升級檔
+- 刪除個別 `schema_summer_homework*.sql`、`schema_classes_*`、`schema_users_*` 等分階段檔；既有庫只保留 **`schema_upgrade_all.sql`**（另保留全新安裝用 `schema.sql`、可選 `schema_drop_quiz_legacy.sql`）。
+- `scripts/apply_schema.php`／`MigrationRunner` 僅套用 `schema_upgrade_all.sql`。
+
 ### 暑期功課：混合內容、媒體、題型與編輯 UX（1C + UIQ）
-- **媒體**：`summer_homework_media`；`POST/DELETE /admin/summer-homework/{id}/media`；編輯器插入 `![](url)`（升級：`schema_summer_homework_media.sql`）。
+- **媒體**：`summer_homework_media`；`POST/DELETE /admin/summer-homework/{id}/media`；編輯器插入 `![](url)`（升級：`schema_upgrade_all.sql`）。
 - **混合內容**：`content_refs_json`（note／article／video）；學生頁先渲染引用再 Markdown；補 `::note` embed。
 - **編輯 UX**：題目上移／下移／換型、MCQ 任意刪選項、MathJax 預覽、英文欄折疊、篇章工具列與預覽。
 - **題型／作答**：`multi_select`（全對才得分）、短答 `match_mode`（exact｜contains）、inline 填充、提交後顯示解釋、缺答提示；`POST .../import-questions` 自試題庫匯入複製。

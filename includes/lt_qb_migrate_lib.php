@@ -129,7 +129,7 @@ function lt_qb_migrate_one_tool(PDO $pdo, int $toolId, bool $dryRun = false): ar
             ];
         }
     } catch (Throwable $e) {
-        return ['ok' => false, 'error' => '缺少 legacy_learning_tool_map（請先套用 schema_phase7_qb_merge.sql）'];
+        return ['ok' => false, 'error' => '缺少 legacy_learning_tool_map（請先套用 schema_upgrade_all.sql）'];
     }
 
     $oldSlug = (string) $tool['slug'];

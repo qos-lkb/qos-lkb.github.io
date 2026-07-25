@@ -4,12 +4,13 @@
 declare(strict_types=1);
 
 /**
- * Apply pending schema_*.sql upgrades and record them in schema_migrations.
+ * Apply schema_upgrade_all.sql and record it in schema_migrations.
  *
  * Usage:
  *   php scripts/apply_schema.php
  *   php scripts/apply_schema.php --dry-run
  *   php scripts/apply_schema.php --status
+ * Manual: mysql -u USER -p DB_NAME < schema_upgrade_all.sql
  */
 
 $root = dirname(__DIR__);

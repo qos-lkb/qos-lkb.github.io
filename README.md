@@ -55,7 +55,9 @@ science_sims/
 ├── admin/                    # 轉址殼 → /app/admin/…
 ├── portal/                   # 已下線：302 → SPA（見 portal/README.md）
 ├── schema.sql                # 完整資料庫 schema（新環境一次匯入）
-├── schema_*.sql              # 既有庫增量升級（暑期功課、課程年級等）
+├── schema.sql                # 全新安裝完整結構
+├── schema_upgrade_all.sql    # 既有庫單一增量升級
+├── schema_drop_quiz_legacy.sql  # 可選：遷移後刪除舊 quiz 表
 ├── physics/, chem/, biology/, science/, astronomy/, …
 ├── .cursorrules              # Cursor AI 專案規則（摘要）
 ├── .cursor/rules/            # Cursor 細分規則（依檔案類型）
@@ -72,7 +74,7 @@ science_sims/
 
 1. 安裝 **PHP 8+**、**MariaDB**。
 2. 複製 **`.env.example`** 為 **`.env`**，填入 `DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS` 等。
-3. 匯入 **`schema.sql`** 建立完整資料庫結構（見 [architecture.md](architecture.md)）。**既有庫一次升級**請匯入 **`schema_upgrade_all.sql`**（或 `composer install` 後 `php scripts/apply_schema.php`；`--status` 可查進度）。
+3. 匯入 **`schema.sql`** 建立完整資料庫結構（見 [architecture.md](architecture.md)）。**既有庫升級**請匯入 **`schema_upgrade_all.sql`**（或 `composer install` 後 `php scripts/apply_schema.php`；`--status` 可查進度）。
 4. 開發依賴：`composer install`；單元測試：`composer test`（CI 見 `.github/workflows/ci.yml`）。
 5. **SPA 建置**（推薦）：`cd app && npm install && npm run build`；`app/index.php` 會優先服務 `app/dist/`。未建置時退回 `index.legacy.html`。
 6. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。後台入口：**`/app/admin`**（經 `/api/v1`）。
@@ -143,25 +145,16 @@ python3 -m http.server 8000
 #### 既有資料庫（升級）
 
 ```bash
-# 首次建立暑期功課表
-mysql -u USER -p DB_NAME < schema_summer_homework.sql
+# 單一增量升級檔（可重跑）
+mysql -u USER -p DB_NAME < schema_upgrade_all.sql
 
-# 截止日期／遲交設定（可重跑）
-mysql -u USER -p DB_NAME < schema_summer_homework_due.sql
-
-# 呈交評分明細 grading_json（可重跑；供錯題／選項分析）
-mysql -u USER -p DB_NAME < schema_summer_homework_grading.sql
-
-# 新題型（是非／短答／長答）＋教師評分欄（可重跑）
-mysql -u USER -p DB_NAME < schema_summer_homework_qtypes.sql
-
-# 媒體庫、content_refs、multi_select、match_mode（可重跑）
-mysql -u USER -p DB_NAME < schema_summer_homework_media.sql
+# 或
+php scripts/apply_schema.php
 ```
 
 #### 全新安裝
 
-匯入完整 `schema.sql`（已含暑期功課表、截止日期、`grading_json`、新題型、媒體與權限）。
+匯入完整 `schema.sql`。
 
 #### 學生
 
@@ -275,11 +268,8 @@ mysql -u USER -p DB_NAME < schema_summer_homework_media.sql
 | `/app/admin/courses/:id/summer` | SPA：班級呈交報表 |
 | `/app/admin/courses/:id/students` | SPA：學生與 MOI |
 | `app/src/modules/summer-homework.js` | 前台暑期 UI |
-| `schema_summer_homework.sql` | 既有庫：建立表 |
-| `schema_summer_homework_due.sql` | 既有庫升級（due_at／allow_late_submit） |
-| `schema_summer_homework_grading.sql` | 既有庫升級（attempts.grading_json） |
-| `schema_summer_homework_qtypes.sql` | 既有庫升級（是非／短答／長答） |
-| `schema_summer_homework_media.sql` | 既有庫升級（媒體／content_refs／multi_select／match_mode） |
+| `schema.sql` | 全新安裝完整結構 |
+| `schema_upgrade_all.sql` | 既有庫單一增量升級 |
 
 ### 權限
 

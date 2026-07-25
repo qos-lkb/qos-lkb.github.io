@@ -2184,7 +2184,7 @@ function sh_save_teacher_marks(PDO $pdo, int $attemptId, array $marks, array $us
         return ['ok' => false, 'error' => '找不到呈交紀錄。'];
     }
     if (!sh_table_has_column($pdo, 'summer_homework_attempts', 'teacher_marks_json')) {
-        return ['ok' => false, 'error' => '請先執行 schema_summer_homework_qtypes.sql。'];
+        return ['ok' => false, 'error' => '請先執行 schema_upgrade_all.sql。'];
     }
 
     $questions = sh_fetch_questions($pdo, (int) $attempt['item_id'], true);

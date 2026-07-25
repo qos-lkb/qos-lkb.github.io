@@ -686,7 +686,7 @@ Module guide: **`README.md`**（§ 暑期功課）. Architecture pattern: **`arc
 - Enrollment MOI E→en, C→zh for homework body; ignore SPA UI language toggle for students
 
 **Rule 17.5**: Schema upgrades for existing DBs
-- Prefer `schema_summer_homework*.sql` scripts; also update **`schema.sql`** and **`change_log.md`**
+- Prefer **`schema_upgrade_all.sql`** for existing DBs (and **`schema.sql`** for fresh installs); also update **`change_log.md`**
 
 ---
 

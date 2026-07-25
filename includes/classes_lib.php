@@ -560,7 +560,7 @@ function classes_save_from_post(PDO $pdo, array $post, int $actingUserId): array
     if (!classes_has_form_subject_columns($pdo)) {
         return [
             'ok' => false,
-            'error' => '資料庫尚未升級：請執行 schema_classes_form_subject.sql 後再儲存年級／科目。',
+            'error' => '資料庫尚未升級：請執行 schema_upgrade_all.sql 後再儲存年級／科目。',
         ];
     }
 
@@ -604,7 +604,7 @@ function classes_save_from_post(PDO $pdo, array $post, int $actingUserId): array
             if (stripos($msg, 'form_level') !== false || stripos($msg, 'course_subject') !== false || stripos($msg, 'Unknown column') !== false) {
                 return [
                     'ok' => false,
-                    'error' => '資料庫尚未升級：請執行 schema_classes_form_subject.sql。',
+                    'error' => '資料庫尚未升級：請執行 schema_upgrade_all.sql。',
                 ];
             }
             $inviteCode = classes_generate_invite_code();
@@ -698,7 +698,7 @@ function classes_inline_update(PDO $pdo, array $post, array $user): array
     if (in_array($editingField, ['form_level', 'course_subject'], true) && !$hasFormSubject) {
         return [
             'ok' => false,
-            'error' => '資料庫尚未升級：請執行 schema_classes_form_subject.sql。',
+            'error' => '資料庫尚未升級：請執行 schema_upgrade_all.sql。',
         ];
     }
 

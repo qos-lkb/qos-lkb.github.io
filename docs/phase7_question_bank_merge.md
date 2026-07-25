@@ -40,4 +40,4 @@ php scripts/migrate_learning_tools_to_question_banks.php --drop-legacy
 
 - `includes/lt_qb_migrate_lib.php`
 - `scripts/migrate_learning_tools_to_question_banks.php`
-- `schema_phase7_qb_merge.sql`／`schema_drop_quiz_legacy.sql`
+- `schema_upgrade_all.sql`（含 Phase 7 QB merge）／`schema_drop_quiz_legacy.sql`
