@@ -78,6 +78,20 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
             api_json_error('forbidden', '沒有權限。', 403);
         }
 
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        if ($id > 0) {
+            $sim = sim_get_by_id($pdo, $id);
+            if (!$sim) {
+                api_json_error('not_found', '找不到模擬。', 404);
+            }
+            if (!$isAdmin && (int) ($sim['owner_user_id'] ?? 0) !== (int) $user['id']) {
+                api_json_error('forbidden', '沒有權限。', 403);
+            }
+            $sim['tags'] = sim_get_tag_slugs($pdo, $id);
+            api_json_ok($sim);
+            return;
+        }
+
         if ($isAdmin) {
             $list = $pdo->query(
                 'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, s.list_sort_order,

@@ -87,6 +87,9 @@ const global = window;
                             <button type="button" data-nav="/courses" class="guest-cta-secondary inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-white/30 bg-white/10 text-white font-medium text-sm hover:bg-white/15 transition">
                                 ${t('自學課程', 'Self-study courses')}
                             </button>
+                            <button type="button" data-nav="/summer-homework" class="guest-cta-secondary inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-white/30 bg-white/10 text-white font-medium text-sm hover:bg-white/15 transition">
+                                ${t('暑期功課', 'Summer homework')}
+                            </button>
                         </div>
                     </div>
                 </section>

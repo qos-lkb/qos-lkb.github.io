@@ -375,7 +375,7 @@ const global = window;
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
                     <a href="${escapeHtml(legacyAdmin('summer_homework.php'))}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 習作列表', '← Homework list'))}</a>
                     <a href="${escapeHtml(legacyAdmin('summer_homework_view.php?id=' + itemId))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
-                    ${canManage ? `<a href="${escapeHtml(legacyAdmin('summer_homework_edit.php?id=' + itemId))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('編輯習作', 'Edit item'))}</a>` : ''}
+                    ${canManage ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/edit'))}" data-spa-nav="/admin/summer-homework/${itemId}/edit" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('編輯習作', 'Edit item'))}</a>` : ''}
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-1">${escapeHtml(itemTitle)}</h2>
                 <p class="text-sm text-slate-500 mb-4">${escapeHtml(formLabel)} · ${escapeHtml(t('每次呈交均保留；此頁顯示統計與詳細作答', 'All attempts kept; stats and answers below'))}</p>

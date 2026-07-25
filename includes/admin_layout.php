@@ -98,7 +98,9 @@ function admin_can_review(): bool
         || user_has_permission('article.manage_any')
         || user_has_permission('learning_note.manage_any')
         || user_has_permission('worksheet.manage_any')
-        || user_has_permission('learning_video.manage_any');
+        || user_has_permission('learning_video.manage_any')
+        || user_has_permission('question_bank.manage_any')
+        || user_has_permission('summer_homework.manage_any');
 }
 
 /**
@@ -111,45 +113,45 @@ function admin_menu_sections(): array
     $sections[] = [
         'label' => '概覽',
         'items' => [
-            ['key' => 'dashboard', 'label' => '儀表板', 'href' => 'index.php'],
+            ['key' => 'dashboard', 'label' => '儀表板', 'href' => '../app/admin'],
         ],
     ];
 
     $contentItems = [];
     if (user_has_permission('learning_note.manage_any')) {
-        $contentItems[] = ['key' => 'learning_notes', 'label' => '學習筆記', 'href' => 'learning_notes.php'];
+        $contentItems[] = ['key' => 'learning_notes', 'label' => '學習筆記', 'href' => '../app/admin/learning-notes'];
     }
     if (user_has_permission('worksheet.manage_any')) {
-        $contentItems[] = ['key' => 'worksheets', 'label' => '工作紙', 'href' => 'worksheets.php'];
+        $contentItems[] = ['key' => 'worksheets', 'label' => '工作紙', 'href' => '../app/admin/worksheets'];
     } elseif (user_has_permission('worksheet.manage_own')) {
-        $contentItems[] = ['key' => 'worksheets', 'label' => '我的工作紙', 'href' => 'worksheets.php', 'accent' => 'indigo'];
+        $contentItems[] = ['key' => 'worksheets', 'label' => '我的工作紙', 'href' => '../app/admin/worksheets', 'accent' => 'indigo'];
     }
     if (user_has_permission('simulation.manage_any')) {
-        $contentItems[] = ['key' => 'simulations', 'label' => '模擬程式', 'href' => 'simulations.php'];
+        $contentItems[] = ['key' => 'simulations', 'label' => '模擬程式', 'href' => '../app/admin/simulations'];
     }
     if (user_has_permission('article.manage_any')) {
-        $contentItems[] = ['key' => 'articles', 'label' => '科學文章', 'href' => 'articles.php'];
+        $contentItems[] = ['key' => 'articles', 'label' => '科學文章', 'href' => '../app/admin/articles'];
     }
     if (user_has_permission('summer_homework.manage_any')
         || user_has_permission('summer_homework.manage_own')
         || user_has_permission('class.manage_any')
         || user_has_permission('class.manage_own')
     ) {
-        $contentItems[] = ['key' => 'summer_homework', 'label' => '暑期功課', 'href' => 'summer_homework.php', 'accent' => 'amber'];
+        $contentItems[] = ['key' => 'summer_homework', 'label' => '暑期功課', 'href' => '../app/admin/summer-homework', 'accent' => 'amber'];
     }
     if (user_has_permission('question_bank.manage_any') || user_has_permission('learning_tool.manage_any')) {
-        $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => 'question_banks.php'];
+        $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => '../app/admin/question-banks'];
     } elseif (user_has_permission('question_bank.manage_own') || user_has_permission('learning_tool.manage_own')) {
-        $contentItems[] = ['key' => 'question_banks', 'label' => '我的試題庫', 'href' => 'question_banks.php', 'accent' => 'indigo'];
+        $contentItems[] = ['key' => 'question_banks', 'label' => '我的試題庫', 'href' => '../app/admin/question-banks', 'accent' => 'indigo'];
     }
     if (user_has_permission('learning_video.manage_any')) {
-        $contentItems[] = ['key' => 'learning_videos', 'label' => '學習影片', 'href' => 'learning_videos.php'];
+        $contentItems[] = ['key' => 'learning_videos', 'label' => '學習影片', 'href' => '../app/admin/learning-videos'];
     }
     if (user_has_permission('topic_item.manage_any') || user_has_permission('user.manage')) {
-        $contentItems[] = ['key' => 'course_curriculum', 'label' => '自學課程編排', 'href' => 'course_curriculum.php', 'accent' => 'indigo'];
+        $contentItems[] = ['key' => 'course_curriculum', 'label' => '自學課程編排', 'href' => '../app/admin/course-curriculum', 'accent' => 'indigo'];
     }
     if (admin_can_review()) {
-        $contentItems[] = ['key' => 'review_queue', 'label' => '審核佇列', 'href' => 'review_queue.php', 'accent' => 'amber'];
+        $contentItems[] = ['key' => 'review_queue', 'label' => '審核佇列', 'href' => '../app/admin/review-queue', 'accent' => 'amber'];
     }
     if ($contentItems !== []) {
         $sections[] = ['label' => '內容管理', 'items' => $contentItems];
@@ -157,10 +159,10 @@ function admin_menu_sections(): array
 
     $courseItems = [];
     if (user_has_permission('class.manage_any') || user_has_permission('class.manage_own')) {
-        $courseItems[] = ['key' => 'courses', 'label' => '課程管理', 'href' => 'courses.php', 'accent' => 'blue'];
-        $courseItems[] = ['key' => 'course_reports', 'label' => '課程報告', 'href' => 'courses.php', 'accent' => 'teal'];
+        $courseItems[] = ['key' => 'courses', 'label' => '課程管理', 'href' => '../app/admin/courses', 'accent' => 'blue'];
+        $courseItems[] = ['key' => 'course_reports', 'label' => '課程報告', 'href' => '../app/admin/courses', 'accent' => 'teal'];
         if (user_has_permission('worksheet.assign_own') || user_has_permission('class.manage_any')) {
-            $courseItems[] = ['key' => 'course_worksheets', 'label' => '工作紙派發', 'href' => 'courses.php', 'accent' => 'violet'];
+            $courseItems[] = ['key' => 'course_worksheets', 'label' => '工作紙派發', 'href' => '../app/admin/courses', 'accent' => 'violet'];
         }
     }
     if ($courseItems !== []) {
@@ -172,24 +174,24 @@ function admin_menu_sections(): array
             'label' => '平台設定',
             'items' => [
                 ['key' => 'subjects', 'label' => '科目與單元', 'href' => admin_site_asset_url('app/admin/subjects')],
-                ['key' => 'nav_menu', 'label' => '前台選單可見性', 'href' => 'nav_menu.php'],
+                ['key' => 'nav_menu', 'label' => '前台選單可見性', 'href' => '../app/admin/nav-menu'],
             ],
         ];
         $sections[] = [
             'label' => '使用者與安全',
             'items' => [
-                ['key' => 'users', 'label' => '使用者', 'href' => 'users.php'],
-                ['key' => 'permissions', 'label' => '角色權限', 'href' => 'permissions.php'],
+                ['key' => 'users', 'label' => '使用者', 'href' => '../app/admin/users'],
+                ['key' => 'permissions', 'label' => '角色權限', 'href' => '../app/admin/permissions'],
             ],
         ];
         $sections[] = [
             'label' => '開發與維護',
             'items' => [
                 ['key' => 'codespace', 'label' => 'Code Space', 'href' => '../codespace/index.html', 'external' => true],
-                ['key' => 'qsis_import', 'label' => 'QSIS 匯入', 'href' => 'qsis_import.php', 'accent' => 'teal'],
-                ['key' => 'db_import', 'label' => '匯入資料庫', 'href' => 'db_import.php'],
-                ['key' => 'db_export', 'label' => '匯出資料庫', 'href' => 'db_export.php'],
-                ['key' => 'data_dictionary', 'label' => '資料字典', 'href' => 'data_dictionary.php', 'accent' => 'violet'],
+                ['key' => 'qsis_import', 'label' => 'QSIS 匯入', 'href' => '../app/admin/qsis-import', 'accent' => 'teal'],
+                ['key' => 'db_import', 'label' => '匯入資料庫', 'href' => '../app/admin/db-import'],
+                ['key' => 'db_export', 'label' => '匯出資料庫', 'href' => '../app/admin/db-export'],
+                ['key' => 'data_dictionary', 'label' => '資料字典', 'href' => '../app/admin/data-dictionary', 'accent' => 'violet'],
             ],
         ];
     } elseif (user_has_permission('simulation.manage_any')) {
@@ -225,6 +227,12 @@ function admin_dashboard_stats(PDO $pdo): array
     }
     if (user_has_permission('learning_video.manage_any')) {
         $tables[] = 'learning_videos';
+    }
+    if (user_has_permission('question_bank.manage_any')) {
+        $tables[] = 'question_banks';
+    }
+    if (user_has_permission('summer_homework.manage_any')) {
+        $tables[] = 'summer_homework_items';
     }
     if (user_has_permission('simulation.manage_any')) {
         $tables[] = 'simulations';

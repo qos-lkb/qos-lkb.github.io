@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-$target = 'courses.php';
-if (!empty($_SERVER['QUERY_STRING'])) {
-    $target .= '?' . $_SERVER['QUERY_STRING'];
-}
-header('Location: ' . $target, true, 302);
-exit;
+/**
+ * @deprecated Classes renamed to courses — Prefer SPA /app/admin/courses.
+ */
+require_once dirname(__DIR__) . '/includes/spa_redirect.php';
+
+spa_redirect('/admin/courses', false);

@@ -191,7 +191,12 @@ function api_handle_admin_summer_homework(PDO $pdo, string $method): void
         } else {
             $rows = [];
         }
-        api_json_ok(array_map('sh_public_row', $rows));
+        api_json_ok(array_map(static function (array $row) use ($user): array {
+            $out = sh_public_row($row);
+            $out['owner_user_id'] = (int) ($row['owner_user_id'] ?? 0);
+            $out['can_manage'] = sh_can_manage_row($user, $row);
+            return $out;
+        }, $rows));
         return;
     }
 

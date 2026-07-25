@@ -158,6 +158,16 @@
         if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
             await AppAuth.whenReady();
         }
+        if (window.AppAdminLoader) {
+            const path = window.AppRouter && typeof AppRouter.getPath === 'function'
+                ? AppRouter.getPath()
+                : (location.pathname || '/admin');
+            if (typeof AppAdminLoader.ensureAdminRoute === 'function') {
+                await AppAdminLoader.ensureAdminRoute(path);
+            } else if (typeof AppAdminLoader.ensureAdminModules === 'function') {
+                await AppAdminLoader.ensureAdminModules();
+            }
+        }
         await renderFn();
     }
 
@@ -451,6 +461,156 @@
             '/admin/summer-homework/:id/analytics': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSummerAnalytics(id);
+                });
+            },
+            '/admin/summer-homework/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkEdit();
+                });
+            },
+            '/admin/summer-homework/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkEdit(id);
+                });
+            },
+            '/admin/summer-homework/:id/view': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkView(id);
+                });
+            },
+            '/admin/summer-homework': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkList();
+                });
+            },
+            '/admin/worksheets/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminWorksheetEdit();
+                });
+            },
+            '/admin/worksheets/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminWorksheetEdit(id);
+                });
+            },
+            '/admin/worksheets': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminWorksheetsList();
+                });
+            },
+            '/admin/review-queue': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminReviewQueue();
+                });
+            },
+            '/admin/articles': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminArticlesList();
+                });
+            },
+            '/admin/articles/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminArticleEdit();
+                });
+            },
+            '/admin/articles/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminArticleEdit(id);
+                });
+            },
+            '/admin/learning-videos': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminLearningVideosList();
+                });
+            },
+            '/admin/learning-videos/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminLearningVideoEdit();
+                });
+            },
+            '/admin/learning-videos/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminLearningVideoEdit(id);
+                });
+            },
+            '/admin/learning-notes': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminLearningNotesList();
+                });
+            },
+            '/admin/learning-notes/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminLearningNoteEdit();
+                });
+            },
+            '/admin/learning-notes/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminLearningNoteEdit(id);
+                });
+            },
+            '/admin/simulations': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimulationsList();
+                });
+            },
+            '/admin/simulations/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimulationEdit();
+                });
+            },
+            '/admin/simulations/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimulationEdit(id);
+                });
+            },
+            '/admin/question-banks': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminQuestionBanksList();
+                });
+            },
+            '/admin/question-banks/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminQuestionBankEdit();
+                });
+            },
+            '/admin/question-banks/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminQuestionBankEdit(id);
+                });
+            },
+            '/admin/course-curriculum': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseCurriculum();
+                });
+            },
+            '/admin/nav-menu': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminNavMenu();
+                });
+            },
+            '/admin/permissions': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminPermissions();
+                });
+            },
+            '/admin/db-export': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminDbExport();
+                });
+            },
+            '/admin/db-import': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminDbImport();
+                });
+            },
+            '/admin/qsis-import': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminQsisImport();
+                });
+            },
+            '/admin/data-dictionary': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminDataDictionary();
                 });
             },
             '/admin/users': async () => {

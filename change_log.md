@@ -8,6 +8,77 @@
 
 ## 2026-07-25
 
+### SPA：舊 learning_tools 審核對應試題庫
+- `/review-queue` 回傳 `mapped_bank_id`；已遷移項可編輯試題庫，未遷移顯示說明。
+- Legacy `summer-homework.js` 教師首頁改連 SPA（不再指 PHP）。
+
+### SPA：前台帳戶選單與訪客／儀表板微調
+- 帳戶選單移除「完整後台（PHP）」；內容貢獻者亦可進 `/admin`。
+- 訪客首頁加暑期 CTA；儀表板登入連結用 SITE_BASE，並加暑期捷徑。
+- `index_csv_editor.php`／資料字典頁連結直連 SPA。
+
+### SPA：教師／管理首頁收斂＋文件 SPA-first
+- 管理首頁分區連結、移除「完整 PHP 後台」；審核權限含試題庫／暑期。
+- 教師首頁空狀態 CTA、暑期預覽連結、SPA 導航。
+- `admin_layout` 課程選單改連 SPA；README／architecture／api_gaps 標示後台已收斂。
+
+### SPA：admin 按路由懶載入
+- `admin-loader` 依路徑載入對應 chunk（課程、內容編輯、危險運維等），避免進 `/admin` 就拉全部模組。
+- `AppRouter.getPath` 供 loader 解析目前路由。
+
+### SPA：admin 懶載入＋portal 直連
+- Admin 模組改 `admin-loader` 動態 import（進 `/admin` 才載入）。
+- `portal/*` 302 直連 SPA；審核佇列對舊 learning_tools 隱藏錯誤編輯連結。
+
+### 審核佇列擴充＋剩餘 PHP stub
+- `/review-queue` 納入試題庫、暑期功課；新增 publish／reject 端點。
+- `admin/index.php`、`classes*.php`、`impersonate.php` 302 → SPA。
+- 儀表板待審統計含 QB／暑期；後台選單儀表板連 SPA。
+
+### SPA：試題庫編輯器
+- 新增 `/admin/question-banks/new`、`/:id/edit`（題目建構器／圖片上載遷入 SPA）。
+- `question_bank_edit.php`／`learning_tool_edit.php` 302 → SPA。
+
+### SPA：工作紙／暑期功課編輯與檢視
+- 新增 `/admin/worksheets/new|/:id/edit`（含嵌入挑選器）。
+- 新增 `/admin/summer-homework/new|/:id/edit|/:id/view`（題目建構器遷入 SPA）。
+- 筆記編輯補上嵌入挑選器；對應 PHP 頁 302 → SPA。
+
+### SPA：內容編輯器（影片／文章／筆記／模擬）
+- 新增 `/admin/{articles|learning-videos|learning-notes|simulations}/new` 與 `/:id/edit`。
+- `GET /admin/simulations?id=` 回傳完整 HTML／標籤供編輯。
+- 對應 `*_edit.php` 302 → SPA；列表與審核佇列改連 SPA。
+
+### SPA：危險運維（匯出／匯入／QSIS／資料字典）
+- 新增 `/admin/db-export`、`/admin/db-import`、`/admin/qsis-import`、`/admin/data-dictionary`。
+- API：`GET /admin/db/import-status`、`GET /admin/data-dictionary`；既有 export／import／QSIS／regenerate。
+- 對應 PHP 頁 302 → SPA；後台選單改連 SPA。
+
+### SPA：運維設定（選單／權限）＋使用者列表 stub
+- 新增 `/admin/nav-menu`、`/admin/permissions`（矩陣讀寫走既有 API）。
+- `nav_menu.php`／`permissions.php`／`users.php` 302 → SPA。
+
+### SPA：自學課程編排
+- 新增 `/admin/course-curriculum`（選科目／課題、加入／匯入／移除／拖曳排序；打 `/admin/topic-items*`）。
+- `course_curriculum.php` 302 → SPA。
+
+### SPA：試題庫列表
+- 新增 `/admin/question-banks`（列表、刪除、預覽；編輯仍連 PHP）。
+- `GET /admin/question-banks` 補科目／課題標籤與題數；`question_banks.php`／`learning_tools.php` 302 → SPA。
+
+### SPA：內容設計列表（筆記／文章／影片／模擬）
+- 新增 `/admin/learning-notes`、`/admin/articles`、`/admin/learning-videos`、`/admin/simulations`（列表、刪除、預覽；編輯仍連 PHP）。
+- 對應 PHP 列表頁 302 → SPA；後台選單／帳戶「我的模擬」改連 SPA。
+
+### SPA：審核佇列
+- 新增 `/admin/review-queue`（列表、發佈／退回；可連 PHP 編輯）。
+- `review_queue.php` 302 → SPA；後台選單／儀表板／工作紙列表改連 SPA。
+
+### SPA：暑期／工作紙設計列表
+- 新增 `/admin/summer-homework`、`/admin/worksheets`（列表、刪除；編輯仍連 PHP）。
+- `summer_homework.php`／`worksheets.php` 302 → SPA；管理選單與帳戶選單改連 SPA。
+- 列表 API 回傳 `can_manage`／`owner_user_id`（暑期）。
+
 ### 修正：課程連結誤回首頁（教師首頁＋深層路由）
 - 教師首頁「我的課程」仍連 PHP 再 302 進 SPA；冷啟動時 session 未就緒就導向登入，畫面像首頁。
 - 改連 SPA 路由；admin／login 先 `restoreMainShell`；`AppAuth.whenReady` 後再判權；登入後重派目前路徑。

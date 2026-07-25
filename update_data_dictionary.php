@@ -63,7 +63,8 @@ function dd_web_handle(): void
         $q = $result['ok']
             ? 'ok=1&tables=' . (int) ($result['table_count'] ?? 0)
             : 'error=' . rawurlencode($result['error'] ?? '產生失敗');
-        header('Location: admin/data_dictionary.php?' . $q);
+        require_once __DIR__ . '/includes/spa_redirect.php';
+        header('Location: ' . spa_app_path('/admin/data-dictionary') . '?' . $q, true, 302);
         exit;
     }
 
@@ -72,7 +73,9 @@ function dd_web_handle(): void
     $outputPath = dd_output_path();
     $schemaMtime = is_readable($schemaPath) ? date('Y-m-d H:i:s', filemtime($schemaPath)) : '—';
     $outputMtime = is_readable($outputPath) ? date('Y-m-d H:i:s', filemtime($outputPath)) : '（尚未產生）';
-    $adminReader = 'admin/data_dictionary.php';
+    require_once __DIR__ . '/includes/spa_redirect.php';
+    $adminReader = spa_app_path('/admin/data-dictionary');
+    $adminHome = spa_app_path('/admin');
     ?>
 <!DOCTYPE html>
 <html lang="zh-Hant">
@@ -103,8 +106,8 @@ function dd_web_handle(): void
         </form>
 
         <p class="mt-6 text-sm text-slate-600">
-            <a href="<?php echo htmlspecialchars($adminReader, ENT_QUOTES, 'UTF-8'); ?>" class="text-indigo-600 underline">後台 Markdown 閱讀器</a>
-            · <a href="admin/index.php" class="text-indigo-600 underline">管理後台</a>
+            <a href="<?php echo htmlspecialchars($adminReader, ENT_QUOTES, 'UTF-8'); ?>" class="text-indigo-600 underline">後台資料字典</a>
+            · <a href="<?php echo htmlspecialchars($adminHome, ENT_QUOTES, 'UTF-8'); ?>" class="text-indigo-600 underline">管理後台</a>
         </p>
     </div>
 </body>

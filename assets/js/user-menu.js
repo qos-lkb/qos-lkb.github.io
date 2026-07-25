@@ -350,8 +350,17 @@
         const canClass = perms.includes('class.manage_own') || perms.includes('class.manage_any');
         const canWorksheet = perms.includes('worksheet.manage_own') || perms.includes('worksheet.manage_any');
         const canAssignWorksheet = perms.includes('worksheet.assign_own') || perms.includes('class.manage_any');
+        const canSim = perms.includes('simulation.manage_own') || perms.includes('simulation.manage_any');
         const canAdmin = perms.includes('simulation.manage_any') || perms.includes('user.manage');
-        const canPortal = perms.includes('simulation.manage_own') || canAdmin;
+        const canContent = canSim
+            || canWorksheet
+            || perms.includes('article.manage_own') || perms.includes('article.manage_any')
+            || perms.includes('learning_note.manage_own') || perms.includes('learning_note.manage_any')
+            || perms.includes('learning_video.manage_own') || perms.includes('learning_video.manage_any')
+            || perms.includes('question_bank.manage_own') || perms.includes('question_bank.manage_any')
+            || perms.includes('learning_tool.manage_own') || perms.includes('learning_tool.manage_any')
+            || perms.includes('summer_homework.manage_own') || perms.includes('summer_homework.manage_any');
+        const showAdminHome = canAdmin || canClass || canContent;
 
         renderImpersonationBanner(user);
 
@@ -390,17 +399,16 @@
                     ${t('偏好設定', 'Preferences')}
                 </button>
                 <div class="user-menu-divider"></div>
-                ${canPortal ? `<a href="${base}/admin/simulations.php" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
+                ${canSim ? `<a href="${base}/app/admin/simulations" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
                 ${canClass ? `<a href="${base}/app/admin/courses" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
-                ${canWorksheet ? `<a href="${base}/admin/worksheets.php" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
+                ${canWorksheet ? `<a href="${base}/app/admin/worksheets" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
                 ${canAssignWorksheet ? `<a href="${base}/app/admin/courses" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}
-                ${canAdmin ? `<a href="${base}/app/admin" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
-                ${canAdmin ? `<a href="${base}/admin/index.php" class="user-menu-item" role="menuitem">${t('完整後台（PHP）', 'Full admin (PHP)')}</a>` : ''}
+                ${showAdminHome ? `<a href="${base}/app/admin" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
                 ${user.impersonating ? `<button type="button" class="user-menu-item user-menu-item-warn" data-action="stop-impersonation" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>
                     ${t('結束模仿', 'Stop impersonating')}
                 </button>` : ''}
-                ${(canPortal || canAdmin || canClass) ? '<div class="user-menu-divider"></div>' : ''}
+                ${(showAdminHome || canSim) ? '<div class="user-menu-divider"></div>' : ''}
                 <a href="${base}/app/" class="user-menu-item sm:hidden" role="menuitem">${t('前台首頁', 'Home')}</a>
                 <button type="button" class="user-menu-item user-menu-item-danger" data-action="logout" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>

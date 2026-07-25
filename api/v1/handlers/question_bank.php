@@ -96,9 +96,28 @@ function api_handle_admin_question_banks(PDO $pdo, string $method): void
             api_json_error('forbidden', '沒有權限。', 403);
         }
         if ($canAny) {
-            $rows = $pdo->query('SELECT * FROM question_banks ORDER BY updated_at DESC')->fetchAll() ?: [];
+            $rows = $pdo->query(
+                'SELECT qb.*,
+                        sub.name_zh AS subject_zh, sub.name_en AS subject_en,
+                        t.name_zh AS topic_zh, t.name_en AS topic_en,
+                        (SELECT COUNT(*) FROM qb_questions q WHERE q.bank_id = qb.id) AS question_count
+                 FROM question_banks qb
+                 LEFT JOIN subjects sub ON sub.id = qb.subject_id
+                 LEFT JOIN topics t ON t.id = qb.topic_id
+                 ORDER BY qb.updated_at DESC'
+            )->fetchAll() ?: [];
         } else {
-            $stmt = $pdo->prepare('SELECT * FROM question_banks WHERE owner_user_id = ? ORDER BY updated_at DESC');
+            $stmt = $pdo->prepare(
+                'SELECT qb.*,
+                        sub.name_zh AS subject_zh, sub.name_en AS subject_en,
+                        t.name_zh AS topic_zh, t.name_en AS topic_en,
+                        (SELECT COUNT(*) FROM qb_questions q WHERE q.bank_id = qb.id) AS question_count
+                 FROM question_banks qb
+                 LEFT JOIN subjects sub ON sub.id = qb.subject_id
+                 LEFT JOIN topics t ON t.id = qb.topic_id
+                 WHERE qb.owner_user_id = ?
+                 ORDER BY qb.updated_at DESC'
+            );
             $stmt->execute([$user['id']]);
             $rows = $stmt->fetchAll() ?: [];
         }

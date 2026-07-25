@@ -181,6 +181,8 @@ const global = window;
         const spaHref = (route) => (global.AppRouter && global.AppRouter.spaHref
             ? global.AppRouter.spaHref(route)
             : route);
+        const nav = (route, label) =>
+            `<a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref(route))}" data-spa-nav="${escapeHtml(route)}">${escapeHtml(label)}</a>`;
         const cards = classes.map((c) => {
             const id = Number(c.id);
             const form = c.form_level_label || '—';
@@ -193,27 +195,46 @@ const global = window;
                             · ${t('學生', 'Students')} ${c.student_count != null ? c.student_count : '—'}</p>
                     </div>
                     <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/students'))}" data-spa-nav="/admin/courses/${id}/students">${t('學生', 'Students')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/summer'))}" data-spa-nav="/admin/courses/${id}/summer">${t('暑期功課', 'Summer HW')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/report'))}" data-spa-nav="/admin/courses/${id}/report">${t('學習報告', 'Reports')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/worksheets'))}" data-spa-nav="/admin/courses/${id}/worksheets">${t('工作紙', 'Worksheets')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id))}" data-spa-nav="/admin/courses/${id}">${t('編輯', 'Edit')}</a>
+                        ${nav('/admin/courses/' + id + '/students', t('學生', 'Students'))}
+                        ${nav('/admin/courses/' + id + '/summer', t('暑期功課', 'Summer HW'))}
+                        ${nav('/admin/courses/' + id + '/report', t('學習報告', 'Reports'))}
+                        ${nav('/admin/courses/' + id + '/worksheets', t('工作紙', 'Worksheets'))}
+                        ${nav('/admin/courses/' + id, t('編輯', 'Edit'))}
                     </div>
                 </div>
             </div>`;
         }).join('');
+
+        const empty = `
+            <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                <p class="text-slate-700 text-sm">${escapeHtml(t('尚無任教課程。', 'No courses yet.'))}</p>
+                <p class="text-slate-500 text-xs mt-2">${escapeHtml(t('可由後台新增課程，或請管理員指派任教班別。', 'Create a course in admin, or ask an admin to assign you to a class.'))}</p>
+                <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses"
+                   class="inline-block mt-4 text-sm font-medium text-indigo-700 hover:underline">${escapeHtml(t('前往課程管理', 'Go to course admin'))}</a>
+            </div>`;
 
         main.innerHTML = `
             <div class="max-w-4xl mx-auto w-full">
                 <div class="mb-6 pb-6 border-b border-slate-200/80">
                     <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">${t('我的課程', 'My courses')}</h1>
                     <p class="text-slate-600 mt-2 text-sm">${t('查看任教課程的暑期功課呈交與學習報告。', 'View summer homework submissions and learning reports for your classes.')}</p>
-                    <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="inline-block mt-3 text-sm text-indigo-600 hover:underline">${t('開啟後台課程管理', 'Open course admin')}</a>
+                    <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                        <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-indigo-600 hover:underline">${t('課程管理', 'Course admin')}</a>
+                        <a href="${escapeHtml(spaHref('/summer-homework/s1'))}" data-spa-nav="/summer-homework/s1" class="text-indigo-600 hover:underline">${t('預覽中一暑期', 'Preview S1 summer')}</a>
+                        <a href="${escapeHtml(spaHref('/summer-homework/s2'))}" data-spa-nav="/summer-homework/s2" class="text-indigo-600 hover:underline">${t('預覽中二暑期', 'Preview S2 summer')}</a>
+                    </div>
                 </div>
                 <div class="space-y-3">
-                    ${cards || `<p class="text-slate-500 text-sm">${t('尚無任教課程。', 'No courses yet.')}</p>`}
+                    ${cards || empty}
                 </div>
             </div>`;
+
+        main.querySelectorAll('[data-spa-nav]').forEach((a) => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (global.AppRouter) global.AppRouter.navigate(a.getAttribute('data-spa-nav'));
+            });
+        });
     }
 
     async function renderHome() {

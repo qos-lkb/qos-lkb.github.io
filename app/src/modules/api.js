@@ -26,7 +26,8 @@ const global = window;
     async function apiFetch(path, options = {}) {
         const url = path.startsWith('http') ? path : API_BASE + path;
         const headers = Object.assign({ Accept: 'application/json' }, options.headers || {});
-        if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
+        if (options.body && typeof options.body === 'object' && !isForm) {
             headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(options.body);
         }
@@ -34,6 +35,20 @@ const global = window;
             headers['X-CSRF-Token'] = csrfToken;
         }
         const res = await fetch(url, Object.assign({ credentials: 'same-origin' }, options, { headers }));
+        if (options.rawResponse) {
+            if (!res.ok) {
+                const text = await res.text();
+                let msg = 'Request failed';
+                try {
+                    const json = JSON.parse(text);
+                    msg = (json.error && json.error.message) || msg;
+                } catch (e) {
+                    msg = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) || msg;
+                }
+                throw new Error(msg);
+            }
+            return res;
+        }
         const ct = res.headers.get('content-type') || '';
         if (!ct.includes('application/json')) {
             if (!res.ok) throw new Error('Request failed: ' + res.status);

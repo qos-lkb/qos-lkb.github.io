@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 /**
- * @deprecated Use admin/articles.php
+ * @deprecated Portal → SPA /app/admin/articles
  */
 require_once dirname(__DIR__) . '/includes/spa_redirect.php';
 
-portal_redirect_to_admin('admin/articles.php');
+spa_redirect('/admin/articles', false);

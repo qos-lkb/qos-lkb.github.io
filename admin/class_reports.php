@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
-$target = 'course_reports.php';
-if (!empty($_SERVER['QUERY_STRING'])) {
-    $target .= '?' . $_SERVER['QUERY_STRING'];
+/**
+ * @deprecated Prefer SPA /app/admin/courses/{id}/report.
+ */
+require_once dirname(__DIR__) . '/includes/spa_redirect.php';
+
+$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+if ($id > 0) {
+    spa_redirect('/admin/courses/' . $id . '/report', false);
 }
-header('Location: ' . $target, true, 302);
-exit;
+spa_redirect('/admin/courses', false);

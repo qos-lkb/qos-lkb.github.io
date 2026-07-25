@@ -39,17 +39,78 @@ const global = window;
         const canUsers = canSubjects;
         const canCourses = global.ScienceApi.hasPermission('class.manage_any')
             || global.ScienceApi.hasPermission('class.manage_own');
-        const legacyAdmin = ((global.ScienceApi && global.ScienceApi.SITE_BASE) || '') + '/admin/';
+        const canSummer = global.ScienceApi.hasPermission('summer_homework.manage_any')
+            || global.ScienceApi.hasPermission('summer_homework.manage_own')
+            || canCourses;
+        const canWorksheets = global.ScienceApi.hasPermission('worksheet.manage_any')
+            || global.ScienceApi.hasPermission('worksheet.manage_own');
+        const canReview = global.ScienceApi.hasPermission('learning_tool.manage_any')
+            || global.ScienceApi.hasPermission('article.manage_any')
+            || global.ScienceApi.hasPermission('learning_note.manage_any')
+            || global.ScienceApi.hasPermission('worksheet.manage_any')
+            || global.ScienceApi.hasPermission('learning_video.manage_any')
+            || global.ScienceApi.hasPermission('question_bank.manage_any')
+            || global.ScienceApi.hasPermission('summer_homework.manage_any');
+        const canArticles = global.ScienceApi.hasPermission('article.manage_any')
+            || global.ScienceApi.hasPermission('article.manage_own');
+        const canNotes = global.ScienceApi.hasPermission('learning_note.manage_any')
+            || global.ScienceApi.hasPermission('learning_note.manage_own');
+        const canVideos = global.ScienceApi.hasPermission('learning_video.manage_any')
+            || global.ScienceApi.hasPermission('learning_video.manage_own');
+        const canSims = global.ScienceApi.hasPermission('simulation.manage_any')
+            || global.ScienceApi.hasPermission('simulation.manage_own');
+        const canQb = global.ScienceApi.hasPermission('question_bank.manage_any')
+            || global.ScienceApi.hasPermission('question_bank.manage_own')
+            || global.ScienceApi.hasPermission('learning_tool.manage_any')
+            || global.ScienceApi.hasPermission('learning_tool.manage_own');
+        const canCurriculum = global.ScienceApi.hasPermission('topic_item.manage_any')
+            || global.ScienceApi.hasPermission('user.manage');
+
+        const link = (route, label) =>
+            `<li><a href="${escapeHtml(spaHref(route))}" data-spa-nav="${escapeHtml(route)}" class="text-indigo-700 font-medium hover:underline">${escapeHtml(label)}</a></li>`;
+
+        const teaching = [
+            canCourses ? link('/admin/courses', t('課程管理', 'Courses')) : '',
+            canSummer ? link('/admin/summer-homework', t('暑期功課設計', 'Summer homework design')) : '',
+            canWorksheets ? link('/admin/worksheets', t('工作紙設計', 'Worksheet design')) : '',
+            canCurriculum ? link('/admin/course-curriculum', t('自學課程編排', 'Course curriculum')) : '',
+        ].filter(Boolean).join('');
+
+        const content = [
+            canQb ? link('/admin/question-banks', t('試題庫', 'Question banks')) : '',
+            canNotes ? link('/admin/learning-notes', t('學習筆記', 'Learning notes')) : '',
+            canArticles ? link('/admin/articles', t('科學文章', 'Articles')) : '',
+            canVideos ? link('/admin/learning-videos', t('學習影片', 'Learning videos')) : '',
+            canSims ? link('/admin/simulations', t('模擬程式', 'Simulations')) : '',
+            canReview ? link('/admin/review-queue', t('審核佇列', 'Review queue')) : '',
+        ].filter(Boolean).join('');
+
+        const platform = [
+            canSubjects ? link('/admin/subjects', t('科目與單元', 'Subjects & topics')) : '',
+            canUsers ? link('/admin/users', t('使用者', 'Users')) : '',
+            canUsers ? link('/admin/permissions', t('角色權限', 'Permissions')) : '',
+            canUsers ? link('/admin/nav-menu', t('前台選單可見性', 'Front nav visibility')) : '',
+            canUsers ? link('/admin/db-export', t('匯出資料庫', 'Export DB')) : '',
+            canUsers ? link('/admin/db-import', t('匯入資料庫', 'Import DB')) : '',
+            canUsers ? link('/admin/qsis-import', t('QSIS 匯入', 'QSIS import')) : '',
+            canUsers ? link('/admin/data-dictionary', t('資料字典', 'Data dictionary')) : '',
+        ].filter(Boolean).join('');
 
         box.innerHTML = `
-            <div class="max-w-2xl space-y-4">
-                <p class="text-slate-600 text-sm">${escapeHtml(t('SPA 後台入口（逐步遷移中）。', 'SPA admin entry (migration in progress).'))}</p>
-                <ul class="space-y-2">
-                    ${canSubjects ? `<li><a href="${escapeHtml(spaHref('/admin/subjects'))}" data-spa-nav="/admin/subjects" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('科目與單元', 'Subjects & topics'))}</a></li>` : ''}
-                    ${canCourses ? `<li><a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('課程管理', 'Courses'))}</a></li>` : ''}
-                    ${canUsers ? `<li><a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('使用者', 'Users'))}</a></li>` : ''}
-                    <li><a href="${escapeHtml(legacyAdmin)}" class="text-slate-700 hover:underline">${escapeHtml(t('完整 PHP 後台', 'Full PHP admin'))}</a></li>
-                </ul>
+            <div class="max-w-2xl space-y-6">
+                <p class="text-slate-600 text-sm">${escapeHtml(t('後台經 /api/v1；舊 admin／portal PHP 僅轉址至此。', 'Admin UI uses /api/v1; legacy admin/portal PHP only redirects here.'))}</p>
+                ${teaching ? `<section>
+                    <h2 class="text-sm font-semibold text-slate-500 mb-2">${escapeHtml(t('教學', 'Teaching'))}</h2>
+                    <ul class="space-y-2">${teaching}</ul>
+                </section>` : ''}
+                ${content ? `<section>
+                    <h2 class="text-sm font-semibold text-slate-500 mb-2">${escapeHtml(t('內容', 'Content'))}</h2>
+                    <ul class="space-y-2">${content}</ul>
+                </section>` : ''}
+                ${platform ? `<section>
+                    <h2 class="text-sm font-semibold text-slate-500 mb-2">${escapeHtml(t('平台', 'Platform'))}</h2>
+                    <ul class="space-y-2">${platform}</ul>
+                </section>` : ''}
             </div>`;
 
         box.querySelectorAll('[data-spa-nav]').forEach((a) => {

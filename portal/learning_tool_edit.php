@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 /**
- * @deprecated Use admin/learning_tool_edit.php
+ * @deprecated Portal → SPA question-bank editor (Phase 7).
  */
 require_once dirname(__DIR__) . '/includes/spa_redirect.php';
 
-portal_redirect_to_admin('admin/learning_tool_edit.php');
+$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+spa_redirect($id > 0 ? '/admin/question-banks/' . $id . '/edit' : '/admin/question-banks/new', false);

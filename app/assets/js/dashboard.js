@@ -27,9 +27,11 @@
         try {
             data = await apiFetch('/learning/dashboard');
         } catch (e) {
+            const base = (global.ScienceApi && ScienceApi.SITE_BASE) || '';
+            const login = escapeHtml(base + '/login.php?next=' + encodeURIComponent('app/dashboard'));
             main.innerHTML = `<div class="max-w-lg mx-auto text-center py-12">
                 <p class="text-slate-600 mb-4">${t('請先登入以查看學習儀表板。', 'Please log in to view your learning dashboard.')}</p>
-                <a href="../login.php?next=${encodeURIComponent('app/dashboard')}" class="text-indigo-600 underline">${t('登入', 'Log in')}</a>
+                <a href="${login}" class="text-indigo-600 underline">${t('登入', 'Log in')}</a>
             </div>`;
             return;
         }
@@ -125,7 +127,10 @@
                         <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">${t('我的學習', 'My Learning')}</h1>
                         <p class="text-sm text-slate-500 mt-1">${t('自主規劃學習路徑，追蹤進度與掌握度。', 'Plan your path and track progress.')}</p>
                     </div>
-                    <button type="button" id="dash-goto-courses" class="text-sm text-indigo-600 hover:underline">${t('瀏覽自學課程', 'Browse courses')} →</button>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                        <button type="button" id="dash-goto-summer" class="text-indigo-600 hover:underline">${t('暑期功課', 'Summer homework')} →</button>
+                        <button type="button" id="dash-goto-courses" class="text-indigo-600 hover:underline">${t('瀏覽自學課程', 'Browse courses')} →</button>
+                    </div>
                 </div>
 
                 <div class="grid sm:grid-cols-3 gap-4">
@@ -194,6 +199,7 @@
         }
 
         document.getElementById('dash-goto-courses')?.addEventListener('click', () => navigate('/courses'));
+        document.getElementById('dash-goto-summer')?.addEventListener('click', () => navigate('/summer-homework'));
         document.getElementById('dash-goto-assignments')?.addEventListener('click', () => navigate('/assignments'));
         main.querySelectorAll('[data-route]').forEach((el) => {
             el.addEventListener('click', () => navigate(el.getAttribute('data-route')));

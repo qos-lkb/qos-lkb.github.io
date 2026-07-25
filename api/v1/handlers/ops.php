@@ -14,6 +14,27 @@ require_once dirname(__DIR__, 3) . '/includes/qsis_db.php';
 const API_DB_IMPORT_MAX_BYTES = 512 * 1024 * 1024;
 
 /**
+ * Wipe-gate metadata for the SPA import form (no secrets beyond public confirm phrase).
+ */
+function api_handle_admin_db_import_status(): void
+{
+    require_api_permission('user.manage');
+    $schemaName = '';
+    try {
+        $schemaName = db_export_schema_name();
+    } catch (Throwable) {
+        $schemaName = '';
+    }
+    api_json_ok([
+        'wipe_allowed' => config_allows_db_wipe(),
+        'confirm_phrase' => config_db_wipe_confirm_phrase(),
+        'app_env' => config_app_env(),
+        'schema_name' => $schemaName,
+        'max_bytes' => API_DB_IMPORT_MAX_BYTES,
+    ]);
+}
+
+/**
  * Stream full DB SQL dump as attachment.
  */
 function api_handle_admin_db_export(PDO $pdo): void
@@ -191,6 +212,29 @@ function api_handle_admin_db_import(PDO $pdo): void
         }
         api_json_error('server_error', '匯入失敗：' . $e->getMessage(), 500);
     }
+}
+
+function api_handle_admin_data_dictionary_get(): void
+{
+    require_api_permission('user.manage');
+    $mdPath = dd_output_path();
+    $schemaPath = dd_schema_path();
+    $exists = is_readable($mdPath);
+    $markdown = '';
+    if ($exists) {
+        $raw = file_get_contents($mdPath);
+        $markdown = $raw !== false ? $raw : '';
+    }
+    api_json_ok([
+        'exists' => $exists && $markdown !== '',
+        'size' => $exists ? (int) (filesize($mdPath) ?: 0) : 0,
+        'mtime' => $exists ? date('Y-m-d H:i:s', (int) filemtime($mdPath)) : '',
+        'schema_mtime' => is_readable($schemaPath)
+            ? date('Y-m-d H:i:s', (int) filemtime($schemaPath))
+            : '—',
+        'markdown' => $markdown,
+        'reader_url' => 'markdown_reader.php?file=data_dictionary.md',
+    ]);
 }
 
 function api_handle_admin_data_dictionary_regenerate(): void

@@ -80,8 +80,8 @@ mysql -u USER -p DB_NAME < schema.sql
 - **No FOREIGN KEY** constraints; relations enforced in PHP libs.
 - **Timezone**: set `APP_TIMEZONE=Asia/Hong_Kong` in `.env`; schema sets session `+08:00`.
 - **Seed data**: roles (`admin`, `teacher`, `student`), all permissions, default role grants, system user (`system@science-sims.internal`).
-- **Admin account**: create via `admin/users.php` after import (no bundled default password).
-- **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via `admin/db_export.php`.
+- **Admin account**: create via SPA `/app/admin/users` after import (no bundled default password).
+- **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via SPA `/app/admin/db-export`.
 - **Incremental upgrades**: prefer **`php scripts/apply_schema.php`** (records rows in `schema_migrations`). Manual: apply matching `schema_*.sql` on existing DBs. Check status with `php scripts/apply_schema.php --status`.
 
 | Script | Adds |
@@ -287,19 +287,21 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 
 ### Admin pages (representative)
 
-| Area | Files |
-|------|-------|
-| Users & roles | `users.php`, `user_edit.php`, `permissions.php`（`impersonate.php` 已 410，改走 REST） |
-| Catalogue | `subjects.php`, `simulations.php`, `simulation_edit.php` |
-| Learning content | `learning_notes.php`, `worksheets.php`, `worksheet_edit.php`, `articles.php`, `question_banks.php`（`learning_tools.php` → 302） |
-| Summer homework | `summer_homework.php`, `summer_homework_edit.php`, `summer_homework_view.php`（分析改 SPA `/admin/summer-homework/{id}/analytics`） |
-| Curriculum | `course_curriculum.php` |
-| Classes / courses | `courses.php`, `course_edit.php`, `course_students.php`, `course_reports.php`, `course_worksheets.php`, `course_summer_homework.php`, `classes.php`, `class_edit.php`, `class_reports.php`, `qsis_import.php` |
-| Platform | `nav_menu.php` (SPA top-nav visibility) |
-| Ops | `review_queue.php`, `db_export.php`, `db_import.php` |
+後台 UI 以 SPA **`/app/admin/…`** 為準（經 `/api/v1`）。`admin/*.php`／`portal/*.php` 僅 **302 轉址**（相容舊書籤）。
 
-- **`portal/`** — Deprecated; PHP files 302 to `admin/` (contributor permissions unchanged on admin pages).
-- **`assets/js/`** — `admin-api.js`, `admin-question-bank.js`, `admin-content-embed.js`, `user-menu.js`.
+| Area | SPA routes |
+|------|------------|
+| Home | `/admin` |
+| Users & roles | `/admin/users`、`/admin/permissions`（模仿走 REST） |
+| Catalogue | `/admin/subjects`、`/admin/simulations` |
+| Learning content | `/admin/learning-notes`、`/admin/worksheets`、`/admin/articles`、`/admin/question-banks`、`/admin/learning-videos` |
+| Summer homework | `/admin/summer-homework`（含 edit／view／analytics） |
+| Curriculum | `/admin/course-curriculum` |
+| Classes / courses | `/admin/courses`（含 students／report／worksheets／summer） |
+| Platform / ops | `/admin/nav-menu`、`/admin/review-queue`、`/admin/db-export`、`/admin/db-import`、`/admin/qsis-import`、`/admin/data-dictionary` |
+
+- **`portal/`** — Deprecated；302 直連 SPA。
+- **`assets/js/`** — 仍含 `admin-api.js`、`user-menu.js` 等（PHP 殼或共用）；SPA 主要用 `ScienceApi`。
 - **`assets/css/user-menu.css`** — Shared account dropdown (SPA + admin).
 
 ---
@@ -322,7 +324,7 @@ science_sims/
 ├── login.php, logout.php, register.php
 ├── simulation_view.php      # 302 → /api/v1/simulations/{slug}/html
 ├── markdown_reader.php    # Whitelist + admin for sensitive .md
-├── index_csv_editor.php     # 302 → admin/simulations.php
+├── index_csv_editor.php     # 302 → /app/admin/simulations
 ├── docs/openapi.yaml        # API contract stub
 ├── docs/reference/          # Non-runtime teaching/legacy files
 ├── scripts/apply_schema.php
@@ -331,8 +333,8 @@ science_sims/
 ├── tests/                   # PHPUnit
 │
 ├── includes/              # PHP config, DB, auth, content libs
-├── admin/                 # Back office (moving toward API-only UI)
-├── portal/                # Deprecated redirects → admin/
+├── admin/                 # Redirect shells → /app/admin/…
+├── portal/                # Deprecated redirects → SPA
 ├── schema.sql             # Full database schema (canonical)
 ├── schema_*.sql           # Incremental upgrades for existing DBs
 │
@@ -385,7 +387,7 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
   - `grading_json` — score summary + per-question `details[]` (`question_id`, `type`, `correct`, `score`, `max`, …); MCQ includes options snapshot.
   - `teacher_marks_json` — optional teacher scores/comments for long-answer items.
 - **Due status**: **準時** / **欠交** / **未交** from **first passing** attempt’s `submitted_at` vs `due_at` (not best-score attempt). Incomplete (never passed) = 未交; first pass after due = 欠交.
-- **Class report**: `admin/course_summer_homework.php` via `sh_class_report()` — status filter + CSV export.
+- **Class report**: SPA `/app/admin/courses/{id}/summer` via `sh_class_report()` — status filter + CSV export.
 - **Item analytics**: SPA `/app/admin/summer-homework/{id}/analytics` via `GET /admin/summer-homework/{id}/analytics` + attempts/marks APIs (`sh_item_attempt_analytics()`). Legacy `admin/summer_homework_analytics.php` 302s to SPA.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.
 - Upgrade scripts: `schema_summer_homework*.sql`, including **`schema_summer_homework_qtypes.sql`**.
@@ -452,8 +454,8 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 ## Development guidelines
 
 - Follow **`rule.md`** for naming, HTML skeleton, PHP/SPA conventions, and worksheet embed syntax.
-- New simulations: add HTML under the correct subject folder; register via **admin / DB workflow**.
-- Learning content: use **admin/** editors (portal redirects here); SPA reads published items via **`/api/v1/`**. Subjects: SPA `/app/admin/subjects`.
+- New simulations: add HTML under the correct subject folder; register via **SPA `/app/admin/simulations`**.
+- Learning content: use **SPA `/app/admin/…`** editors (`admin/`／`portal/` redirect shells); SPA reads published items via **`/api/v1/`**. Subjects: SPA `/app/admin/subjects`.
 - Schema changes: edit **`schema.sql`** and document in **`change_log.md`**; for existing DBs prefer an additive **`schema_*.sql`** upgrade script.
 - Document significant changes in **`change_log.md`**; summer-homework module notes in **`README.md`**.
 - Prefer **small, focused diffs**; match existing style in each directory.

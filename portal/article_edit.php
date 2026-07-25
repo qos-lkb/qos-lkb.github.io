@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 /**
- * @deprecated Use admin/article_edit.php
+ * @deprecated Portal → SPA /app/admin/articles/…
  */
 require_once dirname(__DIR__) . '/includes/spa_redirect.php';
 
-portal_redirect_to_admin('admin/article_edit.php');
+$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+spa_redirect($id > 0 ? '/admin/articles/' . $id . '/edit' : '/admin/articles/new', false);

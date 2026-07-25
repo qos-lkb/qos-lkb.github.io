@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 /**
- * @deprecated Use admin/learning_tools.php
+ * @deprecated Portal → SPA question banks (Phase 7).
  */
 require_once dirname(__DIR__) . '/includes/spa_redirect.php';
 
-portal_redirect_to_admin('admin/learning_tools.php');
+spa_redirect('/admin/question-banks', false);

@@ -28,15 +28,15 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 - **課程班別**：教師／管理員建立課程（年級、科目）、邀請碼選課、QSIS 匯入、班別／班號／MOI；**僅管理員**可改班內學生與 MOI
 - **登入**：帳戶名與 QSIS 相同（如學號，**不用** `@qos.edu.hk`）；密碼以校本 **QSIS** 為準
 - **工作紙派發**：教師派發予班級、學生於 `/app/assignments` 完成提交、教師評分與回饋、試題自動計分
-- **管理後台**（`admin/`）：使用者／角色（admin、teacher、student）、權限矩陣、各科內容 CRUD、暑期功課分析、課程編排、前台選單可見性、審核佇列、帳戶模仿（除錯）
+- **管理後台**（SPA **`/app/admin`**，經 `/api/v1`）：使用者／角色、權限矩陣、各科內容 CRUD、暑期功課分析、課程編排、前台選單、審核佇列、帳戶模仿；`admin/`／`portal/` PHP 僅轉址
 - **帳戶選單**：SPA 與後台共用個人設定與登出
 - 模擬本體多為 **Vanilla JS**；少數使用 Three.js、Chart.js、MathJax、React standalone；SPA 篇章／題目支援 MathJax
 
 ## 技術棧 | Technology stack
 
-- **HTML5 / CSS3 / JavaScript**；**Tailwind CSS**（CDN）
+- **HTML5 / CSS3 / JavaScript**；**Tailwind CSS**（CDN；SPA 另有建置版）
 - **PHP 8+**（`declare(strict_types=1);`）、`PDO`、**MariaDB / MySQL**；時區 **Asia/Hong_Kong**
-- **Vanilla JS SPA**（`app/`，無 bundler）+ **REST API**（`api/v1/`）
+- **Vanilla JS SPA**（`app/`，Vite 建置）+ **REST API**（`api/v1/`）
 - CDN：**Three.js**、**Chart.js**、**MathJax**、**html2canvas**、**DOMPurify**、**jsPDF**
 
 詳見 [architecture.md](architecture.md)。
@@ -45,15 +45,15 @@ An interactive science platform for HKDSE and secondary science: standalone HTML
 
 ```
 science_sims/
-├── app/                      # SPA 前端（主要入口）
+├── app/                      # SPA 前端（主要入口；Vite → dist/）
 ├── api/v1/                   # REST API（router + handlers）
-├── assets/js/, assets/css/   # 後台共用腳本（含 user-menu、admin-api）
+├── assets/js/, assets/css/   # 共用腳本／樣式（含 user-menu）
 ├── codespace/                # HTML 即時編輯
 ├── index.php                 # 302 → app/
 ├── index.html                # 選用轉址
 ├── includes/                 # 設定、DB、auth、內容 lib
-├── admin/                    # 後台（含 courses、classes、qsis_import）
-├── portal/                   # 已下線：僅 302 → admin/（見 portal/README.md）
+├── admin/                    # 轉址殼 → /app/admin/…
+├── portal/                   # 已下線：302 → SPA（見 portal/README.md）
 ├── schema.sql                # 完整資料庫 schema（新環境一次匯入）
 ├── schema_*.sql              # 既有庫增量升級（暑期功課、課程年級等）
 ├── physics/, chem/, biology/, science/, astronomy/, …
@@ -70,16 +70,14 @@ science_sims/
 
 ### 1. PHP + 資料庫（完整功能）
 
-### 1. PHP + 資料庫（完整功能）
-
 1. 安裝 **PHP 8+**、**MariaDB**。
 2. 複製 **`.env.example`** 為 **`.env`**，填入 `DB_HOST`、`DB_NAME`、`DB_USER`、`DB_PASS` 等。
 3. 匯入 **`schema.sql`** 建立完整資料庫結構（見 [architecture.md](architecture.md)）。**既有庫一次升級**請匯入 **`schema_upgrade_all.sql`**（或 `composer install` 後 `php scripts/apply_schema.php`；`--status` 可查進度）。
 4. 開發依賴：`composer install`；單元測試：`composer test`（CI 見 `.github/workflows/ci.yml`）。
 5. **SPA 建置**（推薦）：`cd app && npm install && npm run build`；`app/index.php` 會優先服務 `app/dist/`。未建置時退回 `index.legacy.html`。
-6. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。SPA 路由含 `/login`、`/admin`、`/admin/subjects`（後台遷移中）。
+6. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。後台入口：**`/app/admin`**（經 `/api/v1`）。
 7. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
-8. 選填：磁碟模擬 HTML 同步至 DB — `php scripts/sync_simulations_to_db.php`（`--dry-run` 預覽）。API 契約 stub：[`docs/openapi.yaml`](docs/openapi.yaml)。
+8. 選填：磁碟模擬 HTML 同步至 DB — `php scripts/sync_simulations_to_db.php`（`--dry-run` 預覽）。API 契約：[`docs/openapi.yaml`](docs/openapi.yaml)。
 
 ### 2. 僅預覽單一模擬（無 PHP）
 
@@ -98,16 +96,16 @@ python3 -m http.server 8000
 
 1. 在適當學科目錄建立 **`.html`**，於 `<head>` 引入所需 CDN（與同目錄風格一致）。
 2. 依 **`rule.md`** 命名與結構（標題、無障礙、語言標記等）。
-3. 透過 **`admin/simulations.php`**（或 portal）登記 URL、科目／課題、中英標題，並設為 **已發佈**。
+3. 於 SPA **`/app/admin/simulations`** 登記 URL、科目／課題、中英標題，並設為 **已發佈**（舊 `admin/simulations.php` 會轉址）。
 4. 多瀏覽器測試後提交；重大變更請更新 **`change_log.md`**。
 
 ## 新增學習內容 | Adding learning content
 
-- **筆記、文章、互動工具、影片、試題庫**：經 `admin/` 編輯（`portal/` 已轉址至此），走 `draft` → `pending_review` → `published` 流程。科目／單元可走 SPA **`/app/admin/subjects`**。
-- **工作紙**：`admin/worksheet_edit.php`；Markdown 內可嵌入模擬、影片、試題（語法見 **`rule.md`** §16）。
-- **自學課程編排**：`admin/course_curriculum.php`（`topic_learning_items`）。
-- **課程班別**：`admin/courses.php`；學生與 MOI 見 `admin/course_students.php`；派發工作紙見 `admin/course_worksheets.php`；暑期功課班級報表見 `admin/course_summer_homework.php`。
-- **暑期功課**：`admin/summer_homework.php`（編輯／分析）；規則與資料結構見下方 [暑期功課](#暑期功課--summer-homework)。
+- **筆記、文章、影片、試題庫、模擬**：經 SPA **`/app/admin/…`**（`admin/`／`portal/` PHP 僅轉址），走 `draft` → `pending_review` → `published`。科目／單元：**`/app/admin/subjects`**。
+- **工作紙**：`/app/admin/worksheets`；Markdown 內可嵌入模擬、影片、試題（語法見 **`rule.md`** §16）。
+- **自學課程編排**：`/app/admin/course-curriculum`（`topic_learning_items`）。
+- **課程班別**：`/app/admin/courses`；學生與 MOI、工作紙派發、暑期班級報表皆為課程子頁。
+- **暑期功課**：`/app/admin/summer-homework`（編輯／檢視／分析）；規則與資料結構見下方 [暑期功課](#暑期功課--summer-homework)。
 
 ---
 
@@ -269,13 +267,10 @@ mysql -u USER -p DB_NAME < schema_summer_homework_qtypes.sql
 |------|------|
 | `includes/summer_homework_lib.php` | 業務邏輯、計分、班級報表、分析 |
 | `api/v1/handlers/summer_homework.php` | REST API |
-| `admin/summer_homework.php` | 習作列表（含「分析」連結） |
-| `admin/summer_homework_edit.php` | 編輯習作 |
-| `admin/summer_homework_analytics.php` | 呈交分析／選項分布／作答明細 |
-| `admin/summer_homework_view.php` | 檢視習作內容與正確答案（教師／管理員） |
-| `admin/course_summer_homework.php` | 班級呈交報表 |
-| `admin/course_students.php` | 學生與 MOI（管理員編輯） |
-| `app/assets/js/summer-homework.js` | 前台 UI |
+| `/app/admin/summer-homework` | SPA：列表／編輯／檢視／分析（舊 `admin/summer_homework*.php` 轉址） |
+| `/app/admin/courses/:id/summer` | SPA：班級呈交報表 |
+| `/app/admin/courses/:id/students` | SPA：學生與 MOI |
+| `app/src/modules/summer-homework.js` | 前台暑期 UI |
 | `schema_summer_homework.sql` | 既有庫：建立表 |
 | `schema_summer_homework_due.sql` | 既有庫升級（due_at／allow_late_submit） |
 | `schema_summer_homework_grading.sql` | 既有庫升級（attempts.grading_json） |

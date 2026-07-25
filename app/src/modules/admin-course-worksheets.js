@@ -103,7 +103,7 @@ const global = window;
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
-                    ${canDesign ? `<a href="${escapeHtml(legacyAdmin('worksheets.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('設計工作紙', 'Design worksheets'))}</a>` : ''}
+                    ${canDesign ? `<a href="${escapeHtml(spaHref('/admin/worksheets'))}" data-spa-nav="/admin/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('設計工作紙', 'Design worksheets'))}</a>` : ''}
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-2">${escapeHtml(c.name || '')}</h2>
                 <p id="admin-ws-flash" class="text-sm mb-4 hidden"></p>
