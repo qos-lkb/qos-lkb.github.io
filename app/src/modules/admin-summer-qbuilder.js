@@ -4,6 +4,7 @@ const global = window;
     let qBox = null;
     let editId = 0;
     let onSaved = null;
+    let showEn = false;
 
     function apiFetch(path, opts) {
         return global.ScienceApi.apiFetch(path, opts);
@@ -15,6 +16,7 @@ const global = window;
 
     const TYPE_LABELS = {
         mcq: '選擇題',
+        multi_select: '多選題',
         fill_blank: '填充題',
         true_false: '是非題',
         short_answer: '短答題',
@@ -42,6 +44,27 @@ const global = window;
         return TYPE_LABELS[type] || type;
     }
 
+    function typesetPreview(el) {
+        if (!el) return;
+        if (global.MathJax && typeof global.MathJax.typesetPromise === 'function') {
+            global.MathJax.typesetPromise([el]).catch(() => {});
+        }
+    }
+
+    function insertAtCursor(textarea, text) {
+        if (!textarea) return;
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? start;
+        const val = textarea.value;
+        textarea.value = val.slice(0, start) + text + val.slice(end);
+        textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        textarea.focus();
+    }
+
+    function enClass() {
+        return showEn ? '' : 'hidden';
+    }
+
     function blankMcq() {
         return {
             question_type: 'mcq',
@@ -56,6 +79,14 @@ const global = window;
                 { text_zh: '', text_en: '', is_correct: false },
             ],
         };
+    }
+
+    function blankMultiSelect() {
+        const q = blankMcq();
+        q.question_type = 'multi_select';
+        q.options[0].is_correct = true;
+        q.options[1].is_correct = true;
+        return q;
     }
 
     function blankFill() {
@@ -95,6 +126,7 @@ const global = window;
             stem_en: '',
             explanation_zh: '',
             explanation_en: '',
+            match_mode: 'exact',
             acceptable_answers: [{ acceptable_answer_zh: '', acceptable_answer_en: '' }],
         };
     }
@@ -110,6 +142,15 @@ const global = window;
             rubric_zh: '',
             rubric_en: '',
         };
+    }
+
+    function blankForType(type) {
+        if (type === 'fill_blank') return blankFill();
+        if (type === 'true_false') return blankTrueFalse();
+        if (type === 'short_answer') return blankShortAnswer();
+        if (type === 'long_answer') return blankLongAnswer();
+        if (type === 'multi_select') return blankMultiSelect();
+        return blankMcq();
     }
 
     function normalizeFillBlanks(blanks) {
@@ -145,36 +186,56 @@ const global = window;
         }));
     }
 
+    function renderRichTextarea(className, value, placeholder, rows) {
+        return `<div class="rich-field">
+            <div class="flex justify-end mb-1">
+                <button type="button" class="preview-math text-xs px-2 py-0.5 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50" data-target="${className}">預覽</button>
+            </div>
+            <textarea class="${className} w-full border rounded-lg px-3 py-2 text-sm font-mono" rows="${rows || 2}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>
+            <div class="math-preview hidden mt-1 p-2 border rounded bg-white text-sm"></div>
+        </div>`;
+    }
+
     function renderExplanationFields(q) {
-        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-            <input class="expl-zh w-full border rounded-lg px-3 py-2 text-sm" placeholder="解釋（中，選填）" value="${escapeHtml(q.explanation_zh || '')}">
-            <input class="expl-en w-full border rounded-lg px-3 py-2 text-sm" placeholder="解釋（英，選填）" value="${escapeHtml(q.explanation_en || '')}">
+        return `<div class="mt-2 space-y-2">
+            <div>${renderRichTextarea('expl-zh', q.explanation_zh || '', '解釋（中，選填）', 2)}</div>
+            <div class="sh-en-field ${enClass()}">${renderRichTextarea('expl-en', q.explanation_en || '', '解釋（英，選填）', 2)}</div>
         </div>`;
     }
 
     function renderStemFields(q) {
-        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-            <textarea class="stem-zh w-full border rounded-lg px-3 py-2 text-sm" rows="2" placeholder="題幹（中）">${escapeHtml(q.stem_zh)}</textarea>
-            <textarea class="stem-en w-full border rounded-lg px-3 py-2 text-sm" rows="2" placeholder="題幹（英）">${escapeHtml(q.stem_en)}</textarea>
+        return `<div class="space-y-2 mb-2">
+            <div>${renderRichTextarea('stem-zh', q.stem_zh || '', '題幹（中）', 2)}</div>
+            <div class="sh-en-field ${enClass()}">${renderRichTextarea('stem-en', q.stem_en || '', '題幹（英）', 2)}</div>
         </div>`;
     }
 
-    function renderMcqBody(q, index) {
+    function renderTypeSelect(type) {
+        const opts = Object.keys(TYPE_LABELS).map((k) =>
+            `<option value="${k}" ${k === type ? 'selected' : ''}>${TYPE_LABELS[k]}</option>`
+        ).join('');
+        return `<select class="sh-type-select text-xs border rounded px-2 py-1 bg-white">${opts}</select>`;
+    }
+
+    function renderMcqBody(q, index, multi) {
         const opts = (q.options && q.options.length >= MCQ_MIN) ? q.options : blankMcq().options;
+        const inputType = multi ? 'checkbox' : 'radio';
         let html = `<div class="flex items-center gap-3 mb-2">
-            <span class="text-xs text-slate-500">選項（${MCQ_MIN}–${MCQ_MAX} 項）</span>
+            <span class="text-xs text-slate-500">選項（${MCQ_MIN}–${MCQ_MAX} 項）${multi ? ' · 可多選正確答案' : ''}</span>
             <button type="button" class="text-xs text-indigo-600 sh-add-opt">+ 選項</button>
-            <button type="button" class="text-xs text-slate-600 sh-remove-opt">− 選項</button>
         </div>
         <div class="space-y-2 sh-options">`;
         opts.forEach((o, i) => {
             const isCorrect = o.is_correct === 1 || o.is_correct === '1' || o.is_correct === true;
-            html += `<label class="flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row">
-                <input type="radio" name="correct-${index}" class="mt-1 is-correct" ${isCorrect ? 'checked' : ''}>
+            html += `<div class="flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row">
+                <input type="${inputType}" name="correct-${index}" class="mt-1 is-correct" ${isCorrect ? 'checked' : ''}>
                 <span class="font-bold text-indigo-600 w-5 sh-opt-letter">${String.fromCharCode(65 + i)}</span>
-                <input class="opt-zh flex-1 border rounded px-2 py-1" placeholder="選項中文" value="${escapeHtml(o.text_zh)}">
-                <input class="opt-en flex-1 border rounded px-2 py-1" placeholder="選項英文" value="${escapeHtml(o.text_en)}">
-            </label>`;
+                <div class="flex-1 space-y-1">
+                    <input class="opt-zh w-full border rounded px-2 py-1" placeholder="選項中文" value="${escapeHtml(o.text_zh)}">
+                    <input class="opt-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="選項英文" value="${escapeHtml(o.text_en)}">
+                </div>
+                <button type="button" class="text-xs text-red-600 sh-remove-opt-row shrink-0" title="移除此選項">×</button>
+            </div>`;
         });
         html += '</div>';
         return html;
@@ -183,14 +244,14 @@ const global = window;
     function renderAnswerRow(ans) {
         return `<div class="flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row">
             <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）" value="${escapeHtml(ans.acceptable_answer_zh)}">
-            <input class="ans-en flex-1 border rounded px-2 py-1" placeholder="可接受答案（英）" value="${escapeHtml(ans.acceptable_answer_en)}">
+            <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）" value="${escapeHtml(ans.acceptable_answer_en)}">
             <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>
         </div>`;
     }
 
     function renderFillBlankBody(q) {
         const blanks = normalizeFillBlanks(q.blanks);
-        let html = '<p class="text-xs text-slate-500 mb-2">題幹中使用 <code>{{1}}</code>、<code>{{2}}</code> 標記空格。</p>';
+        let html = '<p class="text-xs text-slate-500 mb-2">題幹中使用 <code>{{1}}</code>、<code>{{2}}</code> 或 <code>___</code> 標記空格。</p>';
         html += '<div class="space-y-3 sh-blanks">';
         blanks.forEach((b, bi) => {
             html += renderBlankBlock(b, bi);
@@ -234,7 +295,15 @@ const global = window;
 
     function renderShortAnswerBody(q) {
         const answers = normalizeShortAnswers(q.acceptable_answers);
-        let html = '<div class="space-y-2 sh-short-answers">';
+        const mode = q.match_mode === 'contains' ? 'contains' : 'exact';
+        let html = `<div class="mb-2">
+            <label class="text-xs text-slate-500 mr-2">比對模式</label>
+            <select class="match-mode text-xs border rounded px-2 py-1">
+                <option value="exact" ${mode === 'exact' ? 'selected' : ''}>完全相符</option>
+                <option value="contains" ${mode === 'contains' ? 'selected' : ''}>含關鍵字</option>
+            </select>
+        </div>`;
+        html += '<div class="space-y-2 sh-short-answers">';
         answers.forEach((ans) => {
             html += renderAnswerRow(ans);
         });
@@ -250,9 +319,9 @@ const global = window;
                 <label class="text-xs text-slate-500">滿分</label>
                 <input type="number" min="0.5" step="0.5" class="max-score w-24 border rounded-lg px-3 py-2 text-sm mt-1" value="${escapeHtml(maxScore)}">
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div class="space-y-2">
                 <textarea class="rubric-zh w-full border rounded-lg px-3 py-2 text-sm" rows="3" placeholder="評分準則（中）">${escapeHtml(q.rubric_zh || '')}</textarea>
-                <textarea class="rubric-en w-full border rounded-lg px-3 py-2 text-sm" rows="3" placeholder="評分準則（英）">${escapeHtml(q.rubric_en || '')}</textarea>
+                <textarea class="rubric-en w-full border rounded-lg px-3 py-2 text-sm sh-en-field ${enClass()}" rows="3" placeholder="評分準則（英）">${escapeHtml(q.rubric_en || '')}</textarea>
             </div>
             <p class="text-xs text-slate-500">長答題須教師人手評分，不計入自動及格百分比。</p>
         </div>`;
@@ -262,10 +331,27 @@ const global = window;
         return [...qBox.querySelectorAll('.sh-q')].indexOf(wrap);
     }
 
-    function wireMcqHandlers(wrap) {
+    function bindRichPreview(scope) {
+        scope.querySelectorAll('.preview-math').forEach((btn) => {
+            btn.onclick = () => {
+                const cls = btn.dataset.target;
+                const field = btn.closest('.rich-field');
+                const ta = field ? field.querySelector('.' + cls) : scope.querySelector('.' + cls);
+                const preview = field ? field.querySelector('.math-preview') : null;
+                if (!ta || !preview) return;
+                preview.classList.remove('hidden');
+                const md = global.AppMarkdown && global.AppMarkdown.renderMarkdownToHtml
+                    ? global.AppMarkdown.renderMarkdownToHtml(ta.value)
+                    : ta.value.replace(/\n/g, '<br>');
+                preview.innerHTML = md;
+                typesetPreview(preview);
+            };
+        });
+    }
+
+    function wireMcqHandlers(wrap, multi) {
         const optBox = wrap.querySelector('.sh-options');
         const addBtn = wrap.querySelector('.sh-add-opt');
-        const removeBtn = wrap.querySelector('.sh-remove-opt');
 
         function refreshMcqLetters() {
             optBox.querySelectorAll('.sh-opt-row').forEach((row, i) => {
@@ -278,36 +364,44 @@ const global = window;
             return optBox.querySelectorAll('.sh-opt-row').length;
         }
 
+        function wireOptRow(row) {
+            const rm = row.querySelector('.sh-remove-opt-row');
+            if (!rm) return;
+            rm.onclick = () => {
+                if (mcqCount() <= MCQ_MIN) return;
+                const wasCorrect = row.querySelector('.is-correct')?.checked;
+                row.remove();
+                if (wasCorrect && !multi) {
+                    const first = optBox.querySelector('.sh-opt-row .is-correct');
+                    if (first) first.checked = true;
+                }
+                refreshMcqLetters();
+                updateMcqButtons(wrap);
+            };
+        }
+
         addBtn.onclick = () => {
             if (mcqCount() >= MCQ_MAX) return;
             const n = mcqCount();
             const idx = getWrapIndex(wrap);
-            const label = document.createElement('label');
-            label.className = 'flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row';
-            label.innerHTML = `
-                <input type="radio" name="correct-${idx}" class="mt-1 is-correct">
+            const inputType = multi ? 'checkbox' : 'radio';
+            const div = document.createElement('div');
+            div.className = 'flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row';
+            div.innerHTML = `
+                <input type="${inputType}" name="correct-${idx}" class="mt-1 is-correct">
                 <span class="font-bold text-indigo-600 w-5 sh-opt-letter">${String.fromCharCode(65 + n)}</span>
-                <input class="opt-zh flex-1 border rounded px-2 py-1" placeholder="選項中文">
-                <input class="opt-en flex-1 border rounded px-2 py-1" placeholder="選項英文">`;
-            optBox.appendChild(label);
+                <div class="flex-1 space-y-1">
+                    <input class="opt-zh w-full border rounded px-2 py-1" placeholder="選項中文">
+                    <input class="opt-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="選項英文">
+                </div>
+                <button type="button" class="text-xs text-red-600 sh-remove-opt-row shrink-0" title="移除此選項">×</button>`;
+            optBox.appendChild(div);
+            wireOptRow(div);
             refreshMcqLetters();
             updateMcqButtons(wrap);
         };
 
-        removeBtn.onclick = () => {
-            if (mcqCount() <= MCQ_MIN) return;
-            const rows = optBox.querySelectorAll('.sh-opt-row');
-            const last = rows[rows.length - 1];
-            const wasCorrect = last.querySelector('.is-correct').checked;
-            last.remove();
-            if (wasCorrect) {
-                const first = optBox.querySelector('.sh-opt-row .is-correct');
-                if (first) first.checked = true;
-            }
-            refreshMcqLetters();
-            updateMcqButtons(wrap);
-        };
-
+        optBox.querySelectorAll('.sh-opt-row').forEach(wireOptRow);
         updateMcqButtons(wrap);
     }
 
@@ -316,9 +410,11 @@ const global = window;
         if (!optBox) return;
         const count = optBox.querySelectorAll('.sh-opt-row').length;
         const addBtn = wrap.querySelector('.sh-add-opt');
-        const removeBtn = wrap.querySelector('.sh-remove-opt');
         if (addBtn) addBtn.disabled = count >= MCQ_MAX;
-        if (removeBtn) removeBtn.disabled = count <= MCQ_MIN;
+        optBox.querySelectorAll('.sh-remove-opt-row').forEach((btn) => {
+            btn.disabled = count <= MCQ_MIN;
+            btn.classList.toggle('opacity-40', count <= MCQ_MIN);
+        });
     }
 
     function wireFillBlankHandlers(wrap) {
@@ -340,7 +436,7 @@ const global = window;
                 div.className = 'flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row';
                 div.innerHTML = `
                     <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）">
-                    <input class="ans-en flex-1 border rounded px-2 py-1" placeholder="可接受答案（英）">
+                    <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）">
                     <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>`;
                 wireRemoveAnswer(div);
                 answersBox.appendChild(div);
@@ -380,7 +476,7 @@ const global = window;
                 div.className = 'flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row';
                 div.innerHTML = `
                     <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）">
-                    <input class="ans-en flex-1 border rounded px-2 py-1" placeholder="可接受答案（英）">
+                    <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）">
                     <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>`;
                 wireRemoveAnswer(div);
                 container.appendChild(div);
@@ -396,7 +492,7 @@ const global = window;
             div.className = 'flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row';
             div.innerHTML = `
                 <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）">
-                <input class="ans-en flex-1 border rounded px-2 py-1" placeholder="可接受答案（英）">
+                <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）">
                 <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>`;
             wireRemoveAnswer(div);
             box.appendChild(div);
@@ -411,21 +507,60 @@ const global = window;
         }));
     }
 
-    function renderQuestion(q, index) {
+    function moveQuestion(wrap, dir) {
+        const sibling = dir < 0 ? wrap.previousElementSibling : wrap.nextElementSibling;
+        if (!sibling || !sibling.classList.contains('sh-q')) return;
+        if (dir < 0) qBox.insertBefore(wrap, sibling);
+        else qBox.insertBefore(sibling, wrap);
+        renumber();
+    }
+
+    function changeQuestionType(wrap, newType) {
+        if (newType === wrap.dataset.type) return;
+        if (!confirm('切換題型會清空該題的答案結構（保留題幹與解釋）。確定？')) {
+            wrap.querySelector('.sh-type-select').value = wrap.dataset.type;
+            return;
+        }
+        const stemZh = wrap.querySelector('.stem-zh')?.value || '';
+        const stemEn = wrap.querySelector('.stem-en')?.value || '';
+        const explZh = wrap.querySelector('.expl-zh')?.value || '';
+        const explEn = wrap.querySelector('.expl-en')?.value || '';
+        const qid = wrap.dataset.qid;
+        const fresh = blankForType(newType);
+        fresh.stem_zh = stemZh;
+        fresh.stem_en = stemEn;
+        fresh.explanation_zh = explZh;
+        fresh.explanation_en = explEn;
+        if (qid) fresh.id = parseInt(qid, 10);
+        const idx = getWrapIndex(wrap);
+        const next = wrap.nextElementSibling;
+        wrap.remove();
+        renderQuestion(fresh, idx, next);
+        renumber();
+    }
+
+    function renderQuestion(q, index, beforeEl) {
         const wrap = document.createElement('div');
         wrap.className = 'border border-slate-200 rounded-xl p-4 bg-slate-50/50 sh-q';
         wrap.dataset.type = q.question_type;
         if (q.id) wrap.dataset.qid = String(q.id);
 
         let body = `
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
                 <span class="text-xs font-semibold text-slate-500 sh-q-label">題目 ${index + 1} · ${typeLabel(q.question_type)}</span>
-                <button type="button" class="text-xs text-red-600 sh-remove">移除</button>
+                <div class="flex flex-wrap items-center gap-2">
+                    ${renderTypeSelect(q.question_type)}
+                    <button type="button" class="text-xs text-slate-600 sh-move-up" title="上移">↑</button>
+                    <button type="button" class="text-xs text-slate-600 sh-move-down" title="下移">↓</button>
+                    <button type="button" class="text-xs text-red-600 sh-remove">移除</button>
+                </div>
             </div>
             ${renderStemFields(q)}`;
 
         if (q.question_type === 'mcq') {
-            body += renderMcqBody(q, index);
+            body += renderMcqBody(q, index, false);
+        } else if (q.question_type === 'multi_select') {
+            body += renderMcqBody(q, index, true);
         } else if (q.question_type === 'fill_blank') {
             body += renderFillBlankBody(q);
         } else if (q.question_type === 'true_false') {
@@ -443,25 +578,41 @@ const global = window;
             wrap.remove();
             renumber();
         };
+        wrap.querySelector('.sh-move-up').onclick = () => moveQuestion(wrap, -1);
+        wrap.querySelector('.sh-move-down').onclick = () => moveQuestion(wrap, 1);
+        wrap.querySelector('.sh-type-select').onchange = (e) => changeQuestionType(wrap, e.target.value);
 
-        if (q.question_type === 'mcq') wireMcqHandlers(wrap);
+        if (q.question_type === 'mcq') wireMcqHandlers(wrap, false);
+        else if (q.question_type === 'multi_select') wireMcqHandlers(wrap, true);
         else if (q.question_type === 'fill_blank') wireFillBlankHandlers(wrap);
         else if (q.question_type === 'short_answer') wireShortAnswerHandlers(wrap);
 
-        qBox.appendChild(wrap);
+        bindRichPreview(wrap);
+
+        if (beforeEl) qBox.insertBefore(wrap, beforeEl);
+        else qBox.appendChild(wrap);
+    }
+
+    function applyEnVisibility() {
+        if (!qBox) return;
+        qBox.querySelectorAll('.sh-en-field').forEach((el) => {
+            el.classList.toggle('hidden', !showEn);
+        });
+        const btn = document.getElementById('sh-toggle-en');
+        if (btn) btn.textContent = showEn ? '隱藏英文欄' : '展開英文欄';
     }
 
     function renumber() {
         [...qBox.querySelectorAll('.sh-q')].forEach((el, i) => {
             const label = el.querySelector('.sh-q-label');
             if (label) label.textContent = `題目 ${i + 1} · ${typeLabel(el.dataset.type)}`;
-            el.querySelectorAll('input[type=radio].is-correct').forEach((r) => {
+            el.querySelectorAll('input.is-correct').forEach((r) => {
                 r.name = `correct-${i}`;
             });
             el.querySelectorAll('input[type=radio].tf-correct').forEach((r) => {
                 r.name = `tf-${i}`;
             });
-            if (el.dataset.type === 'mcq') updateMcqButtons(el);
+            if (el.dataset.type === 'mcq' || el.dataset.type === 'multi_select') updateMcqButtons(el);
         });
     }
 
@@ -479,7 +630,7 @@ const global = window;
             const qid = parseInt(el.dataset.qid || '0', 10);
             if (qid > 0) base.id = qid;
 
-            if (type === 'mcq') {
+            if (type === 'mcq' || type === 'multi_select') {
                 base.options = [...el.querySelectorAll('.sh-options .sh-opt-row')].map((row, oi) => ({
                     sort_order: oi,
                     text_zh: row.querySelector('.opt-zh').value,
@@ -497,6 +648,8 @@ const global = window;
                 base.correct_bool = checked ? checked.value === 'true' : true;
             } else if (type === 'short_answer') {
                 base.acceptable_answers = collectAnswerRows(el.querySelector('.sh-short-answers'));
+                const mm = el.querySelector('.match-mode');
+                base.match_mode = mm && mm.value === 'contains' ? 'contains' : 'exact';
             } else if (type === 'long_answer') {
                 const maxEl = el.querySelector('.max-score');
                 base.max_score = maxEl ? parseFloat(maxEl.value) || 5 : 5;
@@ -516,6 +669,16 @@ const global = window;
         };
     }
 
+    function wireEnToggle() {
+        const btn = document.getElementById('sh-toggle-en');
+        if (!btn) return;
+        btn.onclick = () => {
+            showEn = !showEn;
+            applyEnVisibility();
+        };
+        applyEnVisibility();
+    }
+
     /**
      * Mount summer homework editor onto the current DOM form (#edit-form, #questions, …).
      * @param {{ editId?: number, onSaved?: (saved: object) => void, onError?: (err: Error) => void }} opts
@@ -525,6 +688,7 @@ const global = window;
         qBox = document.getElementById('questions');
         editId = Number(opts.editId || 0) || 0;
         onSaved = typeof opts.onSaved === 'function' ? opts.onSaved : null;
+        showEn = false;
         const onError = typeof opts.onError === 'function' ? opts.onError : null;
         if (!ensureReady()) {
             throw new Error('Summer editor mount failed');
@@ -534,10 +698,12 @@ const global = window;
         const contentTypeEl = document.getElementById('content-type');
         if (contentTypeEl) contentTypeEl.onchange = toggleContentType;
         wireAddButton('add-mcq', blankMcq);
+        wireAddButton('add-multi', blankMultiSelect);
         wireAddButton('add-fill', blankFill);
         wireAddButton('add-tf', blankTrueFalse);
         wireAddButton('add-short', blankShortAnswer);
         wireAddButton('add-long', blankLongAnswer);
+        wireEnToggle();
 
         toggleContentType();
         if (editId) {
@@ -562,9 +728,15 @@ const global = window;
                 document.getElementById('body-en').value = detail.body_en || '';
                 document.getElementById('video-url').value = detail.video_embed_url || '';
                 document.getElementById('video-provider').value = detail.video_provider || 'youtube';
+                const refsEl = document.getElementById('content-refs-json');
+                if (refsEl) {
+                    const refs = detail.content_refs || detail.content_refs_json || [];
+                    refsEl.value = typeof refs === 'string' ? refs : JSON.stringify(refs, null, 2);
+                }
                 toggleContentType();
                 (detail.questions || []).forEach((q, i) => renderQuestion(q, i));
                 if (!(detail.questions || []).length) renderQuestion(blankMcq(), 0);
+                applyEnVisibility();
                 return detail;
             } catch (e) {
                 if (onError) onError(e);
@@ -572,6 +744,7 @@ const global = window;
             }
         }
         renderQuestion(blankMcq(), 0);
+        applyEnVisibility();
         return null;
     }
 
@@ -598,6 +771,15 @@ const global = window;
                 video_provider: document.getElementById('video-provider').value,
                 questions: collectQuestions(),
             };
+            const refsEl = document.getElementById('content-refs-json');
+            if (refsEl) {
+                try {
+                    payload.content_refs = refsEl.value.trim() ? JSON.parse(refsEl.value) : [];
+                } catch (err) {
+                    alert('內容引用 JSON 格式錯誤');
+                    return;
+                }
+            }
             try {
                 const saved = await apiFetch('/admin/summer-homework', {
                     method: 'POST',
@@ -621,6 +803,8 @@ const global = window;
         mount: mountSummerHomeworkEditor,
         bindSubmit: bindSummerHomeworkSubmit,
         collectQuestions,
+        insertAtCursor,
+        getEditId: () => editId || parseInt(document.getElementById('item-id')?.value || '0', 10) || 0,
     };
 
 export {};

@@ -215,6 +215,7 @@ function api_handle_admin_summer_homework(PDO $pdo, string $method): void
         $row = sh_get_by_id($pdo, (int) $r['id']);
         $out = sh_public_row($row ?: []);
         $out['questions'] = sh_fetch_questions($pdo, (int) $r['id'], true);
+        $out['media'] = sh_list_media($pdo, (int) $r['id']);
         if (isset($r['regraded_attempts'])) {
             $out['regraded_attempts'] = (int) $r['regraded_attempts'];
         }
@@ -255,9 +256,66 @@ function api_handle_admin_summer_homework_get(PDO $pdo, int $id): void
     }
     $out = sh_public_row($row);
     $out['questions'] = sh_fetch_questions($pdo, $id, true);
+    $out['media'] = sh_list_media($pdo, $id);
     $out['can_manage'] = sh_can_manage_row($user, $row);
     $out['can_review'] = true;
     api_json_ok($out);
+}
+
+function api_handle_admin_summer_homework_media_upload(PDO $pdo, int $id): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions((int) $user['id']);
+    $file = $_FILES['file'] ?? null;
+    if (!is_array($file)) {
+        api_json_error('validation_error', '請上載圖片檔案。', 422);
+    }
+    $altZh = isset($_POST['alt_zh']) ? trim((string) $_POST['alt_zh']) : null;
+    $altEn = isset($_POST['alt_en']) ? trim((string) $_POST['alt_en']) : null;
+    $result = sh_save_media_upload($pdo, $id, $file, $user, $altZh, $altEn);
+    if (!$result['ok']) {
+        api_json_error('upload_failed', $result['error'] ?? '上載失敗。', 422);
+    }
+    api_json_ok($result['media']);
+}
+
+function api_handle_admin_summer_homework_media_delete(PDO $pdo, int $id, int $mediaId): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions((int) $user['id']);
+    $result = sh_delete_media($pdo, $id, $mediaId, $user);
+    if (!$result['ok']) {
+        api_json_error('delete_failed', $result['error'] ?? '刪除失敗。', 422);
+    }
+    api_json_ok(['deleted' => true]);
+}
+
+function api_handle_admin_summer_homework_import_questions(PDO $pdo, int $id): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions((int) $user['id']);
+    $body = api_read_json_body();
+    $questionIds = isset($body['question_ids']) && is_array($body['question_ids'])
+        ? $body['question_ids']
+        : [];
+    $result = sh_import_questions_from_bank(
+        $pdo,
+        $id,
+        (int) ($body['bank_id'] ?? 0),
+        $questionIds,
+        $user
+    );
+    if (!$result['ok']) {
+        api_json_error('import_failed', $result['error'] ?? '匯入失敗。', 422);
+    }
+    api_json_ok([
+        'imported' => (int) ($result['imported'] ?? 0),
+        'skipped' => (int) ($result['skipped'] ?? 0),
+        'questions' => sh_fetch_questions($pdo, $id, true),
+    ]);
 }
 
 function api_handle_admin_summer_homework_analytics(PDO $pdo, int $id): void

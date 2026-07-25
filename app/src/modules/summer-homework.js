@@ -119,6 +119,39 @@ const global = window;
         return (lang || resolveSummerLang()) === 'zh' ? zh : en;
     }
 
+    function normalizeContentRefs(item) {
+        let refs = item.content_refs || item.content_refs_json || [];
+        if (typeof refs === 'string') {
+            try { refs = JSON.parse(refs); } catch (e) { refs = []; }
+        }
+        return Array.isArray(refs) ? refs.filter((r) => r && r.type && r.slug) : [];
+    }
+
+    function renderContentRefsHtml(refs) {
+        if (!refs.length) return '';
+        return `<div class="sh-content-refs space-y-4 mb-6">${refs.map((r) => {
+            const type = r.type === 'note' || r.type === 'article' || r.type === 'video' ? r.type : '';
+            if (!type) return '';
+            return `<div class="content-embed content-embed-pending my-2" data-embed-type="${escapeHtml(type)}" data-embed-slug="${escapeHtml(r.slug)}"></div>`;
+        }).join('')}</div>`;
+    }
+
+    function stemWithInlineBlanks(stemHtml, blankCount) {
+        let idx = 0;
+        let html = String(stemHtml || '');
+        html = html.replace(/\{\{(\d+)\}\}/g, (_, n) => {
+            const bi = Math.max(0, parseInt(n, 10) - 1);
+            idx = Math.max(idx, bi + 1);
+            return `<input type="text" class="sh-blank sh-blank-inline inline-block mx-1 px-2 py-0.5 border-b-2 border-indigo-400 bg-indigo-50/50 rounded w-28 align-baseline" data-blank="${bi}" autocomplete="off" aria-label="blank ${bi + 1}">`;
+        });
+        html = html.replace(/_{3,}/g, () => {
+            const bi = idx++;
+            return `<input type="text" class="sh-blank sh-blank-inline inline-block mx-1 px-2 py-0.5 border-b-2 border-indigo-400 bg-indigo-50/50 rounded w-28 align-baseline" data-blank="${bi}" autocomplete="off" aria-label="blank ${bi + 1}">`;
+        });
+        const hasInline = html.includes('sh-blank-inline');
+        return { html, hasInline, nextIndex: Math.max(idx, blankCount || 0) };
+    }
+
     function dueLine(item, lang) {
         if (!item.due_at) return '';
         const due = formatDue(item.due_at);
@@ -383,11 +416,19 @@ const global = window;
         const alreadyPassed = item.progress && item.progress.passed;
 
         let contentHtml = '';
+        const refs = normalizeContentRefs(item);
+        const refsHtml = renderContentRefsHtml(refs);
+        const videoRef = refs.find((r) => r.type === 'video');
         if (item.content_type === 'video') {
-            contentHtml = youtubeEmbed(item.video_embed_url);
+            if (videoRef) {
+                contentHtml = refsHtml;
+            } else {
+                contentHtml = refsHtml + youtubeEmbed(item.video_embed_url);
+            }
         } else {
             const body = lang === 'zh' ? item.body_zh : item.body_en;
-            contentHtml = `<article class="prose-article max-w-none mb-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">${renderMarkdown(body)}</article>`;
+            contentHtml = refsHtml
+                + `<article class="prose-article max-w-none mb-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm sh-passage">${renderMarkdown(body)}</article>`;
         }
 
         const formLabel = item.form_level === '2' ? st('中二', 'S2', lang) : st('中一', 'S1', lang);
@@ -416,6 +457,9 @@ const global = window;
         document.getElementById('sh-back')?.addEventListener('click', () => navigate('/summer-homework'));
 
         await enhanceMath(main);
+        if (global.AppContentEmbeds && typeof AppContentEmbeds.hydrate === 'function') {
+            await AppContentEmbeds.hydrate(main);
+        }
 
         const quizEl = document.getElementById('sh-quiz');
         if (alreadyPassed) {
@@ -465,8 +509,42 @@ const global = window;
         questions.forEach((q, qi) => {
             const stem = lang === 'zh' ? q.stem_zh : q.stem_en;
             const type = q.question_type || 'mcq';
+            const stemRendered = renderRichText(stem);
+            let stemBlock = `<div class="font-medium text-slate-900 mb-3 prose-article sh-q-stem">${qi + 1}. ${stemRendered}</div>`;
+            let fillFallback = '';
+            if (type === 'fill_blank') {
+                const blanks = q.blanks || [{ blank_index: 1 }];
+                const inline = stemWithInlineBlanks(stemRendered, blanks.length);
+                stemBlock = `<div class="font-medium text-slate-900 mb-3 prose-article sh-q-stem">${qi + 1}. ${inline.html}</div>`;
+                if (!inline.hasInline) {
+                    blanks.forEach((b, bi) => {
+                        let ansHint = '';
+                        if (item.include_answers || item.can_review) {
+                            const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [{
+                                acceptable_answer_zh: b.acceptable_answer_zh || '',
+                                acceptable_answer_en: b.acceptable_answer_en || '',
+                            }];
+                            const texts = answers.map((a) => ((a.acceptable_answer_zh || '') + ' / ' + (a.acceptable_answer_en || '')).trim()).filter((t) => t !== '/' && t !== '');
+                            ansHint = `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml(texts.join('；'))}</p>`;
+                        }
+                        fillFallback += `<div class="mb-2">
+                            <label class="text-xs text-slate-500">${st('空格', 'Blank', lang)} ${bi + 1}</label>
+                            <input type="text" class="sh-blank w-full border rounded-lg px-3 py-2 mt-1" data-blank="${bi}" autocomplete="off">
+                            ${ansHint}
+                        </div>`;
+                    });
+                } else if (item.include_answers || item.can_review) {
+                    blanks.forEach((b, bi) => {
+                        const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [];
+                        const texts = answers.map((a) => ((a.acceptable_answer_zh || '') + ' / ' + (a.acceptable_answer_en || '')).trim()).filter((t) => t !== '/' && t !== '');
+                        if (texts.length) {
+                            fillFallback += `<p class="text-xs text-emerald-700 mb-1">${st('空格', 'Blank', lang)} ${bi + 1} ${st('可接受', 'Acceptable', lang)}：${escapeHtml(texts.join('；'))}</p>`;
+                        }
+                    });
+                }
+            }
             html += `<div class="mb-6 pb-6 border-b border-slate-100 last:border-0" data-qid="${q.id}" data-type="${type}">
-                <div class="font-medium text-slate-900 mb-3 prose-article sh-q-stem">${qi + 1}. ${renderRichText(stem)}</div>`;
+                ${stemBlock}`;
             if (type === 'mcq') {
                 (q.options || []).forEach((o, oi) => {
                     const text = lang === 'zh' ? o.text_zh : o.text_en;
@@ -476,6 +554,16 @@ const global = window;
                         <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
                     </label>`;
                 });
+            } else if (type === 'multi_select') {
+                (q.options || []).forEach((o, oi) => {
+                    const text = lang === 'zh' ? o.text_zh : o.text_en;
+                    const isCorrect = !!(item.include_answers || item.can_review) && !!o.is_correct;
+                    html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${isCorrect ? 'border-emerald-400 bg-emerald-50' : ''}">
+                        <input type="checkbox" name="q-${q.id}" value="${oi}" class="mt-1 sh-multi">
+                        <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
+                    </label>`;
+                });
+                html += `<p class="text-xs text-slate-500 mt-1">${st('請選出所有正確選項。', 'Select all correct options.', lang)}</p>`;
             } else if (type === 'true_false') {
                 const showAns = !!(item.include_answers || item.can_review);
                 const correctTrue = q.correct_bool === true || q.correct_bool === 1;
@@ -498,55 +586,82 @@ const global = window;
                 const maxS = q.max_score != null ? q.max_score : 5;
                 html += `<p class="text-xs text-slate-500 mb-1">${st('長答（教師評閱，不計入自動及格分）', 'Long answer (teacher-marked; not in auto pass score)', lang)} · ${st('滿分', 'Max', lang)} ${maxS}</p>
                     <textarea class="sh-long w-full border rounded-lg px-3 py-2" rows="5"></textarea>`;
-            } else {
-                const blanks = q.blanks || [{ blank_index: 1 }];
-                blanks.forEach((b, bi) => {
-                    let ansHint = '';
-                    if (item.include_answers || item.can_review) {
-                        const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [{
-                            acceptable_answer_zh: b.acceptable_answer_zh || '',
-                            acceptable_answer_en: b.acceptable_answer_en || '',
-                        }];
-                        const texts = answers.map((a) => ((a.acceptable_answer_zh || '') + ' / ' + (a.acceptable_answer_en || '')).trim()).filter((t) => t !== '/' && t !== '');
-                        ansHint = `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml(texts.join('；'))}</p>`;
-                    }
-                    html += `<div class="mb-2">
-                        <label class="text-xs text-slate-500">${st('空格', 'Blank', lang)} ${bi + 1}</label>
-                        <input type="text" class="sh-blank w-full border rounded-lg px-3 py-2 mt-1" data-blank="${bi}" autocomplete="off">
-                        ${ansHint}
-                    </div>`;
-                });
+            } else if (type === 'fill_blank') {
+                html += fillFallback;
+            }
+            const expl = lang === 'zh' ? (q.explanation_zh || '') : (q.explanation_en || q.explanation_zh || '');
+            if (expl) {
+                html += `<div class="sh-explanation hidden mt-3 p-3 rounded-lg bg-slate-50 border text-sm prose-article" data-expl="1">${renderRichText(expl)}</div>`;
             }
             html += '</div>';
         });
+        html += `<p id="sh-unanswered" class="hidden text-sm text-amber-800 mb-3" role="alert"></p>`;
         html += `<button type="button" id="sh-submit" class="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">${alreadyPassed ? st('重新提交', 'Resubmit', lang) : st('提交答案', 'Submit', lang)}</button>`;
         quizEl.innerHTML = html;
         await enhanceMath(quizEl);
 
         document.getElementById('sh-submit')?.addEventListener('click', async () => {
             const responses = {};
-            document.querySelectorAll('#sh-quiz [data-qid]').forEach((block) => {
+            const unanswered = [];
+            document.querySelectorAll('#sh-quiz [data-qid]').forEach((block, qi) => {
                 const qid = block.getAttribute('data-qid');
                 const type = block.getAttribute('data-type');
+                let empty = false;
                 if (type === 'mcq') {
                     const sel = block.querySelector('input[type=radio]:checked');
                     responses[qid] = {
                         selected_option_index: sel ? parseInt(sel.value, 10) : null,
                     };
+                    empty = !sel;
+                } else if (type === 'multi_select') {
+                    const sels = [...block.querySelectorAll('input.sh-multi:checked')].map((el) => parseInt(el.value, 10));
+                    responses[qid] = { selected_option_indexes: sels };
+                    empty = sels.length === 0;
                 } else if (type === 'true_false') {
                     const sel = block.querySelector('input.sh-tf:checked');
                     responses[qid] = {
                         selected_bool: sel ? sel.value === '1' : null,
                     };
+                    empty = !sel;
                 } else if (type === 'short_answer') {
-                    responses[qid] = { text: block.querySelector('.sh-short')?.value || '' };
+                    const text = block.querySelector('.sh-short')?.value || '';
+                    responses[qid] = { text };
+                    empty = !String(text).trim();
                 } else if (type === 'long_answer') {
-                    responses[qid] = { text: block.querySelector('.sh-long')?.value || '' };
+                    const text = block.querySelector('.sh-long')?.value || '';
+                    responses[qid] = { text };
+                    empty = !String(text).trim();
                 } else {
-                    const blanks = [...block.querySelectorAll('.sh-blank')].map((inp) => inp.value);
+                    const inputs = [...block.querySelectorAll('.sh-blank')];
+                    const maxBi = inputs.reduce((m, inp) => Math.max(m, parseInt(inp.getAttribute('data-blank') || '0', 10)), -1);
+                    const blanks = [];
+                    for (let bi = 0; bi <= maxBi; bi++) {
+                        const inp = inputs.find((el) => parseInt(el.getAttribute('data-blank') || '-1', 10) === bi);
+                        blanks.push(inp ? inp.value : '');
+                    }
+                    if (!blanks.length && inputs.length) {
+                        inputs.forEach((inp) => blanks.push(inp.value));
+                    }
                     responses[qid] = { blanks };
+                    empty = blanks.length === 0 || blanks.every((b) => !String(b).trim());
                 }
+                block.classList.toggle('ring-2', empty);
+                block.classList.toggle('ring-amber-400', empty);
+                if (empty) unanswered.push(qi + 1);
             });
+
+            const warn = document.getElementById('sh-unanswered');
+            if (unanswered.length) {
+                if (warn) {
+                    warn.textContent = st(`尚有未作答題目：第 ${unanswered.join('、')} 題。仍要提交嗎？`, `Unanswered: Q${unanswered.join(', Q')}. Submit anyway?`, lang);
+                    warn.classList.remove('hidden');
+                }
+                if (!confirm(st(`尚有 ${unanswered.length} 題未作答，確定提交？`, `${unanswered.length} question(s) unanswered. Submit anyway?`, lang))) {
+                    return;
+                }
+            } else if (warn) {
+                warn.classList.add('hidden');
+            }
 
             const btn = document.getElementById('sh-submit');
             if (btn) {
@@ -558,7 +673,8 @@ const global = window;
                     method: 'POST',
                     body: { responses },
                 });
-                showResult(result, slug, lang);
+                document.querySelectorAll('#sh-quiz .sh-explanation').forEach((el) => el.classList.remove('hidden'));
+                showResult(result, slug, lang, questions);
             } catch (err) {
                 alert(err.message || st('提交失敗', 'Submit failed', lang));
                 if (btn) {
@@ -569,7 +685,7 @@ const global = window;
         });
     }
 
-    function formatDetailsHtml(details, lang) {
+    function formatDetailsHtml(details, lang, questionsById) {
         if (!Array.isArray(details) || details.length === 0) return '';
         const rows = details.map((d, i) => {
             const type = d.type || '';
@@ -584,6 +700,9 @@ const global = window;
             let extra = '';
             if (type === 'mcq' && d.correct_option_index != null) {
                 extra = `<span class="text-slate-500"> · ${st('正解', 'Answer', lang)} ${String.fromCharCode(65 + Number(d.correct_option_index))}</span>`;
+            } else if (type === 'multi_select' && Array.isArray(d.correct_option_indexes)) {
+                const labels = d.correct_option_indexes.map((i) => String.fromCharCode(65 + Number(i))).join(', ');
+                extra = `<span class="text-slate-500"> · ${st('正解', 'Answer', lang)} ${escapeHtml(labels)}</span>`;
             } else if (type === 'true_false' && d.correct_bool != null) {
                 extra = `<span class="text-slate-500"> · ${st('正解', 'Answer', lang)} ${d.correct_bool ? st('是', 'True', lang) : st('否', 'False', lang)}</span>`;
             } else if (type === 'short_answer' && Array.isArray(d.acceptable_answers) && d.acceptable_answers.length) {
@@ -597,7 +716,15 @@ const global = window;
             const pts = d.exclude_from_auto
                 ? ''
                 : ` <span class="text-slate-400">(${d.score != null ? d.score : 0}/${d.max != null ? d.max : 1})</span>`;
-            return `<li class="text-sm py-1">${st('題', 'Q', lang)} ${i + 1}: ${status}${pts}${extra}</li>`;
+            let explHtml = '';
+            if (d.explanation) {
+                explHtml = `<div class="mt-1 text-xs text-slate-600 prose-article">${renderRichText(d.explanation)}</div>`;
+            } else if (questionsById && questionsById[d.question_id]) {
+                const q = questionsById[d.question_id];
+                const expl = lang === 'zh' ? (q.explanation_zh || '') : (q.explanation_en || q.explanation_zh || '');
+                if (expl) explHtml = `<div class="mt-1 text-xs text-slate-600 prose-article">${renderRichText(expl)}</div>`;
+            }
+            return `<li class="text-sm py-1">${st('題', 'Q', lang)} ${i + 1}: ${status}${pts}${extra}${explHtml}</li>`;
         }).join('');
         return `<div class="mt-4 pt-4 border-t border-slate-200/80">
             <p class="text-sm font-semibold text-slate-800 mb-2">${st('逐題結果', 'Per-question results', lang)}</p>
@@ -605,11 +732,13 @@ const global = window;
         </div>`;
     }
 
-    function showResult(result, slug, lang) {
+    function showResult(result, slug, lang, questions) {
         const box = document.getElementById('sh-result');
         const quizEl = document.getElementById('sh-quiz');
         if (!box) return;
         lang = lang || resolveSummerLang();
+        const questionsById = {};
+        (questions || []).forEach((q) => { questionsById[q.id] = q; });
 
         const passed = !!result.passed;
         const everPassed = result.ever_passed != null ? !!result.ever_passed : passed;
@@ -646,7 +775,7 @@ const global = window;
             ${result.is_late && everPassed ? `<p class="mt-2 text-sm text-orange-800 font-medium">${st('首次及格時間在截止日期之後，狀態為「欠交」。', 'First pass was after the due date — status is “Overdue completion”.', lang)}</p>` : ''}
             ${everPassed && result.first_passed_at ? `<p class="mt-1 text-sm ${bodyClass}">${st('首次及格時間', 'First passed at', lang)}: ${escapeHtml(formatDue(result.first_passed_at))}</p>` : ''}
             ${bestNote}
-            ${formatDetailsHtml(result.details, lang)}
+            ${formatDetailsHtml(result.details, lang, questionsById)}
             ${passed
                 ? `<p class="mt-3 text-sm text-emerald-800">${st('做得好！可返回列表，或重做爭取更高分。', 'Well done! Continue with other assessments, or redo for a higher score.', lang)}</p>`
                 : (everPassed

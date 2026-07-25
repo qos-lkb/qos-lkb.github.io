@@ -8,6 +8,7 @@ const global = window;
         video: Object.create(null),
         simulation: Object.create(null),
         article: Object.create(null),
+        note: Object.create(null),
         questionBank: Object.create(null),
     };
 
@@ -188,7 +189,7 @@ const global = window;
     function protectContentEmbeds(markdown) {
         const store = [];
         const text = String(markdown || '').replace(
-            /^::(video|simulation|sim|article|question)\s+([^\n\r]+)\s*$/gm,
+            /^::(video|simulation|sim|article|note|question)\s+([^\n\r]+)\s*$/gm,
             (_, type, attrStr) => {
                 const key = store.length;
                 store.push({ type: type === 'sim' ? 'simulation' : type, attrs: parseAttrs(attrStr) });
@@ -267,6 +268,13 @@ const global = window;
         if (cache.article[slug]) return cache.article[slug];
         const data = await apiFetch('/articles/' + encodeURIComponent(slug));
         cache.article[slug] = data;
+        return data;
+    }
+
+    async function fetchNote(slug) {
+        if (cache.note[slug]) return cache.note[slug];
+        const data = await apiFetch('/learning-notes/' + encodeURIComponent(slug));
+        cache.note[slug] = data;
         return data;
     }
 
@@ -874,6 +882,25 @@ const global = window;
         }
     }
 
+    async function hydrateNoteEmbed(node, slug) {
+        try {
+            const note = await fetchNote(slug);
+            const lang = getLang();
+            const title = lang === 'zh' ? note.title_zh : note.title_en;
+            const body = lang === 'zh' ? note.body_zh : note.body_en;
+
+            node.classList.remove('content-embed-pending');
+            node.classList.add('content-embed-note');
+            node.innerHTML = `
+                ${embedHeader('📝', title, t('學習筆記', 'Learning note'))}
+                <article class="content-embed-note-body prose-article">${global.AppMarkdown.renderMarkdownToHtml(body || '')}</article>`;
+
+            await global.AppMarkdown.enhanceMarkdown(node.querySelector('.content-embed-note-body'));
+        } catch (err) {
+            node.innerHTML = embedError(err.message || t('無法載入筆記。', 'Could not load note.'));
+        }
+    }
+
     async function hydrateEmbedNode(node) {
         if (!node.classList.contains('content-embed-pending')) return;
         const type = node.getAttribute('data-embed-type');
@@ -882,6 +909,7 @@ const global = window;
         if (type === 'video' && slug) await hydrateVideoEmbed(node, slug);
         else if (type === 'simulation' && slug) await hydrateSimulationEmbed(node, slug);
         else if (type === 'article' && slug) await hydrateArticleEmbed(node, slug);
+        else if (type === 'note' && slug) await hydrateNoteEmbed(node, slug);
         else if (type === 'question') await hydrateQuestionEmbed(node);
         else node.innerHTML = embedError(t('嵌入語法無效。', 'Invalid embed directive.'));
     }

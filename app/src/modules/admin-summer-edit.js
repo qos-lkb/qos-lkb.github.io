@@ -40,12 +40,200 @@ const global = window;
     function typeLabel(type) {
         const map = {
             mcq: t('選擇', 'MCQ'),
+            multi_select: t('多選', 'Multi'),
             fill_blank: t('填充', 'Fill'),
             true_false: t('是非', 'T/F'),
             short_answer: t('短答', 'Short'),
             long_answer: t('長答', 'Long'),
         };
         return map[type] || type;
+    }
+
+    function insertAtCursor(textarea, text) {
+        if (global.AppAdminSummerQBuilder && global.AppAdminSummerQBuilder.insertAtCursor) {
+            global.AppAdminSummerQBuilder.insertAtCursor(textarea, text);
+            return;
+        }
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? start;
+        const val = textarea.value;
+        textarea.value = val.slice(0, start) + text + val.slice(end);
+        textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        textarea.focus();
+    }
+
+    async function uploadSummerMedia(itemId, file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        return global.ScienceApi.apiFetch('/admin/summer-homework/' + itemId + '/media', {
+            method: 'POST',
+            body: fd,
+        });
+    }
+
+    function wirePassageToolbar(root) {
+        const toolbars = root.querySelectorAll('[data-md-toolbar]');
+        toolbars.forEach((bar) => {
+            const targetId = bar.getAttribute('data-md-toolbar');
+            const ta = document.getElementById(targetId);
+            if (!ta) return;
+            bar.querySelectorAll('[data-md-action]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const action = btn.getAttribute('data-md-action');
+                    if (action === 'bold') insertAtCursor(ta, '**粗體**');
+                    else if (action === 'ul') insertAtCursor(ta, '\n- 項目一\n- 項目二\n');
+                    else if (action === 'math') insertAtCursor(ta, '$E=mc^2$');
+                    else if (action === 'video') insertAtCursor(ta, '\n::video slug="your-video-slug"\n');
+                    else if (action === 'article') insertAtCursor(ta, '\n::article slug="your-article-slug"\n');
+                    else if (action === 'note') insertAtCursor(ta, '\n::note slug="your-note-slug"\n');
+                    else if (action === 'image') {
+                        const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+                        if (!itemId) {
+                            alert(t('請先儲存習作後再上載圖片。', 'Save the item first, then upload images.'));
+                            return;
+                        }
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+                        input.onchange = async () => {
+                            const file = input.files && input.files[0];
+                            if (!file) return;
+                            try {
+                                const media = await uploadSummerMedia(itemId, file);
+                                insertAtCursor(ta, (media.markdown || `![${file.name}](${media.url || ''})`) + '\n');
+                            } catch (err) {
+                                alert(err.message || t('上載失敗', 'Upload failed'));
+                            }
+                        };
+                        input.click();
+                    }
+                });
+            });
+        });
+
+        root.querySelectorAll('[data-md-preview]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const targetId = btn.getAttribute('data-md-preview');
+                const ta = document.getElementById(targetId);
+                const preview = document.getElementById(targetId + '-preview');
+                if (!ta || !preview) return;
+                preview.classList.remove('hidden');
+                const raw = ta.value || '';
+                let html = global.AppMarkdown && global.AppMarkdown.renderMarkdownToHtml
+                    ? global.AppMarkdown.renderMarkdownToHtml(raw)
+                    : escapeHtml(raw).replace(/\n/g, '<br>');
+                preview.innerHTML = html;
+                if (global.AppContentEmbeds && global.AppContentEmbeds.hydrate) {
+                    await global.AppContentEmbeds.hydrate(preview);
+                }
+                if (global.MathJax && global.MathJax.typesetPromise) {
+                    global.MathJax.typesetPromise([preview]).catch(() => {});
+                }
+            });
+        });
+    }
+
+    function wireContentRefsUi(root) {
+        const list = document.getElementById('content-refs-list');
+        const hidden = document.getElementById('content-refs-json');
+        if (!list || !hidden) return;
+
+        function parseRefs() {
+            try {
+                const v = hidden.value.trim();
+                const arr = v ? JSON.parse(v) : [];
+                return Array.isArray(arr) ? arr : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function writeRefs(refs) {
+            hidden.value = JSON.stringify(refs, null, 2);
+            renderRefs();
+        }
+
+        function renderRefs() {
+            const refs = parseRefs();
+            if (!refs.length) {
+                list.innerHTML = `<p class="text-xs text-slate-500">${escapeHtml(t('尚未引用平台內容。', 'No content references yet.'))}</p>`;
+                return;
+            }
+            list.innerHTML = refs.map((r, i) => `<div class="flex items-center gap-2 text-sm border rounded-lg px-3 py-2 bg-slate-50">
+                <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-white border">${escapeHtml(r.type || '')}</span>
+                <span class="flex-1 font-mono text-xs truncate">${escapeHtml(r.slug || '')}</span>
+                <button type="button" class="text-xs text-red-600" data-ref-rm="${i}">×</button>
+            </div>`).join('');
+            list.querySelectorAll('[data-ref-rm]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const refs2 = parseRefs();
+                    refs2.splice(parseInt(btn.getAttribute('data-ref-rm'), 10), 1);
+                    writeRefs(refs2);
+                });
+            });
+        }
+
+        document.getElementById('content-ref-add')?.addEventListener('click', () => {
+            const type = document.getElementById('content-ref-type')?.value || 'note';
+            const slug = (document.getElementById('content-ref-slug')?.value || '').trim();
+            if (!slug) {
+                alert(t('請輸入 slug', 'Enter a slug'));
+                return;
+            }
+            const refs = parseRefs();
+            refs.push({ type, slug });
+            writeRefs(refs);
+            const slugEl = document.getElementById('content-ref-slug');
+            if (slugEl) slugEl.value = '';
+        });
+
+        renderRefs();
+    }
+
+    function wireImportQuestionsUi() {
+        const btn = document.getElementById('sh-import-qb');
+        const dialog = document.getElementById('sh-import-dialog');
+        if (!btn || !dialog) return;
+
+        btn.addEventListener('click', () => {
+            const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+            if (!itemId) {
+                alert(t('請先儲存習作後再匯入題目。', 'Save the item first, then import questions.'));
+                return;
+            }
+            dialog.classList.remove('hidden');
+        });
+
+        document.getElementById('sh-import-cancel')?.addEventListener('click', () => {
+            dialog.classList.add('hidden');
+        });
+
+        document.getElementById('sh-import-run')?.addEventListener('click', async () => {
+            const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+            const bankId = parseInt(document.getElementById('sh-import-bank')?.value || '0', 10);
+            const idsRaw = (document.getElementById('sh-import-qids')?.value || '').trim();
+            const questionIds = idsRaw.split(/[\s,]+/).map((x) => parseInt(x, 10)).filter((n) => n > 0);
+            if (!itemId || !bankId || !questionIds.length) {
+                alert(t('請填寫試題庫 ID 與題目 ID。', 'Provide bank id and question ids.'));
+                return;
+            }
+            const flash = document.getElementById('edit-flash');
+            try {
+                const result = await global.ScienceApi.apiFetch('/admin/summer-homework/' + itemId + '/import-questions', {
+                    method: 'POST',
+                    body: { bank_id: bankId, question_ids: questionIds },
+                });
+                dialog.classList.add('hidden');
+                if (flash) {
+                    flash.textContent = t(`已匯入 ${result.imported || questionIds.length} 題。`, `Imported ${result.imported || questionIds.length} questions.`);
+                    flash.classList.remove('hidden', 'text-red-600');
+                    flash.classList.add('text-emerald-700');
+                }
+                global.AppRouter.navigate('/admin/summer-homework/' + itemId + '/edit');
+            } catch (err) {
+                alert(err.message || t('匯入失敗', 'Import failed'));
+            }
+        });
     }
 
     function statusLabel(status) {
@@ -61,7 +249,7 @@ const global = window;
         const stem = q.stem_zh || q.stem_en || '';
         const type = q.question_type || '';
         let body = '';
-        if (type === 'mcq') {
+        if (type === 'mcq' || type === 'multi_select') {
             body = `<ul class="text-sm space-y-1.5">${(q.options || []).map((opt, oi) => {
                 const label = String.fromCharCode(65 + oi);
                 const text = opt.text_zh || opt.text_en || '';
@@ -189,15 +377,57 @@ const global = window;
                         </label>
                     </div>
                 </div>
+                <div class="border rounded-xl p-4 bg-slate-50/80 space-y-3">
+                    <div class="flex flex-wrap justify-between items-center gap-2">
+                        <label class="text-sm font-medium">${escapeHtml(t('引用平台內容', 'Cite platform content'))}</label>
+                        <p class="text-xs text-slate-500">${escapeHtml(t('學生頁會先顯示引用，再顯示下方 Markdown。', 'Refs render before the Markdown body.'))}</p>
+                    </div>
+                    <textarea id="content-refs-json" class="hidden" aria-hidden="true">[]</textarea>
+                    <div id="content-refs-list" class="space-y-2"></div>
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div>
+                            <label class="text-xs text-slate-500">type</label>
+                            <select id="content-ref-type" class="block border rounded-lg px-2 py-1.5 text-sm mt-0.5">
+                                <option value="note">${escapeHtml(t('筆記', 'Note'))}</option>
+                                <option value="article">${escapeHtml(t('文章', 'Article'))}</option>
+                                <option value="video">${escapeHtml(t('影片', 'Video'))}</option>
+                            </select>
+                        </div>
+                        <div class="flex-1 min-w-[10rem]">
+                            <label class="text-xs text-slate-500">slug</label>
+                            <input id="content-ref-slug" class="w-full border rounded-lg px-2 py-1.5 text-sm mt-0.5 font-mono" placeholder="slug">
+                        </div>
+                        <button type="button" id="content-ref-add" class="px-3 py-1.5 text-sm border rounded-lg bg-white hover:bg-slate-50">${escapeHtml(t('加入引用', 'Add ref'))}</button>
+                    </div>
+                </div>
                 <div id="passage-fields" class="space-y-3">
                     <div>
                         <label class="text-sm font-medium">${escapeHtml(t('篇章（中，Markdown）', 'Passage (ZH, Markdown)'))}</label>
-                        <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(t('支援公式：行內 $E=mc^2$、區塊 $$...$$', 'Math: inline $E=mc^2$, block $$...$$'))}</p>
-                        <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="6"></textarea>
+                        <div class="flex flex-wrap gap-1 mt-1 mb-1" data-md-toolbar="body-zh">
+                            <button type="button" data-md-action="bold" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('粗體', 'Bold'))}</button>
+                            <button type="button" data-md-action="ul" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('清單', 'List'))}</button>
+                            <button type="button" data-md-action="math" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('公式', 'Math'))}</button>
+                            <button type="button" data-md-action="image" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('插入圖片', 'Image'))}</button>
+                            <button type="button" data-md-action="video" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::video</button>
+                            <button type="button" data-md-action="article" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::article</button>
+                            <button type="button" data-md-action="note" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::note</button>
+                            <button type="button" data-md-preview="body-zh" class="text-xs px-2 py-1 border border-indigo-200 text-indigo-700 rounded bg-white hover:bg-indigo-50">${escapeHtml(t('預覽', 'Preview'))}</button>
+                        </div>
+                        <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" rows="6"></textarea>
+                        <div id="body-zh-preview" class="hidden mt-2 p-4 border rounded-lg bg-white prose-article text-sm"></div>
                     </div>
                     <div>
                         <label class="text-sm font-medium">${escapeHtml(t('篇章（英，Markdown）', 'Passage (EN, Markdown)'))}</label>
-                        <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="6"></textarea>
+                        <div class="flex flex-wrap gap-1 mt-1 mb-1" data-md-toolbar="body-en">
+                            <button type="button" data-md-action="bold" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('粗體', 'Bold'))}</button>
+                            <button type="button" data-md-action="ul" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('清單', 'List'))}</button>
+                            <button type="button" data-md-action="math" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('公式', 'Math'))}</button>
+                            <button type="button" data-md-action="image" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('插入圖片', 'Image'))}</button>
+                            <button type="button" data-md-action="note" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::note</button>
+                            <button type="button" data-md-preview="body-en" class="text-xs px-2 py-1 border border-indigo-200 text-indigo-700 rounded bg-white hover:bg-indigo-50">${escapeHtml(t('預覽', 'Preview'))}</button>
+                        </div>
+                        <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" rows="6"></textarea>
+                        <div id="body-en-preview" class="hidden mt-2 p-4 border rounded-lg bg-white prose-article text-sm"></div>
                     </div>
                 </div>
                 <div id="video-fields" class="space-y-3 hidden">
@@ -213,20 +443,43 @@ const global = window;
                 <div>
                     <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                         <label class="text-sm font-medium">${escapeHtml(t('跟進題目', 'Follow-up questions'))}</label>
-                        <div class="flex flex-wrap gap-x-3 gap-y-1">
+                        <div class="flex flex-wrap gap-x-3 gap-y-1 items-center">
+                            <button type="button" id="sh-toggle-en" class="text-sm text-slate-600">${escapeHtml(t('展開英文欄', 'Show EN fields'))}</button>
+                            <button type="button" id="sh-import-qb" class="text-sm text-slate-600">${escapeHtml(t('從試題庫匯入', 'Import from bank'))}</button>
                             <button type="button" id="add-mcq" class="text-sm text-indigo-600">+ ${escapeHtml(t('選擇題', 'MCQ'))}</button>
+                            <button type="button" id="add-multi" class="text-sm text-indigo-600">+ ${escapeHtml(t('多選題', 'Multi'))}</button>
                             <button type="button" id="add-fill" class="text-sm text-indigo-600">+ ${escapeHtml(t('填充題', 'Fill'))}</button>
                             <button type="button" id="add-tf" class="text-sm text-indigo-600">+ ${escapeHtml(t('是非題', 'T/F'))}</button>
                             <button type="button" id="add-short" class="text-sm text-indigo-600">+ ${escapeHtml(t('短答題', 'Short'))}</button>
                             <button type="button" id="add-long" class="text-sm text-indigo-600">+ ${escapeHtml(t('長答題', 'Long'))}</button>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-500 mb-2">${escapeHtml(t('題幹與選項可用 $...$／$$...$$ 寫公式。', 'Use $...$ / $$...$$ for math in stems and options.'))}</p>
+                    <p class="text-xs text-slate-500 mb-2">${escapeHtml(t('題幹與選項可用 $...$／$$...$$ 寫公式；可用 ↑↓ 重排、下拉換型。', 'Math with $...$; reorder with ↑↓; change type via dropdown.'))}</p>
                     <div id="questions" class="space-y-4"></div>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium">${escapeHtml(t('儲存', 'Save'))}</button>
-            </form>`;
+            </form>
+            <div id="sh-import-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-3">
+                    <h3 class="font-bold text-slate-900">${escapeHtml(t('從試題庫匯入', 'Import from question bank'))}</h3>
+                    <div>
+                        <label class="text-xs text-slate-500">${escapeHtml(t('試題庫 ID', 'Bank ID'))}</label>
+                        <input id="sh-import-bank" type="number" class="w-full border rounded-lg px-3 py-2 mt-1 text-sm" min="1">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-500">${escapeHtml(t('題目 ID（逗號或空白分隔）', 'Question IDs (comma/space separated)'))}</label>
+                        <input id="sh-import-qids" class="w-full border rounded-lg px-3 py-2 mt-1 text-sm font-mono" placeholder="12, 15, 18">
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="sh-import-cancel" class="px-3 py-1.5 text-sm border rounded-lg">${escapeHtml(t('取消', 'Cancel'))}</button>
+                        <button type="button" id="sh-import-run" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg">${escapeHtml(t('匯入', 'Import'))}</button>
+                    </div>
+                </div>
+            </div>`;
         bindSpaNav(box);
+        wirePassageToolbar(box);
+        wireContentRefsUi(box);
+        wireImportQuestionsUi();
 
         const flash = document.getElementById('edit-flash');
         if (regraded > 0) flash.classList.remove('hidden');
@@ -264,6 +517,17 @@ const global = window;
                     video_provider: document.getElementById('video-provider').value,
                     questions: qb.collectQuestions(),
                 };
+                const refsEl = document.getElementById('content-refs-json');
+                if (refsEl) {
+                    try {
+                        payload.content_refs = refsEl.value.trim() ? JSON.parse(refsEl.value) : [];
+                    } catch (parseErr) {
+                        flash.textContent = t('內容引用 JSON 格式錯誤', 'Invalid content_refs JSON');
+                        flash.classList.remove('hidden', 'text-emerald-700');
+                        flash.classList.add('text-red-600');
+                        return;
+                    }
+                }
                 try {
                     const saved = await global.ScienceApi.apiFetch('/admin/summer-homework', {
                         method: 'POST',

@@ -90,6 +90,7 @@ mysql -u USER -p DB_NAME < schema.sql
 | `schema_summer_homework_due.sql` | `due_at`, `allow_late_submit` on items |
 | `schema_summer_homework_grading.sql` | `grading_json` on attempts |
 | `schema_summer_homework_qtypes.sql` | New SH question types + `teacher_marks_json` |
+| `schema_summer_homework_media.sql` | Media library, `content_refs_json`, `multi_select`, `match_mode` |
 | `schema_classes_form_subject.sql` | `form_level`, `course_subject` on `classes` |
 | `schema_spa_nav_visibility.sql` | SPA top-nav visibility matrix |
 | `schema_users_login_id.sql` | Strip `@qos.edu.hk` from `users.email` → match QSIS username |
@@ -110,7 +111,7 @@ Learner SPA and admin UI are converging on **`/api/v1` only** (session + CSRF). 
 | Question banks | `question_banks`, `qb_questions`, `qb_mcq_options`, `qb_question_parts`, `qb_fill_blanks`, `qb_question_media` |
 | Classes & SDL | `classes` (incl. `form_level`, `course_subject`), `class_enrollments` (MOI), `student_profiles`, `learning_events`, `learning_attempts`, `learning_responses`, `topic_mastery`, `learning_goals`, `content_bookmarks` |
 | Assignments | `worksheet_assignments`, `worksheet_assignment_students`, `worksheet_submissions` |
-| Summer homework | `summer_homework_items`, `summer_homework_questions`, `summer_homework_mcq_options`, `summer_homework_fill_blanks`, `summer_homework_attempts` |
+| Summer homework | `summer_homework_items` (+ `content_refs_json`), `summer_homework_media`, `summer_homework_questions` (+ `multi_select` / `match_mode`), options / blanks / attempts |
 | SPA settings | `spa_nav_visibility` |
 
 ---
@@ -194,6 +195,8 @@ Answer keys for quizzes: `GET …/{slug}/answers` on learning-tools, articles, q
 | POST | `/summer-homework/{slug}/submit` | Grade & always INSERT a new attempt |
 | GET/POST/DELETE | `/admin/summer-homework` | Admin list / create / delete |
 | GET | `/admin/summer-homework/{id}` | Admin item detail with answers |
+| POST/DELETE | `/admin/summer-homework/{id}/media` | Upload / delete item images |
+| POST | `/admin/summer-homework/{id}/import-questions` | Copy questions from a question bank |
 
 Handler: `api/v1/handlers/summer_homework.php`. Business logic: `includes/summer_homework_lib.php`.
 
@@ -390,7 +393,8 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
 - **Class report**: SPA `/app/admin/courses/{id}/summer` via `sh_class_report()` — status filter + CSV export.
 - **Item analytics**: SPA `/app/admin/summer-homework/{id}/analytics` via `GET /admin/summer-homework/{id}/analytics` + attempts/marks APIs (`sh_item_attempt_analytics()`). Legacy `admin/summer_homework_analytics.php` 302s to SPA.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.
-- Upgrade scripts: `schema_summer_homework*.sql`, including **`schema_summer_homework_qtypes.sql`**.
+- Upgrade scripts: `schema_summer_homework*.sql`, including **`schema_summer_homework_qtypes.sql`** and **`schema_summer_homework_media.sql`** (`summer_homework_media`, `content_refs_json`, `multi_select`, `match_mode`).
+- Content embeds: `::note` / `::article` / `::video` / `::simulation` / `::question` (see `app/src/modules/content-embeds.js`).
 - Module docs: **[`README.md`](README.md)** § 暑期功課.
 
 ### 5. Auth & permissions

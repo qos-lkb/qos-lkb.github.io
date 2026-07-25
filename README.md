@@ -116,7 +116,8 @@ python3 -m http.server 8000
 ### 規則
 
 - 每份習作包含：**閱讀篇章** 或 **影片**，以及跟進題目。
-- **題型**：選擇題（MC，2–6 選項）、填充題（每空可多個可接受答案）、是非題、短答題、長答題（教師評閱）。
+- **題型**：選擇題（MC，2–6 選項）、**多選題**（全對才得分）、填充題（每空可多個可接受答案；題幹可用 `{{1}}`／`___` inline）、是非題、短答題（`exact`／`contains`）、長答題（教師評閱）。
+- **內容模型（混合）**：篇章以 Markdown 為主，可另引用平台筆記／文章／影片（`content_refs_json`）；Markdown 內支援 `::note`／`::article`／`::video`／`::simulation`／`::question`；習作級圖片上載至 `summer_homework_media`。
 - 計分：自動評分題各題／各空 1 分；長答有 `max_score` 但 **不計入自動及格百分比**（另存 `teacher_marks_json`）。
 - **達及格線（預設 80%，可調）→ 及格**；否則 **不及格並須重做**。長答不擋自動及格。
 - **及格後仍可重做**；若本次分數更高則更新最高分，較低則保留原最高分。
@@ -153,11 +154,14 @@ mysql -u USER -p DB_NAME < schema_summer_homework_grading.sql
 
 # 新題型（是非／短答／長答）＋教師評分欄（可重跑）
 mysql -u USER -p DB_NAME < schema_summer_homework_qtypes.sql
+
+# 媒體庫、content_refs、multi_select、match_mode（可重跑）
+mysql -u USER -p DB_NAME < schema_summer_homework_media.sql
 ```
 
 #### 全新安裝
 
-匯入完整 `schema.sql`（已含暑期功課表、截止日期、`grading_json`、新題型與權限）。
+匯入完整 `schema.sql`（已含暑期功課表、截止日期、`grading_json`、新題型、媒體與權限）。
 
 #### 學生
 
@@ -274,6 +278,8 @@ mysql -u USER -p DB_NAME < schema_summer_homework_qtypes.sql
 | `schema_summer_homework.sql` | 既有庫：建立表 |
 | `schema_summer_homework_due.sql` | 既有庫升級（due_at／allow_late_submit） |
 | `schema_summer_homework_grading.sql` | 既有庫升級（attempts.grading_json） |
+| `schema_summer_homework_qtypes.sql` | 既有庫升級（是非／短答／長答） |
+| `schema_summer_homework_media.sql` | 既有庫升級（媒體／content_refs／multi_select／match_mode） |
 
 ### 權限
 

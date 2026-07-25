@@ -9,6 +9,22 @@ declare(strict_types=1);
 
 function sh_normalize_fill_answer(string $s): string
 {
+    $s = strtr($s, [
+        '０' => '0', '１' => '1', '２' => '2', '３' => '3', '４' => '4',
+        '５' => '5', '６' => '6', '７' => '7', '８' => '8', '９' => '9',
+        'Ａ' => 'A', 'Ｂ' => 'B', 'Ｃ' => 'C', 'Ｄ' => 'D', 'Ｅ' => 'E',
+        'Ｆ' => 'F', 'Ｇ' => 'G', 'Ｈ' => 'H', 'Ｉ' => 'I', 'Ｊ' => 'J',
+        'Ｋ' => 'K', 'Ｌ' => 'L', 'Ｍ' => 'M', 'Ｎ' => 'N', 'Ｏ' => 'O',
+        'Ｐ' => 'P', 'Ｑ' => 'Q', 'Ｒ' => 'R', 'Ｓ' => 'S', 'Ｔ' => 'T',
+        'Ｕ' => 'U', 'Ｖ' => 'V', 'Ｗ' => 'W', 'Ｘ' => 'X', 'Ｙ' => 'Y',
+        'Ｚ' => 'Z',
+        'ａ' => 'a', 'ｂ' => 'b', 'ｃ' => 'c', 'ｄ' => 'd', 'ｅ' => 'e',
+        'ｆ' => 'f', 'ｇ' => 'g', 'ｈ' => 'h', 'ｉ' => 'i', 'ｊ' => 'j',
+        'ｋ' => 'k', 'ｌ' => 'l', 'ｍ' => 'm', 'ｎ' => 'n', 'ｏ' => 'o',
+        'ｐ' => 'p', 'ｑ' => 'q', 'ｒ' => 'r', 'ｓ' => 's', 'ｔ' => 't',
+        'ｕ' => 'u', 'ｖ' => 'v', 'ｗ' => 'w', 'ｘ' => 'x', 'ｙ' => 'y',
+        'ｚ' => 'z',
+    ]);
     $s = trim(mb_strtolower($s, 'UTF-8'));
     $s = preg_replace('/\s+/u', ' ', $s) ?? $s;
     return $s;
@@ -17,7 +33,7 @@ function sh_normalize_fill_answer(string $s): string
 /** @return list<string> */
 function sh_question_types(): array
 {
-    return ['mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer'];
+    return ['mcq', 'multi_select', 'fill_blank', 'true_false', 'short_answer', 'long_answer'];
 }
 
 function sh_normalize_question_type(string $type): string
@@ -45,6 +61,7 @@ function sh_grade_responses(array $questionsWithAnswers, array $responses, float
         $resp = $responses[(string) $qid] ?? $responses[$qid] ?? null;
         $detail = match ($type) {
             'mcq' => sh_grade_mcq($q, $resp),
+            'multi_select' => sh_grade_multi_select($q, $resp),
             'fill_blank' => sh_grade_fill_blank($q, $resp),
             'true_false' => sh_grade_true_false($q, $resp),
             'short_answer' => sh_grade_short_answer($q, $resp),
@@ -169,6 +186,49 @@ function sh_grade_mcq(array $q, mixed $resp): array
 
 /**
  * @param array<string, mixed> $q
+ * @return array<string, mixed>
+ */
+function sh_grade_multi_select(array $q, mixed $resp): array
+{
+    $qid = (int) $q['id'];
+    $correct = [];
+    $optionSnapshot = [];
+    foreach ($q['options'] ?? [] as $i => $o) {
+        $idx = (int) $i;
+        $isCorrect = !empty($o['is_correct']);
+        if ($isCorrect) {
+            $correct[] = $idx;
+        }
+        $optionSnapshot[] = [
+            'index' => $idx,
+            'label' => chr(65 + $idx),
+            'text_zh' => (string) ($o['text_zh'] ?? ''),
+            'text_en' => (string) ($o['text_en'] ?? ''),
+            'is_correct' => $isCorrect,
+        ];
+    }
+    $selected = is_array($resp) && isset($resp['selected_option_indexes'])
+        && is_array($resp['selected_option_indexes'])
+        ? array_values(array_unique(array_map('intval', $resp['selected_option_indexes'])))
+        : [];
+    sort($selected);
+    sort($correct);
+    $ok = $correct !== [] && $selected === $correct;
+
+    return [
+        'question_id' => $qid,
+        'type' => 'multi_select',
+        'correct' => $ok,
+        'score' => $ok ? 1.0 : 0.0,
+        'max' => 1.0,
+        'selected_option_indexes' => $selected,
+        'correct_option_indexes' => $correct,
+        'options' => $optionSnapshot,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $q
  * @param mixed $resp
  * @return array<string, mixed>
  */
@@ -271,7 +331,16 @@ function sh_grade_short_answer(array $q, mixed $resp): array
         $acceptList[] = sh_normalize_fill_answer((string) ($ans['acceptable_answer_en'] ?? ''));
     }
     $acceptList = array_values(array_filter($acceptList, static fn (string $s): bool => $s !== ''));
+    $matchMode = ($q['match_mode'] ?? 'exact') === 'contains' ? 'contains' : 'exact';
     $ok = $norm !== '' && in_array($norm, $acceptList, true);
+    if (!$ok && $matchMode === 'contains' && $norm !== '') {
+        foreach ($acceptList as $acceptable) {
+            if ($acceptable !== '' && str_contains($norm, $acceptable)) {
+                $ok = true;
+                break;
+            }
+        }
+    }
 
     return [
         'question_id' => $qid,
@@ -281,6 +350,7 @@ function sh_grade_short_answer(array $q, mixed $resp): array
         'max' => 1.0,
         'given' => $given,
         'acceptable_answers' => $acceptList,
+        'match_mode' => $matchMode,
     ];
 }
 

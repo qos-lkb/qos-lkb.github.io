@@ -8,6 +8,15 @@
 
 ## 2026-07-25
 
+### 暑期功課：混合內容、媒體、題型與編輯 UX（1C + UIQ）
+- **媒體**：`summer_homework_media`；`POST/DELETE /admin/summer-homework/{id}/media`；編輯器插入 `![](url)`（升級：`schema_summer_homework_media.sql`）。
+- **混合內容**：`content_refs_json`（note／article／video）；學生頁先渲染引用再 Markdown；補 `::note` embed。
+- **編輯 UX**：題目上移／下移／換型、MCQ 任意刪選項、MathJax 預覽、英文欄折疊、篇章工具列與預覽。
+- **題型／作答**：`multi_select`（全對才得分）、短答 `match_mode`（exact｜contains）、inline 填充、提交後顯示解釋、缺答提示；`POST .../import-questions` 自試題庫匯入複製。
+
+### 暑期功課：內容附件與題型增強
+- 新增暑期功課圖片附件、內容引用、試題庫題目匯入，以及多選題與短答包含比對；同步擴充 API、評分及資料庫結構。
+
 ### 教師／管理員：課業檢視與分析
 - 新增 `includes/student_coursework_lib.php`：學生課業聚合、班級課業 KPI、待批改／逾期 inbox、全校概覽。
 - 擴充 `GET /teacher/classes/{id}/students/{userId}`（工作紙／暑期／SDL／最近活動）；班級報告加入 `coursework` KPI 與學生列摘要；CSV 欄位對齊。

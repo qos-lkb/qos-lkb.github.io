@@ -13,6 +13,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS schema_migrations;
 DROP TABLE IF EXISTS spa_nav_visibility;
 DROP TABLE IF EXISTS summer_homework_attempts;
+DROP TABLE IF EXISTS summer_homework_media;
 DROP TABLE IF EXISTS summer_homework_short_answers;
 DROP TABLE IF EXISTS summer_homework_fill_blanks;
 DROP TABLE IF EXISTS summer_homework_mcq_options;
@@ -672,6 +673,7 @@ CREATE TABLE summer_homework_items (
     content_type ENUM('passage', 'video') NOT NULL DEFAULT 'passage',
     body_zh MEDIUMTEXT NULL,
     body_en MEDIUMTEXT NULL,
+    content_refs_json JSON NULL,
     video_embed_url VARCHAR(512) NULL DEFAULT NULL,
     video_provider VARCHAR(32) NULL DEFAULT 'youtube',
     pass_percent DECIMAL(5,2) NOT NULL DEFAULT 80.00,
@@ -692,18 +694,33 @@ CREATE TABLE summer_homework_items (
 CREATE TABLE summer_homework_questions (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     item_id INT UNSIGNED NOT NULL,
-    question_type ENUM('mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer') NOT NULL,
+    question_type ENUM('mcq', 'multi_select', 'fill_blank', 'true_false', 'short_answer', 'long_answer') NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
     stem_zh TEXT NOT NULL,
     stem_en TEXT NOT NULL,
     explanation_zh TEXT NULL,
     explanation_en TEXT NULL,
+    match_mode VARCHAR(16) NOT NULL DEFAULT 'exact',
     correct_bool TINYINT(1) NULL DEFAULT NULL,
     max_score DECIMAL(6,2) NOT NULL DEFAULT 1.00,
     rubric_zh TEXT NULL,
     rubric_en TEXT NULL,
     KEY idx_sh_questions_item (item_id),
     KEY idx_sh_questions_type (question_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE summer_homework_media (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    item_id INT UNSIGNED NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
+    original_name VARCHAR(255) NOT NULL DEFAULT '',
+    mime_type VARCHAR(128) NOT NULL DEFAULT 'image/jpeg',
+    file_size INT UNSIGNED NOT NULL DEFAULT 0,
+    alt_zh VARCHAR(255) NULL DEFAULT NULL,
+    alt_en VARCHAR(255) NULL DEFAULT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_sh_media_item (item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE summer_homework_mcq_options (

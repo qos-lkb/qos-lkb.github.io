@@ -5,6 +5,156 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/simulations_lib.php';
 require_once __DIR__ . '/summer_homework_grading.php';
+require_once __DIR__ . '/web_base.php';
+
+function sh_uploads_root(): string
+{
+    return dirname(__DIR__) . '/uploads/summer_homework';
+}
+
+function sh_media_public_url(string $relativePath): string
+{
+    return web_resolve_path(ltrim(str_replace('\\', '/', $relativePath), '/'));
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function sh_list_media(PDO $pdo, int $itemId): array
+{
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT * FROM summer_homework_media WHERE item_id = ? ORDER BY sort_order, id'
+        );
+        $stmt->execute([$itemId]);
+        $rows = $stmt->fetchAll() ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+    foreach ($rows as &$row) {
+        $row['id'] = (int) $row['id'];
+        $row['item_id'] = (int) $row['item_id'];
+        $row['file_size'] = (int) $row['file_size'];
+        $row['sort_order'] = (int) $row['sort_order'];
+        $row['url'] = sh_media_public_url((string) $row['file_path']);
+    }
+    unset($row);
+    return $rows;
+}
+
+/**
+ * @return array{ok:bool,error?:string,media?:array<string,mixed>}
+ */
+function sh_save_media_upload(
+    PDO $pdo,
+    int $itemId,
+    array $file,
+    array $user,
+    ?string $altZh = null,
+    ?string $altEn = null
+): array {
+    $item = sh_get_by_id($pdo, $itemId);
+    if ($item === null) {
+        return ['ok' => false, 'error' => '找不到習作。'];
+    }
+    if (!sh_can_manage_row($user, $item)) {
+        return ['ok' => false, 'error' => '無權編輯。'];
+    }
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'error' => '上載失敗。'];
+    }
+    $tmp = (string) ($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        return ['ok' => false, 'error' => '無效的上載檔案。'];
+    }
+    if ((int) ($file['size'] ?? 0) > 5 * 1024 * 1024) {
+        return ['ok' => false, 'error' => '圖片不可超過 5 MB。'];
+    }
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: '';
+    $allowed = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($allowed[$mime])) {
+        return ['ok' => false, 'error' => '僅支援 JPEG、PNG、GIF、WebP 圖片。'];
+    }
+    $dir = sh_uploads_root() . '/' . $itemId;
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        return ['ok' => false, 'error' => '無法建立上載目錄。'];
+    }
+    $basename = bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
+    $dest = $dir . '/' . $basename;
+    if (!move_uploaded_file($tmp, $dest)) {
+        return ['ok' => false, 'error' => '無法儲存檔案。'];
+    }
+    $relative = 'uploads/summer_homework/' . $itemId . '/' . $basename;
+    $original = basename((string) ($file['name'] ?? $basename));
+    try {
+        $sortStmt = $pdo->prepare(
+            'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM summer_homework_media WHERE item_id = ?'
+        );
+        $sortStmt->execute([$itemId]);
+        $sortOrder = (int) $sortStmt->fetchColumn();
+        $pdo->prepare(
+            'INSERT INTO summer_homework_media
+             (item_id, file_path, original_name, mime_type, file_size, alt_zh, alt_en, sort_order)
+             VALUES (?,?,?,?,?,?,?,?)'
+        )->execute([
+            $itemId, $relative, $original, $mime, (int) ($file['size'] ?? 0),
+            $altZh !== '' ? $altZh : null, $altEn !== '' ? $altEn : null, $sortOrder,
+        ]);
+    } catch (Throwable $e) {
+        @unlink($dest);
+        return ['ok' => false, 'error' => '無法儲存附件資料，請先執行資料庫升級。'];
+    }
+    return [
+        'ok' => true,
+        'media' => [
+            'id' => (int) $pdo->lastInsertId(),
+            'item_id' => $itemId,
+            'file_path' => $relative,
+            'url' => sh_media_public_url($relative),
+            'markdown' => '![' . str_replace(['[', ']'], '', (string) ($altZh ?: $original)) . '](' . sh_media_public_url($relative) . ')',
+            'original_name' => $original,
+            'mime_type' => $mime,
+            'file_size' => (int) ($file['size'] ?? 0),
+            'alt_zh' => $altZh,
+            'alt_en' => $altEn,
+            'sort_order' => $sortOrder,
+        ],
+    ];
+}
+
+/**
+ * @return array{ok:bool,error?:string}
+ */
+function sh_delete_media(PDO $pdo, int $itemId, int $mediaId, array $user): array
+{
+    $item = sh_get_by_id($pdo, $itemId);
+    if ($item === null) {
+        return ['ok' => false, 'error' => '找不到習作。'];
+    }
+    if (!sh_can_manage_row($user, $item)) {
+        return ['ok' => false, 'error' => '無權編輯。'];
+    }
+    $stmt = $pdo->prepare(
+        'SELECT id, file_path FROM summer_homework_media WHERE id = ? AND item_id = ? LIMIT 1'
+    );
+    $stmt->execute([$mediaId, $itemId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => '找不到附件。'];
+    }
+    $full = dirname(__DIR__) . '/' . ltrim(str_replace('\\', '/', (string) $row['file_path']), '/');
+    if (is_file($full)) {
+        @unlink($full);
+    }
+    $pdo->prepare('DELETE FROM summer_homework_media WHERE id = ? AND item_id = ?')
+        ->execute([$mediaId, $itemId]);
+    return ['ok' => true];
+}
 
 /**
  * Whether a column exists (cached per request).
@@ -161,7 +311,7 @@ function sh_fetch_questions(PDO $pdo, int $itemId, bool $includeAnswers = false)
             $q['correct_bool'] = null;
         }
 
-        if ($type === 'mcq') {
+        if ($type === 'mcq' || $type === 'multi_select') {
             $optStmt->execute([$qid]);
             $opts = $optStmt->fetchAll() ?: [];
             if (!$includeAnswers) {
@@ -247,6 +397,8 @@ function sh_public_row(array $row): array
         ? (int) $row['allow_late_submit'] === 1
         : true;
 
+    $contentRefs = sh_decode_json_column($row['content_refs_json'] ?? null);
+
     return [
         'id' => (int) $row['id'],
         'slug' => (string) $row['slug'],
@@ -256,6 +408,7 @@ function sh_public_row(array $row): array
         'content_type' => (string) $row['content_type'],
         'body_zh' => (string) ($row['body_zh'] ?? ''),
         'body_en' => (string) ($row['body_en'] ?? ''),
+        'content_refs' => is_array($contentRefs) ? array_values($contentRefs) : [],
         'video_embed_url' => (string) ($row['video_embed_url'] ?? ''),
         'video_provider' => (string) ($row['video_provider'] ?? 'youtube'),
         'pass_percent' => (float) ($row['pass_percent'] ?? 80),
@@ -266,6 +419,29 @@ function sh_public_row(array $row): array
         'status' => (string) $row['status'],
         'updated_at' => (string) ($row['updated_at'] ?? ''),
     ];
+}
+
+/**
+ * @return list<array{type:string,slug:string}>
+ */
+function sh_normalize_content_refs(mixed $value): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+    $out = [];
+    foreach ($value as $ref) {
+        if (!is_array($ref)) {
+            continue;
+        }
+        $type = trim((string) ($ref['type'] ?? ''));
+        $slug = trim((string) ($ref['slug'] ?? ''));
+        if (!in_array($type, ['note', 'article', 'video'], true) || $slug === '') {
+            continue;
+        }
+        $out[] = ['type' => $type, 'slug' => substr($slug, 0, 190)];
+    }
+    return $out;
 }
 
 /**
@@ -481,6 +657,10 @@ function sh_save_item(PDO $pdo, array $payload, array $user): array
     $slugInput = trim((string) ($payload['slug'] ?? ''));
     $bodyZh = (string) ($payload['body_zh'] ?? '');
     $bodyEn = (string) ($payload['body_en'] ?? '');
+    $contentRefsJson = json_encode(
+        sh_normalize_content_refs($payload['content_refs'] ?? []),
+        JSON_UNESCAPED_UNICODE
+    );
     $videoUrl = trim((string) ($payload['video_embed_url'] ?? ''));
     $videoProvider = trim((string) ($payload['video_provider'] ?? 'youtube')) ?: 'youtube';
     $listSort = (int) ($payload['list_sort_order'] ?? 0);
@@ -511,16 +691,29 @@ function sh_save_item(PDO $pdo, array $payload, array $user): array
                 $pdo->beginTransaction();
                 $startedTx = true;
             }
-            $upd = $pdo->prepare(
-                'UPDATE summer_homework_items SET slug=?, title_zh=?, title_en=?, form_level=?, content_type=?,
-                 body_zh=?, body_en=?, video_embed_url=?, video_provider=?, pass_percent=?, due_at=?, allow_late_submit=?,
-                 list_sort_order=?, status=?, owner_user_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
+            $hasContentRefs = sh_table_has_column($pdo, 'summer_homework_items', 'content_refs_json');
+            $sql = 'UPDATE summer_homework_items SET slug=?, title_zh=?, title_en=?, form_level=?, content_type=?,
+                    body_zh=?, body_en=?';
+            $values = [$slug, $titleZh, $titleEn, $formLevel, $contentType, $bodyZh, $bodyEn];
+            if ($hasContentRefs) {
+                $sql .= ', content_refs_json=?';
+                $values[] = $contentRefsJson;
+            }
+            $sql .= ', video_embed_url=?, video_provider=?, pass_percent=?, due_at=?, allow_late_submit=?,
+                     list_sort_order=?, status=?, owner_user_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?';
+            array_push(
+                $values,
+                $videoUrl !== '' ? $videoUrl : null,
+                $videoProvider,
+                $passPercent,
+                $dueAt,
+                $allowLate,
+                $listSort,
+                $status,
+                $ownerId,
+                $id
             );
-            $upd->execute([
-                $slug, $titleZh, $titleEn, $formLevel, $contentType,
-                $bodyZh, $bodyEn, $videoUrl !== '' ? $videoUrl : null, $videoProvider, $passPercent,
-                $dueAt, $allowLate, $listSort, $status, $ownerId, $id,
-            ]);
+            $pdo->prepare($sql)->execute($values);
             sh_replace_questions($pdo, $id, $questions);
             // Re-score existing attempts against the latest answers / pass mark.
             $regrade = sh_regrade_item_attempts($pdo, $id, $passPercent);
@@ -541,17 +734,41 @@ function sh_save_item(PDO $pdo, array $payload, array $user): array
     }
 
     $slug = sh_ensure_unique_slug($pdo, $slugInput !== '' ? $slugInput : $titleEn);
-    $ins = $pdo->prepare(
-        'INSERT INTO summer_homework_items
-         (slug, title_zh, title_en, form_level, content_type, body_zh, body_en, video_embed_url, video_provider,
-          pass_percent, due_at, allow_late_submit, list_sort_order, owner_user_id, status)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    $columns = [
+        'slug', 'title_zh', 'title_en', 'form_level', 'content_type', 'body_zh', 'body_en',
+    ];
+    $values = [$slug, $titleZh, $titleEn, $formLevel, $contentType, $bodyZh, $bodyEn];
+    if (sh_table_has_column($pdo, 'summer_homework_items', 'content_refs_json')) {
+        $columns[] = 'content_refs_json';
+        $values[] = $contentRefsJson;
+    }
+    array_push(
+        $columns,
+        'video_embed_url',
+        'video_provider',
+        'pass_percent',
+        'due_at',
+        'allow_late_submit',
+        'list_sort_order',
+        'owner_user_id',
+        'status'
     );
-    $ins->execute([
-        $slug, $titleZh, $titleEn, $formLevel, $contentType, $bodyZh, $bodyEn,
-        $videoUrl !== '' ? $videoUrl : null, $videoProvider, $passPercent, $dueAt, $allowLate,
-        $listSort, $user['id'], $status,
-    ]);
+    array_push(
+        $values,
+        $videoUrl !== '' ? $videoUrl : null,
+        $videoProvider,
+        $passPercent,
+        $dueAt,
+        $allowLate,
+        $listSort,
+        $user['id'],
+        $status
+    );
+    $placeholders = implode(',', array_fill(0, count($columns), '?'));
+    $ins = $pdo->prepare(
+        'INSERT INTO summer_homework_items (' . implode(',', $columns) . ') VALUES (' . $placeholders . ')'
+    );
+    $ins->execute($values);
     $newId = (int) $pdo->lastInsertId();
     sh_replace_questions($pdo, $newId, $questions);
     return ['ok' => true, 'id' => $newId];
@@ -576,7 +793,7 @@ function sh_validate_questions(array $questions): array
         }
         $usable++;
         $n = $i + 1;
-        if ($type === 'mcq') {
+        if ($type === 'mcq' || $type === 'multi_select') {
             $opts = isset($q['options']) && is_array($q['options']) ? $q['options'] : [];
             $hasText = false;
             $hasCorrect = false;
@@ -680,30 +897,30 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
     $keptIds = [];
 
     $hasExtraCols = sh_table_has_column($pdo, 'summer_homework_questions', 'correct_bool');
+    $hasMatchMode = sh_table_has_column($pdo, 'summer_homework_questions', 'match_mode');
     $hasShort = sh_table_exists_short_answers($pdo);
 
-    $qIns = $hasExtraCols
-        ? $pdo->prepare(
-            'INSERT INTO summer_homework_questions
-             (item_id, question_type, sort_order, stem_zh, stem_en, explanation_zh, explanation_en,
-              correct_bool, max_score, rubric_zh, rubric_en)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-        )
-        : $pdo->prepare(
-            'INSERT INTO summer_homework_questions
-             (item_id, question_type, sort_order, stem_zh, stem_en, explanation_zh, explanation_en)
-             VALUES (?,?,?,?,?,?,?)'
-        );
-    $qUpd = $hasExtraCols
-        ? $pdo->prepare(
-            'UPDATE summer_homework_questions SET question_type=?, sort_order=?, stem_zh=?, stem_en=?,
-             explanation_zh=?, explanation_en=?, correct_bool=?, max_score=?, rubric_zh=?, rubric_en=?
-             WHERE id=? AND item_id=?'
-        )
-        : $pdo->prepare(
-            'UPDATE summer_homework_questions SET question_type=?, sort_order=?, stem_zh=?, stem_en=?,
-             explanation_zh=?, explanation_en=? WHERE id=? AND item_id=?'
-        );
+    $insertColumns = [
+        'item_id', 'question_type', 'sort_order', 'stem_zh', 'stem_en', 'explanation_zh', 'explanation_en',
+    ];
+    $updateParts = [
+        'question_type=?', 'sort_order=?', 'stem_zh=?', 'stem_en=?', 'explanation_zh=?', 'explanation_en=?',
+    ];
+    if ($hasMatchMode) {
+        $insertColumns[] = 'match_mode';
+        $updateParts[] = 'match_mode=?';
+    }
+    if ($hasExtraCols) {
+        array_push($insertColumns, 'correct_bool', 'max_score', 'rubric_zh', 'rubric_en');
+        array_push($updateParts, 'correct_bool=?', 'max_score=?', 'rubric_zh=?', 'rubric_en=?');
+    }
+    $qIns = $pdo->prepare(
+        'INSERT INTO summer_homework_questions (' . implode(',', $insertColumns) . ') VALUES ('
+        . implode(',', array_fill(0, count($insertColumns), '?')) . ')'
+    );
+    $qUpd = $pdo->prepare(
+        'UPDATE summer_homework_questions SET ' . implode(',', $updateParts) . ' WHERE id=? AND item_id=?'
+    );
     $oIns = $pdo->prepare(
         'INSERT INTO summer_homework_mcq_options (question_id, sort_order, text_zh, text_en, is_correct) VALUES (?,?,?,?,?)'
     );
@@ -736,6 +953,7 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
         }
         $explZh = (string) ($q['explanation_zh'] ?? '');
         $explEn = (string) ($q['explanation_en'] ?? '');
+        $matchMode = ($q['match_mode'] ?? 'exact') === 'contains' ? 'contains' : 'exact';
         $sort = (int) ($q['sort_order'] ?? $i);
         $correctBool = null;
         if ($type === 'true_false') {
@@ -748,31 +966,24 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
         $rubricEn = (string) ($q['rubric_en'] ?? '');
 
         $qid = isset($q['id']) ? (int) $q['id'] : 0;
+        $questionValues = [$type, $sort, $stemZh, $stemEn, $explZh, $explEn];
+        if ($hasMatchMode) {
+            $questionValues[] = $matchMode;
+        }
+        if ($hasExtraCols) {
+            array_push($questionValues, $correctBool, $maxScore, $rubricZh, $rubricEn);
+        }
         if ($qid > 0 && in_array($qid, $oldIds, true)) {
-            if ($hasExtraCols) {
-                $qUpd->execute([
-                    $type, $sort, $stemZh, $stemEn, $explZh, $explEn,
-                    $correctBool, $maxScore, $rubricZh, $rubricEn, $qid, $itemId,
-                ]);
-            } else {
-                $qUpd->execute([$type, $sort, $stemZh, $stemEn, $explZh, $explEn, $qid, $itemId]);
-            }
+            $qUpd->execute([...$questionValues, $qid, $itemId]);
             $keptIds[] = $qid;
             sh_delete_question_children($pdo, [$qid]);
         } else {
-            if ($hasExtraCols) {
-                $qIns->execute([
-                    $itemId, $type, $sort, $stemZh, $stemEn, $explZh, $explEn,
-                    $correctBool, $maxScore, $rubricZh, $rubricEn,
-                ]);
-            } else {
-                $qIns->execute([$itemId, $type, $sort, $stemZh, $stemEn, $explZh, $explEn]);
-            }
+            $qIns->execute([$itemId, ...$questionValues]);
             $qid = (int) $pdo->lastInsertId();
             $keptIds[] = $qid;
         }
 
-        if ($type === 'mcq') {
+        if ($type === 'mcq' || $type === 'multi_select') {
             $opts = isset($q['options']) && is_array($q['options']) ? $q['options'] : [];
             foreach ($opts as $oi => $opt) {
                 if (!is_array($opt)) {
@@ -864,6 +1075,147 @@ function sh_replace_questions(PDO $pdo, int $itemId, array $questions): void
 }
 
 /**
+ * Copy selected question-bank questions into a summer-homework item.
+ *
+ * @param list<int> $questionIds
+ * @return array{ok:bool,error?:string,imported?:int,skipped?:int}
+ */
+function sh_import_questions_from_bank(
+    PDO $pdo,
+    int $itemId,
+    int $bankId,
+    array $questionIds,
+    array $user
+): array {
+    $item = sh_get_by_id($pdo, $itemId);
+    if ($item === null) {
+        return ['ok' => false, 'error' => '找不到習作。'];
+    }
+    if (!sh_can_manage_row($user, $item)) {
+        return ['ok' => false, 'error' => '無權編輯。'];
+    }
+    $questionIds = array_values(array_unique(array_filter(
+        array_map('intval', $questionIds),
+        static fn (int $id): bool => $id > 0
+    )));
+    if ($bankId <= 0 || $questionIds === []) {
+        return ['ok' => false, 'error' => '請選擇試題庫及至少一題。'];
+    }
+
+    require_once __DIR__ . '/question_bank_lib.php';
+    if (qb_get_by_id($pdo, $bankId) === null) {
+        return ['ok' => false, 'error' => '找不到試題庫。'];
+    }
+    $wanted = array_fill_keys($questionIds, true);
+    $bankQuestions = qb_fetch_questions($pdo, $bankId, true);
+    $existing = sh_fetch_questions($pdo, $itemId, true);
+    $nextSort = count($existing);
+    $imported = [];
+
+    foreach ($bankQuestions as $source) {
+        if (!isset($wanted[(int) ($source['id'] ?? 0)])) {
+            continue;
+        }
+        $type = (string) ($source['question_type'] ?? '');
+        if (!in_array($type, ['mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer'], true)) {
+            continue;
+        }
+        $q = [
+            'question_type' => $type,
+            'sort_order' => $nextSort++,
+            'stem_zh' => (string) ($source['stem_zh'] ?? ''),
+            'stem_en' => (string) ($source['stem_en'] ?? ''),
+            'explanation_zh' => (string) ($source['explanation_zh'] ?? ''),
+            'explanation_en' => (string) ($source['explanation_en'] ?? ''),
+            'match_mode' => 'exact',
+        ];
+        if ($type === 'mcq') {
+            $q['options'] = array_map(
+                static fn (array $option): array => [
+                    'sort_order' => (int) ($option['sort_order'] ?? 0),
+                    'text_zh' => (string) ($option['text_zh'] ?? ''),
+                    'text_en' => (string) ($option['text_en'] ?? ''),
+                    'is_correct' => !empty($option['is_correct']),
+                ],
+                is_array($source['options'] ?? null) ? $source['options'] : []
+            );
+        } elseif ($type === 'fill_blank') {
+            $grouped = [];
+            foreach (is_array($source['blanks'] ?? null) ? $source['blanks'] : [] as $blank) {
+                if (!is_array($blank)) {
+                    continue;
+                }
+                $index = (int) ($blank['blank_index'] ?? 1);
+                $grouped[$index] ??= ['blank_index' => $index, 'acceptable_answers' => []];
+                $grouped[$index]['acceptable_answers'][] = [
+                    'acceptable_answer_zh' => (string) ($blank['acceptable_answer_zh'] ?? ''),
+                    'acceptable_answer_en' => (string) ($blank['acceptable_answer_en'] ?? ''),
+                ];
+            }
+            $q['blanks'] = array_values($grouped);
+        } elseif ($type === 'true_false') {
+            $q['correct_bool'] = !empty($source['true_false_answer']);
+        } elseif ($type === 'short_answer') {
+            $q['acceptable_answers'] = [[
+                'acceptable_answer_zh' => (string) ($source['model_answer_zh'] ?? ''),
+                'acceptable_answer_en' => (string) ($source['model_answer_en'] ?? ''),
+            ]];
+        } elseif ($type === 'long_answer') {
+            $parts = is_array($source['parts'] ?? null) ? $source['parts'] : [];
+            $marks = 0.0;
+            $rubricZh = [];
+            $rubricEn = [];
+            foreach ($parts as $part) {
+                if (!is_array($part)) {
+                    continue;
+                }
+                $marks += (float) ($part['marks'] ?? 0);
+                $rubricZh[] = trim(
+                    (string) ($part['part_label'] ?? '') . ' ' . (string) ($part['model_answer_zh'] ?? '')
+                );
+                $rubricEn[] = trim(
+                    (string) ($part['part_label'] ?? '') . ' ' . (string) ($part['model_answer_en'] ?? '')
+                );
+            }
+            $defaultScore = isset($source['default_score']) && $source['default_score'] !== null
+                ? (float) $source['default_score']
+                : 5.0;
+            $q['max_score'] = $marks > 0 ? $marks : max(0.5, $defaultScore);
+            $q['rubric_zh'] = implode("\n", array_filter($rubricZh));
+            $q['rubric_en'] = implode("\n", array_filter($rubricEn));
+        }
+        if (!sh_validate_questions([$q])['ok']) {
+            continue;
+        }
+        $imported[] = $q;
+    }
+
+    if ($imported === []) {
+        return ['ok' => false, 'error' => '所選題目不在該試題庫或不受支援。'];
+    }
+    $all = [...$existing, ...$imported];
+    $valid = sh_validate_questions($all);
+    if (!$valid['ok']) {
+        return $valid;
+    }
+    try {
+        $pdo->beginTransaction();
+        sh_replace_questions($pdo, $itemId, $all);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return ['ok' => false, 'error' => '匯入題目失敗。'];
+    }
+    return [
+        'ok' => true,
+        'imported' => count($imported),
+        'skipped' => count($questionIds) - count($imported),
+    ];
+}
+
+/**
  * @return array{ok:bool,error?:string}
  */
 function sh_delete_item(PDO $pdo, int $id, array $user): array
@@ -879,6 +1231,17 @@ function sh_delete_item(PDO $pdo, int $id, array $user): array
     $old->execute([$id]);
     $oldIds = array_map('intval', $old->fetchAll(PDO::FETCH_COLUMN) ?: []);
     sh_delete_question_children($pdo, $oldIds);
+    foreach (sh_list_media($pdo, $id) as $media) {
+        $full = dirname(__DIR__) . '/' . ltrim(str_replace('\\', '/', (string) $media['file_path']), '/');
+        if (is_file($full)) {
+            @unlink($full);
+        }
+    }
+    try {
+        $pdo->prepare('DELETE FROM summer_homework_media WHERE item_id = ?')->execute([$id]);
+    } catch (Throwable $e) {
+        // Migration may not have been applied yet.
+    }
     $pdo->prepare('DELETE FROM summer_homework_questions WHERE item_id = ?')->execute([$id]);
     $pdo->prepare('DELETE FROM summer_homework_attempts WHERE item_id = ?')->execute([$id]);
     $pdo->prepare('DELETE FROM summer_homework_items WHERE id = ?')->execute([$id]);
