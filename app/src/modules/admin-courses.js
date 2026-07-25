@@ -11,6 +11,13 @@ const global = window;
             : String(s || '');
     }
 
+    function spaHref(route) {
+        return global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : String(route || '');
+    }
+
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
@@ -96,9 +103,9 @@ const global = window;
                     <td class="p-3 font-mono text-xs">${escapeHtml(c.invite_code || '')}</td>
                     <td class="p-3">${status}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
-                        <a class="text-indigo-700 hover:underline" href="./admin/courses/${Number(c.id)}" data-spa-nav="/admin/courses/${Number(c.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
-                        <a class="text-indigo-700 hover:underline ml-2" href="./admin/courses/${Number(c.id)}/students" data-spa-nav="/admin/courses/${Number(c.id)}/students">${escapeHtml(t('學生', 'Students'))}</a>
-                        <a class="text-indigo-700 hover:underline ml-2" href="./admin/courses/${Number(c.id)}/report" data-spa-nav="/admin/courses/${Number(c.id)}/report">${escapeHtml(t('報告', 'Report'))}</a>
+                        <a class="text-indigo-700 hover:underline" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}`))}" data-spa-nav="/admin/courses/${Number(c.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
+                        <a class="text-indigo-700 hover:underline ml-2" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}/students`))}" data-spa-nav="/admin/courses/${Number(c.id)}/students">${escapeHtml(t('學生', 'Students'))}</a>
+                        <a class="text-indigo-700 hover:underline ml-2" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}/report`))}" data-spa-nav="/admin/courses/${Number(c.id)}/report">${escapeHtml(t('報告', 'Report'))}</a>
                         <button type="button" class="admin-course-delete text-red-600 hover:underline ml-2" data-id="${Number(c.id)}">${escapeHtml(t('刪除', 'Delete'))}</button>
                     </td>
                 </tr>`;
@@ -106,7 +113,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(legacyAdmin('courses.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('完整 PHP 列表', 'Full PHP list'))}</a>
                 </div>
                 <p id="admin-courses-flash" class="text-sm mb-3 hidden"></p>
@@ -268,11 +275,11 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin/courses" data-spa-nav="/admin/courses" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 課程列表', '← Courses'))}</a>
-                    <a href="./admin/courses/${id}/students" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(canEditStudents ? t('學生與修讀語言', 'Students & MOI') : t('查看學生', 'View students'))}</a>
-                    <a href="./admin/courses/${id}/report" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
-                    <a href="./admin/courses/${id}/summer" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
-                    <a href="./admin/courses/${id}/worksheets" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 課程列表', '← Courses'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(canEditStudents ? t('學生與修讀語言', 'Students & MOI') : t('查看學生', 'View students'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/worksheets`))}" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
                 </div>
                 ${data.has_form_subject_columns === false
                     ? `<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(t('資料庫尚未加入年級／科目欄位，儲存會失敗。', 'DB missing form/subject columns; save will fail.'))}</div>`
@@ -310,7 +317,7 @@ const global = window;
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm mb-4">
                     <div class="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                         <h2 class="font-bold text-slate-800">${escapeHtml(t('學生名單', 'Students'))}（${students.length}）</h2>
-                        <a href="./admin/courses/${id}/students" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-indigo-600 hover:underline">${escapeHtml(canEditStudents ? t('編輯學生與修讀語言', 'Edit students & MOI') : t('查看學生與修讀語言', 'View students & MOI'))}</a>
+                        <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-indigo-600 hover:underline">${escapeHtml(canEditStudents ? t('編輯學生與修讀語言', 'Edit students & MOI') : t('查看學生與修讀語言', 'View students & MOI'))}</a>
                     </div>
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-100 text-left">

@@ -391,9 +391,9 @@
                 </button>
                 <div class="user-menu-divider"></div>
                 ${canPortal ? `<a href="${base}/admin/simulations.php" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
-                ${canClass ? `<a href="${base}/admin/courses.php" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
+                ${canClass ? `<a href="${base}/app/admin/courses" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
                 ${canWorksheet ? `<a href="${base}/admin/worksheets.php" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
-                ${canAssignWorksheet ? `<a href="${base}/admin/courses.php" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}
+                ${canAssignWorksheet ? `<a href="${base}/app/admin/courses" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}
                 ${canAdmin ? `<a href="${base}/app/admin" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
                 ${canAdmin ? `<a href="${base}/admin/index.php" class="user-menu-item" role="menuitem">${t('完整後台（PHP）', 'Full admin (PHP)')}</a>` : ''}
                 ${user.impersonating ? `<button type="button" class="user-menu-item user-menu-item-warn" data-action="stop-impersonation" role="menuitem">

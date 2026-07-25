@@ -11,6 +11,13 @@ const global = window;
             : String(s || '');
     }
 
+    function spaHref(route) {
+        return global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : String(route || '');
+    }
+
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
@@ -113,9 +120,9 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin/courses/${id}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
-                    <a href="./admin/courses" data-spa-nav="/admin/courses" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('課程列表', 'Courses'))}</a>
-                    <a href="./admin/courses/${id}/report" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('課程列表', 'Courses'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-1">${escapeHtml(c.name)}</h2>
                 <p class="text-sm text-slate-500 mb-4">${escapeHtml(subtitle)}</p>

@@ -76,19 +76,35 @@ const global = window;
         await dispatch(full);
     }
 
+    /**
+     * Absolute URL path for an SPA route (safe for <a href>, with or without <base>).
+     * e.g. spaHref('/admin/courses/1') → '/science_sims/app/admin/courses/1'
+     */
+    function spaHref(route) {
+        const raw = String(route || '/').split('?')[0].split('#')[0];
+        const r = '/' + raw.replace(/^\/+/, '');
+        const site = typeof window.__SITE_BASE__ === 'string'
+            ? window.__SITE_BASE__
+            : (location.pathname.split('/app')[0] || '');
+        return (site || '') + '/app' + (r === '/' ? '/' : r);
+    }
+
     async function dispatch(path) {
         async function afterRoute() {
             if (global.AppLearningTracker) global.AppLearningTracker.trackPageView(path);
         }
 
-        if (typeof routes[path] === 'function') {
-            await routes[path]();
+        // Strip query/hash if a caller accidentally passes them.
+        const clean = String(path || '/').split('?')[0].split('#')[0] || '/';
+
+        if (typeof routes[clean] === 'function') {
+            await routes[clean]();
             await afterRoute();
             return;
         }
 
         for (const m of PATH_MATCHERS) {
-            const hit = path.match(m.re);
+            const hit = clean.match(m.re);
             if (!hit) continue;
             const handler = routes[m.name];
             if (typeof handler !== 'function') continue;
@@ -107,6 +123,24 @@ const global = window;
     function init(onRoute) {
         Object.assign(routes, onRoute);
         window.addEventListener('popstate', () => dispatch(getPath()));
+        // Global SPA nav: do not rely on each page re-binding [data-spa-nav].
+        document.addEventListener('click', (e) => {
+            const a = e.target && e.target.closest ? e.target.closest('[data-spa-nav]') : null;
+            if (!a || e.defaultPrevented) return;
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            const route = a.getAttribute('data-spa-nav');
+            if (!route) return;
+            e.preventDefault();
+            const uid = parseInt(a.getAttribute('data-user-id') || '0', 10) || 0;
+            if (uid > 0 && route.indexOf('/analytics') >= 0) {
+                const appBase = location.pathname.split('/app')[0] + '/app';
+                const path = route.startsWith('/') ? route : '/' + route;
+                history.pushState({ path }, '', appBase + path + '?user_id=' + uid);
+                dispatch(path);
+                return;
+            }
+            navigate(route);
+        });
         dispatch(getPath());
     }
 
@@ -154,6 +188,7 @@ const global = window;
         getLang: () => currentLang,
         setLang,
         escapeHtml,
+        spaHref,
         PATH_MATCHERS,
     };
 

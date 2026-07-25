@@ -11,6 +11,13 @@ const global = window;
             : String(s || '');
     }
 
+    function spaHref(route) {
+        return global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : String(route || '');
+    }
+
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
@@ -38,9 +45,9 @@ const global = window;
             <div class="max-w-2xl space-y-4">
                 <p class="text-slate-600 text-sm">${escapeHtml(t('SPA 後台入口（逐步遷移中）。', 'SPA admin entry (migration in progress).'))}</p>
                 <ul class="space-y-2">
-                    ${canSubjects ? `<li><a href="./admin/subjects" data-spa-nav="/admin/subjects" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('科目與單元', 'Subjects & topics'))}</a></li>` : ''}
-                    ${canCourses ? `<li><a href="./admin/courses" data-spa-nav="/admin/courses" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('課程管理', 'Courses'))}</a></li>` : ''}
-                    ${canUsers ? `<li><a href="./admin/users" data-spa-nav="/admin/users" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('使用者', 'Users'))}</a></li>` : ''}
+                    ${canSubjects ? `<li><a href="${escapeHtml(spaHref('/admin/subjects'))}" data-spa-nav="/admin/subjects" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('科目與單元', 'Subjects & topics'))}</a></li>` : ''}
+                    ${canCourses ? `<li><a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('課程管理', 'Courses'))}</a></li>` : ''}
+                    ${canUsers ? `<li><a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('使用者', 'Users'))}</a></li>` : ''}
                     <li><a href="${escapeHtml(legacyAdmin)}" class="text-slate-700 hover:underline">${escapeHtml(t('完整 PHP 後台', 'Full PHP admin'))}</a></li>
                 </ul>
             </div>`;
@@ -86,7 +93,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <button type="button" id="admin-subj-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
                 </div>
                 <form id="admin-subj-create" class="mb-6 grid sm:grid-cols-3 gap-2 items-end bg-white border border-slate-200 rounded-xl p-4">

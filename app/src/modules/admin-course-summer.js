@@ -11,6 +11,13 @@ const global = window;
             : String(s || '');
     }
 
+    function spaHref(route) {
+        return global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : String(route || '');
+    }
+
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
@@ -91,7 +98,7 @@ const global = window;
                         <a class="text-indigo-700 hover:underline" href="${escapeHtml(legacyAdmin('summer_homework_view.php?id=' + item.id))}">${escapeHtml(titleText)}</a>
                     </div>
                     <div class="text-xs font-normal text-slate-500 mt-0.5">${escapeHtml(due)}</div>
-                    <a class="text-xs text-indigo-600 hover:underline mt-1 inline-block" href="./admin/summer-homework/${Number(item.id)}/analytics" data-spa-nav="/admin/summer-homework/${Number(item.id)}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
+                    <a class="text-xs text-indigo-600 hover:underline mt-1 inline-block" href="${escapeHtml(spaHref(`/admin/summer-homework/${Number(item.id)}/analytics`))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
                 </th>`;
             }).join('');
 
@@ -125,7 +132,7 @@ const global = window;
                         <div class="mt-1.5 text-slate-800">${escapeHtml(String(cell.percent ?? '—'))}% ${scoreLine}</div>
                         <div class="text-xs text-slate-500 mt-0.5">
                             ${escapeHtml(recordAt ? (t('首次及格 ', 'First pass ') + recordAt) : t('尚未及格', 'Not passed yet'))}
-                            · <a class="text-indigo-600 hover:underline" href="./admin/summer-homework/${iid}/analytics?user_id=${uid}" data-spa-nav="/admin/summer-homework/${iid}/analytics" data-user-id="${uid}">${attempts} ${escapeHtml(t('次', 'tries'))}</a>
+                            · <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref(`/admin/summer-homework/${iid}/analytics`) + '?user_id=' + uid)}" data-spa-nav="/admin/summer-homework/${iid}/analytics" data-user-id="${uid}">${attempts} ${escapeHtml(t('次', 'tries'))}</a>
                             · ${cell.passed
                                 ? `<span class="text-emerald-700 font-medium">${escapeHtml(t('及格', 'Passed'))}</span>`
                                 : `<span class="text-amber-800 font-medium">${escapeHtml(t('須重做', 'Retry'))}</span>`}
@@ -163,10 +170,10 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin/courses/${id}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
-                    <a href="./admin/courses/${id}/students" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學生與修讀語言', 'Students & MOI'))}</a>
-                    <a href="./admin/courses/${id}/report" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
-                    <a href="./admin/courses/${id}/worksheets" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學生與修讀語言', 'Students & MOI'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/worksheets`))}" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
                     <button type="button" id="sh-export-csv" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">${escapeHtml(t('匯出 CSV', 'Export CSV'))}</button>
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-1">${escapeHtml(c.name || '')}</h2>

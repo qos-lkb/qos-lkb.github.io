@@ -178,15 +178,13 @@ const global = window;
         }
 
         const classes = data.classes || [];
-        const site = global.ScienceApi.SITE_BASE || '';
+        const spaHref = (route) => (global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : route);
         const cards = classes.map((c) => {
+            const id = Number(c.id);
             const form = c.form_level_label || '—';
             const subject = c.course_subject_label || '—';
-            const shUrl = site + '/admin/course_summer_homework.php?id=' + encodeURIComponent(c.id);
-            const studentsUrl = site + '/admin/course_students.php?id=' + encodeURIComponent(c.id);
-            const reportUrl = site + '/admin/course_reports.php?id=' + encodeURIComponent(c.id);
-            const editUrl = site + '/admin/course_edit.php?id=' + encodeURIComponent(c.id);
-            const wsUrl = site + '/admin/course_worksheets.php?id=' + encodeURIComponent(c.id);
             return `<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <div class="flex flex-wrap justify-between gap-3 items-start">
                     <div>
@@ -195,23 +193,22 @@ const global = window;
                             · ${t('學生', 'Students')} ${c.student_count != null ? c.student_count : '—'}</p>
                     </div>
                     <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(studentsUrl)}">${t('學生', 'Students')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(shUrl)}">${t('暑期功課', 'Summer HW')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(reportUrl)}">${t('學習報告', 'Reports')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(wsUrl)}">${t('工作紙', 'Worksheets')}</a>
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(editUrl)}">${t('編輯', 'Edit')}</a>
+                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/students'))}" data-spa-nav="/admin/courses/${id}/students">${t('學生', 'Students')}</a>
+                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/summer'))}" data-spa-nav="/admin/courses/${id}/summer">${t('暑期功課', 'Summer HW')}</a>
+                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/report'))}" data-spa-nav="/admin/courses/${id}/report">${t('學習報告', 'Reports')}</a>
+                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id + '/worksheets'))}" data-spa-nav="/admin/courses/${id}/worksheets">${t('工作紙', 'Worksheets')}</a>
+                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/courses/' + id))}" data-spa-nav="/admin/courses/${id}">${t('編輯', 'Edit')}</a>
                     </div>
                 </div>
             </div>`;
         }).join('');
 
-        const adminList = site + '/admin/courses.php';
         main.innerHTML = `
             <div class="max-w-4xl mx-auto w-full">
                 <div class="mb-6 pb-6 border-b border-slate-200/80">
                     <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">${t('我的課程', 'My courses')}</h1>
                     <p class="text-slate-600 mt-2 text-sm">${t('查看任教課程的暑期功課呈交與學習報告。', 'View summer homework submissions and learning reports for your classes.')}</p>
-                    <a href="${escapeHtml(adminList)}" class="inline-block mt-3 text-sm text-indigo-600 hover:underline">${t('開啟後台課程管理', 'Open course admin')}</a>
+                    <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="inline-block mt-3 text-sm text-indigo-600 hover:underline">${t('開啟後台課程管理', 'Open course admin')}</a>
                 </div>
                 <div class="space-y-3">
                     ${cards || `<p class="text-slate-500 text-sm">${t('尚無任教課程。', 'No courses yet.')}</p>`}

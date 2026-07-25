@@ -11,6 +11,13 @@ const global = window;
             : String(s || '');
     }
 
+    function spaHref(route) {
+        return global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : String(route || '');
+    }
+
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
@@ -83,7 +90,7 @@ const global = window;
                     <td class="p-3 text-slate-600">${escapeHtml(u.role_names || '—')}</td>
                     <td class="p-3">${active}</td>
                     <td class="p-3 whitespace-nowrap">
-                        <a class="text-indigo-700 hover:underline" href="./admin/users/${Number(u.id)}" data-spa-nav="/admin/users/${Number(u.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
+                        <a class="text-indigo-700 hover:underline" href="${escapeHtml(spaHref(`/admin/users/${Number(u.id)}`))}" data-spa-nav="/admin/users/${Number(u.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
                         ${impersonate}
                         <button type="button" class="admin-user-delete text-red-600 hover:underline ml-2" data-id="${Number(u.id)}">${escapeHtml(t('刪除', 'Delete'))}</button>
                     </td>
@@ -92,7 +99,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(legacyAdmin('permissions.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('角色權限', 'Permissions'))}</a>
                     <a href="${escapeHtml(legacyAdmin('users.php'))}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('完整 PHP 列表', 'Full PHP list'))}</a>
                 </div>
@@ -255,7 +262,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="./admin/users" data-spa-nav="/admin/users" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 使用者列表', '← Users'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 使用者列表', '← Users'))}</a>
                 </div>
                 <p id="admin-user-edit-flash" class="text-sm mb-3 hidden"></p>
                 <form id="admin-user-edit" class="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-sm max-w-2xl">

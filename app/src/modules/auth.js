@@ -4,6 +4,12 @@ const global = window;
     const { loadSession, getUser } = global.ScienceApi;
     const { t } = global.AppRouter;
 
+    let resolveAuthReady;
+    const authReadyPromise = new Promise((resolve) => {
+        resolveAuthReady = resolve;
+    });
+    let authStarted = false;
+
     function userLang() {
         return localStorage.getItem('science_sims_ui_lang') || (global.AppRouter?.getLang?.() || 'zh');
     }
@@ -44,7 +50,15 @@ const global = window;
         return String(text).replace(/[&<>"']/g, (m) => map[m]);
     }
 
+    function whenReady() {
+        return authReadyPromise;
+    }
+
     async function initAuth() {
+        if (authStarted) {
+            return authReadyPromise;
+        }
+        authStarted = true;
         if (global.AppUserMenu) {
             global.AppUserMenu.init();
         }
@@ -54,8 +68,10 @@ const global = window;
             console.warn('Session load failed', e);
         }
         updateAuthNav();
+        resolveAuthReady();
+        return authReadyPromise;
     }
 
-    global.AppAuth = { initAuth, updateAuthNav };
+    global.AppAuth = { initAuth, updateAuthNav, whenReady };
 
 export {};

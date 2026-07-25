@@ -144,6 +144,23 @@
             </div>`;
     }
 
+    function clearNavTabActive() {
+        document.querySelectorAll('.nav-tab').forEach((btn) => {
+            btn.classList.remove('active');
+            btn.classList.add('text-indigo-200');
+        });
+    }
+
+    async function runAdminRoute(renderFn) {
+        restoreMainShell();
+        clearNavTabActive();
+        // Wait for /auth/me before deciding login redirect (cold deep-links).
+        if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
+            await AppAuth.whenReady();
+        }
+        await renderFn();
+    }
+
     async function ensureCatalog() {
         if (!catalogLoaded) {
             await AppCatalog.loadCatalog();
@@ -236,6 +253,11 @@
             const base = (window.__SITE_BASE__ || '') + '/login.php?next=' + encodeURIComponent('app/');
             authNav.innerHTML = `<a href="${base}" class="user-menu-login">登入</a>`;
         }
+
+        // Start session before first route handlers await AppAuth.whenReady().
+        const authBoot = (window.AppAuth && typeof AppAuth.initAuth === 'function')
+            ? AppAuth.initAuth()
+            : Promise.resolve();
 
         AppRouter.init({
             '/': showHome,
@@ -379,88 +401,67 @@
                 if (window.AppSummerHomework) await AppSummerHomework.renderItem(slug);
             },
             '/login': async () => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
-                });
+                restoreMainShell();
+                clearNavTabActive();
+                if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
+                    await AppAuth.whenReady();
+                }
                 if (window.AppLogin) await AppLogin.renderLogin();
             },
             '/admin': async () => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminHome();
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminHome();
             },
             '/admin/subjects': async () => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSubjects();
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminSubjects();
             },
             '/admin/courses': async () => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourses();
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminCourses();
             },
             '/admin/courses/:id': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseEdit(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminCourseEdit(id);
             },
             '/admin/courses/:id/students': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseStudents(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminCourseStudents(id);
             },
             '/admin/courses/:id/report': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseReport(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminCourseReport(id);
             },
             '/admin/courses/:id/summer': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseSummer(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminCourseSummer(id);
             },
             '/admin/courses/:id/worksheets': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseWorksheets(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminCourseWorksheets(id);
             },
             '/admin/summer-homework/:id/analytics': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSummerAnalytics(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminSummerAnalytics(id);
             },
             '/admin/users': async () => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminUsers();
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminUsers();
             },
             '/admin/users/:id': async (id) => {
-                document.querySelectorAll('.nav-tab').forEach((btn) => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminUserEdit(id);
                 });
-                if (window.AppAdmin) await AppAdmin.renderAdminUserEdit(id);
             },
         });
 
@@ -486,13 +487,14 @@
         // Session + nav menu in background — do not block first paint.
         void (async () => {
             try {
-                await AppAuth.initAuth();
+                await authBoot;
             } catch (e) {
                 console.warn('Auth init failed', e);
             }
             void refreshNavVisibility();
-            // First dispatch ran with no session; refresh home for logged-in users.
-            if (window.ScienceApi?.getUser?.() && isHomePath(currentAppPath())) {
+            // First dispatch may have run before session; refresh current route
+            // (home for teachers, and any /admin deep link after cookie is known).
+            if (window.AppRouter?.dispatch) {
                 AppRouter.dispatch(currentAppPath());
             }
         })();

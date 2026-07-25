@@ -8,6 +8,15 @@
 
 ## 2026-07-25
 
+### 修正：課程連結誤回首頁（教師首頁＋深層路由）
+- 教師首頁「我的課程」仍連 PHP 再 302 進 SPA；冷啟動時 session 未就緒就導向登入，畫面像首頁。
+- 改連 SPA 路由；admin／login 先 `restoreMainShell`；`AppAuth.whenReady` 後再判權；登入後重派目前路徑。
+- `admin/courses.php` 改 302 至 SPA；帳戶選單「課程管理」改連 `/app/admin/courses`。
+
+### 修正：SPA 後台課程連結誤回首頁
+- 相對路徑 `./admin/...` 在 `/app/admin/courses` 下會解析成 `/app/admin/admin/...`，路由對不到就落到首頁。
+- 改 `AppRouter.spaHref` 產生絕對路徑；並以文件級委派處理 `[data-spa-nav]`。
+
 ### SPA：暑期呈交分析
 - 新增 `/admin/summer-homework/{id}/analytics`（KPI、錯題分析、學生摘要、作答明細、長答評分）。
 - `summer_homework_analytics.php` 302 → SPA（保留 `user_id`／`attempt_id`）。
