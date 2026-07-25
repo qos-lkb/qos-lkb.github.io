@@ -7,6 +7,7 @@ require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/classes_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/adaptive_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/learning_analytics_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/student_coursework_lib.php';
 
 function api_handle_teacher_classes_list(PDO $pdo): void
 {
@@ -88,11 +89,18 @@ function api_handle_teacher_class_report(PDO $pdo, int $classId): void
         api_json_error('forbidden', '沒有權限。', 403);
     }
 
+    $students = scw_enrich_student_reports(
+        $pdo,
+        $classId,
+        adaptive_class_student_reports($pdo, $classId)
+    );
+
     api_json_ok([
         'class' => classes_public_row($class),
         'summary' => la_class_activity_summary($pdo, $classId),
+        'coursework' => scw_class_coursework_kpis($pdo, $classId),
         'weak_topics' => adaptive_class_weak_topics($pdo, $classId),
-        'students' => adaptive_class_student_reports($pdo, $classId),
+        'students' => $students,
     ]);
 }
 
@@ -107,28 +115,19 @@ function api_handle_teacher_class_student_detail(PDO $pdo, int $classId, int $st
         api_json_error('forbidden', '沒有權限。', 403);
     }
 
-    $enrolled = $pdo->prepare(
-        'SELECT 1 FROM class_enrollments WHERE class_id = ? AND user_id = ? AND status = \'active\' LIMIT 1'
-    );
-    $enrolled->execute([$classId, $studentUserId]);
-    if (!$enrolled->fetch()) {
+    $dossier = scw_student_dossier($pdo, $classId, $studentUserId);
+    if ($dossier === []) {
         api_json_error('not_found', '學生不在此課程。', 404);
     }
 
-    $stmt = $pdo->prepare('SELECT id, email, display_name FROM users WHERE id = ? LIMIT 1');
-    $stmt->execute([$studentUserId]);
-    $student = $stmt->fetch();
-    if (!$student) {
-        api_json_error('not_found', '找不到學生。', 404);
-    }
-
     api_json_ok([
-        'student' => [
-            'id' => (int) $student['id'],
-            'email' => (string) $student['email'],
-            'display_name' => (string) $student['display_name'],
-        ],
-        'detail' => adaptive_student_detail($pdo, $studentUserId),
+        'class' => classes_public_row($class),
+        'student' => $dossier['student'],
+        'kpis' => $dossier['kpis'],
+        'detail' => $dossier['sdl'],
+        'worksheets' => $dossier['worksheets'],
+        'summer_homework' => $dossier['summer_homework'],
+        'recent_events' => $dossier['recent_events'],
     ]);
 }
 
@@ -143,17 +142,26 @@ function api_teacher_class_report_csv(PDO $pdo, int $classId): void
         api_json_error('forbidden', '沒有權限。', 403);
     }
 
-    $students = adaptive_class_student_reports($pdo, $classId);
+    $students = scw_enrich_student_reports(
+        $pdo,
+        $classId,
+        adaptive_class_student_reports($pdo, $classId)
+    );
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="class-' . $classId . '-report.csv"');
     echo "\xEF\xBB\xBF";
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['姓名', '電郵', '班別', '班號', 'MOI', '平均掌握度', '本週學習分鐘', '最後上線', '最近測驗']);
+    fputcsv($out, [
+        '姓名', '電郵', '班別', '班號', 'MOI', '平均掌握度', '本週學習分鐘', '最後上線', '最近測驗',
+        '工作紙已交', '工作紙應交', '工作紙待批', '工作紙逾期', '暑期已過', '暑期總數',
+    ]);
     foreach ($students as $s) {
         $lastAttempt = '';
         if ($s['last_attempt']) {
             $lastAttempt = $s['last_attempt']['score'] . '/' . $s['last_attempt']['max_score'];
         }
+        $ws = $s['worksheets'] ?? [];
+        $sh = $s['summer'] ?? [];
         fputcsv($out, [
             $s['display_name'],
             $s['email'],
@@ -164,8 +172,52 @@ function api_teacher_class_report_csv(PDO $pdo, int $classId): void
             $s['minutes_week'],
             $s['last_active_at'] ?? '',
             $lastAttempt,
+            $ws['submitted'] ?? 0,
+            $ws['assigned'] ?? 0,
+            $ws['ungraded'] ?? 0,
+            $ws['overdue'] ?? 0,
+            $sh['passed'] ?? 0,
+            $sh['total'] ?? 0,
         ]);
     }
     fclose($out);
     exit;
+}
+
+function api_handle_teacher_inbox(PDO $pdo): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('class.manage_any') && !user_has_permission('class.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+    $filters = [
+        'class_id' => isset($_GET['class_id']) ? (int) $_GET['class_id'] : 0,
+        'type' => isset($_GET['type']) ? (string) $_GET['type'] : '',
+        'status' => isset($_GET['status']) ? (string) $_GET['status'] : '',
+    ];
+    api_json_ok([
+        'items' => scw_teacher_inbox($pdo, $user, $filters),
+        'count' => scw_inbox_count($pdo, $user),
+    ]);
+}
+
+function api_handle_teacher_inbox_count(PDO $pdo): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('class.manage_any') && !user_has_permission('class.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+    api_json_ok(scw_inbox_count($pdo, $user));
+}
+
+function api_handle_admin_school_overview(PDO $pdo): void
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('class.manage_any')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+    api_json_ok(['classes' => scw_school_overview($pdo)]);
 }

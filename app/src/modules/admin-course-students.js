@@ -88,6 +88,9 @@ const global = window;
                         <td class="p-3">${escapeHtml(s.form_class || '—')}</td>
                         <td class="p-3">${s.class_no != null && s.class_no !== '' ? Number(s.class_no) : '—'}</td>
                         <td class="p-3">${escapeHtml(moiLabel(moi))}</td>
+                        <td class="p-3">
+                            <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students/${uid}`))}" data-spa-nav="/admin/courses/${id}/students/${uid}" class="text-indigo-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a>
+                        </td>
                     </tr>`;
                 }
                 return `<tr class="border-t border-slate-100 align-middle" data-user-id="${uid}">
@@ -113,6 +116,7 @@ const global = window;
                         </select>
                     </td>
                     <td class="p-3 whitespace-nowrap">
+                        <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students/${uid}`))}" data-spa-nav="/admin/courses/${id}/students/${uid}" class="text-indigo-600 hover:underline text-xs mr-2">${escapeHtml(t('課業', 'Dossier'))}</a>
                         <button type="button" class="course-remove-student text-red-600 hover:underline text-xs" data-user-id="${uid}">${escapeHtml(t('移出', 'Remove'))}</button>
                     </td>
                 </tr>`;
@@ -151,11 +155,11 @@ const global = window;
                                     <th class="p-3">${escapeHtml(t('班別', 'Class'))}</th>
                                     <th class="p-3">${escapeHtml(t('班號', 'No.'))}</th>
                                     <th class="p-3">${escapeHtml(t('修讀語言（MOI）', 'MOI'))}</th>
-                                    ${canEdit ? `<th class="p-3">${escapeHtml(t('操作', 'Actions'))}</th>` : ''}
+                                    <th class="p-3">${escapeHtml(t('操作', 'Actions'))}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${rows || `<tr><td colspan="${canEdit ? 7 : 6}" class="p-6 text-slate-500 text-center">${escapeHtml(t('尚無學生', 'No students'))}</td></tr>`}
+                                ${rows || `<tr><td colspan="7" class="p-6 text-slate-500 text-center">${escapeHtml(t('尚無學生', 'No students'))}</td></tr>`}
                             </tbody>
                         </table>
                     </div>

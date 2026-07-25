@@ -8,6 +8,12 @@
 
 ## 2026-07-25
 
+### 教師／管理員：課業檢視與分析
+- 新增 `includes/student_coursework_lib.php`：學生課業聚合、班級課業 KPI、待批改／逾期 inbox、全校概覽。
+- 擴充 `GET /teacher/classes/{id}/students/{userId}`（工作紙／暑期／SDL／最近活動）；班級報告加入 `coursework` KPI 與學生列摘要；CSV 欄位對齊。
+- 新增 `GET /teacher/inbox`、`GET /teacher/inbox/count`、`GET /admin/school-overview`。
+- SPA：`/admin/courses/:id/students/:userId` 學生課業總覽、`/admin/inbox`、`/admin/school-overview`；儀表板「教學」卡片與 PHP shell 側欄「教學與課業」分組。
+
 ### SPA：後台儀表板 UI
 - `/admin` 改為 hero＋內容狀態統計＋分區圖示卡片。
 - 新增 `GET /api/v1/admin/dashboard`（依權限加總 published／pending／draft）。

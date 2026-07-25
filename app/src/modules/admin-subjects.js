@@ -150,6 +150,20 @@ const global = window;
                 tone: 'blue',
                 icon: 'course',
             } : null,
+            canCourses ? {
+                route: '/admin/inbox',
+                label: t('待批改／逾期', 'Grading inbox'),
+                desc: t('待批改工作紙與逾期未交催交。', 'Ungraded submissions and overdue chase list.'),
+                tone: 'amber',
+                icon: 'sheet',
+            } : null,
+            global.ScienceApi.hasPermission('class.manage_any') ? {
+                route: '/admin/school-overview',
+                label: t('全校概覽', 'School overview'),
+                desc: t('各班活躍度、呈交率與待批改摘要。', 'Per-class activity, submission rates, and backlog.'),
+                tone: 'indigo',
+                icon: 'curriculum',
+            } : null,
             canSummer ? {
                 route: '/admin/summer-homework',
                 label: t('暑期功課設計', 'Summer homework'),
@@ -278,11 +292,15 @@ const global = window;
             } : null,
         ].filter(Boolean);
 
-        const paint = (totals, hasStats) => {
+        const paint = (totals, hasStats, inboxTotal) => {
             const pending = totals?.pending ?? null;
             const reviewCard = contentCards.find((c) => c.route === '/admin/review-queue');
             if (reviewCard && pending != null) {
                 reviewCard.badge = pending;
+            }
+            const inboxCard = teachingCards.find((c) => c.route === '/admin/inbox');
+            if (inboxCard && inboxTotal != null && inboxTotal > 0) {
+                inboxCard.badge = inboxTotal;
             }
 
             const statsHtml = hasStats
@@ -330,16 +348,22 @@ const global = window;
             bindDashNav(box);
         };
 
-        paint({ published: null, pending: null, draft: null }, true);
+        paint({ published: null, pending: null, draft: null }, true, null);
 
         try {
-            const data = await global.ScienceApi.apiFetch('/admin/dashboard');
+            const [data, inboxCount] = await Promise.all([
+                global.ScienceApi.apiFetch('/admin/dashboard'),
+                canCourses
+                    ? global.ScienceApi.apiFetch('/teacher/inbox/count').catch(() => null)
+                    : Promise.resolve(null),
+            ]);
             const totals = data?.totals || { published: 0, pending: 0, draft: 0 };
             const byType = data?.by_type || {};
             const hasStats = Object.keys(byType).length > 0;
-            paint(totals, hasStats);
+            const inboxTotal = inboxCount && typeof inboxCount.total === 'number' ? inboxCount.total : null;
+            paint(totals, hasStats, inboxTotal);
         } catch (_err) {
-            paint({ published: null, pending: null, draft: null }, true);
+            paint({ published: null, pending: null, draft: null }, true, null);
         }
     }
 

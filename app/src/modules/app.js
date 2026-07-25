@@ -461,6 +461,11 @@
                     if (window.AppAdmin) await AppAdmin.renderAdminCourseStudents(id);
                 });
             },
+            '/admin/courses/:id/students/:userId': async (id, userId) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminStudentDossier(id, userId);
+                });
+            },
             '/admin/courses/:id/report': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminCourseReport(id);
@@ -474,6 +479,16 @@
             '/admin/courses/:id/worksheets': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminCourseWorksheets(id);
+                });
+            },
+            '/admin/inbox': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminInbox();
+                });
+            },
+            '/admin/school-overview': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSchoolOverview();
                 });
             },
             '/admin/summer-homework/:id/analytics': async (id) => {

@@ -323,6 +323,10 @@ const global = window;
 
             await loadWorksheets();
             await loadAssignments();
+            const openAssignment = parseInt(new URLSearchParams(location.search).get('assignment') || '0', 10);
+            if (openAssignment > 0) {
+                await openGrade(openAssignment);
+            }
         } catch (err) {
             box.innerHTML = `<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
         }

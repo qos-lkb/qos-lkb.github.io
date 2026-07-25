@@ -65,12 +65,15 @@ const global = window;
         { re: /^\/admin\/qsis-import\/?$/, name: '/admin/qsis-import' },
         { re: /^\/admin\/data-dictionary\/?$/, name: '/admin/data-dictionary' },
         { re: /^\/admin\/subjects\/?$/, name: '/admin/subjects' },
+        { re: /^\/admin\/courses\/(\d+)\/students\/(\d+)\/?$/, name: '/admin/courses/:id/students/:userId', keys: [1, 2] },
         { re: /^\/admin\/courses\/(\d+)\/students\/?$/, name: '/admin/courses/:id/students', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/report\/?$/, name: '/admin/courses/:id/report', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/summer\/?$/, name: '/admin/courses/:id/summer', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/worksheets\/?$/, name: '/admin/courses/:id/worksheets', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/?$/, name: '/admin/courses/:id', keys: [1] },
         { re: /^\/admin\/courses\/?$/, name: '/admin/courses' },
+        { re: /^\/admin\/inbox\/?$/, name: '/admin/inbox' },
+        { re: /^\/admin\/school-overview\/?$/, name: '/admin/school-overview' },
         { re: /^\/admin\/users\/(\d+)\/?$/, name: '/admin/users/:id', keys: [1] },
         { re: /^\/admin\/users\/?$/, name: '/admin/users' },
         { re: /^\/admin\/?$/, name: '/admin' },
@@ -111,12 +114,21 @@ const global = window;
      * e.g. spaHref('/admin/courses/1') → '/science_sims/app/admin/courses/1'
      */
     function spaHref(route) {
-        const raw = String(route || '/').split('?')[0].split('#')[0];
-        const r = '/' + raw.replace(/^\/+/, '');
+        const rawFull = String(route || '/');
+        const qIdx = rawFull.indexOf('?');
+        const hIdx = rawFull.indexOf('#');
+        let pathPart = rawFull;
+        let suffix = '';
+        if (qIdx >= 0 || hIdx >= 0) {
+            const cut = qIdx >= 0 && hIdx >= 0 ? Math.min(qIdx, hIdx) : (qIdx >= 0 ? qIdx : hIdx);
+            pathPart = rawFull.slice(0, cut);
+            suffix = rawFull.slice(cut);
+        }
+        const r = '/' + pathPart.replace(/^\/+/, '');
         const site = typeof window.__SITE_BASE__ === 'string'
             ? window.__SITE_BASE__
             : (location.pathname.split('/app')[0] || '');
-        return (site || '') + '/app' + (r === '/' ? '/' : r);
+        return (site || '') + '/app' + (r === '/' ? '/' : r) + suffix;
     }
 
     async function dispatch(path) {

@@ -159,14 +159,15 @@ function admin_menu_sections(): array
 
     $courseItems = [];
     if (user_has_permission('class.manage_any') || user_has_permission('class.manage_own')) {
-        $courseItems[] = ['key' => 'courses', 'label' => '課程管理', 'href' => '../app/admin/courses', 'accent' => 'blue'];
-        $courseItems[] = ['key' => 'course_reports', 'label' => '課程報告', 'href' => '../app/admin/courses', 'accent' => 'teal'];
-        if (user_has_permission('worksheet.assign_own') || user_has_permission('class.manage_any')) {
-            $courseItems[] = ['key' => 'course_worksheets', 'label' => '工作紙派發', 'href' => '../app/admin/courses', 'accent' => 'violet'];
+        $courseItems[] = ['key' => 'courses', 'label' => '我的課程', 'href' => '../app/admin/courses', 'accent' => 'blue'];
+        $courseItems[] = ['key' => 'inbox', 'label' => '待批改／逾期', 'href' => '../app/admin/inbox', 'accent' => 'amber'];
+        if (user_has_permission('class.manage_any')) {
+            $courseItems[] = ['key' => 'school_overview', 'label' => '全校概覽', 'href' => '../app/admin/school-overview', 'accent' => 'indigo'];
         }
+        $courseItems[] = ['key' => 'course_reports', 'label' => '課程報告', 'href' => '../app/admin/courses', 'accent' => 'teal'];
     }
     if ($courseItems !== []) {
-        $sections[] = ['label' => '學習分析', 'items' => $courseItems];
+        $sections[] = ['label' => '教學與課業', 'items' => $courseItems];
     }
 
     if (user_has_permission('user.manage')) {

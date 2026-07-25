@@ -258,7 +258,10 @@ const global = window;
                 </label>`
                 : `<input type="hidden" name="teacher_user_id" value="${Number(c.teacher_user_id || me.id)}">`;
 
-            const studentRows = students.map((s) => `<tr class="border-t border-slate-100">
+            const studentRows = students.map((s) => {
+                const uid = Number(s.id);
+                const dossier = `/admin/courses/${id}/students/${uid}`;
+                return `<tr class="border-t border-slate-100">
                 <td class="p-3">${escapeHtml(s.name_zh || '')}</td>
                 <td class="p-3">${escapeHtml(s.name_en || '')}</td>
                 <td class="p-3">${escapeHtml(s.email || '')}</td>
@@ -267,7 +270,9 @@ const global = window;
                 <td class="p-3">${s.class_no != null && s.class_no !== '' ? Number(s.class_no) : '—'}</td>
                 <td class="p-3">${escapeHtml(moiLabel(s.moi))}</td>
                 <td class="p-3">${escapeHtml(s.joined_at || '')}</td>
-            </tr>`).join('');
+                <td class="p-3"><a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}" class="text-indigo-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a></td>
+            </tr>`;
+            }).join('');
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
@@ -326,10 +331,11 @@ const global = window;
                                 <th class="p-3">${escapeHtml(t('班號', 'No.'))}</th>
                                 <th class="p-3">MOI</th>
                                 <th class="p-3">${escapeHtml(t('加入日期', 'Joined'))}</th>
+                                <th class="p-3">${escapeHtml(t('操作', 'Actions'))}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${studentRows || `<tr><td colspan="8" class="p-6 text-slate-500 text-center">${escapeHtml(t('尚無學生', 'No students'))}</td></tr>`}
+                            ${studentRows || `<tr><td colspan="9" class="p-6 text-slate-500 text-center">${escapeHtml(t('尚無學生', 'No students'))}</td></tr>`}
                         </tbody>
                     </table>
                 </div>

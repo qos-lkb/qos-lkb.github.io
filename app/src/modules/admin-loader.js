@@ -13,9 +13,12 @@ const GROUP_LOADERS = {
     subjects: () => import('./admin-subjects.js'),
     courses: () => import('./admin-courses.js'),
     'course-students': () => import('./admin-course-students.js'),
+    'student-dossier': () => import('./admin-student-dossier.js'),
     'course-report': () => import('./admin-course-report.js'),
     'course-summer': () => import('./admin-course-summer.js'),
     'course-worksheets': () => import('./admin-course-worksheets.js'),
+    inbox: () => import('./admin-inbox.js'),
+    'school-overview': () => import('./admin-school-overview.js'),
     'summer-list': () => import('./admin-summer-homework-list.js'),
     'summer-analytics': () => import('./admin-summer-analytics.js'),
     'summer-edit': () => Promise.all([
@@ -61,11 +64,14 @@ function resolveAdminGroup(path) {
 
     if (p === '/admin') return 'home';
     if (p.startsWith('/admin/subjects')) return 'subjects';
+    if (/^\/admin\/courses\/\d+\/students\/\d+$/.test(p)) return 'student-dossier';
     if (/^\/admin\/courses\/\d+\/students$/.test(p)) return 'course-students';
     if (/^\/admin\/courses\/\d+\/report$/.test(p)) return 'course-report';
     if (/^\/admin\/courses\/\d+\/summer$/.test(p)) return 'course-summer';
     if (/^\/admin\/courses\/\d+\/worksheets$/.test(p)) return 'course-worksheets';
     if (/^\/admin\/courses(\/\d+)?$/.test(p)) return 'courses';
+    if (p.startsWith('/admin/inbox')) return 'inbox';
+    if (p.startsWith('/admin/school-overview')) return 'school-overview';
     if (/^\/admin\/summer-homework\/\d+\/analytics$/.test(p)) return 'summer-analytics';
     if (/^\/admin\/summer-homework\/(new|\d+\/(edit|view))$/.test(p)) return 'summer-edit';
     if (p.startsWith('/admin/summer-homework')) return 'summer-list';
