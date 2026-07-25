@@ -45,6 +45,7 @@ require_once __DIR__ . '/handlers/nav_menu.php';
 require_once __DIR__ . '/handlers/catalog.php';
 require_once __DIR__ . '/handlers/users.php';
 require_once __DIR__ . '/handlers/ops.php';
+require_once __DIR__ . '/handlers/admin_dashboard.php';
 require_once __DIR__ . '/build_router.php';
 
 function api_v1_path(): string

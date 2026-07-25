@@ -36,6 +36,8 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('GET', '/subjects', static fn () => api_handle_subjects($pdo));
     $router->addExact('GET', '/nav-menu', static fn () => api_handle_nav_menu($pdo));
 
+    $router->addExact('GET', '/admin/dashboard', static fn () => api_handle_admin_dashboard($pdo));
+
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/simulations', static fn () => api_handle_admin_simulations($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-tools', static fn () => api_handle_admin_learning_tools($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/articles', static fn () => api_handle_admin_articles($pdo, $method()));

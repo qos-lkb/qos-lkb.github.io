@@ -8,6 +8,10 @@
 
 ## 2026-07-25
 
+### SPA：後台儀表板 UI
+- `/admin` 改為 hero＋內容狀態統計＋分區圖示卡片。
+- 新增 `GET /api/v1/admin/dashboard`（依權限加總 published／pending／draft）。
+
 ### SPA：清除非登入 PHP 連結
 - 後台模組改連 SPA（使用者／課程／暑期分析等）；移除 `legacyAdmin` 與「完整 PHP 列表」。
 - 資料字典不再連 `markdown_reader.php`。
