@@ -18,6 +18,10 @@
 - HTML 直接輸出訪客首頁骨架，不再先顯示「載入中…」。
 - 開機先註冊路由並畫首頁；`/auth/me` 與選單可見性改背景載入，登入後再升級為學生／教師首頁。
 
+### SPA：修正 Tailwind 版面全壞
+- 先前 jsDelivr 靜態 `tailwind.min.css` 路徑 **404**，導致無任何 utility 樣式。
+- 改為專案內建置 `app/assets/css/tailwind.generated.css`（PostCSS + Vite 一併打包），不依賴失效 CDN。
+
 ## 2026-07-24
 
 ### 重構 Phase 7：learning_tools／quiz_* → question_bank
