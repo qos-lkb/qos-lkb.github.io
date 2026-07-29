@@ -351,12 +351,20 @@ const global = window;
         });
     }
 
-    function itemRowHtml(item, idx, subjectSlug, topicSlug, completed) {
+    function itemRowHtml(item, idx, subjectSlug, topicSlug, completed, bookmarked, canBookmark) {
         const lang = getLang();
         const title = lang === 'zh' ? item.title_zh : item.title_en;
         const icon = TYPE_ICONS[item.content_type] || '•';
         const label = typeLabel(item.content_type);
         const doneBadge = completed ? '<span class="text-emerald-500 text-sm flex-shrink-0" title="' + t('已完成', 'Done') + '">✓</span>' : '';
+        const bookmarkToggle = canBookmark
+            ? `<span class="course-bookmark-toggle cursor-pointer select-none flex-shrink-0 ${bookmarked ? 'text-indigo-600' : 'text-slate-400'}"
+                role="button"
+                tabindex="0"
+                aria-label="${bookmarked ? escapeHtml(t('已收藏', 'Bookmarked')) : escapeHtml(t('未收藏', 'Not bookmarked'))}"
+                data-content-type="${escapeHtml(item.content_type)}"
+                data-content-slug="${escapeHtml(item.slug)}">${bookmarked ? '★' : '☆'}</span>`
+            : '';
         let meta = '';
         if (item.reading_time_minutes) {
             meta = `<span class="text-xs text-slate-400">${t('約', '~')}${item.reading_time_minutes}${t(' 分鐘', ' min')}</span>`;
@@ -372,6 +380,7 @@ const global = window;
                     <p class="text-xs text-slate-500">${escapeHtml(label)}</p>
                 </div>
                 ${meta}
+                ${bookmarkToggle}
                 ${doneBadge}
             </button>`;
     }
@@ -398,10 +407,17 @@ const global = window;
 
         let progressMap = {};
         let recBanner = '';
+        const progressAvailable = !!(global.ScienceApi.getUser() && ctx.topic.id);
+        let bookmarkSet = new Set();
         if (global.ScienceApi.getUser() && ctx.topic.id) {
             try {
                 const prog = await apiFetch('/learning/progress?topic_id=' + encodeURIComponent(ctx.topic.id));
                 progressMap = prog.completed || {};
+            } catch (e) { /* ignore */ }
+            try {
+                const bm = await apiFetch('/learning/bookmarks?limit=200');
+                const list = bm.bookmarks || [];
+                bookmarkSet = new Set(list.map((x) => String(x.content_type || '') + ':' + String(x.content_slug || '')));
             } catch (e) { /* ignore */ }
             try {
                 const rec = await apiFetch('/learning/recommendations');
@@ -429,11 +445,93 @@ const global = window;
             return list.includes(item.slug);
         }
 
+        function isItemBookmarked(item) {
+            if (!bookmarkSet || bookmarkSet.size === 0) return false;
+            return bookmarkSet.has(String(item.content_type || '') + ':' + String(item.slug || ''));
+        }
+
         const items = ctx.topic.items || [];
         const topics = ctx.subject.topics || [];
         const topicIdx = topics.findIndex((tp) => tp.slug === topicSlug);
         const topicPrev = topicIdx > 0 ? topics[topicIdx - 1] : null;
         const topicNext = topicIdx >= 0 && topicIdx < topics.length - 1 ? topics[topicIdx + 1] : null;
+
+        let topicProgressHtml = '';
+        let coachHtml = '';
+        if (items.length && progressAvailable) {
+            const doneCount = items.reduce((acc, it) => acc + (isItemDone(it) ? 1 : 0), 0);
+            const pct = Math.round((doneCount / Math.max(1, items.length)) * 100);
+            topicProgressHtml = `
+                <div class="mb-4 p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <p class="text-sm font-medium text-slate-800">${t('完成度', 'Progress')}</p>
+                        <p class="text-xs text-slate-500">${doneCount}/${items.length} ${t('項完成', 'items done')}</p>
+                    </div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-indigo-600 rounded-full" style="width:${pct}%"></div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">${pct}% ${t('進度', 'complete')}</p>
+                </div>`;
+
+            const coachFallback = `<div class="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-sm">
+                <p class="text-indigo-900">${t('你已完成部分內容；下一步推薦會在你做完測驗後更新。', 'Nice work. Recommendations will improve after you complete quizzes.')}</p>
+            </div>`;
+
+            coachHtml = `
+                <div class="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <p class="text-sm font-bold text-indigo-900">${t('學習教練', 'Learning coach')}</p>
+                        <p class="text-xs text-indigo-700">${t('規則式建議', 'Rule-based tips')}</p>
+                    </div>
+                    ${recBanner || coachFallback}
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button"
+                            class="course-adaptive-quiz px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                            data-topic-id="${escapeHtml(String(ctx.topic.id))}">
+                            ${t('開始適性小測', 'Start adaptive quiz')} →
+                        </button>
+                        <p class="text-xs text-slate-600">${t('會優先用弱項/錯題生成測驗。', 'Prioritizes weak areas and recent wrong answers.')}</p>
+                    </div>
+                </div>`;
+        }
+
+        let discussionHtml = '';
+        if (progressAvailable) {
+            discussionHtml = `
+                <div class="course-discussions mt-10 pt-6 border-t border-slate-200">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <h2 class="text-lg font-bold text-slate-900">${t('討論串', 'Discussion')}</h2>
+                        <span class="text-xs text-slate-500">${t('班別 + 課題', 'Class + topic')}</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="course-discussions-class" class="block text-xs text-slate-500 mb-1">${t('選擇班別', 'Select class')}</label>
+                        <select id="course-discussions-class" class="w-full border rounded-lg px-3 py-2 text-sm"></select>
+                    </div>
+
+                    <div id="course-discussions-flash" class="text-sm mb-3 hidden"></div>
+
+                    <div class="grid lg:grid-cols-2 gap-4 mb-4">
+                        <section class="rounded-xl border border-slate-200 bg-white p-4">
+                            <h3 class="text-sm font-bold text-slate-900 mb-2">${t('已發布留言', 'Published posts')}</h3>
+                            <div id="course-discussions-published" class="space-y-2"></div>
+                        </section>
+                        <section class="rounded-xl border border-slate-200 bg-white p-4">
+                            <h3 class="text-sm font-bold text-slate-900 mb-2">${t('等待審核（我）', 'Pending (me)')}</h3>
+                            <div id="course-discussions-pending" class="space-y-2"></div>
+                        </section>
+                    </div>
+
+                    <section class="rounded-xl border border-slate-200 bg-white p-4">
+                        <h3 class="text-sm font-bold text-slate-900 mb-2">${t('發表留言', 'Write a message')}</h3>
+                        <textarea id="course-discussions-message" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea>
+                        <div class="flex flex-wrap items-center gap-2 mt-3">
+                            <button type="button" id="course-discussions-send" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${t('送出（等待審核）', 'Send (pending)')}</button>
+                            <p class="text-xs text-slate-500">${t('內容需教師審核後才會顯示為已發布。', 'Posts require teacher approval before becoming published.')}</p>
+                        </div>
+                    </section>
+                </div>`;
+        }
 
         let topicNav = '<div class="flex flex-wrap justify-between gap-2 mt-6 pt-4 border-t border-slate-200">';
         if (topicPrev) {
@@ -450,14 +548,18 @@ const global = window;
             container.innerHTML = `
                 <p class="text-xs text-indigo-600 mb-2">${escapeHtml(subName)}</p>
                 <p class="text-slate-500 py-8">${t('編課者尚未安排此課題的學習內容。', 'No learning items configured for this topic yet.')}</p>
-                ${topicNav}`;
+                ${topicNav}
+                ${discussionHtml}`;
         } else {
+            const canBookmark = !!global.ScienceApi.getUser();
             container.innerHTML = `
                 <p class="text-xs text-indigo-600 mb-2">${escapeHtml(subName)}</p>
-                ${recBanner}
+                ${topicProgressHtml}
+                ${coachHtml}
                 <p class="text-slate-600 text-sm mb-4">${t('依序完成以下內容：', 'Complete the following in order:')}</p>
-                <div class="space-y-2">${items.map((it, i) => itemRowHtml(it, i, subjectSlug, topicSlug, isItemDone(it))).join('')}</div>
-                ${topicNav}`;
+                <div class="space-y-2">${items.map((it, i) => itemRowHtml(it, i, subjectSlug, topicSlug, isItemDone(it), isItemBookmarked(it), canBookmark)).join('')}</div>
+                ${topicNav}
+                ${discussionHtml}`;
             container.querySelectorAll('.course-item-row').forEach((row) => {
                 row.onclick = () => openItem(
                     { content_type: row.getAttribute('data-content-type') || row.dataset.contentType, slug: row.dataset.slug },
@@ -476,6 +578,211 @@ const global = window;
         container.querySelectorAll('.course-rec-link').forEach((btn) => {
             btn.addEventListener('click', () => navigate(btn.getAttribute('data-route')));
         });
+
+        container.querySelectorAll('.course-bookmark-toggle').forEach((el) => {
+            el.addEventListener('click', async (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const contentType = el.getAttribute('data-content-type') || '';
+                const contentSlug = el.getAttribute('data-content-slug') || '';
+                const key = String(contentType || '') + ':' + String(contentSlug || '');
+                try {
+                    const res = await apiFetch('/learning/bookmarks', {
+                        method: 'POST',
+                        body: { action: 'toggle', content_type: contentType, content_slug: contentSlug },
+                    });
+                    const bookmarked = !!res.bookmarked;
+                    if (bookmarked) bookmarkSet.add(key);
+                    else bookmarkSet.delete(key);
+
+                    el.textContent = bookmarked ? '★' : '☆';
+                    el.classList.toggle('text-indigo-600', bookmarked);
+                    el.classList.toggle('text-slate-400', !bookmarked);
+                } catch (err) {
+                    alert(err.message || t('收藏失敗。', 'Bookmark failed.'));
+                }
+            });
+        });
+
+        container.querySelector('.course-adaptive-quiz')?.addEventListener('click', async (e) => {
+            if (!ctx.topic.id) return;
+            try {
+                const res = await apiFetch('/learning/adaptive-quiz?topic_id=' + encodeURIComponent(ctx.topic.id));
+                if (res && res.ok === true && res.mode === 'learning_tool' && res.source && res.source.route) {
+                    // Enable quiz prev/next navigation by switching into "course mode".
+                    setCourseContext({
+                        subjectSlug,
+                        topicSlug,
+                        contentType: 'learning_tool',
+                        slug: res.source.slug || '',
+                    });
+                    await navigate(res.source.route);
+                    return;
+                }
+                if (res && res.ok === true && res.mode === 'review_wrong') {
+                    // Phase 1: only support direct learning_tool quizzes; show a friendly fallback.
+                    alert(t('目前先以「弱項適性測驗」為主；錯題回顧支援將於後續版本加入。', 'Phase 1 supports adaptive learning-tool quizzes first; review_wrong support will be added later.'));
+                    return;
+                }
+                alert((res && res.error) ? res.error : t('無法產生適性小測。', 'Unable to generate adaptive quiz.'));
+            } catch (err) {
+                alert((err && err.message) ? err.message : t('取得測驗失敗。', 'Failed to fetch quiz.'));
+            }
+        });
+
+        if (progressAvailable) {
+            const classSelect = container.querySelector('#course-discussions-class');
+            const publishedEl = container.querySelector('#course-discussions-published');
+            const pendingEl = container.querySelector('#course-discussions-pending');
+            const messageEl = container.querySelector('#course-discussions-message');
+            const sendBtn = container.querySelector('#course-discussions-send');
+            const flashEl = container.querySelector('#course-discussions-flash');
+
+            if (classSelect && publishedEl && pendingEl && messageEl && sendBtn && flashEl) {
+                function showFlash(msg, isError) {
+                    flashEl.textContent = msg;
+                    flashEl.classList.remove('hidden', 'text-red-600', 'text-emerald-700');
+                    flashEl.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
+                }
+
+                function classLabel(c) {
+                    const parts = [];
+                    if (c.name) parts.push(String(c.name));
+                    const fc = c.form_class ? String(c.form_class) : '';
+                    const cn = c.class_no != null && c.class_no !== '' ? '#' + Number(c.class_no) : '';
+                    const moi = c.moi ? 'MOI ' + String(c.moi) : '';
+                    const sub = [fc, cn, moi].filter(Boolean).join(' ');
+                    if (sub) parts.push(sub);
+                    return parts.join(' · ');
+                }
+
+                const topicId = ctx.topic.id;
+                const storageKey = 'science_sims_discussion_class_' + String(topicId);
+                let selectedClassId = 0;
+
+                async function fetchDiscussion(cid) {
+                    publishedEl.innerHTML = `<p class="text-sm text-slate-500">${t('載入中…', 'Loading…')}</p>`;
+                    pendingEl.innerHTML = '';
+                    try {
+                        const data = await apiFetch(
+                            '/course-discussions?class_id=' + encodeURIComponent(cid) + '&topic_id=' + encodeURIComponent(topicId)
+                        );
+                        const published = data.published_posts || [];
+                        const myPending = data.my_pending_posts || [];
+
+                        if (published.length) {
+                            publishedEl.innerHTML = published.map((p) => {
+                                const msg = lang === 'zh' ? (p.message_zh || p.message_en || '') : (p.message_en || p.message_zh || '');
+                                const when = p.created_at ? String(p.created_at).slice(0, 16).replace('T', ' ') : '';
+                                return `
+                                    <div class="p-3 rounded-xl border border-slate-200 bg-white">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                            <span class="text-xs font-medium text-indigo-700">${escapeHtml(p.display_name || '')}</span>
+                                            <span class="text-xs text-slate-500">${escapeHtml(when)}</span>
+                                        </div>
+                                        <p class="text-sm text-slate-800 whitespace-pre-wrap">${escapeHtml(msg)}</p>
+                                    </div>`;
+                            }).join('');
+                        } else {
+                            publishedEl.innerHTML = `<p class="text-sm text-slate-500">${t('尚無已發布留言。', 'No published posts yet.')}</p>`;
+                        }
+
+                        if (myPending.length) {
+                            pendingEl.innerHTML = myPending.map((p) => {
+                                const msg = lang === 'zh' ? (p.message_zh || p.message_en || '') : (p.message_en || p.message_zh || '');
+                                const when = p.created_at ? String(p.created_at).slice(0, 16).replace('T', ' ') : '';
+                                return `
+                                    <div class="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                            <span class="text-xs font-medium text-amber-900">${t('等待審核', 'Pending review')}</span>
+                                            <span class="text-xs text-slate-500">${escapeHtml(when)}</span>
+                                        </div>
+                                        <p class="text-sm text-slate-800 whitespace-pre-wrap">${escapeHtml(msg)}</p>
+                                    </div>`;
+                            }).join('');
+                        } else {
+                            pendingEl.innerHTML = `<p class="text-sm text-slate-500">${t('你尚未送出等待審核的留言。', 'No pending posts.')}</p>`;
+                        }
+                    } catch (e) {
+                        publishedEl.innerHTML = '';
+                        pendingEl.innerHTML = '';
+                        showFlash(e.message || t('討論載入失敗。', 'Failed to load discussions.'), true);
+                    }
+                }
+
+                async function loadClassesAndDiscussion() {
+                    try {
+                        const data = await apiFetch('/student/classes');
+                        const classes = data.classes || [];
+                        classSelect.innerHTML = classes.length
+                            ? classes.map((c) => `<option value="${Number(c.id)}">${escapeHtml(classLabel(c))}</option>`).join('')
+                            : `<option value="0">${t('尚未加入班別', 'No classes')}</option>`;
+
+                        selectedClassId = Number(localStorage.getItem(storageKey) || 0);
+                        if (!selectedClassId || !classes.some((c) => Number(c.id) === selectedClassId)) {
+                            selectedClassId = classes.length ? Number(classes[0].id) : 0;
+                        }
+                        classSelect.value = selectedClassId ? String(selectedClassId) : '0';
+
+                        if (selectedClassId) {
+                            await fetchDiscussion(selectedClassId);
+                        } else {
+                            publishedEl.innerHTML = `<p class="text-sm text-slate-500">${t('先加入班別，才能開始討論。', 'Join a class to start discussions.')}</p>`;
+                            pendingEl.innerHTML = '';
+                        }
+                    } catch (e) {
+                        showFlash(e.message || t('無法載入班別。', 'Failed to load classes.'), true);
+                    }
+                }
+
+                classSelect.addEventListener('change', async () => {
+                    const cid = parseInt(classSelect.value || '0', 10) || 0;
+                    selectedClassId = cid;
+                    try {
+                        localStorage.setItem(storageKey, String(cid));
+                    } catch (err) { /* ignore */ }
+                    if (cid) {
+                        await fetchDiscussion(cid);
+                    }
+                });
+
+                sendBtn.addEventListener('click', async () => {
+                    const cid = selectedClassId;
+                    const raw = String(messageEl.value || '');
+                    const msg = raw.trim();
+                    if (!cid) {
+                        showFlash(t('請先選擇班別。', 'Please select a class first.'), true);
+                        return;
+                    }
+                    if (!msg) {
+                        showFlash(t('請輸入訊息內容。', 'Please type a message.'), true);
+                        return;
+                    }
+
+                    sendBtn.disabled = true;
+                    try {
+                        await apiFetch('/course-discussions/posts', {
+                            method: 'POST',
+                            body: {
+                                class_id: cid,
+                                topic_id: topicId,
+                                message_zh: lang === 'zh' ? msg : '',
+                                message_en: lang === 'en' ? msg : '',
+                            },
+                        });
+                        messageEl.value = '';
+                        showFlash(t('已送出，等待教師審核。', 'Sent! Waiting for teacher approval.'), false);
+                        await fetchDiscussion(cid);
+                    } catch (err) {
+                        showFlash(err.message || t('送出失敗。', 'Failed to send.'), true);
+                    } finally {
+                        sendBtn.disabled = false;
+                    }
+                });
+
+                await loadClassesAndDiscussion();
+            }
+        }
     }
 
     function getBackRoute() {

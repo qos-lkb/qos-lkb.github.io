@@ -250,3 +250,232 @@ function la_class_activity_summary(PDO $pdo, int $classId, int $days = 7): array
         'avg_mastery' => $avgMastery,
     ];
 }
+
+/**
+ * @return array{current_streak_days:int,best_streak_days:int}
+ */
+function la_user_streak(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT DATE(created_at) AS d
+         FROM learning_events
+         WHERE user_id = ?
+           AND event_type IN (\'content_open\', \'content_complete\')
+         GROUP BY DATE(created_at)
+         ORDER BY d ASC'
+    );
+    $stmt->execute([$userId]);
+    $rows = $stmt->fetchAll() ?: [];
+
+    $dates = array_values(array_map(static function (array $r): string {
+        return (string) ($r['d'] ?? '');
+    }, $rows));
+    $dates = array_values(array_filter($dates, static fn (string $d): bool => $d !== ''));
+
+    if ($dates === []) {
+        return ['current_streak_days' => 0, 'best_streak_days' => 0];
+    }
+
+    $today = (string) ($pdo->query('SELECT CURDATE()')->fetchColumn() ?: '');
+    if ($today === '') {
+        $today = date('Y-m-d');
+    }
+
+    // Current streak: walk backwards from today while there is activity.
+    $set = array_fill_keys($dates, true);
+    $current = 0;
+    $cursor = new DateTime($today);
+    while (true) {
+        $key = $cursor->format('Y-m-d');
+        if (!isset($set[$key])) {
+            break;
+        }
+        $current++;
+        $cursor->modify('-1 day');
+    }
+
+    // Best streak: scan consecutive runs.
+    $best = 1;
+    $run = 1;
+    $prev = $dates[0];
+    for ($i = 1; $i < count($dates); $i++) {
+        $cur = $dates[$i];
+        $prevDt = new DateTime($prev);
+        $prevDt->modify('+1 day');
+        if ($cur === $prevDt->format('Y-m-d')) {
+            $run++;
+        } else {
+            $run = 1;
+        }
+        $best = max($best, $run);
+        $prev = $cur;
+    }
+
+    return [
+        'current_streak_days' => (int) $current,
+        'best_streak_days' => (int) $best,
+    ];
+}
+
+/**
+ * @return list<array{badge_id:string,label_zh:string,label_en:string,reason_zh?:string,reason_en?:string}>
+ */
+function la_user_badges(PDO $pdo, int $userId): array
+{
+    // Note: la_current_goal() lives in learning_assessment_lib.php but is required by api handler.
+    $completionsStmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM learning_events
+         WHERE user_id = ? AND event_type = \'content_complete\''
+    );
+    $completionsStmt->execute([$userId]);
+    $totalCompletions = (int) ($completionsStmt->fetchColumn() ?: 0);
+
+    $streak = la_user_streak($pdo, $userId);
+    $bestStreak = (int) ($streak['best_streak_days'] ?? 0);
+
+    $bookmarkStmt = $pdo->prepare('SELECT COUNT(*) FROM content_bookmarks WHERE user_id = ?');
+    $bookmarkStmt->execute([$userId]);
+    $bookmarkCount = (int) ($bookmarkStmt->fetchColumn() ?: 0);
+
+    $masteredStmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM topic_mastery
+         WHERE user_id = ? AND mastery_score >= 80'
+    );
+    $masteredStmt->execute([$userId]);
+    $masteredTopicCount = (int) ($masteredStmt->fetchColumn() ?: 0);
+
+    $goal = function () use ($pdo, $userId): ?array {
+        return function_exists('la_current_goal') ? la_current_goal($pdo, $userId) : null;
+    };
+    $goalRow = $goal();
+
+    $goalMet = false;
+    if ($goalRow) {
+        $periodStart = (string) ($goalRow['period_start'] ?? '');
+        if ($periodStart !== '') {
+            if (($goalRow['goal_type'] ?? '') === 'weekly_minutes') {
+                $stmt = $pdo->prepare(
+                    'SELECT COALESCE(SUM(duration_seconds), 0) AS secs
+                     FROM learning_events
+                     WHERE user_id = ?
+                       AND created_at >= ?
+                       AND created_at < DATE_ADD(?, INTERVAL 7 DAY)'
+                );
+                $stmt->execute([$userId, $periodStart, $periodStart]);
+                $mins = (int) round(((int) ($stmt->fetchColumn() ?: 0)) / 60);
+                $goalMet = $mins >= (int) ($goalRow['target_value'] ?? 0);
+            } elseif (($goalRow['goal_type'] ?? '') === 'weekly_items') {
+                $stmt = $pdo->prepare(
+                    'SELECT COALESCE(COUNT(DISTINCT CONCAT_WS(\'|\', content_type, content_id)), 0) AS items_done
+                     FROM learning_events
+                     WHERE user_id = ?
+                       AND event_type = \'content_complete\'
+                       AND content_type IS NOT NULL AND content_id IS NOT NULL
+                       AND created_at >= ?
+                       AND created_at < DATE_ADD(?, INTERVAL 7 DAY)'
+                );
+                $stmt->execute([$userId, $periodStart, $periodStart]);
+                $itemsDone = (int) ($stmt->fetchColumn() ?: 0);
+                $goalMet = $itemsDone >= (int) ($goalRow['target_value'] ?? 0);
+            }
+        }
+    }
+
+    $out = [];
+
+    if ($totalCompletions >= 1) {
+        $out[] = [
+            'badge_id' => 'first_completion',
+            'label_zh' => '完成第一項',
+            'label_en' => 'First completion',
+            'reason_zh' => '你已完成至少一個內容。',
+            'reason_en' => 'You have completed at least one learning item.',
+        ];
+    }
+
+    foreach ([3, 7, 14] as $n) {
+        if ($bestStreak >= $n) {
+            $out[] = [
+                'badge_id' => 'streak_' . $n,
+                'label_zh' => $n . ' 天連續學習',
+                'label_en' => $n . '-day streak',
+                'reason_zh' => '最佳連續學習達標。',
+                'reason_en' => 'Your best streak meets the target.',
+            ];
+        }
+    }
+
+    if ($goalMet) {
+        $out[] = [
+            'badge_id' => 'weekly_goal_met',
+            'label_zh' => '本週目標達成',
+            'label_en' => 'Weekly goal met',
+            'reason_zh' => '你已達到本週學習目標。',
+            'reason_en' => 'You have met your weekly learning goal.',
+        ];
+    }
+
+    if ($masteredTopicCount >= 1) {
+        $out[] = [
+            'badge_id' => 'topic_mastered',
+            'label_zh' => '掌握一個課題',
+            'label_en' => 'Mastered a topic',
+            'reason_zh' => '你至少掌握一個課題（≥80%）。',
+            'reason_en' => 'You have mastered at least one topic (≥80%).',
+        ];
+    }
+
+    if ($bookmarkCount >= 1) {
+        $out[] = [
+            'badge_id' => 'first_bookmark',
+            'label_zh' => '已收藏內容',
+            'label_en' => 'First bookmark',
+            'reason_zh' => '你已收藏至少一項內容。',
+            'reason_en' => 'You have bookmarked at least one item.',
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @return list<array{content_type:string,content_slug:string,title_zh:string,title_en:string,route:string,created_at:string}>
+ */
+function la_user_bookmarks(PDO $pdo, int $userId, int $limit = 12): array
+{
+    $limit = max(1, min(50, $limit));
+    $stmt = $pdo->prepare(
+        'SELECT content_type, content_slug, created_at
+         FROM content_bookmarks
+         WHERE user_id = ?
+         ORDER BY created_at DESC
+         LIMIT ?'
+    );
+    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $rows = $stmt->fetchAll() ?: [];
+    $out = [];
+    foreach ($rows as $r) {
+        $ctype = (string) ($r['content_type'] ?? '');
+        $slug = (string) ($r['content_slug'] ?? '');
+        if ($ctype === '' || $slug === '') {
+            continue;
+        }
+        $resolved = la_resolve_content_item($pdo, $ctype, $slug);
+        if (!$resolved) {
+            continue;
+        }
+        $out[] = [
+            'content_type' => $ctype,
+            'content_slug' => $slug,
+            'title_zh' => (string) ($resolved['title_zh'] ?? ''),
+            'title_en' => (string) ($resolved['title_en'] ?? ''),
+            'route' => (string) ($resolved['route'] ?? ''),
+            'created_at' => (string) ($r['created_at'] ?? ''),
+        ];
+    }
+
+    return $out;
+}

@@ -103,6 +103,9 @@ function api_handle_learning_dashboard(PDO $pdo): void
     $summary = la_user_summary($pdo, $user['id']);
     $goal = la_current_goal($pdo, $user['id']);
     $recommendations = adaptive_recommendations($pdo, $user['id']);
+    $streak = la_user_streak($pdo, $user['id']);
+    $badges = la_user_badges($pdo, $user['id']);
+    $bookmarks = la_user_bookmarks($pdo, $user['id'], 8);
 
     $worksheetAssignments = [];
     if (worksheet_user_can_submit()) {
@@ -136,6 +139,9 @@ function api_handle_learning_dashboard(PDO $pdo): void
             'period_start' => (string) $goal['period_start'],
         ] : null,
         'recommendations' => $recommendations,
+        'streak' => $streak,
+        'badges' => $badges,
+        'bookmarks' => $bookmarks,
         'recent_attempts' => la_user_attempts($pdo, $user['id'], 5),
         'worksheet_assignments' => $worksheetAssignments,
     ]);
@@ -172,4 +178,148 @@ function api_handle_learning_adaptive_quiz(PDO $pdo): void
         api_json_error('not_found', $r['error'] ?? '無法產生測驗。', 404);
     }
     api_json_ok($r);
+}
+
+function api_handle_learning_class_leaderboard(PDO $pdo): void
+{
+    $user = require_api_user();
+    $classId = isset($_GET['class_id']) ? (int) $_GET['class_id'] : 0;
+    $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 5;
+
+    if ($classId <= 0) {
+        api_json_error('validation_error', '請提供 class_id。', 422);
+    }
+    $limit = max(1, min(10, $limit));
+
+    $enrollStmt = $pdo->prepare(
+        'SELECT 1 FROM class_enrollments
+         WHERE class_id = ? AND user_id = ? AND status IN (\'active\', \'pending\')
+         LIMIT 1'
+    );
+    $enrollStmt->execute([$classId, (int) $user['id']]);
+    if ($enrollStmt->fetchColumn() === false) {
+        api_json_error('forbidden', '你不是此班學生。', 403);
+    }
+
+    $students = adaptive_class_student_reports($pdo, $classId);
+
+    $sortedByMastery = $students;
+    usort($sortedByMastery, static function (array $a, array $b): int {
+        $am = (float) ($a['avg_mastery'] ?? 0);
+        $bm = (float) ($b['avg_mastery'] ?? 0);
+        if ($bm < $am) return -1;
+        if ($bm > $am) return 1;
+
+        $at = (int) ($a['minutes_week'] ?? 0);
+        $bt = (int) ($b['minutes_week'] ?? 0);
+        if ($bt < $at) return -1;
+        if ($bt > $at) return 1;
+
+        return ((int) ($a['user_id'] ?? 0)) <=> ((int) ($b['user_id'] ?? 0));
+    });
+
+    $leaders = array_slice($sortedByMastery, 0, $limit);
+
+    $myRank = null;
+    foreach ($sortedByMastery as $idx => $s) {
+        if ((int) ($s['user_id'] ?? 0) === (int) $user['id']) {
+            $myRank = $idx + 1;
+            break;
+        }
+    }
+
+    $challengeSorted = $students;
+    usort($challengeSorted, static function (array $a, array $b): int {
+        $at = (int) ($a['minutes_week'] ?? 0);
+        $bt = (int) ($b['minutes_week'] ?? 0);
+        if ($bt < $at) return -1;
+        if ($bt > $at) return 1;
+        return ((int) ($a['user_id'] ?? 0)) <=> ((int) ($b['user_id'] ?? 0));
+    });
+    $weeklyChampion = $challengeSorted[0] ?? null;
+
+    api_json_ok([
+        'class_id' => $classId,
+        'leaders' => $leaders,
+        'weekly_champion' => $weeklyChampion ? [
+            'user_id' => (int) ($weeklyChampion['user_id'] ?? 0),
+            'display_name' => (string) ($weeklyChampion['display_name'] ?? ''),
+            'minutes_week' => (int) ($weeklyChampion['minutes_week'] ?? 0),
+        ] : null,
+        'my_rank' => $myRank,
+    ]);
+}
+
+function api_handle_learning_streak(PDO $pdo): void
+{
+    $user = require_api_user();
+    api_json_ok(la_user_streak($pdo, $user['id']));
+}
+
+function api_handle_learning_badges(PDO $pdo): void
+{
+    $user = require_api_user();
+    api_json_ok(['badges' => la_user_badges($pdo, $user['id'])]);
+}
+
+function api_handle_learning_bookmarks_list(PDO $pdo): void
+{
+    $user = require_api_user();
+    $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 12;
+    api_json_ok(['bookmarks' => la_user_bookmarks($pdo, $user['id'], $limit)]);
+}
+
+function api_handle_learning_bookmarks_toggle(PDO $pdo): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    $body = api_read_json_body();
+
+    $contentType = (string) ($body['content_type'] ?? '');
+    $contentSlug = (string) ($body['content_slug'] ?? '');
+    $action = (string) ($body['action'] ?? 'toggle');
+
+    $allowedTypes = ['note', 'worksheet', 'article', 'learning_tool', 'question_bank', 'video', 'simulation'];
+    if (!in_array($contentType, $allowedTypes, true)) {
+        api_json_error('validation_error', '無效的內容類型。', 422);
+    }
+    if (trim($contentSlug) === '') {
+        api_json_error('validation_error', '請提供內容 slug。', 422);
+    }
+
+    // Only allow bookmarking published content.
+    $resolved = la_resolve_content_item($pdo, $contentType, $contentSlug);
+    if ($resolved === null) {
+        api_json_error('not_found', '找不到此內容。', 404);
+    }
+
+    $existsStmt = $pdo->prepare(
+        'SELECT 1 FROM content_bookmarks WHERE user_id = ? AND content_type = ? AND content_slug = ? LIMIT 1'
+    );
+    $existsStmt->execute([$user['id'], $contentType, $contentSlug]);
+    $exists = (bool) ($existsStmt->fetchColumn() !== false);
+
+    if ($action === 'remove' || ($action === 'toggle' && $exists)) {
+        $del = $pdo->prepare('DELETE FROM content_bookmarks WHERE user_id = ? AND content_type = ? AND content_slug = ?');
+        $del->execute([$user['id'], $contentType, $contentSlug]);
+        api_json_ok(['bookmarked' => false]);
+        return;
+    }
+
+    if ($action === 'add' || $action === 'toggle') {
+        if (!$exists) {
+            $ins = $pdo->prepare(
+                'INSERT INTO content_bookmarks (user_id, content_type, content_slug) VALUES (?, ?, ?)'
+            );
+            try {
+                $ins->execute([$user['id'], $contentType, $contentSlug]);
+            } catch (Throwable $e) {
+                // Unique collision can happen during race; treat as "already exists".
+            }
+        }
+        api_json_ok(['bookmarked' => true]);
+        return;
+    }
+
+    api_json_error('validation_error', '無效的 action。', 422);
 }

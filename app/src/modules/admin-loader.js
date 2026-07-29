@@ -15,6 +15,7 @@ const GROUP_LOADERS = {
     'course-students': () => import('./admin-course-students.js'),
     'student-dossier': () => import('./admin-student-dossier.js'),
     'course-report': () => import('./admin-course-report.js'),
+    'course-discussions': () => import('./admin-course-discussions.js'),
     'course-summer': () => import('./admin-course-summer.js'),
     'course-worksheets': () => import('./admin-course-worksheets.js'),
     inbox: () => import('./admin-inbox.js'),
@@ -67,6 +68,7 @@ function resolveAdminGroup(path) {
     if (/^\/admin\/courses\/\d+\/students\/\d+$/.test(p)) return 'student-dossier';
     if (/^\/admin\/courses\/\d+\/students$/.test(p)) return 'course-students';
     if (/^\/admin\/courses\/\d+\/report$/.test(p)) return 'course-report';
+    if (/^\/admin\/courses\/\d+\/discussions$/.test(p)) return 'course-discussions';
     if (/^\/admin\/courses\/\d+\/summer$/.test(p)) return 'course-summer';
     if (/^\/admin\/courses\/\d+\/worksheets$/.test(p)) return 'course-worksheets';
     if (/^\/admin\/courses(\/\d+)?$/.test(p)) return 'courses';

@@ -53,6 +53,13 @@ function api_handle_student_profile_update(PDO $pdo): void
     api_json_ok(api_user_payload());
 }
 
+function api_handle_student_classes_list(PDO $pdo): void
+{
+    $user = require_api_user();
+    $classes = classes_list_for_student($pdo, (int) $user['id']);
+    api_json_ok(['classes' => $classes]);
+}
+
 /**
  * @param array<string, mixed> $body
  * @return array<string, mixed>

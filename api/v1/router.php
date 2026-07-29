@@ -40,6 +40,7 @@ require_once __DIR__ . '/handlers/students.php';
 require_once __DIR__ . '/handlers/teacher.php';
 require_once __DIR__ . '/handlers/worksheet_assignments.php';
 require_once __DIR__ . '/handlers/learning.php';
+require_once __DIR__ . '/handlers/course_discussions.php';
 require_once __DIR__ . '/handlers/summer_homework.php';
 require_once __DIR__ . '/handlers/nav_menu.php';
 require_once __DIR__ . '/handlers/catalog.php';

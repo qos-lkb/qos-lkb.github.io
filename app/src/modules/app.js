@@ -508,6 +508,11 @@
                     if (window.AppAdmin) await AppAdmin.renderAdminCourseReport(id);
                 });
             },
+            '/admin/courses/:id/discussions': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminCourseDiscussions(id);
+                });
+            },
             '/admin/courses/:id/summer': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminCourseSummer(id);

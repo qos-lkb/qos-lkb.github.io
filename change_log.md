@@ -19,6 +19,9 @@
 - 新增 **`spa_nav_order`**（`schema_spa_nav_order.sql`／`schema.sql`）；既有庫請執行該增量或 `php scripts/apply_schema.php`。
 - API：`GET /nav-menu` 回傳 `items`／`order`；`GET|POST /admin/nav-menu` 可寫入 `matrix` 與 `order`。
 
+### 自學課程：班別討論串（留言/互評）— Phase 1 資料表
+- 新增 `course_discussion_threads` / `course_discussion_posts`（班別 `class_id` + 課題 `topic_id` 為粒度），支援學生發文（`pending`）與教師審核後發布（`published`）。
+
 ## 2026-07-25
 
 ### Schema：合併分階段增量為單一升級檔

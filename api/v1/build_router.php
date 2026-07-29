@@ -87,7 +87,27 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('GET', '/learning/dashboard', static fn () => api_handle_learning_dashboard($pdo));
     $router->addExact('POST', '/learning/goals', static fn () => api_handle_learning_goals_post($pdo));
     $router->addExact('GET', '/learning/recommendations', static fn () => api_handle_learning_recommendations($pdo));
+    $router->addExact('GET', '/learning/streak', static fn () => api_handle_learning_streak($pdo));
+    $router->addExact('GET', '/learning/badges', static fn () => api_handle_learning_badges($pdo));
+    $router->addMethods(['GET', 'POST'], '/learning/bookmarks', static function () use ($pdo, $method): void {
+        if ($method() === 'POST') {
+            api_handle_learning_bookmarks_toggle($pdo);
+            return;
+        }
+        api_handle_learning_bookmarks_list($pdo);
+    });
     $router->addExact('GET', '/learning/adaptive-quiz', static fn () => api_handle_learning_adaptive_quiz($pdo));
+
+    $router->addExact('GET', '/learning/class-leaderboard', static fn () => api_handle_learning_class_leaderboard($pdo));
+
+    // Self-study course discussions (threads/posts)
+    $router->addExact('GET', '/course-discussions', static fn () => api_handle_course_discussions_get($pdo));
+    $router->addExact('POST', '/course-discussions/posts', static fn () => api_handle_course_discussions_posts_post($pdo));
+    $router->addExact('GET', '/admin/course-discussions/pending', static fn () => api_handle_admin_course_discussions_pending($pdo));
+    $router->addPattern(
+        '^POST /admin/course-discussions/posts/(\d+)/moderate$',
+        static fn (array $p) => api_handle_admin_course_discussions_moderate_post($pdo, (int) $p[1])
+    );
 
     $router->addMethods(['GET', 'POST'], '/teacher/classes', static function () use ($pdo, $method): void {
         if ($method() === 'POST') {
@@ -97,6 +117,7 @@ function api_v1_build_router(PDO $pdo): Router
         api_handle_teacher_classes_list($pdo);
     });
     $router->addExact('GET', '/teacher/worksheets', static fn () => api_handle_teacher_worksheets_list($pdo));
+    $router->addExact('GET', '/student/classes', static fn () => api_handle_student_classes_list($pdo));
     $router->addExact('GET', '/student/worksheet-assignments', static fn () => api_handle_student_worksheet_assignments_list($pdo));
 
     // Pattern routes (order matters for overlapping patterns — more specific first)

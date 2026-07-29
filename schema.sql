@@ -615,6 +615,44 @@ CREATE TABLE content_bookmarks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
+-- Course discussions (self-study courses): threads per class/topic + posts
+-- ---------------------------------------------------------------------------
+CREATE TABLE course_discussion_threads (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    class_id INT UNSIGNED NOT NULL,
+    topic_id INT UNSIGNED NOT NULL,
+    created_by_user_id INT UNSIGNED NULL,
+    status ENUM('published', 'closed') NOT NULL DEFAULT 'published',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_course_discussion_thread (class_id, topic_id),
+    KEY idx_cd_threads_class (class_id),
+    KEY idx_cd_threads_topic (topic_id),
+    KEY idx_cd_threads_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE course_discussion_posts (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    thread_id INT UNSIGNED NOT NULL,
+    class_id INT UNSIGNED NOT NULL,
+    topic_id INT UNSIGNED NOT NULL,
+    author_user_id INT UNSIGNED NOT NULL,
+    message_zh MEDIUMTEXT NULL,
+    message_en MEDIUMTEXT NULL,
+    status ENUM('pending', 'published', 'rejected') NOT NULL DEFAULT 'pending',
+    moderated_by_user_id INT UNSIGNED NULL,
+    moderated_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_cd_posts_thread (thread_id),
+    KEY idx_cd_posts_class (class_id),
+    KEY idx_cd_posts_topic (topic_id),
+    KEY idx_cd_posts_status (status),
+    KEY idx_cd_posts_author (author_user_id),
+    KEY idx_cd_posts_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
 -- Worksheet assignments
 -- ---------------------------------------------------------------------------
 

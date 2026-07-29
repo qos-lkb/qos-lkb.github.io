@@ -109,6 +109,44 @@ const global = window;
                 </tr>`;
             }).join('');
 
+            const sortedByMastery = students.slice().sort((a, b) => {
+                const am = Number(a.avg_mastery || 0);
+                const bm = Number(b.avg_mastery || 0);
+                if (bm !== am) return bm - am;
+                return Number(b.minutes_week || 0) - Number(a.minutes_week || 0);
+            });
+
+            const topLeaders = sortedByMastery.slice(0, 3);
+
+            const weeklySorted = students.slice().sort((a, b) => {
+                return Number(b.minutes_week || 0) - Number(a.minutes_week || 0);
+            });
+            const weeklyChampion = weeklySorted[0] || null;
+
+            const leaderboardHtml = topLeaders.length
+                ? `<div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <h3 class="font-bold text-indigo-900">${escapeHtml(t('Top N 同班排行榜', 'Top N class leaderboard'))}</h3>
+                        <div class="text-right">
+                            <p class="text-xs text-indigo-700 uppercase tracking-wide">${escapeHtml(t('本週挑戰（分鐘）', 'Weekly challenge (minutes)'))}</p>
+                            <p class="text-sm font-bold text-indigo-900">${escapeHtml(weeklyChampion ? weeklyChampion.display_name || '' : '—')}</p>
+                            <p class="text-xs text-indigo-700">${weeklyChampion ? Number(weeklyChampion.minutes_week || 0) : 0} ${escapeHtml(t('分鐘', 'min'))}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        ${topLeaders.map((s, i) => {
+                            const dn = s.display_name || '';
+                            const am = Number(s.avg_mastery || 0);
+                            const mw = Number(s.minutes_week || 0);
+                            return `<div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-indigo-100 rounded-lg">
+                                <span class="text-sm font-medium text-slate-800">${i + 1}. ${escapeHtml(dn)}</span>
+                                <span class="text-xs text-slate-600">${am}% · ${mw} ${escapeHtml(t('分鐘', 'min'))}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`
+                : '';
+
             const submitRate = coursework.worksheet_submit_rate != null
                 ? Number(coursework.worksheet_submit_rate) + '%'
                 : '—';
@@ -123,6 +161,7 @@ const global = window;
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/worksheets`))}" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/inbox') + '?class_id=' + id)}" data-spa-nav="/admin/inbox?class_id=${id}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('待批改／逾期', 'Inbox'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}/discussions`))}" data-spa-nav="/admin/courses/${id}/discussions" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('討論審核', 'Discussions'))}</a>
                     <button type="button" id="report-export-csv" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">${escapeHtml(t('匯出 CSV', 'Export CSV'))}</button>
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-4">${escapeHtml(c.name || t('課程', 'Course'))}</h2>
@@ -140,6 +179,7 @@ const global = window;
                     ${kpiCard(t('暑期完成率', 'Summer done'), escapeHtml(summerRate))}
                 </div>
                 ${weakHtml}
+                ${leaderboardHtml}
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-100 text-left">

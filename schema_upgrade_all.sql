@@ -661,6 +661,47 @@ WHERE r.name = 'student' AND p.name = 'simulation.manage_own';
 -- END schema_simulations_review.sql
 
 -- ---------------------------------------------------------------------------
+-- BEGIN schema_course_discussions.sql
+-- ---------------------------------------------------------------------------
+-- Additive schema for self-study course discussions (threads per class/topic).
+
+CREATE TABLE IF NOT EXISTS course_discussion_threads (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    class_id INT UNSIGNED NOT NULL,
+    topic_id INT UNSIGNED NOT NULL,
+    created_by_user_id INT UNSIGNED NULL,
+    status ENUM('published', 'closed') NOT NULL DEFAULT 'published',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_course_discussion_thread (class_id, topic_id),
+    KEY idx_cd_threads_class (class_id),
+    KEY idx_cd_threads_topic (topic_id),
+    KEY idx_cd_threads_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS course_discussion_posts (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    thread_id INT UNSIGNED NOT NULL,
+    class_id INT UNSIGNED NOT NULL,
+    topic_id INT UNSIGNED NOT NULL,
+    author_user_id INT UNSIGNED NOT NULL,
+    message_zh MEDIUMTEXT NULL,
+    message_en MEDIUMTEXT NULL,
+    status ENUM('pending', 'published', 'rejected') NOT NULL DEFAULT 'pending',
+    moderated_by_user_id INT UNSIGNED NULL,
+    moderated_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_cd_posts_thread (thread_id),
+    KEY idx_cd_posts_class (class_id),
+    KEY idx_cd_posts_topic (topic_id),
+    KEY idx_cd_posts_status (status),
+    KEY idx_cd_posts_author (author_user_id),
+    KEY idx_cd_posts_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- END schema_course_discussions.sql
+
+-- ---------------------------------------------------------------------------
 -- Record upgrade in schema_migrations (for apply_schema.php --status)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO schema_migrations (filename) VALUES
