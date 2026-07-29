@@ -182,24 +182,38 @@
         });
     }
 
-    async function runAdminRoute(renderFn) {
+    async function runAdminRoute(renderFn, pathHint) {
         restoreMainShell();
         clearNavTabActive();
         // Wait for /auth/me before deciding login redirect (cold deep-links).
         if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
             await AppAuth.whenReady();
         }
-        if (window.AppAdminLoader) {
-            const path = window.AppRouter && typeof AppRouter.getPath === 'function'
-                ? AppRouter.getPath()
-                : (location.pathname || '/admin');
-            if (typeof AppAdminLoader.ensureAdminRoute === 'function') {
-                await AppAdminLoader.ensureAdminRoute(path);
-            } else if (typeof AppAdminLoader.ensureAdminModules === 'function') {
-                await AppAdminLoader.ensureAdminModules();
+        try {
+            if (window.AppAdminLoader) {
+                const path = pathHint
+                    || (window.AppRouter && typeof AppRouter.getPath === 'function'
+                        ? AppRouter.getPath()
+                        : (location.pathname || '/admin'));
+                if (typeof AppAdminLoader.ensureAdminRoute === 'function') {
+                    await AppAdminLoader.ensureAdminRoute(path);
+                } else if (typeof AppAdminLoader.ensureAdminModules === 'function') {
+                    await AppAdminLoader.ensureAdminModules();
+                }
+            }
+            await renderFn();
+        } catch (err) {
+            console.error('Admin route failed', err);
+            const box = document.getElementById('card-container');
+            const title = document.getElementById('page-title');
+            if (title && !title.textContent) {
+                title.textContent = AppRouter.t('後台', 'Admin');
+            }
+            if (box) {
+                const msg = (err && err.message) ? String(err.message) : AppRouter.t('載入失敗', 'Load failed');
+                box.innerHTML = `<p class="text-red-600">${AppRouter.escapeHtml(msg)}</p>`;
             }
         }
-        await renderFn();
     }
 
     async function ensureFrontModules(pathOrGroup) {
@@ -476,52 +490,70 @@
             '/admin': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminHome();
-                });
+                }, '/admin');
             },
             '/admin/subjects': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSubjects();
-                });
+                }, '/admin/subjects');
             },
             '/admin/courses': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminCourses();
-                });
+                }, '/admin/courses');
             },
             '/admin/courses/:id': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminCourseEdit(id);
-                });
+                }, '/admin/courses/' + id);
             },
             '/admin/courses/:id/students': async (id) => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminCourseStudents(id);
-                });
+                    if (typeof AppAdmin?.renderAdminCourseStudents !== 'function') {
+                        throw new Error(AppRouter.t('學生頁模組未載入', 'Students module not loaded'));
+                    }
+                    await AppAdmin.renderAdminCourseStudents(id);
+                }, '/admin/courses/' + id + '/students');
             },
             '/admin/courses/:id/students/:userId': async (id, userId) => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminStudentDossier(id, userId);
-                });
+                    if (typeof AppAdmin?.renderAdminStudentDossier !== 'function') {
+                        throw new Error(AppRouter.t('學生課業模組未載入', 'Student dossier module not loaded'));
+                    }
+                    await AppAdmin.renderAdminStudentDossier(id, userId);
+                }, '/admin/courses/' + id + '/students/' + userId);
             },
             '/admin/courses/:id/report': async (id) => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminCourseReport(id);
-                });
+                    if (typeof AppAdmin?.renderAdminCourseReport !== 'function') {
+                        throw new Error(AppRouter.t('報告頁模組未載入', 'Report module not loaded'));
+                    }
+                    await AppAdmin.renderAdminCourseReport(id);
+                }, '/admin/courses/' + id + '/report');
             },
             '/admin/courses/:id/discussions': async (id) => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminCourseDiscussions(id);
-                });
+                    if (typeof AppAdmin?.renderAdminCourseDiscussions !== 'function') {
+                        throw new Error(AppRouter.t('討論審核模組未載入', 'Discussions module not loaded'));
+                    }
+                    await AppAdmin.renderAdminCourseDiscussions(id);
+                }, '/admin/courses/' + id + '/discussions');
             },
             '/admin/courses/:id/summer': async (id) => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminCourseSummer(id);
-                });
+                    if (typeof AppAdmin?.renderAdminCourseSummer !== 'function') {
+                        throw new Error(AppRouter.t('暑期功課模組未載入', 'Summer module not loaded'));
+                    }
+                    await AppAdmin.renderAdminCourseSummer(id);
+                }, '/admin/courses/' + id + '/summer');
             },
             '/admin/courses/:id/worksheets': async (id) => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminCourseWorksheets(id);
-                });
+                    if (typeof AppAdmin?.renderAdminCourseWorksheets !== 'function') {
+                        throw new Error(AppRouter.t('工作紙模組未載入', 'Worksheets module not loaded'));
+                    }
+                    await AppAdmin.renderAdminCourseWorksheets(id);
+                }, '/admin/courses/' + id + '/worksheets');
             },
             '/admin/inbox': async () => {
                 await runAdminRoute(async () => {

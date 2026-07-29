@@ -445,9 +445,10 @@ const global = window;
         }
     }
 
-    global.AppAdmin = {
+    // Must merge — replacing AppAdmin wipes other route renderers (students/summer/…).
+    global.AppAdmin = Object.assign(global.AppAdmin || {}, {
         renderAdminHome,
         renderAdminSubjects,
-    };
+    });
 
 export {};

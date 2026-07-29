@@ -69,6 +69,7 @@ const global = window;
         { re: /^\/admin\/courses\/(\d+)\/students\/(\d+)\/?$/, name: '/admin/courses/:id/students/:userId', keys: [1, 2] },
         { re: /^\/admin\/courses\/(\d+)\/students\/?$/, name: '/admin/courses/:id/students', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/report\/?$/, name: '/admin/courses/:id/report', keys: [1] },
+        { re: /^\/admin\/courses\/(\d+)\/discussions\/?$/, name: '/admin/courses/:id/discussions', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/summer\/?$/, name: '/admin/courses/:id/summer', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/worksheets\/?$/, name: '/admin/courses/:id/worksheets', keys: [1] },
         { re: /^\/admin\/courses\/(\d+)\/?$/, name: '/admin/courses/:id', keys: [1] },
