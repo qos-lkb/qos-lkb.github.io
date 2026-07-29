@@ -122,6 +122,7 @@ Handlers live under [`api/v1/handlers/`](api/v1/handlers/); routing in [`api/v1/
 | GET | `/catalog` | Simulations tree + published learning content |
 | GET | `/courses`, `/courses/{subject}` | Self-study course structure |
 | GET | `/simulations/{slug}`, `/simulations/{slug}/html` | Simulation metadata / iframe HTML |
+| GET/POST | `/simulations/contribute` | Public contribute form bootstrap / submit (pending_review) |
 | GET | `/learning-tools/{slug}`, `/question-banks/{slug}`, `/articles/{slug}` | Quiz（相容 LT）／試題庫／文章 |
 | GET | `/learning-notes/{slug}`, `/worksheets/{slug}` | Notes / worksheets |
 | GET | `/learning-videos/{slug}` | Embedded video metadata |
@@ -198,6 +199,7 @@ Handler: `api/v1/handlers/summer_homework.php`. Business logic: `includes/summer
 | Method | Path | Description |
 |--------|------|-------------|
 | GET/POST/DELETE | `/admin/simulations` | Simulation CRUD |
+| POST | `/admin/simulations/upload-html`, `/admin/simulations/upload-screenshot` | Simulation editor uploads |
 | GET/POST/DELETE | `/admin/question-banks` | Question bank CRUD（canonical） |
 | GET/POST/DELETE | `/admin/learning-tools` | **Frozen** — writes return 410（Phase 7） |
 | GET/POST/DELETE | `/admin/articles` | Article CRUD |
@@ -242,7 +244,7 @@ Vanilla JS modules (no bundler):
 | 自學課程 | `/courses`, `/course/{subject}/{topic}` |
 | 課程及學習筆記 | `/learning-notes`, `/note/{slug}` |
 | 工作紙 | `/worksheets`, `/worksheet/{slug}` |
-| 模擬程式 | `/simulations`, `/simulation/{slug}` (preview before modal) |
+| 模擬程式 | `/simulations`, `/simulation/{slug}` (preview before modal), `/simulations/contribute` |
 | 科學文章 | `/articles`, `/article/{slug}` |
 | 試題庫測驗 | `/learning-tools`, `/quiz/{slug}`（資料來自 question banks） |
 | SDL 儀表板 | `/dashboard` |
@@ -413,7 +415,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - **Impersonation**: admin-only; 1-hour TTL auto-stop; start/stop/timeout written to `admin_audit_log`.
 - **DB wipe import** (`admin/db_import.php`): blocked unless `APP_ENV` is `local`/`staging` or `APP_ALLOW_DB_WIPE=1`; requires checkbox + typed phrase `DELETE ALL TABLES`; audited.
 - **Simulation HTML**: CSP via `simulation_html_csp()` (HTTPS CDNs allowed; `frame-ancestors 'self'`); SPA iframe sandbox **omits** `allow-same-origin` (opaque origin; modal screenshot may fall back).
-- **Simulation workflow**: draft ↔ published only (**免審**); other content types use `pending_review`.
+- **Simulation workflow**: draft → pending_review → published (aligned with other content; only `simulation.manage_any` publishes; guest/contributor form at `/simulations/contribute`).
 - **`DEFAULT_REDIRECT_URL`**: validated via `REDIRECT_URL_WHITELIST` / HTTPS check.
 - **`markdown_reader.php`**: public whitelist only; other files require `user.manage`.
 - **Markdown / HTML content**: client-side sanitization (DOMPurify).

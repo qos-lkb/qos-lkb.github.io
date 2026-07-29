@@ -333,6 +333,12 @@
                 if (window.AppCourse) await AppCourse.renderTopic(subjectSlug, topicSlug);
             }),
             '/simulations': showSimulationsHome,
+            '/simulations/contribute': front('/simulations/contribute', async () => {
+                restoreMainShell();
+                setActiveTab('simulations');
+                if (window.AppCourse) AppCourse.clearCourseContext();
+                if (window.AppSimContribute) await AppSimContribute.renderContribute();
+            }),
             '/learning-notes': front('/learning-notes', async () => {
                 restoreMainShell();
                 setActiveTab('notes');

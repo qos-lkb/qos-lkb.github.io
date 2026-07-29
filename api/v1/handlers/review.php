@@ -16,7 +16,8 @@ function api_handle_review_queue(PDO $pdo): void
     $canLv = user_has_permission('learning_video.manage_any');
     $canQb = user_has_permission('question_bank.manage_any');
     $canSh = user_has_permission('summer_homework.manage_any');
-    if (!$canLt && !$canArt && !$canLn && !$canWs && !$canLv && !$canQb && !$canSh) {
+    $canSim = user_has_permission('simulation.manage_any');
+    if (!$canLt && !$canArt && !$canLn && !$canWs && !$canLv && !$canQb && !$canSh && !$canSim) {
         api_json_error('forbidden', '沒有權限。', 403);
     }
 
@@ -86,6 +87,22 @@ function api_handle_review_queue(PDO $pdo): void
              FROM summer_homework_items WHERE status = 'pending_review'"
         )->fetchAll() ?: [];
         $items = array_merge($items, $summer);
+    }
+
+    if ($canSim) {
+        try {
+            $sims = $pdo->query(
+                "SELECT id, slug, title_zh, title_en, status, updated_at, owner_user_id,
+                        submitter_name, submitter_email, submission_source, 'simulation' AS type
+                 FROM simulations WHERE status = 'pending_review'"
+            )->fetchAll() ?: [];
+        } catch (Throwable) {
+            $sims = $pdo->query(
+                "SELECT id, slug, title_zh, title_en, status, updated_at, owner_user_id, 'simulation' AS type
+                 FROM simulations WHERE status = 'pending_review'"
+            )->fetchAll() ?: [];
+        }
+        $items = array_merge($items, $sims);
     }
 
     usort($items, static function (array $a, array $b): int {
@@ -217,6 +234,24 @@ function api_handle_review_sh_reject(PDO $pdo, int $id): void
     require_api_permission('summer_homework.manage_any');
     api_verify_csrf_or_fail();
     $pdo->prepare("UPDATE summer_homework_items SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        ->execute([$id]);
+    api_json_ok(['id' => $id, 'status' => 'draft']);
+}
+
+function api_handle_review_sim_publish(PDO $pdo, int $id): void
+{
+    require_api_permission('simulation.manage_any');
+    api_verify_csrf_or_fail();
+    $pdo->prepare("UPDATE simulations SET status = 'published', last_updated = CURDATE(), updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        ->execute([$id]);
+    api_json_ok(['id' => $id, 'status' => 'published']);
+}
+
+function api_handle_review_sim_reject(PDO $pdo, int $id): void
+{
+    require_api_permission('simulation.manage_any');
+    api_verify_csrf_or_fail();
+    $pdo->prepare("UPDATE simulations SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         ->execute([$id]);
     api_json_ok(['id' => $id, 'status' => 'draft']);
 }

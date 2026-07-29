@@ -42,6 +42,9 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('GET', '/teacher/inbox', static fn () => api_handle_teacher_inbox($pdo));
 
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/simulations', static fn () => api_handle_admin_simulations($pdo, $method()));
+    $router->addExact('POST', '/admin/simulations/upload-html', static fn () => api_handle_admin_simulation_upload($pdo, 'html'));
+    $router->addExact('POST', '/admin/simulations/upload-screenshot', static fn () => api_handle_admin_simulation_upload($pdo, 'screenshot'));
+    $router->addMethods(['GET', 'POST'], '/simulations/contribute', static fn () => api_handle_simulations_contribute($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-tools', static fn () => api_handle_admin_learning_tools($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/articles', static fn () => api_handle_admin_articles($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-notes', static fn () => api_handle_admin_learning_notes($pdo, $method()));
@@ -189,6 +192,8 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^POST /review/question-banks/(\d+)/reject$', static fn (array $p) => api_handle_review_qb_reject($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/summer-homework/(\d+)/publish$', static fn (array $p) => api_handle_review_sh_publish($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/summer-homework/(\d+)/reject$', static fn (array $p) => api_handle_review_sh_reject($pdo, (int) $p[1]));
+    $router->addPattern('^POST /review/simulations/(\d+)/publish$', static fn (array $p) => api_handle_review_sim_publish($pdo, (int) $p[1]));
+    $router->addPattern('^POST /review/simulations/(\d+)/reject$', static fn (array $p) => api_handle_review_sim_reject($pdo, (int) $p[1]));
 
     $router->addPattern('^POST /teacher/classes/(\d+)/enroll$', static fn (array $p) => api_handle_teacher_class_enroll($pdo, (int) $p[1]));
     $router->addPattern('^POST /teacher/classes/(\d+)/invite$', static fn (array $p) => api_handle_teacher_class_invite($pdo, (int) $p[1]));

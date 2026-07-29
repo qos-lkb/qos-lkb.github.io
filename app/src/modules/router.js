@@ -24,6 +24,7 @@ const global = window;
         { re: /^\/course\/([^/]+)$/, name: '/course/:subject', keys: [1] },
         { re: /^\/video\/([^/]+)$/, name: '/video/:slug', keys: [1] },
         { re: /^\/simulation\/([^/]+)$/, name: '/simulation/:slug', keys: [1] },
+        { re: /^\/simulations\/contribute\/?$/, name: '/simulations/contribute' },
         { re: /^\/simulations\/?$/, name: '/simulations' },
         { re: /^\/dashboard\/?$/, name: '/dashboard' },
         { re: /^\/assignments\/?$/, name: '/assignments' },

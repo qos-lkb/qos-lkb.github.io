@@ -23,6 +23,7 @@ async function loadCatalogStack() {
     }
     await import('./catalog.js');
     await import('./simulation.js');
+    await import('./sim-contribute.js');
 }
 
 /** @type {Record<string, () => Promise<unknown>>} */

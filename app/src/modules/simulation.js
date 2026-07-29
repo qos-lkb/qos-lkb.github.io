@@ -27,7 +27,15 @@ const global = window;
             }
             const lang = getLang();
             const title = lang === 'zh' ? sim.title_zh : sim.title_en;
+            const summary = lang === 'zh'
+                ? (sim.summary_zh || sim.summary_en || '')
+                : (sim.summary_en || sim.summary_zh || '');
             const screenshot = resolveAssetUrl(sim.screenshot_path || '');
+            const exportUrl = resolveAssetUrl(sim.export_url || ('simulation_export.php?slug=' + encodeURIComponent(slug)));
+            const tags = Array.isArray(sim.tags) ? sim.tags : [];
+            const tagHtml = tags.map((tg) =>
+                `<span class="inline-block text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${escapeHtml(tg)}</span>`
+            ).join(' ');
 
             const metaParts = [];
             if (global.AppCourse && global.AppCourse.isCourseMode()) {
@@ -42,6 +50,9 @@ const global = window;
                 }
             }
             metaParts.push(t('模擬實驗', 'Simulation'));
+            if (sim.last_updated) {
+                metaParts.push(t('更新 ', 'Updated ') + sim.last_updated);
+            }
 
             const backRoute = global.AppCourse && global.AppCourse.isCourseMode()
                 ? global.AppCourse.getBackRoute()
@@ -51,7 +62,9 @@ const global = window;
                 <div class="reading-page" id="simulation-page">
                     <button type="button" id="simulation-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
                     <h1 class="text-2xl sm:text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
-                    <p class="text-sm text-slate-500 mb-6">${metaParts.map((p) => escapeHtml(p)).join(' · ')}</p>
+                    <p class="text-sm text-slate-500 mb-3">${metaParts.map((p) => escapeHtml(p)).join(' · ')}</p>
+                    ${summary ? `<p class="text-slate-700 mb-4 leading-relaxed">${escapeHtml(summary)}</p>` : ''}
+                    ${tagHtml ? `<div class="flex flex-wrap gap-1.5 mb-5">${tagHtml}</div>` : ''}
                     <button type="button" id="simulation-launch" class="course-sim-launch w-full max-w-xl text-left bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer">
                         <div class="h-40 sm:h-48 bg-gradient-to-br from-slate-100 to-indigo-50/50 flex items-center justify-center border-b border-slate-100 relative overflow-hidden">
                             ${screenshot
@@ -67,6 +80,9 @@ const global = window;
                             <svg class="w-6 h-6 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                         </div>
                     </button>
+                    <p class="mt-4">
+                        <a href="${escapeHtml(exportUrl)}" class="text-sm text-indigo-600 hover:underline" download>${escapeHtml(t('下載源碼', 'Download source'))}</a>
+                    </p>
                 </div>`;
 
             document.getElementById('simulation-back').onclick = () => navigate(backRoute);

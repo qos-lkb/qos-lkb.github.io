@@ -617,33 +617,62 @@ const global = window;
         const userOpts = users.map((u) =>
             `<option value="${Number(u.id)}" ${Number(u.id) === Number(ownerId) ? 'selected' : ''}>${escapeHtml((u.email || '') + ' — ' + (u.display_name || ''))}</option>`
         ).join('');
+        const sandbox = 'allow-scripts allow-forms allow-popups allow-modals allow-downloads';
 
         box.innerHTML = `
             ${editorChrome('/admin/simulations', t('← 返回列表', '← Back to list'))}
-            <form id="edit-form" class="space-y-4 bg-white rounded-xl border p-6">
+            <form id="edit-form" class="space-y-6">
                 <input type="hidden" name="id" value="${editId || 0}">
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('中文標題', 'Title (ZH)'))}</label><input name="title_zh" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
-                    <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('英文標題', 'Title (EN)'))}</label><input name="title_en" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
-                </div>
-                <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('網址 slug（留空則依標題自動產生）', 'Slug (auto from title if empty)'))}</label><input name="slug" class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></div>
-                ${canAny ? `<div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('擁有者', 'Owner'))}</label><select name="owner_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">${userOpts}</select></div>` : ''}
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('科目', 'Subject'))}</label><select name="subject_id" id="field-subject" class="mt-1 w-full border rounded-lg px-3 py-2"><option value="">—</option>${subOpts}</select></div>
-                    <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('單元（課題）', 'Topic'))}</label><select name="topic_id" id="field-topic" class="mt-1 w-full border rounded-lg px-3 py-2"><option value="">—</option></select></div>
-                </div>
-                <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('列表排序', 'List sort'))}</label><input type="number" name="list_sort_order" min="0" step="1" class="mt-1 w-full border rounded-lg px-3 py-2 md:w-40" value="0"></div>
-                <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('標籤（逗號分隔）', 'Tags (comma-separated)'))}</label><input name="tags" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
-                <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('截圖路徑', 'Screenshot path'))}</label><input name="screenshot_path" class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('狀態', 'Status'))}</label>
-                    <select name="status" class="mt-1 w-full border rounded-lg px-3 py-2 md:w-48">
-                        <option value="draft">${escapeHtml(t('草稿', 'Draft'))}</option>
-                        <option value="published">${escapeHtml(t('已發佈', 'Published'))}</option>
-                    </select>
-                    <p class="mt-1 text-xs text-slate-500">${escapeHtml(t('模擬為免審流程（僅草稿／已發佈）。', 'Simulations skip review (draft / published only).'))}</p>
-                </div>
-                <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('HTML 內容', 'HTML content'))}</label><textarea name="html" rows="16" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></textarea></div>
+                <section class="bg-white rounded-xl border p-6 space-y-4">
+                    <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('基本資料', 'Metadata'))}</h2>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('中文標題', 'Title (ZH)'))}</label><input name="title_zh" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('英文標題', 'Title (EN)'))}</label><input name="title_en" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('中文摘要', 'Summary (ZH)'))}</label><input name="summary_zh" maxlength="500" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('英文摘要', 'Summary (EN)'))}</label><input name="summary_en" maxlength="500" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
+                    </div>
+                    <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('網址 slug（留空則依標題自動產生）', 'Slug (auto from title if empty)'))}</label><input name="slug" class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></div>
+                    ${canAny ? `<div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('擁有者', 'Owner'))}</label><select name="owner_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">${userOpts}</select></div>` : ''}
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('科目', 'Subject'))}</label><select name="subject_id" id="field-subject" class="mt-1 w-full border rounded-lg px-3 py-2"><option value="">—</option>${subOpts}</select></div>
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('單元（課題）', 'Topic'))}</label><select name="topic_id" id="field-topic" class="mt-1 w-full border rounded-lg px-3 py-2"><option value="">—</option></select></div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('列表排序', 'List sort'))}</label><input type="number" name="list_sort_order" min="0" step="1" class="mt-1 w-full border rounded-lg px-3 py-2" value="0"></div>
+                        <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('標籤（逗號分隔）', 'Tags (comma-separated)'))}</label><input name="tags" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('截圖', 'Screenshot'))}</label>
+                        <div class="mt-1 flex flex-wrap gap-2 items-center">
+                            <input type="file" id="screenshot-file" accept="image/jpeg,image/png,image/gif,image/webp" class="text-sm">
+                            <button type="button" id="btn-upload-screenshot" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('上載截圖', 'Upload'))}</button>
+                        </div>
+                        <input name="screenshot_path" class="mt-2 w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="uploads/…">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('狀態', 'Status'))}</label>
+                        <select name="status" class="mt-1 w-full border rounded-lg px-3 py-2 md:w-48">${statusOptions(true, canAny)}</select>
+                        ${canAny ? '' : `<p class="mt-1 text-xs text-slate-500">${escapeHtml(t('貢獻者可存草稿或送審；管理員審核後才會公開。', 'Contributors may save as draft or submit for review; admins publish.'))}</p>`}
+                    </div>
+                    <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('投稿備註（選填）', 'Submitter note (optional)'))}</label><textarea name="submitter_note" rows="2" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"></textarea></div>
+                </section>
+                <section class="bg-white rounded-xl border p-6 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('HTML 內容', 'HTML content'))}</h2>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <input type="file" id="html-file" accept=".html,.htm,text/html" class="text-sm">
+                            <button type="button" id="btn-load-html" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('載入 HTML 檔', 'Load HTML file'))}</button>
+                            <button type="button" id="btn-preview-html" class="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700">${escapeHtml(t('更新預覽', 'Refresh preview'))}</button>
+                        </div>
+                    </div>
+                    <textarea name="html" id="field-html" rows="16" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></textarea>
+                </section>
+                <section class="bg-white rounded-xl border p-6 space-y-3">
+                    <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}</h2>
+                    <iframe id="sim-edit-preview" title="preview" sandbox="${sandbox}" class="w-full h-80 border rounded-lg bg-slate-50"></iframe>
+                </section>
                 <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>`;
         bindSpaNav(box);
@@ -651,18 +680,75 @@ const global = window;
         const form = document.getElementById('edit-form');
         const subjectEl = document.getElementById('field-subject');
         const topicEl = document.getElementById('field-topic');
+        const htmlEl = document.getElementById('field-html');
+        const preview = document.getElementById('sim-edit-preview');
         wireSubjectTopic(subjectEl, topicEl, topicsBySubject, row && row.subject_id, row && row.topic_id);
+
+        function refreshPreview() {
+            if (!preview) return;
+            const blob = new Blob([htmlEl.value || ''], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            preview.src = url;
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
 
         if (row) {
             form.title_zh.value = row.title_zh || '';
             form.title_en.value = row.title_en || '';
+            form.summary_zh.value = row.summary_zh || '';
+            form.summary_en.value = row.summary_en || '';
             form.slug.value = row.slug || '';
             form.list_sort_order.value = row.list_sort_order || 0;
             form.tags.value = tags;
             form.screenshot_path.value = row.screenshot_path || '';
             form.status.value = row.status || 'draft';
             form.html.value = row.html || '';
+            form.submitter_note.value = row.submitter_note || '';
         }
+        refreshPreview();
+
+        document.getElementById('btn-preview-html').onclick = () => refreshPreview();
+
+        document.getElementById('btn-load-html').onclick = async () => {
+            const fileInput = document.getElementById('html-file');
+            const file = fileInput && fileInput.files && fileInput.files[0];
+            if (!file) {
+                showFlash(t('請先選擇 HTML 檔。', 'Choose an HTML file first.'));
+                return;
+            }
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const res = await global.ScienceApi.apiFetch('/admin/simulations/upload-html', { method: 'POST', body: fd });
+                htmlEl.value = res.html || '';
+                if ((!form.title_zh.value && !form.title_en.value) && res.suggested_title) {
+                    form.title_zh.value = res.suggested_title;
+                    form.title_en.value = res.suggested_title;
+                }
+                refreshPreview();
+                showFlash(t('已載入 HTML。', 'HTML loaded.'));
+            } catch (err) {
+                showFlash(err.message || t('上載失敗', 'Upload failed'));
+            }
+        };
+
+        document.getElementById('btn-upload-screenshot').onclick = async () => {
+            const fileInput = document.getElementById('screenshot-file');
+            const file = fileInput && fileInput.files && fileInput.files[0];
+            if (!file) {
+                showFlash(t('請先選擇截圖檔。', 'Choose a screenshot first.'));
+                return;
+            }
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const res = await global.ScienceApi.apiFetch('/admin/simulations/upload-screenshot', { method: 'POST', body: fd });
+                form.screenshot_path.value = res.path || '';
+                showFlash(t('截圖已上載。', 'Screenshot uploaded.'));
+            } catch (err) {
+                showFlash(err.message || t('上載失敗', 'Upload failed'));
+            }
+        };
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();

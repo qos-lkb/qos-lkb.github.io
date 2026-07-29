@@ -136,12 +136,18 @@ CREATE TABLE simulations (
     slug VARCHAR(200) NOT NULL,
     title_zh VARCHAR(512) NOT NULL DEFAULT '',
     title_en VARCHAR(512) NOT NULL DEFAULT '',
+    summary_zh VARCHAR(500) NOT NULL DEFAULT '',
+    summary_en VARCHAR(500) NOT NULL DEFAULT '',
     html LONGTEXT NOT NULL,
     screenshot_path VARCHAR(512) NULL,
     subject_id SMALLINT UNSIGNED NULL,
     topic_id INT UNSIGNED NULL,
     list_sort_order INT NOT NULL DEFAULT 0,
-    status ENUM('draft', 'published') NOT NULL DEFAULT 'draft',
+    status ENUM('draft', 'pending_review', 'published') NOT NULL DEFAULT 'draft',
+    submitter_name VARCHAR(120) NULL,
+    submitter_email VARCHAR(190) NULL,
+    submitter_note TEXT NULL,
+    submission_source ENUM('editor', 'guest_form') NOT NULL DEFAULT 'editor',
     last_updated DATE NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -863,7 +869,8 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'student' AND p.name IN (
     'worksheet.submit_own',
     'student.profile_own',
-    'summer_homework.submit_own'
+    'summer_homework.submit_own',
+    'simulation.manage_own'
 );
 
 -- System account (CSV import / orphaned content owner; cannot log in)

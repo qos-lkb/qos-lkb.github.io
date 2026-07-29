@@ -6,9 +6,13 @@
 
 ---
 
-## 2026-07-25
-
 ## 2026-07-29
+
+### 模擬程式：審核流程、訪客投稿與前台優化
+- `simulations.status` 改為 `draft` → `pending_review` → `published`；新增摘要與投稿人欄位（`schema_simulations_review.sql`）。
+- 學生角色具備 `simulation.manage_own`；僅 `manage_any` 可直接發佈。
+- 公開投稿：`GET|POST /api/v1/simulations/contribute`（速率限制 + honeypot）；審核佇列納入模擬。
+- 編輯器支援 HTML／截圖上傳與沙盒預覽；前台目錄搜尋、摘要卡片與投稿 CTA。
 
 ### 主選單管理（可見性 + 排序）
 - 後台「前台選單可見性」改名為 **主選單管理**；支援拖曳調整 SPA 上方選單次序。

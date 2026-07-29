@@ -32,7 +32,8 @@ const global = window;
             || api.hasPermission('worksheet.manage_any')
             || api.hasPermission('learning_video.manage_any')
             || api.hasPermission('question_bank.manage_any')
-            || api.hasPermission('summer_homework.manage_any');
+            || api.hasPermission('summer_homework.manage_any')
+            || api.hasPermission('simulation.manage_any');
     }
 
     const TYPE_META = {
@@ -41,6 +42,12 @@ const global = window;
             labelEn: 'Article',
             reviewPath: 'articles',
             edit: (id) => ({ spa: '/admin/articles/' + id + '/edit' }),
+        },
+        simulation: {
+            labelZh: '模擬程式',
+            labelEn: 'Simulation',
+            reviewPath: 'simulations',
+            edit: (id) => ({ spa: '/admin/simulations/' + id + '/edit' }),
         },
         learning_tool: {
             labelZh: '學習工具（舊）',
@@ -136,12 +143,16 @@ const global = window;
                 const legacyNote = it.type === 'learning_tool' && !editHref
                     ? `<p class="text-xs text-amber-800 mt-1">${escapeHtml(t('已凍結；請遷移至試題庫後再編輯，或於此發佈／退回。', 'Frozen; migrate to a question bank to edit, or publish/reject here.'))}</p>`
                     : '';
+                const submitterNote = it.type === 'simulation' && (it.submitter_name || it.submitter_email)
+                    ? `<p class="text-xs text-slate-500 mt-1">${escapeHtml(t('投稿人：', 'Submitter: '))} ${escapeHtml([it.submitter_name, it.submitter_email].filter(Boolean).join(' · '))}${it.submission_source === 'guest_form' ? ' (' + escapeHtml(t('訪客表單', 'guest form')) + ')' : ''}</p>`
+                    : '';
                 return `<div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap justify-between gap-3 items-center shadow-sm" data-review-id="${id}" data-review-path="${escapeHtml(meta.reviewPath)}">
                     <div>
                         <span class="text-xs uppercase text-amber-700 font-bold tracking-wide">${escapeHtml(t(meta.labelZh, meta.labelEn))}</span>
                         <h2 class="font-semibold text-slate-900">${escapeHtml(titleText)}</h2>
                         <p class="text-xs text-slate-500 font-mono">${escapeHtml(it.slug || '')}</p>
                         <p class="text-xs text-slate-400 mt-1">${escapeHtml(it.updated_at || '')}</p>
+                        ${submitterNote}
                         ${legacyNote}
                     </div>
                     <div class="flex flex-wrap gap-2 items-center">

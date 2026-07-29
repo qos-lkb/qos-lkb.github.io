@@ -2,7 +2,7 @@
 const global = window;
 
     const { apiFetch } = global.ScienceApi;
-    const { t, escapeHtml, getLang } = global.AppRouter;
+    const { t, escapeHtml, getLang, navigate } = global.AppRouter;
 
     let subjectData = {};
     let categoryMap = {};
@@ -106,16 +106,27 @@ const global = window;
 
     function cardHtmlFromItem(item) {
         const lang = getLang();
-        const titleZh = titleMap[item.title] ? titleMap[item.title].zh : item.title;
-        const titleEn = titleMap[item.title] ? titleMap[item.title].en : item.title;
+        const titleZh = titleMap[item.title] ? titleMap[item.title].zh : (item.title_zh || item.title);
+        const titleEn = titleMap[item.title] ? titleMap[item.title].en : (item.title_en || item.title);
         const screenshot = resolveAssetUrl(item.screenshot || '');
         const lastUpdated = item.last_updated || '';
         const exportUrl = resolveAssetUrl(item.export_url || item.url);
-        const url = item.url || '';
+        const slug = item.slug || '';
+        const previewRoute = slug ? ('/simulation/' + encodeURIComponent(slug)) : '';
         const unitZh = item.topic_label_zh || '';
         const unitEn = item.topic_label_en || '';
+        const summary = lang === 'zh'
+            ? (item.summary_zh || item.summary_en || '')
+            : (item.summary_en || item.summary_zh || '');
+        const tags = Array.isArray(item.tags) ? item.tags : [];
+        const tagHtml = tags.slice(0, 4).map((tg) =>
+            `<span class="inline-block text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${escapeHtml(tg)}</span>`
+        ).join(' ');
+        const blurb = summary
+            ? escapeHtml(summary)
+            : escapeHtml(t('點擊查看詳情並開始模擬', 'View details and start the simulation'));
         return `
-            <div class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col cursor-pointer" data-url="${escapeHtml(url)}">
+            <div class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all" data-slug="${escapeHtml(slug)}" data-preview="${escapeHtml(previewRoute)}" data-title-zh="${escapeHtml(titleZh)}" data-title-en="${escapeHtml(titleEn)}" data-tags="${escapeHtml(tags.join(','))}">
                 <div class="h-32 md:h-36 bg-gradient-to-br from-slate-100 to-indigo-50/50 flex items-center justify-center border-b border-slate-100 relative overflow-hidden">
                     ${screenshot ? `<img src="${escapeHtml(screenshot)}" alt="" class="w-full h-full object-cover">` :
                         `<span class="text-slate-400 text-sm">${t('[實驗影像]', '[Experiment Image]')}</span>`}
@@ -123,7 +134,8 @@ const global = window;
                 <div class="p-4 md:p-5 flex-grow">
                     <p class="text-[11px] text-indigo-600 font-medium mb-1">${escapeHtml(lang === 'zh' ? unitZh : unitEn)}</p>
                     <h3 class="font-bold text-base md:text-lg text-slate-800 mb-2">${escapeHtml(lang === 'zh' ? titleZh : titleEn)}</h3>
-                    <p class="text-slate-600 text-xs md:text-sm">${t('點擊進入模擬實驗', 'Click to enter simulation')}</p>
+                    <p class="text-slate-600 text-xs md:text-sm line-clamp-2">${blurb}</p>
+                    ${tagHtml ? `<div class="mt-2 flex flex-wrap gap-1">${tagHtml}</div>` : ''}
                 </div>
                 <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                     <p class="text-[10px] text-slate-400">${t('最後更新：', 'Updated: ')}${escapeHtml(lastUpdated)}</p>
@@ -517,6 +529,54 @@ const global = window;
         });
     }
 
+    let simFilterQuery = '';
+    let simFilterTag = '';
+
+    function collectSubjectTags(sub) {
+        const set = new Set();
+        Object.values(sub.topics || {}).forEach((tInfo) => {
+            (tInfo.items || []).forEach((item) => {
+                (item.tags || []).forEach((tg) => set.add(tg));
+            });
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
+    function itemMatchesSimFilter(item) {
+        const q = simFilterQuery.trim().toLowerCase();
+        const tag = simFilterTag.trim().toLowerCase();
+        const tags = (item.tags || []).map((x) => String(x).toLowerCase());
+        if (tag && !tags.includes(tag)) return false;
+        if (!q) return true;
+        const hay = [
+            item.title_zh, item.title_en, item.title,
+            item.summary_zh, item.summary_en,
+            ...(item.tags || []),
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+    }
+
+    function filterTopicInfo(tInfo) {
+        const items = (tInfo.items || []).filter(itemMatchesSimFilter);
+        return Object.assign({}, tInfo, { items });
+    }
+
+    function simToolbarHtml(sub) {
+        const tags = collectSubjectTags(sub);
+        const tagOpts = ['<option value="">' + escapeHtml(t('全部標籤', 'All tags')) + '</option>']
+            .concat(tags.map((tg) =>
+                `<option value="${escapeHtml(tg)}" ${simFilterTag === tg ? 'selected' : ''}>${escapeHtml(tg)}</option>`
+            )).join('');
+        return `
+            <div class="mb-4 flex flex-wrap gap-2 items-center justify-between" id="sim-toolbar">
+                <div class="flex flex-wrap gap-2 items-center flex-1 min-w-[200px]">
+                    <input type="search" id="sim-search" value="${escapeHtml(simFilterQuery)}" placeholder="${escapeHtml(t('搜尋標題或標籤…', 'Search title or tags…'))}" class="border rounded-lg px-3 py-2 text-sm w-full sm:w-56">
+                    <select id="sim-tag-filter" class="border rounded-lg px-3 py-2 text-sm">${tagOpts}</select>
+                </div>
+                <a href="${escapeHtml(global.AppRouter.spaHref('/simulations/contribute'))}" data-spa-nav="/simulations/contribute" class="text-sm px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">${escapeHtml(t('投稿模擬程式', 'Contribute'))}</a>
+            </div>`;
+    }
+
     function showCategory(categoryId, topicKey) {
         const subjectKey = Object.keys(subjectData).find(cat => cat.toLowerCase().replace(/\s+/g, '-') === categoryId)
             || Object.keys(subjectData)[0];
@@ -530,11 +590,48 @@ const global = window;
 
         document.getElementById('page-title').textContent = (lang === 'zh' ? categoryZh : categoryEn) + t('模擬實驗', ' Simulations');
 
+        let bodyHtml = '';
         if (topicKey == null) {
-            container.innerHTML = Object.keys(sub.topics).map((tk, i) => topicSectionHtml(tk, sub.topics[tk], i === 0)).join('');
+            const sections = Object.keys(sub.topics).map((tk, i) => {
+                const filtered = filterTopicInfo(sub.topics[tk]);
+                if (!(filtered.items || []).length && (simFilterQuery || simFilterTag)) return '';
+                return topicSectionHtml(tk, filtered, i === 0);
+            }).filter(Boolean).join('');
+            bodyHtml = sections || `<p class="text-slate-500 text-sm py-8 text-center">${escapeHtml(t('沒有符合的模擬程式。', 'No matching simulations.'))}</p>`;
         } else {
-            container.innerHTML = topicSectionHtml(topicKey, sub.topics[topicKey], true);
+            const filtered = filterTopicInfo(sub.topics[topicKey] || { items: [] });
+            bodyHtml = (filtered.items || []).length
+                ? topicSectionHtml(topicKey, filtered, true)
+                : `<p class="text-slate-500 text-sm py-8 text-center">${escapeHtml(t('沒有符合的模擬程式。', 'No matching simulations.'))}</p>`;
         }
+
+        container.innerHTML = simToolbarHtml(sub) + bodyHtml;
+
+        const searchEl = document.getElementById('sim-search');
+        const tagEl = document.getElementById('sim-tag-filter');
+        if (searchEl) {
+            let timer = null;
+            searchEl.oninput = () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    simFilterQuery = searchEl.value || '';
+                    showCategory(categoryId, topicKey);
+                }, 200);
+            };
+        }
+        if (tagEl) {
+            tagEl.onchange = () => {
+                simFilterTag = tagEl.value || '';
+                showCategory(categoryId, topicKey);
+            };
+        }
+
+        container.querySelectorAll('[data-spa-nav]').forEach((a) => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigate(a.getAttribute('data-spa-nav'));
+            });
+        });
 
         container.querySelectorAll('.topic-panel-header').forEach(hdr => {
             hdr.onclick = () => {
@@ -546,7 +643,10 @@ const global = window;
         });
 
         container.querySelectorAll('.sim-card').forEach(card => {
-            card.onclick = () => global.AppCatalog.openModal(card.dataset.url);
+            card.onclick = () => {
+                const route = card.dataset.preview;
+                if (route) navigate(route);
+            };
         });
     }
 

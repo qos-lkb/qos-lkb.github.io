@@ -30,6 +30,7 @@ final class MigrationRunner
         return [
             'schema_upgrade_all.sql',
             'schema_spa_nav_order.sql',
+            'schema_simulations_review.sql',
         ];
     }
 

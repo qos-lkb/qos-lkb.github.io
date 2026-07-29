@@ -69,7 +69,7 @@ function sim_build_index_structures_for_api(array $rows): array
 function api_handle_catalog(PDO $pdo): void
 {
     $rows = sim_fetch_published_for_index($pdo);
-    $struct = sim_build_index_structures_for_api($rows);
+    $struct = sim_attach_tags_to_index($pdo, sim_build_index_structures_for_api($rows));
     $ltRows = lt_qb_fetch_published_quiz_sources($pdo);
     $artRows = art_fetch_published($pdo);
     $noteRows = api_catalog_fetch_learning_notes($pdo);

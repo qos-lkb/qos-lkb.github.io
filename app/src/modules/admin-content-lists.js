@@ -272,7 +272,7 @@ const global = window;
             deletePath: '/admin/simulations',
             editSpaBase: '/admin/simulations',
             previewRoute: (slug) => '/simulation/' + encodeURIComponent(slug),
-            showReview: false,
+            showReview: true,
             loadCtx: loadSubjectTopicLabels,
             extraHeaders: [t('科目', 'Subject'), t('單元', 'Topic'), t('排序', 'Sort')],
             extraCells: (row, ctx) => [

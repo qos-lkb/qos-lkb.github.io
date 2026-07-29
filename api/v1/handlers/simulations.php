@@ -24,11 +24,15 @@ function api_handle_simulation_get(PDO $pdo, string $slug): void
         'slug' => $sim['slug'],
         'title_zh' => $sim['title_zh'],
         'title_en' => $sim['title_en'],
+        'summary_zh' => (string) ($sim['summary_zh'] ?? ''),
+        'summary_en' => (string) ($sim['summary_en'] ?? ''),
         'screenshot_path' => $sim['screenshot_path'],
         'subject_id' => $sim['subject_id'] !== null ? (int) $sim['subject_id'] : null,
         'topic_id' => $sim['topic_id'] !== null ? (int) $sim['topic_id'] : null,
         'status' => $sim['status'],
+        'last_updated' => $sim['last_updated'] ?? null,
         'html_url' => web_base_path() . '/api/v1/simulations/' . rawurlencode($slug) . '/html',
+        'export_url' => web_base_path() . '/simulation_export.php?slug=' . rawurlencode($slug),
         'tags' => sim_get_tag_slugs($pdo, (int) $sim['id']),
     ]);
 }
@@ -148,4 +152,117 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
     }
 
     api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+}
+
+function api_handle_simulations_contribute(PDO $pdo, string $method): void
+{
+    require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
+    require_once dirname(__DIR__, 3) . '/includes/auth.php';
+
+    if ($method === 'GET') {
+        $subjects = sim_all_subjects($pdo);
+        $topicsBySubject = [];
+        foreach ($subjects as $s) {
+            $sid = (int) $s['id'];
+            $topicsBySubject[$sid] = sim_topics_for_subject($pdo, $sid);
+        }
+        $user = current_user();
+        api_json_ok([
+            'csrf_token' => csrf_token(),
+            'subjects' => $subjects,
+            'topics_by_subject' => $topicsBySubject,
+            'user' => $user !== null ? [
+                'id' => (int) $user['id'],
+                'email' => (string) $user['email'],
+                'display_name' => (string) ($user['display_name'] ?? ''),
+            ] : null,
+            'html_max_bytes' => sim_html_max_bytes(),
+        ]);
+        return;
+    }
+
+    if ($method === 'POST') {
+        $rate = api_auth_rate_limit_begin($pdo, 'sim_contribute', api_client_ip());
+        if (!$rate['ok']) {
+            api_json_error('rate_limited', '投稿過於頻繁，請稍後再試。', 429);
+        }
+
+        $body = api_read_json_body();
+        $post = array_merge($_POST, $body);
+        if (!isset($post['csrf'])) {
+            $post['csrf'] = api_request_csrf();
+        }
+
+        // Optional screenshot via multipart
+        if (isset($_FILES['screenshot']) && is_array($_FILES['screenshot'])
+            && (int) ($_FILES['screenshot']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $up = sim_store_screenshot_upload($_FILES['screenshot']);
+            if (!$up['ok']) {
+                api_json_error('upload_failed', $up['error'] ?? '截圖上載失敗。', 422);
+            }
+            $post['screenshot_path'] = $up['path'];
+        }
+
+        // Optional HTML file via multipart
+        if (isset($_FILES['html_file']) && is_array($_FILES['html_file']) && ($_FILES['html_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $htmlUp = sim_store_html_upload($_FILES['html_file']);
+            if (!$htmlUp['ok']) {
+                api_json_error('upload_failed', $htmlUp['error'] ?? 'HTML 上載失敗。', 422);
+            }
+            $post['html'] = $htmlUp['html'];
+            if (trim((string) ($post['title_zh'] ?? '')) === '' && trim((string) ($post['title_en'] ?? '')) === '' && ($htmlUp['suggested_title'] ?? '') !== '') {
+                $post['title_zh'] = $htmlUp['suggested_title'];
+                $post['title_en'] = $htmlUp['suggested_title'];
+            }
+        }
+
+        $user = current_user();
+        $r = simulation_contribute_from_request($pdo, $post, $user);
+        if (!$r['ok']) {
+            api_json_error('save_failed', $r['error'] ?? '投稿失敗。', 422);
+        }
+        api_json_ok(['id' => $r['id'], 'status' => 'pending_review']);
+        return;
+    }
+
+    api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+}
+
+function api_handle_admin_simulation_upload(PDO $pdo, string $kind): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('simulation.manage_any') && !user_has_permission('simulation.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    if ($kind === 'html') {
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            api_json_error('validation_error', '請選擇 HTML 檔。', 422);
+        }
+        $r = sim_store_html_upload($_FILES['file']);
+        if (!$r['ok']) {
+            api_json_error('upload_failed', $r['error'] ?? '上載失敗。', 422);
+        }
+        api_json_ok([
+            'html' => $r['html'],
+            'suggested_title' => $r['suggested_title'] ?? '',
+        ]);
+        return;
+    }
+
+    if ($kind === 'screenshot') {
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            api_json_error('validation_error', '請選擇截圖檔。', 422);
+        }
+        $r = sim_store_screenshot_upload($_FILES['file']);
+        if (!$r['ok']) {
+            api_json_error('upload_failed', $r['error'] ?? '上載失敗。', 422);
+        }
+        api_json_ok(['path' => $r['path']]);
+        return;
+    }
+
+    api_json_error('not_found', '未知上載類型。', 404);
 }

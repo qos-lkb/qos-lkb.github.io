@@ -98,6 +98,10 @@ const global = window;
         return currentUser && Array.isArray(currentUser.permissions) && currentUser.permissions.includes(name);
     }
 
+    function setCsrf(token) {
+        csrfToken = typeof token === 'string' ? token : '';
+    }
+
     global.ScienceApi = {
         SITE_BASE,
         API_BASE,
@@ -107,6 +111,7 @@ const global = window;
         logout,
         getUser: () => currentUser,
         getCsrf: () => csrfToken,
+        setCsrf,
         hasPermission,
     };
 
