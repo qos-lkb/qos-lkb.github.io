@@ -178,7 +178,7 @@ function adaptive_next_course_item(PDO $pdo, int $userId): ?array
 }
 
 /**
- * @return array{ok:bool,error?:string,questions?:list<array<string,mixed>>,source?:array<string,mixed>}
+ * @return array{ok:bool,error?:string,mode?:string,questions?:list<array<string,mixed>>,answers?:list<array<string,mixed>>,question_refs?:list<array<string,mixed>>,source?:array<string,mixed>}
  */
 function adaptive_quiz_for_topic(PDO $pdo, int $userId, int $topicId, int $limit = 5): array
 {
@@ -193,22 +193,23 @@ function adaptive_quiz_for_topic(PDO $pdo, int $userId, int $topicId, int $limit
     );
     $wrongStmt->bindValue(1, $userId, PDO::PARAM_INT);
     $wrongStmt->bindValue(2, $topicId, PDO::PARAM_INT);
-    $wrongStmt->bindValue(3, $limit, PDO::PARAM_INT);
+    $wrongStmt->bindValue(3, $limit * 3, PDO::PARAM_INT); // over-fetch then dedupe
     $wrongStmt->execute();
     $wrongRows = $wrongStmt->fetchAll() ?: [];
 
     if ($wrongRows !== []) {
-        return [
-            'ok' => true,
-            'mode' => 'review_wrong',
-            'question_refs' => array_map(static function (array $r): array {
-                return [
-                    'question_id' => (int) $r['question_id'],
-                    'source_type' => (string) $r['source_type'],
-                    'source_id' => (int) $r['source_id'],
-                ];
-            }, $wrongRows),
-        ];
+        $hydrated = adaptive_hydrate_wrong_questions($pdo, $wrongRows, $limit);
+        if (($hydrated['questions'] ?? []) !== []) {
+            return [
+                'ok' => true,
+                'mode' => 'review_wrong',
+                'topic_id' => $topicId,
+                'questions' => $hydrated['questions'],
+                'answers' => $hydrated['answers'],
+                'question_refs' => $hydrated['question_refs'],
+            ];
+        }
+        // Fall through to learning_tool if wrong refs could not be hydrated.
     }
 
     $toolStmt = $pdo->prepare(
@@ -233,6 +234,133 @@ function adaptive_quiz_for_topic(PDO $pdo, int $userId, int $topicId, int $limit
     }
 
     return ['ok' => false, 'error' => '此課題暫無適性測驗內容。'];
+}
+
+/**
+ * @param list<array<string, mixed>> $wrongRows
+ * @return array{questions:list<array<string,mixed>>,answers:list<array<string,mixed>>,question_refs:list<array<string,mixed>>}
+ */
+function adaptive_hydrate_wrong_questions(PDO $pdo, array $wrongRows, int $limit): array
+{
+    require_once __DIR__ . '/learning_tools_lib.php';
+    require_once __DIR__ . '/question_bank_lib.php';
+    require_once __DIR__ . '/articles_lib.php';
+
+    $seen = [];
+    $refs = [];
+    foreach ($wrongRows as $r) {
+        $stype = (string) ($r['source_type'] ?? '');
+        $sid = (int) ($r['source_id'] ?? 0);
+        $qid = (int) ($r['question_id'] ?? 0);
+        if ($stype === '' || $sid <= 0 || $qid <= 0) {
+            continue;
+        }
+        $key = $stype . ':' . $sid . ':' . $qid;
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $refs[] = [
+            'question_id' => $qid,
+            'source_type' => $stype,
+            'source_id' => $sid,
+        ];
+        if (count($refs) >= $limit) {
+            break;
+        }
+    }
+
+    // Group by source for batch fetch.
+    $bySource = [];
+    foreach ($refs as $ref) {
+        $sk = $ref['source_type'] . ':' . $ref['source_id'];
+        if (!isset($bySource[$sk])) {
+            $bySource[$sk] = [
+                'source_type' => $ref['source_type'],
+                'source_id' => $ref['source_id'],
+                'ids' => [],
+            ];
+        }
+        $bySource[$sk]['ids'][$ref['question_id']] = true;
+    }
+
+    $questionsOut = [];
+    $answersOut = [];
+    $keptRefs = [];
+
+    foreach ($bySource as $group) {
+        $stype = $group['source_type'];
+        $sid = (int) $group['source_id'];
+        $wantIds = $group['ids'];
+
+        $withAnswers = [];
+        if ($stype === 'learning_tool') {
+            $withAnswers = lt_fetch_questions($pdo, $sid, true);
+        } elseif ($stype === 'question_bank') {
+            $withAnswers = qb_fetch_questions($pdo, $sid, true);
+            $withAnswers = array_values(array_filter($withAnswers, static function (array $q): bool {
+                return ($q['question_type'] ?? 'mcq') === 'mcq';
+            }));
+        } elseif ($stype === 'article') {
+            $withAnswers = art_fetch_questions($pdo, $sid, true);
+        } else {
+            continue;
+        }
+
+        foreach ($withAnswers as $q) {
+            $qid = (int) ($q['id'] ?? 0);
+            if ($qid <= 0 || !isset($wantIds[$qid])) {
+                continue;
+            }
+            $options = $q['options'] ?? [];
+            if (!is_array($options) || $options === []) {
+                continue;
+            }
+
+            $publicOpts = [];
+            $correctIdx = -1;
+            foreach (array_values($options) as $i => $o) {
+                $publicOpts[] = [
+                    'text_zh' => (string) ($o['text_zh'] ?? ''),
+                    'text_en' => (string) ($o['text_en'] ?? ''),
+                ];
+                if (!empty($o['is_correct'])) {
+                    $correctIdx = $i;
+                }
+            }
+            if ($correctIdx < 0) {
+                continue;
+            }
+
+            $questionsOut[] = [
+                'id' => $qid,
+                'stem_zh' => (string) ($q['stem_zh'] ?? ''),
+                'stem_en' => (string) ($q['stem_en'] ?? ''),
+                'options' => $publicOpts,
+                'source_type' => $stype,
+                'source_id' => $sid,
+            ];
+            $answersOut[] = [
+                'question_id' => $qid,
+                'source_type' => $stype,
+                'source_id' => $sid,
+                'correct_option_index' => $correctIdx,
+                'explanation_zh' => (string) ($q['explanation_zh'] ?? ''),
+                'explanation_en' => (string) ($q['explanation_en'] ?? ''),
+            ];
+            $keptRefs[] = [
+                'question_id' => $qid,
+                'source_type' => $stype,
+                'source_id' => $sid,
+            ];
+        }
+    }
+
+    return [
+        'questions' => $questionsOut,
+        'answers' => $answersOut,
+        'question_refs' => $keptRefs,
+    ];
 }
 
 /**

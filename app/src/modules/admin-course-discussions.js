@@ -86,6 +86,13 @@ async function renderAdminCourseDiscussions(idRaw) {
             ? pendingPosts.map((p) => {
                 const msg = lang === 'zh' ? (p.message_zh || p.message_en || '') : (p.message_en || p.message_zh || '');
                 const topicTitle = titleForTopic(p.topic_id);
+                const parentCtx = p.parent_post_id
+                    ? `<div class="mb-2 text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2">
+                        <span class="font-medium">${escapeHtml(t('回覆至', 'Reply to'))}</span>
+                        ${p.parent_display_name ? ` <span class="text-indigo-700">${escapeHtml(p.parent_display_name)}</span>` : ''}
+                        ${p.parent_excerpt ? `：${escapeHtml(p.parent_excerpt)}` : ' #' + Number(p.parent_post_id)}
+                       </div>`
+                    : '';
                 return `
                     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm mb-4" data-post-id="${Number(p.id)}">
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
@@ -95,6 +102,7 @@ async function renderAdminCourseDiscussions(idRaw) {
                             </div>
                             <span class="text-xs px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900">${t('待審核', 'Pending')}</span>
                         </div>
+                        ${parentCtx}
                         <div class="whitespace-pre-wrap text-sm text-slate-800 border border-slate-100 rounded-xl bg-slate-50 p-3 mb-3">
                             ${escapeHtml(msg)}
                         </div>

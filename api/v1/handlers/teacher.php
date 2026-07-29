@@ -101,6 +101,7 @@ function api_handle_teacher_class_report(PDO $pdo, int $classId): void
         'coursework' => scw_class_coursework_kpis($pdo, $classId),
         'weak_topics' => adaptive_class_weak_topics($pdo, $classId),
         'students' => $students,
+        'achievements_summary' => la_class_achievements_summary($pdo, $classId, $students),
     ]);
 }
 

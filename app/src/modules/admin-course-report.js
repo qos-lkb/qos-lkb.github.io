@@ -147,6 +147,46 @@ const global = window;
                 </div>`
                 : '';
 
+            const achievements = data.achievements_summary || {};
+            const topStreaks = achievements.top_streaks || [];
+            const badgeCounts = achievements.badge_unlock_counts || [];
+            const achievementsHtml = `
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
+                    <h3 class="font-bold text-emerald-900 mb-3">${escapeHtml(t('連續學習／徽章摘要', 'Streak / badges summary'))}</h3>
+                    <div class="grid sm:grid-cols-3 gap-3 mb-4 text-sm">
+                        <div class="bg-white rounded-lg border border-emerald-100 p-3">
+                            <p class="text-xs text-slate-500">${escapeHtml(t('平均連續天數', 'Avg streak'))}</p>
+                            <p class="text-xl font-bold text-emerald-700">${Number(achievements.avg_current_streak || 0)}</p>
+                        </div>
+                        <div class="bg-white rounded-lg border border-emerald-100 p-3">
+                            <p class="text-xs text-slate-500">${escapeHtml(t('連續 ≥3 天人數', 'Students with streak ≥3'))}</p>
+                            <p class="text-xl font-bold text-emerald-700">${Number(achievements.students_with_streak_ge_3 || 0)}</p>
+                        </div>
+                        <div class="bg-white rounded-lg border border-emerald-100 p-3">
+                            <p class="text-xs text-slate-500">${escapeHtml(t('抽樣學生數', 'Students sampled'))}</p>
+                            <p class="text-xl font-bold text-slate-700">${Number(achievements.students_sampled || 0)}</p>
+                        </div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs font-medium text-emerald-900 mb-2">${escapeHtml(t('連續天數 Top 3', 'Top 3 streaks'))}</p>
+                            ${topStreaks.length
+                                ? `<ul class="text-sm space-y-1">${topStreaks.map((s, i) =>
+                                    `<li>${i + 1}. ${escapeHtml(s.display_name || '')} — ${Number(s.current_streak_days || 0)} ${escapeHtml(t('天', 'days'))}</li>`
+                                ).join('')}</ul>`
+                                : `<p class="text-sm text-slate-500">${escapeHtml(t('尚無資料', 'No data'))}</p>`}
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-emerald-900 mb-2">${escapeHtml(t('徽章解鎖次數', 'Badge unlocks'))}</p>
+                            ${badgeCounts.length
+                                ? `<ul class="text-sm space-y-1">${badgeCounts.slice(0, 5).map((b) =>
+                                    `<li>${escapeHtml(b.label_zh || b.badge_id || '')} × ${Number(b.count || 0)}</li>`
+                                ).join('')}</ul>`
+                                : `<p class="text-sm text-slate-500">${escapeHtml(t('尚無徽章', 'No badges yet'))}</p>`}
+                        </div>
+                    </div>
+                </div>`;
+
             const submitRate = coursework.worksheet_submit_rate != null
                 ? Number(coursework.worksheet_submit_rate) + '%'
                 : '—';
@@ -179,6 +219,7 @@ const global = window;
                     ${kpiCard(t('暑期完成率', 'Summer done'), escapeHtml(summerRate))}
                 </div>
                 ${weakHtml}
+                ${achievementsHtml}
                 ${leaderboardHtml}
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                     <table class="min-w-full text-sm">

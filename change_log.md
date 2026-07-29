@@ -22,6 +22,10 @@
 ### 自學課程：班別討論串（留言/互評）— Phase 1 資料表
 - 新增 `course_discussion_threads` / `course_discussion_posts`（班別 `class_id` + 課題 `topic_id` 為粒度），支援學生發文（`pending`）與教師審核後發布（`published`）。
 
+### 自學課程 Phase 2：回覆、按讚、錯題回顧、教練與成就摘要
+- `course_discussion_posts.parent_post_id`（單層回覆）；新增 `course_discussion_reactions`（👍 toggle）。
+- 適性小測 `review_wrong` hydrate；儀表板規則式學習教練；班級報告連續學習／徽章摘要。
+
 ## 2026-07-25
 
 ### Schema：合併分階段增量為單一升級檔

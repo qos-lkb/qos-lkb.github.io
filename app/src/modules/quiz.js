@@ -191,6 +191,172 @@ const global = window;
         }
     }
 
-    global.AppQuiz = { renderQuiz };
+    /**
+     * Phase 2: render hydrated adaptive review_wrong payload (MCQ only).
+     * @param {{questions?: array, answers?: array, topic_id?: number}} payload
+     */
+    async function renderReviewWrong(payload) {
+        const main = document.getElementById('main-content');
+        const lang = getLang();
+        const questions = (payload && payload.questions) || [];
+        const answers = (payload && payload.answers) || [];
+        const topicId = payload && payload.topic_id ? Number(payload.topic_id) : null;
+
+        const answerMap = {};
+        answers.forEach((a) => {
+            const key = String(a.source_type || '') + ':' + String(a.source_id || '') + ':' + String(a.question_id || '');
+            answerMap[key] = a;
+            // Also allow lookup by question_id alone when unique enough in this set.
+            answerMap[String(a.question_id)] = a;
+        });
+
+        function ansFor(q) {
+            const key = String(q.source_type || '') + ':' + String(q.source_id || '') + ':' + String(q.id || '');
+            return answerMap[key] || answerMap[String(q.id)] || null;
+        }
+
+        if (!questions.length) {
+            main.innerHTML = `
+                <div class="max-w-2xl mx-auto">
+                    <button type="button" id="quiz-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
+                    <p class="text-slate-500">${t('沒有可回顧的錯題。', 'No wrong questions to review.')}</p>
+                </div>`;
+            document.getElementById('quiz-back').onclick = () => {
+                const back = global.AppCourse && global.AppCourse.isCourseMode()
+                    ? global.AppCourse.getBackRoute()
+                    : '/courses';
+                global.AppRouter.navigate(back);
+            };
+            return;
+        }
+
+        let qIndex = 0;
+        let selections = {};
+        let submitted = false;
+        let score = 0;
+
+        function renderQuestion() {
+            const q = questions[qIndex];
+            if (!q) return;
+            const stem = lang === 'zh' ? q.stem_zh : q.stem_en;
+            const opts = q.options || [];
+            const ans = ansFor(q);
+
+            let optsHtml = opts.map((o, i) => {
+                const text = lang === 'zh' ? o.text_zh : o.text_en;
+                let cls = 'quiz-option border-2 border-slate-200 rounded-xl p-4 mb-2';
+                if (submitted) {
+                    const correctIdx = ans ? ans.correct_option_index : -1;
+                    if (i === correctIdx) cls += ' correct';
+                    else if (selections[qIndex] === i) cls += ' incorrect';
+                } else if (selections[qIndex] === i) {
+                    cls += ' selected';
+                }
+                return `<button type="button" class="${cls} w-full text-left" data-opt="${i}" ${submitted ? 'disabled' : ''}>
+                    <span class="font-bold text-indigo-600 mr-2">${LABELS[i] || (i + 1)}</span>${escapeHtml(text)}
+                </button>`;
+            }).join('');
+
+            let expl = '';
+            if (submitted && ans) {
+                const ex = lang === 'zh' ? ans.explanation_zh : ans.explanation_en;
+                if (ex) expl = `<div class="mt-4 p-4 bg-slate-50 rounded-lg text-sm text-slate-700">${escapeHtml(ex)}</div>`;
+            }
+
+            document.getElementById('quiz-body').innerHTML = `
+                <p class="text-sm text-slate-500 mb-4">${t('第', 'Question ')}${qIndex + 1}${t(' 題，共 ', ' of ')}${questions.length}${t(' 題', '')}</p>
+                <h2 class="text-xl font-bold text-slate-900 mb-6">${escapeHtml(stem)}</h2>
+                <div id="quiz-options">${optsHtml}</div>
+                ${expl}
+                <div class="flex gap-3 mt-8">
+                    ${qIndex > 0 ? `<button type="button" id="quiz-prev" class="px-4 py-2 border rounded-lg">${t('上一題', 'Previous')}</button>` : ''}
+                    ${!submitted && qIndex < questions.length - 1 ? `<button type="button" id="quiz-next" class="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled>${t('下一題', 'Next')}</button>` : ''}
+                    ${!submitted && qIndex === questions.length - 1 ? `<button type="button" id="quiz-submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled>${t('提交', 'Submit')}</button>` : ''}
+                </div>`;
+
+            document.querySelectorAll('#quiz-options button').forEach((btn) => {
+                if (submitted) return;
+                btn.onclick = () => {
+                    selections[qIndex] = parseInt(btn.dataset.opt, 10);
+                    document.querySelectorAll('#quiz-options button').forEach((b) => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    const next = document.getElementById('quiz-next');
+                    const submit = document.getElementById('quiz-submit');
+                    if (next) next.disabled = false;
+                    if (submit) submit.disabled = false;
+                };
+            });
+
+            document.getElementById('quiz-prev')?.addEventListener('click', () => { qIndex--; renderQuestion(); });
+            document.getElementById('quiz-next')?.addEventListener('click', () => { qIndex++; renderQuestion(); });
+            document.getElementById('quiz-submit')?.addEventListener('click', async () => {
+                submitted = true;
+                score = 0;
+                const bySource = {};
+                questions.forEach((qq, idx) => {
+                    const a = ansFor(qq);
+                    const sel = selections[idx];
+                    if (a && sel === a.correct_option_index) score++;
+                    const sk = String(qq.source_type || '') + ':' + String(qq.source_id || '');
+                    if (!bySource[sk]) {
+                        bySource[sk] = {
+                            source_type: qq.source_type,
+                            source_id: qq.source_id,
+                            responses: [],
+                        };
+                    }
+                    bySource[sk].responses.push({
+                        question_id: qq.id,
+                        selected_option_index: sel !== undefined ? sel : null,
+                    });
+                });
+
+                document.getElementById('quiz-score').textContent = t(
+                    `得分：${score} / ${questions.length}`,
+                    `Score: ${score} / ${questions.length}`
+                );
+
+                if (global.ScienceApi.getUser()) {
+                    try {
+                        for (const group of Object.values(bySource)) {
+                            await apiFetch('/learning/attempts', {
+                                method: 'POST',
+                                body: {
+                                    source_type: group.source_type,
+                                    source_id: group.source_id,
+                                    topic_id: topicId || undefined,
+                                    responses: group.responses,
+                                },
+                            });
+                        }
+                    } catch (err) {
+                        document.getElementById('quiz-score').textContent += t('（未儲存進度）', ' (not saved)');
+                    }
+                } else {
+                    document.getElementById('quiz-score').textContent += ' · ' + t('登入以儲存進度', 'Log in to save progress');
+                }
+                renderQuestion();
+            });
+        }
+
+        main.innerHTML = `
+            <div class="max-w-2xl mx-auto">
+                <button type="button" id="quiz-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回課題', 'Back to topic')}</button>
+                <h1 class="text-2xl font-bold mb-2">${t('錯題回顧', 'Wrong-answer review')}</h1>
+                <p class="text-sm text-slate-500 mb-2">${t('根據你最近的錯題產生。', 'Generated from your recent wrong answers.')}</p>
+                <p id="quiz-score" class="text-sm text-slate-500 mb-6"></p>
+                <div id="quiz-body" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm"></div>
+            </div>`;
+
+        document.getElementById('quiz-back').onclick = () => {
+            const back = global.AppCourse && global.AppCourse.isCourseMode()
+                ? global.AppCourse.getBackRoute()
+                : '/courses';
+            global.AppRouter.navigate(back);
+        };
+        renderQuestion();
+    }
+
+    global.AppQuiz = { renderQuiz, renderReviewWrong };
 
 export {};

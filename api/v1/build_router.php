@@ -105,6 +105,10 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('POST', '/course-discussions/posts', static fn () => api_handle_course_discussions_posts_post($pdo));
     $router->addExact('GET', '/admin/course-discussions/pending', static fn () => api_handle_admin_course_discussions_pending($pdo));
     $router->addPattern(
+        '^POST /course-discussions/posts/(\d+)/reactions$',
+        static fn (array $p) => api_handle_course_discussions_reaction_toggle($pdo, (int) $p[1])
+    );
+    $router->addPattern(
         '^POST /admin/course-discussions/posts/(\d+)/moderate$',
         static fn (array $p) => api_handle_admin_course_discussions_moderate_post($pdo, (int) $p[1])
     );

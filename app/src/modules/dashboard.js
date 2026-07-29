@@ -216,6 +216,64 @@ const global = window;
             }).join('')
             : `<p class="text-sm text-slate-500">${t('沒有待完成習作', 'No pending assignments')}</p>`;
 
+        // Rule-based learning coach (no LLM)
+        let coachMessage = '';
+        let coachCtas = [];
+        const weak0 = (rec.weak_topics || [])[0];
+        if (weak0) {
+            const wname = lang === 'zh' ? (weak0.name_zh || '') : (weak0.name_en || '');
+            const sug = (weak0.suggested_items || [])[0];
+            coachMessage = t(
+                `你在「${wname}」較弱（約 ${Math.round(Number(weak0.mastery || 0))}%）。建議先補相關內容。`,
+                `“${wname}” looks weak (~${Math.round(Number(weak0.mastery || 0))}%). Review related material first.`
+            );
+            if (sug && sug.route) {
+                const st = lang === 'zh' ? (sug.title_zh || '') : (sug.title_en || '');
+                coachCtas.push({ label: t('先完成：', 'Start: ') + st, route: sug.route });
+            } else if (weak0.subject_slug && weak0.topic_slug) {
+                coachCtas.push({
+                    label: t('前往課題', 'Open topic'),
+                    route: '/course/' + encodeURIComponent(weak0.subject_slug) + '/' + encodeURIComponent(weak0.topic_slug),
+                });
+            }
+        } else if (rec.next_course_item && rec.next_course_item.route) {
+            const ni = rec.next_course_item;
+            const ntitle = lang === 'zh' ? (ni.title_zh || '') : (ni.title_en || '');
+            coachMessage = t(`建議下一步：完成「${ntitle}」。`, `Suggested next: complete “${ntitle}”.`);
+            coachCtas.push({ label: t('繼續學習', 'Continue'), route: ni.route });
+        } else if (!streak || Number(streak.current_streak_days || 0) === 0) {
+            coachMessage = t('今天還沒有學習紀錄——打開自學課程開始吧。', 'No learning yet today — open a self-study course to begin.');
+            coachCtas.push({ label: t('瀏覽自學課程', 'Browse courses'), route: '/courses' });
+        } else if (!goal) {
+            coachMessage = t('設定每週學習目標，教練會依此提醒你。', 'Set a weekly goal so the coach can keep you on track.');
+            coachCtas.push({ label: t('設定目標', 'Set goal'), action: 'focus-goal' });
+        } else if (bookmarks.length) {
+            const bm = bookmarks[0];
+            const bt = lang === 'zh' ? (bm.title_zh || bm.title_en || '') : (bm.title_en || bm.title_zh || '');
+            coachMessage = t(`你收藏了「${bt}」——現在回看一次吧。`, `You bookmarked “${bt}” — revisit it now.`);
+            if (bm.route) coachCtas.push({ label: t('打開收藏', 'Open bookmark'), route: bm.route });
+        } else {
+            coachMessage = t('保持節奏！繼續完成課程內容或適性小測。', 'Keep going — continue course items or try an adaptive quiz.');
+            coachCtas.push({ label: t('瀏覽自學課程', 'Browse courses'), route: '/courses' });
+        }
+
+        const coachCtaHtml = coachCtas.map((c, i) => {
+            if (c.action === 'focus-goal') {
+                return `<button type="button" id="dash-coach-goal" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">${escapeHtml(c.label)}</button>`;
+            }
+            return `<button type="button" class="px-3 py-1.5 text-sm ${i === 0 ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-indigo-200 text-indigo-700 hover:bg-indigo-50'} rounded-lg" data-route="${escapeHtml(c.route || '')}">${escapeHtml(c.label)}</button>`;
+        }).join('');
+
+        const coachHtml = `
+            <section class="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <h2 class="text-lg font-bold text-indigo-900">${t('學習教練', 'Learning coach')}</h2>
+                    <span class="text-xs text-indigo-700">${t('規則式建議', 'Rule-based tips')}</span>
+                </div>
+                <p class="text-sm text-indigo-950 mb-4">${escapeHtml(coachMessage)}</p>
+                <div class="flex flex-wrap gap-2">${coachCtaHtml}</div>
+            </section>`;
+
         main.innerHTML = `
             <div class="max-w-5xl mx-auto space-y-8">
                 <div class="flex flex-wrap items-start justify-between gap-4">
@@ -228,6 +286,8 @@ const global = window;
                         <button type="button" id="dash-goto-courses" class="text-indigo-600 hover:underline">${t('瀏覽自學課程', 'Browse courses')} →</button>
                     </div>
                 </div>
+
+                ${coachHtml}
 
                 <div class="grid sm:grid-cols-3 gap-4">
                     <div class="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white p-5 shadow-lg">
@@ -319,6 +379,13 @@ const global = window;
         document.getElementById('dash-goto-courses')?.addEventListener('click', () => navigate('/courses'));
         document.getElementById('dash-goto-summer')?.addEventListener('click', () => navigate('/summer-homework'));
         document.getElementById('dash-goto-assignments')?.addEventListener('click', () => navigate('/assignments'));
+        document.getElementById('dash-coach-goal')?.addEventListener('click', () => {
+            const form = document.getElementById('goal-form');
+            if (form) {
+                form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                document.getElementById('goal-value')?.focus();
+            }
+        });
         main.querySelectorAll('[data-route]').forEach((el) => {
             el.addEventListener('click', () => navigate(el.getAttribute('data-route')));
         });

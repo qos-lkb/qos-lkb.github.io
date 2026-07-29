@@ -637,6 +637,7 @@ CREATE TABLE course_discussion_posts (
     class_id INT UNSIGNED NOT NULL,
     topic_id INT UNSIGNED NOT NULL,
     author_user_id INT UNSIGNED NOT NULL,
+    parent_post_id INT UNSIGNED NULL,
     message_zh MEDIUMTEXT NULL,
     message_en MEDIUMTEXT NULL,
     status ENUM('pending', 'published', 'rejected') NOT NULL DEFAULT 'pending',
@@ -649,7 +650,19 @@ CREATE TABLE course_discussion_posts (
     KEY idx_cd_posts_topic (topic_id),
     KEY idx_cd_posts_status (status),
     KEY idx_cd_posts_author (author_user_id),
+    KEY idx_cd_posts_parent (parent_post_id),
     KEY idx_cd_posts_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE course_discussion_reactions (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    post_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    reaction ENUM('up') NOT NULL DEFAULT 'up',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_cd_reaction (post_id, user_id, reaction),
+    KEY idx_cd_react_post (post_id),
+    KEY idx_cd_react_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------

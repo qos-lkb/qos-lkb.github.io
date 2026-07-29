@@ -22,7 +22,7 @@ function api_handle_course_discussions_get(PDO $pdo): void
     }
 
     $thread = cd_fetch_thread($pdo, $classId, $topicId);
-    $publishedPosts = cd_list_published_posts($pdo, $classId, $topicId, 100);
+    $publishedPosts = cd_list_published_posts($pdo, $classId, $topicId, (int) $user['id'], 100);
     $myPendingPosts = cd_list_my_pending_posts($pdo, (int) $user['id'], $classId, $topicId, 50);
 
     api_json_ok([
@@ -47,6 +47,9 @@ function api_handle_course_discussions_posts_post(PDO $pdo): void
     $topicId = isset($body['topic_id']) ? (int) $body['topic_id'] : 0;
     $msgZh = isset($body['message_zh']) ? trim((string) $body['message_zh']) : '';
     $msgEn = isset($body['message_en']) ? trim((string) $body['message_en']) : '';
+    $parentPostId = isset($body['parent_post_id']) && $body['parent_post_id'] !== '' && $body['parent_post_id'] !== null
+        ? (int) $body['parent_post_id']
+        : null;
 
     if ($classId <= 0 || $topicId <= 0) {
         api_json_error('validation_error', '請提供 class_id 與 topic_id。', 422);
@@ -67,15 +70,49 @@ function api_handle_course_discussions_posts_post(PDO $pdo): void
         $topicId,
         (int) $user['id'],
         $msgZh !== '' ? $msgZh : null,
-        $msgEn !== '' ? $msgEn : null
+        $msgEn !== '' ? $msgEn : null,
+        $parentPostId
     );
+    if (!$post['ok']) {
+        api_json_error('validation_error', $post['error'] ?? '發文失敗。', 422);
+    }
 
     api_json_ok([
         'thread' => $thread,
         'post' => [
-            'id' => (int) $post['post_id'],
-            'status' => (string) $post['status'],
+            'id' => (int) ($post['post_id'] ?? 0),
+            'status' => (string) ($post['status'] ?? 'pending'),
+            'parent_post_id' => $parentPostId,
         ],
+    ]);
+}
+
+function api_handle_course_discussions_reaction_toggle(PDO $pdo, int $postId): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    $body = api_read_json_body();
+
+    $action = (string) ($body['action'] ?? 'toggle');
+    $reaction = (string) ($body['reaction'] ?? 'up');
+    if ($action !== 'toggle') {
+        api_json_error('validation_error', 'action 只支援 toggle。', 422);
+    }
+
+    $r = cd_toggle_reaction($pdo, (int) $user['id'], $postId, $reaction);
+    if (!$r['ok']) {
+        $msg = $r['error'] ?? '操作失敗。';
+        $code = (str_contains($msg, '不是此班') || str_contains($msg, '按讚')) ? 403 : 422;
+        if (str_contains($msg, '找不到')) {
+            $code = 404;
+        }
+        api_json_error($code === 404 ? 'not_found' : ($code === 403 ? 'forbidden' : 'validation_error'), $msg, $code);
+    }
+
+    api_json_ok([
+        'post_id' => $postId,
+        'reacted' => (bool) ($r['reacted'] ?? false),
+        'reaction_count' => (int) ($r['reaction_count'] ?? 0),
     ]);
 }
 
@@ -122,10 +159,12 @@ function api_handle_admin_course_discussions_moderate_post(PDO $pdo, int $postId
     if ($status === 'forbidden') {
         api_json_error('forbidden', '沒有權限。', 403);
     }
+    if ($status === 'parent_not_published') {
+        api_json_error('validation_error', '父留言尚未發布，無法發布此回覆。', 422);
+    }
     if ($status === 'invalid_action') {
         api_json_error('validation_error', '無效的 action。', 422);
     }
 
     api_json_ok(['post_id' => (int) $postId, 'status' => $status]);
 }
-

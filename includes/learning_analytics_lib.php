@@ -479,3 +479,83 @@ function la_user_bookmarks(PDO $pdo, int $userId, int $limit = 12): array
 
     return $out;
 }
+
+/**
+ * Class-level streak / badge summary for teacher reports.
+ *
+ * @param list<array<string, mixed>>|null $students Optional preloaded student rows with user_id + display_name
+ * @return array<string, mixed>
+ */
+function la_class_achievements_summary(PDO $pdo, int $classId, ?array $students = null, int $maxStudents = 80): array
+{
+    if ($students === null) {
+        require_once __DIR__ . '/classes_lib.php';
+        $students = classes_students_in_class($pdo, $classId);
+    }
+
+    $maxStudents = max(1, min(200, $maxStudents));
+    $slice = array_slice($students, 0, $maxStudents);
+
+    $streakSum = 0;
+    $streakCount = 0;
+    $ge3 = 0;
+    $badgeCounts = [];
+    $topStreaks = [];
+
+    foreach ($slice as $s) {
+        $uid = (int) ($s['user_id'] ?? $s['id'] ?? 0);
+        if ($uid <= 0) {
+            continue;
+        }
+        $display = (string) ($s['display_name'] ?? '');
+        $streak = la_user_streak($pdo, $uid);
+        $cur = (int) ($streak['current_streak_days'] ?? 0);
+        $streakSum += $cur;
+        $streakCount++;
+        if ($cur >= 3) {
+            $ge3++;
+        }
+        $topStreaks[] = [
+            'user_id' => $uid,
+            'display_name' => $display,
+            'current_streak_days' => $cur,
+            'best_streak_days' => (int) ($streak['best_streak_days'] ?? 0),
+        ];
+
+        foreach (la_user_badges($pdo, $uid) as $b) {
+            $bid = (string) ($b['badge_id'] ?? '');
+            if ($bid === '') {
+                continue;
+            }
+            if (!isset($badgeCounts[$bid])) {
+                $badgeCounts[$bid] = [
+                    'badge_id' => $bid,
+                    'label_zh' => (string) ($b['label_zh'] ?? $bid),
+                    'label_en' => (string) ($b['label_en'] ?? $bid),
+                    'count' => 0,
+                ];
+            }
+            $badgeCounts[$bid]['count']++;
+        }
+    }
+
+    usort($topStreaks, static function (array $a, array $b): int {
+        $ac = (int) ($a['current_streak_days'] ?? 0);
+        $bc = (int) ($b['current_streak_days'] ?? 0);
+        if ($bc !== $ac) {
+            return $bc <=> $ac;
+        }
+        return ((int) ($b['best_streak_days'] ?? 0)) <=> ((int) ($a['best_streak_days'] ?? 0));
+    });
+
+    $badgeList = array_values($badgeCounts);
+    usort($badgeList, static fn (array $a, array $b): int => ((int) $b['count']) <=> ((int) $a['count']));
+
+    return [
+        'students_sampled' => $streakCount,
+        'avg_current_streak' => $streakCount > 0 ? round($streakSum / $streakCount, 1) : 0,
+        'students_with_streak_ge_3' => $ge3,
+        'badge_unlock_counts' => array_slice($badgeList, 0, 8),
+        'top_streaks' => array_slice($topStreaks, 0, 3),
+    ];
+}

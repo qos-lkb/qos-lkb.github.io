@@ -524,9 +524,11 @@ const global = window;
 
                     <section class="rounded-xl border border-slate-200 bg-white p-4">
                         <h3 class="text-sm font-bold text-slate-900 mb-2">${t('發表留言', 'Write a message')}</h3>
+                        <p id="course-discussions-reply-hint" class="text-xs text-indigo-700 mb-2 hidden"></p>
                         <textarea id="course-discussions-message" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea>
                         <div class="flex flex-wrap items-center gap-2 mt-3">
                             <button type="button" id="course-discussions-send" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${t('送出（等待審核）', 'Send (pending)')}</button>
+                            <button type="button" id="course-discussions-cancel-reply" class="hidden text-sm text-slate-600 hover:underline">${t('取消回覆', 'Cancel reply')}</button>
                             <p class="text-xs text-slate-500">${t('內容需教師審核後才會顯示為已發布。', 'Posts require teacher approval before becoming published.')}</p>
                         </div>
                     </section>
@@ -619,9 +621,21 @@ const global = window;
                     await navigate(res.source.route);
                     return;
                 }
-                if (res && res.ok === true && res.mode === 'review_wrong') {
-                    // Phase 1: only support direct learning_tool quizzes; show a friendly fallback.
-                    alert(t('目前先以「弱項適性測驗」為主；錯題回顧支援將於後續版本加入。', 'Phase 1 supports adaptive learning-tool quizzes first; review_wrong support will be added later.'));
+                if (res && res.ok === true && res.mode === 'review_wrong' && Array.isArray(res.questions) && res.questions.length) {
+                    setCourseContext({
+                        subjectSlug,
+                        topicSlug,
+                        contentType: 'learning_tool',
+                        slug: '',
+                    });
+                    if (global.AppFrontLoader && global.AppFrontLoader.ensureAppRoute) {
+                        await global.AppFrontLoader.ensureAppRoute('/quiz/adaptive-review');
+                    }
+                    if (global.AppQuiz && typeof global.AppQuiz.renderReviewWrong === 'function') {
+                        await global.AppQuiz.renderReviewWrong(res);
+                        return;
+                    }
+                    alert(t('無法載入錯題回顧介面。', 'Unable to load review UI.'));
                     return;
                 }
                 alert((res && res.error) ? res.error : t('無法產生適性小測。', 'Unable to generate adaptive quiz.'));
@@ -637,6 +651,8 @@ const global = window;
             const messageEl = container.querySelector('#course-discussions-message');
             const sendBtn = container.querySelector('#course-discussions-send');
             const flashEl = container.querySelector('#course-discussions-flash');
+            const replyHint = container.querySelector('#course-discussions-reply-hint');
+            const cancelReplyBtn = container.querySelector('#course-discussions-cancel-reply');
 
             if (classSelect && publishedEl && pendingEl && messageEl && sendBtn && flashEl) {
                 function showFlash(msg, isError) {
@@ -659,6 +675,70 @@ const global = window;
                 const topicId = ctx.topic.id;
                 const storageKey = 'science_sims_discussion_class_' + String(topicId);
                 let selectedClassId = 0;
+                let replyToPostId = null;
+                let replyToName = '';
+
+                function setReplyTarget(postId, displayName) {
+                    replyToPostId = postId || null;
+                    replyToName = displayName || '';
+                    if (replyHint) {
+                        if (replyToPostId) {
+                            replyHint.textContent = t('回覆 ', 'Replying to ') + (replyToName || ('#' + replyToPostId));
+                            replyHint.classList.remove('hidden');
+                        } else {
+                            replyHint.textContent = '';
+                            replyHint.classList.add('hidden');
+                        }
+                    }
+                    if (cancelReplyBtn) {
+                        cancelReplyBtn.classList.toggle('hidden', !replyToPostId);
+                    }
+                }
+
+                function postMsg(p) {
+                    return lang === 'zh' ? (p.message_zh || p.message_en || '') : (p.message_en || p.message_zh || '');
+                }
+
+                function renderPublishedTree(published) {
+                    const tops = published.filter((p) => !p.parent_post_id);
+                    const byParent = {};
+                    published.forEach((p) => {
+                        if (p.parent_post_id) {
+                            const pid = Number(p.parent_post_id);
+                            if (!byParent[pid]) byParent[pid] = [];
+                            byParent[pid].push(p);
+                        }
+                    });
+
+                    function cardHtml(p, isReply) {
+                        const msg = postMsg(p);
+                        const when = p.created_at ? String(p.created_at).slice(0, 16).replace('T', ' ') : '';
+                        const reacted = !!p.my_reacted;
+                        const count = Number(p.reaction_count || 0);
+                        return `
+                            <div class="${isReply ? 'ml-4 pl-3 border-l border-slate-200 ' : ''}p-3 rounded-xl border border-slate-200 bg-white" data-post-id="${Number(p.id)}">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <span class="text-xs font-medium text-indigo-700">${escapeHtml(p.display_name || '')}</span>
+                                    <span class="text-xs text-slate-500">${escapeHtml(when)}</span>
+                                </div>
+                                <p class="text-sm text-slate-800 whitespace-pre-wrap">${escapeHtml(msg)}</p>
+                                <div class="flex flex-wrap items-center gap-3 mt-2">
+                                    <button type="button" class="course-discussion-react text-xs ${reacted ? 'text-indigo-600 font-medium' : 'text-slate-500'} hover:underline"
+                                        data-post-id="${Number(p.id)}" aria-pressed="${reacted ? 'true' : 'false'}">👍 ${count}</button>
+                                    ${!isReply ? `<button type="button" class="course-discussion-reply text-xs text-indigo-600 hover:underline" data-post-id="${Number(p.id)}" data-name="${escapeHtml(p.display_name || '')}">${t('回覆', 'Reply')}</button>` : ''}
+                                </div>
+                            </div>`;
+                    }
+
+                    if (!tops.length && !published.length) {
+                        return `<p class="text-sm text-slate-500">${t('尚無已發布留言。', 'No published posts yet.')}</p>`;
+                    }
+
+                    return tops.map((p) => {
+                        const replies = byParent[Number(p.id)] || [];
+                        return cardHtml(p, false) + replies.map((r) => cardHtml(r, true)).join('');
+                    }).join('');
+                }
 
                 async function fetchDiscussion(cid) {
                     publishedEl.innerHTML = `<p class="text-sm text-slate-500">${t('載入中…', 'Loading…')}</p>`;
@@ -670,33 +750,49 @@ const global = window;
                         const published = data.published_posts || [];
                         const myPending = data.my_pending_posts || [];
 
-                        if (published.length) {
-                            publishedEl.innerHTML = published.map((p) => {
-                                const msg = lang === 'zh' ? (p.message_zh || p.message_en || '') : (p.message_en || p.message_zh || '');
-                                const when = p.created_at ? String(p.created_at).slice(0, 16).replace('T', ' ') : '';
-                                return `
-                                    <div class="p-3 rounded-xl border border-slate-200 bg-white">
-                                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                            <span class="text-xs font-medium text-indigo-700">${escapeHtml(p.display_name || '')}</span>
-                                            <span class="text-xs text-slate-500">${escapeHtml(when)}</span>
-                                        </div>
-                                        <p class="text-sm text-slate-800 whitespace-pre-wrap">${escapeHtml(msg)}</p>
-                                    </div>`;
-                            }).join('');
-                        } else {
-                            publishedEl.innerHTML = `<p class="text-sm text-slate-500">${t('尚無已發布留言。', 'No published posts yet.')}</p>`;
-                        }
+                        publishedEl.innerHTML = renderPublishedTree(published);
+
+                        publishedEl.querySelectorAll('.course-discussion-reply').forEach((btn) => {
+                            btn.addEventListener('click', () => {
+                                setReplyTarget(parseInt(btn.getAttribute('data-post-id') || '0', 10) || null, btn.getAttribute('data-name') || '');
+                                messageEl.focus();
+                            });
+                        });
+                        publishedEl.querySelectorAll('.course-discussion-react').forEach((btn) => {
+                            btn.addEventListener('click', async () => {
+                                const postId = parseInt(btn.getAttribute('data-post-id') || '0', 10) || 0;
+                                if (!postId) return;
+                                try {
+                                    const res = await apiFetch('/course-discussions/posts/' + postId + '/reactions', {
+                                        method: 'POST',
+                                        body: { action: 'toggle', reaction: 'up' },
+                                    });
+                                    const reacted = !!res.reacted;
+                                    btn.setAttribute('aria-pressed', reacted ? 'true' : 'false');
+                                    btn.classList.toggle('text-indigo-600', reacted);
+                                    btn.classList.toggle('font-medium', reacted);
+                                    btn.classList.toggle('text-slate-500', !reacted);
+                                    btn.textContent = '👍 ' + Number(res.reaction_count || 0);
+                                } catch (err) {
+                                    showFlash(err.message || t('按讚失敗。', 'Reaction failed.'), true);
+                                }
+                            });
+                        });
 
                         if (myPending.length) {
                             pendingEl.innerHTML = myPending.map((p) => {
-                                const msg = lang === 'zh' ? (p.message_zh || p.message_en || '') : (p.message_en || p.message_zh || '');
+                                const msg = postMsg(p);
                                 const when = p.created_at ? String(p.created_at).slice(0, 16).replace('T', ' ') : '';
+                                const replyNote = p.parent_post_id
+                                    ? `<p class="text-xs text-amber-800 mb-1">${t('回覆留言 #', 'Reply to #')}${Number(p.parent_post_id)}</p>`
+                                    : '';
                                 return `
                                     <div class="p-3 rounded-xl border border-amber-200 bg-amber-50">
                                         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                                             <span class="text-xs font-medium text-amber-900">${t('等待審核', 'Pending review')}</span>
                                             <span class="text-xs text-slate-500">${escapeHtml(when)}</span>
                                         </div>
+                                        ${replyNote}
                                         <p class="text-sm text-slate-800 whitespace-pre-wrap">${escapeHtml(msg)}</p>
                                     </div>`;
                             }).join('');
@@ -738,6 +834,7 @@ const global = window;
                 classSelect.addEventListener('change', async () => {
                     const cid = parseInt(classSelect.value || '0', 10) || 0;
                     selectedClassId = cid;
+                    setReplyTarget(null, '');
                     try {
                         localStorage.setItem(storageKey, String(cid));
                     } catch (err) { /* ignore */ }
@@ -745,6 +842,8 @@ const global = window;
                         await fetchDiscussion(cid);
                     }
                 });
+
+                cancelReplyBtn?.addEventListener('click', () => setReplyTarget(null, ''));
 
                 sendBtn.addEventListener('click', async () => {
                     const cid = selectedClassId;
@@ -761,16 +860,19 @@ const global = window;
 
                     sendBtn.disabled = true;
                     try {
+                        const body = {
+                            class_id: cid,
+                            topic_id: topicId,
+                            message_zh: lang === 'zh' ? msg : '',
+                            message_en: lang === 'en' ? msg : '',
+                        };
+                        if (replyToPostId) body.parent_post_id = replyToPostId;
                         await apiFetch('/course-discussions/posts', {
                             method: 'POST',
-                            body: {
-                                class_id: cid,
-                                topic_id: topicId,
-                                message_zh: lang === 'zh' ? msg : '',
-                                message_en: lang === 'en' ? msg : '',
-                            },
+                            body,
                         });
                         messageEl.value = '';
+                        setReplyTarget(null, '');
                         showFlash(t('已送出，等待教師審核。', 'Sent! Waiting for teacher approval.'), false);
                         await fetchDiscussion(cid);
                     } catch (err) {
