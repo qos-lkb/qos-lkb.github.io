@@ -33,10 +33,12 @@ function api_handle_admin_nav_menu(PDO $pdo, string $method): void
 
     if ($method === 'GET') {
         api_json_ok([
-            'items' => spa_nav_item_defs(),
+            'items' => spa_nav_ordered_item_defs($pdo),
             'audiences' => spa_nav_audience_defs(),
             'matrix' => spa_nav_get_matrix($pdo),
+            'order' => spa_nav_ordered_keys($pdo),
             'table_ready' => spa_nav_table_exists($pdo),
+            'order_table_ready' => spa_nav_order_table_exists($pdo),
         ]);
         return;
     }
@@ -57,9 +59,25 @@ function api_handle_admin_nav_menu(PDO $pdo, string $method): void
         if (!$r['ok']) {
             api_json_error('validation_error', $r['error'] ?? '儲存失敗。', 422);
         }
+
+        if (isset($body['order']) && is_array($body['order'])) {
+            $orderKeys = [];
+            foreach ($body['order'] as $k) {
+                if (is_string($k) || is_int($k)) {
+                    $orderKeys[] = (string) $k;
+                }
+            }
+            $ro = spa_nav_save_order($pdo, $orderKeys);
+            if (!$ro['ok']) {
+                api_json_error('validation_error', $ro['error'] ?? '儲存排序失敗。', 422);
+            }
+        }
+
         api_json_ok([
             'saved' => true,
             'matrix' => spa_nav_get_matrix($pdo),
+            'order' => spa_nav_ordered_keys($pdo),
+            'items' => spa_nav_ordered_item_defs($pdo),
         ]);
         return;
     }

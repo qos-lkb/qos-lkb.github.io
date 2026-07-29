@@ -8,6 +8,15 @@
 
 ## 2026-07-25
 
+## 2026-07-29
+
+### 主選單管理（可見性 + 排序）
+- 後台「前台選單可見性」改名為 **主選單管理**；支援拖曳調整 SPA 上方選單次序。
+- 新增 **`spa_nav_order`**（`schema_spa_nav_order.sql`／`schema.sql`）；既有庫請執行該增量或 `php scripts/apply_schema.php`。
+- API：`GET /nav-menu` 回傳 `items`／`order`；`GET|POST /admin/nav-menu` 可寫入 `matrix` 與 `order`。
+
+## 2026-07-25
+
 ### Schema：合併分階段增量為單一升級檔
 - 刪除個別 `schema_summer_homework*.sql`、`schema_classes_*`、`schema_users_*` 等分階段檔；既有庫只保留 **`schema_upgrade_all.sql`**（另保留全新安裝用 `schema.sql`、可選 `schema_drop_quiz_legacy.sql`）。
 - `scripts/apply_schema.php`／`MigrationRunner` 僅套用 `schema_upgrade_all.sql`。

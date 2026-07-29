@@ -23,9 +23,36 @@
 
     /** @type {Record<string, boolean>|null} */
     let navVisibility = null;
+    /** @type {string[]|null} */
+    let navOrder = null;
 
-    function applyNavVisibility(items) {
+    function applyNavOrder(order) {
+        if (!Array.isArray(order) || !order.length) return;
+        navOrder = order.slice();
+        const nav = document.querySelector('header nav');
+        if (!nav) return;
+        const tabs = Array.from(nav.querySelectorAll('.nav-tab'));
+        if (!tabs.length) return;
+        const byKey = {};
+        tabs.forEach((btn) => {
+            const key = btn.dataset.tab;
+            if (key) byKey[key] = btn;
+        });
+        order.forEach((key) => {
+            if (byKey[key]) nav.appendChild(byKey[key]);
+        });
+        // Append any unknown tabs last (preserve leftover order)
+        tabs.forEach((btn) => {
+            const key = btn.dataset.tab;
+            if (key && !order.includes(key)) nav.appendChild(btn);
+        });
+    }
+
+    function applyNavVisibility(items, order) {
         navVisibility = items && typeof items === 'object' ? items : null;
+        if (Array.isArray(order) && order.length) {
+            applyNavOrder(order);
+        }
         document.querySelectorAll('.nav-tab').forEach((btn) => {
             const key = btn.dataset.tab;
             const show = !navVisibility || navVisibility[key] !== false;
@@ -39,8 +66,9 @@
     }
 
     function firstVisibleTabRoute() {
-        const order = Object.keys(TAB_ROUTES);
+        const order = (navOrder && navOrder.length) ? navOrder : Object.keys(TAB_ROUTES);
         for (const key of order) {
+            if (!TAB_ROUTES[key]) continue;
             if (!navVisibility || navVisibility[key] !== false) {
                 return TAB_ROUTES[key];
             }
@@ -55,13 +83,16 @@
     async function refreshNavVisibility() {
         try {
             if (!window.ScienceApi || !ScienceApi.apiFetch) {
-                applyNavVisibility(null);
+                applyNavVisibility(null, null);
                 return;
             }
             const data = await ScienceApi.apiFetch('/nav-menu');
-            applyNavVisibility(data && data.items ? data.items : null);
+            applyNavVisibility(
+                data && data.items ? data.items : null,
+                data && Array.isArray(data.order) ? data.order : null
+            );
         } catch (e) {
-            applyNavVisibility(null);
+            applyNavVisibility(null, null);
         }
 
         const active = document.querySelector('.nav-tab.active');

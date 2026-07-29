@@ -257,8 +257,8 @@ const global = window;
             } : null,
             canUsers ? {
                 route: '/admin/nav-menu',
-                label: t('前台選單可見性', 'Front nav visibility'),
-                desc: t('控制前台上方選單顯示項目。', 'Control which top-nav items are visible.'),
+                label: t('主選單管理', 'Main menu'),
+                desc: t('調整前台主選單次序與各類使用者可見性。', 'Reorder the front main menu and set audience visibility.'),
                 tone: 'slate',
                 icon: 'menu',
             } : null,

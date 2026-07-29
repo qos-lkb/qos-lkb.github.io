@@ -11,6 +11,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ---------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS schema_migrations;
+DROP TABLE IF EXISTS spa_nav_order;
 DROP TABLE IF EXISTS spa_nav_visibility;
 DROP TABLE IF EXISTS summer_homework_attempts;
 DROP TABLE IF EXISTS summer_homework_media;
@@ -783,6 +784,14 @@ CREATE TABLE spa_nav_visibility (
     KEY idx_spa_nav_audience (audience)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE spa_nav_order (
+    item_key VARCHAR(64) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (item_key),
+    KEY idx_spa_nav_order_sort (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Applied schema_*.sql upgrades (scripts/apply_schema.php)
 CREATE TABLE schema_migrations (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -877,3 +886,13 @@ INSERT INTO spa_nav_visibility (item_key, audience, is_visible) VALUES
     ('articles', 'guest', 1), ('articles', 'student', 1), ('articles', 'teacher', 1), ('articles', 'admin', 1),
     ('learning', 'guest', 1), ('learning', 'student', 1), ('learning', 'teacher', 1), ('learning', 'admin', 1),
     ('summer', 'guest', 1), ('summer', 'student', 1), ('summer', 'teacher', 1), ('summer', 'admin', 1);
+
+INSERT INTO spa_nav_order (item_key, sort_order) VALUES
+    ('summer', 0),
+    ('courses', 1),
+    ('notes', 2),
+    ('worksheets', 3),
+    ('videos', 4),
+    ('simulations', 5),
+    ('articles', 6),
+    ('learning', 7);

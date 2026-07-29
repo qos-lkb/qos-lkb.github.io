@@ -46,7 +46,7 @@ const global = window;
         setShell();
         const title = document.getElementById('page-title');
         const box = document.getElementById('card-container');
-        if (title) title.textContent = t('前台選單可見性', 'Front nav visibility');
+        if (title) title.textContent = t('主選單管理', 'Main menu management');
 
         if (!requireUserManage()) {
             if (global.ScienceApi.getUser()) {
@@ -62,6 +62,7 @@ const global = window;
             const audiences = data.audiences || [];
             const matrix = data.matrix || {};
             const tableOk = !!data.table_ready;
+            const orderOk = !!data.order_table_ready;
 
             const head = audiences.map((aud) =>
                 `<th class="p-3 border-b border-slate-200 font-semibold text-slate-700 text-center whitespace-nowrap">${escapeHtml(aud.label_zh || aud.key)}</th>`
@@ -78,10 +79,15 @@ const global = window;
                         </label>
                     </td>`;
                 }).join('');
-                return `<tr class="border-b border-slate-100 hover:bg-slate-50/80">
-                    <td class="p-3 sticky left-0 bg-white font-medium text-slate-900 whitespace-nowrap">
-                        ${escapeHtml(item.label_zh || item.key)}
-                        <span class="block text-xs font-normal text-slate-500">${escapeHtml(item.label_en || '')}</span>
+                return `<tr class="nav-item-row border-b border-slate-100 hover:bg-slate-50/80" data-item-key="${escapeHtml(item.key)}">
+                    <td class="p-3 sticky left-0 bg-white whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <span class="nav-drag-handle cursor-grab select-none text-slate-400 hover:text-slate-600 ${orderOk ? '' : 'opacity-40 pointer-events-none'}" title="${escapeHtml(t('拖曳排序', 'Drag to reorder'))}" aria-label="${escapeHtml(t('拖曳排序', 'Drag to reorder'))}">⠿</span>
+                            <span>
+                                <span class="font-medium text-slate-900">${escapeHtml(item.label_zh || item.key)}</span>
+                                <span class="block text-xs font-normal text-slate-500">${escapeHtml(item.label_en || '')}</span>
+                            </span>
+                        </div>
                     </td>
                     ${cells}
                 </tr>`;
@@ -93,13 +99,14 @@ const global = window;
                     <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('使用者', 'Users'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/permissions'))}" data-spa-nav="/admin/permissions" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('角色權限', 'Permissions'))}</a>
                 </div>
-                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('依訪客／學生／教師／管理員控制 SPA 上方選單顯示項目。', 'Control which top-nav items guests, students, teachers, and admins see.'))}</p>
+                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('管理 SPA 上方主選單：拖曳調整顯示次序，並依訪客／學生／教師／管理員設定可見性。', 'Manage the SPA top menu: drag to reorder, and set visibility per guest / student / teacher / admin.'))}</p>
                 <p id="nav-flash" class="mb-4 hidden rounded-lg px-4 py-3 text-sm border"></p>
-                ${!tableOk ? `<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(t('尚未建立 spa_nav_visibility 資料表；目前無法儲存。', 'spa_nav_visibility table missing; save is disabled.'))}</div>` : ''}
+                ${!tableOk ? `<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(t('尚未建立 spa_nav_visibility 資料表；目前無法儲存可見性。', 'spa_nav_visibility table missing; visibility save is disabled.'))}</div>` : ''}
+                ${!orderOk ? `<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(t('尚未建立 spa_nav_order 資料表；請執行 schema_spa_nav_order.sql 以啟用拖曳排序。', 'spa_nav_order table missing; run schema_spa_nav_order.sql to enable drag reorder.'))}</div>` : ''}
                 <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                     <div class="px-5 py-4 border-b border-slate-100">
-                        <h2 class="font-bold text-slate-900">${escapeHtml(t('上方選單矩陣', 'Top nav matrix'))}</h2>
-                        <p class="text-sm text-slate-600 mt-1">${escapeHtml(t('勾選表示該類使用者可在前台看到該選單。', 'Checked = visible for that audience.'))}</p>
+                        <h2 class="font-bold text-slate-900">${escapeHtml(t('主選單項目', 'Main menu items'))}</h2>
+                        <p class="text-sm text-slate-600 mt-1">${escapeHtml(t('左側 ⠿ 拖曳排序；勾選表示該類使用者可在前台看到該選單。', 'Drag ⠿ to reorder; checked = visible for that audience.'))}</p>
                     </div>
                     <form id="nav-menu-form" class="p-4 md:p-5 overflow-x-auto">
                         <table class="min-w-full text-sm border-collapse">
@@ -109,7 +116,7 @@ const global = window;
                                     ${head}
                                 </tr>
                             </thead>
-                            <tbody>${rows}</tbody>
+                            <tbody id="nav-item-tbody">${rows}</tbody>
                         </table>
                         <div class="mt-5 flex flex-wrap items-center gap-3">
                             <button type="submit" class="rounded-lg bg-indigo-700 text-white px-4 py-2 text-sm font-semibold hover:bg-indigo-800" ${tableOk ? '' : 'disabled'}>${escapeHtml(t('儲存設定', 'Save'))}</button>
@@ -121,20 +128,21 @@ const global = window;
 
             bindSpaNav(box);
             const form = document.getElementById('nav-menu-form');
+            const tbody = document.getElementById('nav-item-tbody');
             const flash = document.getElementById('nav-flash');
             function showFlash(msg, isError) {
                 flash.textContent = msg;
                 flash.className = 'mb-4 rounded-lg px-4 py-3 text-sm border '
                     + (isError ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-900');
             }
-            document.getElementById('nav-check-all')?.addEventListener('click', () => {
-                form.querySelectorAll('input.nav-vis-cb').forEach((el) => { el.checked = true; });
-            });
-            document.getElementById('nav-uncheck-all')?.addEventListener('click', () => {
-                form.querySelectorAll('input.nav-vis-cb').forEach((el) => { el.checked = false; });
-            });
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
+
+            function collectOrder() {
+                return Array.from(tbody.querySelectorAll('.nav-item-row'))
+                    .map((row) => row.getAttribute('data-item-key'))
+                    .filter(Boolean);
+            }
+
+            function collectMatrix() {
                 const next = {};
                 form.querySelectorAll('input.nav-vis-cb').forEach((el) => {
                     const item = el.getAttribute('data-item');
@@ -143,13 +151,88 @@ const global = window;
                     if (!next[item]) next[item] = {};
                     next[item][audience] = el.checked ? '1' : '';
                 });
+                return next;
+            }
+
+            function wireNavSort() {
+                if (!orderOk || !tbody) return;
+                let dragged = null;
+
+                function dragAfter(y) {
+                    const els = Array.prototype.slice.call(tbody.querySelectorAll('.nav-item-row:not(.dragging)'));
+                    return els.reduce((closest, child) => {
+                        const boxRect = child.getBoundingClientRect();
+                        const offset = y - boxRect.top - boxRect.height / 2;
+                        if (offset < 0 && offset > closest.offset) {
+                            return { offset, element: child };
+                        }
+                        return closest;
+                    }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+                }
+
+                tbody.addEventListener('dragenter', (e) => e.preventDefault());
+                tbody.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    if (!dragged) return;
+                    const after = dragAfter(e.clientY);
+                    if (after == null) tbody.appendChild(dragged);
+                    else tbody.insertBefore(dragged, after);
+                });
+
+                tbody.querySelectorAll('.nav-item-row').forEach((row) => {
+                    const handle = row.querySelector('.nav-drag-handle');
+                    if (!handle) return;
+                    handle.addEventListener('mousedown', () => {
+                        row.setAttribute('draggable', 'true');
+                    });
+                    row.addEventListener('dragend', async () => {
+                        row.removeAttribute('draggable');
+                        row.classList.remove('dragging', 'opacity-60');
+                        if (dragged === row) dragged = null;
+                        try {
+                            await global.ScienceApi.apiFetch('/admin/nav-menu', {
+                                method: 'POST',
+                                body: { matrix: collectMatrix(), order: collectOrder() },
+                            });
+                            showFlash(t('已更新選單次序。', 'Menu order updated.'), false);
+                        } catch (err) {
+                            showFlash(err.message || t('儲存排序失敗', 'Failed to save order'), true);
+                        }
+                    });
+                    row.addEventListener('dragstart', (e) => {
+                        if (!row.getAttribute('draggable')) {
+                            e.preventDefault();
+                            return;
+                        }
+                        dragged = row;
+                        row.classList.add('dragging', 'opacity-60');
+                        if (e.dataTransfer) {
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', row.getAttribute('data-item-key') || '');
+                        }
+                    });
+                });
+            }
+
+            document.getElementById('nav-check-all')?.addEventListener('click', () => {
+                form.querySelectorAll('input.nav-vis-cb').forEach((el) => { el.checked = true; });
+            });
+            document.getElementById('nav-uncheck-all')?.addEventListener('click', () => {
+                form.querySelectorAll('input.nav-vis-cb').forEach((el) => { el.checked = false; });
+            });
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
                 try {
-                    await global.ScienceApi.apiFetch('/admin/nav-menu', { method: 'POST', body: { matrix: next } });
-                    showFlash(t('已更新前台上方選單可見性。', 'Front nav visibility updated.'), false);
+                    await global.ScienceApi.apiFetch('/admin/nav-menu', {
+                        method: 'POST',
+                        body: { matrix: collectMatrix(), order: collectOrder() },
+                    });
+                    showFlash(t('已更新主選單設定。', 'Main menu settings updated.'), false);
                 } catch (err) {
                     showFlash(err.message || t('儲存失敗', 'Save failed'), true);
                 }
             });
+            wireNavSort();
         } catch (err) {
             box.innerHTML = `<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
         }
@@ -225,7 +308,7 @@ const global = window;
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
                     <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('使用者', 'Users'))}</a>
-                    <a href="${escapeHtml(spaHref('/admin/nav-menu'))}" data-spa-nav="/admin/nav-menu" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('前台選單', 'Front nav'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/nav-menu'))}" data-spa-nav="/admin/nav-menu" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('主選單管理', 'Main menu'))}</a>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-4">
                     <p class="text-sm text-slate-600 leading-relaxed">${escapeHtml(t('橫列為角色、直欄為權限；勾選後按儲存。變更個別使用者角色請至使用者管理。', 'Rows are permissions, columns are roles. Save after editing. Assign user roles under Users.'))}</p>

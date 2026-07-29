@@ -207,8 +207,8 @@ Handler: `api/v1/handlers/summer_homework.php`. Business logic: `includes/summer
 | GET/POST/DELETE | `/admin/question-banks` | Question bank CRUD |
 | GET/POST/DELETE | `/admin/topic-items` | Course curriculum item ordering |
 | GET/POST/DELETE | `/admin/classes` | Class CRUD (admin) |
-| GET/PUT | `/admin/nav-menu` | SPA top-nav visibility (`user.manage`) |
-| GET | `/nav-menu` | Visible nav items for current audience |
+| GET/PUT|POST | `/admin/nav-menu` | SPA main menu visibility + order (`user.manage`) |
+| GET | `/nav-menu` | Visible nav items + order for current audience |
 | GET | `/review-queue` | Pending review items |
 | POST | `/review/{type}/{id}/publish\|reject` | Approve or reject content |
 
