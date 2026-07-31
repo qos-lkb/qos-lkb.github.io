@@ -53,9 +53,12 @@
         if (Array.isArray(order) && order.length) {
             applyNavOrder(order);
         }
+        // Guests must not reach summer homework from the main nav / home entry points.
+        const loggedIn = !!(window.ScienceApi && typeof ScienceApi.getUser === 'function' && ScienceApi.getUser());
         document.querySelectorAll('.nav-tab').forEach((btn) => {
             const key = btn.dataset.tab;
-            const show = !navVisibility || navVisibility[key] !== false;
+            let show = !navVisibility || navVisibility[key] !== false;
+            if (key === 'summer' && !loggedIn) show = false;
             btn.classList.toggle('hidden', !show);
             btn.toggleAttribute('hidden', !show);
             if (!show) {
@@ -69,7 +72,7 @@
         const order = (navOrder && navOrder.length) ? navOrder : Object.keys(TAB_ROUTES);
         for (const key of order) {
             if (!TAB_ROUTES[key]) continue;
-            if (!navVisibility || navVisibility[key] !== false) {
+            if (isTabVisible(key)) {
                 return TAB_ROUTES[key];
             }
         }
@@ -77,6 +80,10 @@
     }
 
     function isTabVisible(tab) {
+        if (tab === 'summer') {
+            const loggedIn = !!(window.ScienceApi && typeof ScienceApi.getUser === 'function' && ScienceApi.getUser());
+            if (!loggedIn) return false;
+        }
         return !navVisibility || navVisibility[tab] !== false;
     }
 
