@@ -11,6 +11,12 @@ const global = window;
             : String(s || '');
     }
 
+    function spaHref(route) {
+        return global.AppRouter && global.AppRouter.spaHref
+            ? global.AppRouter.spaHref(route)
+            : route;
+    }
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
