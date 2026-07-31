@@ -1,4 +1,4 @@
-const r=window;function t(d,a){return r.AppRouter&&r.AppRouter.t?r.AppRouter.t(d,a):d}function e(d){return r.AppRouter&&r.AppRouter.escapeHtml?r.AppRouter.escapeHtml(d):String(d||"")}function c(d){return r.AppRouter&&r.AppRouter.spaHref?r.AppRouter.spaHref(d):String(d||"")}function F(){const d=document.getElementById("sidebar");d&&(d.style.display="none")}function P(){return r.ScienceApi.getUser()?r.ScienceApi.hasPermission("class.manage_any")||r.ScienceApi.hasPermission("class.manage_own"):(r.AppRouter.navigate("/login"),!1)}function i(d,a,$){return`<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+const r=window;function t(d,a){return r.AppRouter&&r.AppRouter.t?r.AppRouter.t(d,a):d}function e(d){return r.AppRouter&&r.AppRouter.escapeHtml?r.AppRouter.escapeHtml(d):String(d||"")}function i(d){return r.AppRouter&&r.AppRouter.spaHref?r.AppRouter.spaHref(d):String(d||"")}function F(){const d=document.getElementById("sidebar");d&&(d.style.display="none")}function P(){return r.ScienceApi.getUser()?r.ScienceApi.hasPermission("class.manage_any")||r.ScienceApi.hasPermission("class.manage_own"):(r.AppRouter.navigate("/login"),!1)}function c(d,a,$){return`<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <p class="text-xs text-slate-500 uppercase">${e(d)}</p>
             <p class="text-2xl font-bold ${$||"text-slate-900"}">${a}</p>
         </div>`}async function V(d){var k;F();const a=parseInt(d,10)||0,$=document.getElementById("page-title"),u=document.getElementById("card-container");if($&&($.textContent=t("課程學習報告","Course learning report")),!P()){r.ScienceApi.getUser()&&(u.innerHTML=`<p class="text-red-600">${e(t("沒有權限。","Forbidden."))}</p>`);return}if(a<=0){r.AppRouter.navigate("/admin/courses");return}u.innerHTML=`<p class="text-slate-500">${e(t("載入中…","Loading…"))}</p>`;try{let y=function(s,n){v&&(v.textContent=s,v.classList.remove("hidden","text-emerald-700","text-red-600"),v.classList.add(n?"text-red-600":"text-emerald-700"))};var q=y;const E=(await r.ScienceApi.apiFetch("/admin/classes/"+a)).class||{},p=await r.ScienceApi.apiFetch("/teacher/classes/"+a+"/report"),g=p.summary||{},m=p.coursework||{},_=p.weak_topics||[],w=p.students||[],H=_.length?`<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8">
@@ -8,7 +8,7 @@ const r=window;function t(d,a){return r.AppRouter&&r.AppRouter.t?r.AppRouter.t(d
                     </ul>
                 </div>`:"",T=w.map(s=>{const n=Number(s.avg_mastery||0),l=n<60?"text-red-600":n>80?"text-emerald-600":"text-amber-600",o=String(s.form_class||""),x=s.class_no!=null&&s.class_no!==""?Number(s.class_no):0,U=o||x?`<span class="block text-xs text-slate-500">${e(o+(x>0?" #"+x:""))}</span>`:"",O=s.last_attempt?Number(s.last_attempt.score)+"/"+Number(s.last_attempt.max_score):"—",f=s.worksheets||{},L=s.summer||{},W=Number(s.user_id),C=`/admin/courses/${a}/students/${W}`;return`<tr class="border-t border-slate-100">
                     <td class="p-3">
-                        <a href="${e(c(C))}" data-spa-nav="${e(C)}" class="font-medium text-indigo-700 hover:underline">${e(s.display_name||"")}</a>
+                        <a href="${e(i(C))}" data-spa-nav="${e(C)}" class="font-medium text-indigo-700 hover:underline">${e(s.display_name||"")}</a>
                         <span class="block text-xs text-slate-400">${e(s.email||"")}</span>
                         ${U}
                     </td>
@@ -62,27 +62,28 @@ const r=window;function t(d,a){return r.AppRouter&&r.AppRouter.t?r.AppRouter.t(d
                     </div>
                 </div>`,B=m.worksheet_submit_rate!=null?Number(m.worksheet_submit_rate)+"%":"—",I=m.summer_completion_rate!=null?Number(m.summer_completion_rate)+"%":"—";u.innerHTML=`
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${e(c(`/admin/courses/${a}`))}" data-spa-nav="/admin/courses/${a}" class="text-sm text-indigo-700 hover:underline">${e(t("← 編輯課程","← Edit course"))}</a>
-                    <a href="${e(c(`/admin/courses/${a}/students`))}" data-spa-nav="/admin/courses/${a}/students" class="text-sm text-slate-600 hover:underline">${e(t("學生與修讀語言","Students & MOI"))}</a>
-                    <a href="${e(c(`/admin/courses/${a}/summer`))}" data-spa-nav="/admin/courses/${a}/summer" class="text-sm text-slate-600 hover:underline">${e(t("暑期功課","Summer HW"))}</a>
-                    <a href="${e(c(`/admin/courses/${a}/worksheets`))}" data-spa-nav="/admin/courses/${a}/worksheets" class="text-sm text-slate-600 hover:underline">${e(t("工作紙派發","Worksheets"))}</a>
-                    <a href="${e(c("/admin/inbox")+"?class_id="+a)}" data-spa-nav="/admin/inbox?class_id=${a}" class="text-sm text-slate-600 hover:underline">${e(t("待批改／逾期","Inbox"))}</a>
-                    <a href="${e(c(`/admin/courses/${a}/discussions`))}" data-spa-nav="/admin/courses/${a}/discussions" class="text-sm text-slate-600 hover:underline">${e(t("討論審核","Discussions"))}</a>
+                    <a href="${e(i(`/admin/courses/${a}`))}" data-spa-nav="/admin/courses/${a}" class="text-sm text-indigo-700 hover:underline">${e(t("← 編輯課程","← Edit course"))}</a>
+                    <a href="${e(i(`/admin/courses/${a}/students`))}" data-spa-nav="/admin/courses/${a}/students" class="text-sm text-slate-600 hover:underline">${e(t("學生與修讀語言","Students & MOI"))}</a>
+                    <a href="${e(i(`/admin/courses/${a}/summer`))}" data-spa-nav="/admin/courses/${a}/summer" class="text-sm text-slate-600 hover:underline">${e(t("暑期功課","Summer HW"))}</a>
+                    <a href="${e(i(`/admin/courses/${a}/summer`)+"?view=incomplete")}" data-spa-nav="/admin/courses/${a}/summer?view=incomplete" class="text-sm text-amber-700 hover:underline">${e(t("暑期催收","Summer chase"))}</a>
+                    <a href="${e(i(`/admin/courses/${a}/worksheets`))}" data-spa-nav="/admin/courses/${a}/worksheets" class="text-sm text-slate-600 hover:underline">${e(t("工作紙派發","Worksheets"))}</a>
+                    <a href="${e(i("/admin/inbox")+"?class_id="+a)}" data-spa-nav="/admin/inbox?class_id=${a}" class="text-sm text-slate-600 hover:underline">${e(t("待批改／逾期","Inbox"))}</a>
+                    <a href="${e(i(`/admin/courses/${a}/discussions`))}" data-spa-nav="/admin/courses/${a}/discussions" class="text-sm text-slate-600 hover:underline">${e(t("討論審核","Discussions"))}</a>
                     <button type="button" id="report-export-csv" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">${e(t("匯出 CSV","Export CSV"))}</button>
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-4">${e(E.name||t("課程","Course"))}</h2>
                 <p id="admin-course-report-flash" class="text-sm mb-3 hidden"></p>
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    ${i(t("學生人數","Students"),String(Number(g.total_students||0)))}
-                    ${i(t("本週活躍","Active this week"),String(Number(g.active_students||0)),"text-indigo-600")}
-                    ${i(t("本週學習（分鐘）","Minutes this week"),String(Number(g.minutes_week||0)))}
-                    ${i(t("平均掌握度","Avg mastery"),e(String(g.avg_mastery??"—"))+"%","text-emerald-600")}
+                    ${c(t("學生人數","Students"),String(Number(g.total_students||0)))}
+                    ${c(t("本週活躍","Active this week"),String(Number(g.active_students||0)),"text-indigo-600")}
+                    ${c(t("本週學習（分鐘）","Minutes this week"),String(Number(g.minutes_week||0)))}
+                    ${c(t("平均掌握度","Avg mastery"),e(String(g.avg_mastery??"—"))+"%","text-emerald-600")}
                 </div>
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    ${i(t("工作紙呈交率","WS submit rate"),e(B),"text-indigo-700")}
-                    ${i(t("待批改","Ungraded"),String(Number(m.worksheet_ungraded||0)),"text-amber-600")}
-                    ${i(t("逾期未交","Overdue"),String(Number(m.worksheet_overdue||0)),"text-red-600")}
-                    ${i(t("暑期完成率","Summer done"),e(I))}
+                    ${c(t("工作紙呈交率","WS submit rate"),e(B),"text-indigo-700")}
+                    ${c(t("待批改","Ungraded"),String(Number(m.worksheet_ungraded||0)),"text-amber-600")}
+                    ${c(t("逾期未交","Overdue"),String(Number(m.worksheet_overdue||0)),"text-red-600")}
+                    ${c(t("暑期完成率","Summer done"),e(I))}
                 </div>
                 ${H}
                 ${M}
