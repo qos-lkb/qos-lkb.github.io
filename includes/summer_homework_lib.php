@@ -2231,6 +2231,151 @@ function sh_save_teacher_marks(PDO $pdo, int $attemptId, array $marks, array $us
 }
 
 /**
+ * Add an acceptable answer to a fill_blank or short_answer question (e.g. while marking).
+ * Optionally regrades all attempts for the item.
+ *
+ * @param array<string, mixed> $payload answer_zh?, answer_en?, blank_index? (fill only), regrade? (default true)
+ * @return array{ok:bool,error?:string,regraded?:int,answer?:array<string,mixed>}
+ */
+function sh_add_acceptable_answer(
+    PDO $pdo,
+    int $itemId,
+    int $questionId,
+    array $payload,
+    array $user
+): array {
+    $item = sh_get_by_id($pdo, $itemId);
+    if ($item === null) {
+        return ['ok' => false, 'error' => '找不到習作。'];
+    }
+    if (!sh_can_review_item($user, $item) && !sh_can_manage_row($user, $item)) {
+        return ['ok' => false, 'error' => '無權限。'];
+    }
+
+    $questions = sh_fetch_questions($pdo, $itemId, true);
+    $question = null;
+    foreach ($questions as $q) {
+        if ((int) ($q['id'] ?? 0) === $questionId) {
+            $question = $q;
+            break;
+        }
+    }
+    if ($question === null) {
+        return ['ok' => false, 'error' => '找不到題目。'];
+    }
+
+    $type = sh_normalize_question_type((string) ($question['question_type'] ?? ''));
+    if ($type !== 'fill_blank' && $type !== 'short_answer') {
+        return ['ok' => false, 'error' => '僅填充題／短答題可加入標準答案。'];
+    }
+
+    $answerZh = trim((string) ($payload['answer_zh'] ?? $payload['text'] ?? ''));
+    $answerEn = trim((string) ($payload['answer_en'] ?? ''));
+    if ($answerZh === '' && $answerEn === '') {
+        return ['ok' => false, 'error' => '請提供答案文字。'];
+    }
+    if ($answerZh === '') {
+        $answerZh = $answerEn;
+    }
+    if ($answerEn === '') {
+        $answerEn = $answerZh;
+    }
+
+    $normZh = sh_normalize_fill_answer($answerZh);
+    $normEn = sh_normalize_fill_answer($answerEn);
+    $blankIndex = null;
+
+    if ($type === 'short_answer') {
+        if (!sh_table_exists_short_answers($pdo)) {
+            return ['ok' => false, 'error' => '請先執行 schema_upgrade_all.sql。'];
+        }
+        $existing = $question['acceptable_answers'] ?? [];
+        if (!is_array($existing)) {
+            $existing = [];
+        }
+        foreach ($existing as $ans) {
+            if (!is_array($ans)) {
+                continue;
+            }
+            $ez = sh_normalize_fill_answer((string) ($ans['acceptable_answer_zh'] ?? ''));
+            $ee = sh_normalize_fill_answer((string) ($ans['acceptable_answer_en'] ?? ''));
+            if (($normZh !== '' && ($ez === $normZh || $ee === $normZh))
+                || ($normEn !== '' && ($ez === $normEn || $ee === $normEn))
+            ) {
+                return ['ok' => false, 'error' => '此答案已在標準答案中。'];
+            }
+        }
+        $sortStmt = $pdo->prepare(
+            'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM summer_homework_short_answers WHERE question_id = ?'
+        );
+        $sortStmt->execute([$questionId]);
+        $sortOrder = (int) $sortStmt->fetchColumn();
+        $pdo->prepare(
+            'INSERT INTO summer_homework_short_answers (question_id, sort_order, acceptable_answer_zh, acceptable_answer_en)
+             VALUES (?,?,?,?)'
+        )->execute([$questionId, $sortOrder, $answerZh, $answerEn]);
+    } else {
+        $blankIndex = isset($payload['blank_index']) ? (int) $payload['blank_index'] : 1;
+        if ($blankIndex < 1) {
+            $blankIndex = 1;
+        }
+        $blanks = is_array($question['blanks'] ?? null) ? $question['blanks'] : [];
+        $answers = [];
+        foreach ($blanks as $b) {
+            if (!is_array($b)) {
+                continue;
+            }
+            if ((int) ($b['blank_index'] ?? 0) === $blankIndex) {
+                $answers = is_array($b['acceptable_answers'] ?? null) ? $b['acceptable_answers'] : [];
+                break;
+            }
+        }
+        foreach ($answers as $ans) {
+            if (!is_array($ans)) {
+                continue;
+            }
+            $ez = sh_normalize_fill_answer((string) ($ans['acceptable_answer_zh'] ?? ''));
+            $ee = sh_normalize_fill_answer((string) ($ans['acceptable_answer_en'] ?? ''));
+            if (($normZh !== '' && ($ez === $normZh || $ee === $normZh))
+                || ($normEn !== '' && ($ez === $normEn || $ee === $normEn))
+            ) {
+                return ['ok' => false, 'error' => '此答案已在標準答案中。'];
+            }
+        }
+        $sortStmt = $pdo->prepare(
+            'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM summer_homework_fill_blanks
+             WHERE question_id = ? AND blank_index = ?'
+        );
+        $sortStmt->execute([$questionId, $blankIndex]);
+        $sortOrder = (int) $sortStmt->fetchColumn();
+        $pdo->prepare(
+            'INSERT INTO summer_homework_fill_blanks
+             (question_id, blank_index, acceptable_answer_zh, acceptable_answer_en, sort_order)
+             VALUES (?,?,?,?,?)'
+        )->execute([$questionId, $blankIndex, $answerZh, $answerEn, $sortOrder]);
+    }
+
+    $regrade = !isset($payload['regrade']) || !empty($payload['regrade']);
+    $regraded = 0;
+    if ($regrade) {
+        $rg = sh_regrade_item_attempts($pdo, $itemId);
+        $regraded = (int) ($rg['updated'] ?? 0);
+    }
+
+    return [
+        'ok' => true,
+        'regraded' => $regraded,
+        'answer' => [
+            'question_id' => $questionId,
+            'question_type' => $type,
+            'blank_index' => $type === 'fill_blank' ? $blankIndex : null,
+            'acceptable_answer_zh' => $answerZh,
+            'acceptable_answer_en' => $answerEn,
+        ],
+    ];
+}
+
+/**
  * CSV rows for class summer homework report.
  *
  * @return list<list<string>>

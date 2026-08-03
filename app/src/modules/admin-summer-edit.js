@@ -245,52 +245,85 @@ const global = window;
         return map[status] || status || '—';
     }
 
+    function bilingualLine(zh, en, zhLabel, enLabel) {
+        const z = String(zh || '').trim();
+        const e = String(en || '').trim();
+        if (!z && !e) return `<p class="text-sm text-slate-400">—</p>`;
+        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div>
+                <p class="text-xs text-slate-400 mb-0.5">${escapeHtml(zhLabel || t('中文', 'ZH'))}</p>
+                <div class="text-slate-800 whitespace-pre-wrap">${escapeHtml(z || '—')}</div>
+            </div>
+            <div>
+                <p class="text-xs text-slate-400 mb-0.5">${escapeHtml(enLabel || t('英文', 'EN'))}</p>
+                <div class="text-slate-800 whitespace-pre-wrap">${escapeHtml(e || '—')}</div>
+            </div>
+        </div>`;
+    }
+
     function renderQuestionAnswers(q, index) {
-        const stem = q.stem_zh || q.stem_en || '';
         const type = q.question_type || '';
         let body = '';
         if (type === 'mcq' || type === 'multi_select') {
-            body = `<ul class="text-sm space-y-1.5">${(q.options || []).map((opt, oi) => {
+            body = `<ul class="text-sm space-y-3">${(q.options || []).map((opt, oi) => {
                 const label = String.fromCharCode(65 + oi);
-                const text = opt.text_zh || opt.text_en || '';
                 const ok = !!(opt.is_correct === true || opt.is_correct === 1 || opt.is_correct === '1');
-                return `<li class="${ok ? 'text-emerald-800 font-medium' : 'text-slate-700'}">
-                    <span class="font-bold text-indigo-600 mr-1">${label}</span>${escapeHtml(text)}
-                    ${ok ? `<span class="text-xs text-emerald-700 ml-1">✓ ${escapeHtml(t('正確答案', 'Correct'))}</span>` : ''}
+                return `<li class="border rounded-lg p-3 ${ok ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-100'}">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="font-bold text-indigo-600">${label}</span>
+                        ${ok ? `<span class="text-xs text-emerald-700">✓ ${escapeHtml(t('正確答案', 'Correct'))}</span>` : ''}
+                    </div>
+                    ${bilingualLine(opt.text_zh, opt.text_en, t('選項（中）', 'Option (ZH)'), t('選項（英）', 'Option (EN)'))}
                 </li>`;
             }).join('')}</ul>`;
         } else if (type === 'true_false') {
             const yes = !!(q.correct_bool === true || q.correct_bool === 1 || q.correct_bool === '1');
             body = `<p class="text-sm text-emerald-800 font-medium">${escapeHtml(t('正確答案：', 'Answer: '))}${escapeHtml(yes ? t('是', 'True') : t('否', 'False'))}</p>`;
         } else if (type === 'short_answer') {
-            body = `<ul class="text-sm space-y-1">${(q.acceptable_answers || []).map((ans) => {
+            body = `<ul class="space-y-2">${(q.acceptable_answers || []).map((ans) => {
                 if (!ans || typeof ans !== 'object') return '';
-                return `<li class="font-mono text-emerald-800">${escapeHtml(ans.acceptable_answer_zh || '')} / ${escapeHtml(ans.acceptable_answer_en || '')}</li>`;
+                return `<li class="border border-emerald-100 rounded-lg p-3 bg-emerald-50/40">${bilingualLine(ans.acceptable_answer_zh, ans.acceptable_answer_en, t('可接受（中）', 'Acceptable (ZH)'), t('可接受（英）', 'Acceptable (EN)'))}</li>`;
             }).join('')}</ul>`;
+            if (q.match_mode === 'contains') {
+                body = `<p class="text-xs text-slate-500 mb-2">${escapeHtml(t('比對：含關鍵字', 'Match: contains'))}</p>` + body;
+            }
         } else if (type === 'long_answer') {
-            body = `<p class="text-sm text-slate-600">${escapeHtml(t('滿分', 'Max'))} ${escapeHtml(String(q.max_score ?? 5))}（${escapeHtml(t('教師評閱', 'Teacher-marked'))}）</p>`;
+            body = `<p class="text-sm text-slate-600 mb-2">${escapeHtml(t('滿分', 'Max'))} ${escapeHtml(String(q.max_score ?? 5))}（${escapeHtml(t('教師評閱', 'Teacher-marked'))}）</p>`;
             if (q.rubric_zh || q.rubric_en) {
-                body += `<div class="mt-2 text-xs text-slate-600 space-y-1">
-                    ${q.rubric_zh ? `<p><span class="text-slate-400">${escapeHtml(t('評分指引（中）：', 'Rubric ZH: '))}</span>${escapeHtml(q.rubric_zh)}</p>` : ''}
-                    ${q.rubric_en ? `<p><span class="text-slate-400">${escapeHtml(t('評分指引（英）：', 'Rubric EN: '))}</span>${escapeHtml(q.rubric_en)}</p>` : ''}
-                </div>`;
+                body += bilingualLine(q.rubric_zh, q.rubric_en, t('評分指引（中）', 'Rubric (ZH)'), t('評分指引（英）', 'Rubric (EN)'));
             }
         } else {
             body = (q.blanks || []).map((blank, bi) => {
                 const answers = blank.acceptable_answers || [];
-                return `<div class="text-sm mb-2">
-                    <span class="text-slate-500">${escapeHtml(t('空格', 'Blank'))} ${bi + 1}：</span>
-                    ${answers.map((a) => `<span class="font-mono text-emerald-800 mr-2">${escapeHtml((a.acceptable_answer_zh || '') + ' / ' + (a.acceptable_answer_en || ''))}</span>`).join('')}
+                const rows = answers.map((a) =>
+                    `<div class="border border-emerald-100 rounded-lg p-2 bg-emerald-50/40 mb-2">${bilingualLine(a.acceptable_answer_zh, a.acceptable_answer_en)}</div>`
+                ).join('');
+                return `<div class="mb-3">
+                    <p class="text-xs font-semibold text-slate-600 mb-1">${escapeHtml(t('空格', 'Blank'))} ${bi + 1}</p>
+                    ${rows || `<p class="text-sm text-slate-400">—</p>`}
                 </div>`;
             }).join('');
         }
+
+        let expl = '';
+        if (q.explanation_zh || q.explanation_en) {
+            expl = `<div class="mt-4 pt-3 border-t border-slate-100">
+                <p class="text-xs font-semibold text-slate-500 mb-2">${escapeHtml(t('解釋', 'Explanation'))}</p>
+                ${bilingualLine(q.explanation_zh, q.explanation_en)}
+            </div>`;
+        }
+
         return `<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <p class="font-medium text-slate-900 mb-3">
-                ${index + 1}.
-                <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 mr-1">${escapeHtml(typeLabel(type))}</span>
-                ${escapeHtml(stem)}
-            </p>
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+                <span class="font-semibold text-slate-900">${index + 1}.</span>
+                <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${escapeHtml(typeLabel(type))}</span>
+            </div>
+            <div class="mb-4">
+                <p class="text-xs font-semibold text-slate-500 mb-2">${escapeHtml(t('題幹', 'Stem'))}</p>
+                ${bilingualLine(q.stem_zh, q.stem_en, t('題幹（中）', 'Stem (ZH)'), t('題幹（英）', 'Stem (EN)'))}
+            </div>
             ${body}
+            ${expl}
         </div>`;
     }
 

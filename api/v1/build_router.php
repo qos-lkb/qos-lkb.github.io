@@ -140,6 +140,10 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^GET /summer-homework/([^/]+)$', static fn (array $p) => api_handle_summer_homework_get($pdo, rawurldecode($p[1])));
 
     $router->addPattern('^POST /admin/summer-homework/attempts/(\d+)/marks$', static fn (array $p) => api_handle_admin_summer_homework_mark_attempt($pdo, (int) $p[1]));
+    $router->addPattern(
+        '^POST /admin/summer-homework/(\d+)/questions/(\d+)/acceptable-answers$',
+        static fn (array $p) => api_handle_admin_summer_homework_add_acceptable_answer($pdo, (int) $p[1], (int) $p[2])
+    );
     $router->addPattern('^POST /admin/summer-homework/(\d+)/media$', static fn (array $p) => api_handle_admin_summer_homework_media_upload($pdo, (int) $p[1]));
     $router->addPattern('^DELETE /admin/summer-homework/(\d+)/media/(\d+)$', static fn (array $p) => api_handle_admin_summer_homework_media_delete($pdo, (int) $p[1], (int) $p[2]));
     $router->addPattern('^POST /admin/summer-homework/(\d+)/import-questions$', static fn (array $p) => api_handle_admin_summer_homework_import_questions($pdo, (int) $p[1]));

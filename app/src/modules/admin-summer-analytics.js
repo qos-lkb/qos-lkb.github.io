@@ -313,7 +313,16 @@ const global = window;
                         body = `<p class="text-sm">${escapeHtml(t('學生', 'Student'))}：${escapeHtml(boolLabel(selB))} · ${escapeHtml(t('正解', 'Answer'))}：${escapeHtml(boolLabel(corB))}</p>`;
                     } else if (qtype === 'short_answer') {
                         const given = detail && detail.given != null ? String(detail.given) : (resp ? String(resp.text || '') : '');
-                        body = `<p class="text-sm font-mono">${given !== '' ? escapeHtml(given) : escapeHtml(t('（空白）', '(blank)'))}</p>`;
+                        const acceptList = Array.isArray(q.acceptable_answers) ? q.acceptable_answers : [];
+                        const acceptHint = acceptList.length
+                            ? `<p class="text-xs text-slate-500 mt-1">${escapeHtml(t('現有標準答案', 'Current answers'))}：${escapeHtml(acceptList.map((a) => (a.acceptable_answer_zh || a.acceptable_answer_en || '')).filter(Boolean).join(' / '))}</p>`
+                            : '';
+                        const addBtn = given.trim() !== ''
+                            ? `<button type="button" class="sh-add-accept mt-2 text-xs text-indigo-700 hover:underline"
+                                data-qid="${qid}" data-answer="${escapeHtml(given)}">${escapeHtml(t('將學生答案加入標準答案', 'Add student answer as acceptable'))}</button>
+                               <span class="sh-add-accept-flash text-xs ml-2"></span>`
+                            : '';
+                        body = `<p class="text-sm font-mono">${given !== '' ? escapeHtml(given) : escapeHtml(t('（空白）', '(blank)'))}</p>${acceptHint}${addBtn}`;
                     } else if (qtype === 'long_answer') {
                         const given = detail && detail.given != null ? String(detail.given) : (resp ? String(resp.text || '') : '');
                         const tm = teacherMark(selectedAttempt, qid) || {};
@@ -341,11 +350,17 @@ const global = window;
                                     : (givenBlanks[String(bi)] != null ? String(givenBlanks[String(bi)]) : '');
                             }
                             const blankOk = bd ? !!bd.correct : null;
+                            const addBtn = given.trim() !== ''
+                                ? `<button type="button" class="sh-add-accept ml-2 text-xs text-indigo-700 hover:underline"
+                                    data-qid="${qid}" data-blank="${bIdx}" data-answer="${escapeHtml(given)}">${escapeHtml(t('加入標準答案', 'Add as answer'))}</button>
+                                   <span class="sh-add-accept-flash text-xs ml-1"></span>`
+                                : '';
                             return `<div class="text-sm mb-2">
                                 <span class="text-slate-500">${escapeHtml(t('空格', 'Blank'))} ${bIdx}：</span>
                                 <span class="font-mono">${given !== '' ? escapeHtml(given) : escapeHtml(t('（空白）', '(blank)'))}</span>
                                 ${blankOk === true ? `<span class="text-emerald-700 text-xs ml-2">${escapeHtml(t('正確', 'Correct'))}</span>` : ''}
                                 ${blankOk === false ? `<span class="text-red-700 text-xs ml-2">${escapeHtml(t('錯誤', 'Wrong'))}</span>` : ''}
+                                ${addBtn}
                             </div>`;
                         }).join('');
                     }
@@ -464,6 +479,54 @@ const global = window;
                             flash.textContent = err.message || t('失敗', 'Failed');
                             flash.className = 'mark-flash text-xs text-red-600';
                         }
+                    }
+                });
+            });
+
+            box.querySelectorAll('.sh-add-accept').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const qid = parseInt(btn.getAttribute('data-qid') || '0', 10);
+                    const answer = btn.getAttribute('data-answer') || '';
+                    const blankRaw = btn.getAttribute('data-blank');
+                    const flash = btn.nextElementSibling && btn.nextElementSibling.classList.contains('sh-add-accept-flash')
+                        ? btn.nextElementSibling
+                        : null;
+                    if (!qid || !String(answer).trim()) return;
+                    if (!confirm(t(
+                        `將「${answer}」加入標準答案，並依新答案重算所有呈交？`,
+                        `Add “${answer}” as an acceptable answer and regrade all attempts?`
+                    ))) {
+                        return;
+                    }
+                    btn.disabled = true;
+                    const body = { answer_zh: answer, answer_en: answer, regrade: true };
+                    if (blankRaw != null && blankRaw !== '') {
+                        body.blank_index = parseInt(blankRaw, 10);
+                    }
+                    try {
+                        const result = await global.ScienceApi.apiFetch(
+                            '/admin/summer-homework/' + itemId + '/questions/' + qid + '/acceptable-answers',
+                            { method: 'POST', body }
+                        );
+                        const rg = Number(result.regraded || 0);
+                        if (flash) {
+                            flash.textContent = rg > 0
+                                ? t(`已加入，並重算 ${rg} 筆呈交。`, `Added; regraded ${rg} attempts.`)
+                                : t('已加入標準答案。', 'Added as acceptable answer.');
+                            flash.className = 'sh-add-accept-flash text-xs ml-2 text-emerald-700';
+                        }
+                        btn.textContent = t('已加入', 'Added');
+                        const keepUser = filterUserId;
+                        const keepAtt = selectedAttempt ? Number(selectedAttempt.id) : 0;
+                        setAnalyticsUrl(itemId, keepUser || 0, keepAtt || 0);
+                        await renderAdminSummerAnalytics(String(itemId));
+                        document.getElementById('attempt-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } catch (err) {
+                        if (flash) {
+                            flash.textContent = err.message || t('加入失敗', 'Failed');
+                            flash.className = 'sh-add-accept-flash text-xs ml-2 text-red-600';
+                        }
+                        btn.disabled = false;
                     }
                 });
             });

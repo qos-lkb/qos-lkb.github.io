@@ -172,6 +172,23 @@ function api_handle_admin_summer_homework_mark_attempt(PDO $pdo, int $attemptId)
     api_json_ok(['saved' => true]);
 }
 
+function api_handle_admin_summer_homework_add_acceptable_answer(PDO $pdo, int $itemId, int $questionId): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions((int) $user['id']);
+    $body = api_read_json_body();
+    $result = sh_add_acceptable_answer($pdo, $itemId, $questionId, $body, $user);
+    if (!$result['ok']) {
+        api_json_error('validation_error', $result['error'] ?? '加入失敗。', 422);
+    }
+    api_json_ok([
+        'answer' => $result['answer'] ?? null,
+        'regraded' => (int) ($result['regraded'] ?? 0),
+        'questions' => sh_fetch_questions($pdo, $itemId, true),
+    ]);
+}
+
 function api_handle_admin_summer_homework(PDO $pdo, string $method): void
 {
     if ($method === 'GET') {
