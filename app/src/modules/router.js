@@ -35,6 +35,7 @@ const global = window;
         { re: /^\/assignment\/(\d+)\/?$/, name: '/assignment/:id', keys: [1] },
         { re: /^\/login\/?$/, name: '/login' },
         { re: /^\/admin\/summer-homework\/new\/?$/, name: '/admin/summer-homework/new' },
+        { re: /^\/admin\/summer-homework\/(\d+)\/preview\/?$/, name: '/admin/summer-homework/:id/preview', keys: [1] },
         { re: /^\/admin\/summer-homework\/(\d+)\/edit\/?$/, name: '/admin/summer-homework/:id/edit', keys: [1] },
         { re: /^\/admin\/summer-homework\/(\d+)\/view\/?$/, name: '/admin/summer-homework/:id/view', keys: [1] },
         { re: /^\/admin\/summer-homework\/(\d+)\/analytics\/?$/, name: '/admin/summer-homework/:id/analytics', keys: [1] },

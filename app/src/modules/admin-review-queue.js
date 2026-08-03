@@ -90,6 +90,7 @@ const global = window;
             labelEn: 'Summer homework',
             reviewPath: 'summer-homework',
             edit: (id) => ({ spa: '/admin/summer-homework/' + id + '/edit' }),
+            preview: (id) => ({ spa: '/admin/summer-homework/' + id + '/preview' }),
         },
     };
 
@@ -137,6 +138,11 @@ const global = window;
                 const editNav = editTarget && editTarget.spa
                     ? ` data-spa-nav="${escapeHtml(editTarget.spa)}"`
                     : '';
+                const previewTarget = meta.preview ? meta.preview(id, it) : null;
+                const previewHref = previewTarget && previewTarget.spa ? spaHref(previewTarget.spa) : '';
+                const previewNav = previewTarget && previewTarget.spa
+                    ? ` data-spa-nav="${escapeHtml(previewTarget.spa)}"`
+                    : '';
                 const editLabel = it.type === 'learning_tool' && editHref
                     ? t('編輯試題庫', 'Edit question bank')
                     : t('編輯', 'Edit');
@@ -156,6 +162,7 @@ const global = window;
                         ${legacyNote}
                     </div>
                     <div class="flex flex-wrap gap-2 items-center">
+                        ${previewHref ? `<a href="${escapeHtml(previewHref)}"${previewNav} class="px-3 py-1.5 rounded-lg border border-indigo-200 text-sm text-indigo-700 hover:bg-indigo-50">${escapeHtml(t('預覽', 'Preview'))}</a>` : ''}
                         ${editHref ? `<a href="${escapeHtml(editHref)}"${editNav} class="px-3 py-1.5 rounded-lg border border-slate-300 text-sm text-slate-700 hover:bg-slate-50">${escapeHtml(editLabel)}</a>` : ''}
                         <button type="button" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700" data-action="publish">${escapeHtml(t('發佈', 'Publish'))}</button>
                         <button type="button" class="px-3 py-1.5 bg-slate-200 rounded-lg text-sm hover:bg-slate-300" data-action="reject">${escapeHtml(t('退回', 'Reject'))}</button>

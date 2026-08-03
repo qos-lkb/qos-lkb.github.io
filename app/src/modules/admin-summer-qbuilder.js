@@ -4,7 +4,8 @@ const global = window;
     let qBox = null;
     let editId = 0;
     let onSaved = null;
-    let showEn = false;
+    /** When false, English stem/option/answer fields stay visible but can be collapsed. Default: show bilingual. */
+    let showEn = true;
 
     function apiFetch(path, opts) {
         return global.ScienceApi.apiFetch(path, opts);
@@ -197,16 +198,22 @@ const global = window;
     }
 
     function renderExplanationFields(q) {
-        return `<div class="mt-2 space-y-2">
+        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
             <div>${renderRichTextarea('expl-zh', q.explanation_zh || '', '解釋（中，選填）', 2)}</div>
             <div class="sh-en-field ${enClass()}">${renderRichTextarea('expl-en', q.explanation_en || '', '解釋（英，選填）', 2)}</div>
         </div>`;
     }
 
     function renderStemFields(q) {
-        return `<div class="space-y-2 mb-2">
-            <div>${renderRichTextarea('stem-zh', q.stem_zh || '', '題幹（中）', 2)}</div>
-            <div class="sh-en-field ${enClass()}">${renderRichTextarea('stem-en', q.stem_en || '', '題幹（英）', 2)}</div>
+        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+            <div>
+                <label class="text-xs text-slate-500 mb-1 block">題幹（中）</label>
+                ${renderRichTextarea('stem-zh', q.stem_zh || '', '題幹（中）', 2)}
+            </div>
+            <div class="sh-en-field ${enClass()}">
+                <label class="text-xs text-slate-500 mb-1 block">題幹（英）</label>
+                ${renderRichTextarea('stem-en', q.stem_en || '', '題幹（英）', 2)}
+            </div>
         </div>`;
     }
 
@@ -230,7 +237,7 @@ const global = window;
             html += `<div class="flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row">
                 <input type="${inputType}" name="correct-${index}" class="mt-1 is-correct" ${isCorrect ? 'checked' : ''}>
                 <span class="font-bold text-indigo-600 w-5 sh-opt-letter">${String.fromCharCode(65 + i)}</span>
-                <div class="flex-1 space-y-1">
+                <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-1">
                     <input class="opt-zh w-full border rounded px-2 py-1" placeholder="選項中文" value="${escapeHtml(o.text_zh)}">
                     <input class="opt-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="選項英文" value="${escapeHtml(o.text_en)}">
                 </div>
@@ -242,10 +249,15 @@ const global = window;
     }
 
     function renderAnswerRow(ans) {
-        return `<div class="flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row">
-            <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）" value="${escapeHtml(ans.acceptable_answer_zh)}">
-            <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）" value="${escapeHtml(ans.acceptable_answer_en)}">
-            <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>
+        return `<div class="border rounded-lg p-2 bg-slate-50 sh-answer-row">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-xs text-slate-500">可接受答案</span>
+                <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                <input class="ans-zh w-full border rounded px-2 py-1" placeholder="中文" value="${escapeHtml(ans.acceptable_answer_zh)}">
+                <input class="ans-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="English" value="${escapeHtml(ans.acceptable_answer_en)}">
+            </div>
         </div>`;
     }
 
@@ -320,8 +332,14 @@ const global = window;
                 <input type="number" min="0.5" step="0.5" class="max-score w-24 border rounded-lg px-3 py-2 text-sm mt-1" value="${escapeHtml(maxScore)}">
             </div>
             <div class="space-y-2">
-                <textarea class="rubric-zh w-full border rounded-lg px-3 py-2 text-sm" rows="3" placeholder="評分準則（中）">${escapeHtml(q.rubric_zh || '')}</textarea>
-                <textarea class="rubric-en w-full border rounded-lg px-3 py-2 text-sm sh-en-field ${enClass()}" rows="3" placeholder="評分準則（英）">${escapeHtml(q.rubric_en || '')}</textarea>
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">評分準則（中）</label>
+                    <textarea class="rubric-zh w-full border rounded-lg px-3 py-2 text-sm" rows="3" placeholder="評分準則（中）">${escapeHtml(q.rubric_zh || '')}</textarea>
+                </div>
+                <div class="sh-en-field ${enClass()}">
+                    <label class="text-xs text-slate-500 block mb-1">評分準則（英）</label>
+                    <textarea class="rubric-en w-full border rounded-lg px-3 py-2 text-sm" rows="3" placeholder="評分準則（英）">${escapeHtml(q.rubric_en || '')}</textarea>
+                </div>
             </div>
             <p class="text-xs text-slate-500">長答題須教師人手評分，不計入自動及格百分比。</p>
         </div>`;
@@ -390,7 +408,7 @@ const global = window;
             div.innerHTML = `
                 <input type="${inputType}" name="correct-${idx}" class="mt-1 is-correct">
                 <span class="font-bold text-indigo-600 w-5 sh-opt-letter">${String.fromCharCode(65 + n)}</span>
-                <div class="flex-1 space-y-1">
+                <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-1">
                     <input class="opt-zh w-full border rounded px-2 py-1" placeholder="選項中文">
                     <input class="opt-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="選項英文">
                 </div>
@@ -417,6 +435,19 @@ const global = window;
         });
     }
 
+    function blankAnswerRowHtml() {
+        return `<div class="border rounded-lg p-2 bg-slate-50 sh-answer-row">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-xs text-slate-500">可接受答案</span>
+                <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                <input class="ans-zh w-full border rounded px-2 py-1" placeholder="中文">
+                <input class="ans-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="English">
+            </div>
+        </div>`;
+    }
+
     function wireFillBlankHandlers(wrap) {
         const blanksBox = wrap.querySelector('.sh-blanks');
         const addBlankBtn = wrap.querySelector('.sh-add-blank');
@@ -433,13 +464,10 @@ const global = window;
             block.querySelector('.sh-add-answer').onclick = () => {
                 const answersBox = block.querySelector('.sh-answers');
                 const div = document.createElement('div');
-                div.className = 'flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row';
-                div.innerHTML = `
-                    <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）">
-                    <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）">
-                    <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>`;
-                wireRemoveAnswer(div);
-                answersBox.appendChild(div);
+                div.innerHTML = blankAnswerRowHtml();
+                const row = div.firstElementChild;
+                wireRemoveAnswer(row);
+                answersBox.appendChild(row);
             };
 
             block.querySelector('.sh-remove-blank').onclick = () => {
@@ -473,13 +501,10 @@ const global = window;
             row.remove();
             if (!container.querySelector('.sh-answer-row')) {
                 const div = document.createElement('div');
-                div.className = 'flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row';
-                div.innerHTML = `
-                    <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）">
-                    <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）">
-                    <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>`;
-                wireRemoveAnswer(div);
-                container.appendChild(div);
+                div.innerHTML = blankAnswerRowHtml();
+                const row = div.firstElementChild;
+                wireRemoveAnswer(row);
+                container.appendChild(row);
             }
         };
     }
@@ -489,13 +514,10 @@ const global = window;
         const box = wrap.querySelector('.sh-short-answers');
         addBtn.onclick = () => {
             const div = document.createElement('div');
-            div.className = 'flex gap-2 items-center text-sm bg-slate-50 border rounded-lg p-2 sh-answer-row';
-            div.innerHTML = `
-                <input class="ans-zh flex-1 border rounded px-2 py-1" placeholder="可接受答案（中）">
-                <input class="ans-en flex-1 border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="可接受答案（英）">
-                <button type="button" class="text-xs text-red-600 sh-remove-answer" title="移除答案">×</button>`;
-            wireRemoveAnswer(div);
-            box.appendChild(div);
+            div.innerHTML = blankAnswerRowHtml();
+            const row = div.firstElementChild;
+            wireRemoveAnswer(row);
+            box.appendChild(row);
         };
         box.querySelectorAll('.sh-answer-row').forEach(wireRemoveAnswer);
     }
@@ -599,7 +621,7 @@ const global = window;
             el.classList.toggle('hidden', !showEn);
         });
         const btn = document.getElementById('sh-toggle-en');
-        if (btn) btn.textContent = showEn ? '隱藏英文欄' : '展開英文欄';
+        if (btn) btn.textContent = showEn ? '隱藏英文欄' : '顯示英文欄';
     }
 
     function renumber() {
@@ -688,7 +710,7 @@ const global = window;
         qBox = document.getElementById('questions');
         editId = Number(opts.editId || 0) || 0;
         onSaved = typeof opts.onSaved === 'function' ? opts.onSaved : null;
-        showEn = false;
+        showEn = true;
         const onError = typeof opts.onError === 'function' ? opts.onError : null;
         if (!ensureReady()) {
             throw new Error('Summer editor mount failed');

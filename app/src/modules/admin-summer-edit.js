@@ -329,6 +329,7 @@ const global = window;
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
                 <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
                 ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/view'))}" data-spa-nav="/admin/summer-homework/${editId}/view" class="text-slate-600 hover:underline">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>` : ''}
+                ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/preview'))}" data-spa-nav="/admin/summer-homework/${editId}/preview" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('學生畫面預覽', 'Student preview'))}</a>` : ''}
                 ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/analytics'))}" data-spa-nav="/admin/summer-homework/${editId}/analytics" class="text-slate-600 hover:underline">${escapeHtml(t('呈交分析', 'Analytics'))}</a>` : ''}
             </div>
             <p id="edit-flash" class="text-sm hidden mb-3 ${regraded > 0 ? 'text-emerald-700' : ''}">${regraded > 0 ? escapeHtml(t(`已儲存，並依最新答案重算 ${regraded} 筆呈交分數。`, `Saved; regraded ${regraded} attempts.`)) : ''}</p>
@@ -444,7 +445,7 @@ const global = window;
                     <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
                         <label class="text-sm font-medium">${escapeHtml(t('跟進題目', 'Follow-up questions'))}</label>
                         <div class="flex flex-wrap gap-x-3 gap-y-1 items-center">
-                            <button type="button" id="sh-toggle-en" class="text-sm text-slate-600">${escapeHtml(t('展開英文欄', 'Show EN fields'))}</button>
+                            <button type="button" id="sh-toggle-en" class="text-sm text-slate-600">${escapeHtml(t('隱藏英文欄', 'Hide EN fields'))}</button>
                             <button type="button" id="sh-import-qb" class="text-sm text-slate-600">${escapeHtml(t('從試題庫匯入', 'Import from bank'))}</button>
                             <button type="button" id="add-mcq" class="text-sm text-indigo-600">+ ${escapeHtml(t('選擇題', 'MCQ'))}</button>
                             <button type="button" id="add-multi" class="text-sm text-indigo-600">+ ${escapeHtml(t('多選題', 'Multi'))}</button>
@@ -603,6 +604,7 @@ const global = window;
                 <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
                     <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/analytics'))}" data-spa-nav="/admin/summer-homework/${itemId}/analytics" class="text-slate-600 hover:underline">${escapeHtml(t('呈交分析', 'Analytics'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/preview'))}" data-spa-nav="/admin/summer-homework/${itemId}/preview" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('學生畫面預覽', 'Student preview'))}</a>
                     ${detail.can_manage ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/edit'))}" data-spa-nav="/admin/summer-homework/${itemId}/edit" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                 </div>
                 <p class="text-xs text-slate-500 mb-4">${escapeHtml(formLabel)} · ${escapeHtml(contentType)} · ${escapeHtml(statusLabel(detail.status))} · ${escapeHtml(t('含正確答案（教師／管理員檢視）', 'Includes answer key (staff view)'))}</p>
@@ -630,9 +632,58 @@ const global = window;
         }
     }
 
+    async function renderAdminSummerHomeworkPreview(idArg) {
+        setShell();
+        const title = document.getElementById('page-title');
+        const box = document.getElementById('card-container');
+        const itemId = Number(idArg || 0);
+        if (!itemId) {
+            global.AppRouter.navigate('/admin/summer-homework');
+            return;
+        }
+        if (!global.ScienceApi.getUser()) {
+            global.AppRouter.navigate('/login');
+            return;
+        }
+        if (title) title.textContent = t('預覽暑期功課', 'Preview summer homework');
+        box.innerHTML = `<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
+
+        try {
+            await Promise.all([
+                import('./markdown.js'),
+                import('./content-embeds.js'),
+                import('./summer-homework.js'),
+            ]);
+            const detail = await global.ScienceApi.apiFetch('/admin/summer-homework/' + itemId);
+            const slug = detail.slug || String(itemId);
+            const previewItem = Object.assign({}, detail, {
+                include_answers: false,
+                can_review: false,
+                progress: null,
+                submissions_closed: false,
+            });
+            const host = document.createElement('div');
+            host.id = 'sh-admin-preview-root';
+            box.innerHTML = '';
+            box.appendChild(host);
+            await global.AppSummerHomework.renderItem(slug, {
+                root: host,
+                item: previewItem,
+                preview: true,
+                forceLang: global.AppRouter.getLang ? global.AppRouter.getLang() : 'zh',
+                onBack: () => global.AppRouter.navigate('/admin/summer-homework/' + itemId + '/edit'),
+            });
+        } catch (err) {
+            box.innerHTML = `<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>
+                <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-indigo-700 text-sm mt-3 inline-block">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>`;
+            bindSpaNav(box);
+        }
+    }
+
     Object.assign(global.AppAdmin || (global.AppAdmin = {}), {
         renderAdminSummerHomeworkEdit,
         renderAdminSummerHomeworkView,
+        renderAdminSummerHomeworkPreview,
     });
 
 export {};

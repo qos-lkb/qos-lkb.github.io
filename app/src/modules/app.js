@@ -582,6 +582,11 @@
                     if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkEdit();
                 });
             },
+            '/admin/summer-homework/:id/preview': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkPreview(id);
+                });
+            },
             '/admin/summer-homework/:id/edit': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSummerHomeworkEdit(id);

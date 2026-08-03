@@ -75,7 +75,7 @@ function resolveAdminGroup(path) {
     if (p.startsWith('/admin/inbox')) return 'inbox';
     if (p.startsWith('/admin/school-overview')) return 'school-overview';
     if (/^\/admin\/summer-homework\/\d+\/analytics$/.test(p)) return 'summer-analytics';
-    if (/^\/admin\/summer-homework\/(new|\d+\/(edit|view))$/.test(p)) return 'summer-edit';
+    if (/^\/admin\/summer-homework\/(new|\d+\/(edit|view|preview))$/.test(p)) return 'summer-edit';
     if (p.startsWith('/admin/summer-homework')) return 'summer-list';
     if (/^\/admin\/worksheets\/(new|\d+\/edit)$/.test(p)) return 'worksheet-edit';
     if (p.startsWith('/admin/worksheets')) return 'worksheets-list';

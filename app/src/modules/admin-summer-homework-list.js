@@ -100,10 +100,10 @@ const global = window;
                     <td class="p-3 text-xs text-slate-500">${escapeHtml(row.updated_at || '')}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
                         <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/view'))}" data-spa-nav="/admin/summer-homework/${id}/view">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
+                        <a class="text-indigo-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/preview'))}" data-spa-nav="/admin/summer-homework/${id}/preview">${escapeHtml(t('預覽', 'Preview'))}</a>
                         <a class="text-indigo-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/analytics'))}" data-spa-nav="/admin/summer-homework/${id}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
                         ${canManage ? `<a class="text-indigo-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/edit'))}" data-spa-nav="/admin/summer-homework/${id}/edit">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                         ${canManage ? `<button type="button" class="text-red-600 hover:underline ml-2 sh-delete" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
-                        <a class="text-slate-500 hover:underline ml-2" href="${escapeHtml(spaHref('/summer-homework/' + encodeURIComponent(row.slug || '')))}" target="_blank" rel="noopener">${escapeHtml(t('前台', 'Front'))}</a>
                     </td>
                 </tr>`;
             }).join('');

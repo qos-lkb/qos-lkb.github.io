@@ -395,25 +395,36 @@ const global = window;
         });
     }
 
-    async function renderItem(slug) {
-        const main = document.getElementById('main-content');
-        const bootLang = resolveSummerLang();
+    async function renderItem(slug, opts) {
+        opts = opts || {};
+        const main = opts.root || document.getElementById('main-content');
+        if (!main) return;
+        const bootLang = opts.forceLang || resolveSummerLang();
         main.innerHTML = `<div class="max-w-3xl mx-auto"><p class="text-slate-500">${st('載入中…', 'Loading…', bootLang)}</p></div>`;
 
-        let item;
-        try {
-            item = await apiFetch('/summer-homework/' + encodeURIComponent(slug));
-        } catch (e) {
-            main.innerHTML = `<div class="max-w-3xl mx-auto"><p class="text-red-600">${escapeHtml(e.message || '')}</p>
-                <button type="button" id="sh-back" class="mt-4 text-indigo-600 underline">${st('返回列表', 'Back to list', bootLang)}</button></div>`;
-            document.getElementById('sh-back')?.addEventListener('click', () => navigate('/summer-homework'));
-            return;
+        let item = opts.item || null;
+        if (!item) {
+            try {
+                item = await apiFetch('/summer-homework/' + encodeURIComponent(slug));
+            } catch (e) {
+                main.innerHTML = `<div class="max-w-3xl mx-auto"><p class="text-red-600">${escapeHtml(e.message || '')}</p>
+                    <button type="button" id="sh-back" class="mt-4 text-indigo-600 underline">${st('返回列表', 'Back to list', bootLang)}</button></div>`;
+                document.getElementById('sh-back')?.addEventListener('click', () => {
+                    if (typeof opts.onBack === 'function') opts.onBack();
+                    else navigate('/summer-homework');
+                });
+                return;
+            }
         }
 
-        const lang = resolveSummerLang(item.content_lang);
-        const title = lang === 'zh' ? item.title_zh : item.title_en;
+        const preview = !!(opts.preview || (item.status && item.status !== 'published'));
+        const lang = opts.forceLang || resolveSummerLang(item.content_lang);
+        const title = lang === 'zh' ? (item.title_zh || item.title_en) : (item.title_en || item.title_zh);
         const questions = item.questions || [];
-        const alreadyPassed = item.progress && item.progress.passed;
+        const alreadyPassed = !preview && item.progress && item.progress.passed;
+        const statusLabel = item.status === 'draft'
+            ? st('草稿', 'Draft', lang)
+            : (item.status === 'pending_review' ? st('待審核', 'Pending review', lang) : '');
 
         let contentHtml = '';
         const refs = normalizeContentRefs(item);
@@ -432,18 +443,34 @@ const global = window;
         }
 
         const formLabel = item.form_level === '2' ? st('中二', 'S2', lang) : st('中一', 'S1', lang);
-        const closed = !!item.submissions_closed;
+        const closed = !preview && !!item.submissions_closed;
         const dueMeta = item.due_at
             ? `<p class="text-sm text-slate-500 mb-2">${st('截止日期', 'Due', lang)}: ${escapeHtml(formatDue(item.due_at))}
                 （${item.allow_late_submit !== false ? st('允許遲交', 'Late allowed', lang) : st('截止後不可交', 'Closed after due', lang)}）</p>`
             : '';
 
+        const previewBanner = preview
+            ? `<div class="mb-4 p-4 rounded-xl border border-sky-200 bg-sky-50 text-sm text-sky-950" role="status">
+                <p class="font-semibold">${st('預覽模式', 'Preview mode', lang)}${statusLabel ? ` · ${escapeHtml(statusLabel)}` : ''}</p>
+                <p class="mt-1">${st('此畫面與學生所見之已發佈習作相同；預覽不會寫入呈交紀錄。', 'Same layout as the published student page; preview does not save submissions.', lang)}</p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <button type="button" class="sh-preview-lang px-2.5 py-1 rounded border text-xs ${lang === 'zh' ? 'bg-sky-700 text-white border-sky-700' : 'bg-white border-sky-300'}" data-lang="zh">中文</button>
+                    <button type="button" class="sh-preview-lang px-2.5 py-1 rounded border text-xs ${lang === 'en' ? 'bg-sky-700 text-white border-sky-700' : 'bg-white border-sky-300'}" data-lang="en">English</button>
+                </div>
+            </div>`
+            : '';
+
+        const backLabel = opts.backLabel
+            || (preview ? st('← 返回後台', '← Back to admin', lang) : st('← 暑期功課', '← Summer homework', lang));
+
         main.innerHTML = `
             <div class="max-w-3xl mx-auto w-full">
-                <button type="button" id="sh-back" class="text-sm text-indigo-600 mb-4">${st('← 暑期功課', '← Summer homework', lang)}</button>
+                <button type="button" id="sh-back" class="text-sm text-indigo-600 mb-4">${escapeHtml(backLabel)}</button>
+                ${previewBanner}
                 <div class="mb-4 flex flex-wrap items-center gap-2">
                     <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800">${formLabel}</span>
-                    ${progressBadge(item.progress, lang)}
+                    ${statusLabel ? `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">${escapeHtml(statusLabel)}</span>` : ''}
+                    ${preview ? '' : progressBadge(item.progress, lang)}
                 </div>
                 <h1 class="text-2xl font-extrabold text-slate-900 mb-2">${escapeHtml(title)}</h1>
                 <p class="text-sm text-slate-500 mb-1">${st('及格線', 'Pass mark', lang)}: ${item.pass_percent}%</p>
@@ -454,7 +481,16 @@ const global = window;
                 <div id="sh-result" class="mt-6 hidden"></div>
             </div>`;
 
-        document.getElementById('sh-back')?.addEventListener('click', () => navigate('/summer-homework'));
+        document.getElementById('sh-back')?.addEventListener('click', () => {
+            if (typeof opts.onBack === 'function') opts.onBack();
+            else navigate('/summer-homework');
+        });
+        main.querySelectorAll('.sh-preview-lang').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const nextLang = btn.getAttribute('data-lang') === 'en' ? 'en' : 'zh';
+                void renderItem(slug, Object.assign({}, opts, { item, forceLang: nextLang, preview: true }));
+            });
+        });
 
         await enhanceMath(main);
         if (global.AppContentEmbeds && typeof AppContentEmbeds.hydrate === 'function') {
@@ -468,7 +504,7 @@ const global = window;
                 `<div class="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900" role="status">
                     ${st(`你已及格（最高 ${best}%）。仍可重做；若本次分數較低，仍保留最高分。`, `You have passed (best ${best}%). You may still redo; if this attempt is lower, your best score is kept.`, lang)}
                 </div>`);
-        } else if (item.progress && item.progress.attempts > 0) {
+        } else if (!preview && item.progress && item.progress.attempts > 0) {
             const best = item.progress.percent;
             quizEl.insertAdjacentHTML('beforebegin',
                 `<div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-300 text-sm text-amber-950" role="alert">
@@ -489,22 +525,26 @@ const global = window;
             return;
         }
 
-        // Check login for submit
+        // Check login for submit (preview still shows interactive UI)
         let me = null;
         try {
             me = await apiFetch('/auth/me');
         } catch (e) {
             me = null;
         }
-        if (!me || !me.id) {
+        if (!preview && (!me || !me.id)) {
             quizEl.innerHTML = `<p class="text-amber-800">${st('請先登入後再作答。', 'Please log in to attempt this assessment.', lang)}</p>
                 <a class="inline-block mt-3 text-indigo-600 underline" href="../login.php?next=${encodeURIComponent('app/summer-homework/' + slug)}">${st('登入', 'Log in', lang)}</a>`;
             return;
         }
 
+        const showKeys = !preview && !!(item.include_answers || item.can_review);
         let html = `<h2 class="text-lg font-bold mb-4">${st('跟進題目', 'Follow-up questions', lang)}</h2>`;
-        if (item.include_answers || item.can_review) {
+        if (showKeys) {
             html = `<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${st('教師／管理員檢視模式：已顯示正確答案。', 'Teacher/admin review mode: correct answers are shown.', lang)}</div>` + html;
+        }
+        if (preview) {
+            html = `<div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">${st('預覽作答介面（不會真正呈交）。', 'Interactive preview only — submissions are not saved.', lang)}</div>` + html;
         }
         questions.forEach((q, qi) => {
             const stem = lang === 'zh' ? q.stem_zh : q.stem_en;
@@ -519,7 +559,7 @@ const global = window;
                 if (!inline.hasInline) {
                     blanks.forEach((b, bi) => {
                         let ansHint = '';
-                        if (item.include_answers || item.can_review) {
+                        if (showKeys) {
                             const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [{
                                 acceptable_answer_zh: b.acceptable_answer_zh || '',
                                 acceptable_answer_en: b.acceptable_answer_en || '',
@@ -533,7 +573,7 @@ const global = window;
                             ${ansHint}
                         </div>`;
                     });
-                } else if (item.include_answers || item.can_review) {
+                } else if (showKeys) {
                     blanks.forEach((b, bi) => {
                         const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [];
                         const texts = answers.map((a) => ((a.acceptable_answer_zh || '') + ' / ' + (a.acceptable_answer_en || '')).trim()).filter((t) => t !== '/' && t !== '');
@@ -548,7 +588,7 @@ const global = window;
             if (type === 'mcq') {
                 (q.options || []).forEach((o, oi) => {
                     const text = lang === 'zh' ? o.text_zh : o.text_en;
-                    const isCorrect = !!(item.include_answers || item.can_review) && !!o.is_correct;
+                    const isCorrect = showKeys && !!o.is_correct;
                     html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${isCorrect ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="radio" name="q-${q.id}" value="${oi}" class="mt-1">
                         <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
@@ -557,7 +597,7 @@ const global = window;
             } else if (type === 'multi_select') {
                 (q.options || []).forEach((o, oi) => {
                     const text = lang === 'zh' ? o.text_zh : o.text_en;
-                    const isCorrect = !!(item.include_answers || item.can_review) && !!o.is_correct;
+                    const isCorrect = showKeys && !!o.is_correct;
                     html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${isCorrect ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="checkbox" name="q-${q.id}" value="${oi}" class="mt-1 sh-multi">
                         <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
@@ -565,19 +605,18 @@ const global = window;
                 });
                 html += `<p class="text-xs text-slate-500 mt-1">${st('請選出所有正確選項。', 'Select all correct options.', lang)}</p>`;
             } else if (type === 'true_false') {
-                const showAns = !!(item.include_answers || item.can_review);
                 const correctTrue = q.correct_bool === true || q.correct_bool === 1;
                 html += `<div class="flex flex-wrap gap-3">
-                    <label class="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-50 ${showAns && correctTrue ? 'border-emerald-400 bg-emerald-50' : ''}">
+                    <label class="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-50 ${showKeys && correctTrue ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="radio" name="q-${q.id}" value="1" class="sh-tf"> ${st('是／對', 'True', lang)}
                     </label>
-                    <label class="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-50 ${showAns && !correctTrue ? 'border-emerald-400 bg-emerald-50' : ''}">
+                    <label class="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-slate-50 ${showKeys && !correctTrue ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="radio" name="q-${q.id}" value="0" class="sh-tf"> ${st('否／錯', 'False', lang)}
                     </label>
                 </div>`;
             } else if (type === 'short_answer') {
                 let ansHint = '';
-                if ((item.include_answers || item.can_review) && Array.isArray(q.acceptable_answers)) {
+                if (showKeys && Array.isArray(q.acceptable_answers)) {
                     const texts = q.acceptable_answers.map((a) => (lang === 'zh' ? a.acceptable_answer_zh : a.acceptable_answer_en) || a.acceptable_answer_zh || a.acceptable_answer_en).filter(Boolean);
                     ansHint = `<p class="text-xs text-emerald-700 mt-1">${st('可接受', 'Acceptable', lang)}：${escapeHtml(texts.join(' / '))}</p>`;
                 }
@@ -596,11 +635,15 @@ const global = window;
             html += '</div>';
         });
         html += `<p id="sh-unanswered" class="hidden text-sm text-amber-800 mb-3" role="alert"></p>`;
-        html += `<button type="button" id="sh-submit" class="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">${alreadyPassed ? st('重新提交', 'Resubmit', lang) : st('提交答案', 'Submit', lang)}</button>`;
+        html += `<button type="button" id="sh-submit" class="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">${preview ? st('試做（不呈交）', 'Try (no submit)', lang) : (alreadyPassed ? st('重新提交', 'Resubmit', lang) : st('提交答案', 'Submit', lang))}</button>`;
         quizEl.innerHTML = html;
         await enhanceMath(quizEl);
 
         document.getElementById('sh-submit')?.addEventListener('click', async () => {
+            if (preview) {
+                alert(st('預覽模式不會呈交答案。發佈後學生即可正式提交。', 'Preview mode does not submit answers. Students can submit after publish.', lang));
+                return;
+            }
             const responses = {};
             const unanswered = [];
             document.querySelectorAll('#sh-quiz [data-qid]').forEach((block, qi) => {
