@@ -161,6 +161,251 @@ const global = window;
         return `<p class="text-xs text-slate-500 mt-1">${st('截止', 'Due', lang)}: ${escapeHtml(due)} · ${late}</p>`;
     }
 
+    /** Mirror PHP sh_normalize_fill_answer for client-side grading. */
+    function normalizeFillAnswer(s) {
+        let t = String(s == null ? '' : s);
+        const map = {
+            '０': '0', '１': '1', '２': '2', '３': '3', '４': '4',
+            '５': '5', '６': '6', '７': '7', '８': '8', '９': '9',
+            'Ａ': 'A', 'Ｂ': 'B', 'Ｃ': 'C', 'Ｄ': 'D', 'Ｅ': 'E',
+            'Ｆ': 'F', 'Ｇ': 'G', 'Ｈ': 'H', 'Ｉ': 'I', 'Ｊ': 'J',
+            'Ｋ': 'K', 'Ｌ': 'L', 'Ｍ': 'M', 'Ｎ': 'N', 'Ｏ': 'O',
+            'Ｐ': 'P', 'Ｑ': 'Q', 'Ｒ': 'R', 'Ｓ': 'S', 'Ｔ': 'T',
+            'Ｕ': 'U', 'Ｖ': 'V', 'Ｗ': 'W', 'Ｘ': 'X', 'Ｙ': 'Y', 'Ｚ': 'Z',
+            'ａ': 'a', 'ｂ': 'b', 'ｃ': 'c', 'ｄ': 'd', 'ｅ': 'e',
+            'ｆ': 'f', 'ｇ': 'g', 'ｈ': 'h', 'ｉ': 'i', 'ｊ': 'j',
+            'ｋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n', 'ｏ': 'o',
+            'ｐ': 'p', 'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't',
+            'ｕ': 'u', 'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x', 'ｙ': 'y', 'ｚ': 'z',
+        };
+        t = t.replace(/[０-９Ａ-Ｚａ-ｚ]/g, (ch) => map[ch] || ch);
+        t = t.trim().toLowerCase().replace(/\s+/g, ' ');
+        return t;
+    }
+
+    /**
+     * Build client grade key from API client_grade or full questions (teacher preview).
+     * @returns {Array|null}
+     */
+    function resolveClientGradeKey(item) {
+        if (item && Array.isArray(item.client_grade) && item.client_grade.length) {
+            return item.client_grade;
+        }
+        const questions = (item && item.questions) || [];
+        if (!item || !(item.include_answers || item.can_review)) return null;
+        const key = [];
+        questions.forEach((q) => {
+            const type = q.question_type || 'mcq';
+            const entry = { id: Number(q.id), type };
+            if (type === 'mcq') {
+                let idx = null;
+                (q.options || []).forEach((o, i) => {
+                    if (idx === null && (o.is_correct === true || o.is_correct === 1 || o.is_correct === '1')) idx = i;
+                });
+                entry.correct_option_index = idx;
+            } else if (type === 'multi_select') {
+                entry.correct_option_indexes = (q.options || [])
+                    .map((o, i) => ((o.is_correct === true || o.is_correct === 1 || o.is_correct === '1') ? i : -1))
+                    .filter((i) => i >= 0);
+            } else if (type === 'true_false') {
+                entry.correct_bool = !!(q.correct_bool === true || q.correct_bool === 1 || q.correct_bool === '1');
+            } else if (type === 'fill_blank') {
+                entry.blanks = (q.blanks || []).map((b, bi) => {
+                    const answers = Array.isArray(b.acceptable_answers) ? b.acceptable_answers : [{
+                        acceptable_answer_zh: b.acceptable_answer_zh || '',
+                        acceptable_answer_en: b.acceptable_answer_en || '',
+                    }];
+                    const accept = [];
+                    answers.forEach((a) => {
+                        const az = String(a.acceptable_answer_zh || '').trim();
+                        const ae = String(a.acceptable_answer_en || '').trim();
+                        if (az) accept.push(az);
+                        if (ae && ae !== az) accept.push(ae);
+                    });
+                    return {
+                        blank_index: Number(b.blank_index != null ? b.blank_index : (bi + 1)),
+                        acceptable: accept,
+                    };
+                });
+            } else if (type === 'short_answer') {
+                const accept = [];
+                (q.acceptable_answers || []).forEach((a) => {
+                    const az = String(a.acceptable_answer_zh || '').trim();
+                    const ae = String(a.acceptable_answer_en || '').trim();
+                    if (az) accept.push(az);
+                    if (ae && ae !== az) accept.push(ae);
+                });
+                entry.acceptable = accept;
+                entry.match_mode = q.match_mode === 'contains' ? 'contains' : 'exact';
+            } else if (type === 'long_answer') {
+                entry.exclude_from_auto = true;
+                entry.max_score = Math.max(0.5, Number(q.max_score != null ? q.max_score : 5));
+            }
+            key.push(entry);
+        });
+        return key.length ? key : null;
+    }
+
+    /**
+     * Instant client-side grade (mirrors includes/summer_homework_grading.php).
+     * @returns {{score:number,max_score:number,percent:number,passed:boolean,details:Array}|null}
+     */
+    function gradeClientResponses(gradeKey, responses, passPercent) {
+        if (!Array.isArray(gradeKey) || !gradeKey.length) return null;
+        const passAt = passPercent != null ? Number(passPercent) : 80;
+        let score = 0;
+        let max = 0;
+        const details = [];
+        gradeKey.forEach((q) => {
+            const qid = Number(q.id);
+            const type = q.type || 'mcq';
+            const resp = responses[String(qid)] != null ? responses[String(qid)] : responses[qid];
+            let detail = {
+                question_id: qid,
+                type,
+                correct: false,
+                score: 0,
+                max: 0,
+            };
+            if (type === 'mcq') {
+                const selected = resp && resp.selected_option_index != null ? Number(resp.selected_option_index) : null;
+                const correctIdx = q.correct_option_index != null ? Number(q.correct_option_index) : null;
+                const ok = correctIdx !== null && selected === correctIdx;
+                detail = {
+                    question_id: qid,
+                    type,
+                    correct: ok,
+                    score: ok ? 1 : 0,
+                    max: 1,
+                    selected_option_index: selected,
+                    correct_option_index: correctIdx,
+                };
+            } else if (type === 'multi_select') {
+                const selected = (resp && Array.isArray(resp.selected_option_indexes)
+                    ? resp.selected_option_indexes.map(Number)
+                    : []).slice().sort((a, b) => a - b);
+                const correct = (Array.isArray(q.correct_option_indexes) ? q.correct_option_indexes.map(Number) : [])
+                    .slice().sort((a, b) => a - b);
+                const ok = correct.length > 0 && selected.length === correct.length
+                    && selected.every((v, i) => v === correct[i]);
+                detail = {
+                    question_id: qid,
+                    type,
+                    correct: ok,
+                    score: ok ? 1 : 0,
+                    max: 1,
+                    selected_option_indexes: selected,
+                    correct_option_indexes: correct,
+                };
+            } else if (type === 'true_false') {
+                let selected = null;
+                if (resp && Object.prototype.hasOwnProperty.call(resp, 'selected_bool')) {
+                    selected = !!resp.selected_bool;
+                }
+                const correct = !!q.correct_bool;
+                const ok = selected !== null && selected === correct;
+                detail = {
+                    question_id: qid,
+                    type,
+                    correct: ok,
+                    score: ok ? 1 : 0,
+                    max: 1,
+                    selected_bool: selected,
+                    correct_bool: correct,
+                };
+            } else if (type === 'fill_blank') {
+                const givenBlanks = (resp && Array.isArray(resp.blanks)) ? resp.blanks : [];
+                const blanksMeta = Array.isArray(q.blanks) ? q.blanks : [];
+                const blankDetails = [];
+                let s = 0;
+                let m = 0;
+                blanksMeta.forEach((blank, bi) => {
+                    m += 1;
+                    const given = givenBlanks[bi] != null ? String(givenBlanks[bi])
+                        : (givenBlanks[String(bi)] != null ? String(givenBlanks[String(bi)]) : '');
+                    const norm = normalizeFillAnswer(given);
+                    const acceptList = (blank.acceptable || []).map(normalizeFillAnswer).filter(Boolean);
+                    const ok = norm !== '' && acceptList.includes(norm);
+                    if (ok) s += 1;
+                    blankDetails.push({
+                        blank_index: Number(blank.blank_index != null ? blank.blank_index : (bi + 1)),
+                        given,
+                        correct: ok,
+                        acceptable_answers: acceptList,
+                    });
+                });
+                detail = {
+                    question_id: qid,
+                    type,
+                    blanks: blankDetails,
+                    correct: blankDetails.length > 0 && blankDetails.every((b) => b.correct),
+                    score: s,
+                    max: m,
+                };
+            } else if (type === 'short_answer') {
+                const given = resp ? String(resp.text || resp.answer || '').trim() : '';
+                const norm = normalizeFillAnswer(given);
+                const acceptList = (q.acceptable || []).map(normalizeFillAnswer).filter(Boolean);
+                const matchMode = q.match_mode === 'contains' ? 'contains' : 'exact';
+                let ok = norm !== '' && acceptList.includes(norm);
+                if (!ok && matchMode === 'contains' && norm !== '') {
+                    ok = acceptList.some((a) => a && norm.includes(a));
+                }
+                detail = {
+                    question_id: qid,
+                    type,
+                    correct: ok,
+                    score: ok ? 1 : 0,
+                    max: 1,
+                    given,
+                    acceptable_answers: acceptList,
+                    match_mode: matchMode,
+                };
+            } else if (type === 'long_answer') {
+                const text = resp ? String(resp.text || '').trim() : '';
+                detail = {
+                    question_id: qid,
+                    type,
+                    correct: null,
+                    needs_marking: true,
+                    exclude_from_auto: true,
+                    score: 0,
+                    max: Math.max(0.5, Number(q.max_score != null ? q.max_score : 5)),
+                    given: text,
+                };
+            }
+            details.push(detail);
+            if (!detail.exclude_from_auto) {
+                score += Number(detail.score || 0);
+                max += Number(detail.max || 0);
+            }
+        });
+        const percent = max > 0 ? Math.round((score / max) * 10000) / 100 : 0;
+        return {
+            score,
+            max_score: max,
+            percent,
+            passed: percent >= passAt,
+            pass_percent: passAt,
+            details,
+        };
+    }
+
+    function notifyFailIfNeeded(result, lang, alreadyAlerted) {
+        if (alreadyAlerted) return true;
+        const passed = !!result.passed;
+        const everPassed = result.ever_passed != null ? !!result.ever_passed : passed;
+        if (passed || everPassed) return false;
+        const pct = result.percent != null ? result.percent : 0;
+        const passLine = result.pass_percent != null ? result.pass_percent : 80;
+        alert(st(
+            `不及格！\n本次得分 ${result.score} / ${result.max_score}（${pct}%）\n及格線：${passLine}%\n請重讀／重看內容後再次完成並提交。`,
+            `Not passed!\nThis attempt: ${result.score} / ${result.max_score} (${pct}%)\nPass mark: ${passLine}%\nPlease review the content and submit again.`,
+            lang
+        ));
+        return true;
+    }
+
     function progressBadge(progress, lang) {
         if (!progress || !progress.passed) {
             const best = progress && progress.percent != null
@@ -640,10 +885,6 @@ const global = window;
         await enhanceMath(quizEl);
 
         document.getElementById('sh-submit')?.addEventListener('click', async () => {
-            if (preview) {
-                alert(st('預覽模式不會呈交答案。發佈後學生即可正式提交。', 'Preview mode does not submit answers. Students can submit after publish.', lang));
-                return;
-            }
             const responses = {};
             const unanswered = [];
             document.querySelectorAll('#sh-quiz [data-qid]').forEach((block, qi) => {
@@ -706,17 +947,62 @@ const global = window;
                 warn.classList.add('hidden');
             }
 
+            const gradeKey = resolveClientGradeKey(item);
+            const localGraded = gradeClientResponses(gradeKey, responses, item.pass_percent);
+            let failAlerted = false;
+
+            if (preview) {
+                if (localGraded) {
+                    const provisional = {
+                        ...localGraded,
+                        ever_passed: localGraded.passed,
+                        must_redo: !localGraded.passed,
+                        best_percent: localGraded.percent,
+                        previous_best_percent: null,
+                        score_improved: true,
+                        submitted_at: null,
+                    };
+                    document.querySelectorAll('#sh-quiz .sh-explanation').forEach((el) => el.classList.remove('hidden'));
+                    showResult(provisional, slug, lang, questions, { instant: true });
+                    notifyFailIfNeeded(provisional, lang, false);
+                } else {
+                    alert(st('預覽模式無法即時批改（缺少答案金鑰）。發佈後學生可正式提交。', 'Preview cannot auto-grade without answer keys. Students can submit after publish.', lang));
+                }
+                return;
+            }
+
             const btn = document.getElementById('sh-submit');
             if (btn) {
                 btn.disabled = true;
                 btn.textContent = st('提交中…', 'Submitting…', lang);
             }
-            try {
-                const result = await apiFetch('/summer-homework/' + encodeURIComponent(slug) + '/submit', {
-                    method: 'POST',
-                    body: { responses },
-                });
+
+            // Start save immediately so network runs while we show instant grade / alert.
+            const submitPromise = apiFetch('/summer-homework/' + encodeURIComponent(slug) + '/submit', {
+                method: 'POST',
+                body: { responses },
+            });
+
+            if (localGraded) {
+                const prevBest = item.progress && item.progress.percent != null ? Number(item.progress.percent) : null;
+                const provisional = {
+                    ...localGraded,
+                    ever_passed: alreadyPassed || localGraded.passed,
+                    must_redo: !(alreadyPassed || localGraded.passed),
+                    best_percent: prevBest == null ? localGraded.percent : Math.max(prevBest, localGraded.percent),
+                    previous_best_percent: prevBest,
+                    score_improved: prevBest == null || localGraded.percent > prevBest,
+                    submitted_at: null,
+                };
                 document.querySelectorAll('#sh-quiz .sh-explanation').forEach((el) => el.classList.remove('hidden'));
+                showResult(provisional, slug, lang, questions, { instant: true });
+                failAlerted = notifyFailIfNeeded(provisional, lang, false);
+            }
+
+            try {
+                const result = await submitPromise;
+                document.querySelectorAll('#sh-quiz .sh-explanation').forEach((el) => el.classList.remove('hidden'));
+                notifyFailIfNeeded(result, lang, failAlerted);
                 showResult(result, slug, lang, questions);
             } catch (err) {
                 alert(err.message || st('提交失敗', 'Submit failed', lang));
@@ -775,11 +1061,12 @@ const global = window;
         </div>`;
     }
 
-    function showResult(result, slug, lang, questions) {
+    function showResult(result, slug, lang, questions, opts) {
         const box = document.getElementById('sh-result');
         const quizEl = document.getElementById('sh-quiz');
         if (!box) return;
         lang = lang || resolveSummerLang();
+        opts = opts || {};
         const questionsById = {};
         (questions || []).forEach((q) => { questionsById[q.id] = q; });
 
@@ -793,19 +1080,24 @@ const global = window;
                 : `<p class="mt-2 text-sm text-slate-700">${st('本次未超過最高分，仍保留', 'This attempt did not beat your best. Keeping', lang)} ${bestPercent}%。</p>`)
             : '';
 
+        const failHard = !passed && !everPassed;
         box.className = 'mt-6 p-6 rounded-xl border ' + (passed
             ? 'bg-emerald-50 border-emerald-200'
-            : (everPassed ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'));
+            : (failHard ? 'bg-red-50 border-red-300 ring-2 ring-red-200' : 'bg-slate-50 border-slate-200'));
         const titleClass = passed
             ? 'text-emerald-900'
-            : (everPassed ? 'text-slate-900' : 'text-amber-950');
+            : (failHard ? 'text-red-800' : 'text-slate-900');
         const bodyClass = passed
             ? 'text-emerald-800'
-            : (everPassed ? 'text-slate-700' : 'text-amber-900');
+            : (failHard ? 'text-red-900' : 'text-slate-700');
+
+        const syncNote = opts.instant
+            ? `<p class="mt-2 text-xs text-slate-500">${st('正在同步呈交紀錄…', 'Saving your attempt…', lang)}</p>`
+            : '';
 
         box.innerHTML = `
-            <p class="text-2xl font-extrabold ${titleClass}">
-                ${passed ? st('及格！', 'Passed!', lang) : (everPassed ? st('已提交', 'Submitted', lang) : st('未及格', 'Not passed', lang))}
+            <p class="text-2xl font-extrabold ${titleClass}" role="status" aria-live="assertive">
+                ${passed ? st('及格！', 'Passed!', lang) : (everPassed ? st('已提交', 'Submitted', lang) : st('不及格', 'Not passed', lang))}
             </p>
             <p class="mt-2 text-sm ${bodyClass}">
                 ${st('本次得分', 'This attempt', lang)}: ${result.score} / ${result.max_score}
@@ -818,17 +1110,21 @@ const global = window;
             ${result.is_late && everPassed ? `<p class="mt-2 text-sm text-orange-800 font-medium">${st('首次及格時間在截止日期之後，狀態為「欠交」。', 'First pass was after the due date — status is “Overdue completion”.', lang)}</p>` : ''}
             ${everPassed && result.first_passed_at ? `<p class="mt-1 text-sm ${bodyClass}">${st('首次及格時間', 'First passed at', lang)}: ${escapeHtml(formatDue(result.first_passed_at))}</p>` : ''}
             ${bestNote}
+            ${syncNote}
             ${formatDetailsHtml(result.details, lang, questionsById)}
             ${passed
                 ? `<p class="mt-3 text-sm text-emerald-800">${st('做得好！可返回列表，或重做爭取更高分。', 'Well done! Continue with other assessments, or redo for a higher score.', lang)}</p>`
                 : (everPassed
                     ? `<p class="mt-3 text-sm text-slate-700">${st('你先前已及格；本次分數較低時不會降低最高分。', 'You already passed earlier; a lower attempt will not reduce your best score.', lang)}</p>`
-                    : `<p class="mt-3 text-sm text-amber-950 font-medium" role="alert">${st('未達及格線，狀態為「未交」。請重讀／重看內容後再次完成並提交。', 'Below the pass mark — status is “Not completed”. Review the content and complete the assessment again.', lang)}</p>`)}
+                    : `<p class="mt-3 text-sm text-red-900 font-semibold" role="alert">${st('不及格：未達及格線，狀態為「未交」。請重讀／重看內容後再次完成並提交。', 'Not passed: below the pass mark — status is “Not completed”. Review the content and complete the assessment again.', lang)}</p>`)}
             <button type="button" id="sh-redo" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">${st('重新作答', 'Try again', lang)}</button>
             <button type="button" id="sh-back-list" class="mt-4 ml-2 text-indigo-600 underline text-sm">${st('返回列表', 'Back to list', lang)}</button>
         `;
         box.classList.remove('hidden');
-        if (quizEl) quizEl.querySelectorAll('input, button').forEach((el) => { el.disabled = true; });
+        if (quizEl) quizEl.querySelectorAll('input, button, textarea').forEach((el) => { el.disabled = true; });
+        try {
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) { /* ignore */ }
 
         document.getElementById('sh-back-list')?.addEventListener('click', () => navigate('/summer-homework'));
         document.getElementById('sh-redo')?.addEventListener('click', () => navigate('/summer-homework/' + encodeURIComponent(slug), true));

@@ -95,9 +95,24 @@ function api_handle_summer_homework_get(PDO $pdo, string $slug): void
 
     $out = sh_public_row($row);
     $includeAnswers = sh_can_review($user);
-    $out['questions'] = sh_fetch_questions($pdo, (int) $row['id'], $includeAnswers);
+    $questionsWithAnswers = null;
+    if ($includeAnswers) {
+        $questionsWithAnswers = sh_fetch_questions($pdo, (int) $row['id'], true);
+        $out['questions'] = $questionsWithAnswers;
+    } else {
+        $out['questions'] = sh_fetch_questions($pdo, (int) $row['id'], false);
+    }
     $out['include_answers'] = $includeAnswers;
     $out['can_review'] = $includeAnswers;
+    // Compact keys for instant client-side grading (UI still hides answers unless include_answers).
+    if ($user !== null && ($row['status'] ?? '') === 'published') {
+        if ($questionsWithAnswers === null) {
+            $questionsWithAnswers = sh_fetch_questions($pdo, (int) $row['id'], true);
+        }
+        $out['client_grade'] = sh_build_client_grade_key($questionsWithAnswers);
+    } else {
+        $out['client_grade'] = null;
+    }
     if ($user !== null) {
         $out['progress'] = sh_user_progress_for_item($pdo, (int) $user['id'], (int) $row['id'], $row);
     } else {

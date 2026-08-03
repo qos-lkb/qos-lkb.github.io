@@ -379,3 +379,108 @@ function sh_grade_long_answer(array $q, mixed $resp): array
         'given' => $text,
     ];
 }
+
+/**
+ * Compact answer key for client-side instant grading (not for display in the quiz UI).
+ *
+ * @param list<array<string, mixed>> $questionsWithAnswers from sh_fetch_questions(..., true)
+ * @return list<array<string, mixed>>
+ */
+function sh_build_client_grade_key(array $questionsWithAnswers): array
+{
+    $key = [];
+    foreach ($questionsWithAnswers as $q) {
+        if (!is_array($q)) {
+            continue;
+        }
+        $qid = (int) ($q['id'] ?? 0);
+        if ($qid <= 0) {
+            continue;
+        }
+        $type = sh_normalize_question_type((string) ($q['question_type'] ?? ''));
+        $entry = [
+            'id' => $qid,
+            'type' => $type,
+        ];
+        if ($type === 'mcq') {
+            $correctIdx = null;
+            foreach ($q['options'] ?? [] as $i => $o) {
+                if (is_array($o) && !empty($o['is_correct'])) {
+                    $correctIdx = (int) $i;
+                    break;
+                }
+            }
+            $entry['correct_option_index'] = $correctIdx;
+        } elseif ($type === 'multi_select') {
+            $idxs = [];
+            foreach ($q['options'] ?? [] as $i => $o) {
+                if (is_array($o) && !empty($o['is_correct'])) {
+                    $idxs[] = (int) $i;
+                }
+            }
+            $entry['correct_option_indexes'] = $idxs;
+        } elseif ($type === 'true_false') {
+            $entry['correct_bool'] = !empty($q['correct_bool']);
+        } elseif ($type === 'fill_blank') {
+            $blankKeys = [];
+            foreach ($q['blanks'] ?? [] as $blank) {
+                if (!is_array($blank)) {
+                    continue;
+                }
+                $accept = [];
+                if (isset($blank['acceptable_answers']) && is_array($blank['acceptable_answers'])) {
+                    foreach ($blank['acceptable_answers'] as $ans) {
+                        if (!is_array($ans)) {
+                            continue;
+                        }
+                        $az = trim((string) ($ans['acceptable_answer_zh'] ?? ''));
+                        $ae = trim((string) ($ans['acceptable_answer_en'] ?? ''));
+                        if ($az !== '') {
+                            $accept[] = $az;
+                        }
+                        if ($ae !== '' && $ae !== $az) {
+                            $accept[] = $ae;
+                        }
+                    }
+                } else {
+                    $az = trim((string) ($blank['acceptable_answer_zh'] ?? ''));
+                    $ae = trim((string) ($blank['acceptable_answer_en'] ?? ''));
+                    if ($az !== '') {
+                        $accept[] = $az;
+                    }
+                    if ($ae !== '' && $ae !== $az) {
+                        $accept[] = $ae;
+                    }
+                }
+                $blankKeys[] = [
+                    'blank_index' => (int) ($blank['blank_index'] ?? (count($blankKeys) + 1)),
+                    'acceptable' => array_values(array_unique($accept)),
+                ];
+            }
+            $entry['blanks'] = $blankKeys;
+        } elseif ($type === 'short_answer') {
+            $accept = [];
+            foreach ($q['acceptable_answers'] ?? [] as $ans) {
+                if (!is_array($ans)) {
+                    continue;
+                }
+                $az = trim((string) ($ans['acceptable_answer_zh'] ?? ''));
+                $ae = trim((string) ($ans['acceptable_answer_en'] ?? ''));
+                if ($az !== '') {
+                    $accept[] = $az;
+                }
+                if ($ae !== '' && $ae !== $az) {
+                    $accept[] = $ae;
+                }
+            }
+            $entry['acceptable'] = array_values(array_unique($accept));
+            $entry['match_mode'] = (($q['match_mode'] ?? 'exact') === 'contains') ? 'contains' : 'exact';
+        } elseif ($type === 'long_answer') {
+            $entry['exclude_from_auto'] = true;
+            $entry['max_score'] = max(0.5, (float) ($q['max_score'] ?? 5));
+        }
+        $key[] = $entry;
+    }
+
+    return $key;
+}
