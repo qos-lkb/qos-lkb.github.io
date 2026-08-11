@@ -195,7 +195,7 @@ function api_handle_admin_summer_homework_add_acceptable_answer(PDO $pdo, int $i
     $body = api_read_json_body();
     $result = sh_add_acceptable_answer($pdo, $itemId, $questionId, $body, $user);
     if (!$result['ok']) {
-        api_json_error('validation_error', $result['error'] ?? '加入失敗。', 422);
+        api_json_error('validation_error', $result['error'] ?? '批改失敗。', 422);
     }
     api_json_ok([
         'answer' => $result['answer'] ?? null,
