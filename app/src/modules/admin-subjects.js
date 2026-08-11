@@ -42,8 +42,20 @@ const global = window;
         import: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>',
         export: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>',
         dict: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>',
+        code: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>',
         arrow: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>',
     };
+
+    function siteBase() {
+        if (global.ScienceApi && typeof global.ScienceApi.SITE_BASE === 'string') {
+            return global.ScienceApi.SITE_BASE;
+        }
+        return typeof global.__SITE_BASE__ === 'string' ? global.__SITE_BASE__ : '';
+    }
+
+    function codespaceUrl() {
+        return siteBase() + '/codespace/index.html';
+    }
 
     function dashIconSvg(name) {
         const path = DASH_ICONS[name] || DASH_ICONS.folder;
@@ -54,14 +66,18 @@ const global = window;
         const badge = item.badge != null && item.badge > 0
             ? `<span class="admin-dash-badge">${escapeHtml(String(item.badge))}</span>`
             : '';
-        return `<a href="${escapeHtml(spaHref(item.route))}" data-spa-nav="${escapeHtml(item.route)}" class="admin-dash-card admin-dash-card-${escapeHtml(item.tone || 'slate')}">
+        const tone = escapeHtml(item.tone || 'slate');
+        const body = `
             <span class="admin-dash-card-icon">${dashIconSvg(item.icon)}</span>
             <span class="admin-dash-card-body">
-                <span class="admin-dash-card-title">${escapeHtml(item.label)}${badge}</span>
+                <span class="admin-dash-card-title">${escapeHtml(item.label)}${badge}${item.external ? '<span class="text-[10px] text-slate-400 font-normal ml-1" aria-hidden="true">↗</span>' : ''}</span>
                 <span class="admin-dash-card-desc">${escapeHtml(item.desc)}</span>
             </span>
-            <span class="admin-dash-card-arrow">${dashIconSvg('arrow')}</span>
-        </a>`;
+            <span class="admin-dash-card-arrow">${dashIconSvg('arrow')}</span>`;
+        if (item.external && item.href) {
+            return `<a href="${escapeHtml(item.href)}" target="_blank" rel="noopener" class="admin-dash-card admin-dash-card-${tone}">${body}</a>`;
+        }
+        return `<a href="${escapeHtml(spaHref(item.route))}" data-spa-nav="${escapeHtml(item.route)}" class="admin-dash-card admin-dash-card-${tone}">${body}</a>`;
     }
 
     function dashSection(title, cards) {
@@ -141,6 +157,8 @@ const global = window;
             || global.ScienceApi.hasPermission('learning_tool.manage_own');
         const canCurriculum = global.ScienceApi.hasPermission('topic_item.manage_any')
             || global.ScienceApi.hasPermission('user.manage');
+        const canCodespace = canUsers
+            || global.ScienceApi.hasPermission('simulation.manage_any');
 
         const teachingCards = [
             canCourses ? {
@@ -261,6 +279,14 @@ const global = window;
                 desc: t('調整前台主選單次序與各類使用者可見性。', 'Reorder the front main menu and set audience visibility.'),
                 tone: 'slate',
                 icon: 'menu',
+            } : null,
+            canCodespace ? {
+                href: codespaceUrl(),
+                external: true,
+                label: 'Code Space',
+                desc: t('HTML／CSS／JS 即時編輯與預覽（新分頁）。', 'Live HTML/CSS/JS editor and preview (new tab).'),
+                tone: 'slate',
+                icon: 'code',
             } : null,
             canUsers ? {
                 route: '/admin/db-export',

@@ -17,6 +17,13 @@ const global = window;
             : String(route || '');
     }
 
+    function codespaceUrl() {
+        const base = (global.ScienceApi && typeof global.ScienceApi.SITE_BASE === 'string')
+            ? global.ScienceApi.SITE_BASE
+            : (typeof global.__SITE_BASE__ === 'string' ? global.__SITE_BASE__ : '');
+        return base + '/codespace/index.html';
+    }
+
     function setShell() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
@@ -77,6 +84,7 @@ const global = window;
         return `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
                 <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                <a href="${escapeHtml(codespaceUrl())}" target="_blank" rel="noopener" class="text-slate-600 hover:underline">Code Space ↗</a>
                 <a href="${escapeHtml(spaHref('/admin/db-export'))}" data-spa-nav="/admin/db-export" class="text-slate-600 hover:underline">${escapeHtml(t('匯出', 'Export'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/db-import'))}" data-spa-nav="/admin/db-import" class="text-slate-600 hover:underline">${escapeHtml(t('匯入', 'Import'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/qsis-import'))}" data-spa-nav="/admin/qsis-import" class="text-slate-600 hover:underline">QSIS</a>
