@@ -83,23 +83,27 @@ function resolveAppGroup(path) {
     }
     p = p.replace(/\/index\.html$/i, '').split('?')[0].replace(/\/+$/, '') || '/';
 
-    if (p === '/' || p.startsWith('/summer-homework')) return 'home';
-    if (p.startsWith('/admin')) return 'home'; // admin uses AppAdminLoader; keep no-op-ish
+    // After stripping trailing slashes, path hints like `/simulation/` become `/simulation`.
+    // Match both exact segment prefixes and nested paths.
+    const is = (base) => p === base || p.startsWith(base + '/');
+
+    if (p === '/' || is('/summer-homework')) return 'home';
+    if (is('/admin')) return 'home'; // admin uses AppAdminLoader; keep no-op-ish
     if (p === '/login') return 'login';
-    if (p === '/dashboard' || p.startsWith('/assignment')) return 'learner';
-    if (p.startsWith('/courses') || p.startsWith('/course/')) return 'course';
-    if (p.startsWith('/simulations') || p.startsWith('/simulation/')) return 'catalog';
-    if (p.startsWith('/quiz/')) return 'quiz';
-    if (p.startsWith('/article/')) return 'article';
-    if (p.startsWith('/note/')) return 'note';
-    if (p.startsWith('/worksheet/')) return 'worksheet';
-    if (p.startsWith('/video/')) return 'video';
+    if (p === '/dashboard' || is('/assignment') || is('/assignments')) return 'learner';
+    if (is('/courses') || is('/course')) return 'course';
+    if (is('/simulations') || is('/simulation')) return 'catalog';
+    if (is('/quiz')) return 'quiz';
+    if (is('/article')) return 'article';
+    if (is('/note')) return 'note';
+    if (is('/worksheet')) return 'worksheet';
+    if (is('/video')) return 'video';
     if (
-        p.startsWith('/learning-notes')
-        || p.startsWith('/worksheets')
-        || p.startsWith('/learning-videos')
-        || p.startsWith('/learning-tools')
-        || p.startsWith('/articles')
+        is('/learning-notes')
+        || is('/worksheets')
+        || is('/learning-videos')
+        || is('/learning-tools')
+        || is('/articles')
     ) {
         return 'lists';
     }
