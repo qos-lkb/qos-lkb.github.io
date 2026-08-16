@@ -445,10 +445,16 @@
             }),
             '/simulation/:slug': front('/simulation/', async (slug) => {
                 if (window.AppCatalog && AppCatalog.closeModal) AppCatalog.closeModal();
-                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'simulations');
-                if (window.AppCourse && AppCourse.isCourseMode()) {
+                const inCourse = window.AppCourse && AppCourse.isCourseMode();
+                setActiveTab(inCourse ? 'courses' : 'simulations');
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) sidebar.style.display = '';
+                if (inCourse) {
                     const ctx = AppCourse.getCourseContext();
                     if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                } else {
+                    await AppCatalog.loadCatalog({ skipNavRender: true });
+                    await AppCatalog.prepareSimulationsSidebar(slug);
                 }
                 await AppSimulation.renderSimulation(slug);
             }),

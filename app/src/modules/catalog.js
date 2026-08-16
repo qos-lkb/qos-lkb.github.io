@@ -529,6 +529,104 @@ const global = window;
         });
     }
 
+    function findSimulationNavContext(slug) {
+        if (!slug) return null;
+        for (const [category, subInfo] of Object.entries(subjectData)) {
+            const categoryId = category.toLowerCase().replace(/\s+/g, '-');
+            for (const [topicKey, topicInfo] of Object.entries(subInfo.topics || {})) {
+                if ((topicInfo.items || []).some((it) => it.slug === slug)) {
+                    return { categoryId, topicKey };
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Sidebar for a single-simulation page: subject → topic → every simulation,
+     * with the current slug highlighted (mirrors prepareVideosSidebar).
+     */
+    function renderSimulationsNav(activeSlug) {
+        contentNavKind = 'simulations';
+        const nav = document.getElementById('main-nav');
+        if (!nav) return;
+        const lang = getLang();
+        const ctx = findSimulationNavContext(activeSlug);
+        let html = '';
+        let first = true;
+        for (const [category, subInfo] of Object.entries(subjectData)) {
+            const categoryId = category.toLowerCase().replace(/\s+/g, '-');
+            const catZh = categoryMap[category]?.zh || subInfo.label_zh || category;
+            const catEn = categoryMap[category]?.en || subInfo.label_en || category;
+            const subOpen = !ctx ? first : (ctx.categoryId === categoryId);
+            html += `<div class="nav-group ${first ? '' : 'border-t border-slate-700/40 mt-1 pt-1'}">
+                <button type="button" class="nav-group-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-800 text-sm font-medium" data-sim-cat="${escapeHtml(categoryId)}">
+                    <span>${escapeHtml(lang === 'zh' ? catZh : catEn)}</span>
+                    <svg class="w-4 h-4 rotate-icon ${subOpen ? 'active' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div class="submenu bg-slate-950/50 rounded-lg mx-1 mb-1 ${subOpen ? 'open' : ''}">`;
+            for (const [topicKey, topicInfo] of Object.entries(subInfo.topics || {})) {
+                const items = topicInfo.items || [];
+                const count = items.length;
+                const topicOpen = subOpen && (!ctx || ctx.topicKey === topicKey);
+                const tZh = topicInfo.label_zh || '';
+                const tEn = topicInfo.label_en || '';
+                html += `<div class="notes-topic-block">
+                    <button type="button" class="topic-nav-btn sim-topic-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-sim-cat="${escapeHtml(categoryId)}" data-sim-topic="${escapeHtml(topicKey)}">
+                        ${escapeHtml(lang === 'zh' ? tZh : tEn)} ${count ? '(' + count + ')' : ''}
+                    </button>
+                    <div class="notes-nav-list ${topicOpen ? 'open' : ''}">
+                        ${items.map((item, idx) => {
+                            const title = lang === 'zh'
+                                ? (titleMap[item.title]?.zh || item.title_zh || item.title)
+                                : (titleMap[item.title]?.en || item.title_en || item.title);
+                            const active = activeSlug && item.slug === activeSlug ? ' active' : '';
+                            return `<button type="button" class="sim-nav-btn w-full text-left pl-6 pr-3 py-1.5 text-xs text-slate-500 hover:text-indigo-300${active}" data-slug="${escapeHtml(item.slug || '')}">
+                                <span class="note-nav-index">${idx + 1}.</span> ${escapeHtml(title)}
+                            </button>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+            }
+            html += '</div></div>';
+            first = false;
+        }
+        nav.innerHTML = html || `<p class="px-3 py-4 text-xs text-slate-500">${escapeHtml(t('尚無已發佈的模擬程式。', 'No published simulations yet.'))}</p>`;
+        bindSimulationsNavEvents();
+    }
+
+    function bindSimulationsNavEvents() {
+        document.querySelectorAll('.nav-group-btn[data-sim-cat]').forEach((btn) => {
+            btn.onclick = () => {
+                const submenu = btn.nextElementSibling;
+                const icon = btn.querySelector('.rotate-icon');
+                submenu?.classList.toggle('open');
+                icon?.classList.toggle('active');
+            };
+        });
+        document.querySelectorAll('.sim-topic-btn').forEach((btn) => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                btn.nextElementSibling?.classList.toggle('open');
+            };
+        });
+        document.querySelectorAll('.sim-nav-btn[data-slug]').forEach((btn) => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const slug = btn.dataset.slug;
+                if (slug) navigate('/simulation/' + encodeURIComponent(slug));
+            };
+        });
+    }
+
+    async function prepareSimulationsSidebar(activeSlug) {
+        if (!Object.keys(subjectData).length) {
+            await loadCatalog({ skipNavRender: true });
+        }
+        renderSimulationsNav(activeSlug || null);
+        return findSimulationNavContext(activeSlug);
+    }
+
     let simFilterQuery = '';
     let simFilterTag = '';
 
@@ -886,6 +984,7 @@ const global = window;
         prepareWorksheetsSidebar,
         prepareArticlesSidebar,
         prepareVideosSidebar,
+        prepareSimulationsSidebar,
         getNoteContext,
         getContentContext,
         renderWorksheetsList,
