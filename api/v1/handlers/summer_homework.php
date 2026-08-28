@@ -218,7 +218,7 @@ function api_handle_admin_summer_homework(PDO $pdo, string $method): void
         // sh_can_review already covers manage_own, so list all for reviewers.
         if ($canAny || sh_can_review($user)) {
             $rows = $pdo->query(
-                'SELECT * FROM summer_homework_items ORDER BY form_level ASC, list_sort_order ASC, updated_at DESC'
+                'SELECT * FROM summer_homework_items ORDER BY list_sort_order ASC, form_level ASC, updated_at DESC'
             )->fetchAll() ?: [];
         } else {
             $rows = [];
@@ -240,6 +240,38 @@ function api_handle_admin_summer_homework(PDO $pdo, string $method): void
             api_json_error('forbidden', '無權限。', 403);
         }
         $body = api_read_json_body();
+        $action = (string) ($body['action'] ?? '');
+        if ($action === 'reorder') {
+            $order = isset($body['order']) && is_array($body['order']) ? $body['order'] : [];
+            $r = sh_reorder_items($pdo, array_map('intval', $order), $user);
+            if (!$r['ok']) {
+                api_json_error('reorder_failed', $r['error'] ?? '排序失敗。', 422);
+            }
+            api_json_ok(['reordered' => true]);
+            return;
+        }
+        if ($action === 'patch') {
+            $id = (int) ($body['id'] ?? 0);
+            $fields = [];
+            if (array_key_exists('title_zh', $body)) {
+                $fields['title_zh'] = $body['title_zh'];
+            }
+            if (array_key_exists('title_en', $body)) {
+                $fields['title_en'] = $body['title_en'];
+            }
+            if (array_key_exists('due_at', $body)) {
+                $fields['due_at'] = $body['due_at'];
+            }
+            $r = sh_patch_item($pdo, $id, $fields, $user);
+            if (!$r['ok']) {
+                api_json_error('patch_failed', $r['error'] ?? '更新失敗。', 422);
+            }
+            $row = sh_get_by_id($pdo, $id);
+            $out = sh_public_row($row ?: []);
+            $out['can_manage'] = sh_can_manage_row($user, $row ?: []);
+            api_json_ok($out);
+            return;
+        }
         $r = sh_save_item($pdo, $body, $user);
         if (!$r['ok']) {
             api_json_error('save_failed', $r['error'] ?? '儲存失敗。', 400);

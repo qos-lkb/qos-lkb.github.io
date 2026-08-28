@@ -485,6 +485,113 @@ function sh_submissions_closed(?string $dueAt, bool $allowLateSubmit): bool
 }
 
 /**
+ * @param list<int> $orderedIds
+ * @return array{ok:bool,error?:string}
+ */
+function sh_reorder_items(PDO $pdo, array $orderedIds, array $user): array
+{
+    $orderedIds = array_values(array_filter(array_map('intval', $orderedIds), static fn (int $id): bool => $id > 0));
+    if ($orderedIds === []) {
+        return ['ok' => false, 'error' => '缺少排序清單。'];
+    }
+    $canAny = user_has_permission('summer_homework.manage_any');
+    if (!$canAny && !user_has_permission('summer_homework.manage_own')) {
+        return ['ok' => false, 'error' => '無權限。'];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($orderedIds), '?'));
+    $stmt = $pdo->prepare("SELECT id, owner_user_id FROM summer_homework_items WHERE id IN ({$placeholders})");
+    $stmt->execute($orderedIds);
+    /** @var list<array<string, mixed>> $rows */
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (count($rows) !== count($orderedIds)) {
+        return ['ok' => false, 'error' => '部分習作不存在。'];
+    }
+    if (!$canAny) {
+        foreach ($rows as $row) {
+            if ((int) ($row['owner_user_id'] ?? 0) !== (int) $user['id']) {
+                return ['ok' => false, 'error' => '無權調整他人習作排序。'];
+            }
+        }
+    }
+
+    $upd = $pdo->prepare(
+        'UPDATE summer_homework_items SET list_sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    foreach ($orderedIds as $i => $id) {
+        $upd->execute([$i, $id]);
+    }
+
+    return ['ok' => true];
+}
+
+/**
+ * Quick inline edit for list view (title / due date).
+ *
+ * @param array<string, mixed> $fields
+ * @return array{ok:bool,error?:string,id?:int}
+ */
+function sh_patch_item(PDO $pdo, int $id, array $fields, array $user): array
+{
+    if ($id <= 0) {
+        return ['ok' => false, 'error' => '缺少 id。'];
+    }
+    $row = sh_get_by_id($pdo, $id);
+    if (!$row) {
+        return ['ok' => false, 'error' => '找不到習作。'];
+    }
+    if (!sh_can_manage_row($user, $row)) {
+        return ['ok' => false, 'error' => '無權編輯。'];
+    }
+
+    $updates = [];
+    $values = [];
+
+    if (array_key_exists('title_zh', $fields)) {
+        $titleZh = trim((string) $fields['title_zh']);
+        if ($titleZh === '') {
+            return ['ok' => false, 'error' => '標題不可為空。'];
+        }
+        $updates[] = 'title_zh=?';
+        $values[] = $titleZh;
+    }
+    if (array_key_exists('title_en', $fields)) {
+        $titleEn = trim((string) $fields['title_en']);
+        if ($titleEn === '') {
+            return ['ok' => false, 'error' => '英文標題不可為空。'];
+        }
+        $updates[] = 'title_en=?';
+        $values[] = $titleEn;
+    }
+    if (array_key_exists('due_at', $fields)) {
+        $rawDue = $fields['due_at'];
+        if ($rawDue === null || trim((string) $rawDue) === '') {
+            $updates[] = 'due_at=?';
+            $values[] = null;
+        } else {
+            $dueAt = sh_normalize_due_at($rawDue);
+            if ($dueAt === null) {
+                return ['ok' => false, 'error' => '呈交日期格式無效。'];
+            }
+            $updates[] = 'due_at=?';
+            $values[] = $dueAt;
+        }
+    }
+
+    if ($updates === []) {
+        return ['ok' => false, 'error' => '沒有可更新的欄位。'];
+    }
+
+    $updates[] = 'updated_at=CURRENT_TIMESTAMP';
+    $values[] = $id;
+    $pdo->prepare(
+        'UPDATE summer_homework_items SET ' . implode(', ', $updates) . ' WHERE id=?'
+    )->execute($values);
+
+    return ['ok' => true, 'id' => $id];
+}
+
+/**
  * Timing vs due date for a completion timestamp (first pass).
  *
  * @return 'missing'|'on_time'|'late'
