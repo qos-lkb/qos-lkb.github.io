@@ -11,7 +11,7 @@ $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $status = isset($_GET['status']) ? (string) $_GET['status'] : '';
 if ($id > 0) {
     $route = '/admin/courses/' . $id . '/summer';
-    if ($status !== '' && in_array($status, ['missing', 'on_time', 'late'], true)) {
+    if ($status !== '' && in_array($status, ['missing', 'overdue', 'on_time', 'late'], true)) {
         // spa_redirect keepQuery would append full QS including id; build target manually.
         $target = spa_app_path($route) . '?status=' . rawurlencode($status);
         header('Location: ' . $target, true, 302);

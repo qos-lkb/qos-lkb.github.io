@@ -114,4 +114,19 @@ final class SummerHomeworkGradingTest extends TestCase
         self::assertSame(0, $aligned['100']['selected_option_index']);
         self::assertSame(1, $aligned['200']['selected_option_index']);
     }
+
+    public function testProgressDisplayStatusDefinitions(): void
+    {
+        $due = '2026-08-01 23:59:59';
+
+        self::assertSame('on_time', \sh_progress_display_status(true, $due, '2026-07-30 12:00:00'));
+        self::assertSame('late', \sh_progress_display_status(true, $due, '2026-08-02 08:00:00'));
+        self::assertSame('overdue', \sh_progress_display_status(false, $due, null));
+        self::assertSame('missing', \sh_progress_display_status(false, '2099-01-01 00:00:00', null));
+        self::assertSame('missing', \sh_not_passed_status(null));
+        self::assertSame('準時', \sh_submission_status_label('on_time'));
+        self::assertSame('遲交', \sh_submission_status_label('late'));
+        self::assertSame('未交', \sh_submission_status_label('missing'));
+        self::assertSame('欠交', \sh_submission_status_label('overdue'));
+    }
 }

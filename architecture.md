@@ -384,7 +384,7 @@ Rendered in SPA via `content-embeds.js`; assignment submissions store answers in
   - `responses_json` — raw answers (`selected_option_index` / blanks / `selected_bool` / `text`).
   - `grading_json` — score summary + per-question `details[]` (`question_id`, `type`, `correct`, `score`, `max`, …); MCQ includes options snapshot.
   - `teacher_marks_json` — optional teacher scores/comments for long-answer items.
-- **Due status**: **準時** / **欠交** / **未交** from **first passing** attempt’s `submitted_at` vs `due_at` (not best-score attempt). Incomplete (never passed) = 未交; first pass after due = 欠交.
+- **Due status**: **準時** / **遲交** / **未交** / **欠交** from **first passing** attempt’s `submitted_at` vs `due_at` (not best-score attempt). Not passed before due = 未交; not passed after due = 欠交; first pass after due = 遲交.
 - **Class report**: SPA `/app/admin/courses/{id}/summer` via `sh_class_report()` — status filter + CSV export.
 - **Item analytics**: SPA `/app/admin/summer-homework/{id}/analytics` via `GET /admin/summer-homework/{id}/analytics` + attempts/marks APIs (`sh_item_attempt_analytics()`). Legacy `admin/summer_homework_analytics.php` 302s to SPA.
 - **Student content language**: follows enrollment **MOI** (E→en, C→zh), not the SPA UI language toggle.

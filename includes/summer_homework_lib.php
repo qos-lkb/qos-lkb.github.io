@@ -592,14 +592,14 @@ function sh_patch_item(PDO $pdo, int $id, array $fields, array $user): array
 }
 
 /**
- * Timing vs due date for a completion timestamp (first pass).
+ * Timing vs due date when the student has passed (first pass timestamp).
  *
- * @return 'missing'|'on_time'|'late'
+ * @return 'on_time'|'late'
  */
 function sh_submission_status(?string $dueAt, ?string $completedAt): string
 {
     if ($completedAt === null || $completedAt === '') {
-        return 'missing';
+        return 'on_time';
     }
     if ($dueAt === null || $dueAt === '') {
         return 'on_time';
@@ -613,27 +613,42 @@ function sh_submission_status(?string $dueAt, ?string $completedAt): string
 }
 
 /**
- * Report / student display status.
- * - 未交 (missing): never passed (未完成)
- * - 準時 (on_time): first pass on or before due
- * - 欠交 (late): first pass after due
+ * Status for students who have not yet passed.
  *
- * @return 'missing'|'on_time'|'late'
+ * @return 'missing'|'overdue'
+ */
+function sh_not_passed_status(?string $dueAt): string
+{
+    if ($dueAt !== null && $dueAt !== '' && sh_is_past_due($dueAt)) {
+        return 'overdue';
+    }
+    return 'missing';
+}
+
+/**
+ * Report / student display status.
+ * - 準時 (on_time): first pass on or before due
+ * - 遲交 (late): first pass after due
+ * - 未交 (missing): not passed before due
+ * - 欠交 (overdue): not passed after due
+ *
+ * @return 'missing'|'overdue'|'on_time'|'late'
  */
 function sh_progress_display_status(bool $passed, ?string $dueAt, ?string $firstPassedAt): string
 {
-    if (!$passed || $firstPassedAt === null || $firstPassedAt === '') {
-        return 'missing';
+    if ($passed && $firstPassedAt !== null && $firstPassedAt !== '') {
+        return sh_submission_status($dueAt, $firstPassedAt);
     }
 
-    return sh_submission_status($dueAt, $firstPassedAt);
+    return sh_not_passed_status($dueAt);
 }
 
 function sh_submission_status_label(string $status): string
 {
     return match ($status) {
         'on_time' => '準時',
-        'late' => '欠交',
+        'late' => '遲交',
+        'overdue' => '欠交',
         default => '未交',
     };
 }
@@ -1606,7 +1621,7 @@ function sh_user_progress_for_item(PDO $pdo, int $userId, int $itemId, ?array $i
             'attempts' => 0,
             'best_submitted_at' => null,
             'first_passed_at' => null,
-            'submission_status' => 'missing',
+            'submission_status' => sh_not_passed_status($dueAt),
             'score' => null,
             'max_score' => null,
         ];

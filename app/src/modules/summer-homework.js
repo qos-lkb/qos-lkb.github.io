@@ -408,11 +408,16 @@ const global = window;
 
     function progressBadge(progress, lang) {
         if (!progress || !progress.passed) {
+            const status = progress && progress.submission_status;
+            let statusLabel = st('未交', 'Not passed (before due)', lang);
+            if (status === 'overdue') {
+                statusLabel = st('欠交', 'Not passed (after due)', lang);
+            }
             const best = progress && progress.percent != null
                 ? `<span class="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200">${st('最高', 'Best', lang)} ${progress.percent}%</span>`
                 : '';
             return `<span class="inline-flex flex-wrap gap-1 justify-end">
-                <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">${st('未交', 'Not completed', lang)}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full ${status === 'overdue' ? 'bg-red-100 text-red-900' : 'bg-slate-100 text-slate-700'} font-medium">${statusLabel}</span>
                 ${progress && progress.attempts > 0
                     ? `<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-950">${st('未及格，請再次完成', 'Not passed — please redo', lang)}</span>`
                     : ''}
@@ -422,7 +427,7 @@ const global = window;
         const status = progress.submission_status;
         let statusBadge = '';
         if (status === 'late') {
-            statusBadge = `<span class="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-900">${st('欠交', 'Overdue completion', lang)}</span>`;
+            statusBadge = `<span class="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-900">${st('遲交', 'Late pass', lang)}</span>`;
         } else if (status === 'on_time') {
             statusBadge = `<span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-900">${st('準時', 'On time', lang)}</span>`;
         }
@@ -1107,7 +1112,7 @@ const global = window;
             <p class="mt-1 text-sm font-medium ${bodyClass}">${st('最高分數', 'Best score', lang)}: ${bestPercent}%
                 ${result.best_submitted_at ? ` · ${st('最高分呈交時間', 'Best attempt at', lang)}: ${escapeHtml(formatDue(result.best_submitted_at))}` : ''}
             </p>
-            ${result.is_late && everPassed ? `<p class="mt-2 text-sm text-orange-800 font-medium">${st('首次及格時間在截止日期之後，狀態為「欠交」。', 'First pass was after the due date — status is “Overdue completion”.', lang)}</p>` : ''}
+            ${result.is_late && everPassed ? `<p class="mt-2 text-sm text-orange-800 font-medium">${st('首次及格時間在截止日期之後，狀態為「遲交」。', 'First pass was after the due date — status is “Late pass”.', lang)}</p>` : ''}
             ${everPassed && result.first_passed_at ? `<p class="mt-1 text-sm ${bodyClass}">${st('首次及格時間', 'First passed at', lang)}: ${escapeHtml(formatDue(result.first_passed_at))}</p>` : ''}
             ${bestNote}
             ${syncNote}
@@ -1116,7 +1121,9 @@ const global = window;
                 ? `<p class="mt-3 text-sm text-emerald-800">${st('做得好！可返回列表，或重做爭取更高分。', 'Well done! Continue with other assessments, or redo for a higher score.', lang)}</p>`
                 : (everPassed
                     ? `<p class="mt-3 text-sm text-slate-700">${st('你先前已及格；本次分數較低時不會降低最高分。', 'You already passed earlier; a lower attempt will not reduce your best score.', lang)}</p>`
-                    : `<p class="mt-3 text-sm text-red-900 font-semibold" role="alert">${st('不及格：未達及格線，狀態為「未交」。請重讀／重看內容後再次完成並提交。', 'Not passed: below the pass mark — status is “Not completed”. Review the content and complete the assessment again.', lang)}</p>`)}
+                    : `<p class="mt-3 text-sm text-red-900 font-semibold" role="alert">${result.submission_status === 'overdue'
+                        ? st('不及格：未達及格線，狀態為「欠交」。請重讀／重看內容後再次完成並提交。', 'Not passed: below the pass mark — status is “Not passed (after due)”. Review the content and complete the assessment again.', lang)
+                        : st('不及格：未達及格線，狀態為「未交」。請重讀／重看內容後再次完成並提交。', 'Not passed: below the pass mark — status is “Not passed (before due)”. Review the content and complete the assessment again.', lang)}</p>`)}
             <button type="button" id="sh-redo" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">${st('重新作答', 'Try again', lang)}</button>
             <button type="button" id="sh-back-list" class="mt-4 ml-2 text-indigo-600 underline text-sm">${st('返回列表', 'Back to list', lang)}</button>
         `;

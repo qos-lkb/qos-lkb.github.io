@@ -442,7 +442,7 @@ function api_handle_admin_class_summer_homework(PDO $pdo, int $classId): void
 
     $report = sh_class_report($pdo, $classId);
     $statusFilter = isset($_GET['status']) ? (string) $_GET['status'] : '';
-    if (!in_array($statusFilter, ['', 'missing', 'on_time', 'late'], true)) {
+    if (!in_array($statusFilter, ['', 'missing', 'overdue', 'on_time', 'late'], true)) {
         $statusFilter = '';
     }
 

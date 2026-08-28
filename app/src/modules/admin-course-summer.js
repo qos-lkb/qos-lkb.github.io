@@ -34,6 +34,7 @@ const global = window;
     function statusBadgeClass(st) {
         if (st === 'on_time') return 'bg-sky-100 text-sky-900';
         if (st === 'late') return 'bg-orange-100 text-orange-900';
+        if (st === 'overdue') return 'bg-red-100 text-red-900';
         return 'bg-slate-100 text-slate-600';
     }
 
@@ -73,7 +74,7 @@ const global = window;
     }
 
     /**
-     * Flatten incomplete (status===missing) student×item pairs.
+     * Flatten not-passed (missing / overdue) student×item pairs.
      * @returns {Array<object>}
      */
     function buildIncompleteList(items, students, rows) {
@@ -92,7 +93,7 @@ const global = window;
         const list = [];
         rows.forEach((r) => {
             const st = String(r.status || 'missing');
-            if (st !== 'missing') return;
+            if (st !== 'missing' && st !== 'overdue') return;
             const uid = Number(r.student_user_id);
             const iid = Number(r.item_id);
             const stu = stuById[uid] || {};
@@ -107,8 +108,9 @@ const global = window;
                 due_at: item.due_at || null,
                 attempts,
                 percent: r.percent,
+                status: st,
                 kind: attempts <= 0 ? 'never' : 'retry',
-                status_label: attempts <= 0 ? t('未交', 'Missing') : t('須重做', 'Retry'),
+                status_label: r.status_label || (st === 'overdue' ? t('欠交', 'Overdue') : t('未交', 'Missing')),
             });
         });
         list.sort((a, b) => {
@@ -141,7 +143,7 @@ const global = window;
         let view = params.get('view') || 'matrix';
         if (view !== 'incomplete') view = 'matrix';
         let statusFilter = params.get('status') || '';
-        if (!['', 'missing', 'on_time', 'late'].includes(statusFilter)) statusFilter = '';
+        if (!['', 'missing', 'overdue', 'on_time', 'late'].includes(statusFilter)) statusFilter = '';
         let incompleteKind = params.get('incomplete_kind') || 'all';
         if (!['all', 'never', 'retry'].includes(incompleteKind)) incompleteKind = 'all';
 
@@ -213,7 +215,9 @@ const global = window;
                         const dossier = `/admin/courses/${id}/students/${row.student_user_id}`;
                         const analytics = `/admin/summer-homework/${row.item_id}/analytics`;
                         const due = row.due_at ? String(row.due_at).slice(0, 16) : '—';
-                        const badgeCls = row.kind === 'never' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-900';
+                        const badgeCls = row.status === 'overdue'
+                            ? 'bg-red-100 text-red-900'
+                            : (row.kind === 'never' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-900');
                         return `<tr class="border-t border-slate-100">
                             <td class="p-3">
                                 <div class="font-medium">${escapeHtml(row.display_name)}</div>
@@ -287,7 +291,6 @@ const global = window;
                         if (attempts <= 0) {
                             return `<td class="p-3">
                                 <span class="inline-block text-xs px-2 py-0.5 rounded-full ${statusBadgeClass(st)}">${escapeHtml(cell.status_label || t('未交', 'Missing'))}</span>
-                                <div class="mt-1.5 text-xs text-slate-400">${escapeHtml(t('未交', 'Missing'))}</div>
                             </td>`;
                         }
                         const recordAt = cell.first_passed_at ? String(cell.first_passed_at).slice(0, 16) : '';
@@ -340,9 +343,10 @@ const global = window;
                         <label class="text-slate-600">${escapeHtml(t('篩選狀態', 'Filter status'))}
                             <select id="sh-status-filter" class="ml-1 border rounded-lg px-2 py-1.5">
                                 <option value=""${statusFilter === '' ? ' selected' : ''}>${escapeHtml(t('全部', 'All'))}</option>
-                                <option value="missing"${statusFilter === 'missing' ? ' selected' : ''}>${escapeHtml(t('未交', 'Missing'))}</option>
+                                <option value="missing"${statusFilter === 'missing' ? ' selected' : ''}>${escapeHtml(t('未交', 'Not passed (before due)'))}</option>
+                                <option value="overdue"${statusFilter === 'overdue' ? ' selected' : ''}>${escapeHtml(t('欠交', 'Not passed (after due)'))}</option>
                                 <option value="on_time"${statusFilter === 'on_time' ? ' selected' : ''}>${escapeHtml(t('準時', 'On time'))}</option>
-                                <option value="late"${statusFilter === 'late' ? ' selected' : ''}>${escapeHtml(t('欠交', 'Late'))}</option>
+                                <option value="late"${statusFilter === 'late' ? ' selected' : ''}>${escapeHtml(t('遲交', 'Late pass'))}</option>
                             </select>
                         </label>
                         <span class="text-slate-400">${escapeHtml(t('顯示至少一項符合該狀態的學生', 'Show students with at least one matching cell'))}</span>
@@ -361,7 +365,7 @@ const global = window;
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-1">${escapeHtml(className)}</h2>
                 <p class="text-sm text-slate-500 mb-2">${escapeHtml(subtitle)}</p>
-                <p class="text-xs text-slate-400 mb-4">${escapeHtml(t('未完成＝未交；截止後才及格＝欠交；呈交時間＝首次及格', 'Missing = not submitted; late = passed after due; time = first pass'))}</p>
+                <p class="text-xs text-slate-400 mb-4">${escapeHtml(t('準時＝截止前首次及格；遲交＝截止後首次及格；未交＝截止前未及格；欠交＝截止後未及格；呈交時間＝首次及格', 'On time = first pass by due; late = first pass after due; missing = not passed before due; overdue = not passed after due; time = first pass'))}</p>
                 <p id="admin-sh-flash" class="text-sm mb-3 hidden"></p>
                 ${message ? `<div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(message)}</div>` : ''}
                 ${viewToggle}
