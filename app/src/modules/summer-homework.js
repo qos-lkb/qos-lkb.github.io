@@ -64,18 +64,26 @@ const global = window;
         return !!(user && user.is_teacher);
     }
 
+    function formFromClass(c) {
+        if (!c) return null;
+        if (c.form_level === '1' || c.form_level === '2') return c.form_level;
+        const fc = String(c.form_class || '');
+        if (fc[0] === '1' || fc[0] === '2') return fc[0];
+        return null;
+    }
+
     function resolveStudentForm(user) {
         if (!user || isTeacherUser(user)) return null;
         if (user.summer_form_level === '1' || user.summer_form_level === '2') {
             return user.summer_form_level;
         }
-        const p = user.profile && user.profile.form_level;
-        if (p === '1' || p === '2') return p;
         const classes = user.classes || [];
         for (let i = 0; i < classes.length; i++) {
-            const fl = classes[i].form_level;
-            if (fl === '1' || fl === '2') return fl;
+            const fl = formFromClass(classes[i]);
+            if (fl) return fl;
         }
+        const p = user.profile && user.profile.form_level;
+        if (p === '1' || p === '2') return p;
         return null;
     }
 

@@ -134,26 +134,17 @@ function classes_user_is_teacher(PDO $pdo, int $userId): bool
 }
 
 /**
- * Resolve a student's form level for summer homework (prefer profile, then enrolled classes).
+ * Resolve a student's form level for summer homework.
+ * Prefer enrolled classes (the year they just finished) over student_profiles.form_level,
+ * because QSIS may already have promoted students to the next school year.
  * Returns '1'|'2' when eligible; '3'|'4'|'5'|'6' when known but not S1/S2; null if unknown.
  */
 function classes_resolve_form_level_for_summer(PDO $pdo, int $userId): ?string
 {
-    $profile = classes_student_profile($pdo, $userId);
-    if ($profile !== null && isset($profile['form_level']) && $profile['form_level'] !== null && $profile['form_level'] !== '') {
-        $fl = (string) $profile['form_level'];
-        if (in_array($fl, ['1', '2', '3', '4', '5', '6'], true)) {
-            return $fl;
-        }
-    }
-
     $classes = classes_list_for_student($pdo, $userId);
     $fallback = null;
     foreach ($classes as $c) {
-        if (!isset($c['form_level']) || $c['form_level'] === null || $c['form_level'] === '') {
-            continue;
-        }
-        $fl = (string) $c['form_level'];
+        $fl = classes_form_level_from_enrollment_row($c);
         if ($fl === '1' || $fl === '2') {
             return $fl;
         }
@@ -162,7 +153,34 @@ function classes_resolve_form_level_for_summer(PDO $pdo, int $userId): ?string
         }
     }
 
+    $profile = classes_student_profile($pdo, $userId);
+    if ($profile !== null && isset($profile['form_level']) && $profile['form_level'] !== null && $profile['form_level'] !== '') {
+        $fl = (string) $profile['form_level'];
+        if (in_array($fl, ['1', '2', '3', '4', '5', '6'], true)) {
+            return $fl;
+        }
+    }
+
     return $fallback;
+}
+
+/**
+ * @param array<string, mixed> $row class + enrollment fields
+ */
+function classes_form_level_from_enrollment_row(array $row): ?string
+{
+    if (isset($row['form_level']) && $row['form_level'] !== null && $row['form_level'] !== '') {
+        $fl = classes_normalize_form_level($row['form_level']);
+        if ($fl !== null) {
+            return $fl;
+        }
+    }
+    $formClass = trim((string) ($row['form_class'] ?? ''));
+    if ($formClass !== '') {
+        return classes_normalize_form_level($formClass[0]);
+    }
+
+    return null;
 }
 
 /**

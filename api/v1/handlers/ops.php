@@ -284,6 +284,8 @@ function api_handle_admin_qsis_status(PDO $pdo): void
             $payload['years'] = qsis_list_years($qsis);
             $payload['klas'] = qsis_list_klas($qsis);
             $payload['current_year_id'] = qsis_current_year_id($qsis);
+            $payload['local_school_year'] = qsis_dominant_local_school_year($pdo);
+            $payload['suggested_year_id'] = qsis_suggested_year_id($pdo, $qsis);
         } catch (Throwable $e) {
             $payload['connection'] = ['ok' => false, 'error' => $e->getMessage()];
         }

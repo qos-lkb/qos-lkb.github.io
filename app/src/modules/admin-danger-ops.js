@@ -367,9 +367,11 @@ const global = window;
         const klas = status.klas || [];
         const teachers = status.teachers || [];
         const currentYear = String(status.current_year_id || (years[0] && years[0].yearId) || '');
+        const suggestedYear = String(status.suggested_year_id || currentYear);
+        const localSchoolYear = String(status.local_school_year || '');
 
         const yearOpts = years.map((y) =>
-            `<option value="${escapeHtml(y.yearId)}" ${String(y.yearId) === currentYear ? 'selected' : ''}>${escapeHtml(yearLabel(y))}</option>`
+            `<option value="${escapeHtml(y.yearId)}" ${String(y.yearId) === suggestedYear ? 'selected' : ''}>${escapeHtml(yearLabel(y))}</option>`
         ).join('');
         const klaOpts = [`<option value="0">${escapeHtml(t('全部 KLA', 'All KLAs'))}</option>`]
             .concat(klas.map((k) => `<option value="${Number(k.kla_id)}">${escapeHtml(klaLabel(k))}</option>`))
@@ -396,6 +398,7 @@ const global = window;
                     <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('QSIS 學年', 'QSIS year'))}
                         <select id="qsis-year" class="mt-1 w-full border rounded-lg px-3 py-2">${yearOpts}</select>
                     </label>
+                    <p id="qsis-year-hint" class="sm:col-span-2 text-sm"></p>
                     <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('學習領域（KLA）', 'KLA'))}
                         <select id="qsis-kla" class="mt-1 w-full border rounded-lg px-3 py-2">${klaOpts}</select>
                     </label>
@@ -418,7 +421,7 @@ const global = window;
                     </div>
                     <div class="space-y-2 text-sm text-slate-600">
                         <label class="flex items-center gap-2"><input type="checkbox" id="qsis-enroll" checked> ${escapeHtml(t('匯入學生時自動加入對應本地課程', 'Auto-enroll students into matching local courses'))}</label>
-                        <label class="flex items-center gap-2"><input type="checkbox" id="qsis-update"> ${escapeHtml(t('更新已存在學生的中英文名', 'Update existing student names'))}</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="qsis-update"> ${escapeHtml(t('更新已存在學生的姓名、年級與學號（班別）', 'Update existing student names, form level and class'))}</label>
                     </div>
                 </div>
             </div>` : ''}
@@ -427,7 +430,7 @@ const global = window;
                 <ul class="list-disc pl-5 space-y-1">
                     <li>${escapeHtml(t('匯入後可至課程管理檢視邀請碼與名單。', 'After import, review invite codes and rosters under Courses.'))}</li>
                     <li>${escapeHtml(t('QSIS 課程已不含任教老師欄位，匯入時一律使用上方所選的預設任教老師。', 'QSIS courses no longer include teacher fields; import uses the default teacher selected above.'))}</li>
-                    <li>${escapeHtml(t('已存在同名同學年課程或同學號學生會略過，不會覆寫密碼。', 'Existing same-year courses or student IDs are skipped; passwords are never overwritten.'))}</li>
+                    <li>${escapeHtml(t('已存在同名同學年課程或同學號學生會略過，不會覆寫密碼。未勾選「更新已存在學生」時，亦不會覆寫年級／班別。', 'Existing same-year courses or student IDs are skipped; passwords are never overwritten. Form level and class are not overwritten unless “update existing students” is checked.'))}</li>
                 </ul>
             </div>`;
         bindSpaNav(box);
@@ -436,6 +439,24 @@ const global = window;
 
         const flash = document.getElementById('qsis-flash');
         const coursesBox = document.getElementById('qsis-courses');
+
+        function updateYearHint() {
+            const hint = document.getElementById('qsis-year-hint');
+            if (!hint) return;
+            const yearId = document.getElementById('qsis-year').value;
+            if (suggestedYear && yearId !== suggestedYear) {
+                hint.className = 'sm:col-span-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2';
+                hint.textContent = t(
+                    `所選學年與本地課程（${localSchoolYear || suggestedYear}）不同。QSIS 若已升班，匯入可能把學生改成新學年班別。暑期功課請選 ${suggestedYear}。`,
+                    `Selected year differs from local courses (${localSchoolYear || suggestedYear}). If QSIS has already promoted students, import may overwrite class/form. For summer homework use ${suggestedYear}.`
+                );
+            } else {
+                hint.className = 'sm:col-span-2 text-xs text-slate-500';
+                hint.textContent = localSchoolYear
+                    ? t(`預設對齊本地課程學年 ${localSchoolYear}。`, `Defaults to local course year ${localSchoolYear}.`)
+                    : '';
+            }
+        }
 
         async function loadCourses() {
             const yearId = document.getElementById('qsis-year').value;
@@ -473,8 +494,12 @@ const global = window;
             }
         }
 
-        document.getElementById('qsis-year').addEventListener('change', loadCourses);
+        document.getElementById('qsis-year').addEventListener('change', () => {
+            updateYearHint();
+            loadCourses();
+        });
         document.getElementById('qsis-kla').addEventListener('change', loadCourses);
+        updateYearHint();
         await loadCourses();
 
         box.querySelectorAll('.qsis-import-btn').forEach((btn) => {
@@ -487,6 +512,14 @@ const global = window;
                     showMsg(flash, t('請至少勾選一門課程。', 'Select at least one course.'), true);
                     flash.classList.remove('hidden');
                     return;
+                }
+                const yearId = document.getElementById('qsis-year').value;
+                if (suggestedYear && yearId !== suggestedYear) {
+                    const ok = window.confirm(t(
+                        `所選 QSIS 學年 [${yearId}] 與本地課程學年 [${localSchoolYear || suggestedYear}] 不同。繼續可能把學生年級／班別改成升班後資料。確定匯入？`,
+                        `QSIS year [${yearId}] differs from local courses [${localSchoolYear || suggestedYear}]. Continuing may overwrite students with promoted class data. Import anyway?`
+                    ));
+                    if (!ok) return;
                 }
                 const buttons = box.querySelectorAll('.qsis-import-btn');
                 buttons.forEach((b) => { b.disabled = true; });

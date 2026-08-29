@@ -88,6 +88,58 @@ function qsis_format_school_year(int $from, int $end, string $yearId): string
     return '';
 }
 
+function qsis_year_id_for_school_year_label(PDO $qsis, string $label): ?string
+{
+    $label = trim($label);
+    if ($label === '') {
+        return null;
+    }
+    foreach (qsis_list_years($qsis) as $year) {
+        if (qsis_school_year_label($qsis, $year['yearId']) === $label) {
+            return $year['yearId'];
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Prefer the QSIS year that matches local classes, not QSIS thisYear
+ * (which may already be the next year during summer).
+ */
+function qsis_suggested_year_id(PDO $local, PDO $qsis): ?string
+{
+    try {
+        $row = $local->query(
+            'SELECT school_year, COUNT(*) AS n FROM classes WHERE is_active = 1
+             GROUP BY school_year ORDER BY n DESC, school_year DESC LIMIT 1'
+        )->fetch();
+    } catch (Throwable $e) {
+        $row = false;
+    }
+    $label = is_array($row) ? trim((string) ($row['school_year'] ?? '')) : '';
+    $fromLocal = $label !== '' ? qsis_year_id_for_school_year_label($qsis, $label) : null;
+    if ($fromLocal !== null) {
+        return $fromLocal;
+    }
+
+    return qsis_current_year_id($qsis);
+}
+
+function qsis_dominant_local_school_year(PDO $local): string
+{
+    try {
+        $label = (string) $local->query(
+            'SELECT school_year FROM classes WHERE is_active = 1
+             GROUP BY school_year ORDER BY COUNT(*) DESC, school_year DESC LIMIT 1'
+        )->fetchColumn();
+    } catch (Throwable $e) {
+        return '';
+    }
+
+    return trim($label);
+}
+
 /**
  * Map QSIS subject_id to local classes.course_subject (science subjects only).
  */
@@ -658,9 +710,13 @@ function qsis_import_students(PDO $local, PDO $qsis, array $options, int $acting
 
                 $profileExists = classes_student_profile($local, $userId);
                 if ($profileExists) {
-                    $local->prepare(
-                        'UPDATE student_profiles SET student_number = ?, form_level = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?'
-                    )->execute([$sid, $formLevel, $userId]);
+                    // Do not overwrite form_level / student_number unless explicitly requested.
+                    // QSIS thisYear may already be the next school year during summer.
+                    if ($updateExisting) {
+                        $local->prepare(
+                            'UPDATE student_profiles SET student_number = ?, form_level = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?'
+                        )->execute([$sid, $formLevel, $userId]);
+                    }
                 } else {
                     $local->prepare(
                         'INSERT INTO student_profiles (user_id, student_number, form_level, preferred_lang) VALUES (?, ?, ?, ?)'
