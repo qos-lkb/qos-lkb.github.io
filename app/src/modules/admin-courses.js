@@ -90,7 +90,11 @@ const global = window;
                 const status = c.is_active
                     ? `<span class="text-emerald-700 text-xs">${escapeHtml(t('啟用', 'Active'))}</span>`
                     : `<span class="text-slate-400 text-xs">${escapeHtml(t('停用', 'Inactive'))}</span>`;
+                const courseName = String(c.name || '');
                 return `<tr class="border-t border-slate-100">
+                    <td class="p-3 w-10">
+                        <input type="checkbox" class="admin-course-cb rounded border-slate-300" value="${Number(c.id)}" aria-label="${escapeHtml(t('選取', 'Select') + ' ' + courseName)}">
+                    </td>
                     <td class="p-3 font-medium">${escapeHtml(c.name)}</td>
                     <td class="p-3 text-sm">${escapeHtml(c.form_level_label || '—')}</td>
                     <td class="p-3 text-sm">${escapeHtml(c.course_subject_label || '—')}</td>
@@ -133,10 +137,18 @@ const global = window;
                     </label>
                     <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增課程', 'Create course'))}</button>
                 </form>
+                ${classes.length ? `
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-sm text-slate-600">${classes.length} ${escapeHtml(t('門課程', 'courses'))}</p>
+                    <button type="button" id="admin-courses-bulk-delete" class="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-40">${escapeHtml(t('刪除所選', 'Delete selected'))}</button>
+                </div>` : ''}
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-100 text-left">
                             <tr>
+                                <th class="p-3 w-10">
+                                    ${classes.length ? `<input type="checkbox" id="admin-courses-select-all" class="rounded border-slate-300" aria-label="${escapeHtml(t('全選', 'Select all'))}">` : ''}
+                                </th>
                                 <th class="p-3">${escapeHtml(t('課程', 'Course'))}</th>
                                 <th class="p-3">${escapeHtml(t('年級', 'Form'))}</th>
                                 <th class="p-3">${escapeHtml(t('科目', 'Subject'))}</th>
@@ -149,7 +161,7 @@ const global = window;
                             </tr>
                         </thead>
                         <tbody>
-                            ${rows || `<tr><td colspan="9" class="p-6 text-center text-slate-500">${escapeHtml(t('尚無課程', 'No courses'))}</td></tr>`}
+                            ${rows || `<tr><td colspan="10" class="p-6 text-center text-slate-500">${escapeHtml(t('尚無課程', 'No courses'))}</td></tr>`}
                         </tbody>
                     </table>
                 </div>`;
@@ -161,6 +173,19 @@ const global = window;
                 flash.classList.remove('hidden', 'text-emerald-700', 'text-red-600');
                 flash.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
             }
+            function persistFlash(msg, isError) {
+                try {
+                    sessionStorage.setItem('admin-courses-flash', JSON.stringify({ msg, err: !!isError }));
+                } catch (e) { /* ignore */ }
+            }
+            try {
+                const raw = sessionStorage.getItem('admin-courses-flash');
+                if (raw) {
+                    sessionStorage.removeItem('admin-courses-flash');
+                    const pending = JSON.parse(raw);
+                    if (pending && pending.msg) showFlash(pending.msg, !!pending.err);
+                }
+            } catch (e) { /* ignore */ }
 
             box.querySelectorAll('[data-spa-nav]').forEach((a) => {
                 a.addEventListener('click', (e) => {
@@ -196,13 +221,65 @@ const global = window;
                 }
             });
 
+            function selectedCourseIds() {
+                return Array.from(box.querySelectorAll('.admin-course-cb:checked'))
+                    .map((cb) => parseInt(cb.value, 10))
+                    .filter((id) => id > 0);
+            }
+
+            function syncSelectAll() {
+                const master = document.getElementById('admin-courses-select-all');
+                const boxes = box.querySelectorAll('.admin-course-cb');
+                const checked = box.querySelectorAll('.admin-course-cb:checked');
+                if (master) {
+                    master.checked = boxes.length > 0 && checked.length === boxes.length;
+                    master.indeterminate = checked.length > 0 && checked.length < boxes.length;
+                }
+                const bulk = document.getElementById('admin-courses-bulk-delete');
+                if (bulk) bulk.disabled = checked.length === 0;
+            }
+
+            box.querySelectorAll('.admin-course-cb').forEach((cb) => {
+                cb.addEventListener('change', syncSelectAll);
+            });
+            document.getElementById('admin-courses-select-all')?.addEventListener('change', (e) => {
+                const on = !!e.target.checked;
+                box.querySelectorAll('.admin-course-cb').forEach((cb) => {
+                    cb.checked = on;
+                });
+                syncSelectAll();
+            });
+            syncSelectAll();
+
+            document.getElementById('admin-courses-bulk-delete')?.addEventListener('click', async () => {
+                const ids = selectedCourseIds();
+                if (!ids.length) {
+                    showFlash(t('請至少勾選一門課程。', 'Select at least one course.'), true);
+                    return;
+                }
+                if (!confirm(t('確定刪除所選的 ' + ids.length + ' 門課程？', 'Delete ' + ids.length + ' selected course(s)?'))) {
+                    return;
+                }
+                try {
+                    const res = await global.ScienceApi.apiFetch('/admin/classes', {
+                        method: 'POST',
+                        body: { action: 'delete_bulk', ids },
+                    });
+                    const n = Number(res.deleted || ids.length);
+                    persistFlash(res.message || t('已刪除 ' + n + ' 門課程。', 'Deleted ' + n + ' course(s).'), false);
+                    await renderAdminCourses();
+                } catch (err) {
+                    showFlash(err.message || t('刪除失敗', 'Delete failed'), true);
+                }
+            });
+
             box.querySelectorAll('.admin-course-delete').forEach((btn) => {
                 btn.addEventListener('click', async () => {
                     const id = parseInt(btn.getAttribute('data-id') || '0', 10);
                     if (!id || !confirm(t('確定刪除此課程？', 'Delete this course?'))) return;
                     try {
                         await global.ScienceApi.apiFetch('/admin/classes/' + id, { method: 'DELETE', body: {} });
-                        showFlash(t('已刪除。', 'Deleted.'), false);
+                        persistFlash(t('已刪除。', 'Deleted.'), false);
                         await renderAdminCourses();
                     } catch (err) {
                         showFlash(err.message || t('刪除失敗', 'Delete failed'), true);

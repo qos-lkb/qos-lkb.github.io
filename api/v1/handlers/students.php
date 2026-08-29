@@ -122,7 +122,10 @@ function api_handle_admin_classes(PDO $pdo, string $method): void
             if (!$r['ok']) {
                 api_json_error('validation_error', $r['error'] ?? '批次刪除失敗。', 422);
             }
-            api_json_ok(['deleted' => $r['deleted'] ?? count($ids)]);
+            api_json_ok([
+                'deleted' => (int) ($r['deleted'] ?? count($ids)),
+                'message' => (string) ($r['message'] ?? ''),
+            ]);
             return;
         }
 
