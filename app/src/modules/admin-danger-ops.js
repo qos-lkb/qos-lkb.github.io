@@ -366,10 +366,10 @@ const global = window;
         const years = status.years || [];
         const klas = status.klas || [];
         const teachers = status.teachers || [];
-        const currentYear = status.current_year_id || (years[0] && years[0].yearId) || '';
+        const currentYear = String(status.current_year_id || (years[0] && years[0].yearId) || '');
 
         const yearOpts = years.map((y) =>
-            `<option value="${escapeHtml(y.yearId)}" ${y.yearId === currentYear ? 'selected' : ''}>${escapeHtml(yearLabel(y))}</option>`
+            `<option value="${escapeHtml(y.yearId)}" ${String(y.yearId) === currentYear ? 'selected' : ''}>${escapeHtml(yearLabel(y))}</option>`
         ).join('');
         const klaOpts = [`<option value="0">${escapeHtml(t('全部 KLA', 'All KLAs'))}</option>`]
             .concat(klas.map((k) => `<option value="${Number(k.kla_id)}">${escapeHtml(klaLabel(k))}</option>`))
@@ -426,6 +426,7 @@ const global = window;
                 <h3 class="font-semibold text-slate-800 mb-2">${escapeHtml(t('說明', 'Notes'))}</h3>
                 <ul class="list-disc pl-5 space-y-1">
                     <li>${escapeHtml(t('匯入後可至課程管理檢視邀請碼與名單。', 'After import, review invite codes and rosters under Courses.'))}</li>
+                    <li>${escapeHtml(t('QSIS 課程已不含任教老師欄位，匯入時一律使用上方所選的預設任教老師。', 'QSIS courses no longer include teacher fields; import uses the default teacher selected above.'))}</li>
                     <li>${escapeHtml(t('已存在同名同學年課程或同學號學生會略過，不會覆寫密碼。', 'Existing same-year courses or student IDs are skipped; passwords are never overwritten.'))}</li>
                 </ul>
             </div>`;
@@ -452,7 +453,9 @@ const global = window;
                 coursesBox.innerHTML = `<ul class="divide-y divide-slate-100">${courses.map((c) =>
                     `<li class="px-3 py-2 text-sm flex items-center gap-2">
                         <input type="checkbox" class="qsis-course-cb" value="${Number(c.course_id)}" checked>
-                        <span>${escapeHtml(c.name || ('#' + c.course_id))}</span>
+                        <span class="flex-1">${escapeHtml(c.name || ('#' + c.course_id))}${c.class ? ' <span class="text-slate-500">(' + escapeHtml(c.class) + ')</span>' : ''}</span>
+                        <span class="text-xs text-slate-400">${c.level ? ('S' + Number(c.level)) : ''}</span>
+                        <span class="text-xs text-slate-400">${Number(c.student_count || 0)} ${escapeHtml(t('人', 'students'))}</span>
                         <span class="text-xs text-slate-400 font-mono">#${Number(c.course_id)}</span>
                     </li>`
                 ).join('')}</ul>`;

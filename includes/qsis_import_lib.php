@@ -36,7 +36,7 @@ function qsis_list_years(PDO $qsis): array
 function qsis_current_year_id(PDO $qsis): ?string
 {
     try {
-        $row = $qsis->query("SELECT yearId FROM setting_year WHERE thisYear = '1' LIMIT 1")->fetch();
+        $row = $qsis->query('SELECT yearId FROM setting_year WHERE thisYear = 1 LIMIT 1')->fetch();
         if ($row) {
             return (string) $row['yearId'];
         }
@@ -48,20 +48,65 @@ function qsis_current_year_id(PDO $qsis): ?string
     return $years[0]['yearId'] ?? null;
 }
 
+/**
+ * Coerce a string column to utf8mb4_unicode_ci for joins across mixed QSIS collations.
+ */
+function qsis_sql_ci(string $expr): string
+{
+    return $expr . ' COLLATE utf8mb4_unicode_ci';
+}
+
 function qsis_school_year_label(PDO $qsis, string $yearId): string
 {
     foreach (qsis_list_years($qsis) as $year) {
         if ($year['yearId'] === $yearId) {
-            if ($year['yearText'] !== '') {
-                return $year['yearText'];
-            }
-            if ($year['yearFrom'] > 0 && $year['yearEnd'] > 0) {
-                return $year['yearFrom'] . '-' . $year['yearEnd'];
+            $label = qsis_format_school_year($year['yearFrom'], $year['yearEnd'], $yearId);
+            if ($label !== '') {
+                return $label;
             }
         }
     }
 
-    return $yearId;
+    return qsis_format_school_year(0, 0, $yearId) ?: $yearId;
+}
+
+/**
+ * Local classes use 2025/26 (not Chinese yearText or 2025-2026).
+ */
+function qsis_format_school_year(int $from, int $end, string $yearId): string
+{
+    if ($from > 0 && $end > 0) {
+        return $from . '/' . substr((string) $end, -2);
+    }
+    if (preg_match('/^(\d{2})(\d{2})$/', $yearId, $m) === 1) {
+        $from2 = (int) $m[1];
+        $century = $from2 >= 50 ? 1900 : 2000;
+
+        return ($century + $from2) . '/' . $m[2];
+    }
+
+    return '';
+}
+
+/**
+ * Map QSIS subject_id to local classes.course_subject (science subjects only).
+ */
+function qsis_map_local_course_subject(string $subjectId): ?string
+{
+    $id = strtoupper(trim($subjectId));
+    $map = [
+        'IS' => 'integrated_science',
+        'SCI' => 'integrated_science',
+        'INTSCI' => 'integrated_science',
+        'PHY' => 'physics',
+        'PHYSICS' => 'physics',
+        'CHEM' => 'chemistry',
+        'CHEMISTRY' => 'chemistry',
+        'BIO' => 'biology',
+        'BIOLOGY' => 'biology',
+    ];
+
+    return $map[$id] ?? null;
 }
 
 /**
@@ -127,19 +172,64 @@ function qsis_kla_display_name(array $kla): string
 }
 
 /**
- * @return list<array{course_id:int,course_code:string,coursename_e:string,coursename_c:string,level:int,subject_id:string,kla_id:?int,kla_code:?string,kla_name:?string,teacher_id:?string,student_count:int}>
+ * v2_course_record columns: course_id, level, class, course_code,
+ * coursename_e, coursename_c, subject_id, kla_id, isDSEElective, remark.
+ *
+ * @param array<string, mixed> $row
+ * @return array{course_id:int,course_code:string,coursename_e:string,coursename_c:string,level:int,class:string,subject_id:string,kla_id:?int,kla_code:?string,kla_name:?string,is_dse_elective:bool,remark:string,teacher_id:?string,student_count:int}
+ */
+function qsis_map_course_row(array $row): array
+{
+    $electiveRaw = $row['isDSEElective'] ?? 0;
+
+    return [
+        'course_id' => (int) $row['course_id'],
+        'course_code' => trim((string) ($row['course_code'] ?? '')),
+        'coursename_e' => trim((string) ($row['coursename_e'] ?? '')),
+        'coursename_c' => trim((string) ($row['coursename_c'] ?? '')),
+        'level' => (int) ($row['level'] ?? 0),
+        'class' => trim((string) ($row['class'] ?? '')),
+        'subject_id' => trim((string) ($row['subject_id'] ?? '')),
+        'kla_id' => isset($row['kla_id']) && $row['kla_id'] !== null && $row['kla_id'] !== ''
+            ? (int) $row['kla_id'] : null,
+        'kla_code' => trim((string) ($row['kla_code'] ?? '')) ?: null,
+        'kla_name' => qsis_kla_display_name([
+            'kla_code' => (string) ($row['kla_code'] ?? ''),
+            'kla_name_zh' => $row['kla_name_zh'] ?? null,
+            'kla_name_en' => $row['kla_name_en'] ?? null,
+        ]),
+        'is_dse_elective' => $electiveRaw === true
+            || (int) $electiveRaw === 1
+            || strcasecmp(trim((string) $electiveRaw), 'Y') === 0,
+        'remark' => trim((string) ($row['remark'] ?? '')),
+        // Teachers are no longer on v2_course_record; import uses the UI default.
+        'teacher_id' => null,
+        'student_count' => (int) ($row['student_count'] ?? 0),
+    ];
+}
+
+/**
+ * v2_course_record has no yearId; the table is the current course catalogue.
+ * Year only filters student_count / later student import via setting_student.
+ *
+ * @return list<array{course_id:int,course_code:string,coursename_e:string,coursename_c:string,level:int,class:string,subject_id:string,kla_id:?int,kla_code:?string,kla_name:?string,is_dse_elective:bool,remark:string,teacher_id:?string,student_count:int}>
  */
 function qsis_list_courses(PDO $qsis, string $yearId, ?int $klaId = null): array
 {
+    $sidJoin = qsis_sql_ci('S.sid') . ' = ' . qsis_sql_ci('E.member_id');
+    $subjectJoin = qsis_sql_ci('C.subject_id') . ' = ' . qsis_sql_ci('Sub.subject_id');
+    // C.kla_id is varchar; v2_kla_record.kla_id is numeric.
+    $klaJoin = "K.kla_id = COALESCE(IF(C.kla_id REGEXP '^[0-9]+$', NULLIF(CAST(C.kla_id AS UNSIGNED), 0), NULL), NULLIF(Sub.kla_id, 0))";
+
     $sql = "SELECT C.course_id, C.course_code, C.coursename_e, C.coursename_c,
-                   C.level, C.subject_id, C.teacher1_id, C.teacher2_id,
+                   C.level, C.`class`, C.subject_id, C.isDSEElective, C.remark,
                    K.kla_id, K.kla_code, K.kla_name_zh, K.kla_name_en,
-                   COUNT(DISTINCT E.member_id) AS student_count
+                   COUNT(DISTINCT S.sid) AS student_count
             FROM v2_course_record C
-            INNER JOIN v2_enrolment_record E ON E.course_id = C.course_id AND E.role = 'S'
-            INNER JOIN setting_student S ON S.sid = E.member_id AND S.yearId = :yearId AND S.state = '0'
-            LEFT JOIN v2_subject_record Sub ON C.subject_id = Sub.subject_id
-            LEFT JOIN v2_kla_record K ON K.kla_id = COALESCE(Sub.kla_id, NULLIF(C.kla_id, ''))
+            LEFT JOIN v2_enrolment_record E ON E.course_id = C.course_id AND E.role = 'S'
+            LEFT JOIN setting_student S ON {$sidJoin} AND S.yearId = :yearId AND S.state = 0
+            LEFT JOIN v2_subject_record Sub ON {$subjectJoin}
+            LEFT JOIN v2_kla_record K ON {$klaJoin}
             WHERE 1=1";
     $params = ['yearId' => $yearId];
 
@@ -149,42 +239,32 @@ function qsis_list_courses(PDO $qsis, string $yearId, ?int $klaId = null): array
     }
 
     $sql .= ' GROUP BY C.course_id, C.course_code, C.coursename_e, C.coursename_c,
-                     C.level, C.subject_id, C.teacher1_id, C.teacher2_id,
+                     C.level, C.`class`, C.subject_id, C.isDSEElective, C.remark,
                      K.kla_id, K.kla_code, K.kla_name_zh, K.kla_name_en
-              ORDER BY K.kla_code ASC, C.level ASC, C.coursename_e ASC, C.course_id ASC';
+              ORDER BY K.kla_code ASC, C.level ASC, C.`class` ASC, C.coursename_e ASC, C.course_id ASC';
 
     try {
         $stmt = $qsis->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll() ?: [];
     } catch (Throwable $e) {
-        return [];
+        if ($klaId !== null && $klaId > 0) {
+            throw $e;
+        }
+        // Fallback: list the catalogue even if KLA / collation joins fail.
+        $rows = $qsis->query(
+            'SELECT course_id, course_code, coursename_e, coursename_c, level, `class`,
+                    subject_id, kla_id, isDSEElective, remark,
+                    NULL AS kla_code, NULL AS kla_name_zh, NULL AS kla_name_en,
+                    0 AS student_count
+             FROM v2_course_record
+             ORDER BY level ASC, `class` ASC, coursename_e ASC, course_id ASC'
+        )->fetchAll() ?: [];
     }
 
     $out = [];
     foreach ($rows as $row) {
-        $teacherId = trim((string) ($row['teacher1_id'] ?? ''));
-        if ($teacherId === '') {
-            $teacherId = trim((string) ($row['teacher2_id'] ?? ''));
-        }
-        $out[] = [
-            'course_id' => (int) $row['course_id'],
-            'course_code' => trim((string) ($row['course_code'] ?? '')),
-            'coursename_e' => trim((string) ($row['coursename_e'] ?? '')),
-            'coursename_c' => trim((string) ($row['coursename_c'] ?? '')),
-            'level' => (int) ($row['level'] ?? 0),
-            'subject_id' => trim((string) ($row['subject_id'] ?? '')),
-            'kla_id' => isset($row['kla_id']) && $row['kla_id'] !== null && $row['kla_id'] !== ''
-                ? (int) $row['kla_id'] : null,
-            'kla_code' => trim((string) ($row['kla_code'] ?? '')) ?: null,
-            'kla_name' => qsis_kla_display_name([
-                'kla_code' => (string) ($row['kla_code'] ?? ''),
-                'kla_name_zh' => $row['kla_name_zh'] ?? null,
-                'kla_name_en' => $row['kla_name_en'] ?? null,
-            ]),
-            'teacher_id' => $teacherId !== '' ? $teacherId : null,
-            'student_count' => (int) ($row['student_count'] ?? 0),
-        ];
+        $out[] = qsis_map_course_row($row);
     }
 
     return $out;
@@ -213,13 +293,16 @@ function qsis_fetch_courses_by_ids(PDO $qsis, string $yearId, array $courseIds):
  */
 function qsis_list_students(PDO $qsis, string $yearId, ?array $courseIds = null): array
 {
+    $sidJoin = qsis_sql_ci('SS.sid') . ' = ' . qsis_sql_ci('E.member_id');
+    $infoJoin = qsis_sql_ci('D.sid') . ' = ' . qsis_sql_ci('SS.sid');
+
     $sql = "SELECT SS.sid, SS.classNo, SS.`class` AS class_name,
                    COALESCE(D.nameChi, '') AS nameChi,
                    COALESCE(D.nameEng, '') AS nameEng,
                    E.course_id, E.moi
             FROM v2_enrolment_record E
-            INNER JOIN setting_student SS ON SS.sid = E.member_id AND SS.yearId = :yearId AND SS.state = '0'
-            LEFT JOIN data_student_info D ON D.sid = SS.sid
+            INNER JOIN setting_student SS ON {$sidJoin} AND SS.yearId = :yearId AND SS.state = 0
+            LEFT JOIN data_student_info D ON {$infoJoin}
             WHERE E.role = 'S'";
     $params = ['yearId' => $yearId];
 
@@ -235,13 +318,9 @@ function qsis_list_students(PDO $qsis, string $yearId, ?array $courseIds = null)
 
     $sql .= ' ORDER BY E.course_id ASC, SS.`class` ASC, SS.classNo ASC, SS.sid ASC';
 
-    try {
-        $stmt = $qsis->prepare($sql);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll() ?: [];
-    } catch (Throwable $e) {
-        return [];
-    }
+    $stmt = $qsis->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll() ?: [];
 
     $out = [];
     foreach ($rows as $row) {
@@ -333,6 +412,36 @@ function qsis_resolve_local_class_name(PDO $local, array $course, string $school
 }
 
 /**
+ * @param array<string, mixed> $course
+ * @return list<string>
+ */
+function qsis_local_class_name_candidates(array $course): array
+{
+    $base = qsis_course_display_name($course);
+    $classLabel = trim((string) ($course['class'] ?? ''));
+    $code = trim((string) ($course['course_code'] ?? ''));
+
+    $candidates = [$base];
+    if ($classLabel !== '') {
+        $candidates[] = $base . ' (' . $classLabel . ')';
+    }
+    if ($code !== '') {
+        $candidates[] = $base . ' [' . $code . ']';
+    }
+
+    $out = [];
+    foreach ($candidates as $name) {
+        $name = trim($name);
+        if ($name === '' || in_array($name, $out, true)) {
+            continue;
+        }
+        $out[] = $name;
+    }
+
+    return $out;
+}
+
+/**
  * @param array<string, mixed> $options year_id, course_ids[], teacher_user_id
  * @return array{ok:bool,error?:string,created?:int,skipped?:int}
  */
@@ -380,14 +489,25 @@ function qsis_import_courses(PDO $local, PDO $qsis, array $options, int $actingU
 
         $teacherId = qsis_find_local_teacher_id($local, (string) ($course['teacher_id'] ?? ''), $fallbackTeacher);
         $inviteCode = classes_generate_invite_code();
+        $formLevel = classes_normalize_form_level((string) ((int) ($course['level'] ?? 0)));
+        $courseSubject = qsis_map_local_course_subject((string) ($course['subject_id'] ?? ''));
+        $hasFormSubject = classes_has_form_subject_columns($local);
 
         for ($i = 0; $i < 5; $i++) {
             try {
-                $ins = $local->prepare(
-                    'INSERT INTO classes (name, school_year, subject_id, invite_code, teacher_user_id, is_active)
-                     VALUES (?, ?, NULL, ?, ?, 1)'
-                );
-                $ins->execute([$className, $schoolYear, $inviteCode, $teacherId]);
+                if ($hasFormSubject) {
+                    $ins = $local->prepare(
+                        'INSERT INTO classes (name, school_year, form_level, course_subject, subject_id, invite_code, teacher_user_id, is_active)
+                         VALUES (?, ?, ?, ?, NULL, ?, ?, 1)'
+                    );
+                    $ins->execute([$className, $schoolYear, $formLevel, $courseSubject, $inviteCode, $teacherId]);
+                } else {
+                    $ins = $local->prepare(
+                        'INSERT INTO classes (name, school_year, subject_id, invite_code, teacher_user_id, is_active)
+                         VALUES (?, ?, NULL, ?, ?, 1)'
+                    );
+                    $ins->execute([$className, $schoolYear, $inviteCode, $teacherId]);
+                }
                 $created++;
                 break;
             } catch (Throwable $e) {
@@ -417,11 +537,8 @@ function qsis_local_class_names_for_courses(PDO $local, PDO $qsis, string $yearI
         if ($course === null) {
             continue;
         }
-        $candidates = [
-            qsis_course_display_name($course),
-            qsis_course_display_name($course) . ' [' . trim((string) ($course['course_code'] ?? '')) . ']',
-            qsis_course_display_name($course) . ' #' . $courseId,
-        ];
+        $candidates = qsis_local_class_name_candidates($course);
+        $candidates[] = ($candidates[0] ?? qsis_course_display_name($course)) . ' #' . $courseId;
         foreach ($candidates as $name) {
             $name = trim($name);
             if ($name === '' || str_ends_with($name, ' []')) {

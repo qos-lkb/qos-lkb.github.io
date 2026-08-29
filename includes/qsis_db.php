@@ -46,8 +46,11 @@ function qsis_db(): PDO
         $dsn .= ';unix_socket=' . $socket;
     }
 
+    // Do not force utf8mb4_unicode_ci: QSIS tables mix general_ci / unicode_ci.
+    // Forcing a connection collation makes yearId / subject_id joins fail with
+    // "Illegal mix of collations", which previously emptied the course list.
     $initSql = sprintf(
-        "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, time_zone = '%s'",
+        "SET NAMES utf8mb4, time_zone = '%s'",
         config_mysql_time_zone()
     );
 

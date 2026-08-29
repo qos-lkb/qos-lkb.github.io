@@ -313,6 +313,12 @@ function api_handle_admin_qsis_courses(): void
             $out[] = [
                 'course_id' => (int) $row['course_id'],
                 'name' => qsis_course_display_name($row),
+                'course_code' => (string) ($row['course_code'] ?? ''),
+                'level' => (int) ($row['level'] ?? 0),
+                'class' => (string) ($row['class'] ?? ''),
+                'student_count' => (int) ($row['student_count'] ?? 0),
+                'kla_name' => (string) ($row['kla_name'] ?? ''),
+                'is_dse_elective' => !empty($row['is_dse_elective']),
                 'raw' => $row,
             ];
         }
