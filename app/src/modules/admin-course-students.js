@@ -43,6 +43,9 @@ const global = window;
             || global.ScienceApi.hasPermission('class.manage_own');
     }
 
+    /** @type {{msg:string,isError:boolean}|null} */
+    let studentsFlash = null;
+
     async function renderAdminCourseStudents(idRaw) {
         setShell();
         const id = parseInt(idRaw, 10) || 0;
@@ -77,10 +80,11 @@ const global = window;
             const rows = students.map((s) => {
                 const uid = Number(s.id);
                 const moi = String(s.moi || '').toUpperCase();
+                const name = displayName(s);
                 if (!canEdit) {
                     return `<tr class="border-t border-slate-100">
                         <td class="p-3">
-                            <div class="font-medium">${escapeHtml(displayName(s))}</div>
+                            <div class="font-medium">${escapeHtml(name)}</div>
                             <div class="text-xs text-slate-500">${escapeHtml(trimPair(s.name_zh, s.name_en))}</div>
                         </td>
                         <td class="p-3">${escapeHtml(s.email || '')}</td>
@@ -94,8 +98,11 @@ const global = window;
                     </tr>`;
                 }
                 return `<tr class="border-t border-slate-100 align-middle" data-user-id="${uid}">
+                    <td class="p-3 w-10">
+                        <input type="checkbox" class="course-student-cb rounded border-slate-300" value="${uid}" aria-label="${escapeHtml(t('選取', 'Select') + ' ' + name)}">
+                    </td>
                     <td class="p-3">
-                        <div class="font-medium">${escapeHtml(displayName(s))}</div>
+                        <div class="font-medium">${escapeHtml(name)}</div>
                         <div class="text-xs text-slate-500">${escapeHtml(trimPair(s.name_zh, s.name_en))}</div>
                     </td>
                     <td class="p-3">${escapeHtml(s.email || '')}</td>
@@ -144,11 +151,15 @@ const global = window;
                     <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                         <div class="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                             <h3 class="font-bold text-slate-800">${escapeHtml(t('學生名單', 'Students'))}（${students.length}）</h3>
-                            ${canEdit ? `<button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${escapeHtml(t('儲存班別／班號／修讀語言', 'Save class / no. / MOI'))}</button>` : ''}
+                            <div class="flex flex-wrap items-center gap-2">
+                                ${canEdit && students.length ? `<button type="button" id="course-students-bulk-remove" class="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-40">${escapeHtml(t('移出所選', 'Remove selected'))}</button>` : ''}
+                                ${canEdit ? `<button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${escapeHtml(t('儲存班別／班號／修讀語言', 'Save class / no. / MOI'))}</button>` : ''}
+                            </div>
                         </div>
                         <table class="min-w-full text-sm">
                             <thead class="bg-slate-100 text-left">
                                 <tr>
+                                    ${canEdit ? `<th class="p-3 w-10">${students.length ? `<input type="checkbox" id="course-students-select-all" class="rounded border-slate-300" aria-label="${escapeHtml(t('全選', 'Select all'))}">` : ''}</th>` : ''}
                                     <th class="p-3">${escapeHtml(t('姓名', 'Name'))}</th>
                                     <th class="p-3">${escapeHtml(t('帳戶', 'Login'))}</th>
                                     <th class="p-3">${escapeHtml(t('學號', 'Student no.'))}</th>
@@ -159,7 +170,7 @@ const global = window;
                                 </tr>
                             </thead>
                             <tbody>
-                                ${rows || `<tr><td colspan="7" class="p-6 text-slate-500 text-center">${escapeHtml(t('尚無學生', 'No students'))}</td></tr>`}
+                                ${rows || `<tr><td colspan="${canEdit ? 8 : 7}" class="p-6 text-slate-500 text-center">${escapeHtml(t('尚無學生', 'No students'))}</td></tr>`}
                             </tbody>
                         </table>
                     </div>
@@ -172,6 +183,28 @@ const global = window;
                 flash.classList.remove('hidden', 'text-emerald-700', 'text-red-600');
                 flash.classList.add(isError ? 'text-red-600' : 'text-emerald-700');
             }
+            if (studentsFlash) {
+                showFlash(studentsFlash.msg, studentsFlash.isError);
+                studentsFlash = null;
+            }
+
+            function selectedStudentIds() {
+                return Array.from(box.querySelectorAll('.course-student-cb:checked'))
+                    .map((cb) => parseInt(cb.value, 10))
+                    .filter((uid) => uid > 0);
+            }
+
+            function syncSelectAll() {
+                const master = document.getElementById('course-students-select-all');
+                const boxes = box.querySelectorAll('.course-student-cb');
+                const checked = box.querySelectorAll('.course-student-cb:checked');
+                if (master) {
+                    master.checked = boxes.length > 0 && checked.length === boxes.length;
+                    master.indeterminate = checked.length > 0 && checked.length < boxes.length;
+                }
+                const bulk = document.getElementById('course-students-bulk-remove');
+                if (bulk) bulk.disabled = checked.length === 0;
+            }
 
             box.querySelectorAll('[data-spa-nav]').forEach((a) => {
                 a.addEventListener('click', (e) => {
@@ -181,6 +214,18 @@ const global = window;
             });
 
             if (!canEdit) return;
+
+            box.querySelectorAll('.course-student-cb').forEach((cb) => {
+                cb.addEventListener('change', syncSelectAll);
+            });
+            document.getElementById('course-students-select-all')?.addEventListener('change', (e) => {
+                const on = !!e.target.checked;
+                box.querySelectorAll('.course-student-cb').forEach((cb) => {
+                    cb.checked = on;
+                });
+                syncSelectAll();
+            });
+            syncSelectAll();
 
             document.getElementById('course-enroll-form')?.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -195,7 +240,7 @@ const global = window;
                         method: 'POST',
                         body: { action: 'enroll', emails },
                     });
-                    showFlash(t('已加入 ', 'Enrolled ') + (res.enrolled || 0) + t(' 位學生。', ' student(s).'), false);
+                    studentsFlash = { msg: t('已加入 ', 'Enrolled ') + (res.enrolled || 0) + t(' 位學生。', ' student(s).'), isError: false };
                     await renderAdminCourseStudents(String(id));
                 } catch (err) {
                     showFlash(err.message || t('加入失敗', 'Enroll failed'), true);
@@ -220,10 +265,32 @@ const global = window;
                         method: 'POST',
                         body: { action: 'batch_update', rows: batch },
                     });
-                    showFlash(t('已更新 ', 'Updated ') + (res.updated || 0) + t(' 位學生。', ' student(s).'), false);
+                    studentsFlash = { msg: t('已更新 ', 'Updated ') + (res.updated || 0) + t(' 位學生。', ' student(s).'), isError: false };
                     await renderAdminCourseStudents(String(id));
                 } catch (err) {
                     showFlash(err.message || t('儲存失敗', 'Save failed'), true);
+                }
+            });
+
+            document.getElementById('course-students-bulk-remove')?.addEventListener('click', async () => {
+                const ids = selectedStudentIds();
+                if (!ids.length) {
+                    showFlash(t('請至少勾選一位學生。', 'Select at least one student.'), true);
+                    return;
+                }
+                if (!confirm(t('確定將所選的 ' + ids.length + ' 位學生移出本課程？', 'Remove ' + ids.length + ' selected student(s) from this course?'))) {
+                    return;
+                }
+                try {
+                    const res = await global.ScienceApi.apiFetch('/admin/classes/' + id + '/students', {
+                        method: 'POST',
+                        body: { action: 'remove_bulk', user_ids: ids },
+                    });
+                    const n = Number(res.removed || ids.length);
+                    studentsFlash = { msg: t('已移出 ' + n + ' 位學生。', 'Removed ' + n + ' student(s).'), isError: false };
+                    await renderAdminCourseStudents(String(id));
+                } catch (err) {
+                    showFlash(err.message || t('移出失敗', 'Remove failed'), true);
                 }
             });
 
@@ -236,7 +303,7 @@ const global = window;
                             method: 'DELETE',
                             body: {},
                         });
-                        showFlash(t('已移出學生。', 'Student removed.'), false);
+                        studentsFlash = { msg: t('已移出學生。', 'Student removed.'), isError: false };
                         await renderAdminCourseStudents(String(id));
                     } catch (err) {
                         showFlash(err.message || t('移出失敗', 'Remove failed'), true);

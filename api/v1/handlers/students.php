@@ -305,6 +305,22 @@ function api_handle_admin_class_students(PDO $pdo, int $classId, string $method)
         return;
     }
 
+    if ($action === 'remove_bulk' || $action === 'bulk_remove') {
+        $ids = $body['user_ids'] ?? $body['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $r = classes_remove_students_from_class($pdo, $classId, $ids, $user);
+        if (!$r['ok']) {
+            api_json_error('validation_error', $r['error'] ?? '移出失敗。', 422);
+        }
+        api_json_ok([
+            'removed' => (int) ($r['removed'] ?? 0),
+            'students' => classes_students_in_class($pdo, $classId),
+        ]);
+        return;
+    }
+
     api_json_error('validation_error', '未知的學生操作。', 422);
 }
 

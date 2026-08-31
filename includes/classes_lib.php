@@ -1292,6 +1292,40 @@ function classes_remove_student_from_class(PDO $pdo, int $classId, int $studentU
 }
 
 /**
+ * @param list<int|string> $studentUserIds
+ * @return array{ok:bool,error?:string,removed?:int}
+ */
+function classes_remove_students_from_class(PDO $pdo, int $classId, array $studentUserIds, array $actingUser): array
+{
+    $class = classes_fetch_by_id($pdo, $classId);
+    if ($class === null) {
+        return ['ok' => false, 'error' => '找不到課程。'];
+    }
+    if (!classes_can_edit_students($pdo, $actingUser)) {
+        return ['ok' => false, 'error' => '只有管理員可以編輯班內學生。'];
+    }
+    if (!classes_can_manage($pdo, $class, $actingUser)) {
+        return ['ok' => false, 'error' => '沒有權限。'];
+    }
+
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $studentUserIds),
+        static fn (int $id): bool => $id > 0
+    )));
+    if ($ids === []) {
+        return ['ok' => false, 'error' => '請選擇至少一位學生。'];
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+    $del = $pdo->prepare(
+        'DELETE FROM class_enrollments WHERE class_id = ? AND user_id IN (' . $placeholders . ')'
+    );
+    $del->execute(array_merge([$classId], $ids));
+
+    return ['ok' => true, 'removed' => (int) $del->rowCount()];
+}
+
+/**
  * @return array{ok:bool,error?:string,invite_code?:string}
  */
 function classes_reset_invite_code(PDO $pdo, int $classId, array $user): array
