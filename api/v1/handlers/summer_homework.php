@@ -41,6 +41,7 @@ function api_handle_summer_homework_list(PDO $pdo): void
                 'items' => [],
                 'form_locked' => true,
                 'student_form_level' => $studentFormLevel,
+                'chase_previous' => false,
                 'content_lang' => $contentLang,
                 'summer_moi' => $summerMoi,
                 'message' => $reason,
@@ -61,10 +62,16 @@ function api_handle_summer_homework_list(PDO $pdo): void
         }
         $out[] = $item;
     }
+    $chasePrevious = false;
+    if ($formLocked && $user !== null && ($studentFormLevel === '1' || $studentFormLevel === '2')) {
+        $chasePrevious = classes_summer_is_chasing_previous($pdo, (int) $user['id'], $studentFormLevel);
+    }
+
     api_json_ok([
         'items' => $out,
         'form_locked' => $formLocked,
         'student_form_level' => $studentFormLevel,
+        'chase_previous' => $chasePrevious,
         'content_lang' => $contentLang,
         'summer_moi' => $summerMoi,
         'message' => $message,
@@ -440,7 +447,8 @@ function api_handle_admin_class_summer_homework(PDO $pdo, int $classId): void
         api_json_error('forbidden', '沒有權限管理此課程。', 403);
     }
 
-    $report = sh_class_report($pdo, $classId);
+    $cohort = sh_normalize_cohort($_GET['cohort'] ?? '');
+    $report = sh_class_report($pdo, $classId, $cohort);
     $statusFilter = isset($_GET['status']) ? (string) $_GET['status'] : '';
     if (!in_array($statusFilter, ['', 'missing', 'overdue', 'on_time', 'late'], true)) {
         $statusFilter = '';
@@ -491,11 +499,13 @@ function api_handle_admin_class_summer_homework_csv(PDO $pdo, int $classId): voi
         api_json_error('forbidden', '沒有權限管理此課程。', 403);
     }
 
-    $report = sh_class_report($pdo, $classId);
+    $cohort = sh_normalize_cohort($_GET['cohort'] ?? '');
+    $report = sh_class_report($pdo, $classId, $cohort);
     $csvRows = sh_class_report_csv_rows($report);
 
+    $suffix = $cohort === 'previous' ? '_previous' : '';
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="summer_homework_class_' . $classId . '.csv"');
+    header('Content-Disposition: attachment; filename="summer_homework_class_' . $classId . $suffix . '.csv"');
     header('Cache-Control: no-store');
     echo "\xEF\xBB\xBF";
     $out = fopen('php://output', 'w');

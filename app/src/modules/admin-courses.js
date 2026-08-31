@@ -357,6 +357,9 @@ const global = window;
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(canEditStudents ? t('學生與修讀語言', 'Students & MOI') : t('查看學生', 'View students'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
+                    ${c.can_chase_previous_summer || c.form_level === '2' || c.form_level === '3'
+                        ? `<a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer?cohort=previous`))}" data-spa-nav="/admin/courses/${id}/summer?cohort=previous" class="text-sm text-amber-800 hover:underline">${escapeHtml(t('上學年追收', 'Last-year chase'))}</a>`
+                        : ''}
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/worksheets`))}" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
                 </div>
                 ${data.has_form_subject_columns === false

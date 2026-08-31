@@ -1645,27 +1645,56 @@ function sh_user_progress_for_item(PDO $pdo, int $userId, int $itemId, ?array $i
 }
 
 /**
+ * @return 'current'|'previous'
+ */
+function sh_normalize_cohort(mixed $value): string
+{
+    return $value === 'previous' ? 'previous' : 'current';
+}
+
+/**
  * @return array{
  *   class:array<string,mixed>,
+ *   cohort:string,
+ *   items_form_level:?string,
+ *   items_form_level_label:string,
+ *   cohort_note:?string,
  *   items:list<array<string,mixed>>,
  *   students:list<array<string,mixed>>,
  *   rows:list<array<string,mixed>>,
  *   message:?string
  * }
  */
-function sh_class_report(PDO $pdo, int $classId): array
+function sh_class_report(PDO $pdo, int $classId, string $cohort = 'current'): array
 {
     require_once __DIR__ . '/classes_lib.php';
 
+    $cohort = sh_normalize_cohort($cohort);
+
+    $empty = static function (
+        array $classOut,
+        string $cohort,
+        ?string $itemsFormLevel,
+        array $students,
+        ?string $message,
+        ?string $cohortNote = null
+    ): array {
+        return [
+            'class' => $classOut,
+            'cohort' => $cohort,
+            'items_form_level' => $itemsFormLevel,
+            'items_form_level_label' => classes_form_level_label($itemsFormLevel),
+            'cohort_note' => $cohortNote,
+            'items' => [],
+            'students' => $students,
+            'rows' => [],
+            'message' => $message,
+        ];
+    };
+
     $class = classes_fetch_by_id($pdo, $classId);
     if ($class === null) {
-        return [
-            'class' => [],
-            'items' => [],
-            'students' => [],
-            'rows' => [],
-            'message' => '找不到課程。',
-        ];
+        return $empty([], $cohort, null, [], '找不到課程。');
     }
 
     $formLevel = isset($class['form_level']) && $class['form_level'] !== null && $class['form_level'] !== ''
@@ -1682,20 +1711,63 @@ function sh_class_report(PDO $pdo, int $classId): array
         'course_subject_label' => classes_course_subject_label(
             isset($class['course_subject']) ? (string) $class['course_subject'] : null
         ),
+        'can_chase_previous_summer' => classes_can_chase_previous_summer($formLevel),
     ];
 
-    if ($formLevel !== '1' && $formLevel !== '2') {
-        return [
-            'class' => $classOut,
-            'items' => [],
-            'students' => classes_students_in_class($pdo, $classId),
-            'rows' => [],
-            'message' => '此課程年級非中一／中二，沒有對應的暑期功課習作。請先在課程設定年級。',
-        ];
+    $students = classes_students_in_class($pdo, $classId);
+
+    if ($cohort === 'previous') {
+        $itemsFormLevel = classes_previous_summer_item_form($formLevel);
+        if ($itemsFormLevel === null) {
+            return $empty(
+                $classOut,
+                $cohort,
+                null,
+                $students,
+                '此課程年級沒有對應的上學年暑期功課（僅中二可追收中一、中三可追收中二）。'
+            );
+        }
+    } else {
+        $itemsFormLevel = $formLevel;
+        if ($itemsFormLevel !== '1' && $itemsFormLevel !== '2') {
+            return $empty(
+                $classOut,
+                $cohort,
+                $itemsFormLevel,
+                $students,
+                '此課程年級非中一／中二，沒有對應的暑期功課習作。請先在課程設定年級。'
+            );
+        }
     }
 
-    $items = sh_fetch_published($pdo, $formLevel);
-    $students = classes_students_in_class($pdo, $classId);
+    $year = trim((string) ($classOut['school_year'] ?? ''));
+    $cohortNote = null;
+    if ($cohort === 'previous') {
+        $yearBit = $year !== '' ? '（' . $year . '）' : '';
+        $cohortNote = '以本班' . $yearBit . '名冊，顯示上學年'
+            . classes_form_level_label($itemsFormLevel)
+            . '暑期功課呈交狀況，方便追收。';
+    }
+
+    if ($cohort === 'previous') {
+        $prevYear = $year !== '' ? classes_previous_school_year_label($year) : null;
+        if ($prevYear !== null) {
+            $userIds = [];
+            foreach ($students as $student) {
+                $uid = (int) ($student['id'] ?? $student['user_id'] ?? 0);
+                if ($uid > 0) {
+                    $userIds[] = $uid;
+                }
+            }
+            $prevMap = classes_form_class_map_for_school_year($pdo, $userIds, $prevYear);
+            foreach ($students as $i => $student) {
+                $uid = (int) ($student['id'] ?? $student['user_id'] ?? 0);
+                $students[$i]['prev_form_class'] = $prevMap[$uid] ?? null;
+            }
+        }
+    }
+
+    $items = sh_fetch_published($pdo, $itemsFormLevel);
     $rows = [];
 
     foreach ($students as $student) {
@@ -1732,6 +1804,10 @@ function sh_class_report(PDO $pdo, int $classId): array
 
     return [
         'class' => $classOut,
+        'cohort' => $cohort,
+        'items_form_level' => $itemsFormLevel,
+        'items_form_level_label' => classes_form_level_label($itemsFormLevel),
+        'cohort_note' => $cohortNote,
         'items' => $itemPublic,
         'students' => $students,
         'rows' => $rows,
@@ -2605,6 +2681,18 @@ function sh_class_report_csv_rows(array $report): array
     }
 
     $header = ['學生', '帳戶'];
+    $includePrevClass = ($report['cohort'] ?? '') === 'previous';
+    if (!$includePrevClass) {
+        foreach ($students as $stu) {
+            if (!empty($stu['prev_form_class'])) {
+                $includePrevClass = true;
+                break;
+            }
+        }
+    }
+    if ($includePrevClass) {
+        $header[] = '上學年班別';
+    }
     foreach ($items as $item) {
         $title = (string) ($item['title_zh'] ?: $item['title_en']);
         $header[] = $title . '｜狀態';
@@ -2618,6 +2706,9 @@ function sh_class_report_csv_rows(array $report): array
             user_format_name($stu),
             (string) ($stu['email'] ?? ''),
         ];
+        if ($includePrevClass) {
+            $line[] = (string) ($stu['prev_form_class'] ?? '');
+        }
         foreach ($items as $item) {
             $cell = $by[$uid . ':' . (int) $item['id']] ?? null;
             if ($cell === null) {

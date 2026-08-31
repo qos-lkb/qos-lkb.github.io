@@ -100,6 +100,204 @@ function classes_normalize_course_subject(mixed $value): ?string
     return array_key_exists($v, classes_course_subject_options()) ? $v : null;
 }
 
+/**
+ * Starting calendar year of a school-year label (e.g. 2025/26 → 2025).
+ */
+function classes_school_year_start_year(string $label): ?int
+{
+    $label = trim($label);
+    if ($label === '') {
+        return null;
+    }
+    if (preg_match('/^(\d{4})\s*[\/\-]/', $label, $m) === 1) {
+        return (int) $m[1];
+    }
+    if (preg_match('/^(\d{2})(\d{2})$/', $label, $m) === 1) {
+        $from = (int) $m[1];
+
+        return ($from >= 90 ? 1900 : 2000) + $from;
+    }
+
+    return null;
+}
+
+/**
+ * Previous school-year label: 2026/27 → 2025/26, 2026-2027 → 2025-2026.
+ */
+function classes_previous_school_year_label(string $label): ?string
+{
+    $label = trim($label);
+    if ($label === '') {
+        return null;
+    }
+    if (preg_match('/^(\d{4})\/(\d{2})$/', $label, $m) === 1) {
+        $from = (int) $m[1] - 1;
+        $end = ((int) $m[2] + 99) % 100;
+
+        return $from . '/' . str_pad((string) $end, 2, '0', STR_PAD_LEFT);
+    }
+    if (preg_match('/^(\d{4})-(\d{4})$/', $label, $m) === 1) {
+        return ((int) $m[1] - 1) . '-' . ((int) $m[2] - 1);
+    }
+    if (preg_match('/^(\d{4})-(\d{2})$/', $label, $m) === 1) {
+        $from = (int) $m[1] - 1;
+        $end = ((int) $m[2] + 99) % 100;
+
+        return $from . '-' . str_pad((string) $end, 2, '0', STR_PAD_LEFT);
+    }
+
+    return null;
+}
+
+/**
+ * Hong Kong school-year start calendar year: Sep–Dec → this year; Jan–Aug → previous year.
+ * Sep 2026 → 2026 (2026/27); Aug 2026 → 2025 (2025/26).
+ */
+function classes_hk_school_year_start(?DateTimeInterface $now = null): int
+{
+    $tz = new DateTimeZone('Asia/Hong_Kong');
+    if ($now instanceof DateTimeInterface) {
+        $d = DateTimeImmutable::createFromInterface($now)->setTimezone($tz);
+    } else {
+        $d = new DateTimeImmutable('now', $tz);
+    }
+    $year = (int) $d->format('Y');
+    $month = (int) $d->format('n');
+
+    return $month >= 9 ? $year : $year - 1;
+}
+
+/**
+ * True when the class school_year is the current (or future) HK school year.
+ * Used to detect post-promotion enrollments (e.g. 2026/27 classes in Sep 2026).
+ */
+function classes_school_year_is_current_or_future(string $label, ?DateTimeInterface $now = null): bool
+{
+    $start = classes_school_year_start_year($label);
+    if ($start === null) {
+        return false;
+    }
+
+    return $start >= classes_hk_school_year_start($now);
+}
+
+/**
+ * Jun–Aug (Asia/Hong_Kong): assignment season — homework for the form the student is in.
+ * Sep–May: chase season after promotion — homework for the form they just finished.
+ */
+function classes_is_summer_assignment_season(?DateTimeInterface $now = null): bool
+{
+    $tz = new DateTimeZone('Asia/Hong_Kong');
+    if ($now instanceof DateTimeInterface) {
+        $d = DateTimeImmutable::createFromInterface($now)->setTimezone($tz);
+    } else {
+        $d = new DateTimeImmutable('now', $tz);
+    }
+    $month = (int) $d->format('n');
+
+    return $month >= 6 && $month <= 8;
+}
+
+function classes_can_chase_previous_summer(?string $classFormLevel): bool
+{
+    return $classFormLevel === '2' || $classFormLevel === '3';
+}
+
+/**
+ * Homework form_level for previous-year chase: S2 → S1 items, S3 → S2 items.
+ */
+function classes_previous_summer_item_form(?string $classFormLevel): ?string
+{
+    if ($classFormLevel === '2') {
+        return '1';
+    }
+    if ($classFormLevel === '3') {
+        return '2';
+    }
+
+    return null;
+}
+
+/**
+ * @param list<array<string, mixed>> $classes
+ * @return array{year:string, form:?string}
+ */
+function classes_newest_enrollment_year_form(array $classes): array
+{
+    $bestYear = '';
+    $bestStart = null;
+    $bestForm = null;
+    foreach ($classes as $c) {
+        $y = trim((string) ($c['school_year'] ?? ''));
+        $start = $y !== '' ? classes_school_year_start_year($y) : null;
+        $fl = classes_form_level_from_enrollment_row($c);
+        if ($start === null) {
+            if ($bestStart === null && $bestForm === null && $fl !== null) {
+                $bestForm = $fl;
+            }
+            continue;
+        }
+        if ($bestStart !== null && $start < $bestStart) {
+            continue;
+        }
+        if ($bestStart !== null && $start === $bestStart) {
+            if ($bestForm !== '1' && $bestForm !== '2' && ($fl === '1' || $fl === '2')) {
+                $bestForm = $fl;
+            }
+            continue;
+        }
+        $bestStart = $start;
+        $bestYear = $y;
+        $bestForm = $fl;
+    }
+
+    return ['year' => $bestYear, 'form' => $bestForm];
+}
+
+/**
+ * Map user_id → form_class from active enrollments in a given school year.
+ *
+ * @param list<int> $userIds
+ * @return array<int, string>
+ */
+function classes_form_class_map_for_school_year(PDO $pdo, array $userIds, string $schoolYear): array
+{
+    $ids = [];
+    foreach ($userIds as $id) {
+        $uid = (int) $id;
+        if ($uid > 0) {
+            $ids[$uid] = $uid;
+        }
+    }
+    $ids = array_values($ids);
+    $schoolYear = trim($schoolYear);
+    if ($ids === [] || $schoolYear === '') {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare(
+        "SELECT ce.user_id, ce.form_class
+         FROM class_enrollments ce
+         INNER JOIN classes c ON c.id = ce.class_id
+         WHERE ce.user_id IN ($placeholders)
+           AND ce.status = 'active'
+           AND c.school_year = ?
+           AND ce.form_class IS NOT NULL AND ce.form_class <> ''
+         ORDER BY c.id ASC"
+    );
+    $stmt->execute([...$ids, $schoolYear]);
+    $out = [];
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        $uid = (int) $row['user_id'];
+        if (!isset($out[$uid])) {
+            $out[$uid] = (string) $row['form_class'];
+        }
+    }
+
+    return $out;
+}
+
 function classes_role_id_by_name(PDO $pdo, string $name): int
 {
     $stmt = $pdo->prepare('SELECT id FROM roles WHERE name = ? LIMIT 1');
@@ -134,34 +332,102 @@ function classes_user_is_teacher(PDO $pdo, int $userId): bool
 }
 
 /**
- * Resolve a student's form level for summer homework.
- * Prefer enrolled classes (the year they just finished) over student_profiles.form_level,
- * because QSIS may already have promoted students to the next school year.
+ * Resolve a student's form level for summer homework (the form they just finished).
+ *
+ * Jun–Aug (assignment): use the newest enrollment's S1/S2 form.
+ * Sep–May (chase): prefer S1/S2 from the previous school year; if the student is
+ * already enrolled in the current HK school year (e.g. 2026/27 in Sep 2026),
+ * S2 → S1 items and S3 → S2 items. Students still on last year's classes
+ * (e.g. 2025/26 in Sep 2026) keep that year's form so S2 homework is not hidden.
+ *
  * Returns '1'|'2' when eligible; '3'|'4'|'5'|'6' when known but not S1/S2; null if unknown.
  */
 function classes_resolve_form_level_for_summer(PDO $pdo, int $userId): ?string
 {
     $classes = classes_list_for_student($pdo, $userId);
+    $newest = classes_newest_enrollment_year_form($classes);
+    $newestForm = $newest['form'];
+    $newestYear = $newest['year'];
+
     $fallback = null;
-    foreach ($classes as $c) {
-        $fl = classes_form_level_from_enrollment_row($c);
-        if ($fl === '1' || $fl === '2') {
-            return $fl;
-        }
-        if ($fallback === null && in_array($fl, ['3', '4', '5', '6'], true)) {
-            $fallback = $fl;
+    if ($newestForm !== null && in_array($newestForm, ['3', '4', '5', '6'], true)) {
+        $fallback = $newestForm;
+    }
+    if ($fallback === null) {
+        foreach ($classes as $c) {
+            $fl = classes_form_level_from_enrollment_row($c);
+            if ($fallback === null && in_array($fl, ['3', '4', '5', '6'], true)) {
+                $fallback = $fl;
+            }
         }
     }
 
+    $profileForm = null;
     $profile = classes_student_profile($pdo, $userId);
     if ($profile !== null && isset($profile['form_level']) && $profile['form_level'] !== null && $profile['form_level'] !== '') {
         $fl = (string) $profile['form_level'];
         if (in_array($fl, ['1', '2', '3', '4', '5', '6'], true)) {
-            return $fl;
+            $profileForm = $fl;
         }
     }
 
-    return $fallback;
+    if ($newestForm === null) {
+        $newestForm = $profileForm;
+    }
+
+    if (classes_is_summer_assignment_season()) {
+        if ($newestForm === '1' || $newestForm === '2') {
+            return $newestForm;
+        }
+        if ($newestForm === '3') {
+            return '2';
+        }
+
+        return $newestForm ?? $fallback ?? $profileForm;
+    }
+
+    $prevYear = $newestYear !== '' ? classes_previous_school_year_label($newestYear) : null;
+    if ($prevYear !== null) {
+        foreach ($classes as $c) {
+            if (trim((string) ($c['school_year'] ?? '')) !== $prevYear) {
+                continue;
+            }
+            $fl = classes_form_level_from_enrollment_row($c);
+            if ($fl === '1' || $fl === '2') {
+                return $fl;
+            }
+        }
+    }
+
+    $promotedIntoCurrentYear = $newestYear !== ''
+        && classes_school_year_is_current_or_future($newestYear);
+    if ($promotedIntoCurrentYear) {
+        $chased = classes_previous_summer_item_form($newestForm);
+        if ($chased !== null) {
+            return $chased;
+        }
+    }
+
+    if ($newestForm === '1' || $newestForm === '2') {
+        return $newestForm;
+    }
+    if ($newestForm === '3') {
+        return '2';
+    }
+
+    return $newestForm ?? $fallback ?? $profileForm;
+}
+
+function classes_summer_is_chasing_previous(PDO $pdo, int $userId, ?string $homeworkForm): bool
+{
+    if ($homeworkForm !== '1' && $homeworkForm !== '2') {
+        return false;
+    }
+    $newest = classes_newest_enrollment_year_form(classes_list_for_student($pdo, $userId));
+    $nf = $newest['form'];
+
+    return ($homeworkForm === '1' && $nf === '2')
+        || ($homeworkForm === '2' && $nf === '3');
 }
 
 /**
@@ -197,6 +463,7 @@ function classes_resolve_moi_for_summer(PDO $pdo, int $userId): ?string
     }
 
     $formLevel = classes_resolve_form_level_for_summer($pdo, $userId);
+    $newestYear = classes_newest_enrollment_year_form($classes)['year'];
     $candidates = [];
     foreach ($classes as $c) {
         $moi = classes_normalize_moi($c['moi'] ?? null);
@@ -207,9 +474,14 @@ function classes_resolve_moi_for_summer(PDO $pdo, int $userId): ?string
             ? (string) $c['form_level']
             : null;
         $subject = isset($c['course_subject']) ? (string) $c['course_subject'] : '';
+        $cYear = trim((string) ($c['school_year'] ?? ''));
         $score = 0;
         if ($formLevel !== null && $cForm === $formLevel) {
             $score += 100;
+        }
+        // After promotion, current-class MOI still applies when last year's class is gone.
+        if ($newestYear !== '' && $cYear === $newestYear) {
+            $score += 25;
         }
         if ($cForm === '1' || $cForm === '2') {
             $score += 20;
@@ -1165,6 +1437,11 @@ function classes_public_row(array $row): array
         'teacher_name' => (string) ($row['teacher_name'] ?? ''),
         'is_active' => (bool) (int) ($row['is_active'] ?? 0),
         'student_count' => (int) ($row['student_count'] ?? 0),
+        'can_chase_previous_summer' => classes_can_chase_previous_summer(
+            isset($row['form_level']) && $row['form_level'] !== null && $row['form_level'] !== ''
+                ? (string) $row['form_level']
+                : null
+        ),
     ];
 }
 

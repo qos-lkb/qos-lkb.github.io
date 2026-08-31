@@ -199,6 +199,9 @@ const global = window;
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學生與修讀語言', 'Students & MOI'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
+                    ${c.can_chase_previous_summer || c.form_level === '2' || c.form_level === '3'
+                        ? `<a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer?cohort=previous`))}" data-spa-nav="/admin/courses/${id}/summer?cohort=previous" class="text-sm text-amber-800 hover:underline">${escapeHtml(t('上學年追收', 'Last-year chase'))}</a>`
+                        : ''}
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`) + '?view=incomplete')}" data-spa-nav="/admin/courses/${id}/summer?view=incomplete" class="text-sm text-amber-700 hover:underline">${escapeHtml(t('暑期催收', 'Summer chase'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/worksheets`))}" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/inbox') + '?class_id=' + id)}" data-spa-nav="/admin/inbox?class_id=${id}" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('待批改／逾期', 'Inbox'))}</a>

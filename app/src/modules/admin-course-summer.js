@@ -48,6 +48,7 @@ const global = window;
 
     function summerPageUrl(classId, opts) {
         const q = new URLSearchParams();
+        if (opts.cohort === 'previous') q.set('cohort', 'previous');
         if (opts.view && opts.view !== 'matrix') q.set('view', opts.view);
         if (opts.view === 'matrix' && opts.status) q.set('status', opts.status);
         if (opts.view === 'incomplete' && opts.kind && opts.kind !== 'all') {
@@ -104,6 +105,7 @@ const global = window;
                 item_id: iid,
                 display_name: displayName(stu),
                 email: stu.email || '',
+                prev_form_class: stu.prev_form_class || '',
                 item_title: item.title_zh || item.title_en || ('#' + iid),
                 due_at: item.due_at || null,
                 attempts,
@@ -146,20 +148,33 @@ const global = window;
         if (!['', 'missing', 'overdue', 'on_time', 'late'].includes(statusFilter)) statusFilter = '';
         let incompleteKind = params.get('incomplete_kind') || 'all';
         if (!['all', 'never', 'retry'].includes(incompleteKind)) incompleteKind = 'all';
+        let cohort = params.get('cohort') || 'current';
+        if (cohort !== 'previous') cohort = 'current';
 
         box.innerHTML = `<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
         try {
             // Incomplete list always needs the full roster; matrix may use status filter.
-            const apiQ = (view === 'matrix' && statusFilter)
-                ? ('?status=' + encodeURIComponent(statusFilter))
-                : '';
+            const q = new URLSearchParams();
+            if (cohort === 'previous') q.set('cohort', 'previous');
+            if (view === 'matrix' && statusFilter) q.set('status', statusFilter);
+            const apiQ = q.toString() ? ('?' + q.toString()) : '';
             const report = await global.ScienceApi.apiFetch('/admin/classes/' + id + '/summer-homework' + apiQ);
             const c = report.class || {};
             const items = report.items || [];
             let students = report.students || [];
             const rows = report.rows || [];
             const message = report.message || null;
-            const subtitle = [c.form_level_label, c.course_subject_label].filter(Boolean).join(' · ');
+            const cohortNote = report.cohort_note || null;
+            const itemsFormLabel = report.items_form_level_label || '';
+            const canChase = !!(c.can_chase_previous_summer || c.form_level === '2' || c.form_level === '3');
+            if (cohort === 'previous') {
+                if (title) title.textContent = t('上學年暑期追收', 'Last-year summer chase');
+            }
+            const subtitleParts = [c.form_level_label, c.course_subject_label, c.school_year].filter(Boolean);
+            if (cohort === 'previous' && itemsFormLabel) {
+                subtitleParts.push(t('習作：', 'Items: ') + itemsFormLabel);
+            }
+            const subtitle = subtitleParts.join(' · ');
             const className = c.name || '';
 
             const incompleteAll = buildIncompleteList(items, students, rows);
@@ -178,6 +193,12 @@ const global = window;
                 if (!byStudent[uid]) byStudent[uid] = {};
                 byStudent[uid][iid] = r;
             });
+
+            const cohortToggle = canChase ? `
+                <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="${escapeHtml(t('習作學年', 'Homework year'))}">
+                    <button type="button" id="sh-cohort-current" class="text-sm px-3 py-1.5 rounded-lg border ${cohort !== 'previous' ? 'bg-indigo-700 text-white border-indigo-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${cohort !== 'previous' ? 'true' : 'false'}">${escapeHtml(t('本學年習作', 'This year'))}</button>
+                    <button type="button" id="sh-cohort-previous" class="text-sm px-3 py-1.5 rounded-lg border ${cohort === 'previous' ? 'bg-amber-700 text-white border-amber-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${cohort === 'previous' ? 'true' : 'false'}">${escapeHtml(t('上學年追收', 'Last-year chase'))}</button>
+                </div>` : '';
 
             const viewToggle = `
                 <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="${escapeHtml(t('檢視模式', 'View mode'))}">
@@ -222,6 +243,7 @@ const global = window;
                             <td class="p-3">
                                 <div class="font-medium">${escapeHtml(row.display_name)}</div>
                                 <div class="text-xs text-slate-500">${escapeHtml(row.email || '—')}</div>
+                                ${row.prev_form_class ? `<div class="text-xs text-amber-800 mt-0.5">${escapeHtml(t('上學年 ', 'Last year ') + row.prev_form_class)}</div>` : ''}
                             </td>
                             <td class="p-3">
                                 <div>${escapeHtml(row.item_title)}</div>
@@ -314,6 +336,7 @@ const global = window;
                         <td class="p-3 sticky left-0 ${stickyBg} font-medium whitespace-nowrap z-10">
                             ${escapeHtml(displayName(stu))}
                             <div class="text-xs text-slate-500 font-normal">${escapeHtml(stu.email || '')}</div>
+                            ${stu.prev_form_class ? `<div class="text-xs text-amber-800 font-normal mt-0.5">${escapeHtml(t('上學年 ', 'Last year ') + stu.prev_form_class)}</div>` : ''}
                         </td>
                         ${cells}
                     </tr>`;
@@ -365,9 +388,11 @@ const global = window;
                 </div>
                 <h2 class="text-lg font-bold text-slate-800 mb-1">${escapeHtml(className)}</h2>
                 <p class="text-sm text-slate-500 mb-2">${escapeHtml(subtitle)}</p>
+                ${cohortNote ? `<div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(cohortNote)}</div>` : ''}
                 <p class="text-xs text-slate-400 mb-4">${escapeHtml(t('準時＝截止前首次及格；遲交＝截止後首次及格；未交＝截止前未及格；欠交＝截止後未及格；呈交時間＝首次及格', 'On time = first pass by due; late = first pass after due; missing = not passed before due; overdue = not passed after due; time = first pass'))}</p>
                 <p id="admin-sh-flash" class="text-sm mb-3 hidden"></p>
                 ${message ? `<div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">${escapeHtml(message)}</div>` : ''}
+                ${cohortToggle}
                 ${viewToggle}
                 ${mainContent}`;
 
@@ -381,7 +406,8 @@ const global = window;
 
             async function replaceSummerUrl(opts) {
                 const path = '/admin/courses/' + id + '/summer';
-                history.replaceState({ path }, '', summerPageUrl(id, opts));
+                const next = Object.assign({ cohort: cohort }, opts);
+                history.replaceState({ path }, '', summerPageUrl(id, next));
                 await renderAdminCourseSummer(String(id));
             }
 
@@ -404,6 +430,12 @@ const global = window;
             });
             document.getElementById('sh-view-incomplete')?.addEventListener('click', async () => {
                 await replaceSummerUrl({ view: 'incomplete', kind: incompleteKind });
+            });
+            document.getElementById('sh-cohort-current')?.addEventListener('click', async () => {
+                await replaceSummerUrl({ cohort: 'current', view: view, status: statusFilter, kind: incompleteKind });
+            });
+            document.getElementById('sh-cohort-previous')?.addEventListener('click', async () => {
+                await replaceSummerUrl({ cohort: 'previous', view: view, status: statusFilter, kind: incompleteKind });
             });
 
             document.getElementById('sh-status-filter')?.addEventListener('change', async (e) => {
@@ -434,13 +466,14 @@ const global = window;
                 const btn = e.currentTarget;
                 btn.disabled = true;
                 try {
-                    const res = await global.ScienceApi.apiFetch('/admin/classes/' + id + '/summer-homework.csv', { method: 'GET' });
+                    const csvQ = cohort === 'previous' ? '?cohort=previous' : '';
+                    const res = await global.ScienceApi.apiFetch('/admin/classes/' + id + '/summer-homework.csv' + csvQ, { method: 'GET' });
                     if (!(res instanceof Response)) throw new Error(t('匯出回應格式錯誤', 'Unexpected export response'));
                     const blob = await res.blob();
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'summer_homework_class_' + id + '.csv';
+                    a.download = 'summer_homework_class_' + id + (cohort === 'previous' ? '_previous' : '') + '.csv';
                     document.body.appendChild(a);
                     a.click();
                     a.remove();

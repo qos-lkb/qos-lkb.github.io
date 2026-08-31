@@ -488,6 +488,9 @@ const global = window;
                     <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm">
                         ${nav('/admin/courses/' + id + '/students', t('學生', 'Students'))}
                         ${nav('/admin/courses/' + id + '/summer', t('暑期功課', 'Summer HW'))}
+                        ${c.can_chase_previous_summer || c.form_level === '2' || c.form_level === '3'
+                            ? nav('/admin/courses/' + id + '/summer?cohort=previous', t('上學年追收', 'Last-year chase'))
+                            : ''}
                         ${nav('/admin/courses/' + id + '/report', t('學習報告', 'Reports'))}
                         ${nav('/admin/courses/' + id + '/worksheets', t('工作紙', 'Worksheets'))}
                         ${nav('/admin/courses/' + id, t('編輯', 'Edit'))}
@@ -604,9 +607,13 @@ const global = window;
         const formLabel = lockedForm === '2'
             ? st('中二', 'S2', lang)
             : (lockedForm === '1' ? st('中一', 'S1', lang) : '');
+        const chasingPrevious = !!(data.chase_previous);
         const intro = formLocked && (lockedForm === '1' || lockedForm === '2')
-            ? st(`以下為你年級（${formLabel}）需要完成的暑期功課。達到各習作及格線即為及格；及格後仍可重做並保留最高分。`,
-                `Summer homework for your form (${formLabel}). Reach each item’s pass mark to pass. You may redo after passing; the highest score is kept.`, lang)
+            ? (chasingPrevious
+                ? st(`以下為上學年（${formLabel}）暑期功課，請盡快補交。達到各習作及格線即為及格；及格後仍可重做並保留最高分。`,
+                    `These are last year’s (${formLabel}) summer homework items — please complete them soon. Reach each item’s pass mark to pass. You may redo after passing; the highest score is kept.`, lang)
+                : st(`以下為你年級（${formLabel}）需要完成的暑期功課。達到各習作及格線即為及格；及格後仍可重做並保留最高分。`,
+                    `Summer homework for your form (${formLabel}). Reach each item’s pass mark to pass. You may redo after passing; the highest score is kept.`, lang))
             : st('專為中一、中二同學而設。完成閱讀或影片後作答；達到各習作及格線即為及格。及格後仍可重做，系統會保留最高分數。',
                 'For S1 and S2 students. After the passage or video, answer the questions. Reach each item’s pass mark to pass. You may redo after passing; the highest score is kept.', lang);
 
