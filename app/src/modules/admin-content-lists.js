@@ -70,7 +70,12 @@ const global = window;
         const subjects = {};
         const topics = {};
         try {
-            const list = await global.ScienceApi.apiFetch('/admin/subjects');
+            let list;
+            try {
+                list = await global.ScienceApi.apiFetch('/admin/subjects');
+            } catch (_err) {
+                list = await global.ScienceApi.apiFetch('/subjects');
+            }
             (Array.isArray(list) ? list : []).forEach((s) => {
                 subjects[Number(s.id)] = s.name_zh || s.name_en || ('#' + s.id);
                 (s.topics || []).forEach((tp) => {

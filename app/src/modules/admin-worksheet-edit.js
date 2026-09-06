@@ -45,7 +45,12 @@ const global = window;
     async function loadTopicsBySubject() {
         const map = {};
         const subjects = [];
-        const list = await global.ScienceApi.apiFetch('/admin/subjects');
+        let list;
+        try {
+            list = await global.ScienceApi.apiFetch('/admin/subjects');
+        } catch (_err) {
+            list = await global.ScienceApi.apiFetch('/subjects');
+        }
         (Array.isArray(list) ? list : []).forEach((s) => {
             subjects.push(s);
             map[Number(s.id)] = s.topics || [];

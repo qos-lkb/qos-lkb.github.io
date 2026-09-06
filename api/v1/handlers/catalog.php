@@ -135,12 +135,16 @@ function api_handle_subjects(PDO $pdo): void
 
 function api_handle_admin_subjects(PDO $pdo, string $method): void
 {
-    require_api_permission('user.manage');
-
     if ($method === 'GET') {
+        // Subject/topic catalogue is already public via GET /subjects.
+        // Content editors (teachers with *.manage_own) need the admin-shaped
+        // list for dropdowns; mutating subjects still requires user.manage.
+        require_api_user();
         api_json_ok(subjects_list_with_topics($pdo));
         return;
     }
+
+    require_api_permission('user.manage');
 
     if ($method === 'POST') {
         api_verify_csrf_or_fail();

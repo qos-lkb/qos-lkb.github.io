@@ -44,7 +44,12 @@ const global = window;
     }
 
     async function loadSubjectsMeta() {
-        const list = await global.ScienceApi.apiFetch('/admin/subjects');
+        let list;
+        try {
+            list = await global.ScienceApi.apiFetch('/admin/subjects');
+        } catch (_err) {
+            list = await global.ScienceApi.apiFetch('/subjects');
+        }
         const subjects = [];
         const topicsBySubject = {};
         (Array.isArray(list) ? list : []).forEach((s) => {
