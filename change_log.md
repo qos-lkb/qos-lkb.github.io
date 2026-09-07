@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-09-07
+
+### 閃卡組（Flashcard sets）
+- 新增以 Set 為單位的閃卡：可掛科目／課題、`draft → pending_review → published`，並可編入自學課程（`topic_learning_items.content_type = flashcard_set`）。
+- 前台 `/flashcards` 目錄與 `/flashcards/{slug}`：翻卡複習（簡化間隔重複）與單人測驗（同組卡片作干擾項；不足四張改短答）。
+- 權限：`flashcard_set.manage_any`／`flashcard_set.manage_own`；既有庫請執行 `php scripts/apply_schema.php`（`schema_flashcards.sql`）。
+
 ## 2026-09-01
 
 ### 暑期功課：上學年追收（2627 班別檢視 2526 呈交）

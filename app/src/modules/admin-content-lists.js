@@ -63,6 +63,7 @@ const global = window;
             || api.hasPermission('worksheet.manage_any')
             || api.hasPermission('learning_video.manage_any')
             || api.hasPermission('question_bank.manage_any')
+            || api.hasPermission('flashcard_set.manage_any')
             || api.hasPermission('summer_homework.manage_any');
     }
 
@@ -320,12 +321,37 @@ const global = window;
         });
     }
 
+    async function renderAdminFlashcardSetsList() {
+        const canAny = global.ScienceApi.hasPermission('flashcard_set.manage_any');
+        await renderContentList({
+            titleZh: canAny ? '閃卡組' : '我的閃卡組',
+            titleEn: canAny ? 'Flashcard sets' : 'My flashcard sets',
+            anyPerm: 'flashcard_set.manage_any',
+            ownPerm: 'flashcard_set.manage_own',
+            listPath: '/admin/flashcard-sets',
+            deletePath: '/admin/flashcard-sets',
+            editSpaBase: '/admin/flashcard-sets',
+            previewRoute: (slug) => '/flashcards/' + encodeURIComponent(slug),
+            showReview: true,
+            extraHeaders: [t('科目', 'Subject'), t('課題', 'Topic'), t('卡片數', 'Cards')],
+            extraCells: (row) => [
+                escapeHtml(row.subject_zh || row.subject_en || '—'),
+                escapeHtml(row.topic_zh || row.topic_en || '—'),
+                escapeHtml(String(row.card_count != null ? row.card_count : '—')),
+            ],
+            emptyZh: '尚無閃卡組。',
+            emptyEn: 'No flashcard sets yet.',
+            reload: renderAdminFlashcardSetsList,
+        });
+    }
+
     global.AppAdmin = Object.assign(global.AppAdmin || {}, {
         renderAdminArticlesList,
         renderAdminLearningVideosList,
         renderAdminLearningNotesList,
         renderAdminSimulationsList,
         renderAdminQuestionBanksList,
+        renderAdminFlashcardSetsList,
     });
 
 export {};

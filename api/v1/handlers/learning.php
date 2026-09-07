@@ -279,7 +279,7 @@ function api_handle_learning_bookmarks_toggle(PDO $pdo): void
     $contentSlug = (string) ($body['content_slug'] ?? '');
     $action = (string) ($body['action'] ?? 'toggle');
 
-    $allowedTypes = ['note', 'worksheet', 'article', 'learning_tool', 'question_bank', 'video', 'simulation'];
+    $allowedTypes = ['note', 'worksheet', 'article', 'learning_tool', 'question_bank', 'flashcard_set', 'video', 'simulation'];
     if (!in_array($contentType, $allowedTypes, true)) {
         api_json_error('validation_error', '無效的內容類型。', 422);
     }

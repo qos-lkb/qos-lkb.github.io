@@ -7,7 +7,7 @@ require_once __DIR__ . '/web_base.php';
 require_once __DIR__ . '/simulations_lib.php';
 
 /** @var list<string> */
-const TI_CONTENT_TYPES = ['note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video', 'question_bank'];
+const TI_CONTENT_TYPES = ['note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video', 'question_bank', 'flashcard_set'];
 
 /**
  * @return array<string, string>
@@ -22,6 +22,7 @@ function ti_content_table_map(): array
         'learning_tool' => 'learning_tools',
         'video' => 'learning_videos',
         'question_bank' => 'question_banks',
+        'flashcard_set' => 'flashcard_sets',
     ];
 }
 
@@ -259,7 +260,7 @@ function ti_import_all_from_topic(PDO $pdo, int $topicId): array
         return ['ok' => false, 'error' => '課題 ID 無效。'];
     }
     $added = 0;
-    $typeOrder = ['note', 'video', 'simulation', 'worksheet', 'article', 'question_bank', 'learning_tool'];
+    $typeOrder = ['note', 'video', 'simulation', 'worksheet', 'article', 'question_bank', 'flashcard_set', 'learning_tool'];
     $mx = $pdo->prepare('SELECT COALESCE(MAX(sort_order), -1) FROM topic_learning_items WHERE topic_id = ?');
     $mx->execute([$topicId]);
     $sort = (int) $mx->fetchColumn() + 1;

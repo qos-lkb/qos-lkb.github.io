@@ -368,7 +368,7 @@ CREATE TABLE learning_videos (
 CREATE TABLE topic_learning_items (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     topic_id INT UNSIGNED NOT NULL,
-    content_type ENUM('note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video', 'question_bank') NOT NULL,
+    content_type ENUM('note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video', 'question_bank', 'flashcard_set') NOT NULL,
     content_id INT UNSIGNED NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -410,6 +410,59 @@ CREATE TABLE question_banks (
     KEY idx_question_banks_owner (owner_user_id),
     KEY idx_question_banks_subject (subject_id),
     KEY idx_question_banks_topic (topic_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- Flashcard sets
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE flashcard_sets (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(190) NOT NULL,
+    title_zh VARCHAR(255) NOT NULL DEFAULT '',
+    title_en VARCHAR(255) NOT NULL DEFAULT '',
+    description_zh TEXT NULL,
+    description_en TEXT NULL,
+    subject_id INT UNSIGNED NULL,
+    topic_id INT UNSIGNED NULL,
+    owner_user_id INT UNSIGNED NULL,
+    list_sort_order INT NOT NULL DEFAULT 0,
+    status ENUM('draft', 'pending_review', 'published') NOT NULL DEFAULT 'draft',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_flashcard_sets_slug (slug),
+    KEY idx_flashcard_sets_status (status),
+    KEY idx_flashcard_sets_owner (owner_user_id),
+    KEY idx_flashcard_sets_subject (subject_id),
+    KEY idx_flashcard_sets_topic (topic_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE flashcard_cards (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    set_id INT UNSIGNED NOT NULL,
+    front_zh MEDIUMTEXT NOT NULL,
+    front_en MEDIUMTEXT NOT NULL,
+    back_zh MEDIUMTEXT NOT NULL,
+    back_en MEDIUMTEXT NOT NULL,
+    hint_zh TEXT NULL,
+    hint_en TEXT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    KEY idx_flashcard_cards_set (set_id),
+    KEY idx_flashcard_cards_sort (set_id, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE flashcard_card_reviews (
+    user_id INT UNSIGNED NOT NULL,
+    card_id INT UNSIGNED NOT NULL,
+    ease_factor DECIMAL(4,2) NOT NULL DEFAULT 2.50,
+    interval_days INT UNSIGNED NOT NULL DEFAULT 0,
+    repetitions INT UNSIGNED NOT NULL DEFAULT 0,
+    due_at DATETIME NOT NULL,
+    last_rating ENUM('again', 'good', 'easy') NULL DEFAULT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, card_id),
+    KEY idx_fc_reviews_user_due (user_id, due_at),
+    KEY idx_fc_reviews_card (card_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE qb_questions (
@@ -557,7 +610,7 @@ CREATE TABLE learning_events (
 CREATE TABLE learning_attempts (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
-    source_type ENUM('learning_tool', 'article', 'question_bank') NOT NULL,
+    source_type ENUM('learning_tool', 'article', 'question_bank', 'flashcard_set') NOT NULL,
     source_id INT UNSIGNED NOT NULL,
     subject_id INT UNSIGNED NULL,
     topic_id INT UNSIGNED NULL,
@@ -889,6 +942,8 @@ INSERT INTO permissions (name, description) VALUES
     ('topic_item.manage_any', 'Manage course curriculum topic items'),
     ('question_bank.manage_any', 'Manage all question banks'),
     ('question_bank.manage_own', 'Manage own question banks'),
+    ('flashcard_set.manage_any', 'Manage all flashcard sets'),
+    ('flashcard_set.manage_own', 'Manage own flashcard sets'),
     ('class.manage_own', 'Manage own classes and enrollments'),
     ('class.manage_any', 'Manage all classes'),
     ('student.profile_own', 'View and update own student profile'),
@@ -910,6 +965,7 @@ WHERE r.name = 'teacher' AND p.name IN (
     'worksheet.assign_own',
     'worksheet.grade_own',
     'question_bank.manage_own',
+    'flashcard_set.manage_own',
     'class.manage_own',
     'summer_homework.manage_own'
 );
@@ -943,6 +999,7 @@ INSERT INTO spa_nav_visibility (item_key, audience, is_visible) VALUES
     ('simulations', 'guest', 1), ('simulations', 'student', 1), ('simulations', 'teacher', 1), ('simulations', 'admin', 1),
     ('articles', 'guest', 1), ('articles', 'student', 1), ('articles', 'teacher', 1), ('articles', 'admin', 1),
     ('learning', 'guest', 1), ('learning', 'student', 1), ('learning', 'teacher', 1), ('learning', 'admin', 1),
+    ('flashcards', 'guest', 1), ('flashcards', 'student', 1), ('flashcards', 'teacher', 1), ('flashcards', 'admin', 1),
     ('summer', 'guest', 1), ('summer', 'student', 1), ('summer', 'teacher', 1), ('summer', 'admin', 1);
 
 INSERT INTO spa_nav_order (item_key, sort_order) VALUES
@@ -953,4 +1010,5 @@ INSERT INTO spa_nav_order (item_key, sort_order) VALUES
     ('videos', 4),
     ('simulations', 5),
     ('articles', 6),
-    ('learning', 7);
+    ('learning', 7),
+    ('flashcards', 8);

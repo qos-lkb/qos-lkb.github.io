@@ -15,9 +15,10 @@ function api_handle_review_queue(PDO $pdo): void
     $canWs = user_has_permission('worksheet.manage_any');
     $canLv = user_has_permission('learning_video.manage_any');
     $canQb = user_has_permission('question_bank.manage_any');
+    $canFc = user_has_permission('flashcard_set.manage_any');
     $canSh = user_has_permission('summer_homework.manage_any');
     $canSim = user_has_permission('simulation.manage_any');
-    if (!$canLt && !$canArt && !$canLn && !$canWs && !$canLv && !$canQb && !$canSh && !$canSim) {
+    if (!$canLt && !$canArt && !$canLn && !$canWs && !$canLv && !$canQb && !$canFc && !$canSh && !$canSim) {
         api_json_error('forbidden', '沒有權限。', 403);
     }
 
@@ -79,6 +80,18 @@ function api_handle_review_queue(PDO $pdo): void
              FROM question_banks WHERE status = 'pending_review'"
         )->fetchAll() ?: [];
         $items = array_merge($items, $banks);
+    }
+
+    if ($canFc) {
+        try {
+            $sets = $pdo->query(
+                "SELECT id, slug, title_zh, title_en, status, updated_at, owner_user_id, 'flashcard_set' AS type
+                 FROM flashcard_sets WHERE status = 'pending_review'"
+            )->fetchAll() ?: [];
+        } catch (Throwable) {
+            $sets = [];
+        }
+        $items = array_merge($items, $sets);
     }
 
     if ($canSh) {

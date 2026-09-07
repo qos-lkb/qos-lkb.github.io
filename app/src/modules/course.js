@@ -15,6 +15,7 @@ const global = window;
         article: { zh: '科學文章', en: 'Article' },
         learning_tool: { zh: '互動測驗', en: 'Quiz' },
         question_bank: { zh: '試題庫', en: 'Question bank' },
+        flashcard_set: { zh: '閃卡', en: 'Flashcards' },
         video: { zh: '影片', en: 'Video' },
     };
 
@@ -25,6 +26,7 @@ const global = window;
         article: '📰',
         learning_tool: '❓',
         question_bank: '❓',
+        flashcard_set: '🃏',
         video: '▶️',
     };
 
@@ -90,6 +92,7 @@ const global = window;
             case 'article': return '/article/' + slug;
             case 'learning_tool': return '/quiz/' + slug;
             case 'question_bank': return '/quiz/' + slug;
+            case 'flashcard_set': return '/flashcards/' + slug;
             case 'video': return '/video/' + slug;
             case 'simulation': return '/simulation/' + slug;
             default: return null;

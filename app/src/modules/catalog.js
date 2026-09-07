@@ -12,11 +12,13 @@ const global = window;
     let learningNotes = [];
     let learningVideos = [];
     let worksheets = [];
+    let flashcardSets = [];
     let contentTrees = {
         notes: { subjects: [], uncategorized: [] },
         videos: { subjects: [], uncategorized: [] },
         worksheets: { subjects: [], uncategorized: [] },
         articles: { subjects: [], uncategorized: [] },
+        flashcards: { subjects: [], uncategorized: [] },
     };
     let contentNavKind = null;
 
@@ -90,6 +92,22 @@ const global = window;
             itemExtraHtml: (item, lang) => {
                 if (!item.reading_time_minutes) return '';
                 return `<span class="text-xs text-slate-400">${t('約', '~')}${item.reading_time_minutes}${t(' 分鐘', ' min')}</span>`;
+            },
+        },
+        flashcards: {
+            subjectAttr: 'data-fc-subject',
+            topicClass: 'fc-topic-btn',
+            itemClass: 'fc-nav-btn',
+            buildRoute: (slug) => '/flashcards/' + encodeURIComponent(slug),
+            pageTitle: () => t('閃卡', 'Flashcards'),
+            listHint: () => t('依序複習以下閃卡組', 'Review the following flashcard sets in order'),
+            navEmpty: () => t('尚無已發佈的閃卡組。', 'No published flashcard sets yet.'),
+            topicEmpty: () => t('此課題尚無閃卡組。', 'No flashcard sets in this topic yet.'),
+            listEmptyExtra: () => '',
+            itemExtraHtml: (item, lang) => {
+                const n = item.card_count != null ? Number(item.card_count) : 0;
+                if (!n) return '';
+                return `<span class="text-xs text-slate-400">${n}${t(' 張', ' cards')}</span>`;
             },
         },
     };
@@ -177,6 +195,7 @@ const global = window;
         if (kind === 'notes') return learningNotes;
         if (kind === 'videos') return learningVideos;
         if (kind === 'worksheets') return worksheets;
+        if (kind === 'flashcards') return flashcardSets;
         return articles;
     }
 
@@ -190,6 +209,7 @@ const global = window;
             description_en: n.description_en,
             duration_minutes: n.duration_minutes,
             provider: n.provider,
+            card_count: n.card_count,
             list_sort_order: n.list_sort_order || 0,
         };
     }
@@ -798,10 +818,12 @@ const global = window;
         learningNotes = data.learning_notes || [];
         learningVideos = data.learning_videos || [];
         worksheets = data.worksheets || [];
+        flashcardSets = data.flashcard_sets || [];
         contentTrees.notes = buildContentTree(learningNotes);
         contentTrees.videos = buildContentTree(learningVideos);
         contentTrees.worksheets = buildContentTree(worksheets);
         contentTrees.articles = buildContentTree(articles);
+        contentTrees.flashcards = buildContentTree(flashcardSets);
         if (!opts.skipNavRender) {
             if (opts.navMode === 'notes') {
                 renderContentNav('notes', opts.activeSlug || null, opts.subjectId, opts.topicId);
@@ -815,6 +837,9 @@ const global = window;
             } else if (opts.navMode === 'articles') {
                 renderContentNav('articles', opts.activeSlug || null, opts.subjectId, opts.topicId);
                 showContentTopic('articles', opts.subjectId, opts.topicId);
+            } else if (opts.navMode === 'flashcards') {
+                renderContentNav('flashcards', opts.activeSlug || null, opts.subjectId, opts.topicId);
+                showContentTopic('flashcards', opts.subjectId, opts.topicId);
             } else {
                 renderNav();
                 const firstKey = Object.keys(subjectData)[0];
@@ -835,6 +860,7 @@ const global = window;
         contentTrees.videos = buildContentTree(learningVideos);
         contentTrees.worksheets = buildContentTree(worksheets);
         contentTrees.articles = buildContentTree(articles);
+        contentTrees.flashcards = buildContentTree(flashcardSets);
     }
 
     async function prepareContentSidebar(kind, activeSlug) {
@@ -858,6 +884,10 @@ const global = window;
 
     async function prepareArticlesSidebar(activeSlug) {
         return prepareContentSidebar('articles', activeSlug);
+    }
+
+    async function prepareFlashcardsSidebar(activeSlug) {
+        return prepareContentSidebar('flashcards', activeSlug);
     }
 
     async function prepareVideosSidebar(activeSlug) {
@@ -930,6 +960,14 @@ const global = window;
             }
         });
     }
+    async function renderFlashcardsList(subjectId, topicId) {
+        await renderContentList('flashcards', subjectId, topicId, () => {
+            const titleEl = document.getElementById('page-title');
+            if (titleEl && !titleEl.textContent.trim()) {
+                titleEl.textContent = t('閃卡', 'Flashcards');
+            }
+        });
+    }
 
     function renderLearningToolsList() {
         const container = document.getElementById('card-container');
@@ -983,11 +1021,13 @@ const global = window;
         prepareNotesSidebar,
         prepareWorksheetsSidebar,
         prepareArticlesSidebar,
+        prepareFlashcardsSidebar,
         prepareVideosSidebar,
         prepareSimulationsSidebar,
         getNoteContext,
         getContentContext,
         renderWorksheetsList,
+        renderFlashcardsList,
         renderLearningVideosList,
         renderLearningToolsList,
         renderArticlesList,
@@ -996,6 +1036,7 @@ const global = window;
         getLearningNotes: () => learningNotes,
         getLearningVideos: () => learningVideos,
         getWorksheets: () => worksheets,
+        getFlashcardSets: () => flashcardSets,
     };
 
 export {};

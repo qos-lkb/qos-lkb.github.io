@@ -142,6 +142,7 @@ const global = window;
             || global.ScienceApi.hasPermission('worksheet.manage_any')
             || global.ScienceApi.hasPermission('learning_video.manage_any')
             || global.ScienceApi.hasPermission('question_bank.manage_any')
+            || global.ScienceApi.hasPermission('flashcard_set.manage_any')
             || global.ScienceApi.hasPermission('summer_homework.manage_any');
         const canArticles = global.ScienceApi.hasPermission('article.manage_any')
             || global.ScienceApi.hasPermission('article.manage_own');
@@ -155,6 +156,8 @@ const global = window;
             || global.ScienceApi.hasPermission('question_bank.manage_own')
             || global.ScienceApi.hasPermission('learning_tool.manage_any')
             || global.ScienceApi.hasPermission('learning_tool.manage_own');
+        const canFc = global.ScienceApi.hasPermission('flashcard_set.manage_any')
+            || global.ScienceApi.hasPermission('flashcard_set.manage_own');
         const canCurriculum = global.ScienceApi.hasPermission('topic_item.manage_any')
             || global.ScienceApi.hasPermission('user.manage');
         const canCodespace = canUsers
@@ -211,6 +214,13 @@ const global = window;
                 label: t('試題庫', 'Question banks'),
                 desc: t('維護試題庫與題目資料。', 'Maintain question banks and items.'),
                 tone: 'rose',
+                icon: 'bank',
+            } : null,
+            canFc ? {
+                route: '/admin/flashcard-sets',
+                label: t('閃卡組', 'Flashcard sets'),
+                desc: t('維護閃卡組、翻卡複習與測驗。', 'Maintain flashcard sets for review and quizzes.'),
+                tone: 'orange',
                 icon: 'bank',
             } : null,
             canNotes ? {

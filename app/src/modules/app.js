@@ -7,6 +7,7 @@
         simulations: { zh: '模擬程式', en: 'Simulations' },
         articles: { zh: '科學文章', en: 'Science Articles' },
         learning: { zh: '互動學習工具', en: 'Interactive Tools' },
+        flashcards: { zh: '閃卡', en: 'Flashcards' },
         summer: { zh: '暑期功課', en: 'Summer HW' },
     };
 
@@ -19,6 +20,7 @@
         simulations: '/simulations',
         articles: '/articles',
         learning: '/learning-tools',
+        flashcards: '/flashcards',
     };
 
     /** @type {Record<string, boolean>|null} */
@@ -149,7 +151,7 @@
         }
     }
 
-    const SIDEBAR_TABS = new Set(['courses', 'simulations', 'notes', 'worksheets', 'videos', 'articles']);
+    const SIDEBAR_TABS = new Set(['courses', 'simulations', 'notes', 'worksheets', 'videos', 'articles', 'flashcards']);
 
     function setActiveTab(tab) {
         document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -390,6 +392,23 @@
                 setActiveTab('articles');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderArticlesList();
+            }),
+            '/flashcards': front('/flashcards', async () => {
+                restoreMainShell();
+                setActiveTab('flashcards');
+                if (window.AppCourse) AppCourse.clearCourseContext();
+                await AppCatalog.renderFlashcardsList();
+            }),
+            '/flashcards/:slug': front('/flashcards/', async (slug) => {
+                setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'flashcards');
+                await AppCatalog.loadCatalog({ skipNavRender: true });
+                if (window.AppCourse && AppCourse.isCourseMode()) {
+                    const ctx = AppCourse.getCourseContext();
+                    if (ctx) AppCourse.renderCoursesSidebar(ctx.subjectSlug, ctx.topicSlug);
+                } else {
+                    await AppCatalog.prepareFlashcardsSidebar(slug);
+                }
+                await AppFlashcards.renderFlashcardsSet(slug);
             }),
             '/quiz/:slug': front('/quiz/', async (slug) => {
                 setActiveTab(window.AppCourse && AppCourse.isCourseMode() ? 'courses' : 'learning');
@@ -701,6 +720,21 @@
             '/admin/question-banks/:id/edit': async (id) => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminQuestionBankEdit(id);
+                });
+            },
+            '/admin/flashcard-sets': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminFlashcardSetsList();
+                });
+            },
+            '/admin/flashcard-sets/new': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminFlashcardSetEdit();
+                });
+            },
+            '/admin/flashcard-sets/:id/edit': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminFlashcardSetEdit(id);
                 });
             },
             '/admin/course-curriculum': async () => {

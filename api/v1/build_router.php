@@ -25,6 +25,7 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('GET', '/learning-videos', static fn () => api_handle_learning_videos_list_public($pdo));
     $router->addExact('GET', '/learning-videos/pending', static fn () => api_handle_learning_videos_pending($pdo));
     $router->addExact('GET', '/question-banks', static fn () => api_handle_question_banks_list_public($pdo));
+    $router->addExact('GET', '/flashcard-sets', static fn () => api_handle_flashcard_sets_list_public($pdo));
     $router->addExact('GET', '/summer-homework', static fn () => api_handle_summer_homework_list($pdo));
     $router->addExact('GET', '/review-queue', static fn () => api_handle_review_queue($pdo));
     $router->addExact('POST', '/auth/login', static fn () => api_handle_auth_login($pdo));
@@ -51,6 +52,7 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/worksheets', static fn () => api_handle_admin_worksheets($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-videos', static fn () => api_handle_admin_learning_videos($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/question-banks', static fn () => api_handle_admin_question_banks($pdo, $method()));
+    $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/flashcard-sets', static fn () => api_handle_admin_flashcard_sets($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/summer-homework', static fn () => api_handle_admin_summer_homework($pdo, $method()));
     $router->addMethods(['GET', 'POST'], '/admin/nav-menu', static fn () => api_handle_admin_nav_menu($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/classes', static fn () => api_handle_admin_classes($pdo, $method()));
@@ -136,6 +138,10 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^GET /learning-videos/([^/]+)$', static fn (array $p) => api_handle_learning_video_get($pdo, rawurldecode($p[1])));
     $router->addPattern('^GET /question-banks/([^/]+)/answers$', static fn (array $p) => api_handle_question_bank_answers($pdo, rawurldecode($p[1])));
     $router->addPattern('^GET /question-banks/([^/]+)$', static fn (array $p) => api_handle_question_bank_get($pdo, rawurldecode($p[1])));
+    $router->addPattern('^GET /flashcard-sets/([^/]+)/reviews$', static fn (array $p) => api_handle_flashcard_set_reviews_get($pdo, rawurldecode($p[1])));
+    $router->addPattern('^POST /flashcard-sets/([^/]+)/reviews$', static fn (array $p) => api_handle_flashcard_set_reviews_post($pdo, rawurldecode($p[1])));
+    $router->addPattern('^POST /flashcard-sets/([^/]+)/attempts$', static fn (array $p) => api_handle_flashcard_set_attempts_post($pdo, rawurldecode($p[1])));
+    $router->addPattern('^GET /flashcard-sets/([^/]+)$', static fn (array $p) => api_handle_flashcard_set_get($pdo, rawurldecode($p[1])));
     $router->addPattern('^POST /summer-homework/([^/]+)/submit$', static fn (array $p) => api_handle_summer_homework_submit($pdo, rawurldecode($p[1])));
     $router->addPattern('^GET /summer-homework/([^/]+)$', static fn (array $p) => api_handle_summer_homework_get($pdo, rawurldecode($p[1])));
 
@@ -155,6 +161,8 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^POST /admin/question-banks/(\d+)/media$', static fn (array $p) => api_handle_admin_question_bank_media_upload($pdo, (int) $p[1]));
     $router->addPattern('^DELETE /admin/question-banks/(\d+)/media/(\d+)$', static fn (array $p) => api_handle_admin_question_bank_media_delete($pdo, (int) $p[1], (int) $p[2]));
     $router->addPattern('^GET /admin/question-banks/(\d+)$', static fn (array $p) => api_handle_admin_question_bank_get($pdo, (int) $p[1]));
+    $router->addPattern('^(GET|POST|PUT|DELETE) /admin/flashcard-sets/(\d+)/cards$', static fn (array $p) => api_handle_admin_flashcard_set_cards($pdo, (int) $p[2], strtoupper($p[1])));
+    $router->addPattern('^GET /admin/flashcard-sets/(\d+)$', static fn (array $p) => api_handle_admin_flashcard_set_get($pdo, (int) $p[1]));
 
     $router->addPattern('^GET /courses/([^/]+)$', static fn (array $p) => api_handle_courses_subject($pdo, rawurldecode($p[1])));
     $router->addPattern('^GET /admin/topic-items/(\d+)/available/([^/]+)$', static fn (array $p) => api_handle_topic_items_available($pdo, (int) $p[1], rawurldecode($p[2])));
@@ -219,6 +227,8 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addPattern('^POST /review/learning-videos/(\d+)/reject$', static fn (array $p) => api_handle_review_lv_reject($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/question-banks/(\d+)/publish$', static fn (array $p) => api_handle_review_qb_publish($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/question-banks/(\d+)/reject$', static fn (array $p) => api_handle_review_qb_reject($pdo, (int) $p[1]));
+    $router->addPattern('^POST /review/flashcard-sets/(\d+)/publish$', static fn (array $p) => api_handle_review_fc_publish($pdo, (int) $p[1]));
+    $router->addPattern('^POST /review/flashcard-sets/(\d+)/reject$', static fn (array $p) => api_handle_review_fc_reject($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/summer-homework/(\d+)/publish$', static fn (array $p) => api_handle_review_sh_publish($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/summer-homework/(\d+)/reject$', static fn (array $p) => api_handle_review_sh_reject($pdo, (int) $p[1]));
     $router->addPattern('^POST /review/simulations/(\d+)/publish$', static fn (array $p) => api_handle_review_sim_publish($pdo, (int) $p[1]));

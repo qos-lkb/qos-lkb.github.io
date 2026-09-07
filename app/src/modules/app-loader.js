@@ -44,6 +44,10 @@ const GROUP_LOADERS = {
         await loadMarkdownStack();
         await import('./quiz.js');
     },
+    flashcards: async () => {
+        await loadCatalogStack();
+        await import('./flashcards.js');
+    },
     article: async () => {
         await loadCatalogStack();
         await import('./article.js');
@@ -94,6 +98,7 @@ function resolveAppGroup(path) {
     if (is('/courses') || is('/course')) return 'course';
     if (is('/simulations') || is('/simulation')) return 'catalog';
     if (is('/quiz')) return 'quiz';
+    if (is('/flashcards')) return 'flashcards';
     if (is('/article')) return 'article';
     if (is('/note')) return 'note';
     if (is('/worksheet')) return 'worksheet';

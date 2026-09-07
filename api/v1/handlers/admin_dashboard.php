@@ -28,6 +28,7 @@ function api_handle_admin_dashboard(PDO $pdo): void
         ['key' => 'learning_tools', 'table' => 'learning_tools', 'any' => 'learning_tool.manage_any', 'own' => 'learning_tool.manage_own'],
         ['key' => 'learning_videos', 'table' => 'learning_videos', 'any' => 'learning_video.manage_any', 'own' => 'learning_video.manage_own'],
         ['key' => 'question_banks', 'table' => 'question_banks', 'any' => 'question_bank.manage_any', 'own' => 'question_bank.manage_own'],
+        ['key' => 'flashcard_sets', 'table' => 'flashcard_sets', 'any' => 'flashcard_set.manage_any', 'own' => 'flashcard_set.manage_own'],
         ['key' => 'summer_homework', 'table' => 'summer_homework_items', 'any' => 'summer_homework.manage_any', 'own' => 'summer_homework.manage_own'],
         ['key' => 'simulations', 'table' => 'simulations', 'any' => 'simulation.manage_any', 'own' => 'simulation.manage_own'],
     ];

@@ -144,6 +144,7 @@ const global = window;
             article: { zh: '文章', en: 'Article' },
             learning_tool: { zh: '互動測驗', en: 'Quiz' },
             question_bank: { zh: '試題庫', en: 'Question bank' },
+            flashcard_set: { zh: '閃卡', en: 'Flashcards' },
             video: { zh: '影片', en: 'Video' },
             simulation: { zh: '模擬', en: 'Simulation' },
         };

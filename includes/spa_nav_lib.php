@@ -22,6 +22,7 @@ function spa_nav_item_defs(): array
         ['key' => 'simulations', 'label_zh' => '模擬程式', 'label_en' => 'Simulations'],
         ['key' => 'articles', 'label_zh' => '科學文章', 'label_en' => 'Science Articles'],
         ['key' => 'learning', 'label_zh' => '互動學習工具', 'label_en' => 'Interactive Tools'],
+        ['key' => 'flashcards', 'label_zh' => '閃卡', 'label_en' => 'Flashcards'],
     ];
 }
 

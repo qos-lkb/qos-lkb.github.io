@@ -120,6 +120,14 @@ if (!function_exists('api_handle_admin_question_banks')) {
     function api_handle_admin_question_banks(...$args): void {}
 }
 
+if (!function_exists('api_handle_flashcard_sets_list_public')) {
+    function api_handle_flashcard_sets_list_public(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_flashcard_sets')) {
+    function api_handle_admin_flashcard_sets(...$args): void {}
+}
+
 if (!function_exists('api_handle_admin_summer_homework')) {
     function api_handle_admin_summer_homework(...$args): void {}
 }
@@ -254,6 +262,38 @@ if (!function_exists('api_handle_question_bank_answers')) {
 
 if (!function_exists('api_handle_question_bank_get')) {
     function api_handle_question_bank_get(...$args): void {}
+}
+
+if (!function_exists('api_handle_flashcard_set_get')) {
+    function api_handle_flashcard_set_get(...$args): void {}
+}
+
+if (!function_exists('api_handle_flashcard_set_reviews_get')) {
+    function api_handle_flashcard_set_reviews_get(...$args): void {}
+}
+
+if (!function_exists('api_handle_flashcard_set_reviews_post')) {
+    function api_handle_flashcard_set_reviews_post(...$args): void {}
+}
+
+if (!function_exists('api_handle_flashcard_set_attempts_post')) {
+    function api_handle_flashcard_set_attempts_post(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_flashcard_set_get')) {
+    function api_handle_admin_flashcard_set_get(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_flashcard_set_cards')) {
+    function api_handle_admin_flashcard_set_cards(...$args): void {}
+}
+
+if (!function_exists('api_handle_review_fc_publish')) {
+    function api_handle_review_fc_publish(...$args): void {}
+}
+
+if (!function_exists('api_handle_review_fc_reject')) {
+    function api_handle_review_fc_reject(...$args): void {}
 }
 
 if (!function_exists('api_handle_summer_homework_submit')) {

@@ -41,6 +41,7 @@ const GROUP_LOADERS = {
         import('./admin-question-bank-qbuilder.js'),
         import('./admin-question-bank-edit.js'),
     ]),
+    'fc-edit': () => import('./admin-flashcard-edit.js'),
     curriculum: () => import('./admin-course-curriculum.js'),
     ops: () => import('./admin-ops.js'),
     'danger-ops': async () => {
@@ -83,10 +84,11 @@ function resolveAdminGroup(path) {
     if (/^\/admin\/(articles|learning-videos|learning-notes|simulations)\/(new|\d+\/edit)$/.test(p)) {
         return 'content-edit';
     }
-    if (/^\/admin\/(articles|learning-videos|learning-notes|simulations|question-banks)$/.test(p)) {
+    if (/^\/admin\/(articles|learning-videos|learning-notes|simulations|question-banks|flashcard-sets)$/.test(p)) {
         return 'content-lists';
     }
     if (/^\/admin\/question-banks\/(new|\d+\/edit)$/.test(p)) return 'qb-edit';
+    if (/^\/admin\/flashcard-sets\/(new|\d+\/edit)$/.test(p)) return 'fc-edit';
     if (p.startsWith('/admin/course-curriculum')) return 'curriculum';
     if (p.startsWith('/admin/nav-menu') || p.startsWith('/admin/permissions')) return 'ops';
     if (/^\/admin\/(db-export|db-import|qsis-import|data-dictionary)$/.test(p)) return 'danger-ops';

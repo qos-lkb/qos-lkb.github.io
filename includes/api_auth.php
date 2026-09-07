@@ -213,3 +213,25 @@ function api_can_view_question_bank(array $row, ?array $user): bool
     }
     return api_can_manage_question_bank($row, $user);
 }
+
+function api_can_manage_flashcard_set(array $row, array $user): bool
+{
+    if (user_has_permission('flashcard_set.manage_any')) {
+        return true;
+    }
+    if (!user_has_permission('flashcard_set.manage_own')) {
+        return false;
+    }
+    return $row['owner_user_id'] !== null && (int) $row['owner_user_id'] === $user['id'];
+}
+
+function api_can_view_flashcard_set(array $row, ?array $user): bool
+{
+    if ($row['status'] === 'published') {
+        return true;
+    }
+    if ($user === null) {
+        return false;
+    }
+    return api_can_manage_flashcard_set($row, $user);
+}

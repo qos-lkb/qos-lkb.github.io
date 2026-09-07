@@ -14,6 +14,7 @@ require_once dirname(__DIR__, 2) . '/includes/worksheets_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/learning_videos_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/topic_items_lib.php';
 require_once dirname(__DIR__, 2) . '/includes/question_bank_lib.php';
+require_once dirname(__DIR__, 2) . '/includes/flashcard_sets_lib.php';
 
 $__science_sims_root = dirname(__DIR__, 2);
 $__science_sims_autoload = $__science_sims_root . '/vendor/autoload.php';
@@ -36,6 +37,7 @@ require_once __DIR__ . '/handlers/learning_videos.php';
 require_once __DIR__ . '/handlers/topic_items.php';
 require_once __DIR__ . '/handlers/review.php';
 require_once __DIR__ . '/handlers/question_bank.php';
+require_once __DIR__ . '/handlers/flashcard_sets.php';
 require_once __DIR__ . '/handlers/students.php';
 require_once __DIR__ . '/handlers/teacher.php';
 require_once __DIR__ . '/handlers/worksheet_assignments.php';

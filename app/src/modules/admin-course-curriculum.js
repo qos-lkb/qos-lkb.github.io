@@ -28,6 +28,8 @@ const global = window;
         worksheet: () => t('工作紙', 'Worksheet'),
         article: () => t('科學文章', 'Article'),
         learning_tool: () => t('互動測驗', 'Quiz'),
+        question_bank: () => t('試題庫', 'Question bank'),
+        flashcard_set: () => t('閃卡', 'Flashcards'),
         video: () => t('影片', 'Video'),
     };
 

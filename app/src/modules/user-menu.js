@@ -361,6 +361,7 @@ const LANG_KEY = 'science_sims_ui_lang';
             || perms.includes('learning_note.manage_own') || perms.includes('learning_note.manage_any')
             || perms.includes('learning_video.manage_own') || perms.includes('learning_video.manage_any')
             || perms.includes('question_bank.manage_own') || perms.includes('question_bank.manage_any')
+            || perms.includes('flashcard_set.manage_own') || perms.includes('flashcard_set.manage_any')
             || perms.includes('learning_tool.manage_own') || perms.includes('learning_tool.manage_any')
             || perms.includes('summer_homework.manage_own') || perms.includes('summer_homework.manage_any');
         const showAdminHome = canAdmin || canClass || canContent;

@@ -32,6 +32,7 @@ const global = window;
             || api.hasPermission('worksheet.manage_any')
             || api.hasPermission('learning_video.manage_any')
             || api.hasPermission('question_bank.manage_any')
+            || api.hasPermission('flashcard_set.manage_any')
             || api.hasPermission('summer_homework.manage_any')
             || api.hasPermission('simulation.manage_any');
     }
@@ -84,6 +85,12 @@ const global = window;
             labelEn: 'Question bank',
             reviewPath: 'question-banks',
             edit: (id) => ({ spa: '/admin/question-banks/' + id + '/edit' }),
+        },
+        flashcard_set: {
+            labelZh: '閃卡組',
+            labelEn: 'Flashcard set',
+            reviewPath: 'flashcard-sets',
+            edit: (id) => ({ spa: '/admin/flashcard-sets/' + id + '/edit' }),
         },
         summer_homework: {
             labelZh: '暑期功課',
@@ -175,7 +182,7 @@ const global = window;
                     <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <button type="button" id="admin-review-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
                 </div>
-                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('審核待發佈的學習筆記、工作紙、文章、影片、試題庫、暑期功課與互動學習工具。', 'Review pending notes, worksheets, articles, videos, question banks, summer homework, and learning tools.'))}</p>
+                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('審核待發佈的學習筆記、工作紙、文章、影片、試題庫、閃卡組、暑期功課與互動學習工具。', 'Review pending notes, worksheets, articles, videos, question banks, flashcard sets, summer homework, and learning tools.'))}</p>
                 <p id="admin-review-flash" class="text-sm mb-3 hidden"></p>
                 <div id="admin-review-list" class="space-y-3">
                     ${cards || `<p class="text-slate-500">${escapeHtml(t('目前沒有待審核項目。', 'No items pending review.'))}</p>`}

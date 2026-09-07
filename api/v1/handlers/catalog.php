@@ -10,6 +10,7 @@ require_once dirname(__DIR__, 3) . '/includes/web_base.php';
 require_once dirname(__DIR__, 3) . '/includes/learning_tools_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/lt_qb_migrate_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/question_bank_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/flashcard_sets_lib.php';
 
 function api_catalog_base(): string
 {
@@ -80,6 +81,11 @@ function api_handle_catalog(PDO $pdo): void
         $videoRows = [];
     }
     $qbRows = qb_fetch_published($pdo);
+    try {
+        $fcRows = fc_fetch_published($pdo);
+    } catch (Throwable $e) {
+        $fcRows = [];
+    }
 
     api_json_ok([
         'simulations' => $struct,
@@ -105,6 +111,7 @@ function api_handle_catalog(PDO $pdo): void
             unset($out['body_zh'], $out['body_en']);
             return $out;
         }, $wsRows),
+        'flashcard_sets' => array_map('fc_public_row', $fcRows),
         'user' => api_user_payload(),
         'site_base' => web_base_path(),
     ]);

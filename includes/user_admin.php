@@ -337,6 +337,8 @@ function admin_permission_labels(): array
         'worksheet.submit_own' => '完成及呈交工作紙',
         'question_bank.manage_any' => '管理全部試題庫',
         'question_bank.manage_own' => '管理自己的試題庫',
+        'flashcard_set.manage_any' => '管理全部閃卡組',
+        'flashcard_set.manage_own' => '管理自己的閃卡組',
         'learning_video.manage_any' => '管理全部學習影片',
         'learning_video.manage_own' => '管理自己的學習影片',
         'topic_item.manage_any' => '管理自學課程編排',

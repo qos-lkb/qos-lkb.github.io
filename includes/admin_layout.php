@@ -77,6 +77,8 @@ function admin_has_any_access(): bool
         || user_has_permission('topic_item.manage_any')
         || user_has_permission('question_bank.manage_any')
         || user_has_permission('question_bank.manage_own')
+        || user_has_permission('flashcard_set.manage_any')
+        || user_has_permission('flashcard_set.manage_own')
         || user_has_permission('class.manage_own')
         || user_has_permission('class.manage_any')
         || user_has_permission('summer_homework.manage_any')
@@ -100,6 +102,7 @@ function admin_can_review(): bool
         || user_has_permission('worksheet.manage_any')
         || user_has_permission('learning_video.manage_any')
         || user_has_permission('question_bank.manage_any')
+        || user_has_permission('flashcard_set.manage_any')
         || user_has_permission('summer_homework.manage_any');
 }
 
@@ -143,6 +146,11 @@ function admin_menu_sections(): array
         $contentItems[] = ['key' => 'question_banks', 'label' => '試題庫', 'href' => '../app/admin/question-banks'];
     } elseif (user_has_permission('question_bank.manage_own') || user_has_permission('learning_tool.manage_own')) {
         $contentItems[] = ['key' => 'question_banks', 'label' => '我的試題庫', 'href' => '../app/admin/question-banks', 'accent' => 'indigo'];
+    }
+    if (user_has_permission('flashcard_set.manage_any')) {
+        $contentItems[] = ['key' => 'flashcard_sets', 'label' => '閃卡組', 'href' => '../app/admin/flashcard-sets'];
+    } elseif (user_has_permission('flashcard_set.manage_own')) {
+        $contentItems[] = ['key' => 'flashcard_sets', 'label' => '我的閃卡組', 'href' => '../app/admin/flashcard-sets', 'accent' => 'indigo'];
     }
     if (user_has_permission('learning_video.manage_any')) {
         $contentItems[] = ['key' => 'learning_videos', 'label' => '學習影片', 'href' => '../app/admin/learning-videos'];
@@ -231,6 +239,9 @@ function admin_dashboard_stats(PDO $pdo): array
     }
     if (user_has_permission('question_bank.manage_any')) {
         $tables[] = 'question_banks';
+    }
+    if (user_has_permission('flashcard_set.manage_any')) {
+        $tables[] = 'flashcard_sets';
     }
     if (user_has_permission('summer_homework.manage_any')) {
         $tables[] = 'summer_homework_items';

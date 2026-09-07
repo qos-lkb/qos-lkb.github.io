@@ -31,6 +31,7 @@ final class MigrationRunner
             'schema_upgrade_all.sql',
             'schema_spa_nav_order.sql',
             'schema_simulations_review.sql',
+            'schema_flashcards.sql',
         ];
     }
 
