@@ -23,6 +23,82 @@ const global = window;
         if (sidebar) sidebar.style.display = 'none';
     }
 
+    function showPageTitle(text) {
+        const title = document.getElementById('page-title');
+        if (!title) return;
+        title.textContent = text;
+        const titleWrap = title.closest('.mb-6');
+        if (titleWrap) titleWrap.hidden = false;
+    }
+
+    let subjectsUiSelectedId = 0;
+
+    function collectRowIds(listEl, rowSelector) {
+        return Array.from(listEl.querySelectorAll(rowSelector))
+            .map((row) => Number(row.getAttribute('data-id') || 0))
+            .filter((id) => id > 0);
+    }
+
+    function wireDragList(listEl, rowSelector, handleSelector, onReorder) {
+        if (!listEl) return;
+        if (typeof listEl._unwireDrag === 'function') listEl._unwireDrag();
+        let dragged = null;
+
+        function dragAfter(y) {
+            const els = Array.prototype.slice.call(listEl.querySelectorAll(rowSelector + ':not(.dragging)'));
+            return els.reduce((closest, child) => {
+                const boxRect = child.getBoundingClientRect();
+                const offset = y - boxRect.top - boxRect.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: child };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+        }
+
+        const onEnter = (e) => e.preventDefault();
+        const onOver = (e) => {
+            e.preventDefault();
+            if (!dragged) return;
+            const after = dragAfter(e.clientY);
+            if (after == null) listEl.appendChild(dragged);
+            else listEl.insertBefore(dragged, after);
+        };
+        listEl.addEventListener('dragenter', onEnter);
+        listEl.addEventListener('dragover', onOver);
+        listEl._unwireDrag = () => {
+            listEl.removeEventListener('dragenter', onEnter);
+            listEl.removeEventListener('dragover', onOver);
+            listEl._unwireDrag = null;
+        };
+
+        listEl.querySelectorAll(rowSelector).forEach((row) => {
+            const handle = row.querySelector(handleSelector);
+            if (!handle) return;
+            handle.addEventListener('mousedown', () => {
+                row.setAttribute('draggable', 'true');
+            });
+            row.addEventListener('dragend', async () => {
+                row.removeAttribute('draggable');
+                row.classList.remove('dragging', 'opacity-60');
+                if (dragged === row) dragged = null;
+                await onReorder();
+            });
+            row.addEventListener('dragstart', (e) => {
+                if (!row.getAttribute('draggable')) {
+                    e.preventDefault();
+                    return;
+                }
+                dragged = row;
+                row.classList.add('dragging', 'opacity-60');
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', row.getAttribute('data-id') || '');
+                }
+            });
+        });
+    }
+
     const DASH_ICONS = {
         course: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 6h16M4 10h16M4 14h10M4 18h6"/>',
         summer: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M8.05 15.95l-1.414 1.414m0-9.728L8.05 8.05m9.9 9.9l-1.414-1.414M12 8a4 4 0 100 8 4 4 0 000-8z"/>',
@@ -398,9 +474,8 @@ const global = window;
 
     async function renderAdminSubjects() {
         setShell();
-        const title = document.getElementById('page-title');
         const box = document.getElementById('card-container');
-        if (title) title.textContent = t('科目與單元', 'Subjects & topics');
+        showPageTitle(t('科目與單元', 'Subjects & topics'));
 
         if (!global.ScienceApi.getUser()) {
             global.AppRouter.navigate('/login');
@@ -412,66 +487,435 @@ const global = window;
         }
 
         box.innerHTML = `<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
+
+        let subjects = [];
         try {
-            const list = await global.ScienceApi.apiFetch('/admin/subjects');
-            const rows = (list || []).map((s) => {
-                const topics = (s.topics || []).map((tp) =>
-                    `<li class="text-sm text-slate-600">${escapeHtml(tp.name_zh || tp.name_en)} <span class="text-slate-400">(${escapeHtml(tp.slug)})</span></li>`
-                ).join('');
-                return `<article class="rounded-xl border border-slate-200 bg-white p-4">
-                    <h2 class="font-bold text-slate-900">${escapeHtml(s.name_zh || s.name_en)}
-                        <span class="text-slate-400 font-normal text-sm">/${escapeHtml(s.name_en || '')}</span>
-                    </h2>
-                    <p class="text-xs text-slate-400 mb-2">slug: ${escapeHtml(s.slug)}</p>
-                    <ul class="list-disc pl-5 space-y-0.5">${topics || `<li class="text-slate-400 text-sm">${escapeHtml(t('尚無單元', 'No topics'))}</li>`}</ul>
-                </article>`;
-            }).join('');
-
-            box.innerHTML = `
-                <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    <button type="button" id="admin-subj-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
-                </div>
-                <form id="admin-subj-create" class="mb-6 grid sm:grid-cols-3 gap-2 items-end bg-white border border-slate-200 rounded-xl p-4">
-                    <label class="text-sm">${escapeHtml(t('英文名稱', 'English name'))}
-                        <input name="name_en" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
-                    </label>
-                    <label class="text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
-                        <input name="name_zh" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
-                    </label>
-                    <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增科目', 'Add subject'))}</button>
-                </form>
-                <p id="admin-subj-msg" class="hidden text-sm mb-3"></p>
-                <div class="space-y-3">${rows || `<p class="text-slate-500">${escapeHtml(t('尚無科目', 'No subjects'))}</p>`}</div>`;
-
-            document.getElementById('admin-subj-reload').onclick = () => renderAdminSubjects();
-            document.querySelector('[data-spa-nav="/admin"]').addEventListener('click', (e) => {
-                e.preventDefault();
-                global.AppRouter.navigate('/admin');
-            });
-            document.getElementById('admin-subj-create').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const fd = new FormData(e.target);
-                const msg = document.getElementById('admin-subj-msg');
-                try {
-                    await global.ScienceApi.apiFetch('/admin/subjects', {
-                        method: 'POST',
-                        body: {
-                            name_en: String(fd.get('name_en') || ''),
-                            name_zh: String(fd.get('name_zh') || ''),
-                        },
-                    });
-                    msg.textContent = t('已新增。', 'Created.');
-                    msg.className = 'text-sm mb-3 text-emerald-700';
-                    await renderAdminSubjects();
-                } catch (err) {
-                    msg.textContent = err.message || t('儲存失敗', 'Save failed');
-                    msg.className = 'text-sm mb-3 text-red-600';
-                }
-            });
+            subjects = await global.ScienceApi.apiFetch('/admin/subjects');
+            if (!Array.isArray(subjects)) subjects = [];
         } catch (err) {
             box.innerHTML = `<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
+            return;
         }
+
+        if (!subjects.some((s) => Number(s.id) === Number(subjectsUiSelectedId))) {
+            subjectsUiSelectedId = subjects.length ? Number(subjects[0].id) : 0;
+        }
+
+        let editingSubjectId = 0;
+        let editingTopicId = 0;
+
+        box.innerHTML = `
+            <style>
+                .subj-layout{display:grid;grid-template-columns:minmax(280px,320px) 1fr;gap:1rem;align-items:start}
+                @media(max-width:768px){.subj-layout{grid-template-columns:1fr}}
+                .subj-row.active{background:rgb(238 242 255);border-color:rgb(129 140 248)}
+                .subj-row.dragging,.topic-row.dragging{opacity:.6}
+            </style>
+            <div class="mb-4 flex flex-wrap gap-3 items-center">
+                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                <a href="${escapeHtml(spaHref('/admin/course-curriculum'))}" data-spa-nav="/admin/course-curriculum" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('自學課程編排', 'Course curriculum'))}</a>
+                <button type="button" id="admin-subj-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
+            </div>
+            <p class="text-sm text-slate-600 mb-3">${escapeHtml(t('選擇科目以管理其單元。拖曳 ⠿ 調整次序；刪除須先清空下層內容。', 'Select a subject to manage its topics. Drag ⠿ to reorder; delete only after clearing children.'))}</p>
+            <p id="admin-subj-msg" class="hidden text-sm mb-3"></p>
+            <div class="subj-layout">
+                <aside class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">${escapeHtml(t('科目', 'Subjects'))}</h2>
+                    <form id="admin-subj-create" class="space-y-2 mb-4 pb-4 border-b border-slate-100">
+                        <label class="block text-sm">${escapeHtml(t('英文名稱', 'English name'))}
+                            <input name="name_en" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                        </label>
+                        <label class="block text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
+                            <input name="name_zh" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                        </label>
+                        <button type="submit" class="w-full rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增科目', 'Add subject'))}</button>
+                    </form>
+                    <div id="admin-subj-list" class="space-y-2 max-h-[65vh] overflow-y-auto"></div>
+                </aside>
+                <section class="bg-white rounded-xl border border-slate-200 p-4 md:p-6 shadow-sm min-h-[420px]">
+                    <div id="admin-topic-empty" class="text-slate-500 text-sm py-12 text-center">${escapeHtml(t('請先新增或選擇科目。', 'Create or select a subject first.'))}</div>
+                    <div id="admin-topic-pane" class="hidden">
+                        <div class="flex flex-wrap items-start justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+                            <div>
+                                <h2 id="admin-topic-title" class="text-lg font-bold text-slate-900"></h2>
+                                <p id="admin-topic-meta" class="text-xs text-slate-500 mt-1"></p>
+                            </div>
+                        </div>
+                        <form id="admin-topic-create" class="mb-5 grid sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                            <label class="text-sm">${escapeHtml(t('英文名稱', 'English name'))}
+                                <input name="name_en" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                            </label>
+                            <label class="text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
+                                <input name="name_zh" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                            </label>
+                            <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增單元', 'Add topic'))}</button>
+                        </form>
+                        <div id="admin-topic-list" class="space-y-2"></div>
+                    </div>
+                </section>
+            </div>`;
+
+        const flash = document.getElementById('admin-subj-msg');
+        const subjectList = document.getElementById('admin-subj-list');
+        const topicEmpty = document.getElementById('admin-topic-empty');
+        const topicPane = document.getElementById('admin-topic-pane');
+        const topicTitle = document.getElementById('admin-topic-title');
+        const topicMeta = document.getElementById('admin-topic-meta');
+        const topicList = document.getElementById('admin-topic-list');
+
+        function showFlash(msg, isError) {
+            flash.textContent = msg;
+            flash.className = isError ? 'text-sm mb-3 text-red-600' : 'text-sm mb-3 text-emerald-700';
+            flash.classList.remove('hidden');
+            clearTimeout(flash._t);
+            flash._t = setTimeout(() => flash.classList.add('hidden'), 4000);
+        }
+
+        function selectedSubject() {
+            return subjects.find((s) => Number(s.id) === Number(subjectsUiSelectedId)) || null;
+        }
+
+        function subjectOptionsHtml(currentId) {
+            return subjects.map((s) => {
+                const sel = Number(s.id) === Number(currentId) ? ' selected' : '';
+                return `<option value="${Number(s.id)}"${sel}>${escapeHtml(s.name_zh || s.name_en || '')}</option>`;
+            }).join('');
+        }
+
+        function paintSubjects() {
+            if (!subjects.length) {
+                subjectList.innerHTML = `<p class="text-slate-500 text-sm px-1">${escapeHtml(t('尚無科目', 'No subjects'))}</p>`;
+                return;
+            }
+            subjectList.innerHTML = subjects.map((s) => {
+                const id = Number(s.id);
+                const nTopics = (s.topics || []).length;
+                const active = id === Number(subjectsUiSelectedId) ? ' active' : '';
+                if (editingSubjectId === id) {
+                    return `<form class="subj-row subj-edit-form rounded-lg border border-indigo-300 bg-indigo-50/40 p-3 space-y-2" data-id="${id}">
+                        <label class="block text-sm">${escapeHtml(t('英文名稱', 'English name'))}
+                            <input name="name_en" required value="${escapeHtml(s.name_en || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                        </label>
+                        <label class="block text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
+                            <input name="name_zh" value="${escapeHtml(s.name_zh || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                        </label>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-1.5 text-sm font-semibold">${escapeHtml(t('儲存', 'Save'))}</button>
+                            <button type="button" class="subj-edit-cancel text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('取消', 'Cancel'))}</button>
+                        </div>
+                    </form>`;
+                }
+                return `<div class="subj-row${active} rounded-lg border border-slate-200 px-2 py-2 flex gap-2 items-start cursor-pointer hover:bg-slate-50" data-id="${id}">
+                    <span class="subj-drag-handle cursor-grab select-none text-slate-400 hover:text-slate-600 pt-1" title="${escapeHtml(t('拖曳排序', 'Drag to reorder'))}" aria-label="${escapeHtml(t('拖曳排序', 'Drag to reorder'))}">⠿</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-slate-900 truncate">${escapeHtml(s.name_zh || s.name_en || '')}</div>
+                        <div class="text-xs text-slate-500 truncate">${escapeHtml(s.name_en || '')} · ${escapeHtml(s.slug || '')} · ${nTopics}${escapeHtml(t(' 個單元', ' topics'))}</div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                        <button type="button" class="subj-edit text-xs text-indigo-700 hover:underline" data-id="${id}">${escapeHtml(t('編輯', 'Edit'))}</button>
+                        <button type="button" class="subj-del text-xs text-red-600 hover:underline" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            subjectList.querySelectorAll('.subj-row:not(.subj-edit-form)').forEach((row) => {
+                row.addEventListener('click', (e) => {
+                    if (e.target.closest('button, input, select, textarea, .subj-drag-handle')) return;
+                    subjectsUiSelectedId = Number(row.getAttribute('data-id') || 0);
+                    editingTopicId = 0;
+                    paintSubjects();
+                    paintTopics();
+                });
+            });
+            subjectList.querySelectorAll('.subj-edit').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    editingSubjectId = Number(btn.getAttribute('data-id') || 0);
+                    subjectsUiSelectedId = editingSubjectId;
+                    paintSubjects();
+                    paintTopics();
+                });
+            });
+            subjectList.querySelectorAll('.subj-del').forEach((btn) => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const id = Number(btn.getAttribute('data-id') || 0);
+                    const subj = subjects.find((s) => Number(s.id) === id);
+                    const label = subj ? (subj.name_zh || subj.name_en || '#' + id) : ('#' + id);
+                    if (!window.confirm(t(`確定刪除科目「${label}」？須先移除其單元與模擬。`, `Delete subject “${label}”? Remove its topics and simulations first.`))) {
+                        return;
+                    }
+                    try {
+                        await global.ScienceApi.apiFetch('/admin/subjects/' + id, { method: 'DELETE' });
+                        if (Number(subjectsUiSelectedId) === id) subjectsUiSelectedId = 0;
+                        showFlash(t('已刪除科目。', 'Subject deleted.'), false);
+                        await reload(false);
+                    } catch (err) {
+                        showFlash(err.message || t('刪除失敗', 'Delete failed'), true);
+                    }
+                });
+            });
+            subjectList.querySelectorAll('.subj-edit-form').forEach((form) => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const id = Number(form.getAttribute('data-id') || 0);
+                    const fd = new FormData(form);
+                    try {
+                        await global.ScienceApi.apiFetch('/admin/subjects/' + id, {
+                            method: 'PATCH',
+                            body: {
+                                name_en: String(fd.get('name_en') || ''),
+                                name_zh: String(fd.get('name_zh') || ''),
+                            },
+                        });
+                        editingSubjectId = 0;
+                        showFlash(t('已更新科目。', 'Subject updated.'), false);
+                        await reload(false);
+                    } catch (err) {
+                        showFlash(err.message || t('儲存失敗', 'Save failed'), true);
+                    }
+                });
+                form.querySelector('.subj-edit-cancel')?.addEventListener('click', () => {
+                    editingSubjectId = 0;
+                    paintSubjects();
+                });
+            });
+
+            wireDragList(subjectList, '.subj-row:not(.subj-edit-form)', '.subj-drag-handle', async () => {
+                const order = collectRowIds(subjectList, '.subj-row:not(.subj-edit-form)');
+                if (order.length !== subjects.length) return;
+                try {
+                    await global.ScienceApi.apiFetch('/admin/subjects/reorder', {
+                        method: 'POST',
+                        body: { order },
+                    });
+                    showFlash(t('已更新科目排序。', 'Subject order updated.'), false);
+                    await reload(false);
+                } catch (err) {
+                    showFlash(err.message || t('儲存排序失敗', 'Failed to save order'), true);
+                    await reload(false);
+                }
+            });
+        }
+
+        function paintTopics() {
+            const subj = selectedSubject();
+            if (!subj) {
+                topicPane.classList.add('hidden');
+                topicEmpty.classList.remove('hidden');
+                return;
+            }
+            topicEmpty.classList.add('hidden');
+            topicPane.classList.remove('hidden');
+            topicTitle.textContent = subj.name_zh || subj.name_en || '';
+            topicMeta.textContent = (subj.name_en || '') + ' · slug: ' + (subj.slug || '');
+
+            const topics = subj.topics || [];
+            if (!topics.length && editingTopicId === 0) {
+                topicList.innerHTML = `<p class="text-slate-500 text-sm py-4">${escapeHtml(t('此科目尚無單元。', 'No topics in this subject.'))}</p>`;
+            } else {
+                topicList.innerHTML = topics.map((tp) => {
+                    const id = Number(tp.id);
+                    if (editingTopicId === id) {
+                        return `<form class="topic-row topic-edit-form rounded-lg border border-indigo-300 bg-indigo-50/40 p-3 grid sm:grid-cols-2 gap-2" data-id="${id}">
+                            <label class="text-sm">${escapeHtml(t('英文名稱', 'English name'))}
+                                <input name="name_en" required value="${escapeHtml(tp.name_en || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                            </label>
+                            <label class="text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
+                                <input name="name_zh" value="${escapeHtml(tp.name_zh || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+                            </label>
+                            <label class="text-sm sm:col-span-2">${escapeHtml(t('所屬科目', 'Subject'))}
+                                <select name="subject_id" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">${subjectOptionsHtml(tp.subject_id || subj.id)}</select>
+                            </label>
+                            <div class="sm:col-span-2 flex flex-wrap gap-2">
+                                <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-1.5 text-sm font-semibold">${escapeHtml(t('儲存', 'Save'))}</button>
+                                <button type="button" class="topic-edit-cancel text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('取消', 'Cancel'))}</button>
+                            </div>
+                        </form>`;
+                    }
+                    return `<div class="topic-row rounded-lg border border-slate-200 px-3 py-2 flex gap-2 items-start" data-id="${id}">
+                        <span class="topic-drag-handle cursor-grab select-none text-slate-400 hover:text-slate-600 pt-1" title="${escapeHtml(t('拖曳排序', 'Drag to reorder'))}" aria-label="${escapeHtml(t('拖曳排序', 'Drag to reorder'))}">⠿</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-slate-900">${escapeHtml(tp.name_zh || tp.name_en || '')}</div>
+                            <div class="text-xs text-slate-500">${escapeHtml(tp.name_en || '')} · ${escapeHtml(tp.slug || '')}</div>
+                        </div>
+                        <select class="topic-move max-w-[10rem] rounded border border-slate-300 px-2 py-1 text-xs" data-id="${id}" data-current="${Number(tp.subject_id || subj.id)}" aria-label="${escapeHtml(t('所屬科目', 'Subject'))}" title="${escapeHtml(t('移至其他科目', 'Move to another subject'))}">
+                            ${subjectOptionsHtml(tp.subject_id || subj.id)}
+                        </select>
+                        <button type="button" class="topic-edit text-xs text-indigo-700 hover:underline shrink-0" data-id="${id}">${escapeHtml(t('編輯', 'Edit'))}</button>
+                        <button type="button" class="topic-del text-xs text-red-600 hover:underline shrink-0" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>
+                    </div>`;
+                }).join('');
+            }
+
+            topicList.querySelectorAll('.topic-edit').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    editingTopicId = Number(btn.getAttribute('data-id') || 0);
+                    paintTopics();
+                });
+            });
+            topicList.querySelectorAll('.topic-del').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const id = Number(btn.getAttribute('data-id') || 0);
+                    const tp = topics.find((x) => Number(x.id) === id);
+                    const label = tp ? (tp.name_zh || tp.name_en || '#' + id) : ('#' + id);
+                    if (!window.confirm(t(`確定刪除單元「${label}」？須無關聯模擬。`, `Delete topic “${label}”? It must not be used by simulations.`))) {
+                        return;
+                    }
+                    try {
+                        await global.ScienceApi.apiFetch('/admin/topics/' + id, { method: 'DELETE' });
+                        showFlash(t('已刪除單元。', 'Topic deleted.'), false);
+                        await reload(false);
+                    } catch (err) {
+                        showFlash(err.message || t('刪除失敗', 'Delete failed'), true);
+                    }
+                });
+            });
+            topicList.querySelectorAll('.topic-move').forEach((sel) => {
+                sel.addEventListener('change', async () => {
+                    const id = Number(sel.getAttribute('data-id') || 0);
+                    const nextSid = Number(sel.value || 0);
+                    const current = Number(sel.getAttribute('data-current') || 0);
+                    if (!id || nextSid === current) return;
+                    const tp = topics.find((x) => Number(x.id) === id);
+                    if (!tp) return;
+                    try {
+                        await global.ScienceApi.apiFetch('/admin/topics/' + id, {
+                            method: 'PATCH',
+                            body: {
+                                subject_id: nextSid,
+                                name_en: tp.name_en || '',
+                                name_zh: tp.name_zh || '',
+                            },
+                        });
+                        subjectsUiSelectedId = nextSid;
+                        showFlash(t('已移動單元。', 'Topic moved.'), false);
+                        await reload(false);
+                    } catch (err) {
+                        sel.value = String(current);
+                        showFlash(err.message || t('儲存失敗', 'Save failed'), true);
+                    }
+                });
+            });
+            topicList.querySelectorAll('.topic-edit-form').forEach((form) => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const id = Number(form.getAttribute('data-id') || 0);
+                    const fd = new FormData(form);
+                    const nextSid = Number(fd.get('subject_id') || 0);
+                    try {
+                        await global.ScienceApi.apiFetch('/admin/topics/' + id, {
+                            method: 'PATCH',
+                            body: {
+                                subject_id: nextSid,
+                                name_en: String(fd.get('name_en') || ''),
+                                name_zh: String(fd.get('name_zh') || ''),
+                            },
+                        });
+                        editingTopicId = 0;
+                        if (nextSid) subjectsUiSelectedId = nextSid;
+                        showFlash(t('已更新單元。', 'Topic updated.'), false);
+                        await reload(false);
+                    } catch (err) {
+                        showFlash(err.message || t('儲存失敗', 'Save failed'), true);
+                    }
+                });
+                form.querySelector('.topic-edit-cancel')?.addEventListener('click', () => {
+                    editingTopicId = 0;
+                    paintTopics();
+                });
+            });
+
+            wireDragList(topicList, '.topic-row:not(.topic-edit-form)', '.topic-drag-handle', async () => {
+                const sid = Number(subjectsUiSelectedId);
+                const order = collectRowIds(topicList, '.topic-row:not(.topic-edit-form)');
+                if (!sid || order.length !== (subj.topics || []).length) return;
+                try {
+                    await global.ScienceApi.apiFetch('/admin/subjects/' + sid + '/topics/reorder', {
+                        method: 'POST',
+                        body: { order },
+                    });
+                    showFlash(t('已更新單元排序。', 'Topic order updated.'), false);
+                    await reload(false);
+                } catch (err) {
+                    showFlash(err.message || t('儲存排序失敗', 'Failed to save order'), true);
+                    await reload(false);
+                }
+            });
+        }
+
+        async function reload(showLoading) {
+            if (showLoading) {
+                box.innerHTML = `<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
+                await renderAdminSubjects();
+                return;
+            }
+            try {
+                const list = await global.ScienceApi.apiFetch('/admin/subjects');
+                subjects = Array.isArray(list) ? list : [];
+                if (!subjects.some((s) => Number(s.id) === Number(subjectsUiSelectedId))) {
+                    subjectsUiSelectedId = subjects.length ? Number(subjects[0].id) : 0;
+                }
+                editingSubjectId = 0;
+                editingTopicId = 0;
+                paintSubjects();
+                paintTopics();
+            } catch (err) {
+                showFlash(err.message || t('載入失敗', 'Load failed'), true);
+            }
+        }
+
+        box.querySelectorAll('[data-spa-nav]').forEach((a) => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                global.AppRouter.navigate(a.getAttribute('data-spa-nav'));
+            });
+        });
+        document.getElementById('admin-subj-reload').addEventListener('click', () => {
+            void reload(true);
+        });
+        document.getElementById('admin-subj-create').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            try {
+                const created = await global.ScienceApi.apiFetch('/admin/subjects', {
+                    method: 'POST',
+                    body: {
+                        name_en: String(fd.get('name_en') || ''),
+                        name_zh: String(fd.get('name_zh') || ''),
+                    },
+                });
+                if (created && created.id) subjectsUiSelectedId = Number(created.id);
+                e.target.reset();
+                showFlash(t('已新增科目。', 'Subject created.'), false);
+                await reload(false);
+            } catch (err) {
+                showFlash(err.message || t('儲存失敗', 'Save failed'), true);
+            }
+        });
+        document.getElementById('admin-topic-create').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const sid = Number(subjectsUiSelectedId);
+            if (!sid) return;
+            const fd = new FormData(e.target);
+            try {
+                await global.ScienceApi.apiFetch('/admin/subjects/' + sid + '/topics', {
+                    method: 'POST',
+                    body: {
+                        name_en: String(fd.get('name_en') || ''),
+                        name_zh: String(fd.get('name_zh') || ''),
+                    },
+                });
+                e.target.reset();
+                showFlash(t('已新增單元。', 'Topic created.'), false);
+                await reload(false);
+            } catch (err) {
+                showFlash(err.message || t('儲存失敗', 'Save failed'), true);
+            }
+        });
+
+        paintSubjects();
+        paintTopics();
     }
 
     // Must merge — replacing AppAdmin wipes other route renderers (students/summer/…).
