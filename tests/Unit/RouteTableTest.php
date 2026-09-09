@@ -22,7 +22,12 @@ final class RouteTableTest extends TestCase
         self::assertContains('GET /catalog', $router->exactKeys());
         self::assertContains('POST /auth/dev-login', $router->exactKeys());
         self::assertNotContains('POST /auth/change-password', $router->exactKeys());
-        self::assertContains('GET /admin/subjects', $router->exactKeys());
+        self::assertContains('GET /admin/db/backups', $router->exactKeys());
+        self::assertContains('POST /admin/db/backups', $router->exactKeys());
+        self::assertContains('POST /admin/db/backups/delete', $router->exactKeys());
+        $hitBackup = $router->match('GET', '/admin/db/backups/science_sims_20260909_151421.sql');
+        self::assertNotNull($hitBackup);
+        self::assertSame('science_sims_20260909_151421.sql', $hitBackup['params'][1] ?? null);
         self::assertContains('POST /admin/subjects', $router->exactKeys());
         self::assertContains('POST /admin/subjects/reorder', $router->exactKeys());
         self::assertGreaterThanOrEqual(40, count($router->exactKeys()));

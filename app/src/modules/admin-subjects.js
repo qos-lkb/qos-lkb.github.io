@@ -299,18 +299,11 @@ const global = window;
                 icon: 'code',
             } : null,
             canUsers ? {
-                route: '/admin/db-export',
-                label: t('匯出資料庫', 'Export DB'),
-                desc: t('下載完整資料庫 SQL 備份。', 'Download a full database SQL dump.'),
+                route: '/admin/db',
+                label: t('資料庫管理', 'Database'),
+                desc: t('一鍵備份至 backup/、下載 SQL，以及匯入或刪除備份檔。', 'Back up to backup/, download SQL, import or delete dump files.'),
                 tone: 'teal',
-                icon: 'export',
-            } : null,
-            canUsers ? {
-                route: '/admin/db-import',
-                label: t('匯入資料庫', 'Import DB'),
-                desc: t('上載 SQL 還原或取代資料庫。', 'Upload SQL to restore or replace the database.'),
-                tone: 'orange',
-                icon: 'import',
+                icon: 'db',
             } : null,
             canUsers ? {
                 route: '/admin/qsis-import',

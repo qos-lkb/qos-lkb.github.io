@@ -752,15 +752,16 @@
                     if (window.AppAdmin) await AppAdmin.renderAdminPermissions();
                 });
             },
-            '/admin/db-export': async () => {
+            '/admin/db': async () => {
                 await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminDbExport();
+                    if (window.AppAdmin) await AppAdmin.renderAdminDbManage();
                 });
             },
+            '/admin/db-export': async () => {
+                await AppRouter.navigate('/admin/db', true);
+            },
             '/admin/db-import': async () => {
-                await runAdminRoute(async () => {
-                    if (window.AppAdmin) await AppAdmin.renderAdminDbImport();
-                });
+                await AppRouter.navigate('/admin/db', true);
             },
             '/admin/qsis-import': async () => {
                 await runAdminRoute(async () => {

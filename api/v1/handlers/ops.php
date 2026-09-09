@@ -7,6 +7,7 @@ require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/admin_audit_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/db_export_sql.php';
 require_once dirname(__DIR__, 3) . '/includes/db_import_sql.php';
+require_once dirname(__DIR__, 3) . '/includes/db_backup_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/data_dictionary_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/qsis_import_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/qsis_db.php';
@@ -14,24 +15,150 @@ require_once dirname(__DIR__, 3) . '/includes/qsis_db.php';
 const API_DB_IMPORT_MAX_BYTES = 512 * 1024 * 1024;
 
 /**
- * Wipe-gate metadata for the SPA import form (no secrets beyond public confirm phrase).
+ * Shared wipe-gate + schema metadata (no secrets beyond the public confirm phrase).
+ *
+ * @return array<string, mixed>
  */
-function api_handle_admin_db_import_status(): void
+function api_admin_db_wipe_meta(?PDO $pdo = null): array
 {
-    require_api_permission('user.manage');
     $schemaName = '';
     try {
         $schemaName = db_export_schema_name();
     } catch (Throwable) {
         $schemaName = '';
     }
-    api_json_ok([
+    $tableCount = 0;
+    if ($pdo instanceof PDO) {
+        try {
+            $tableCount = db_import_count_tables($pdo);
+        } catch (Throwable) {
+            $tableCount = 0;
+        }
+    }
+
+    return [
         'wipe_allowed' => config_allows_db_wipe(),
         'confirm_phrase' => config_db_wipe_confirm_phrase(),
         'app_env' => config_app_env(),
         'schema_name' => $schemaName,
+        'table_count' => $tableCount,
         'max_bytes' => API_DB_IMPORT_MAX_BYTES,
-    ]);
+        'upload_max_filesize' => (string) ini_get('upload_max_filesize'),
+        'post_max_size' => (string) ini_get('post_max_size'),
+    ];
+}
+
+/**
+ * Wipe-gate metadata for the SPA import form (no secrets beyond public confirm phrase).
+ */
+function api_handle_admin_db_import_status(?PDO $pdo = null): void
+{
+    require_api_permission('user.manage');
+    api_json_ok(api_admin_db_wipe_meta($pdo));
+}
+
+/**
+ * List SQL files in backup/ plus wipe-gate metadata for the combined DB admin page.
+ */
+function api_handle_admin_db_backups_list(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    $meta = api_admin_db_wipe_meta($pdo);
+    $meta['files'] = db_backup_list();
+    api_json_ok($meta);
+}
+
+/**
+ * Write a full SQL dump into backup/.
+ */
+function api_handle_admin_db_backups_create(PDO $pdo): void
+{
+    $user = require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+
+    @set_time_limit(0);
+
+    try {
+        $result = db_backup_create($pdo);
+    } catch (Throwable $e) {
+        api_json_error('server_error', '備份失敗：' . $e->getMessage(), 500);
+    }
+
+    try {
+        admin_audit_log($pdo, 'db_backup.create', (int) $user['id'], [
+            'filename' => $result['filename'] ?? '',
+            'bytes' => $result['size'] ?? 0,
+            'via' => 'api',
+        ]);
+    } catch (Throwable) {
+    }
+
+    api_json_ok($result);
+}
+
+/**
+ * Stream one backup file as an attachment.
+ */
+function api_handle_admin_db_backup_download(string $filename): void
+{
+    require_api_permission('user.manage');
+
+    try {
+        $path = db_backup_resolve($filename);
+    } catch (InvalidArgumentException $e) {
+        api_json_error('validation_error', $e->getMessage(), 422);
+    } catch (RuntimeException $e) {
+        api_json_error('not_found', $e->getMessage(), 404);
+    }
+
+    $basename = basename($path);
+    $size = (int) (filesize($path) ?: 0);
+
+    header('Content-Type: application/octet-stream; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $basename . '"');
+    if ($size > 0) {
+        header('Content-Length: ' . $size);
+    }
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    header('X-Content-Type-Options: nosniff');
+
+    readfile($path);
+    exit;
+}
+
+/**
+ * Delete one or more backup files.
+ */
+function api_handle_admin_db_backups_delete(PDO $pdo): void
+{
+    $user = require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+
+    $body = api_read_json_body();
+    $names = $body['filenames'] ?? [];
+    if (!is_array($names)) {
+        api_json_error('validation_error', '請選擇要刪除的備份檔。', 422);
+    }
+
+    try {
+        $result = db_backup_delete($names);
+    } catch (InvalidArgumentException $e) {
+        api_json_error('validation_error', $e->getMessage(), 422);
+    } catch (RuntimeException $e) {
+        api_json_error('server_error', $e->getMessage(), 500);
+    }
+
+    try {
+        admin_audit_log($pdo, 'db_backup.delete', (int) $user['id'], [
+            'deleted' => $result['deleted'] ?? [],
+            'missing' => $result['missing'] ?? [],
+            'via' => 'api',
+        ]);
+    } catch (Throwable) {
+    }
+
+    api_json_ok($result);
 }
 
 /**
@@ -133,14 +260,38 @@ function api_handle_admin_db_import(PDO $pdo): void
         $body = api_read_json_body();
         $confirmWipe = !empty($body['confirm_wipe']);
         $phrase = trim((string) ($body['confirm_phrase'] ?? ''));
-        $sql = (string) ($body['sql'] ?? '');
-        $origName = (string) ($body['filename'] ?? 'inline.sql');
-        $size = strlen($sql);
-        if ($sql === '') {
-            api_json_error('validation_error', '請提供 SQL 內容或上載檔案。', 422);
-        }
-        if ($size > API_DB_IMPORT_MAX_BYTES) {
-            api_json_error('validation_error', 'SQL 超過 512MB 上限。', 422);
+        $backupFilename = trim((string) ($body['backup_filename'] ?? ''));
+        if ($backupFilename !== '') {
+            try {
+                $path = db_backup_resolve($backupFilename);
+            } catch (InvalidArgumentException $e) {
+                api_json_error('validation_error', $e->getMessage(), 422);
+            } catch (RuntimeException $e) {
+                api_json_error('not_found', $e->getMessage(), 404);
+            }
+            $origName = $backupFilename;
+            $size = (int) (filesize($path) ?: 0);
+            if ($size <= 0) {
+                api_json_error('validation_error', '備份檔為空。', 422);
+            }
+            if ($size > API_DB_IMPORT_MAX_BYTES) {
+                api_json_error('validation_error', '檔案超過 512MB 上限。', 422);
+            }
+            $raw = file_get_contents($path);
+            if ($raw === false) {
+                api_json_error('server_error', '無法讀取備份檔。', 500);
+            }
+            $sql = $raw;
+        } else {
+            $sql = (string) ($body['sql'] ?? '');
+            $origName = (string) ($body['filename'] ?? 'inline.sql');
+            $size = strlen($sql);
+            if ($sql === '') {
+                api_json_error('validation_error', '請提供 SQL 內容、上載檔案或選擇伺服器備份。', 422);
+            }
+            if ($size > API_DB_IMPORT_MAX_BYTES) {
+                api_json_error('validation_error', 'SQL 超過 512MB 上限。', 422);
+            }
         }
     }
 

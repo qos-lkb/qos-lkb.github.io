@@ -198,8 +198,7 @@ function admin_menu_sections(): array
             'items' => [
                 ['key' => 'codespace', 'label' => 'Code Space', 'href' => '../codespace/index.html', 'external' => true],
                 ['key' => 'qsis_import', 'label' => 'QSIS 匯入', 'href' => '../app/admin/qsis-import', 'accent' => 'teal'],
-                ['key' => 'db_import', 'label' => '匯入資料庫', 'href' => '../app/admin/db-import'],
-                ['key' => 'db_export', 'label' => '匯出資料庫', 'href' => '../app/admin/db-export'],
+                ['key' => 'db_manage', 'label' => '資料庫管理', 'href' => '../app/admin/db'],
                 ['key' => 'data_dictionary', 'label' => '資料字典', 'href' => '../app/admin/data-dictionary', 'accent' => 'violet'],
             ],
         ];
@@ -309,8 +308,7 @@ function admin_dashboard_card_meta(): array
         'course_reports' => ['icon' => 'sheet', 'tone' => 'teal', 'desc' => '檢視課程學習報告與掌握度。'],
         'permissions' => ['icon' => 'lock', 'tone' => 'slate', 'desc' => '調整各角色的系統權限。'],
         'codespace' => ['icon' => 'code', 'tone' => 'slate', 'desc' => 'HTML 即時編輯與預覽（新分頁開啟）。'],
-        'db_import' => ['icon' => 'db', 'tone' => 'orange', 'desc' => '上載 SQL 還原或取代整個資料庫。'],
-        'db_export' => ['icon' => 'db', 'tone' => 'teal', 'desc' => '下載完整 MySQL 資料庫 SQL 備份。'],
+        'db_manage' => ['icon' => 'db', 'tone' => 'teal', 'desc' => '一鍵備份至 backup/、下載 SQL，以及匯入或刪除備份檔。'],
         'data_dictionary' => ['icon' => 'note', 'tone' => 'violet', 'desc' => '閱讀 schema 資料字典並重新產生 Markdown。'],
         'qsis_import' => ['icon' => 'users', 'tone' => 'teal', 'desc' => '從校本 QSIS 資料庫匯入課程與學生帳戶。'],
     ];

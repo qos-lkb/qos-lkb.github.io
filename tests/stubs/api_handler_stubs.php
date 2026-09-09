@@ -431,3 +431,31 @@ if (!function_exists('api_handle_student_worksheet_assignment_get')) {
 if (!function_exists('api_handle_student_worksheet_assignment_submit')) {
     function api_handle_student_worksheet_assignment_submit(...$args): void {}
 }
+
+if (!function_exists('api_handle_admin_db_export')) {
+    function api_handle_admin_db_export(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_db_import_status')) {
+    function api_handle_admin_db_import_status(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_db_import')) {
+    function api_handle_admin_db_import(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_db_backups_list')) {
+    function api_handle_admin_db_backups_list(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_db_backups_create')) {
+    function api_handle_admin_db_backups_create(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_db_backups_delete')) {
+    function api_handle_admin_db_backups_delete(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_db_backup_download')) {
+    function api_handle_admin_db_backup_download(...$args): void {}
+}

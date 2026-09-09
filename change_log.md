@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-09-09
+
+### 後台「資料庫管理」
+- 「匯入資料庫」與「匯出資料庫」合併為 SPA `/admin/db`：一鍵將 SQL 寫入伺服器 `backup/`，可下載、單檔匯入、單選／多選刪除備份檔。
+- API：`GET|POST /admin/db/backups`、`GET /admin/db/backups/{filename}`、`POST /admin/db/backups/delete`；匯入可指定 `backup_filename`。既有 `POST /admin/db/export` 保留。
+- `backup/.htaccess` 拒絕 HTTP 直連；舊路徑 `/admin/db-export`、`/admin/db-import` 導向新頁。
+
 ## 2026-09-07
 
 ### 閃卡組（Flashcard sets）

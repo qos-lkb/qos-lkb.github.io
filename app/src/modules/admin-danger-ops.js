@@ -80,15 +80,19 @@ const global = window;
         return label;
     }
 
-    function opsNav() {
+    function opsNav(active) {
+        const link = (route, label, key) => {
+            const on = active === key;
+            const cls = on ? 'text-indigo-800 font-semibold' : 'text-slate-600 hover:underline';
+            return `<a href="${escapeHtml(spaHref(route))}" data-spa-nav="${escapeHtml(route)}" class="${cls}">${escapeHtml(label)}</a>`;
+        };
         return `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
                 <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                 <a href="${escapeHtml(codespaceUrl())}" target="_blank" rel="noopener" class="text-slate-600 hover:underline">Code Space ↗</a>
-                <a href="${escapeHtml(spaHref('/admin/db-export'))}" data-spa-nav="/admin/db-export" class="text-slate-600 hover:underline">${escapeHtml(t('匯出', 'Export'))}</a>
-                <a href="${escapeHtml(spaHref('/admin/db-import'))}" data-spa-nav="/admin/db-import" class="text-slate-600 hover:underline">${escapeHtml(t('匯入', 'Import'))}</a>
-                <a href="${escapeHtml(spaHref('/admin/qsis-import'))}" data-spa-nav="/admin/qsis-import" class="text-slate-600 hover:underline">QSIS</a>
-                <a href="${escapeHtml(spaHref('/admin/data-dictionary'))}" data-spa-nav="/admin/data-dictionary" class="text-slate-600 hover:underline">${escapeHtml(t('資料字典', 'Dictionary'))}</a>
+                ${link('/admin/db', t('資料庫管理', 'Database'), 'db')}
+                ${link('/admin/qsis-import', 'QSIS', 'qsis')}
+                ${link('/admin/data-dictionary', t('資料字典', 'Dictionary'), 'dict')}
             </div>`;
     }
 
@@ -108,59 +112,27 @@ const global = window;
         return filename;
     }
 
-    async function renderAdminDbExport() {
-        setShell();
-        const title = document.getElementById('page-title');
-        const box = document.getElementById('card-container');
-        if (title) title.textContent = t('匯出資料庫', 'Export database');
-
-        if (!requireUserManage()) {
-            if (global.ScienceApi.getUser()) {
-                box.innerHTML = `<p class="text-red-600">${escapeHtml(t('沒有權限。', 'Forbidden.'))}</p>`;
-            }
-            return;
+    function formatBytes(n) {
+        n = Number(n) || 0;
+        if (n >= 1048576) {
+            const mb = n / 1048576;
+            return (mb >= 10 ? mb.toFixed(0) : mb.toFixed(1)) + ' MB';
         }
-
-        box.innerHTML = `
-            ${opsNav()}
-            <p id="db-export-flash" class="text-sm mb-4 hidden"></p>
-            <p class="text-sm text-slate-600 leading-relaxed mb-4">
-                ${escapeHtml(t('下載目前 .env 所連線之整個 MySQL 資料庫結構與資料（僅一般資料表，不含 VIEW）。檔案可能含敏感資料，請妥善保管。', 'Download a full SQL dump of the database configured in .env (base tables only, no views). Treat the file as sensitive.'))}
-            </p>
-            <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                <button type="button" id="db-export-btn" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700">
-                    ${escapeHtml(t('一鍵下載 SQL 備份', 'Download SQL backup'))}
-                </button>
-            </div>`;
-        bindSpaNav(box);
-
-        const btn = document.getElementById('db-export-btn');
-        const flash = document.getElementById('db-export-flash');
-        btn.addEventListener('click', async () => {
-            btn.disabled = true;
-            showMsg(flash, t('正在匯出，請稍候…', 'Exporting…'), false);
-            flash.classList.remove('hidden');
-            try {
-                const res = await global.ScienceApi.apiFetch('/admin/db/export', {
-                    method: 'POST',
-                    body: {},
-                    rawResponse: true,
-                });
-                const filename = await downloadExportBlob(res);
-                showMsg(flash, t('已開始下載 ', 'Download started: ') + filename, false);
-            } catch (err) {
-                showMsg(flash, err.message || t('匯出失敗', 'Export failed'), true);
-            } finally {
-                btn.disabled = false;
-            }
-        });
+        if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+        return n + ' B';
     }
 
-    async function renderAdminDbImport() {
+    function selectedBackupNames(root) {
+        return Array.from(root.querySelectorAll('.db-backup-cb:checked'))
+            .map((cb) => String(cb.value || ''))
+            .filter(Boolean);
+    }
+
+    async function renderAdminDbManage() {
         setShell();
         const title = document.getElementById('page-title');
         const box = document.getElementById('card-container');
-        if (title) title.textContent = t('匯入資料庫', 'Import database');
+        if (title) title.textContent = t('資料庫管理', 'Database management');
 
         if (!requireUserManage()) {
             if (global.ScienceApi.getUser()) {
@@ -169,14 +141,14 @@ const global = window;
             return;
         }
 
-        box.innerHTML = `${opsNav()}<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
+        box.innerHTML = `${opsNav('db')}<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
         bindSpaNav(box);
 
         let status;
         try {
-            status = await global.ScienceApi.apiFetch('/admin/db/import-status');
+            status = await global.ScienceApi.apiFetch('/admin/db/backups');
         } catch (err) {
-            box.innerHTML = `${opsNav()}<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
+            box.innerHTML = `${opsNav('db')}<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
             bindSpaNav(box);
             return;
         }
@@ -185,77 +157,328 @@ const global = window;
         const phrase = status.confirm_phrase || 'DELETE ALL TABLES';
         const appEnv = status.app_env || '';
         const schema = status.schema_name || '';
+        const tableCount = status.table_count != null ? Number(status.table_count) : null;
+        const uploadMax = status.upload_max_filesize || '';
+        const postMax = status.post_max_size || '';
+
+        const outlineBtn = 'border border-slate-800 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed';
+
+        function tableRows(files) {
+            if (!files.length) {
+                return `<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-slate-500">${escapeHtml(t('尚無備份檔。請按「立即備份」。', 'No backups yet. Click Backup now.'))}</td></tr>`;
+            }
+            return files.map((f) => `
+                <tr class="border-b border-slate-200 hover:bg-slate-50">
+                    <td class="px-3 py-2 w-10">
+                        <input type="checkbox" class="db-backup-cb h-4 w-4" value="${escapeHtml(f.filename)}">
+                    </td>
+                    <td class="px-3 py-2 text-sm whitespace-nowrap">${escapeHtml(f.mtime_hkt || '')}</td>
+                    <td class="px-3 py-2 text-sm font-mono break-all">${escapeHtml(f.filename)}</td>
+                    <td class="px-3 py-2 text-sm whitespace-nowrap text-right">${escapeHtml(formatBytes(f.size))}</td>
+                </tr>`).join('');
+        }
 
         box.innerHTML = `
-            ${opsNav()}
-            <p class="text-sm text-slate-600 leading-relaxed mb-3">
-                ${escapeHtml(t('將上載的 SQL 匯入目前 .env 資料庫', 'Import uploaded SQL into the .env database'))}
-                ${schema ? ` <strong>${escapeHtml(schema)}</strong>` : ''}。
-                ${escapeHtml(t('匯入前會先刪除該庫內所有現有資料表，無法復原。建議先匯出備份。', 'All existing tables are dropped first. This cannot be undone. Export a backup first.'))}
-            </p>
-            <p class="text-sm rounded-lg px-4 py-3 border mb-4 ${wipeAllowed ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-red-50 border-red-200 text-red-800'}">
-                ${escapeHtml(t('目前', 'Current'))} <code class="font-mono text-xs">APP_ENV=${escapeHtml(appEnv)}</code>。
-                ${wipeAllowed
-                    ? escapeHtml(t('此環境允許清空匯入；仍須勾選確認並輸入片語 ', 'Wipe import allowed; still require checkbox and phrase ')) + `<code class="font-mono text-xs">${escapeHtml(phrase)}</code>。`
-                    : escapeHtml(t('生產環境預設拒絕清空匯入。緊急還原請於 .env 設 APP_ALLOW_DB_WIPE=1（用畢請移除）。', 'Production blocks wipe import by default. Set APP_ALLOW_DB_WIPE=1 in .env for emergency restore, then remove it.'))}
-            </p>
-            <p id="db-import-flash" class="text-sm rounded-lg px-4 py-3 border hidden mb-4"></p>
-            <form id="db-import-form" class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5 ${wipeAllowed ? '' : 'opacity-60 pointer-events-none'}">
-                <div>
-                    <label for="sql_file" class="block text-sm font-medium text-slate-700 mb-1">${escapeHtml(t('SQL 檔案', 'SQL file'))}</label>
-                    <input type="file" id="sql_file" name="sql_file" accept=".sql,text/plain" required
-                        class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm">
+            ${opsNav('db')}
+            <p id="db-manage-flash" class="text-sm rounded-lg px-4 py-3 border hidden mb-4"></p>
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-slate-800 text-white text-center py-2.5 font-semibold tracking-wide">
+                    ${escapeHtml(t('資料庫管理', 'Database management'))}
                 </div>
-                <label class="flex items-start gap-2 text-sm text-slate-700">
-                    <input type="checkbox" id="confirm_wipe" name="confirm_wipe" value="1" class="mt-1">
-                    <span>${escapeHtml(t('我了解此操作會刪除現有全部資料表並以 SQL 取代。', 'I understand this deletes all existing tables and replaces them with the SQL file.'))}</span>
-                </label>
-                <div>
-                    <label for="confirm_phrase" class="block text-sm font-medium text-slate-700 mb-1">
-                        ${escapeHtml(t('請輸入確認片語', 'Type confirmation phrase'))}
-                        <code class="font-mono text-xs ml-1">${escapeHtml(phrase)}</code>
-                    </label>
-                    <input type="text" id="confirm_phrase" name="confirm_phrase" autocomplete="off"
-                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono" ${wipeAllowed ? '' : 'disabled'}>
+                <div class="px-5 py-4 space-y-4">
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        ${escapeHtml(t('按「立即備份」將目前資料庫 SQL 存到伺服器 backup/ 資料夾。可勾選一或多個檔案下載或刪除。匯入須恰好選取一個備份檔（或上載本機檔）並輸入確認片語。', 'Click Backup now to save SQL into the server backup/ folder. Select one or more files to download or delete. Import requires exactly one backup (or a local upload) and the confirmation phrase.'))}
+                    </p>
+                    <p class="text-sm text-slate-600">
+                        ${schema ? `${escapeHtml(t('目前資料庫', 'Current database'))} <code class="font-mono text-xs bg-slate-100 px-1 rounded">${escapeHtml(schema)}</code>` : ''}
+                        ${tableCount != null && !Number.isNaN(tableCount) ? ` ${escapeHtml(t('約有', 'has about'))} <strong>${escapeHtml(String(tableCount))}</strong> ${escapeHtml(t('張資料表。', 'tables.'))}` : ''}
+                    </p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" id="db-backup-now" class="${outlineBtn}">${escapeHtml(t('立即備份', 'Backup now'))}</button>
+                        <button type="button" id="db-download-sel" class="${outlineBtn}" disabled>${escapeHtml(t('下載選取', 'Download selected'))}</button>
+                        <button type="button" id="db-import-sel" class="${outlineBtn}" disabled>${escapeHtml(t('匯入選取…', 'Import selected…'))}</button>
+                        <button type="button" id="db-delete-sel" class="${outlineBtn}" disabled>${escapeHtml(t('刪除選取', 'Delete selected'))}</button>
+                        <span id="db-sel-label" class="ml-auto text-sm text-slate-500">${escapeHtml(t('未選取', 'None selected'))}</span>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table class="min-w-full">
+                            <thead class="bg-slate-800 text-white text-sm">
+                                <tr>
+                                    <th class="px-3 py-2 w-10 text-left">
+                                        <input type="checkbox" id="db-select-all" class="h-4 w-4" aria-label="${escapeHtml(t('全選', 'Select all'))}">
+                                    </th>
+                                    <th class="px-3 py-2 text-left font-medium">${escapeHtml(t('備份日期和時間', 'Backup date and time'))}</th>
+                                    <th class="px-3 py-2 text-left font-medium">${escapeHtml(t('檔名', 'File name'))}</th>
+                                    <th class="px-3 py-2 text-right font-medium">${escapeHtml(t('大小', 'Size'))}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="db-backup-tbody">${tableRows(status.files || [])}</tbody>
+                        </table>
+                    </div>
+                    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 space-y-4 ${wipeAllowed ? '' : 'opacity-60'}">
+                        <h3 class="font-semibold text-red-900">${escapeHtml(t('匯入資料庫', 'Import database'))}</h3>
+                        <p class="text-sm text-red-900 leading-relaxed">
+                            <strong>${escapeHtml(t('警告：', 'Warning: '))}</strong>
+                            ${escapeHtml(t('匯入會先刪除目前全部資料表與檢視（無法復原），再執行 SQL。必須輸入片語', 'Import drops all current tables and views (irreversible), then runs the SQL. Type the phrase'))}
+                            <code class="font-mono text-xs">${escapeHtml(phrase)}</code>
+                            ${escapeHtml(t('才能繼續。', ' to continue.'))}
+                        </p>
+                        <p class="text-sm rounded-lg px-3 py-2 border ${wipeAllowed ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-red-100 border-red-300 text-red-900'}">
+                            ${escapeHtml(t('目前', 'Current'))} <code class="font-mono text-xs">APP_ENV=${escapeHtml(appEnv)}</code>。
+                            ${wipeAllowed
+                                ? escapeHtml(t('此環境允許清空匯入；仍須勾選確認並輸入片語。', 'Wipe import is allowed; checkbox and phrase are still required.'))
+                                : escapeHtml(t('生產環境預設拒絕清空匯入。緊急還原請於 .env 設 APP_ALLOW_DB_WIPE=1（用畢請移除）。', 'Production blocks wipe import by default. Set APP_ALLOW_DB_WIPE=1 in .env for emergency restore, then remove it.'))}
+                        </p>
+                        <form id="db-import-form" class="space-y-4 ${wipeAllowed ? '' : 'pointer-events-none'}">
+                            <div>
+                                <label for="sql_file" class="block text-sm font-medium text-slate-800 mb-1">${escapeHtml(t('本機 SQL 檔案', 'Local SQL file'))}</label>
+                                <input type="file" id="sql_file" name="sql_file" accept=".sql,text/plain"
+                                    class="block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-sm" ${wipeAllowed ? '' : 'disabled'}>
+                                <p class="text-xs text-slate-500 mt-1">${escapeHtml(t('選擇本機檔會清除上方表格勾選。', 'Choosing a local file clears table selections.'))}
+                                    ${uploadMax ? ` PHP upload_max_filesize=${escapeHtml(uploadMax)}${postMax ? `, post_max_size=${escapeHtml(postMax)}` : ''}.` : ''}</p>
+                            </div>
+                            <label class="flex items-start gap-2 text-sm text-slate-800">
+                                <input type="checkbox" id="confirm_wipe" name="confirm_wipe" value="1" class="mt-1" ${wipeAllowed ? '' : 'disabled'}>
+                                <span>${escapeHtml(t('我了解此操作會刪除現有全部資料表並以 SQL 取代。', 'I understand this deletes all existing tables and replaces them with the SQL file.'))}</span>
+                            </label>
+                            <div>
+                                <label for="confirm_phrase" class="block text-sm font-medium text-slate-800 mb-1">
+                                    ${escapeHtml(t('請輸入確認片語', 'Type confirmation phrase'))}
+                                    <code class="font-mono text-xs ml-1">${escapeHtml(phrase)}</code>
+                                </label>
+                                <input type="text" id="confirm_phrase" name="confirm_phrase" autocomplete="off"
+                                    class="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono" ${wipeAllowed ? '' : 'disabled'}>
+                            </div>
+                            <button type="submit" class="bg-red-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800 disabled:opacity-50" ${wipeAllowed ? '' : 'disabled'}>
+                                ${escapeHtml(t('刪除全部資料表並匯入', 'Drop all tables and import'))}
+                            </button>
+                        </form>
+                    </div>
                 </div>
-                <button type="submit" class="bg-red-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-800" ${wipeAllowed ? '' : 'disabled'}>
-                    ${escapeHtml(t('清空並匯入', 'Wipe and import'))}
-                </button>
-            </form>`;
+            </div>`;
         bindSpaNav(box);
 
+        const flash = document.getElementById('db-manage-flash');
+        const tbody = document.getElementById('db-backup-tbody');
+        const selLabel = document.getElementById('db-sel-label');
+        const selectAll = document.getElementById('db-select-all');
+        const btnNow = document.getElementById('db-backup-now');
+        const btnDl = document.getElementById('db-download-sel');
+        const btnImp = document.getElementById('db-import-sel');
+        const btnDel = document.getElementById('db-delete-sel');
+        const fileInput = document.getElementById('sql_file');
         const form = document.getElementById('db-import-form');
-        const flash = document.getElementById('db-import-flash');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!wipeAllowed) return;
-            const fileInput = document.getElementById('sql_file');
-            const confirmWipe = document.getElementById('confirm_wipe').checked;
-            const confirmPhrase = String(document.getElementById('confirm_phrase').value || '').trim();
-            if (!fileInput.files || !fileInput.files[0]) {
-                showMsg(flash, t('請選擇 SQL 檔案。', 'Choose an SQL file.'), true);
-                flash.classList.remove('hidden');
-                return;
+
+        function updateSelUi() {
+            const names = selectedBackupNames(box);
+            const n = names.length;
+            selLabel.textContent = n === 0
+                ? t('未選取', 'None selected')
+                : t(`已選 ${n} 項`, `${n} selected`);
+            btnDl.disabled = n < 1;
+            btnImp.disabled = !wipeAllowed || n !== 1;
+            btnDel.disabled = n < 1;
+            const boxes = box.querySelectorAll('.db-backup-cb');
+            if (selectAll) {
+                selectAll.checked = boxes.length > 0 && n === boxes.length;
+                selectAll.indeterminate = n > 0 && n < boxes.length;
             }
-            const fd = new FormData();
-            fd.append('sql_file', fileInput.files[0]);
-            if (confirmWipe) fd.append('confirm_wipe', '1');
-            fd.append('confirm_phrase', confirmPhrase);
+        }
+
+        function bindRowChecks() {
+            box.querySelectorAll('.db-backup-cb').forEach((cb) => {
+                cb.addEventListener('change', updateSelUi);
+            });
+            updateSelUi();
+        }
+
+        async function refreshList() {
+            const data = await global.ScienceApi.apiFetch('/admin/db/backups');
+            tbody.innerHTML = tableRows(data.files || []);
+            if (selectAll) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            }
+            bindRowChecks();
+        }
+
+        function importGuards() {
+            if (!wipeAllowed) {
+                showMsg(flash, t('目前環境禁止清空匯入。', 'Wipe import is blocked in this environment.'), true);
+                flash.classList.remove('hidden');
+                return false;
+            }
+            if (!document.getElementById('confirm_wipe').checked) {
+                showMsg(flash, t('請勾選確認：您了解此操作會刪除現有全部資料表。', 'Tick the confirmation checkbox first.'), true);
+                flash.classList.remove('hidden');
+                return false;
+            }
+            const typed = String(document.getElementById('confirm_phrase').value || '').trim();
+            if (typed !== phrase) {
+                showMsg(flash, t('請在確認欄正確輸入「', 'Type the phrase “') + phrase + t('」。', '”.'), true);
+                flash.classList.remove('hidden');
+                return false;
+            }
+            return true;
+        }
+
+        bindRowChecks();
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                box.querySelectorAll('.db-backup-cb').forEach((cb) => {
+                    cb.checked = selectAll.checked;
+                });
+                updateSelUi();
+            });
+        }
+
+        if (fileInput) {
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files && fileInput.files[0]) {
+                    box.querySelectorAll('.db-backup-cb').forEach((cb) => { cb.checked = false; });
+                    if (selectAll) {
+                        selectAll.checked = false;
+                        selectAll.indeterminate = false;
+                    }
+                    updateSelUi();
+                }
+            });
+        }
+
+        btnNow.addEventListener('click', async () => {
+            btnNow.disabled = true;
+            showMsg(flash, t('正在備份，請稍候…', 'Backing up…'), false);
+            flash.classList.remove('hidden');
+            try {
+                const data = await global.ScienceApi.apiFetch('/admin/db/backups', { method: 'POST', body: {} });
+                await refreshList();
+                showMsg(flash, t('已寫入 ', 'Saved ') + (data.filename || '') + (data.size != null ? ` (${formatBytes(data.size)})` : ''), false);
+            } catch (err) {
+                showMsg(flash, err.message || t('備份失敗', 'Backup failed'), true);
+            } finally {
+                btnNow.disabled = false;
+            }
+        });
+
+        btnDl.addEventListener('click', async () => {
+            const names = selectedBackupNames(box);
+            if (!names.length) return;
+            btnDl.disabled = true;
+            showMsg(flash, t('正在下載…', 'Downloading…'), false);
+            flash.classList.remove('hidden');
+            try {
+                for (const name of names) {
+                    const res = await global.ScienceApi.apiFetch(
+                        '/admin/db/backups/' + encodeURIComponent(name),
+                        { rawResponse: true }
+                    );
+                    await downloadExportBlob(res);
+                }
+                showMsg(flash, t('已開始下載選取檔案。', 'Download started for selected files.'), false);
+            } catch (err) {
+                showMsg(flash, err.message || t('下載失敗', 'Download failed'), true);
+            } finally {
+                updateSelUi();
+            }
+        });
+
+        async function runImport(opts) {
+            if (!importGuards()) return;
             const submitBtn = form.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
+            const buttons = [btnNow, btnDl, btnImp, btnDel, submitBtn];
+            buttons.forEach((b) => { if (b) b.disabled = true; });
             showMsg(flash, t('正在匯入，請稍候…', 'Importing…'), false);
             flash.classList.remove('hidden');
             try {
-                const data = await global.ScienceApi.apiFetch('/admin/db/import', { method: 'POST', body: fd });
+                let data;
+                if (opts.file) {
+                    const fd = new FormData();
+                    fd.append('sql_file', opts.file);
+                    fd.append('confirm_wipe', '1');
+                    fd.append('confirm_phrase', String(document.getElementById('confirm_phrase').value || '').trim());
+                    data = await global.ScienceApi.apiFetch('/admin/db/import', { method: 'POST', body: fd });
+                } else {
+                    data = await global.ScienceApi.apiFetch('/admin/db/import', {
+                        method: 'POST',
+                        body: {
+                            backup_filename: opts.backupFilename,
+                            confirm_wipe: true,
+                            confirm_phrase: String(document.getElementById('confirm_phrase').value || '').trim(),
+                        },
+                    });
+                }
                 const tables = data.tables != null ? data.tables : '?';
                 const dropped = data.dropped != null ? data.dropped : '?';
                 showMsg(flash, t(`匯入完成：刪除 ${dropped} 張表，現有 ${tables} 張表。`, `Import done: dropped ${dropped}, now ${tables} tables.`), false);
+                await refreshList();
             } catch (err) {
                 showMsg(flash, err.message || t('匯入失敗', 'Import failed'), true);
             } finally {
-                submitBtn.disabled = false;
+                buttons.forEach((b) => { if (b) b.disabled = false; });
+                updateSelUi();
+            }
+        }
+
+        btnImp.addEventListener('click', async () => {
+            const names = selectedBackupNames(box);
+            if (names.length !== 1) {
+                showMsg(flash, t('匯入請恰好勾選一個備份檔。', 'Select exactly one backup file to import.'), true);
+                flash.classList.remove('hidden');
+                return;
+            }
+            await runImport({ backupFilename: names[0] });
+        });
+
+        btnDel.addEventListener('click', async () => {
+            const names = selectedBackupNames(box);
+            if (!names.length) return;
+            const ok = window.confirm(t(
+                `確定刪除 ${names.length} 個備份檔？此操作無法復原。`,
+                `Delete ${names.length} backup file(s)? This cannot be undone.`
+            ));
+            if (!ok) return;
+            btnDel.disabled = true;
+            showMsg(flash, t('正在刪除…', 'Deleting…'), false);
+            flash.classList.remove('hidden');
+            try {
+                const data = await global.ScienceApi.apiFetch('/admin/db/backups/delete', {
+                    method: 'POST',
+                    body: { filenames: names },
+                });
+                const n = (data.deleted && data.deleted.length) || 0;
+                await refreshList();
+                showMsg(flash, t(`已刪除 ${n} 個檔案。`, `Deleted ${n} file(s).`), false);
+            } catch (err) {
+                showMsg(flash, err.message || t('刪除失敗', 'Delete failed'), true);
+            } finally {
+                updateSelUi();
             }
         });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const localFile = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+            const names = selectedBackupNames(box);
+            if (localFile) {
+                await runImport({ file: localFile });
+                return;
+            }
+            if (names.length === 1) {
+                await runImport({ backupFilename: names[0] });
+                return;
+            }
+            showMsg(flash, t('請選擇一個本機 SQL 檔，或恰好勾選一個備份檔。', 'Choose a local SQL file, or select exactly one backup.'), true);
+            flash.classList.remove('hidden');
+        });
+    }
+
+    async function renderAdminDbExport() {
+        await renderAdminDbManage();
+    }
+
+    async function renderAdminDbImport() {
+        await renderAdminDbManage();
     }
 
     async function renderAdminDataDictionary() {
@@ -271,14 +494,14 @@ const global = window;
             return;
         }
 
-        box.innerHTML = `${opsNav()}<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
+        box.innerHTML = `${opsNav('dict')}<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
         bindSpaNav(box);
 
         let data;
         try {
             data = await global.ScienceApi.apiFetch('/admin/data-dictionary');
         } catch (err) {
-            box.innerHTML = `${opsNav()}<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
+            box.innerHTML = `${opsNav('dict')}<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
             bindSpaNav(box);
             return;
         }
@@ -292,7 +515,7 @@ const global = window;
         }
 
         box.innerHTML = `
-            ${opsNav()}
+            ${opsNav('dict')}
             <p id="dd-flash" class="text-sm mb-4 hidden"></p>
             <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div class="text-sm text-slate-600 space-y-1">
@@ -349,14 +572,14 @@ const global = window;
         }
 
         const me = global.ScienceApi.getUser();
-        box.innerHTML = `${opsNav()}<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
+        box.innerHTML = `${opsNav('qsis')}<p class="text-slate-500">${escapeHtml(t('載入中…', 'Loading…'))}</p>`;
         bindSpaNav(box);
 
         let status;
         try {
             status = await global.ScienceApi.apiFetch('/admin/qsis/status');
         } catch (err) {
-            box.innerHTML = `${opsNav()}<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
+            box.innerHTML = `${opsNav('qsis')}<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>`;
             bindSpaNav(box);
             return;
         }
@@ -381,7 +604,7 @@ const global = window;
         ).join('');
 
         box.innerHTML = `
-            ${opsNav()}
+            ${opsNav('qsis')}
             <p id="qsis-flash" class="text-sm mb-4 hidden"></p>
             <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-6">
                 <h2 class="text-lg font-bold text-slate-800 mb-2">${escapeHtml(t('QSIS 資料庫連線', 'QSIS connection'))}</h2>
@@ -549,6 +772,7 @@ const global = window;
     }
 
     Object.assign(global.AppAdmin || (global.AppAdmin = {}), {
+        renderAdminDbManage,
         renderAdminDbExport,
         renderAdminDbImport,
         renderAdminDataDictionary,

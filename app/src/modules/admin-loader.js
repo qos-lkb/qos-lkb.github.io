@@ -91,7 +91,7 @@ function resolveAdminGroup(path) {
     if (/^\/admin\/flashcard-sets\/(new|\d+\/edit)$/.test(p)) return 'fc-edit';
     if (p.startsWith('/admin/course-curriculum')) return 'curriculum';
     if (p.startsWith('/admin/nav-menu') || p.startsWith('/admin/permissions')) return 'ops';
-    if (/^\/admin\/(db-export|db-import|qsis-import|data-dictionary)$/.test(p)) return 'danger-ops';
+    if (/^\/admin\/(db|db-export|db-import|qsis-import|data-dictionary)$/.test(p)) return 'danger-ops';
     if (p.startsWith('/admin/users')) return 'users';
     return 'home';
 }

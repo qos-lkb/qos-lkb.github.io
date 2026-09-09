@@ -68,6 +68,7 @@ const global = window;
         { re: /^\/admin\/permissions\/?$/, name: '/admin/permissions' },
         { re: /^\/admin\/db-export\/?$/, name: '/admin/db-export' },
         { re: /^\/admin\/db-import\/?$/, name: '/admin/db-import' },
+        { re: /^\/admin\/db\/?$/, name: '/admin/db' },
         { re: /^\/admin\/qsis-import\/?$/, name: '/admin/qsis-import' },
         { re: /^\/admin\/data-dictionary\/?$/, name: '/admin/data-dictionary' },
         { re: /^\/admin\/subjects\/?$/, name: '/admin/subjects' },

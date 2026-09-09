@@ -81,7 +81,7 @@ mysql -u USER -p DB_NAME < schema.sql
 - **Timezone**: set `APP_TIMEZONE=Asia/Hong_Kong` in `.env`; schema sets session `+08:00`.
 - **Seed data**: roles (`admin`, `teacher`, `student`), all permissions, default role grants, system user (`system@science-sims.internal`).
 - **Admin account**: create via SPA `/app/admin/users` after import (no bundled default password).
-- **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via SPA `/app/admin/db-export`.
+- **Existing databases**: re-importing `schema.sql` **drops all tables** — back up first via SPA `/app/admin/db`.
 - **Incremental upgrades**: prefer **`php scripts/apply_schema.php`** or import **`schema_upgrade_all.sql`** (records `schema_migrations`). Check with `php scripts/apply_schema.php --status`.
 
 | File | Purpose |
@@ -296,7 +296,7 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 | Summer homework | `/admin/summer-homework`（含 edit／view／analytics） |
 | Curriculum | `/admin/course-curriculum` |
 | Classes / courses | `/admin/courses`（含 students／report／worksheets／summer） |
-| Platform / ops | `/admin/nav-menu`、`/admin/review-queue`、`/admin/db-export`、`/admin/db-import`、`/admin/qsis-import`、`/admin/data-dictionary` |
+| Platform / ops | `/admin/nav-menu`、`/admin/review-queue`、`/admin/db`、`/admin/qsis-import`、`/admin/data-dictionary` |
 
 - **`portal/`** — Deprecated；302 直連 SPA。
 - **`assets/js/`** — 仍含 `admin-api.js`、`user-menu.js` 等（PHP 殼或共用）；SPA 主要用 `ScienceApi`。
@@ -330,6 +330,7 @@ science_sims/
 ├── src/                     # PSR-4 ScienceSims\
 ├── tests/                   # PHPUnit
 │
+├── backup/                # Server-side SQL dumps (HTTP denied)
 ├── includes/              # PHP config, DB, auth, content libs
 ├── admin/                 # Redirect shells → /app/admin/…
 ├── portal/                # Deprecated redirects → SPA
@@ -413,7 +414,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - **`POST /auth/dev-login`**: passwordless login only when `APP_ENV=local`; audited.
 - **Passwords**: verified against QSIS only; no self-service change-password API (removed).
 - **Impersonation**: admin-only; 1-hour TTL auto-stop; start/stop/timeout written to `admin_audit_log`.
-- **DB wipe import** (`admin/db_import.php`): blocked unless `APP_ENV` is `local`/`staging` or `APP_ALLOW_DB_WIPE=1`; requires checkbox + typed phrase `DELETE ALL TABLES`; audited.
+- **DB wipe import** (SPA `/admin/db`): blocked unless `APP_ENV` is `local`/`staging` or `APP_ALLOW_DB_WIPE=1`; requires checkbox + typed phrase `DELETE ALL TABLES`; audited. One-click dumps go to `backup/` (HTTP denied via `backup/.htaccess`).
 - **Simulation HTML**: CSP via `simulation_html_csp()` (HTTPS CDNs allowed; `frame-ancestors 'self'`); SPA iframe sandbox **omits** `allow-same-origin` (opaque origin; modal screenshot may fall back).
 - **Simulation workflow**: draft → pending_review → published (aligned with other content; only `simulation.manage_any` publishes; guest/contributor form at `/simulations/contribute`).
 - **`DEFAULT_REDIRECT_URL`**: validated via `REDIRECT_URL_WHITELIST` / HTTPS check.

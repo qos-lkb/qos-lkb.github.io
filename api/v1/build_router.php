@@ -61,8 +61,15 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addMethods(['GET', 'PUT', 'POST'], '/admin/permissions', static fn () => api_handle_admin_permissions($pdo, $method()));
 
     $router->addExact('POST', '/admin/db/export', static fn () => api_handle_admin_db_export($pdo));
-    $router->addExact('GET', '/admin/db/import-status', static fn () => api_handle_admin_db_import_status());
+    $router->addExact('GET', '/admin/db/import-status', static fn () => api_handle_admin_db_import_status($pdo));
     $router->addExact('POST', '/admin/db/import', static fn () => api_handle_admin_db_import($pdo));
+    $router->addExact('GET', '/admin/db/backups', static fn () => api_handle_admin_db_backups_list($pdo));
+    $router->addExact('POST', '/admin/db/backups', static fn () => api_handle_admin_db_backups_create($pdo));
+    $router->addExact('POST', '/admin/db/backups/delete', static fn () => api_handle_admin_db_backups_delete($pdo));
+    $router->addPattern(
+        '^GET /admin/db/backups/([^/]+)$',
+        static fn (array $p) => api_handle_admin_db_backup_download(rawurldecode($p[1]))
+    );
     $router->addExact('GET', '/admin/data-dictionary', static fn () => api_handle_admin_data_dictionary_get());
     $router->addExact('POST', '/admin/data-dictionary/regenerate', static fn () => api_handle_admin_data_dictionary_regenerate());
     $router->addExact('GET', '/admin/qsis/status', static fn () => api_handle_admin_qsis_status($pdo));
