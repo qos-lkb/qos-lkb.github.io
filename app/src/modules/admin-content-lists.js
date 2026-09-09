@@ -306,6 +306,35 @@ const global = window;
         return owners;
     }
 
+    function assignableOwnerLabel(user) {
+        return ownerLabel({
+            owner_display_name: user.display_name,
+            owner_email: user.email,
+            owner_user_id: user.id,
+        });
+    }
+
+    function mergeOwnerOptions(fromList, assignable) {
+        const seen = {};
+        const owners = [];
+        function add(id, label) {
+            const nid = Number(id || 0);
+            if (nid <= 0 || seen[nid]) return;
+            seen[nid] = true;
+            owners.push({ id: nid, label });
+        }
+        (assignable || []).forEach((u) => add(u.id, assignableOwnerLabel(u)));
+        (fromList || []).forEach((o) => add(o.id, o.label));
+        owners.sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'));
+        return owners;
+    }
+
+    function ownerOptionsHtml(owners) {
+        return owners.map((o) =>
+            `<option value="${o.id}">${escapeHtml(o.label)}</option>`
+        ).join('');
+    }
+
     function subjectLabel(ctx, subjectId) {
         const id = Number(subjectId || 0);
         if (id <= 0) return '—';
@@ -505,6 +534,38 @@ const global = window;
                 });
             });
         });
+
+        box.querySelectorAll('.sim-owner-cell[data-editable="1"]').forEach((cell) => {
+            cell.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                const rowEl = cell.closest('.sim-item-row');
+                const id = Number(rowEl?.getAttribute('data-id') || 0);
+                if (id <= 0) return;
+                const current = rowEl.getAttribute('data-owner-id') || '';
+                const options = ownerOptionsHtml(ctx.ownerChoices || []);
+                if (!options) {
+                    showContentFlash(flash, t('沒有可選的擁有者。', 'No owners available.'), true);
+                    return;
+                }
+                beginInlineSelect(cell, options, current, async (next) => {
+                    const ownerUserId = Number(next || 0);
+                    if (ownerUserId <= 0) {
+                        throw new Error('empty');
+                    }
+                    const updated = await global.ScienceApi.apiFetch('/admin/simulations', {
+                        method: 'POST',
+                        body: { action: 'patch', id, owner_user_id: ownerUserId },
+                    });
+                    rowEl.setAttribute('data-owner-id', updated.owner_user_id || '');
+                    cell.textContent = ownerLabel(updated);
+                    cell.classList.remove('bg-indigo-50/60');
+                    if (simListFilters.ownerId !== '' && String(updated.owner_user_id || '') !== simListFilters.ownerId) {
+                        rowEl.remove();
+                    }
+                    showContentFlash(flash, t('已更新擁有者。', 'Owner updated.'), false);
+                });
+            });
+        });
     }
 
     async function renderAdminSimulationsList() {
@@ -526,11 +587,19 @@ const global = window;
 
         try {
             const ctx = await loadSubjectTopicLabels();
-            const list = await global.ScienceApi.apiFetch('/admin/simulations');
-            const items = Array.isArray(list) ? list : [];
-            const owners = collectSimOwners(items);
-            const showReview = canReviewQueue();
             const canAny = global.ScienceApi.hasPermission('simulation.manage_any');
+            const [list, assignable] = await Promise.all([
+                global.ScienceApi.apiFetch('/admin/simulations'),
+                canAny
+                    ? global.ScienceApi.apiFetch('/admin/simulations?assignable_owners=1').catch(() => [])
+                    : Promise.resolve([]),
+            ]);
+            const items = Array.isArray(list) ? list : [];
+            const ownersFromList = collectSimOwners(items);
+            const ownerChoices = mergeOwnerOptions(ownersFromList, Array.isArray(assignable) ? assignable : []);
+            ctx.ownerChoices = ownerChoices;
+            const owners = ownerChoices.length ? ownerChoices : ownersFromList;
+            const showReview = canReviewQueue();
 
             const filtered = items.filter((row) => {
                 if (simListFilters.subjectId !== '') {
@@ -558,13 +627,14 @@ const global = window;
                        </td>`
                     : '';
                 const editable = canManage ? '1' : '0';
-                return `<tr class="sim-item-row border-t border-slate-100 hover:bg-slate-50/80" data-id="${id}" data-subject-id="${escapeHtml(row.subject_id || '')}" data-topic-id="${escapeHtml(row.topic_id || '')}">
+                const ownerEditable = canAny ? '1' : '0';
+                return `<tr class="sim-item-row border-t border-slate-100 hover:bg-slate-50/80" data-id="${id}" data-subject-id="${escapeHtml(row.subject_id || '')}" data-topic-id="${escapeHtml(row.topic_id || '')}" data-owner-id="${escapeHtml(row.owner_user_id || '')}">
                     ${dragCell}
                     <td class="p-3">${escapeHtml(row.title_zh || row.title_en || '—')}</td>
                     <td class="p-3 font-mono text-xs">${escapeHtml(slug)}</td>
                     <td class="p-3 sim-subject-cell ${canManage ? 'cursor-pointer' : ''}" data-editable="${editable}" title="${canManage ? escapeHtml(t('雙擊選擇科目', 'Double-click to choose subject')) : ''}">${escapeHtml(subjectLabel(ctx, row.subject_id))}</td>
                     <td class="p-3 sim-topic-cell ${canManage ? 'cursor-pointer' : ''}" data-editable="${editable}" title="${canManage ? escapeHtml(t('雙擊選擇單元', 'Double-click to choose topic')) : ''}">${escapeHtml(topicLabel(ctx, row.topic_id))}</td>
-                    <td class="p-3 text-xs">${escapeHtml(ownerLabel(row))}</td>
+                    <td class="p-3 text-xs sim-owner-cell ${canAny ? 'cursor-pointer' : ''}" data-editable="${ownerEditable}" title="${canAny ? escapeHtml(t('雙擊選擇擁有者', 'Double-click to choose owner')) : ''}">${escapeHtml(ownerLabel(row))}</td>
                     <td class="p-3">${escapeHtml(statusLabel(row.status))}</td>
                     <td class="p-3 text-xs">${escapeHtml(row.updated_at || '')}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
@@ -604,7 +674,7 @@ const global = window;
                     </label>
                     <button type="button" id="content-list-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
                 </div>
-                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('可依科目或擁有者篩選。拖曳 ⠿ 調整目前列表次序；雙擊科目或單元可快速改分類。', 'Filter by subject or owner. Drag ⠿ to reorder the current list; double-click subject or topic to recategorize.'))}</p>
+                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('可依科目或擁有者篩選。拖曳 ⠿ 調整目前列表次序；雙擊科目、單元或擁有者可快速修改。', 'Filter by subject or owner. Drag ⠿ to reorder the current list; double-click subject, topic, or owner to edit.'))}</p>
                 <p id="content-list-flash" class="text-sm mb-3 hidden"></p>
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                     <table class="min-w-full text-sm">

@@ -323,12 +323,34 @@ function sim_reorder_items(PDO $pdo, array $orderedIds, array $user): array
 }
 
 /**
- * Inline list edit: subject / topic only.
+ * Active users that can be assigned as simulation owners.
+ *
+ * @return list<array{id:int,email:string,display_name:string}>
+ */
+function sim_assignable_owners(PDO $pdo): array
+{
+    $rows = $pdo->query(
+        'SELECT id, email, display_name FROM users WHERE is_active = 1 ORDER BY display_name ASC, email ASC'
+    )->fetchAll() ?: [];
+    $out = [];
+    foreach ($rows as $row) {
+        $out[] = [
+            'id' => (int) $row['id'],
+            'email' => (string) ($row['email'] ?? ''),
+            'display_name' => (string) ($row['display_name'] ?? ''),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Inline list edit: subject / topic / owner (only supplied keys).
  *
  * @param array{id:int} $user
- * @return array{ok:bool,error?:string,id?:int,subject_id?:int|null,topic_id?:int|null}
+ * @param array<string, mixed> $fields
+ * @return array{ok:bool,error?:string,id?:int,subject_id?:int|null,topic_id?:int|null,owner_user_id?:int|null,owner_display_name?:string,owner_email?:string}
  */
-function sim_patch_classification(PDO $pdo, int $id, ?int $subjectId, ?int $topicId, array $user, bool $isAdmin): array
+function sim_patch_classification(PDO $pdo, int $id, array $fields, array $user, bool $isAdmin): array
 {
     if ($id <= 0) {
         return ['ok' => false, 'error' => '缺少 id。'];
@@ -341,34 +363,77 @@ function sim_patch_classification(PDO $pdo, int $id, ?int $subjectId, ?int $topi
         return ['ok' => false, 'error' => '無權編輯此模擬。'];
     }
 
-    if ($topicId !== null && $topicId > 0) {
-        if ($subjectId === null || $subjectId <= 0) {
-            return ['ok' => false, 'error' => '請先選擇科目。'];
+    $sets = [];
+    $params = [];
+    $result = ['ok' => true, 'id' => $id];
+
+    $patchSubject = array_key_exists('subject_id', $fields);
+    $patchTopic = array_key_exists('topic_id', $fields);
+    if ($patchSubject || $patchTopic) {
+        $subjectId = $patchSubject
+            ? ($fields['subject_id'] !== null && $fields['subject_id'] !== '' ? (int) $fields['subject_id'] : null)
+            : ($row['subject_id'] !== null ? (int) $row['subject_id'] : null);
+        $topicId = $patchTopic
+            ? ($fields['topic_id'] !== null && $fields['topic_id'] !== '' ? (int) $fields['topic_id'] : null)
+            : ($row['topic_id'] !== null ? (int) $row['topic_id'] : null);
+
+        if ($subjectId !== null && $subjectId <= 0) {
+            $subjectId = null;
+            $topicId = null;
         }
-        $chk = $pdo->prepare('SELECT id FROM topics WHERE id = ? AND subject_id = ? LIMIT 1');
-        $chk->execute([$topicId, $subjectId]);
-        if (!$chk->fetch()) {
-            return ['ok' => false, 'error' => '所選單元不屬於該科目。'];
+        if ($topicId !== null && $topicId > 0) {
+            if ($subjectId === null || $subjectId <= 0) {
+                return ['ok' => false, 'error' => '請先選擇科目。'];
+            }
+            $chk = $pdo->prepare('SELECT id FROM topics WHERE id = ? AND subject_id = ? LIMIT 1');
+            $chk->execute([$topicId, $subjectId]);
+            if (!$chk->fetch()) {
+                return ['ok' => false, 'error' => '所選單元不屬於該科目。'];
+            }
+        } else {
+            $topicId = null;
         }
-    } else {
-        $topicId = null;
-    }
-    if ($subjectId !== null && $subjectId <= 0) {
-        $subjectId = null;
-        $topicId = null;
+
+        $sets[] = 'subject_id = ?';
+        $params[] = $subjectId;
+        $sets[] = 'topic_id = ?';
+        $params[] = $topicId;
+        $result['subject_id'] = $subjectId;
+        $result['topic_id'] = $topicId;
     }
 
-    $upd = $pdo->prepare(
-        'UPDATE simulations SET subject_id = ?, topic_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    );
-    $upd->execute([$subjectId, $topicId, $id]);
+    if (array_key_exists('owner_user_id', $fields)) {
+        if (!$isAdmin) {
+            return ['ok' => false, 'error' => '無權更改擁有者。'];
+        }
+        $ownerId = $fields['owner_user_id'] !== null && $fields['owner_user_id'] !== ''
+            ? (int) $fields['owner_user_id']
+            : 0;
+        if ($ownerId <= 0) {
+            return ['ok' => false, 'error' => '請選擇擁有者。'];
+        }
+        $ownerStmt = $pdo->prepare('SELECT id, email, display_name FROM users WHERE id = ? LIMIT 1');
+        $ownerStmt->execute([$ownerId]);
+        $owner = $ownerStmt->fetch();
+        if (!$owner) {
+            return ['ok' => false, 'error' => '找不到該使用者。'];
+        }
+        $sets[] = 'owner_user_id = ?';
+        $params[] = $ownerId;
+        $result['owner_user_id'] = $ownerId;
+        $result['owner_display_name'] = (string) ($owner['display_name'] ?? '');
+        $result['owner_email'] = (string) ($owner['email'] ?? '');
+    }
 
-    return [
-        'ok' => true,
-        'id' => $id,
-        'subject_id' => $subjectId,
-        'topic_id' => $topicId,
-    ];
+    if ($sets === []) {
+        return ['ok' => false, 'error' => '沒有可更新的欄位。'];
+    }
+
+    $sets[] = 'updated_at = CURRENT_TIMESTAMP';
+    $params[] = $id;
+    $pdo->prepare('UPDATE simulations SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($params);
+
+    return $result;
 }
 
 /**

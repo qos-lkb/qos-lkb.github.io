@@ -82,6 +82,14 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
             api_json_error('forbidden', '沒有權限。', 403);
         }
 
+        if (isset($_GET['assignable_owners'])) {
+            if (!$isAdmin) {
+                api_json_error('forbidden', '沒有權限。', 403);
+            }
+            api_json_ok(sim_assignable_owners($pdo));
+            return;
+        }
+
         $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
         if ($id > 0) {
             $sim = sim_get_by_id($pdo, $id);
@@ -132,13 +140,17 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
         }
         if ($action === 'patch') {
             $id = isset($post['id']) ? (int) $post['id'] : 0;
-            $subjectId = array_key_exists('subject_id', $post) && $post['subject_id'] !== '' && $post['subject_id'] !== null
-                ? (int) $post['subject_id']
-                : null;
-            $topicId = array_key_exists('topic_id', $post) && $post['topic_id'] !== '' && $post['topic_id'] !== null
-                ? (int) $post['topic_id']
-                : null;
-            $r = sim_patch_classification($pdo, $id, $subjectId, $topicId, $user, $isAdmin);
+            $fields = [];
+            if (array_key_exists('subject_id', $post)) {
+                $fields['subject_id'] = $post['subject_id'];
+            }
+            if (array_key_exists('topic_id', $post)) {
+                $fields['topic_id'] = $post['topic_id'];
+            }
+            if (array_key_exists('owner_user_id', $post)) {
+                $fields['owner_user_id'] = $post['owner_user_id'];
+            }
+            $r = sim_patch_classification($pdo, $id, $fields, $user, $isAdmin);
             if (!$r['ok']) {
                 api_json_error('save_failed', $r['error'] ?? '儲存失敗。', 422);
             }
