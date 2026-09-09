@@ -106,14 +106,25 @@
     let catalogLoaded = false;
     let firstCategoryId = null;
 
+    function copyrightPrefix(lang) {
+        const c = window.__SITE_COPYRIGHT__ || {};
+        const year = String(c.year || '').trim();
+        const owner = String(c.owner || '').trim() || 'Mr. Bryan Leung';
+        const body = [year, owner].filter(Boolean).join(' ');
+        return (lang === 'zh' ? '版權 © ' : '© ') + body + ' · ';
+    }
+
     function updateSiteBranding() {
         const names = window.__SITE_NAMES__;
-        if (!names) return;
         const lang = AppRouter.getLang();
-        const name = lang === 'zh' ? names.zh : names.en;
-        const brand = document.getElementById('site-brand');
-        if (brand) brand.textContent = name;
-        document.title = name;
+        if (names) {
+            const name = lang === 'zh' ? names.zh : names.en;
+            const brand = document.getElementById('site-brand');
+            if (brand) brand.textContent = name;
+            document.title = name;
+        }
+        const copyEl = document.getElementById('site-copyright');
+        if (copyEl) copyEl.textContent = copyrightPrefix(lang);
     }
 
     function updateNavLabels() {

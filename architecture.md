@@ -442,6 +442,8 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 | Variable | Role |
 |----------|------|
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, … | Database |
+| `SITE_NAME`, `SITE_NAME_EN` | Site titles injected into SPA / admin |
+| `SITE_COPYRIGHT_YEAR`, `SITE_COPYRIGHT_OWNER` | Footer copyright year and owner |
 | `APP_ENV` | `local` / `staging` / `production` (default); gates dev-login & DB wipe |
 | `APP_ALLOW_DB_WIPE` | Emergency override to allow production DB import wipe |
 | `DEFAULT_REDIRECT_URL` | Optional validated redirect for `index.html` |

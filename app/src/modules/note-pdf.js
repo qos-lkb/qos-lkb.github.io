@@ -75,9 +75,13 @@ const global = window;
 
         const footer = document.createElement('footer');
         footer.className = 'note-print-footer';
+        const c = global.__SITE_COPYRIGHT__ || {};
+        const year = String(c.year || '').trim();
+        const owner = String(c.owner || '').trim() || 'Mr. Bryan Leung';
+        const body = [year, owner].filter(Boolean).join(' ');
         footer.textContent = t(
-            '版權 © Mr. Bryan Leung · CC BY 4.0',
-            '© Mr. Bryan Leung · CC BY 4.0'
+            `版權 © ${body} · CC BY 4.0`,
+            `© ${body} · CC BY 4.0`
         );
 
         root.appendChild(header);

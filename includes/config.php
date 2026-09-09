@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const CONFIG_DEFAULT_SITE_NAME = '伊中中科學學習平台';
 const CONFIG_DEFAULT_SITE_NAME_EN = 'QESOSASS Science Learning Platform';
+const CONFIG_DEFAULT_COPYRIGHT_OWNER = 'Mr. Bryan Leung';
 const CONFIG_DEFAULT_TIMEZONE = 'Asia/Hong_Kong';
 
 /**
@@ -65,6 +66,36 @@ function config_site_name_en(): string
 function config_site_title_bilingual(): string
 {
     return config_site_name() . ' | ' . config_site_name_en();
+}
+
+function config_copyright_owner(): string
+{
+    config_load_dotenv();
+    $owner = trim((string) (getenv('SITE_COPYRIGHT_OWNER') ?: ($_ENV['SITE_COPYRIGHT_OWNER'] ?? '')));
+
+    return $owner !== '' ? $owner : CONFIG_DEFAULT_COPYRIGHT_OWNER;
+}
+
+function config_copyright_year(): string
+{
+    config_load_dotenv();
+    $year = trim((string) (getenv('SITE_COPYRIGHT_YEAR') ?: ($_ENV['SITE_COPYRIGHT_YEAR'] ?? '')));
+    if ($year !== '' && strlen($year) <= 32 && !preg_match('/[<>]/', $year)) {
+        return $year;
+    }
+
+    return (new DateTimeImmutable('now', new DateTimeZone(config_timezone())))->format('Y');
+}
+
+/**
+ * @return array{year: string, owner: string}
+ */
+function config_copyright(): array
+{
+    return [
+        'year' => config_copyright_year(),
+        'owner' => config_copyright_owner(),
+    ];
 }
 
 function config_timezone(): string

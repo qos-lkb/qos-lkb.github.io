@@ -368,7 +368,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<?php echo htmlspecialchars($adminCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($userMenuCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
-    <script>window.__APP_TIMEZONE__=<?php echo json_encode(config_timezone(), JSON_UNESCAPED_UNICODE); ?>;</script>
+    <script>window.__APP_TIMEZONE__=<?php echo json_encode(config_timezone(), JSON_UNESCAPED_UNICODE); ?>;window.__SITE_COPYRIGHT__=<?php echo json_encode(config_copyright(), JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php if ($bodyClass === 'admin-dashboard-page'): ?>
     <style id="admin-dashboard-critical">
     .admin-dashboard{display:flex;flex-direction:column;gap:1.75rem}
@@ -482,7 +482,8 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
 function admin_page_end(array $opts = []): void
 {
     $siteName = htmlspecialchars(config_site_name(), ENT_QUOTES, 'UTF-8');
-    $siteNameEn = htmlspecialchars(config_site_name_en(), ENT_QUOTES, 'UTF-8');
+    $copyrightYear = htmlspecialchars(config_copyright_year(), ENT_QUOTES, 'UTF-8');
+    $copyrightOwner = htmlspecialchars(config_copyright_owner(), ENT_QUOTES, 'UTF-8');
     $scripts = $opts['scripts'] ?? '';
     $adminShellJsUrl = admin_asset_url('assets/js/admin-shell.js') . '?v=' . ADMIN_ASSET_VERSION;
     $userMenuJsUrl = admin_site_asset_url('assets/js/user-menu.js') . '?v=' . ADMIN_ASSET_VERSION;
@@ -493,7 +494,7 @@ function admin_page_end(array $opts = []): void
     </div>
 
     <footer class="bg-slate-900 text-slate-400 text-xs py-4 px-6 text-center border-t border-slate-800">
-        <span>管理後台 · <?php echo $siteName; ?> · <?php echo $siteNameEn; ?></span>
+        <span>管理後台 · <?php echo $siteName; ?> · 版權 © <?php echo $copyrightYear; ?> <?php echo $copyrightOwner; ?></span>
     </footer>
 
     <script src="<?php echo htmlspecialchars($adminShellJsUrl, ENT_QUOTES, 'UTF-8'); ?>"></script>
