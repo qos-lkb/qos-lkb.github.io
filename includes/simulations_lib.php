@@ -323,14 +323,39 @@ function sim_reorder_items(PDO $pdo, array $orderedIds, array $user): array
 }
 
 /**
- * Active users that can be assigned as simulation owners.
+ * Whether the user may own a simulation (active admin or teacher role).
+ */
+function sim_user_can_own(PDO $pdo, int $userId): bool
+{
+    if ($userId <= 0) {
+        return false;
+    }
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM users u
+         INNER JOIN user_roles ur ON ur.user_id = u.id
+         INNER JOIN roles r ON r.id = ur.role_id
+         WHERE u.id = ? AND u.is_active = 1 AND r.name IN ('admin', 'teacher')
+         LIMIT 1"
+    );
+    $stmt->execute([$userId]);
+    return (bool) $stmt->fetchColumn();
+}
+
+/**
+ * Active admin/teacher users that can be assigned as simulation owners.
  *
  * @return list<array{id:int,email:string,display_name:string}>
  */
 function sim_assignable_owners(PDO $pdo): array
 {
     $rows = $pdo->query(
-        'SELECT id, email, display_name FROM users WHERE is_active = 1 ORDER BY display_name ASC, email ASC'
+        "SELECT DISTINCT u.id, u.email, u.display_name
+         FROM users u
+         INNER JOIN user_roles ur ON ur.user_id = u.id
+         INNER JOIN roles r ON r.id = ur.role_id
+         WHERE u.is_active = 1 AND r.name IN ('admin', 'teacher')
+         ORDER BY u.display_name ASC, u.email ASC"
     )->fetchAll() ?: [];
     $out = [];
     foreach ($rows as $row) {
@@ -411,6 +436,9 @@ function sim_patch_classification(PDO $pdo, int $id, array $fields, array $user,
             : 0;
         if ($ownerId <= 0) {
             return ['ok' => false, 'error' => '請選擇擁有者。'];
+        }
+        if (!sim_user_can_own($pdo, $ownerId)) {
+            return ['ok' => false, 'error' => '擁有者必須是管理員或教師。'];
         }
         $ownerStmt = $pdo->prepare('SELECT id, email, display_name FROM users WHERE id = ? LIMIT 1');
         $ownerStmt->execute([$ownerId]);

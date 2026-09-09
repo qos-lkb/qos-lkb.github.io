@@ -601,8 +601,8 @@ const global = window;
             }
             if (canAny) {
                 try {
-                    const u = await global.ScienceApi.apiFetch('/admin/users');
-                    users = Array.isArray(u) ? u : (u.users || u.items || []);
+                    const u = await global.ScienceApi.apiFetch('/admin/simulations?assignable_owners=1');
+                    users = Array.isArray(u) ? u : [];
                 } catch (e) {
                     users = [];
                 }
@@ -615,6 +615,13 @@ const global = window;
 
         const me = global.ScienceApi.getUser();
         const ownerId = row ? row.owner_user_id : (me && me.id);
+        if (ownerId && !users.some((u) => Number(u.id) === Number(ownerId))) {
+            users = [{
+                id: ownerId,
+                email: '',
+                display_name: '#' + ownerId,
+            }].concat(users);
+        }
         const tags = Array.isArray(row && row.tags) ? row.tags.join(', ') : '';
         const subOpts = subjects.map((s) =>
             `<option value="${Number(s.id)}">${escapeHtml((s.name_zh || '') + ' / ' + (s.name_en || ''))}</option>`
@@ -639,7 +646,7 @@ const global = window;
                         <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('英文摘要', 'Summary (EN)'))}</label><input name="summary_en" maxlength="500" class="mt-1 w-full border rounded-lg px-3 py-2"></div>
                     </div>
                     <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('網址 slug（留空則依標題自動產生）', 'Slug (auto from title if empty)'))}</label><input name="slug" class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></div>
-                    ${canAny ? `<div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('擁有者', 'Owner'))}</label><select name="owner_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">${userOpts}</select></div>` : ''}
+                    ${canAny ? `<div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('擁有者', 'Owner'))}</label><select name="owner_user_id" class="mt-1 w-full border rounded-lg px-3 py-2">${userOpts}</select><p class="mt-1 text-xs text-slate-500">${escapeHtml(t('僅可指定管理員或教師。', 'Admins or teachers only.'))}</p></div>` : ''}
                     <div class="grid md:grid-cols-2 gap-4">
                         <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('科目', 'Subject'))}</label><select name="subject_id" id="field-subject" class="mt-1 w-full border rounded-lg px-3 py-2"><option value="">—</option>${subOpts}</select></div>
                         <div><label class="block text-sm font-medium text-slate-700">${escapeHtml(t('單元（課題）', 'Topic'))}</label><select name="topic_id" id="field-topic" class="mt-1 w-full border rounded-lg px-3 py-2"><option value="">—</option></select></div>

@@ -75,7 +75,8 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
     }
 
     $ownerUserId = $currentUser['id'];
-    if ($isAdmin && isset($post['owner_user_id']) && $post['owner_user_id'] !== '') {
+    $ownerFromPost = $isAdmin && isset($post['owner_user_id']) && $post['owner_user_id'] !== '';
+    if ($ownerFromPost) {
         $ownerUserId = (int) $post['owner_user_id'];
     }
 
@@ -98,6 +99,11 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
                 return ['ok' => false, 'error' => '無權編輯此模擬。'];
             }
             $ownerUserId = $row['owner_user_id'] !== null ? (int) $row['owner_user_id'] : $currentUser['id'];
+        } elseif ($ownerFromPost) {
+            $existingOwner = $row['owner_user_id'] !== null ? (int) $row['owner_user_id'] : 0;
+            if ($ownerUserId !== $existingOwner && !sim_user_can_own($pdo, $ownerUserId)) {
+                return ['ok' => false, 'error' => '擁有者必須是管理員或教師。'];
+            }
         }
 
         $slug = $slugInput !== '' ? sim_slugify($slugInput) : $row['slug'];
@@ -140,6 +146,10 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
     }
 
     // 新增
+    if ($ownerFromPost && !sim_user_can_own($pdo, $ownerUserId)) {
+        return ['ok' => false, 'error' => '擁有者必須是管理員或教師。'];
+    }
+
     $baseSlug = $slugInput !== '' ? sim_slugify($slugInput) : sim_slugify($titleEn);
     $slug = sim_ensure_unique_slug($pdo, substr($baseSlug, 0, 190));
 

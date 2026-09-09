@@ -314,19 +314,26 @@ const global = window;
         });
     }
 
-    function mergeOwnerOptions(fromList, assignable) {
-        const seen = {};
-        const owners = [];
-        function add(id, label) {
-            const nid = Number(id || 0);
-            if (nid <= 0 || seen[nid]) return;
-            seen[nid] = true;
-            owners.push({ id: nid, label });
-        }
-        (assignable || []).forEach((u) => add(u.id, assignableOwnerLabel(u)));
-        (fromList || []).forEach((o) => add(o.id, o.label));
+    function assignableOwnerChoices(assignable) {
+        const owners = (assignable || []).map((u) => ({
+            id: Number(u.id),
+            label: assignableOwnerLabel(u),
+        })).filter((o) => o.id > 0);
         owners.sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'));
         return owners;
+    }
+
+    function ownerChoicesForRow(choices, rowEl) {
+        const list = (choices || []).slice();
+        const currentId = Number(rowEl?.getAttribute('data-owner-id') || 0);
+        if (currentId > 0 && !list.some((o) => o.id === currentId)) {
+            const cell = rowEl.querySelector('.sim-owner-cell');
+            list.unshift({
+                id: currentId,
+                label: (cell && cell.textContent.trim()) || ('#' + currentId),
+            });
+        }
+        return list;
     }
 
     function ownerOptionsHtml(owners) {
@@ -542,7 +549,7 @@ const global = window;
                 const id = Number(rowEl?.getAttribute('data-id') || 0);
                 if (id <= 0) return;
                 const current = rowEl.getAttribute('data-owner-id') || '';
-                const options = ownerOptionsHtml(ctx.ownerChoices || []);
+                const options = ownerOptionsHtml(ownerChoicesForRow(ctx.ownerChoices || [], rowEl));
                 if (!options) {
                     showContentFlash(flash, t('沒有可選的擁有者。', 'No owners available.'), true);
                     return;
@@ -596,9 +603,8 @@ const global = window;
             ]);
             const items = Array.isArray(list) ? list : [];
             const ownersFromList = collectSimOwners(items);
-            const ownerChoices = mergeOwnerOptions(ownersFromList, Array.isArray(assignable) ? assignable : []);
-            ctx.ownerChoices = ownerChoices;
-            const owners = ownerChoices.length ? ownerChoices : ownersFromList;
+            ctx.ownerChoices = assignableOwnerChoices(Array.isArray(assignable) ? assignable : []);
+            const owners = ownersFromList;
             const showReview = canReviewQueue();
 
             const filtered = items.filter((row) => {
@@ -674,7 +680,7 @@ const global = window;
                     </label>
                     <button type="button" id="content-list-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
                 </div>
-                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('可依科目或擁有者篩選。拖曳 ⠿ 調整目前列表次序；雙擊科目、單元或擁有者可快速修改。', 'Filter by subject or owner. Drag ⠿ to reorder the current list; double-click subject, topic, or owner to edit.'))}</p>
+                <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('可依科目或擁有者篩選。拖曳 ⠿ 調整目前列表次序；雙擊科目、單元或擁有者可快速修改。擁有者限管理員或教師。', 'Filter by subject or owner. Drag ⠿ to reorder; double-click subject, topic, or owner to edit. Owners must be admins or teachers.'))}</p>
                 <p id="content-list-flash" class="text-sm mb-3 hidden"></p>
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
                     <table class="min-w-full text-sm">
