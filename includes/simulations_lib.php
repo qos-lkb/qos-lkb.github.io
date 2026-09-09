@@ -248,6 +248,130 @@ function sim_get_by_id(PDO $pdo, int $id): ?array
 }
 
 /**
+ * Admin list rows with owner display fields.
+ *
+ * @return list<array<string, mixed>>
+ */
+function sim_admin_list(PDO $pdo, ?int $onlyOwnerUserId = null): array
+{
+    $sql = 'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, s.list_sort_order,
+                   s.subject_id, s.topic_id, s.owner_user_id,
+                   u.display_name AS owner_display_name, u.email AS owner_email
+            FROM simulations s
+            LEFT JOIN users u ON u.id = s.owner_user_id
+            LEFT JOIN subjects sub ON sub.id = s.subject_id
+            LEFT JOIN topics t ON t.id = s.topic_id';
+    $params = [];
+    if ($onlyOwnerUserId !== null) {
+        $sql .= ' WHERE s.owner_user_id = ?';
+        $params[] = $onlyOwnerUserId;
+    }
+    $sql .= ' ORDER BY COALESCE(sub.sort_order, 999999) ASC, COALESCE(sub.name_en, \'\') ASC,
+                      COALESCE(t.sort_order, 999999) ASC, COALESCE(t.name_en, \'\') ASC,
+                      s.list_sort_order ASC, COALESCE(s.title_en, \'\') ASC, s.id ASC';
+    if ($params !== []) {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll() ?: [];
+    }
+    return $pdo->query($sql)->fetchAll() ?: [];
+}
+
+/**
+ * Persist list_sort_order for the given id sequence (0-based).
+ *
+ * @param list<int|string> $orderedIds
+ * @param array{id:int} $user
+ * @return array{ok:bool,error?:string}
+ */
+function sim_reorder_items(PDO $pdo, array $orderedIds, array $user): array
+{
+    require_once __DIR__ . '/auth.php';
+    $orderedIds = array_values(array_filter(array_map('intval', $orderedIds), static fn (int $id): bool => $id > 0));
+    if ($orderedIds === []) {
+        return ['ok' => false, 'error' => '缺少排序清單。'];
+    }
+    $canAny = user_has_permission('simulation.manage_any');
+    if (!$canAny && !user_has_permission('simulation.manage_own')) {
+        return ['ok' => false, 'error' => '無權限。'];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($orderedIds), '?'));
+    $stmt = $pdo->prepare("SELECT id, owner_user_id FROM simulations WHERE id IN ({$placeholders})");
+    $stmt->execute($orderedIds);
+    /** @var list<array<string, mixed>> $rows */
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (count($rows) !== count($orderedIds)) {
+        return ['ok' => false, 'error' => '部分模擬不存在。'];
+    }
+    if (!$canAny) {
+        foreach ($rows as $row) {
+            if ((int) ($row['owner_user_id'] ?? 0) !== (int) $user['id']) {
+                return ['ok' => false, 'error' => '無權調整他人模擬排序。'];
+            }
+        }
+    }
+
+    $upd = $pdo->prepare(
+        'UPDATE simulations SET list_sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    foreach ($orderedIds as $i => $id) {
+        $upd->execute([$i, $id]);
+    }
+
+    return ['ok' => true];
+}
+
+/**
+ * Inline list edit: subject / topic only.
+ *
+ * @param array{id:int} $user
+ * @return array{ok:bool,error?:string,id?:int,subject_id?:int|null,topic_id?:int|null}
+ */
+function sim_patch_classification(PDO $pdo, int $id, ?int $subjectId, ?int $topicId, array $user, bool $isAdmin): array
+{
+    if ($id <= 0) {
+        return ['ok' => false, 'error' => '缺少 id。'];
+    }
+    $row = sim_get_by_id($pdo, $id);
+    if (!$row) {
+        return ['ok' => false, 'error' => '找不到模擬。'];
+    }
+    if (!$isAdmin && (int) ($row['owner_user_id'] ?? 0) !== (int) $user['id']) {
+        return ['ok' => false, 'error' => '無權編輯此模擬。'];
+    }
+
+    if ($topicId !== null && $topicId > 0) {
+        if ($subjectId === null || $subjectId <= 0) {
+            return ['ok' => false, 'error' => '請先選擇科目。'];
+        }
+        $chk = $pdo->prepare('SELECT id FROM topics WHERE id = ? AND subject_id = ? LIMIT 1');
+        $chk->execute([$topicId, $subjectId]);
+        if (!$chk->fetch()) {
+            return ['ok' => false, 'error' => '所選單元不屬於該科目。'];
+        }
+    } else {
+        $topicId = null;
+    }
+    if ($subjectId !== null && $subjectId <= 0) {
+        $subjectId = null;
+        $topicId = null;
+    }
+
+    $upd = $pdo->prepare(
+        'UPDATE simulations SET subject_id = ?, topic_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    $upd->execute([$subjectId, $topicId, $id]);
+
+    return [
+        'ok' => true,
+        'id' => $id,
+        'subject_id' => $subjectId,
+        'topic_id' => $topicId,
+    ];
+}
+
+/**
  * @return array<string, mixed>|null
  */
 function sim_get_by_slug(PDO $pdo, string $slug): ?array

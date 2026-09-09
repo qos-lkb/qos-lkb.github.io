@@ -96,21 +96,9 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
             return;
         }
 
-        if ($isAdmin) {
-            $list = $pdo->query(
-                'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, s.list_sort_order,
-                        s.subject_id, s.topic_id, s.owner_user_id
-                 FROM simulations s ORDER BY s.updated_at DESC'
-            )->fetchAll() ?: [];
-        } else {
-            $stmt = $pdo->prepare(
-                'SELECT s.id, s.slug, s.title_zh, s.title_en, s.status, s.updated_at, s.list_sort_order,
-                        s.subject_id, s.topic_id, s.owner_user_id
-                 FROM simulations s WHERE s.owner_user_id = ? ORDER BY s.updated_at DESC'
-            );
-            $stmt->execute([$user['id']]);
-            $list = $stmt->fetchAll() ?: [];
-        }
+        $list = $isAdmin
+            ? sim_admin_list($pdo)
+            : sim_admin_list($pdo, (int) $user['id']);
         api_json_ok($list);
         return;
     }
@@ -128,6 +116,37 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
         if (!isset($post['csrf'])) {
             $post['csrf'] = api_request_csrf();
         }
+
+        $action = (string) ($post['action'] ?? '');
+        if ($action === 'reorder') {
+            $order = $post['order'] ?? [];
+            if (!is_array($order)) {
+                api_json_error('validation_error', '排序清單無效。', 422);
+            }
+            $r = sim_reorder_items($pdo, $order, $user);
+            if (!$r['ok']) {
+                api_json_error('reorder_failed', $r['error'] ?? '排序失敗。', 422);
+            }
+            api_json_ok(['reordered' => true]);
+            return;
+        }
+        if ($action === 'patch') {
+            $id = isset($post['id']) ? (int) $post['id'] : 0;
+            $subjectId = array_key_exists('subject_id', $post) && $post['subject_id'] !== '' && $post['subject_id'] !== null
+                ? (int) $post['subject_id']
+                : null;
+            $topicId = array_key_exists('topic_id', $post) && $post['topic_id'] !== '' && $post['topic_id'] !== null
+                ? (int) $post['topic_id']
+                : null;
+            $r = sim_patch_classification($pdo, $id, $subjectId, $topicId, $user, $isAdmin);
+            if (!$r['ok']) {
+                api_json_error('save_failed', $r['error'] ?? '儲存失敗。', 422);
+            }
+            unset($r['ok']);
+            api_json_ok($r);
+            return;
+        }
+
         $r = simulation_save_from_request($pdo, $user, $post, $isAdmin);
         if (!$r['ok']) {
             api_json_error('save_failed', $r['error'] ?? '儲存失敗。', 422);
