@@ -1,7 +1,9 @@
 'use strict';
 const global = window;
 
-    const SIM_MODAL_TOOL_IDS = ['sim-modal-close', 'sim-modal-capture', 'sim-modal-fullscreen'];
+    const CAPTURE_REQUEST_TYPE = 'SCI_SIM_CAPTURE_REQUEST';
+    const CAPTURE_RESULT_TYPE = 'SCI_SIM_CAPTURE_RESULT';
+    const CAPTURE_TIMEOUT_MS = 25000;
 
     let currentModalUrl = '';
     let modalFullscreen = false;
@@ -12,10 +14,6 @@ const global = window;
 
     function t(zh, en) {
         return lang() === 'zh' ? zh : en;
-    }
-
-    function isModalToolElement(el) {
-        return el && SIM_MODAL_TOOL_IDS.includes(el.id);
     }
 
     function getIframeAccess(iframe) {
@@ -281,13 +279,77 @@ const global = window;
         });
     }
 
-    async function captureModalContainer() {
-        const modalContent = document.getElementById('sim-modal-content');
-        return withCaptureDocumentFixes(document, async () => html2canvasCapture(modalContent, modalContent, {
-            ignoreElements(element) {
-                return isModalToolElement(element);
-            },
-        }));
+    function renderSerializedHtml(html, width, height) {
+        return new Promise((resolve, reject) => {
+            const host = document.createElement('iframe');
+            host.setAttribute('sandbox', 'allow-same-origin');
+            host.setAttribute('title', 'capture-render');
+            const w = Math.max(1, Math.round(Number(width) || 800));
+            const h = Math.max(1, Math.round(Number(height) || 600));
+            host.style.cssText = 'position:fixed;left:-12000px;top:0;opacity:0;pointer-events:none;border:0;width:'
+                + w + 'px;height:' + h + 'px;';
+            const cleanup = () => host.remove();
+            host.onload = async () => {
+                try {
+                    const doc = host.contentDocument;
+                    if (!doc || !doc.documentElement || !doc.defaultView) {
+                        throw new Error('Capture render document missing');
+                    }
+                    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                    if (!doc.body || doc.body.childElementCount === 0) {
+                        await new Promise(r => setTimeout(r, 50));
+                    }
+                    const root = doc.documentElement || doc.body;
+                    const canvas = await html2canvasCapture(root, root, {
+                        windowWidth: w,
+                        windowHeight: h,
+                        width: w,
+                        height: h,
+                        scrollX: 0,
+                        scrollY: 0,
+                    });
+                    cleanup();
+                    resolve(canvas);
+                } catch (err) {
+                    cleanup();
+                    reject(err);
+                }
+            };
+            host.onerror = () => {
+                cleanup();
+                reject(new Error('Capture render iframe failed'));
+            };
+            host.srcdoc = html;
+            document.body.appendChild(host);
+        });
+    }
+
+    function captureViaBridge(iframe) {
+        const win = iframe.contentWindow;
+        if (!win) return Promise.reject(new Error('Iframe window unavailable'));
+        const requestId = (global.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : ('cap-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                global.removeEventListener('message', onMessage);
+                reject(new Error('Capture bridge timeout'));
+            }, CAPTURE_TIMEOUT_MS);
+            function onMessage(event) {
+                if (event.source !== win) return;
+                const data = event.data;
+                if (!data || data.type !== CAPTURE_RESULT_TYPE || data.requestId !== requestId) return;
+                clearTimeout(timer);
+                global.removeEventListener('message', onMessage);
+                if (!data.ok || !data.html) {
+                    reject(new Error(data.error || 'Capture bridge failed'));
+                    return;
+                }
+                renderSerializedHtml(data.html, data.width, data.height).then(resolve, reject);
+            }
+            global.addEventListener('message', onMessage);
+            win.postMessage({ type: CAPTURE_REQUEST_TYPE, requestId }, '*');
+        });
     }
 
     function getFormattedTimestamp() {
@@ -403,10 +465,10 @@ const global = window;
             if (document.fonts && document.fonts.ready) await document.fonts.ready;
             let canvas;
             try {
+                canvas = await captureViaBridge(iframe);
+            } catch (bridgeError) {
+                console.warn('Bridge capture failed, trying same-origin html2canvas:', bridgeError);
                 canvas = await captureIframeContent(iframe);
-            } catch (iframeError) {
-                console.warn('Iframe capture failed, using modal fallback:', iframeError);
-                canvas = await captureModalContainer();
             }
             const fileName = getFileNameFromUrl(currentModalUrl) || 'simulation';
             await downloadPngFromCanvas(canvas, fileName);

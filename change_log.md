@@ -8,6 +8,9 @@
 
 ## 2026-09-09
 
+### 模擬視窗截圖
+- iframe sandbox 仍省略 `allow-same-origin`；改由 API HTML 注入 `assets/js/sim-capture-bridge.js`，以 `postMessage` 在 iframe 內截圖，避免只截到白色外框。
+
 ### 後台「資料庫管理」
 - 「匯入資料庫」與「匯出資料庫」合併為 SPA `/admin/db`：一鍵將 SQL 寫入伺服器 `backup/`，可下載、單檔匯入、單選／多選刪除備份檔。
 - API：`GET|POST /admin/db/backups`、`GET /admin/db/backups/{filename}`、`POST /admin/db/backups/delete`；匯入可指定 `backup_filename`。既有 `POST /admin/db/export` 保留。

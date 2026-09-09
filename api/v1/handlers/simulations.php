@@ -69,7 +69,7 @@ function api_handle_simulation_html(PDO $pdo, string $slug): void
         }
     }
 
-    echo $html;
+    echo simulation_inject_capture_bridge($html);
     exit;
 }
 

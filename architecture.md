@@ -415,7 +415,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - **Passwords**: verified against QSIS only; no self-service change-password API (removed).
 - **Impersonation**: admin-only; 1-hour TTL auto-stop; start/stop/timeout written to `admin_audit_log`.
 - **DB wipe import** (SPA `/admin/db`): blocked unless `APP_ENV` is `local`/`staging` or `APP_ALLOW_DB_WIPE=1`; requires checkbox + typed phrase `DELETE ALL TABLES`; audited. One-click dumps go to `backup/` (HTTP denied via `backup/.htaccess`).
-- **Simulation HTML**: CSP via `simulation_html_csp()` (HTTPS CDNs allowed; `frame-ancestors 'self'`); SPA iframe sandbox **omits** `allow-same-origin` (opaque origin; modal screenshot may fall back).
+- **Simulation HTML**: CSP via `simulation_html_csp()` (HTTPS CDNs + request origin; `frame-ancestors 'self'`). SPA iframe sandbox **omits** `allow-same-origin` (opaque origin). Modal screenshot uses `postMessage` + inlined `assets/js/sim-capture-bridge.js`.
 - **Simulation workflow**: draft → pending_review → published (aligned with other content; only `simulation.manage_any` publishes; guest/contributor form at `/simulations/contribute`).
 - **`DEFAULT_REDIRECT_URL`**: validated via `REDIRECT_URL_WHITELIST` / HTTPS check.
 - **`markdown_reader.php`**: public whitelist only; other files require `user.manage`.
