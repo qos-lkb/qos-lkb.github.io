@@ -230,7 +230,7 @@ Vanilla JS modules (no bundler):
 | `course.js`, `video.js` | Self-study courses and embedded videos |
 | `note.js`, `note-pdf.js` | Learning notes + PDF export |
 | `worksheet.js`, `assignments.js` | Worksheets; class assignment list & submit flow |
-| `summer-homework.js` | Summer homework list / item / submit (home hub by role) |
+| `summer-homework.js` | Summer homework list / item / submit (home hub by role when nav `summer` is visible) |
 | `dashboard.js`, `learning-tracker.js` | SDL dashboard; page-view / time tracking |
 | `quiz.js`, `article.js` | Interactive tools and science articles |
 | `markdown.js`, `content-embeds.js`, `inline-edit.js` | Markdown render (+ MathJax), embeds, inline editing |
@@ -273,7 +273,7 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 | `classes`, `class_enrollments` | Teacher courses; form level, subject, form class, class no, MOI |
 | `worksheet_assignments`, `worksheet_assignment_students`, `worksheet_submissions` | Class worksheet workflow |
 | `summer_homework_*` | S1/S2 summer assessments (see pattern below) |
-| `spa_nav_visibility` | Per-audience SPA top-nav visibility |
+| `spa_nav_visibility` | Per-audience SPA top-nav visibility (`summer` defaults to hidden for all audiences; toggle in `/admin/nav-menu`) |
 
 ### Roles & permissions
 

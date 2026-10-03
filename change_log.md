@@ -8,6 +8,11 @@
 
 ## 2026-10-03
 
+### 暑期功課：各角色可暫時隱藏
+- 前台頂欄／首頁改為嚴格依 `spa_nav_visibility`（訪客／學生／教師／管理員）；登入後 `/` 不再硬編碼進暑期首頁。
+- 暑期路由與學生 dashboard 入口在該角色隱藏時改導向其他可見分頁；訪客首頁文案不再強調暑期功課。
+- 預設將 `summer` 對四種 audience 設為隱藏（`schema.sql`／`schema_upgrade_all.sql`）；之後可在 SPA **`/admin/nav-menu`** 按角色重新開啟。後台管理頁不受影響。
+
 ### Apache `.htaccess` 保安強化
 - 根目錄：Apache 2.4／2.2 相容寫法；拒絕 dotfiles、`*.sql`、`composer.*`、`*.md`／`*.yml`、`phpunit.xml`、lock／workspace／備份檔；靜態 Allow 白名單收窄（不再允許根目錄 json／txt／csv／xml）。
 - 新增全拒目錄：`includes/`、`vendor/`、`scripts/`、`src/`、`tests/`、`templates/`、`docs/`、`dev/`、`.github/`、`.cursor/`、`.phpunit.cache/`（與既有 `backup/` 同模板）。`vendor/`／`.phpunit.cache/`／`.cursor/` 雖在 `.gitignore`，仍強制追蹤其 `.htaccess`。

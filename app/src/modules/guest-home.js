@@ -113,8 +113,8 @@ const global = window;
                         iconAccount,
                         '登入後完整功能',
                         'Full access after sign-in',
-                        '儲存進度、完成暑期功課與檢視學習紀錄。學校帳戶請使用 QSIS 帳戶名登入。',
-                        'Save progress, complete summer homework and view your learning record. Use your QSIS username to sign in.'
+                        '儲存進度、提交習作與檢視學習紀錄。學校帳戶請使用 QSIS 帳戶名登入。',
+                        'Save progress, submit coursework and view your learning record. Use your QSIS username to sign in.'
                     )}
                 </section>
             </div>`;

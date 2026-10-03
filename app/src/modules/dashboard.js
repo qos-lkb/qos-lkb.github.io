@@ -283,7 +283,9 @@ const global = window;
                         <p class="text-sm text-slate-500 mt-1">${t('自主規劃學習路徑，追蹤進度與掌握度。', 'Plan your path and track progress.')}</p>
                     </div>
                     <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <button type="button" id="dash-goto-summer" class="text-indigo-600 hover:underline">${t('暑期功課', 'Summer homework')} →</button>
+                        ${global.AppNav && typeof global.AppNav.isTabVisible === 'function' && global.AppNav.isTabVisible('summer')
+                            ? `<button type="button" id="dash-goto-summer" class="text-indigo-600 hover:underline">${t('暑期功課', 'Summer homework')} →</button>`
+                            : ''}
                         <button type="button" id="dash-goto-courses" class="text-indigo-600 hover:underline">${t('瀏覽自學課程', 'Browse courses')} →</button>
                     </div>
                 </div>

@@ -39,6 +39,6 @@ const t=window;function i(e,n){return t.AppRouter&&typeof t.AppRouter.t=="functi
                     <p class="text-sm font-semibold text-slate-500 tracking-wide uppercase">${i("你可以探索","Explore")}</p>
                     ${a(s,"模擬程式","Simulations","互動物理、化學、生物與更多實驗，無需安裝即可操作。","Interactive physics, chemistry, biology and more — run in the browser.")}
                     ${a(r,"自學課程與筆記","Courses and notes","依課題編排的筆記、工作紙與影片，按自己的節奏學習。","Topic-based notes, worksheets and videos at your own pace.")}
-                    ${a(d,"登入後完整功能","Full access after sign-in","儲存進度、完成暑期功課與檢視學習紀錄。學校帳戶請使用 QSIS 帳戶名登入。","Save progress, complete summer homework and view your learning record. Use your QSIS username to sign in.")}
+                    ${a(d,"登入後完整功能","Full access after sign-in","儲存進度、提交習作與檢視學習紀錄。學校帳戶請使用 QSIS 帳戶名登入。","Save progress, submit coursework and view your learning record. Use your QSIS username to sign in.")}
                 </section>
             </div>`,e.querySelectorAll("[data-nav]").forEach(l=>{l.addEventListener("click",()=>{const c=l.getAttribute("data-nav");c&&m(c)})})}t.AppGuestHome={renderGuestHome:h};

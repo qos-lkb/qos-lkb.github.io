@@ -1000,7 +1000,8 @@ INSERT INTO spa_nav_visibility (item_key, audience, is_visible) VALUES
     ('articles', 'guest', 1), ('articles', 'student', 1), ('articles', 'teacher', 1), ('articles', 'admin', 1),
     ('learning', 'guest', 1), ('learning', 'student', 1), ('learning', 'teacher', 1), ('learning', 'admin', 1),
     ('flashcards', 'guest', 1), ('flashcards', 'student', 1), ('flashcards', 'teacher', 1), ('flashcards', 'admin', 1),
-    ('summer', 'guest', 1), ('summer', 'student', 1), ('summer', 'teacher', 1), ('summer', 'admin', 1);
+    -- Summer HW temporarily hidden for all audiences; re-enable per role in /admin/nav-menu.
+    ('summer', 'guest', 0), ('summer', 'student', 0), ('summer', 'teacher', 0), ('summer', 'admin', 0);
 
 INSERT INTO spa_nav_order (item_key, sort_order) VALUES
     ('summer', 0),

@@ -55,12 +55,10 @@
         if (Array.isArray(order) && order.length) {
             applyNavOrder(order);
         }
-        // Guests must not reach summer homework from the main nav / home entry points.
-        const loggedIn = !!(window.ScienceApi && typeof ScienceApi.getUser === 'function' && ScienceApi.getUser());
+        // Visibility comes from spa_nav_visibility (guest/student/teacher/admin) via GET /nav-menu.
         document.querySelectorAll('.nav-tab').forEach((btn) => {
             const key = btn.dataset.tab;
-            let show = !navVisibility || navVisibility[key] !== false;
-            if (key === 'summer' && !loggedIn) show = false;
+            const show = isTabVisible(key);
             btn.classList.toggle('hidden', !show);
             btn.toggleAttribute('hidden', !show);
             if (!show) {
@@ -82,11 +80,21 @@
     }
 
     function isTabVisible(tab) {
-        if (tab === 'summer') {
-            const loggedIn = !!(window.ScienceApi && typeof ScienceApi.getUser === 'function' && ScienceApi.getUser());
-            if (!loggedIn) return false;
+        // Until /nav-menu loads (or on failure), keep summer hidden so a temporary hide cannot flash open.
+        if (!navVisibility) {
+            return tab !== 'summer';
         }
-        return !navVisibility || navVisibility[tab] !== false;
+        return navVisibility[tab] !== false;
+    }
+
+    /** Soft-redirect away from summer when the tab is hidden for this audience. */
+    function redirectIfSummerHidden() {
+        if (isTabVisible('summer')) return false;
+        if (window.AppRouter && typeof AppRouter.navigate === 'function') {
+            AppRouter.navigate(firstVisibleTabRoute(), true);
+            return true;
+        }
+        return false;
     }
 
     async function refreshNavVisibility() {
@@ -273,6 +281,14 @@
             }
             return;
         }
+        // When summer HW is hidden for this role, land on the first visible main tab instead.
+        if (!isTabVisible('summer')) {
+            const route = firstVisibleTabRoute();
+            if (window.AppRouter && typeof AppRouter.navigate === 'function') {
+                AppRouter.navigate(route, true);
+                return;
+            }
+        }
         setActiveTab('summer');
         if (window.AppSummerHomework) {
             await AppSummerHomework.renderHome();
@@ -280,6 +296,7 @@
     }
 
     async function showSummerList(formFilter) {
+        if (redirectIfSummerHidden()) return;
         await ensureFrontModules('/summer-homework');
         setActiveTab('summer');
         if (!window.AppSummerHomework) return;
@@ -519,6 +536,7 @@
                 await showSummerList('2');
             },
             '/summer-homework/:slug': front('/summer-homework', async (slug) => {
+                if (redirectIfSummerHidden()) return;
                 setActiveTab('summer');
                 if (window.AppSummerHomework) await AppSummerHomework.renderItem(slug);
             }),

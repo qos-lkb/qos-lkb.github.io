@@ -405,7 +405,7 @@ INSERT IGNORE INTO spa_nav_visibility (item_key, audience, is_visible) VALUES
     ('simulations', 'guest', 1), ('simulations', 'student', 1), ('simulations', 'teacher', 1), ('simulations', 'admin', 1),
     ('articles', 'guest', 1), ('articles', 'student', 1), ('articles', 'teacher', 1), ('articles', 'admin', 1),
     ('learning', 'guest', 1), ('learning', 'student', 1), ('learning', 'teacher', 1), ('learning', 'admin', 1),
-    ('summer', 'guest', 1), ('summer', 'student', 1), ('summer', 'teacher', 1), ('summer', 'admin', 1);
+    ('summer', 'guest', 0), ('summer', 'student', 0), ('summer', 'teacher', 0), ('summer', 'admin', 0);
 -- END schema_spa_nav_visibility.sql
 
 -- ---------------------------------------------------------------------------
@@ -728,6 +728,14 @@ PREPARE stmt_parent FROM @sql_parent;
 EXECUTE stmt_parent;
 DEALLOCATE PREPARE stmt_parent;
 -- END schema_course_discussions.sql
+
+-- ---------------------------------------------------------------------------
+-- Temporarily hide summer homework nav for all audiences (re-enable in /admin/nav-menu).
+-- ---------------------------------------------------------------------------
+UPDATE spa_nav_visibility
+SET is_visible = 0
+WHERE item_key = 'summer'
+  AND audience IN ('guest', 'student', 'teacher', 'admin');
 
 -- ---------------------------------------------------------------------------
 -- Record upgrade in schema_migrations (for apply_schema.php --status)
