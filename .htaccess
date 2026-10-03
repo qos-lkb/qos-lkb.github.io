@@ -3,42 +3,47 @@
 # Disable directory listing
 Options -Indexes
 
-# Prevent access to sensitive files
+# Deny dotfiles (.env, .gitignore, .git, .htaccess, .cursorrules, etc.)
 <FilesMatch "^\.">
-    Order allow,deny
-    Deny from all
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
-# Protect .htaccess and other config files
-<FilesMatch "^(\.htaccess|\.htpasswd|\.git|\.gitignore|\.env|\.log)$">
-    Order allow,deny
-    Deny from all
+# Deny sensitive filenames and extensions (schema, composer, docs, locks, backups)
+<FilesMatch "(?i)^(composer\.(json|lock)|phpunit\.xml.*|.*\.code-workspace)$|\.(sql|lock|md|markdown|yml|yaml|bak|backup|old|tmp|swp|log)$|~$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
-# Allow access to HTML, PHP, CSS, JS, and image files
-<FilesMatch "\.(html|php|css|js|png|jpg|jpeg|gif|svg|ico|webp|json|xml|txt|csv)$">
-    Order allow,deny
-    Allow from all
+# Allow common web assets (narrowed: no json/txt/csv/xml at static roots)
+<FilesMatch "\.(html|php|css|js|png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot|map)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Allow from all
+    </IfModule>
 </FilesMatch>
 
 # Set default charset
 AddDefaultCharset UTF-8
 
-# Prevent access to backup files
-<FilesMatch "\.(bak|backup|old|tmp|swp|~)$">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
 # Security headers
 <IfModule mod_headers.c>
-    # Prevent MIME type sniffing
     Header set X-Content-Type-Options "nosniff"
-    # Prevent clickjacking
     Header set X-Frame-Options "SAMEORIGIN"
-    # Enable XSS protection
     Header set X-XSS-Protection "1; mode=block"
-    # Referrer policy
     Header set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
@@ -47,4 +52,3 @@ AddDefaultCharset UTF-8
     RewriteEngine On
     RewriteRule ^api/v1(/.*)?$ api/index.php [L,QSA]
 </IfModule>
-

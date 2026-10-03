@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-10-03
+
+### Apache `.htaccess` 保安強化
+- 根目錄：Apache 2.4／2.2 相容寫法；拒絕 dotfiles、`*.sql`、`composer.*`、`*.md`／`*.yml`、`phpunit.xml`、lock／workspace／備份檔；靜態 Allow 白名單收窄（不再允許根目錄 json／txt／csv／xml）。
+- 新增全拒目錄：`includes/`、`vendor/`、`scripts/`、`src/`、`tests/`、`templates/`、`docs/`、`dev/`、`.github/`、`.cursor/`、`.phpunit.cache/`（與既有 `backup/` 同模板）。`vendor/`／`.phpunit.cache/`／`.cursor/` 雖在 `.gitignore`，仍強制追蹤其 `.htaccess`。
+- 科目與 screenshots `.htaccess`、`uploads/` 改為 2.4 `Require` + 2.2 fallback；模擬目錄持續拒絕 PHP 與 dotfiles。
+
 ## 2026-09-09
 
 ### 模擬視窗截圖

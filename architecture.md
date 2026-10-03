@@ -407,7 +407,11 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 
 ### 7. Security notes
 
-- **`.env`** must not be web-readable; root `.htaccess` denies dotfiles.
+- **Apache `.htaccess` (LAMPP / PHP host)**:
+  - **Root** denies dotfiles (`.env`, `.gitignore`, `.git`, …), sensitive types (`*.sql`, `composer.*`, `*.md`/`*.yml`/`*.yaml`, `phpunit.xml`, `*.lock`, `*.code-workspace`, backups), and narrows static Allow to `html|php|css|js|images|fonts`. Uses Apache 2.4 `Require` with 2.2 fallback.
+  - **HTTP deny-all directories**: `includes/`, `vendor/`, `scripts/`, `src/`, `tests/`, `templates/`, `docs/`, `dev/`, `backup/`, `.github/`, `.cursor/`, `.phpunit.cache/` (each has its own `.htaccess`).
+  - **Simulation dirs** (`physics/`, `chem/`, …): deny PHP + dotfiles; screenshots allow images only; `uploads/` blocks script execution.
+  - Public entry points remain: `app/`, `api/`, `admin/`, `portal/`, `assets/`, subject HTML, `codespace/`. Requires `AllowOverride` on the vhost.
 - Admin/API mutating requests use **CSRF** (`X-CSRF-Token` or JSON `csrf`).
 - **`logout.php`**: POST only (GET shows confirmation form).
 - **Login / register rate limit**: 5 attempts / 15 min per IP+identity (`api_rate_limits`); applies to API and `login.php` / `register.php`.
@@ -418,7 +422,7 @@ Session-based login; admin routes and API mutations check RBAC capabilities. Adm
 - **Simulation HTML**: CSP via `simulation_html_csp()` (HTTPS CDNs + request origin; `frame-ancestors 'self'`). SPA iframe sandbox **omits** `allow-same-origin` (opaque origin). Modal screenshot uses `postMessage` + inlined `assets/js/sim-capture-bridge.js`.
 - **Simulation workflow**: draft → pending_review → published (aligned with other content; only `simulation.manage_any` publishes; guest/contributor form at `/simulations/contribute`).
 - **`DEFAULT_REDIRECT_URL`**: validated via `REDIRECT_URL_WHITELIST` / HTTPS check.
-- **`markdown_reader.php`**: public whitelist only; other files require `user.manage`.
+- **`markdown_reader.php`**: public whitelist only; other files require `user.manage`. Root `*.md` are not HTTP-downloadable; use this endpoint or the Git repo.
 - **Markdown / HTML content**: client-side sanitization (DOMPurify).
 
 ---
