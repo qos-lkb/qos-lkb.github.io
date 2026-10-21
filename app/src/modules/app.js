@@ -388,7 +388,7 @@
 
     function enterAdminMode(pathHint) {
         document.body.classList.add('admin-mode');
-        document.body.classList.remove('sidebar-tab-active', 'sidebar-is-collapsed');
+        document.body.classList.remove('sidebar-tab-active', 'sidebar-is-collapsed', 'guest-landing');
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.style.display = 'none';
         renderAdminNav(pathHint);
@@ -404,6 +404,7 @@
 
     function setActiveTab(tab) {
         exitAdminMode();
+        document.body.classList.remove('guest-landing');
         document.querySelectorAll('.nav-tab').forEach(btn => {
             const on = btn.dataset.tab === tab && isTabVisible(tab);
             btn.classList.toggle('active', on);
@@ -513,9 +514,20 @@
         await ensureFrontModules('/');
         const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
         if (!user) {
-            setActiveTab('');
+            document.querySelectorAll('.nav-tab').forEach((btn) => btn.classList.remove('active'));
+            document.querySelectorAll('[data-group-btn]').forEach((btn) => btn.classList.remove('active'));
+            document.querySelectorAll('.bottom-nav-btn').forEach((btn) => {
+                btn.classList.remove('active');
+                btn.removeAttribute('aria-current');
+            });
+            exitAdminMode();
+            document.body.classList.remove('sidebar-tab-active', 'sidebar-is-collapsed');
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.style.display = 'none';
             if (window.AppGuestHome) {
                 AppGuestHome.renderGuestHome();
+            } else {
+                document.body.classList.add('guest-landing');
             }
             return;
         }

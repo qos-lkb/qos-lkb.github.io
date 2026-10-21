@@ -42,6 +42,8 @@ const global = window;
         const main = document.getElementById('main-content');
         if (!main) return;
 
+        document.body.classList.add('guest-landing');
+
         const brand = escapeHtml(siteName());
         const login = escapeHtml(loginUrl());
 
