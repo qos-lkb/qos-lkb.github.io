@@ -55,7 +55,7 @@ const global = window;
                                 const ans = answerMap[q.id];
                                 if (ans && i === ans.correct_option_index) cls += ' correct';
                                 else if (selections[q.id] === i) cls += ' incorrect';
-                            } else if (selections[q.id] === i) cls += ' selected border-indigo-400 bg-indigo-50';
+                            } else if (selections[q.id] === i) cls += ' selected border-brand-400 bg-brand-50';
                             else cls += ' border-slate-200 bg-white';
                             return `<button type="button" class="${cls}" data-q="${q.id}" data-opt="${i}" ${submitted ? 'disabled' : ''}>
                                 <span class="font-bold mr-2">${LABELS[i]}</span>${escapeHtml(text)}
@@ -65,7 +65,7 @@ const global = window;
                             `<p class="text-sm text-slate-600 mt-2">${escapeHtml(lang === 'zh' ? answerMap[q.id].explanation_zh : answerMap[q.id].explanation_en)}</p>` : ''}
                     </div>`;
                 }).join('')}
-                ${!submitted ? `<button type="button" id="art-submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg">${t('提交答案', 'Submit answers')}</button>` : ''}
+                ${!submitted ? `<button type="button" id="art-submit" class="px-6 py-2 bg-brand-600 text-white rounded-lg">${t('提交答案', 'Submit answers')}</button>` : ''}
                 <p id="art-score" class="mt-4 text-sm font-medium text-slate-700"></p>`;
 
             if (!submitted) {
@@ -73,10 +73,10 @@ const global = window;
                     btn.onclick = () => {
                         selections[parseInt(btn.dataset.q, 10)] = parseInt(btn.dataset.opt, 10);
                         section.querySelectorAll(`button[data-q="${btn.dataset.q}"]`).forEach(b => {
-                            b.classList.remove('selected', 'border-indigo-400', 'bg-indigo-50');
+                            b.classList.remove('selected', 'border-brand-400', 'bg-brand-50');
                             b.classList.add('border-slate-200', 'bg-white');
                         });
-                        btn.classList.add('selected', 'border-indigo-400', 'bg-indigo-50');
+                        btn.classList.add('selected', 'border-brand-400', 'bg-brand-50');
                         btn.classList.remove('border-slate-200', 'bg-white');
                     };
                 });
@@ -128,7 +128,7 @@ const global = window;
 
         main.innerHTML = `
             <div class="reading-page" id="art-page">
-                <button type="button" id="art-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回文章列表', 'Back to articles')}</button>
+                <button type="button" id="art-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回文章列表', 'Back to articles')}</button>
                 <h1 id="art-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                 ${article.reading_time_minutes ? `<p class="text-sm text-slate-500 mb-6">${t('約', '~')}${article.reading_time_minutes}${t(' 分鐘閱讀', ' min read')}</p>` : ''}
                 <article id="art-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm mb-6">${renderMarkdownToHtml(body)}</article>

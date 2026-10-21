@@ -95,7 +95,7 @@ const global = window;
 
             main.innerHTML = `
                 <div class="reading-page" id="video-page">
-                    <button type="button" id="video-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${escapeHtml(backLabel)}</button>
+                    <button type="button" id="video-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${escapeHtml(backLabel)}</button>
                     <h1 class="text-2xl sm:text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                     ${metaParts.length ? `<p class="text-sm text-slate-500 mb-4">${metaParts.map((p) => escapeHtml(p)).join(' · ')}</p>` : ''}
                     <div class="video-embed-wrap relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-black shadow-sm" style="padding-bottom:56.25%;height:0;">
@@ -113,7 +113,7 @@ const global = window;
         } catch (err) {
             main.innerHTML = `
                 <div class="reading-page">
-                    <button type="button" id="video-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
+                    <button type="button" id="video-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
                     <p class="text-red-600">${escapeHtml(err.message || t('無法載入影片。', 'Could not load video.'))}</p>
                 </div>`;
             document.getElementById('video-back').onclick = () => navigate('/learning-videos');

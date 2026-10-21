@@ -59,14 +59,14 @@ async function renderAdminSchoolOverview() {
                 <td class="p-3 text-red-600">${Number(c.worksheet_overdue || 0)}</td>
                 <td class="p-3">${escapeHtml(summer)}</td>
                 <td class="p-3">
-                    <a href="${escapeHtml(spaHref(link))}" data-spa-nav="${escapeHtml(link)}" class="text-indigo-600 hover:underline text-sm">${escapeHtml(t('報告', 'Report'))}</a>
+                    <a href="${escapeHtml(spaHref(link))}" data-spa-nav="${escapeHtml(link)}" class="text-brand-600 hover:underline text-sm">${escapeHtml(t('報告', 'Report'))}</a>
                 </td>
             </tr>`;
         }).join('');
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center">
-                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 儀表板', '← Dashboard'))}</a>
+                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 儀表板', '← Dashboard'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/inbox'))}" data-spa-nav="/admin/inbox" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('待批改／逾期', 'Inbox'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('課程', 'Courses'))}</a>
             </div>

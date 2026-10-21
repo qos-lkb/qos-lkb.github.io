@@ -211,10 +211,12 @@ const intervalId = setInterval(update, 100);
 </style>
 ```
 
-**Rule 4.4**: Use consistent color scheme
-- Primary: Indigo (`indigo-600`, `indigo-900`)
+**Rule 4.4**: Use consistent color scheme (SPA shell)
+- Primary / brand: Teal (`brand-600` `#0d9488`, `brand-900` `#134e4a`, `brand-950`)
 - Secondary: Slate (`slate-800`, `slate-200`)
-- Accent: Blue (`blue-500`, `blue-400`)
+- Accent / CTA: Amber (`accent-500` `#f59e0b`)
+- Tokens live in `app/tailwind.config.js` and `app/assets/css/app.css` `:root`
+- Simulation HTML pages may still use indigo locally; new SPA UI should use `brand-*` / `accent-*`
 
 **Rule 4.5**: Follow mobile-first design approach
 ```html
@@ -610,9 +612,11 @@ declare(strict_types=1);
 
 ## SPA Frontend Rules (`app/`)
 
-**Rule 15.1**: No bundler—add scripts to **`app/index.html`** in dependency order
-- Use IIFE or `global` pattern consistent with existing modules (`router.js`, `api.js`, …)
-- New routes: register in **`app.js`** via `AppRouter.register()`; add path handling in **`router.js`** if needed
+**Rule 15.1**: SPA is **Vite + ESM** under **`app/src/`**
+- Dev: `cd app && npm run dev`; production: `cd app && npm run build` → `app/dist/`
+- Modules use `window.App*` globals (e.g. `router.js`, `api.js`) for interop
+- New routes: register in **`app.js`** via `AppRouter.register()`; add path matchers in **`router.js`** if needed
+- Top nav is grouped (Learn / Browse / Tasks); mobile uses bottom nav — keep `spa_nav_visibility` `item_key`s
 
 **Rule 15.2**: All API calls go through **`api.js`** (`apiFetch`)
 - Include CSRF token on POST/PUT/DELETE

@@ -89,7 +89,7 @@ async function renderAdminCourseDiscussions(idRaw) {
                 const parentCtx = p.parent_post_id
                     ? `<div class="mb-2 text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2">
                         <span class="font-medium">${escapeHtml(t('回覆至', 'Reply to'))}</span>
-                        ${p.parent_display_name ? ` <span class="text-indigo-700">${escapeHtml(p.parent_display_name)}</span>` : ''}
+                        ${p.parent_display_name ? ` <span class="text-brand-700">${escapeHtml(p.parent_display_name)}</span>` : ''}
                         ${p.parent_excerpt ? `：${escapeHtml(p.parent_excerpt)}` : ' #' + Number(p.parent_post_id)}
                        </div>`
                     : '';
@@ -120,7 +120,7 @@ async function renderAdminCourseDiscussions(idRaw) {
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center">
-                <a href="${escapeHtml(spaHref('/admin/courses/' + id + '/report'))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-indigo-600 hover:underline">${escapeHtml(t('← 返回報告', '← Back to report'))}</a>
+                <a href="${escapeHtml(spaHref('/admin/courses/' + id + '/report'))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-brand-600 hover:underline">${escapeHtml(t('← 返回報告', '← Back to report'))}</a>
             </div>
             <h2 class="text-lg font-bold text-slate-800 mb-3">${escapeHtml(c.name || t('課程', 'Course'))}</h2>
 

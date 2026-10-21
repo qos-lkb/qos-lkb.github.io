@@ -150,11 +150,11 @@ const global = window;
         html = html.replace(/\{\{(\d+)\}\}/g, (_, n) => {
             const bi = Math.max(0, parseInt(n, 10) - 1);
             idx = Math.max(idx, bi + 1);
-            return `<input type="text" class="sh-blank sh-blank-inline inline-block mx-1 px-2 py-0.5 border-b-2 border-indigo-400 bg-indigo-50/50 rounded w-28 align-baseline" data-blank="${bi}" autocomplete="off" aria-label="blank ${bi + 1}">`;
+            return `<input type="text" class="sh-blank sh-blank-inline inline-block mx-1 px-2 py-0.5 border-b-2 border-brand-400 bg-brand-50/50 rounded w-28 align-baseline" data-blank="${bi}" autocomplete="off" aria-label="blank ${bi + 1}">`;
         });
         html = html.replace(/_{3,}/g, () => {
             const bi = idx++;
-            return `<input type="text" class="sh-blank sh-blank-inline inline-block mx-1 px-2 py-0.5 border-b-2 border-indigo-400 bg-indigo-50/50 rounded w-28 align-baseline" data-blank="${bi}" autocomplete="off" aria-label="blank ${bi + 1}">`;
+            return `<input type="text" class="sh-blank sh-blank-inline inline-block mx-1 px-2 py-0.5 border-b-2 border-brand-400 bg-brand-50/50 rounded w-28 align-baseline" data-blank="${bi}" autocomplete="off" aria-label="blank ${bi + 1}">`;
         });
         const hasInline = html.includes('sh-blank-inline');
         return { html, hasInline, nextIndex: Math.max(idx, blankCount || 0) };
@@ -462,7 +462,7 @@ const global = window;
                 <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2">${t('我的課程', 'My courses')}</h1>
                 <p class="text-red-600">${escapeHtml(e.message || t('載入失敗', 'Failed to load'))}</p>
                 <p class="text-sm text-slate-500 mt-2">${t('請確認已登入且具課程管理權限。', 'Please sign in with course management permission.')}
-                    <a class="text-indigo-600 underline ml-1" href="${loginUrl}">${t('登入', 'Log in')}</a>
+                    <a class="text-brand-600 underline ml-1" href="${loginUrl}">${t('登入', 'Log in')}</a>
                 </p>
             </div>`;
             return;
@@ -473,7 +473,7 @@ const global = window;
             ? global.AppRouter.spaHref(route)
             : route);
         const nav = (route, label) =>
-            `<a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref(route))}" data-spa-nav="${escapeHtml(route)}">${escapeHtml(label)}</a>`;
+            `<a class="text-brand-600 hover:underline" href="${escapeHtml(spaHref(route))}" data-spa-nav="${escapeHtml(route)}">${escapeHtml(label)}</a>`;
         const cards = classes.map((c) => {
             const id = Number(c.id);
             const form = c.form_level_label || '—';
@@ -504,7 +504,7 @@ const global = window;
                 <p class="text-slate-700 text-sm">${escapeHtml(t('尚無任教課程。', 'No courses yet.'))}</p>
                 <p class="text-slate-500 text-xs mt-2">${escapeHtml(t('可由後台新增課程，或請管理員指派任教班別。', 'Create a course in admin, or ask an admin to assign you to a class.'))}</p>
                 <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses"
-                   class="inline-block mt-4 text-sm font-medium text-indigo-700 hover:underline">${escapeHtml(t('前往課程管理', 'Go to course admin'))}</a>
+                   class="inline-block mt-4 text-sm font-medium text-brand-700 hover:underline">${escapeHtml(t('前往課程管理', 'Go to course admin'))}</a>
             </div>`;
 
         main.innerHTML = `
@@ -513,9 +513,9 @@ const global = window;
                     <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">${t('我的課程', 'My courses')}</h1>
                     <p class="text-slate-600 mt-2 text-sm">${t('查看任教課程的暑期功課呈交與學習報告。', 'View summer homework submissions and learning reports for your classes.')}</p>
                     <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-indigo-600 hover:underline">${t('課程管理', 'Course admin')}</a>
-                        <a href="${escapeHtml(spaHref('/summer-homework/s1'))}" data-spa-nav="/summer-homework/s1" class="text-indigo-600 hover:underline">${t('預覽中一暑期', 'Preview S1 summer')}</a>
-                        <a href="${escapeHtml(spaHref('/summer-homework/s2'))}" data-spa-nav="/summer-homework/s2" class="text-indigo-600 hover:underline">${t('預覽中二暑期', 'Preview S2 summer')}</a>
+                        <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-brand-600 hover:underline">${t('課程管理', 'Course admin')}</a>
+                        <a href="${escapeHtml(spaHref('/summer-homework/s1'))}" data-spa-nav="/summer-homework/s1" class="text-brand-600 hover:underline">${t('預覽中一暑期', 'Preview S1 summer')}</a>
+                        <a href="${escapeHtml(spaHref('/summer-homework/s2'))}" data-spa-nav="/summer-homework/s2" class="text-brand-600 hover:underline">${t('預覽中二暑期', 'Preview S2 summer')}</a>
                     </div>
                 </div>
                 <div class="space-y-3">
@@ -587,7 +587,7 @@ const global = window;
             const cards = list.map((item) => {
                 const titleText = lang === 'zh' ? item.title_zh : item.title_en;
                 const type = item.content_type === 'video' ? st('影片', 'Video', lang) : st('閱讀', 'Passage', lang);
-                return `<a href="#" data-slug="${escapeHtml(item.slug)}" class="sh-card block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition">
+                return `<a href="#" data-slug="${escapeHtml(item.slug)}" class="sh-card block bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-brand-300 hover:shadow-md transition">
                     <div class="flex justify-between gap-3 items-start">
                         <div>
                             <h3 class="font-semibold text-slate-900">${escapeHtml(titleText)}</h3>
@@ -626,11 +626,11 @@ const global = window;
             : '';
 
         const filters = formLocked
-            ? `<p class="text-sm text-indigo-800 mt-3">${st('已依你的年級顯示習作。', 'Showing assessments for your form level.', lang)}</p>${moiHint}`
+            ? `<p class="text-sm text-brand-800 mt-3">${st('已依你的年級顯示習作。', 'Showing assessments for your form level.', lang)}</p>${moiHint}`
             : `<div class="flex flex-wrap gap-2 mt-4">
-                <button type="button" data-form="" class="sh-filter px-3 py-1.5 rounded-lg text-sm border ${!effectiveForm ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white'}">${st('全部', 'All', lang)}</button>
-                <button type="button" data-form="1" class="sh-filter px-3 py-1.5 rounded-lg text-sm border ${effectiveForm === '1' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white'}">${st('中一', 'S1', lang)}</button>
-                <button type="button" data-form="2" class="sh-filter px-3 py-1.5 rounded-lg text-sm border ${effectiveForm === '2' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white'}">${st('中二', 'S2', lang)}</button>
+                <button type="button" data-form="" class="sh-filter px-3 py-1.5 rounded-lg text-sm border ${!effectiveForm ? 'bg-brand-600 text-white border-brand-600' : 'bg-white'}">${st('全部', 'All', lang)}</button>
+                <button type="button" data-form="1" class="sh-filter px-3 py-1.5 rounded-lg text-sm border ${effectiveForm === '1' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white'}">${st('中一', 'S1', lang)}</button>
+                <button type="button" data-form="2" class="sh-filter px-3 py-1.5 rounded-lg text-sm border ${effectiveForm === '2' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white'}">${st('中二', 'S2', lang)}</button>
             </div>`;
 
         main.innerHTML = `
@@ -673,7 +673,7 @@ const global = window;
                 item = await apiFetch('/summer-homework/' + encodeURIComponent(slug));
             } catch (e) {
                 main.innerHTML = `<div class="max-w-3xl mx-auto"><p class="text-red-600">${escapeHtml(e.message || '')}</p>
-                    <button type="button" id="sh-back" class="mt-4 text-indigo-600 underline">${st('返回列表', 'Back to list', bootLang)}</button></div>`;
+                    <button type="button" id="sh-back" class="mt-4 text-brand-600 underline">${st('返回列表', 'Back to list', bootLang)}</button></div>`;
                 document.getElementById('sh-back')?.addEventListener('click', () => {
                     if (typeof opts.onBack === 'function') opts.onBack();
                     else navigate('/summer-homework');
@@ -730,10 +730,10 @@ const global = window;
 
         main.innerHTML = `
             <div class="max-w-3xl mx-auto w-full">
-                <button type="button" id="sh-back" class="text-sm text-indigo-600 mb-4">${escapeHtml(backLabel)}</button>
+                <button type="button" id="sh-back" class="text-sm text-brand-600 mb-4">${escapeHtml(backLabel)}</button>
                 ${previewBanner}
                 <div class="mb-4 flex flex-wrap items-center gap-2">
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800">${formLabel}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-800">${formLabel}</span>
                     ${statusLabel ? `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">${escapeHtml(statusLabel)}</span>` : ''}
                     ${preview ? '' : progressBadge(item.progress, lang)}
                 </div>
@@ -780,7 +780,7 @@ const global = window;
 
         if (closed) {
             quizEl.innerHTML = `<p class="text-amber-900 font-medium">${st('已過呈交截止日期，無法再提交。', 'The due date has passed; submissions are closed.', lang)}</p>
-                <button type="button" id="sh-back2" class="mt-4 text-indigo-600 underline">${st('返回列表', 'Back to list', lang)}</button>`;
+                <button type="button" id="sh-back2" class="mt-4 text-brand-600 underline">${st('返回列表', 'Back to list', lang)}</button>`;
             document.getElementById('sh-back2')?.addEventListener('click', () => navigate('/summer-homework'));
             return;
         }
@@ -799,7 +799,7 @@ const global = window;
         }
         if (!preview && (!me || !me.id)) {
             quizEl.innerHTML = `<p class="text-amber-800">${st('請先登入後再作答。', 'Please log in to attempt this assessment.', lang)}</p>
-                <a class="inline-block mt-3 text-indigo-600 underline" href="../login.php?next=${encodeURIComponent('app/summer-homework/' + slug)}">${st('登入', 'Log in', lang)}</a>`;
+                <a class="inline-block mt-3 text-brand-600 underline" href="../login.php?next=${encodeURIComponent('app/summer-homework/' + slug)}">${st('登入', 'Log in', lang)}</a>`;
             return;
         }
 
@@ -856,7 +856,7 @@ const global = window;
                     const isCorrect = showKeys && !!o.is_correct;
                     html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${isCorrect ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="radio" name="q-${q.id}" value="${oi}" class="mt-1">
-                        <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
+                        <span class="sh-q-opt"><span class="font-bold text-brand-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
                     </label>`;
                 });
             } else if (type === 'multi_select') {
@@ -865,7 +865,7 @@ const global = window;
                     const isCorrect = showKeys && !!o.is_correct;
                     html += `<label class="flex items-start gap-2 mb-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${isCorrect ? 'border-emerald-400 bg-emerald-50' : ''}">
                         <input type="checkbox" name="q-${q.id}" value="${oi}" class="mt-1 sh-multi">
-                        <span class="sh-q-opt"><span class="font-bold text-indigo-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
+                        <span class="sh-q-opt"><span class="font-bold text-brand-600 mr-1">${String.fromCharCode(65 + oi)}</span>${renderRichText(text)}${isCorrect ? ` <span class="text-xs text-emerald-700">${st('✓ 正確', '✓ Correct', lang)}</span>` : ''}</span>
                     </label>`;
                 });
                 html += `<p class="text-xs text-slate-500 mt-1">${st('請選出所有正確選項。', 'Select all correct options.', lang)}</p>`;
@@ -900,7 +900,7 @@ const global = window;
             html += '</div>';
         });
         html += `<p id="sh-unanswered" class="hidden text-sm text-amber-800 mb-3" role="alert"></p>`;
-        html += `<button type="button" id="sh-submit" class="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">${preview ? st('試做（不呈交）', 'Try (no submit)', lang) : (alreadyPassed ? st('重新提交', 'Resubmit', lang) : st('提交答案', 'Submit', lang))}</button>`;
+        html += `<button type="button" id="sh-submit" class="w-full sm:w-auto px-6 py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700">${preview ? st('試做（不呈交）', 'Try (no submit)', lang) : (alreadyPassed ? st('重新提交', 'Resubmit', lang) : st('提交答案', 'Submit', lang))}</button>`;
         quizEl.innerHTML = html;
         await enhanceMath(quizEl);
 
@@ -1139,8 +1139,8 @@ const global = window;
                     : `<p class="mt-3 text-sm text-red-900 font-semibold" role="alert">${result.submission_status === 'overdue'
                         ? st('不及格：未達及格線，狀態為「欠交」。請重讀／重看內容後再次完成並提交。', 'Not passed: below the pass mark — status is “Not passed (after due)”. Review the content and complete the assessment again.', lang)
                         : st('不及格：未達及格線，狀態為「未交」。請重讀／重看內容後再次完成並提交。', 'Not passed: below the pass mark — status is “Not passed (before due)”. Review the content and complete the assessment again.', lang)}</p>`)}
-            <button type="button" id="sh-redo" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">${st('重新作答', 'Try again', lang)}</button>
-            <button type="button" id="sh-back-list" class="mt-4 ml-2 text-indigo-600 underline text-sm">${st('返回列表', 'Back to list', lang)}</button>
+            <button type="button" id="sh-redo" class="mt-4 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm">${st('重新作答', 'Try again', lang)}</button>
+            <button type="button" id="sh-back-list" class="mt-4 ml-2 text-brand-600 underline text-sm">${st('返回列表', 'Back to list', lang)}</button>
         `;
         box.classList.remove('hidden');
         if (quizEl) quizEl.querySelectorAll('input, button, textarea').forEach((el) => { el.disabled = true; });

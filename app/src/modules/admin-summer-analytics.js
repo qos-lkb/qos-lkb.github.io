@@ -222,7 +222,7 @@ const global = window;
                 const uid = Number(s.user_id);
                 const active = filterUserId === uid;
                 const notPassed = !s.passed;
-                const rowTone = active ? 'bg-indigo-50/50' : (notPassed ? 'bg-amber-50/70' : '');
+                const rowTone = active ? 'bg-brand-50/50' : (notPassed ? 'bg-amber-50/70' : '');
                 return `<tr class="border-t border-slate-100 ${rowTone}">
                     <td class="p-3 font-medium">${escapeHtml(s.display_name || '')}</td>
                     <td class="p-3 text-xs text-slate-600">${escapeHtml(s.email || '')}</td>
@@ -231,7 +231,7 @@ const global = window;
                     <td class="p-3 ${notPassed ? 'text-amber-900 font-semibold' : 'text-emerald-800'}">${escapeHtml(boolLabel(!!s.passed))}</td>
                     <td class="p-3 text-xs whitespace-nowrap">${s.first_passed_at ? escapeHtml(String(s.first_passed_at).slice(0, 16)) : '—'}</td>
                     <td class="p-3 text-xs whitespace-nowrap">${s.last_submitted_at ? escapeHtml(String(s.last_submitted_at).slice(0, 16)) : '—'}</td>
-                    <td class="p-3"><button type="button" class="sh-filter-user text-indigo-600 hover:underline" data-user-id="${uid}">${escapeHtml(t('詳細', 'Detail'))}</button></td>
+                    <td class="p-3"><button type="button" class="sh-filter-user text-brand-600 hover:underline" data-user-id="${uid}">${escapeHtml(t('詳細', 'Detail'))}</button></td>
                 </tr>`;
             }).join('');
 
@@ -247,7 +247,7 @@ const global = window;
                         <td class="p-3">${escapeHtml(String(a.score))} / ${escapeHtml(String(a.max_score))}</td>
                         <td class="p-3">${escapeHtml(String(a.percent))}%</td>
                         <td class="p-3">${escapeHtml(boolLabel(!!a.passed))}</td>
-                        <td class="p-3"><button type="button" class="sh-open-attempt text-indigo-600 hover:underline" data-attempt-id="${Number(a.id)}">${escapeHtml(t('查看作答', 'View'))}</button></td>
+                        <td class="p-3"><button type="button" class="sh-open-attempt text-brand-600 hover:underline" data-attempt-id="${Number(a.id)}">${escapeHtml(t('查看作答', 'View'))}</button></td>
                     </tr>`;
                 }).join('');
                 attemptsBlock = `<div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm mb-8">
@@ -322,7 +322,7 @@ const global = window;
                             let rowClass = '';
                             if (isAns) rowClass = 'text-emerald-800';
                             else if (chosen) rowClass = 'text-red-800';
-                            return `<li class="${rowClass}"><span class="font-bold text-indigo-600 mr-1">${label}</span>${escapeHtml(text)}${marks.length ? ` <span class="text-xs text-slate-500">（${escapeHtml(marks.join(' · '))}）</span>` : ''}</li>`;
+                            return `<li class="${rowClass}"><span class="font-bold text-brand-600 mr-1">${label}</span>${escapeHtml(text)}${marks.length ? ` <span class="text-xs text-slate-500">（${escapeHtml(marks.join(' · '))}）</span>` : ''}</li>`;
                         }).join('') + '</ul>';
                         if (ok === false) {
                             if (qtype === 'mcq' && selectedIdx !== null) {
@@ -376,7 +376,7 @@ const global = window;
                                 <div><label class="block text-slate-600">${escapeHtml(t('評語', 'Comment'))}</label>
                                     <input type="text" class="mark-comment w-full border rounded px-2 py-1" value="${escapeHtml(String(tm.comment || ''))}">
                                 </div>
-                                <button type="submit" class="text-indigo-600 text-sm">${escapeHtml(t('儲存評分', 'Save mark'))}</button>
+                                <button type="submit" class="text-brand-600 text-sm">${escapeHtml(t('儲存評分', 'Save mark'))}</button>
                                 <span class="mark-flash text-xs text-slate-500"></span>
                             </form>`;
                     } else {
@@ -433,7 +433,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 習作列表', '← Homework list'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 習作列表', '← Homework list'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/view'))}" data-spa-nav="/admin/summer-homework/${itemId}/view" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
                     ${canManage ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/edit'))}" data-spa-nav="/admin/summer-homework/${itemId}/edit" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('編輯習作', 'Edit item'))}</a>` : ''}
                 </div>
@@ -444,7 +444,7 @@ const global = window;
                     : ''}
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm"><p class="text-xs text-slate-500 uppercase">${escapeHtml(t('總呈交次數', 'Total attempts'))}</p><p class="text-2xl font-bold">${Number(analytics.total_attempts || 0)}</p></div>
-                    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm"><p class="text-xs text-slate-500 uppercase">${escapeHtml(t('作答學生數', 'Students'))}</p><p class="text-2xl font-bold text-indigo-600">${Number(analytics.distinct_students || 0)}</p></div>
+                    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm"><p class="text-xs text-slate-500 uppercase">${escapeHtml(t('作答學生數', 'Students'))}</p><p class="text-2xl font-bold text-brand-600">${Number(analytics.distinct_students || 0)}</p></div>
                     <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm"><p class="text-xs text-slate-500 uppercase">${escapeHtml(t('人均呈交', 'Avg / student'))}</p><p class="text-2xl font-bold">${escapeHtml(String(analytics.avg_attempts_per_student ?? '—'))}</p></div>
                     <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm"><p class="text-xs text-slate-500 uppercase">${escapeHtml(t('題目數', 'Questions'))}</p><p class="text-2xl font-bold">${(analytics.questions || []).length}</p></div>
                 </div>

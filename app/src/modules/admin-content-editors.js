@@ -181,7 +181,7 @@ const global = window;
     function editorChrome(listRoute, listLabel) {
         return `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                <a href="${escapeHtml(spaHref(listRoute))}" data-spa-nav="${escapeHtml(listRoute)}" class="text-indigo-700 hover:underline">${escapeHtml(listLabel)}</a>
+                <a href="${escapeHtml(spaHref(listRoute))}" data-spa-nav="${escapeHtml(listRoute)}" class="text-brand-700 hover:underline">${escapeHtml(listLabel)}</a>
             </div>
             <p id="edit-flash" class="text-red-600 text-sm hidden mb-3"></p>`;
     }
@@ -262,7 +262,7 @@ const global = window;
                 <div><label class="text-sm font-medium">${escapeHtml(t('片長（分鐘，選填）', 'Duration (minutes)'))}</label><input type="number" id="duration" min="1" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
                 <div><label class="text-sm font-medium">${escapeHtml(t('狀態', 'Status'))}</label><select id="status" class="w-full border rounded-lg px-3 py-2 mt-1">${statusOptions(true, true)}</select></div>
                 <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
+                    <button type="submit" class="flex-1 bg-brand-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
                     ${editId ? `<button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                 </div>
             </form>`;
@@ -379,11 +379,11 @@ const global = window;
                 <div>
                     <div class="flex justify-between mb-2">
                         <label class="text-sm font-medium">${escapeHtml(t('閱讀理解題（選填）', 'Comprehension questions'))}</label>
-                        <button type="button" id="add-q" class="text-sm text-indigo-600">+ ${escapeHtml(t('新增', 'Add'))}</button>
+                        <button type="button" id="add-q" class="text-sm text-brand-600">+ ${escapeHtml(t('新增', 'Add'))}</button>
                     </div>
                     <div id="questions"></div>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
+                <button type="submit" class="w-full bg-brand-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>`;
         bindSpaNav(box);
 
@@ -484,7 +484,7 @@ const global = window;
                     <div class="flex flex-wrap gap-2 mb-1">
                         <button type="button" data-content-embed="video" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ ${escapeHtml(t('影片', 'Video'))}</button>
                         <button type="button" data-content-embed="simulation" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ ${escapeHtml(t('模擬', 'Sim'))}</button>
-                        ${canQb ? `<button type="button" data-content-embed="question" class="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">+ ${escapeHtml(t('題庫題目', 'Question'))}</button>` : ''}
+                        ${canQb ? `<button type="button" data-content-embed="question" class="text-xs px-2 py-1 rounded border border-brand-300 text-brand-700 hover:bg-brand-50">+ ${escapeHtml(t('題庫題目', 'Question'))}</button>` : ''}
                     </div>
                     <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="12"></textarea>
                     <p class="text-xs text-slate-500 mt-1">${escapeHtml(t('可用 ::video / ::simulation / ::question 短碼嵌入內容；亦可用上方按鈕插入。', 'Use ::video / ::simulation / ::question shortcodes, or the buttons above.'))}</p>
@@ -494,7 +494,7 @@ const global = window;
                     <div class="flex flex-wrap gap-2 mb-1">
                         <button type="button" data-content-embed="video" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Video</button>
                         <button type="button" data-content-embed="simulation" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Sim</button>
-                        ${canQb ? `<button type="button" data-content-embed="question" class="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">+ Question</button>` : ''}
+                        ${canQb ? `<button type="button" data-content-embed="question" class="text-xs px-2 py-1 rounded border border-brand-300 text-brand-700 hover:bg-brand-50">+ Question</button>` : ''}
                     </div>
                     <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="12"></textarea>
                 </div>
@@ -506,7 +506,7 @@ const global = window;
                 <div><label class="text-sm font-medium">${escapeHtml(t('排序', 'Sort order'))}</label><input type="number" id="list-sort" value="0" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
                 <div><label class="text-sm font-medium">${escapeHtml(t('狀態', 'Status'))}</label><select id="status" class="w-full border rounded-lg px-3 py-2 mt-1">${statusOptions(true, canAny)}</select></div>
                 <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
+                    <button type="submit" class="flex-1 bg-brand-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
                     ${editId ? `<button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                 </div>
             </form>`;
@@ -685,7 +685,7 @@ const global = window;
                     <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}</h2>
                     <iframe id="sim-edit-preview" title="preview" sandbox="${sandbox}" class="w-full h-80 border rounded-lg bg-slate-50"></iframe>
                 </section>
-                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">${escapeHtml(t('儲存', 'Save'))}</button>
+                <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>`;
         bindSpaNav(box);
 

@@ -96,7 +96,7 @@ const global = window;
                 const dossier = `/admin/courses/${id}/students/${uid}`;
                 return `<tr class="border-t border-slate-100">
                     <td class="p-3">
-                        <a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}" class="font-medium text-indigo-700 hover:underline">${escapeHtml(s.display_name || '')}</a>
+                        <a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}" class="font-medium text-brand-700 hover:underline">${escapeHtml(s.display_name || '')}</a>
                         <span class="block text-xs text-slate-400">${escapeHtml(s.email || '')}</span>
                         ${metaLine}
                     </td>
@@ -124,13 +124,13 @@ const global = window;
             const weeklyChampion = weeklySorted[0] || null;
 
             const leaderboardHtml = topLeaders.length
-                ? `<div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6">
+                ? `<div class="bg-brand-50 border border-brand-200 rounded-xl p-4 mb-6">
                     <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <h3 class="font-bold text-indigo-900">${escapeHtml(t('Top N 同班排行榜', 'Top N class leaderboard'))}</h3>
+                        <h3 class="font-bold text-brand-900">${escapeHtml(t('Top N 同班排行榜', 'Top N class leaderboard'))}</h3>
                         <div class="text-right">
-                            <p class="text-xs text-indigo-700 uppercase tracking-wide">${escapeHtml(t('本週挑戰（分鐘）', 'Weekly challenge (minutes)'))}</p>
-                            <p class="text-sm font-bold text-indigo-900">${escapeHtml(weeklyChampion ? weeklyChampion.display_name || '' : '—')}</p>
-                            <p class="text-xs text-indigo-700">${weeklyChampion ? Number(weeklyChampion.minutes_week || 0) : 0} ${escapeHtml(t('分鐘', 'min'))}</p>
+                            <p class="text-xs text-brand-700 uppercase tracking-wide">${escapeHtml(t('本週挑戰（分鐘）', 'Weekly challenge (minutes)'))}</p>
+                            <p class="text-sm font-bold text-brand-900">${escapeHtml(weeklyChampion ? weeklyChampion.display_name || '' : '—')}</p>
+                            <p class="text-xs text-brand-700">${weeklyChampion ? Number(weeklyChampion.minutes_week || 0) : 0} ${escapeHtml(t('分鐘', 'min'))}</p>
                         </div>
                     </div>
                     <div class="space-y-2">
@@ -138,7 +138,7 @@ const global = window;
                             const dn = s.display_name || '';
                             const am = Number(s.avg_mastery || 0);
                             const mw = Number(s.minutes_week || 0);
-                            return `<div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-indigo-100 rounded-lg">
+                            return `<div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-brand-100 rounded-lg">
                                 <span class="text-sm font-medium text-slate-800">${i + 1}. ${escapeHtml(dn)}</span>
                                 <span class="text-xs text-slate-600">${am}% · ${mw} ${escapeHtml(t('分鐘', 'min'))}</span>
                             </div>`;
@@ -196,7 +196,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學生與修讀語言', 'Students & MOI'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
                     ${c.can_chase_previous_summer || c.form_level === '2' || c.form_level === '3'
@@ -212,12 +212,12 @@ const global = window;
                 <p id="admin-course-report-flash" class="text-sm mb-3 hidden"></p>
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     ${kpiCard(t('學生人數', 'Students'), String(Number(summary.total_students || 0)))}
-                    ${kpiCard(t('本週活躍', 'Active this week'), String(Number(summary.active_students || 0)), 'text-indigo-600')}
+                    ${kpiCard(t('本週活躍', 'Active this week'), String(Number(summary.active_students || 0)), 'text-brand-600')}
                     ${kpiCard(t('本週學習（分鐘）', 'Minutes this week'), String(Number(summary.minutes_week || 0)))}
                     ${kpiCard(t('平均掌握度', 'Avg mastery'), escapeHtml(String(summary.avg_mastery ?? '—')) + '%', 'text-emerald-600')}
                 </div>
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    ${kpiCard(t('工作紙呈交率', 'WS submit rate'), escapeHtml(submitRate), 'text-indigo-700')}
+                    ${kpiCard(t('工作紙呈交率', 'WS submit rate'), escapeHtml(submitRate), 'text-brand-700')}
                     ${kpiCard(t('待批改', 'Ungraded'), String(Number(coursework.worksheet_ungraded || 0)), 'text-amber-600')}
                     ${kpiCard(t('逾期未交', 'Overdue'), String(Number(coursework.worksheet_overdue || 0)), 'text-red-600')}
                     ${kpiCard(t('暑期完成率', 'Summer done'), escapeHtml(summerRate))}

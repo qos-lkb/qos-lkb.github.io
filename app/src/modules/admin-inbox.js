@@ -99,7 +99,7 @@ async function renderAdminInbox() {
                     <td class="p-3 text-xs">${it.due_at ? escapeHtml(it.due_at) : '—'}</td>
                     <td class="p-3 whitespace-nowrap space-x-2">
                         <a href="${escapeHtml(spaHref(it.deep_link || dossier))}" data-spa-nav="${escapeHtml(it.deep_link || dossier)}"
-                           class="text-indigo-600 hover:underline text-sm">${escapeHtml(it.status === 'ungraded' ? t('批改', 'Grade') : t('檢視', 'View'))}</a>
+                           class="text-brand-600 hover:underline text-sm">${escapeHtml(it.status === 'ungraded' ? t('批改', 'Grade') : t('檢視', 'View'))}</a>
                         <a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}"
                            class="text-slate-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a>
                         ${it.status === 'overdue_missing' ? `<button type="button" class="inbox-chase text-sm text-amber-700 hover:underline" data-email="${escapeHtml(it.student_email || '')}" data-reminder="${escapeHtml(reminderText(it))}">${escapeHtml(t('催交', 'Chase'))}</button>` : ''}
@@ -152,7 +152,7 @@ async function renderAdminInbox() {
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center">
-                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 儀表板', '← Dashboard'))}</a>
+                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 儀表板', '← Dashboard'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('課程', 'Courses'))}</a>
             </div>
             <div class="grid sm:grid-cols-3 gap-4 mb-6">

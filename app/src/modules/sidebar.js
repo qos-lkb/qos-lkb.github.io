@@ -29,6 +29,15 @@ const global = window;
     }
 
     function toggleSidebar() {
+        if (document.body.classList.contains('admin-mode')) {
+            if (!isDesktop()) {
+                const open = !document.body.classList.contains('admin-nav-open');
+                document.body.classList.toggle('admin-nav-open', open);
+                document.getElementById('overlay')?.classList.toggle('active', open);
+                document.body.style.overflow = open ? 'hidden' : '';
+            }
+            return;
+        }
         const sidebar = document.getElementById('sidebar');
         if (!sidebar || sidebar.style.display === 'none') return;
         if (isDesktop()) {
@@ -42,6 +51,8 @@ const global = window;
         if (!isDesktop()) {
             applyMobileSidebar(false);
         }
+        document.body.classList.remove('admin-nav-open');
+        document.getElementById('overlay')?.classList.remove('active');
     }
 
     function initSidebar() {

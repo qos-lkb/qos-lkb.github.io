@@ -150,7 +150,7 @@ const global = window;
                     <td class="p-3">${escapeHtml(statusLabel(row.status))}</td>
                     <td class="p-3 text-xs">${escapeHtml(row.updated_at || '')}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
-                        ${canManage ? `<a href="${escapeHtml(editHref)}"${editNav} class="text-indigo-600 hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
+                        ${canManage ? `<a href="${escapeHtml(editHref)}"${editNav} class="text-brand-600 hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                         ${preview}
                         ${canManage ? `<button type="button" class="text-red-600 hover:underline ml-2 content-delete" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                     </td>
@@ -163,8 +163,8 @@ const global = window;
             const newNav = ` data-spa-nav="${escapeHtml(`${cfg.editSpaBase}/new`)}"`;
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    <a href="${escapeHtml(newHref)}"${newNav} class="text-sm rounded-lg bg-indigo-700 text-white px-3 py-1.5 font-semibold hover:bg-indigo-800">${escapeHtml(t('新增', 'New'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(newHref)}"${newNav} class="text-sm rounded-lg bg-brand-700 text-white px-3 py-1.5 font-semibold hover:bg-brand-800">${escapeHtml(t('新增', 'New'))}</a>
                     ${showReview ? `<a href="${escapeHtml(spaHref('/admin/review-queue'))}" data-spa-nav="/admin/review-queue" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('審核佇列', 'Review queue'))}</a>` : ''}
                     ${toolbarExtra}
                     <button type="button" id="content-list-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
@@ -424,9 +424,9 @@ const global = window;
     function beginInlineSelect(cell, optionsHtml, currentValue, onSave) {
         if (!cell || cell.querySelector('select')) return;
         const originalHtml = cell.innerHTML;
-        cell.classList.add('bg-indigo-50/60');
+        cell.classList.add('bg-brand-50/60');
         const select = document.createElement('select');
-        select.className = 'w-full min-w-[8rem] border border-indigo-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400';
+        select.className = 'w-full min-w-[8rem] border border-brand-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
         select.innerHTML = optionsHtml;
         select.value = currentValue == null || currentValue === '' ? '' : String(currentValue);
         cell.innerHTML = '';
@@ -439,14 +439,14 @@ const global = window;
             closed = true;
             if (!save) {
                 cell.innerHTML = originalHtml;
-                cell.classList.remove('bg-indigo-50/60');
+                cell.classList.remove('bg-brand-50/60');
                 return;
             }
             try {
                 await onSave(select.value);
             } catch (_err) {
                 cell.innerHTML = originalHtml;
-                cell.classList.remove('bg-indigo-50/60');
+                cell.classList.remove('bg-brand-50/60');
             }
         }
 
@@ -503,7 +503,7 @@ const global = window;
                     rowEl.setAttribute('data-subject-id', updated.subject_id || '');
                     rowEl.setAttribute('data-topic-id', updated.topic_id || '');
                     cell.textContent = subjectLabel(ctx, updated.subject_id);
-                    cell.classList.remove('bg-indigo-50/60');
+                    cell.classList.remove('bg-brand-50/60');
                     const topicCell = rowEl.querySelector('.sim-topic-cell');
                     if (topicCell && !topicCell.querySelector('select')) {
                         topicCell.textContent = topicLabel(ctx, updated.topic_id);
@@ -536,7 +536,7 @@ const global = window;
                     });
                     rowEl.setAttribute('data-topic-id', updated.topic_id || '');
                     cell.textContent = topicLabel(ctx, updated.topic_id);
-                    cell.classList.remove('bg-indigo-50/60');
+                    cell.classList.remove('bg-brand-50/60');
                     showContentFlash(flash, t('已更新單元。', 'Topic updated.'), false);
                 });
             });
@@ -565,7 +565,7 @@ const global = window;
                     });
                     rowEl.setAttribute('data-owner-id', updated.owner_user_id || '');
                     cell.textContent = ownerLabel(updated);
-                    cell.classList.remove('bg-indigo-50/60');
+                    cell.classList.remove('bg-brand-50/60');
                     if (simListFilters.ownerId !== '' && String(updated.owner_user_id || '') !== simListFilters.ownerId) {
                         rowEl.remove();
                     }
@@ -644,7 +644,7 @@ const global = window;
                     <td class="p-3">${escapeHtml(statusLabel(row.status))}</td>
                     <td class="p-3 text-xs">${escapeHtml(row.updated_at || '')}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
-                        ${canManage ? `<a href="${escapeHtml(editHref)}" data-spa-nav="/admin/simulations/${id}/edit" class="text-indigo-600 hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
+                        ${canManage ? `<a href="${escapeHtml(editHref)}" data-spa-nav="/admin/simulations/${id}/edit" class="text-brand-600 hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                         <a href="${escapeHtml(previewHref)}" class="text-slate-600 hover:underline ml-2" target="_blank" rel="noopener">${escapeHtml(t('預覽', 'Preview'))}</a>
                         ${canManage ? `<button type="button" class="text-red-600 hover:underline ml-2 content-delete" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                     </td>
@@ -667,8 +667,8 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    <a href="${escapeHtml(newHref)}" data-spa-nav="/admin/simulations/new" class="text-sm rounded-lg bg-indigo-700 text-white px-3 py-1.5 font-semibold hover:bg-indigo-800">${escapeHtml(t('新增', 'New'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(newHref)}" data-spa-nav="/admin/simulations/new" class="text-sm rounded-lg bg-brand-700 text-white px-3 py-1.5 font-semibold hover:bg-brand-800">${escapeHtml(t('新增', 'New'))}</a>
                     ${showReview ? `<a href="${escapeHtml(spaHref('/admin/review-queue'))}" data-spa-nav="/admin/review-queue" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('審核佇列', 'Review queue'))}</a>` : ''}
                     <label class="text-sm text-slate-600 flex items-center gap-2">
                         <span>${escapeHtml(t('科目', 'Subject'))}</span>

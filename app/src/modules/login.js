@@ -25,18 +25,18 @@ const global = window;
         }
 
         box.innerHTML = `
-            <form id="spa-login-form" class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <form id="spa-login-form" class="max-w-md mx-auto bg-white rounded-2xl shadow-shell border border-slate-200/80 p-6 sm:p-8 space-y-4">
                 <p class="text-sm text-slate-600">${escapeHtml(t('使用 QSIS 帳戶名與密碼登入。', 'Sign in with your QSIS username and password.'))}</p>
                 <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('帳戶名', 'Username'))}
                     <input name="email" type="text" autocomplete="username" required
-                        class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-600">
                 </label>
                 <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('密碼', 'Password'))}
                     <input name="password" type="password" autocomplete="current-password" required
-                        class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-600">
                 </label>
                 <p id="spa-login-error" class="hidden text-sm text-red-600" role="alert"></p>
-                <button type="submit" class="w-full rounded-lg bg-indigo-700 text-white py-2.5 text-sm font-semibold hover:bg-indigo-800">
+                <button type="submit" class="w-full rounded-lg bg-accent-500 text-amber-950 py-2.5 text-sm font-semibold hover:bg-accent-600 min-h-[44px]">
                     ${escapeHtml(t('登入', 'Sign in'))}
                 </button>
             </form>`;

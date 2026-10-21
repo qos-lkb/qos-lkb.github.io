@@ -190,7 +190,7 @@ const global = window;
     function renderRichTextarea(className, value, placeholder, rows) {
         return `<div class="rich-field">
             <div class="flex justify-end mb-1">
-                <button type="button" class="preview-math text-xs px-2 py-0.5 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50" data-target="${className}">預覽</button>
+                <button type="button" class="preview-math text-xs px-2 py-0.5 rounded border border-brand-200 text-brand-700 hover:bg-brand-50" data-target="${className}">預覽</button>
             </div>
             <textarea class="${className} w-full border rounded-lg px-3 py-2 text-sm font-mono" rows="${rows || 2}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>
             <div class="math-preview hidden mt-1 p-2 border rounded bg-white text-sm"></div>
@@ -229,14 +229,14 @@ const global = window;
         const inputType = multi ? 'checkbox' : 'radio';
         let html = `<div class="flex items-center gap-3 mb-2">
             <span class="text-xs text-slate-500">選項（${MCQ_MIN}–${MCQ_MAX} 項）${multi ? ' · 可多選正確答案' : ''}</span>
-            <button type="button" class="text-xs text-indigo-600 sh-add-opt">+ 選項</button>
+            <button type="button" class="text-xs text-brand-600 sh-add-opt">+ 選項</button>
         </div>
         <div class="space-y-2 sh-options">`;
         opts.forEach((o, i) => {
             const isCorrect = o.is_correct === 1 || o.is_correct === '1' || o.is_correct === true;
             html += `<div class="flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row">
                 <input type="${inputType}" name="correct-${index}" class="mt-1 is-correct" ${isCorrect ? 'checked' : ''}>
-                <span class="font-bold text-indigo-600 w-5 sh-opt-letter">${String.fromCharCode(65 + i)}</span>
+                <span class="font-bold text-brand-600 w-5 sh-opt-letter">${String.fromCharCode(65 + i)}</span>
                 <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-1">
                     <input class="opt-zh w-full border rounded px-2 py-1" placeholder="選項中文" value="${escapeHtml(o.text_zh)}">
                     <input class="opt-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="選項英文" value="${escapeHtml(o.text_en)}">
@@ -268,7 +268,7 @@ const global = window;
         blanks.forEach((b, bi) => {
             html += renderBlankBlock(b, bi);
         });
-        html += `<button type="button" class="text-xs text-indigo-600 sh-add-blank">+ 空格</button></div>`;
+        html += `<button type="button" class="text-xs text-brand-600 sh-add-blank">+ 空格</button></div>`;
         return html;
     }
 
@@ -284,7 +284,7 @@ const global = window;
             html += renderAnswerRow(ans);
         });
         html += `</div>
-            <button type="button" class="text-xs text-indigo-600 mt-2 sh-add-answer">+ 答案</button>
+            <button type="button" class="text-xs text-brand-600 mt-2 sh-add-answer">+ 答案</button>
         </div>`;
         return html;
     }
@@ -320,7 +320,7 @@ const global = window;
             html += renderAnswerRow(ans);
         });
         html += '</div>';
-        html += '<button type="button" class="text-xs text-indigo-600 mt-2 sh-add-short-answer">+ 答案</button>';
+        html += '<button type="button" class="text-xs text-brand-600 mt-2 sh-add-short-answer">+ 答案</button>';
         return html;
     }
 
@@ -407,7 +407,7 @@ const global = window;
             div.className = 'flex items-start gap-2 text-sm bg-white border rounded-lg p-2 sh-opt-row';
             div.innerHTML = `
                 <input type="${inputType}" name="correct-${idx}" class="mt-1 is-correct">
-                <span class="font-bold text-indigo-600 w-5 sh-opt-letter">${String.fromCharCode(65 + n)}</span>
+                <span class="font-bold text-brand-600 w-5 sh-opt-letter">${String.fromCharCode(65 + n)}</span>
                 <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-1">
                     <input class="opt-zh w-full border rounded px-2 py-1" placeholder="選項中文">
                     <input class="opt-en w-full border rounded px-2 py-1 sh-en-field ${enClass()}" placeholder="選項英文">

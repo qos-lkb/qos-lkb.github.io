@@ -77,7 +77,7 @@ const global = window;
 
             main.innerHTML = `
                 <div class="reading-page" id="note-page">
-                    <button type="button" id="note-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回課程列表', 'Back to courses')}</button>
+                    <button type="button" id="note-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回課程列表', 'Back to courses')}</button>
                     <h1 id="note-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                     ${metaHtml}
                     <article id="note-body" class="prose-article bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">${renderMarkdownToHtml(body)}</article>
@@ -130,7 +130,7 @@ const global = window;
         } catch (err) {
             main.innerHTML = `
                 <div class="reading-page">
-                    <button type="button" id="note-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回課程列表', 'Back to courses')}</button>
+                    <button type="button" id="note-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回課程列表', 'Back to courses')}</button>
                     <p class="text-red-600">${escapeHtml(err.message || t('無法載入筆記。', 'Could not load note.'))}</p>
                 </div>`;
             document.getElementById('note-back').onclick = () => global.AppRouter.navigate('/learning-notes');

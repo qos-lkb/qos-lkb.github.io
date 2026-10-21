@@ -81,7 +81,7 @@
         list.innerHTML = renderList(questions, (q, i) => {
             const label = (q.question_code ? q.question_code + ' · ' : '') + (q.stem_zh || q.stem_en || '').slice(0, 60);
             const defScore = q.default_score != null ? q.default_score : '';
-            return `<div class="px-3 py-2.5 hover:bg-indigo-50 text-sm flex flex-wrap items-center gap-2 border-b border-slate-100">
+            return `<div class="px-3 py-2.5 hover:bg-brand-50 text-sm flex flex-wrap items-center gap-2 border-b border-slate-100">
                 <button type="button" class="content-embed-pick flex-1 text-left min-w-0" data-kind="question" data-bank="${escapeAttr(bankSlug)}" data-id="${q.id}" data-default-score="${escapeAttr(String(defScore))}">
                     <span class="text-slate-400 mr-2">${i + 1}.</span>${escapeHtml(label)}
                 </button>
@@ -141,7 +141,7 @@
         if (!list) return;
 
         document.querySelectorAll('.content-embed-tab').forEach((b) => {
-            b.classList.toggle('bg-indigo-600', b.dataset.tab === tab);
+            b.classList.toggle('bg-brand-600', b.dataset.tab === tab);
             b.classList.toggle('text-white', b.dataset.tab === tab);
             b.classList.toggle('text-slate-600', b.dataset.tab !== tab);
         });
@@ -149,22 +149,22 @@
         if (tab === 'video') {
             if (title) title.textContent = '選擇影片';
             list.innerHTML = renderList(data.videos, (v) =>
-                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-indigo-50 text-sm" data-kind="video" data-slug="${escapeAttr(v.slug)}">${escapeHtml(v.title_zh || v.title_en)}</button>`
+                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-brand-50 text-sm" data-kind="video" data-slug="${escapeAttr(v.slug)}">${escapeHtml(v.title_zh || v.title_en)}</button>`
             );
         } else if (tab === 'simulation') {
             if (title) title.textContent = '選擇模擬實驗';
             list.innerHTML = renderList(data.simulations, (s) =>
-                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-indigo-50 text-sm" data-kind="simulation" data-slug="${escapeAttr(s.slug)}">${escapeHtml(s.title_zh || s.title_en || s.slug)}</button>`
+                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-brand-50 text-sm" data-kind="simulation" data-slug="${escapeAttr(s.slug)}">${escapeHtml(s.title_zh || s.title_en || s.slug)}</button>`
             );
         } else if (tab === 'article') {
             if (title) title.textContent = '選擇文章';
             list.innerHTML = renderList(data.articles, (a) =>
-                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-indigo-50 text-sm" data-kind="article" data-slug="${escapeAttr(a.slug)}">${escapeHtml(a.title_zh || a.title_en)}</button>`
+                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-brand-50 text-sm" data-kind="article" data-slug="${escapeAttr(a.slug)}">${escapeHtml(a.title_zh || a.title_en)}</button>`
             );
         } else if (tab === 'question') {
             if (title) title.textContent = '選擇試題庫';
             list.innerHTML = renderList(data.banks, (b) =>
-                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-indigo-50 text-sm" data-kind="bank" data-id="${b.id}" data-slug="${escapeAttr(b.slug)}">${escapeHtml(b.title_zh || b.title_en)} →</button>`
+                `<button type="button" class="content-embed-pick w-full text-left px-3 py-2.5 hover:bg-brand-50 text-sm" data-kind="bank" data-id="${b.id}" data-slug="${escapeAttr(b.slug)}">${escapeHtml(b.title_zh || b.title_en)} →</button>`
             );
         }
         bindPickButtons(list);

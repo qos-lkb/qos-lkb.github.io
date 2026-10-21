@@ -220,13 +220,13 @@ Pending lists for contributors: `GET /{type}/pending` on learning-tools, article
 
 ## Frontend SPA (`app/`)
 
-Vanilla JS modules (no bundler):
+**Vite + ESM** (`app/src/`); build with `cd app && npm run build` → `app/dist/`. Design tokens: teal `brand-*` + amber `accent-*` in `tailwind.config.js` / `app.css`.
 
 | Module | Role |
 |--------|------|
 | `api.js`, `auth.js` | REST client, session, account menu |
-| `router.js`, `app.js` | Client routes, nav tabs, shell |
-| `catalog.js`, `simulation.js` | Simulation catalogue and preview/modal |
+| `router.js`, `app.js` | Client routes, grouped nav (Learn / Browse / Tasks), mobile bottom nav, admin sidebar |
+| `catalog.js`, `simulation.js` | Simulation catalogue (one-click modal launch) and detail page |
 | `course.js`, `video.js` | Self-study courses and embedded videos |
 | `note.js`, `note-pdf.js` | Learning notes + PDF export |
 | `worksheet.js`, `assignments.js` | Worksheets; class assignment list & submit flow |
@@ -235,6 +235,13 @@ Vanilla JS modules (no bundler):
 | `quiz.js`, `article.js` | Interactive tools and science articles |
 | `markdown.js`, `content-embeds.js`, `inline-edit.js` | Markdown render (+ MathJax), embeds, inline editing |
 | `sidebar.js`, `modal-capture.js` | Layout, fullscreen, PNG capture |
+| `guest-home.js`, `login.js` | Guest landing hero; SPA login |
+
+### Navigation IA
+
+- **Desktop**: header groups — 學習 (`courses`, `notes`, `worksheets`, `videos`, `flashcards`), 探索 (`simulations`, `articles`, `learning`), 作業 (`summer` when visible via `spa_nav_visibility`).
+- **Mobile**: bottom nav — 課程 / 模擬 / 筆記 / 更多; subject sidebar remains a drawer.
+- **Admin**: `#admin-sidebar` on `/admin/*` (dashboard / teaching / content / platform).
 
 ### Main routes
 
@@ -244,7 +251,7 @@ Vanilla JS modules (no bundler):
 | 自學課程 | `/courses`, `/course/{subject}/{topic}` |
 | 課程及學習筆記 | `/learning-notes`, `/note/{slug}` |
 | 工作紙 | `/worksheets`, `/worksheet/{slug}` |
-| 模擬程式 | `/simulations`, `/simulation/{slug}` (preview before modal), `/simulations/contribute` |
+| 模擬程式 | `/simulations`（卡片直接開 modal）、`/simulation/{slug}`（說明）、`/simulations/contribute` |
 | 科學文章 | `/articles`, `/article/{slug}` |
 | 試題庫測驗 | `/learning-tools`, `/quiz/{slug}`（資料來自 question banks） |
 | SDL 儀表板 | `/dashboard` |

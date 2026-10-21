@@ -512,7 +512,7 @@ const global = window;
                 .subj-row.dragging,.topic-row.dragging{opacity:.6}
             </style>
             <div class="mb-4 flex flex-wrap gap-3 items-center">
-                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/course-curriculum'))}" data-spa-nav="/admin/course-curriculum" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('自學課程編排', 'Course curriculum'))}</a>
                 <button type="button" id="admin-subj-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
             </div>
@@ -528,7 +528,7 @@ const global = window;
                         <label class="block text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
                             <input name="name_zh" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
                         </label>
-                        <button type="submit" class="w-full rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增科目', 'Add subject'))}</button>
+                        <button type="submit" class="w-full rounded-lg bg-brand-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增科目', 'Add subject'))}</button>
                     </form>
                     <div id="admin-subj-list" class="space-y-2 max-h-[65vh] overflow-y-auto"></div>
                 </aside>
@@ -548,7 +548,7 @@ const global = window;
                             <label class="text-sm">${escapeHtml(t('中文名稱', 'Chinese name'))}
                                 <input name="name_zh" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
                             </label>
-                            <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增單元', 'Add topic'))}</button>
+                            <button type="submit" class="rounded-lg bg-brand-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增單元', 'Add topic'))}</button>
                         </form>
                         <div id="admin-topic-list" class="space-y-2"></div>
                     </div>
@@ -592,7 +592,7 @@ const global = window;
                 const nTopics = (s.topics || []).length;
                 const active = id === Number(subjectsUiSelectedId) ? ' active' : '';
                 if (editingSubjectId === id) {
-                    return `<form class="subj-row subj-edit-form rounded-lg border border-indigo-300 bg-indigo-50/40 p-3 space-y-2" data-id="${id}">
+                    return `<form class="subj-row subj-edit-form rounded-lg border border-brand-300 bg-brand-50/40 p-3 space-y-2" data-id="${id}">
                         <label class="block text-sm">${escapeHtml(t('英文名稱', 'English name'))}
                             <input name="name_en" required value="${escapeHtml(s.name_en || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
                         </label>
@@ -600,7 +600,7 @@ const global = window;
                             <input name="name_zh" value="${escapeHtml(s.name_zh || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
                         </label>
                         <div class="flex flex-wrap gap-2">
-                            <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-1.5 text-sm font-semibold">${escapeHtml(t('儲存', 'Save'))}</button>
+                            <button type="submit" class="rounded-lg bg-brand-700 text-white px-3 py-1.5 text-sm font-semibold">${escapeHtml(t('儲存', 'Save'))}</button>
                             <button type="button" class="subj-edit-cancel text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('取消', 'Cancel'))}</button>
                         </div>
                     </form>`;
@@ -612,7 +612,7 @@ const global = window;
                         <div class="text-xs text-slate-500 truncate">${escapeHtml(s.name_en || '')} · ${escapeHtml(s.slug || '')} · ${nTopics}${escapeHtml(t(' 個單元', ' topics'))}</div>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
-                        <button type="button" class="subj-edit text-xs text-indigo-700 hover:underline" data-id="${id}">${escapeHtml(t('編輯', 'Edit'))}</button>
+                        <button type="button" class="subj-edit text-xs text-brand-700 hover:underline" data-id="${id}">${escapeHtml(t('編輯', 'Edit'))}</button>
                         <button type="button" class="subj-del text-xs text-red-600 hover:underline" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>
                     </div>
                 </div>`;
@@ -717,7 +717,7 @@ const global = window;
                 topicList.innerHTML = topics.map((tp) => {
                     const id = Number(tp.id);
                     if (editingTopicId === id) {
-                        return `<form class="topic-row topic-edit-form rounded-lg border border-indigo-300 bg-indigo-50/40 p-3 grid sm:grid-cols-2 gap-2" data-id="${id}">
+                        return `<form class="topic-row topic-edit-form rounded-lg border border-brand-300 bg-brand-50/40 p-3 grid sm:grid-cols-2 gap-2" data-id="${id}">
                             <label class="text-sm">${escapeHtml(t('英文名稱', 'English name'))}
                                 <input name="name_en" required value="${escapeHtml(tp.name_en || '')}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
                             </label>
@@ -728,7 +728,7 @@ const global = window;
                                 <select name="subject_id" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">${subjectOptionsHtml(tp.subject_id || subj.id)}</select>
                             </label>
                             <div class="sm:col-span-2 flex flex-wrap gap-2">
-                                <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-1.5 text-sm font-semibold">${escapeHtml(t('儲存', 'Save'))}</button>
+                                <button type="submit" class="rounded-lg bg-brand-700 text-white px-3 py-1.5 text-sm font-semibold">${escapeHtml(t('儲存', 'Save'))}</button>
                                 <button type="button" class="topic-edit-cancel text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('取消', 'Cancel'))}</button>
                             </div>
                         </form>`;
@@ -742,7 +742,7 @@ const global = window;
                         <select class="topic-move max-w-[10rem] rounded border border-slate-300 px-2 py-1 text-xs" data-id="${id}" data-current="${Number(tp.subject_id || subj.id)}" aria-label="${escapeHtml(t('所屬科目', 'Subject'))}" title="${escapeHtml(t('移至其他科目', 'Move to another subject'))}">
                             ${subjectOptionsHtml(tp.subject_id || subj.id)}
                         </select>
-                        <button type="button" class="topic-edit text-xs text-indigo-700 hover:underline shrink-0" data-id="${id}">${escapeHtml(t('編輯', 'Edit'))}</button>
+                        <button type="button" class="topic-edit text-xs text-brand-700 hover:underline shrink-0" data-id="${id}">${escapeHtml(t('編輯', 'Edit'))}</button>
                         <button type="button" class="topic-del text-xs text-red-600 hover:underline shrink-0" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>
                     </div>`;
                 }).join('');

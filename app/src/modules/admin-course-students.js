@@ -93,7 +93,7 @@ const global = window;
                         <td class="p-3">${s.class_no != null && s.class_no !== '' ? Number(s.class_no) : '—'}</td>
                         <td class="p-3">${escapeHtml(moiLabel(moi))}</td>
                         <td class="p-3">
-                            <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students/${uid}`))}" data-spa-nav="/admin/courses/${id}/students/${uid}" class="text-indigo-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a>
+                            <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students/${uid}`))}" data-spa-nav="/admin/courses/${id}/students/${uid}" class="text-brand-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a>
                         </td>
                     </tr>`;
                 }
@@ -123,7 +123,7 @@ const global = window;
                         </select>
                     </td>
                     <td class="p-3 whitespace-nowrap">
-                        <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students/${uid}`))}" data-spa-nav="/admin/courses/${id}/students/${uid}" class="text-indigo-600 hover:underline text-xs mr-2">${escapeHtml(t('課業', 'Dossier'))}</a>
+                        <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students/${uid}`))}" data-spa-nav="/admin/courses/${id}/students/${uid}" class="text-brand-600 hover:underline text-xs mr-2">${escapeHtml(t('課業', 'Dossier'))}</a>
                         <button type="button" class="course-remove-student text-red-600 hover:underline text-xs" data-user-id="${uid}">${escapeHtml(t('移出', 'Remove'))}</button>
                     </td>
                 </tr>`;
@@ -131,7 +131,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('課程列表', 'Courses'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                 </div>
@@ -153,7 +153,7 @@ const global = window;
                             <h3 class="font-bold text-slate-800">${escapeHtml(t('學生名單', 'Students'))}（${students.length}）</h3>
                             <div class="flex flex-wrap items-center gap-2">
                                 ${canEdit && students.length ? `<button type="button" id="course-students-bulk-remove" class="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-40">${escapeHtml(t('移出所選', 'Remove selected'))}</button>` : ''}
-                                ${canEdit ? `<button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${escapeHtml(t('儲存班別／班號／修讀語言', 'Save class / no. / MOI'))}</button>` : ''}
+                                ${canEdit ? `<button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700">${escapeHtml(t('儲存班別／班號／修讀語言', 'Save class / no. / MOI'))}</button>` : ''}
                             </div>
                         </div>
                         <table class="min-w-full text-sm">

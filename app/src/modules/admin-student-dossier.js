@@ -115,7 +115,7 @@ async function renderAdminStudentDossier(classIdRaw, userIdRaw) {
                 <td class="p-3">
                     <a href="${escapeHtml(spaHref(w.deep_link || `/admin/courses/${classId}/worksheets`))}"
                        data-spa-nav="${escapeHtml(w.deep_link || `/admin/courses/${classId}/worksheets`)}"
-                       class="text-indigo-600 hover:underline text-xs">${escapeHtml(t('開啟', 'Open'))}</a>
+                       class="text-brand-600 hover:underline text-xs">${escapeHtml(t('開啟', 'Open'))}</a>
                 </td>
             </tr>`;
         }).join('');
@@ -128,7 +128,7 @@ async function renderAdminStudentDossier(classIdRaw, userIdRaw) {
             <td class="p-3">
                 <a href="${escapeHtml(spaHref(item.deep_link || '#'))}"
                    data-spa-nav="${escapeHtml(item.deep_link || '')}"
-                   class="text-indigo-600 hover:underline text-xs">${escapeHtml(t('分析', 'Analytics'))}</a>
+                   class="text-brand-600 hover:underline text-xs">${escapeHtml(t('分析', 'Analytics'))}</a>
             </td>
         </tr>`).join('');
 
@@ -155,7 +155,7 @@ async function renderAdminStudentDossier(classIdRaw, userIdRaw) {
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center">
-                <a href="${escapeHtml(spaHref(`/admin/courses/${classId}/students`))}" data-spa-nav="/admin/courses/${classId}/students" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 學生名單', '← Students'))}</a>
+                <a href="${escapeHtml(spaHref(`/admin/courses/${classId}/students`))}" data-spa-nav="/admin/courses/${classId}/students" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 學生名單', '← Students'))}</a>
                 <a href="${escapeHtml(spaHref(`/admin/courses/${classId}/report`))}" data-spa-nav="/admin/courses/${classId}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                 <a href="${escapeHtml(spaHref(`/admin/courses/${classId}/worksheets`))}" data-spa-nav="/admin/courses/${classId}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>
             </div>

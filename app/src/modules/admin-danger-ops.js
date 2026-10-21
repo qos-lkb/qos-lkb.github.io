@@ -83,12 +83,12 @@ const global = window;
     function opsNav(active) {
         const link = (route, label, key) => {
             const on = active === key;
-            const cls = on ? 'text-indigo-800 font-semibold' : 'text-slate-600 hover:underline';
+            const cls = on ? 'text-brand-800 font-semibold' : 'text-slate-600 hover:underline';
             return `<a href="${escapeHtml(spaHref(route))}" data-spa-nav="${escapeHtml(route)}" class="${cls}">${escapeHtml(label)}</a>`;
         };
         return `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                 <a href="${escapeHtml(codespaceUrl())}" target="_blank" rel="noopener" class="text-slate-600 hover:underline">Code Space ↗</a>
                 ${link('/admin/db', t('資料庫管理', 'Database'), 'db')}
                 ${link('/admin/qsis-import', 'QSIS', 'qsis')}
@@ -528,7 +528,7 @@ const global = window;
                     </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" id="dd-regenerate-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+                    <button type="button" id="dd-regenerate-btn" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
                         ${escapeHtml(t('重新產生', 'Regenerate'))}
                     </button>
                 </div>
@@ -638,7 +638,7 @@ const global = window;
                         <p class="p-3 text-slate-500 text-sm">${escapeHtml(t('載入課程…', 'Loading courses…'))}</p>
                     </div>
                     <div class="flex flex-wrap gap-3 items-center mb-4">
-                        <button type="button" data-mode="all" class="qsis-import-btn bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium">${escapeHtml(t('一鍵匯入課程＋學生', 'Import courses + students'))}</button>
+                        <button type="button" data-mode="all" class="qsis-import-btn bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 font-medium">${escapeHtml(t('一鍵匯入課程＋學生', 'Import courses + students'))}</button>
                         <button type="button" data-mode="courses" class="qsis-import-btn bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800">${escapeHtml(t('只匯入課程', 'Courses only'))}</button>
                         <button type="button" data-mode="students" class="qsis-import-btn bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">${escapeHtml(t('只匯入學生', 'Students only'))}</button>
                     </div>

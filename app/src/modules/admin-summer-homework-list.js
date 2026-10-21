@@ -152,12 +152,12 @@ const global = window;
         if (!cell || cell.querySelector('input, textarea')) return;
         const { type, value, onSave, onCancel } = opts;
         const originalHtml = cell.innerHTML;
-        cell.classList.add('bg-indigo-50/60');
+        cell.classList.add('bg-brand-50/60');
 
         const input = document.createElement('input');
         input.type = type;
         input.value = value;
-        input.className = 'w-full min-w-[8rem] border border-indigo-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400';
+        input.className = 'w-full min-w-[8rem] border border-brand-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
         if (type === 'datetime-local') {
             input.className += ' font-mono text-xs';
         }
@@ -172,7 +172,7 @@ const global = window;
             closed = true;
             if (!save) {
                 cell.innerHTML = originalHtml;
-                cell.classList.remove('bg-indigo-50/60');
+                cell.classList.remove('bg-brand-50/60');
                 if (onCancel) onCancel();
                 return;
             }
@@ -180,7 +180,7 @@ const global = window;
                 await onSave(input.value.trim());
             } catch (_err) {
                 cell.innerHTML = originalHtml;
-                cell.classList.remove('bg-indigo-50/60');
+                cell.classList.remove('bg-brand-50/60');
             }
         }
 
@@ -225,7 +225,7 @@ const global = window;
                         cell.innerHTML = escapeHtml(updated.title_zh || updated.title_en || '—');
                         cell.setAttribute('data-title-zh', updated.title_zh || '');
                         cell.setAttribute('data-title-en', updated.title_en || '');
-                        cell.classList.remove('bg-indigo-50/60');
+                        cell.classList.remove('bg-brand-50/60');
                         cell.title = updated.title_en && updated.title_en !== updated.title_zh
                             ? updated.title_en
                             : '';
@@ -252,7 +252,7 @@ const global = window;
                         const display = formatDueDisplay(updated.due_at);
                         cell.textContent = display;
                         cell.setAttribute('data-due-raw', updated.due_at || '');
-                        cell.classList.remove('bg-indigo-50/60');
+                        cell.classList.remove('bg-brand-50/60');
                         showFlash(flash, t('已更新截止日期。', 'Due date updated.'), false);
                     },
                 });
@@ -312,10 +312,10 @@ const global = window;
                     <td class="p-3 font-mono text-xs">${escapeHtml(row.slug || '')}</td>
                     <td class="p-3 text-xs text-slate-500">${escapeHtml(row.updated_at || '')}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
-                        <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/view'))}" data-spa-nav="/admin/summer-homework/${id}/view">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
-                        <a class="text-indigo-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/preview'))}" data-spa-nav="/admin/summer-homework/${id}/preview">${escapeHtml(t('預覽', 'Preview'))}</a>
-                        <a class="text-indigo-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/analytics'))}" data-spa-nav="/admin/summer-homework/${id}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
-                        ${canManage ? `<a class="text-indigo-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/edit'))}" data-spa-nav="/admin/summer-homework/${id}/edit">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
+                        <a class="text-brand-600 hover:underline" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/view'))}" data-spa-nav="/admin/summer-homework/${id}/view">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>
+                        <a class="text-brand-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/preview'))}" data-spa-nav="/admin/summer-homework/${id}/preview">${escapeHtml(t('預覽', 'Preview'))}</a>
+                        <a class="text-brand-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/analytics'))}" data-spa-nav="/admin/summer-homework/${id}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
+                        ${canManage ? `<a class="text-brand-600 hover:underline ml-2" href="${escapeHtml(spaHref('/admin/summer-homework/' + id + '/edit'))}" data-spa-nav="/admin/summer-homework/${id}/edit">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                         ${canManage ? `<button type="button" class="text-red-600 hover:underline ml-2 sh-delete" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                     </td>
                 </tr>`;
@@ -328,8 +328,8 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    ${canCreate ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/new'))}" data-spa-nav="/admin/summer-homework/new" class="text-sm rounded-lg bg-indigo-700 text-white px-3 py-1.5 font-semibold hover:bg-indigo-800">${escapeHtml(t('新增習作', 'New item'))}</a>` : ''}
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    ${canCreate ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/new'))}" data-spa-nav="/admin/summer-homework/new" class="text-sm rounded-lg bg-brand-700 text-white px-3 py-1.5 font-semibold hover:bg-brand-800">${escapeHtml(t('新增習作', 'New item'))}</a>` : ''}
                     ${global.ScienceApi.hasPermission('summer_homework.manage_any') ? `<a href="${escapeHtml(spaHref('/admin/review-queue'))}" data-spa-nav="/admin/review-queue" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('審核佇列', 'Review queue'))}</a>` : ''}
                     <button type="button" id="admin-sh-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
                 </div>

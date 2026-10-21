@@ -61,7 +61,7 @@ const global = window;
             <div class="max-w-3xl mx-auto w-full">
                 <div id="fc-item-nav"></div>
                 <div class="mb-6 pb-4 border-b border-slate-200">
-                    <p class="text-xs uppercase tracking-wide text-indigo-600 font-semibold">${escapeHtml(t('閃卡', 'Flashcards'))}</p>
+                    <p class="text-xs uppercase tracking-wide text-brand-600 font-semibold">${escapeHtml(t('閃卡', 'Flashcards'))}</p>
                     <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">${escapeHtml(title)}</h1>
                     ${desc ? `<p class="text-slate-600 mt-2">${escapeHtml(desc)}</p>` : ''}
                     <p class="text-sm text-slate-500 mt-2">${cards.length} ${escapeHtml(t('張卡片', 'cards'))}</p>
@@ -88,12 +88,12 @@ const global = window;
             }).length;
             root.innerHTML = `
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button type="button" id="fc-mode-study" class="text-left bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-300 hover:shadow-md transition">
+                    <button type="button" id="fc-mode-study" class="text-left bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300 hover:shadow-md transition">
                         <p class="text-lg font-bold text-slate-900">${escapeHtml(t('翻卡複習', 'Flip & review'))}</p>
                         <p class="text-sm text-slate-600 mt-1">${escapeHtml(t('看正面、翻背面，再評「再來／記得／容易」。', 'See the front, flip, then rate Again / Good / Easy.'))}</p>
-                        ${user ? `<p class="text-xs text-indigo-600 mt-3">${dueCount} ${escapeHtml(t('張到期', 'due'))}</p>` : ''}
+                        ${user ? `<p class="text-xs text-brand-600 mt-3">${dueCount} ${escapeHtml(t('張到期', 'due'))}</p>` : ''}
                     </button>
-                    <button type="button" id="fc-mode-quiz" class="text-left bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-300 hover:shadow-md transition">
+                    <button type="button" id="fc-mode-quiz" class="text-left bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300 hover:shadow-md transition">
                         <p class="text-lg font-bold text-slate-900">${escapeHtml(t('測驗模式', 'Quiz mode'))}</p>
                         <p class="text-sm text-slate-600 mt-1">${escapeHtml(t('四選一或短答，完成後顯示分數。', 'Multiple choice or short answer, then see your score.'))}</p>
                     </button>
@@ -133,7 +133,7 @@ const global = window;
                         <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
                             <p class="text-xl font-bold text-slate-900">${escapeHtml(t('本輪複習完成', 'Review round complete'))}</p>
                             <p class="text-slate-600 mt-2">${rated} ${escapeHtml(t('張已評等', 'rated'))}</p>
-                            <button type="button" id="fc-back-modes" class="mt-6 px-4 py-2 rounded-lg bg-indigo-600 text-white">${escapeHtml(t('返回', 'Back'))}</button>
+                            <button type="button" id="fc-back-modes" class="mt-6 px-4 py-2 rounded-lg bg-brand-600 text-white">${escapeHtml(t('返回', 'Back'))}</button>
                         </div>`;
                     document.getElementById('fc-back-modes').onclick = () => {
                         studyActive = false;
@@ -158,7 +158,7 @@ const global = window;
                         </div>
                     </div>
                     <div id="fc-actions" class="mt-4 flex flex-wrap gap-2 justify-center">
-                        <button type="button" id="fc-reveal" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium">${escapeHtml(t('顯示背面（空白鍵）', 'Show back (Space)'))}</button>
+                        <button type="button" id="fc-reveal" class="px-4 py-2 rounded-lg bg-brand-600 text-white font-medium">${escapeHtml(t('顯示背面（空白鍵）', 'Show back (Space)'))}</button>
                     </div>`;
                 void enhance(root);
                 document.getElementById('fc-reveal').onclick = reveal;
@@ -239,8 +239,8 @@ const global = window;
                     body = (q.options || []).map((opt, i) => {
                         const text = pick(opt, 'text_zh', 'text_en');
                         const sel = answers[q.card_id] && answers[q.card_id].selected_card_id === opt.id;
-                        return `<button type="button" class="quiz-opt w-full text-left border-2 ${sel ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'} rounded-xl p-4 mb-2" data-opt-id="${Number(opt.id)}">
-                            <span class="font-bold text-indigo-600 mr-2">${String.fromCharCode(65 + i)}</span>
+                        return `<button type="button" class="quiz-opt w-full text-left border-2 ${sel ? 'border-brand-500 bg-brand-50' : 'border-slate-200'} rounded-xl p-4 mb-2" data-opt-id="${Number(opt.id)}">
+                            <span class="font-bold text-brand-600 mr-2">${String.fromCharCode(65 + i)}</span>
                             <span class="fc-opt-md">${md(text)}</span>
                         </button>`;
                     }).join('');
@@ -256,7 +256,7 @@ const global = window;
                     </div>
                     <div class="mt-4 flex justify-between">
                         <button type="button" id="fc-prev" class="px-3 py-2 border rounded-lg" ${qIndex === 0 ? 'disabled' : ''}>${escapeHtml(t('上一題', 'Previous'))}</button>
-                        <button type="button" id="fc-next" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">${escapeHtml(qIndex === items.length - 1 ? t('交卷', 'Submit') : t('下一題', 'Next'))}</button>
+                        <button type="button" id="fc-next" class="px-4 py-2 bg-brand-600 text-white rounded-lg">${escapeHtml(qIndex === items.length - 1 ? t('交卷', 'Submit') : t('下一題', 'Next'))}</button>
                     </div>`;
                 void enhance(root);
                 root.querySelectorAll('.quiz-opt').forEach((btn) => {
@@ -318,7 +318,7 @@ const global = window;
                                 <p class="text-sm mt-1">${escapeHtml(t('答案：', 'Answer: '))} ${escapeHtml(ans)}</p>
                             </li>`;
                         }).join('')}</ul>
-                        <button type="button" id="fc-back-modes" class="mt-6 px-4 py-2 rounded-lg bg-indigo-600 text-white">${escapeHtml(t('返回', 'Back'))}</button>
+                        <button type="button" id="fc-back-modes" class="mt-6 px-4 py-2 rounded-lg bg-brand-600 text-white">${escapeHtml(t('返回', 'Back'))}</button>
                     </div>`;
                 void enhance(root);
                 document.getElementById('fc-back-modes').onclick = showModePicker;

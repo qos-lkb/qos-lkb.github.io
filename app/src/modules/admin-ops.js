@@ -75,7 +75,7 @@ const global = window;
                     return `<td class="p-3 text-center">
                         <label class="inline-flex items-center justify-center cursor-pointer" for="${escapeHtml(id)}">
                             <input type="checkbox" id="${escapeHtml(id)}" data-item="${escapeHtml(item.key)}" data-audience="${escapeHtml(aud.key)}"
-                                class="nav-vis-cb h-4 w-4 rounded border-slate-300 text-indigo-600" ${checked ? 'checked' : ''} ${tableOk ? '' : 'disabled'}>
+                                class="nav-vis-cb h-4 w-4 rounded border-slate-300 text-brand-600" ${checked ? 'checked' : ''} ${tableOk ? '' : 'disabled'}>
                         </label>
                     </td>`;
                 }).join('');
@@ -95,7 +95,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('使用者', 'Users'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/permissions'))}" data-spa-nav="/admin/permissions" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('角色權限', 'Permissions'))}</a>
                 </div>
@@ -119,7 +119,7 @@ const global = window;
                             <tbody id="nav-item-tbody">${rows}</tbody>
                         </table>
                         <div class="mt-5 flex flex-wrap items-center gap-3">
-                            <button type="submit" class="rounded-lg bg-indigo-700 text-white px-4 py-2 text-sm font-semibold hover:bg-indigo-800" ${tableOk ? '' : 'disabled'}>${escapeHtml(t('儲存設定', 'Save'))}</button>
+                            <button type="submit" class="rounded-lg bg-brand-700 text-white px-4 py-2 text-sm font-semibold hover:bg-brand-800" ${tableOk ? '' : 'disabled'}>${escapeHtml(t('儲存設定', 'Save'))}</button>
                             <button type="button" id="nav-check-all" class="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" ${tableOk ? '' : 'disabled'}>${escapeHtml(t('全部勾選', 'Check all'))}</button>
                             <button type="button" id="nav-uncheck-all" class="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" ${tableOk ? '' : 'disabled'}>${escapeHtml(t('全部取消', 'Uncheck all'))}</button>
                         </div>
@@ -276,7 +276,7 @@ const global = window;
                 const perms = group.permissions || [];
                 if (!perms.length) return '';
                 const groupRow = `<tr>
-                    <td class="p-2 pl-3 font-semibold text-slate-600 text-xs uppercase tracking-wide bg-indigo-50/60 border-y border-indigo-100" colspan="${roles.length + 1}">
+                    <td class="p-2 pl-3 font-semibold text-slate-600 text-xs uppercase tracking-wide bg-brand-50/60 border-y border-brand-100" colspan="${roles.length + 1}">
                         ${escapeHtml(group.label || '')}
                     </td>
                 </tr>`;
@@ -285,8 +285,8 @@ const global = window;
                     const cells = roles.map((role) => {
                         const isOn = !!(checked[role.id] && checked[role.id][pid]);
                         return `<td class="p-3 text-center align-middle">
-                            <label class="inline-flex items-center justify-center w-full min-h-[2.5rem] cursor-pointer rounded-lg hover:bg-indigo-50/50">
-                                <input type="checkbox" class="perm-matrix-checkbox w-4 h-4 accent-indigo-600"
+                            <label class="inline-flex items-center justify-center w-full min-h-[2.5rem] cursor-pointer rounded-lg hover:bg-brand-50/50">
+                                <input type="checkbox" class="perm-matrix-checkbox w-4 h-4 accent-brand-600"
                                     data-role-id="${Number(role.id)}" value="${pid}" ${isOn ? 'checked' : ''}
                                     aria-label="${escapeHtml((role.label || role.slug) + ' — ' + (perm.label || perm.name))}">
                             </label>
@@ -306,7 +306,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('使用者', 'Users'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/nav-menu'))}" data-spa-nav="/admin/nav-menu" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('主選單管理', 'Main menu'))}</a>
                 </div>
@@ -329,7 +329,7 @@ const global = window;
                     </div>
                     <div class="px-5 py-4 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
                         <p class="text-xs text-slate-500">${escapeHtml(t('若移除自己角色的「管理使用者與角色」權限，系統會阻止儲存。', 'Saving is blocked if you remove your own user.manage permission.'))}</p>
-                        <button type="submit" class="rounded-lg bg-indigo-700 text-white px-4 py-2 text-sm font-semibold hover:bg-indigo-800">${escapeHtml(t('儲存全部角色權限', 'Save all role permissions'))}</button>
+                        <button type="submit" class="rounded-lg bg-brand-700 text-white px-4 py-2 text-sm font-semibold hover:bg-brand-800">${escapeHtml(t('儲存全部角色權限', 'Save all role permissions'))}</button>
                     </div>
                 </form>` : `<p class="text-slate-500 text-sm">${escapeHtml(t('尚無角色資料。', 'No roles found.'))}</p>`}`;
 

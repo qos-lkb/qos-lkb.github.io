@@ -34,7 +34,7 @@ const global = window;
             if (!el) return;
 
             if (user) {
-                el.innerHTML = `<span class="hidden sm:inline text-indigo-200 text-xs">${escapeHtml(userName(user))}</span>`;
+                el.innerHTML = `<span class="hidden sm:inline text-brand-200 text-xs">${escapeHtml(userName(user))}</span>`;
             } else {
                 el.innerHTML = `<a href="../login.php?next=${encodeURIComponent('app/')}" class="user-menu-login">${t('登入', 'Login')}</a>`;
             }

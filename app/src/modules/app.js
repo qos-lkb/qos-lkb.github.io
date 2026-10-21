@@ -1,15 +1,30 @@
 'use strict';
     const NAV_LABELS = {
-        courses: { zh: '自學課程', en: 'Self-study' },
-        notes: { zh: '課程及學習筆記', en: 'Courses & Notes' },
+        courses: { zh: '課程', en: 'Courses' },
+        notes: { zh: '筆記', en: 'Notes' },
         worksheets: { zh: '工作紙', en: 'Worksheets' },
-        videos: { zh: '學習影片', en: 'Videos' },
-        simulations: { zh: '模擬程式', en: 'Simulations' },
-        articles: { zh: '科學文章', en: 'Science Articles' },
-        learning: { zh: '互動學習工具', en: 'Interactive Tools' },
-        flashcards: { zh: '閃卡', en: 'Flashcards' },
+        videos: { zh: '影片', en: 'Videos' },
+        simulations: { zh: '模擬', en: 'Sims' },
+        articles: { zh: '文章', en: 'Articles' },
+        learning: { zh: '工具', en: 'Tools' },
+        flashcards: { zh: '閃卡', en: 'Cards' },
         summer: { zh: '暑期功課', en: 'Summer HW' },
     };
+
+    const GROUP_LABELS = {
+        learn: { zh: '學習', en: 'Learn' },
+        browse: { zh: '探索', en: 'Browse' },
+        tasks: { zh: '作業', en: 'Tasks' },
+    };
+
+    const NAV_GROUPS = {
+        learn: ['courses', 'notes', 'worksheets', 'videos', 'flashcards'],
+        browse: ['simulations', 'articles', 'learning'],
+        tasks: ['summer'],
+    };
+
+    const BOTTOM_PRIMARY = ['courses', 'simulations', 'notes'];
+    const MORE_TABS = ['worksheets', 'videos', 'articles', 'flashcards', 'learning', 'summer'];
 
     const TAB_ROUTES = {
         summer: '/summer-homework',
@@ -23,6 +38,53 @@
         flashcards: '/flashcards',
     };
 
+    const ADMIN_NAV = [
+        {
+            id: 'dash',
+            label: { zh: '儀表板', en: 'Dashboard' },
+            items: [
+                { route: '/admin', label: { zh: '總覽', en: 'Overview' } },
+                { route: '/admin/subjects', label: { zh: '科目', en: 'Subjects' } },
+            ],
+        },
+        {
+            id: 'teach',
+            label: { zh: '教學', en: 'Teaching' },
+            items: [
+                { route: '/admin/courses', label: { zh: '課程', en: 'Courses' } },
+                { route: '/admin/inbox', label: { zh: '收件箱', en: 'Inbox' } },
+                { route: '/admin/school-overview', label: { zh: '學校總覽', en: 'School' } },
+                { route: '/admin/summer-homework', label: { zh: '暑期功課', en: 'Summer HW' } },
+                { route: '/admin/worksheets', label: { zh: '工作紙', en: 'Worksheets' } },
+            ],
+        },
+        {
+            id: 'content',
+            label: { zh: '內容', en: 'Content' },
+            items: [
+                { route: '/admin/simulations', label: { zh: '模擬', en: 'Simulations' } },
+                { route: '/admin/learning-notes', label: { zh: '筆記', en: 'Notes' } },
+                { route: '/admin/articles', label: { zh: '文章', en: 'Articles' } },
+                { route: '/admin/learning-videos', label: { zh: '影片', en: 'Videos' } },
+                { route: '/admin/flashcard-sets', label: { zh: '閃卡', en: 'Flashcards' } },
+                { route: '/admin/question-banks', label: { zh: '題庫', en: 'Question banks' } },
+                { route: '/admin/review-queue', label: { zh: '審核', en: 'Review' } },
+            ],
+        },
+        {
+            id: 'platform',
+            label: { zh: '平台', en: 'Platform' },
+            items: [
+                { route: '/admin/users', label: { zh: '使用者', en: 'Users' } },
+                { route: '/admin/permissions', label: { zh: '權限', en: 'Permissions' } },
+                { route: '/admin/nav-menu', label: { zh: '導覽選單', en: 'Nav menu' } },
+                { route: '/admin/db', label: { zh: '資料庫', en: 'Database' } },
+                { route: '/admin/qsis-import', label: { zh: 'QSIS 匯入', en: 'QSIS import' } },
+                { route: '/admin/data-dictionary', label: { zh: '資料字典', en: 'Data dictionary' } },
+            ],
+        },
+    ];
+
     /** @type {Record<string, boolean>|null} */
     let navVisibility = null;
     /** @type {string[]|null} */
@@ -31,22 +93,38 @@
     function applyNavOrder(order) {
         if (!Array.isArray(order) || !order.length) return;
         navOrder = order.slice();
-        const nav = document.querySelector('header nav');
-        if (!nav) return;
-        const tabs = Array.from(nav.querySelectorAll('.nav-tab'));
-        if (!tabs.length) return;
-        const byKey = {};
-        tabs.forEach((btn) => {
-            const key = btn.dataset.tab;
-            if (key) byKey[key] = btn;
+        document.querySelectorAll('.nav-group-panel').forEach((panel) => {
+            const tabs = Array.from(panel.querySelectorAll('.nav-tab'));
+            if (!tabs.length) return;
+            const byKey = {};
+            tabs.forEach((btn) => {
+                const key = btn.dataset.tab;
+                if (key) byKey[key] = btn;
+            });
+            const keysInPanel = tabs.map((b) => b.dataset.tab).filter(Boolean);
+            const ordered = order.filter((k) => keysInPanel.includes(k));
+            ordered.forEach((key) => {
+                if (byKey[key]) panel.appendChild(byKey[key]);
+            });
+            keysInPanel.forEach((key) => {
+                if (!ordered.includes(key) && byKey[key]) panel.appendChild(byKey[key]);
+            });
         });
-        order.forEach((key) => {
-            if (byKey[key]) nav.appendChild(byKey[key]);
-        });
-        // Append any unknown tabs last (preserve leftover order)
-        tabs.forEach((btn) => {
-            const key = btn.dataset.tab;
-            if (key && !order.includes(key)) nav.appendChild(btn);
+    }
+
+    function isGroupVisible(groupId) {
+        const keys = NAV_GROUPS[groupId] || [];
+        return keys.some((k) => isTabVisible(k));
+    }
+
+    function syncNavGroupsVisibility() {
+        Object.keys(NAV_GROUPS).forEach((groupId) => {
+            const el = document.querySelector(`.nav-group[data-group="${groupId}"]`);
+            if (!el) return;
+            const show = isGroupVisible(groupId);
+            el.hidden = !show;
+            el.classList.toggle('hidden', !show);
+            if (!show) el.classList.remove('open');
         });
     }
 
@@ -55,17 +133,16 @@
         if (Array.isArray(order) && order.length) {
             applyNavOrder(order);
         }
-        // Visibility comes from spa_nav_visibility (guest/student/teacher/admin) via GET /nav-menu.
         document.querySelectorAll('.nav-tab').forEach((btn) => {
             const key = btn.dataset.tab;
             const show = isTabVisible(key);
             btn.classList.toggle('hidden', !show);
             btn.toggleAttribute('hidden', !show);
-            if (!show) {
-                btn.classList.remove('active');
-                btn.classList.add('text-indigo-200');
-            }
+            if (!show) btn.classList.remove('active');
         });
+        syncNavGroupsVisibility();
+        updateBottomNavLabels();
+        renderBottomMoreItems();
     }
 
     function firstVisibleTabRoute() {
@@ -149,6 +226,11 @@
             const labels = NAV_LABELS[btn.dataset.tab];
             if (labels) btn.textContent = lang === 'zh' ? labels.zh : labels.en;
         });
+        document.querySelectorAll('[data-group-btn]').forEach((btn) => {
+            const g = btn.getAttribute('data-group-btn');
+            const labels = GROUP_LABELS[g];
+            if (labels) btn.textContent = lang === 'zh' ? labels.zh : labels.en;
+        });
         const coreLabel = document.getElementById('sidebar-core-label');
         if (coreLabel) {
             const courseTab = document.querySelector('.nav-tab[data-tab="courses"]')?.classList.contains('active')
@@ -168,16 +250,166 @@
         if (expandBtn) {
             expandBtn.setAttribute('aria-label', lang === 'zh' ? '展開選單' : 'Expand menu');
         }
+        const adminTitle = document.getElementById('admin-sidebar-title');
+        if (adminTitle) {
+            adminTitle.textContent = lang === 'zh' ? '後台' : 'Admin';
+        }
+        updateBottomNavLabels();
+        if (document.body.classList.contains('admin-mode')) {
+            renderAdminNav();
+        }
+    }
+
+    function updateBottomNavLabels() {
+        const lang = AppRouter.getLang ? AppRouter.getLang() : 'zh';
+        BOTTOM_PRIMARY.forEach((key) => {
+            const el = document.querySelector(`[data-bottom-label="${key}"]`);
+            const labels = NAV_LABELS[key];
+            if (el && labels) el.textContent = lang === 'zh' ? labels.zh : labels.en;
+        });
+        const moreLabel = document.querySelector('[data-bottom-label="more"]');
+        if (moreLabel) moreLabel.textContent = lang === 'zh' ? '更多' : 'More';
+        const moreTitle = document.getElementById('bottom-more-title');
+        if (moreTitle) moreTitle.textContent = lang === 'zh' ? '更多' : 'More';
+    }
+
+    function closeNavGroups() {
+        document.querySelectorAll('.nav-group').forEach((g) => {
+            g.classList.remove('open');
+            const btn = g.querySelector('[data-group-btn]');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function closeBottomMore() {
+        const sheet = document.getElementById('bottom-more-sheet');
+        const moreBtn = document.querySelector('.bottom-nav-btn[data-bottom="more"]');
+        if (sheet) {
+            sheet.classList.remove('open');
+            sheet.setAttribute('aria-hidden', 'true');
+        }
+        if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function openBottomMore() {
+        renderBottomMoreItems();
+        const sheet = document.getElementById('bottom-more-sheet');
+        const moreBtn = document.querySelector('.bottom-nav-btn[data-bottom="more"]');
+        if (sheet) {
+            sheet.classList.add('open');
+            sheet.setAttribute('aria-hidden', 'false');
+        }
+        if (moreBtn) moreBtn.setAttribute('aria-expanded', 'true');
+    }
+
+    function renderBottomMoreItems() {
+        const box = document.getElementById('bottom-more-items');
+        if (!box) return;
+        const lang = AppRouter.getLang ? AppRouter.getLang() : 'zh';
+        const parts = [];
+        MORE_TABS.forEach((key) => {
+            if (!isTabVisible(key)) return;
+            const labels = NAV_LABELS[key] || { zh: key, en: key };
+            const active = document.querySelector(`.nav-tab[data-tab="${key}"]`)?.classList.contains('active');
+            parts.push(`<button type="button" class="nav-tab${active ? ' active' : ''}" data-tab="${key}" data-more-tab="${key}">${lang === 'zh' ? labels.zh : labels.en}</button>`);
+        });
+        parts.push(`<button type="button" class="nav-tab" data-spa-extra="/dashboard">${lang === 'zh' ? '學習儀表板' : 'Dashboard'}</button>`);
+        parts.push(`<button type="button" class="nav-tab" data-spa-extra="/assignments">${lang === 'zh' ? '我的作業' : 'Assignments'}</button>`);
+        box.innerHTML = parts.join('');
+        box.querySelectorAll('[data-more-tab]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const tab = btn.getAttribute('data-more-tab');
+                closeBottomMore();
+                const route = TAB_ROUTES[tab];
+                if (route) AppRouter.navigate(route);
+            });
+        });
+        box.querySelectorAll('[data-spa-extra]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                closeBottomMore();
+                AppRouter.navigate(btn.getAttribute('data-spa-extra'));
+            });
+        });
+    }
+
+    function syncBottomNavActive(tab) {
+        document.querySelectorAll('.bottom-nav-btn').forEach((btn) => {
+            const key = btn.getAttribute('data-bottom');
+            const on = key === tab || (key === 'more' && MORE_TABS.includes(tab));
+            btn.classList.toggle('active', on && key !== 'more');
+            if (key !== 'more') {
+                if (on) btn.setAttribute('aria-current', 'page');
+                else btn.removeAttribute('aria-current');
+            }
+        });
+    }
+
+    function groupIdForTab(tab) {
+        for (const [gid, keys] of Object.entries(NAV_GROUPS)) {
+            if (keys.includes(tab)) return gid;
+        }
+        return null;
+    }
+
+    function syncGroupBtnActive(tab) {
+        const gid = groupIdForTab(tab);
+        document.querySelectorAll('[data-group-btn]').forEach((btn) => {
+            const on = btn.getAttribute('data-group-btn') === gid;
+            btn.classList.toggle('active', on);
+        });
+    }
+
+    function renderAdminNav(activePath) {
+        const nav = document.getElementById('admin-nav');
+        if (!nav) return;
+        const lang = AppRouter.getLang ? AppRouter.getLang() : 'zh';
+        const path = activePath
+            || (window.AppRouter && typeof AppRouter.getPath === 'function' ? AppRouter.getPath() : '');
+        nav.innerHTML = ADMIN_NAV.map((section) => {
+            const label = lang === 'zh' ? section.label.zh : section.label.en;
+            const links = section.items.map((item) => {
+                const text = lang === 'zh' ? item.label.zh : item.label.en;
+                const exact = item.route === '/admin';
+                const active = exact
+                    ? (path === '/admin' || path === '/admin/')
+                    : (path === item.route || path.startsWith(item.route + '/'));
+                return `<button type="button" class="admin-nav-link${active ? ' active' : ''}" data-admin-route="${item.route}">${text}</button>`;
+            }).join('');
+            return `<div class="admin-nav-section"><div class="admin-nav-label">${label}</div>${links}</div>`;
+        }).join('');
+        nav.querySelectorAll('[data-admin-route]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                document.body.classList.remove('admin-nav-open');
+                if (window.AppSidebar) AppSidebar.closeMobileSidebar();
+                AppRouter.navigate(btn.getAttribute('data-admin-route'));
+            });
+        });
+    }
+
+    function enterAdminMode(pathHint) {
+        document.body.classList.add('admin-mode');
+        document.body.classList.remove('sidebar-tab-active', 'sidebar-is-collapsed');
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.style.display = 'none';
+        renderAdminNav(pathHint);
+        closeNavGroups();
+        closeBottomMore();
+    }
+
+    function exitAdminMode() {
+        document.body.classList.remove('admin-mode', 'admin-nav-open');
     }
 
     const SIDEBAR_TABS = new Set(['courses', 'simulations', 'notes', 'worksheets', 'videos', 'articles', 'flashcards']);
 
     function setActiveTab(tab) {
+        exitAdminMode();
         document.querySelectorAll('.nav-tab').forEach(btn => {
             const on = btn.dataset.tab === tab && isTabVisible(tab);
             btn.classList.toggle('active', on);
-            btn.classList.toggle('text-indigo-200', !on);
         });
+        syncGroupBtnActive(tab);
+        syncBottomNavActive(tab);
         const sidebar = document.getElementById('sidebar');
         const showSidebar = SIDEBAR_TABS.has(tab);
         document.body.classList.toggle('sidebar-tab-active', showSidebar);
@@ -197,7 +429,7 @@
         document.getElementById('main-content').innerHTML = `
             <div class="max-w-6xl mx-auto w-full">
                 <div class="mb-6 pb-6 border-b border-slate-200/80">
-                    <h1 id="page-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900"></h1>
+                    <h1 id="page-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-display"></h1>
                 </div>
                 <div id="card-container" class="space-y-4"></div>
             </div>`;
@@ -206,23 +438,28 @@
     function clearNavTabActive() {
         document.querySelectorAll('.nav-tab').forEach((btn) => {
             btn.classList.remove('active');
-            btn.classList.add('text-indigo-200');
+        });
+        document.querySelectorAll('[data-group-btn]').forEach((btn) => btn.classList.remove('active'));
+        document.querySelectorAll('.bottom-nav-btn').forEach((btn) => {
+            btn.classList.remove('active');
+            btn.removeAttribute('aria-current');
         });
     }
 
     async function runAdminRoute(renderFn, pathHint) {
         restoreMainShell();
         clearNavTabActive();
+        const path = pathHint
+            || (window.AppRouter && typeof AppRouter.getPath === 'function'
+                ? AppRouter.getPath()
+                : (location.pathname || '/admin'));
+        enterAdminMode(path);
         // Wait for /auth/me before deciding login redirect (cold deep-links).
         if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
             await AppAuth.whenReady();
         }
         try {
             if (window.AppAdminLoader) {
-                const path = pathHint
-                    || (window.AppRouter && typeof AppRouter.getPath === 'function'
-                        ? AppRouter.getPath()
-                        : (location.pathname || '/admin'));
                 if (typeof AppAdminLoader.ensureAdminRoute === 'function') {
                     await AppAdminLoader.ensureAdminRoute(path);
                 } else if (typeof AppAdminLoader.ensureAdminModules === 'function') {
@@ -230,6 +467,7 @@
                 }
             }
             await renderFn();
+            renderAdminNav(path);
         } catch (err) {
             console.error('Admin route failed', err);
             const box = document.getElementById('card-container');
@@ -508,21 +746,21 @@
             '/dashboard': front('/dashboard', async () => {
                 document.querySelectorAll('.nav-tab').forEach(btn => {
                     btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                    btn.classList.add('text-brand-200');
                 });
                 if (window.AppDashboard) await AppDashboard.renderDashboard();
             }),
             '/assignments': front('/assignments', async () => {
                 document.querySelectorAll('.nav-tab').forEach(btn => {
                     btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                    btn.classList.add('text-brand-200');
                 });
                 if (window.AppAssignments) await AppAssignments.renderAssignmentsList();
             }),
             '/assignment/:id': front('/assignment/', async (id) => {
                 document.querySelectorAll('.nav-tab').forEach(btn => {
                     btn.classList.remove('active');
-                    btn.classList.add('text-indigo-200');
+                    btn.classList.add('text-brand-200');
                 });
                 if (window.AppAssignments) await AppAssignments.renderAssignment(id);
             }),
@@ -814,13 +1052,56 @@
             },
         });
 
-        document.querySelectorAll('.nav-tab').forEach(btn => {
+        document.querySelectorAll('#nav-groups .nav-tab').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.tab;
                 if (!isTabVisible(tab)) return;
+                closeNavGroups();
                 const route = TAB_ROUTES[tab];
                 if (route) AppRouter.navigate(route);
             });
+        });
+
+        document.querySelectorAll('[data-group-btn]').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const group = btn.closest('.nav-group');
+                const wasOpen = group?.classList.contains('open');
+                closeNavGroups();
+                if (!wasOpen && group) {
+                    group.classList.add('open');
+                    btn.setAttribute('aria-expanded', 'true');
+                }
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.nav-group')) closeNavGroups();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeNavGroups();
+                closeBottomMore();
+            }
+        });
+
+        document.querySelectorAll('.bottom-nav-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const key = btn.getAttribute('data-bottom');
+                if (key === 'more') {
+                    const sheet = document.getElementById('bottom-more-sheet');
+                    if (sheet?.classList.contains('open')) closeBottomMore();
+                    else openBottomMore();
+                    return;
+                }
+                if (!isTabVisible(key)) return;
+                closeBottomMore();
+                const route = TAB_ROUTES[key];
+                if (route) AppRouter.navigate(route);
+            });
+        });
+        document.querySelectorAll('[data-close-more]').forEach((el) => {
+            el.addEventListener('click', () => closeBottomMore());
         });
 
         document.getElementById('btn-lang')?.addEventListener('click', () => AppRouter.toggleLang());

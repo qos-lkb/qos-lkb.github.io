@@ -87,7 +87,7 @@ const global = window;
                     <td class="p-3 text-slate-600">${escapeHtml(u.role_names || '—')}</td>
                     <td class="p-3">${active}</td>
                     <td class="p-3 whitespace-nowrap">
-                        <a class="text-indigo-700 hover:underline" href="${escapeHtml(spaHref(`/admin/users/${Number(u.id)}`))}" data-spa-nav="/admin/users/${Number(u.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
+                        <a class="text-brand-700 hover:underline" href="${escapeHtml(spaHref(`/admin/users/${Number(u.id)}`))}" data-spa-nav="/admin/users/${Number(u.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
                         ${impersonate}
                         <button type="button" class="admin-user-delete text-red-600 hover:underline ml-2" data-id="${Number(u.id)}">${escapeHtml(t('刪除', 'Delete'))}</button>
                     </td>
@@ -96,7 +96,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/permissions'))}" data-spa-nav="/admin/permissions" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('角色權限', 'Permissions'))}</a>
                 </div>
                 <p id="admin-users-flash" class="text-sm mb-3 hidden"></p>
@@ -121,7 +121,7 @@ const global = window;
                             <input type="checkbox" name="is_active" checked class="rounded border-slate-300">
                             ${escapeHtml(t('啟用帳戶', 'Active'))}
                         </label>
-                        <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增使用者', 'Create user'))}</button>
+                        <button type="submit" class="rounded-lg bg-brand-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增使用者', 'Create user'))}</button>
                     </div>
                     <p class="text-xs text-slate-500">${escapeHtml(t('密碼由 QSIS 驗證；本站不儲存密碼。', 'Passwords are verified via QSIS; none are stored here.'))}</p>
                 </form>
@@ -258,7 +258,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 使用者列表', '← Users'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/users'))}" data-spa-nav="/admin/users" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 使用者列表', '← Users'))}</a>
                 </div>
                 <p id="admin-user-edit-flash" class="text-sm mb-3 hidden"></p>
                 <form id="admin-user-edit" class="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-sm max-w-2xl">
@@ -284,7 +284,7 @@ const global = window;
                         <div class="space-y-2">${roleChecks}</div>
                     </fieldset>
                     <div class="flex flex-wrap gap-3 items-center">
-                        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">${escapeHtml(t('儲存', 'Save'))}</button>
+                        <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
                         <button type="button" id="admin-user-edit-cancel" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">${escapeHtml(t('取消', 'Cancel'))}</button>
                         ${u.is_system ? '' : `<button type="button" id="admin-user-edit-delete" class="text-red-600 hover:underline text-sm ml-auto">${escapeHtml(t('刪除使用者', 'Delete user'))}</button>`}
                     </div>

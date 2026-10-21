@@ -137,7 +137,7 @@ const global = window;
                 .type-badge{font-size:10px;padding:2px 8px;border-radius:9999px;background:#e2e8f0;color:#475569}
             </style>
             <div class="mb-4 flex flex-wrap gap-3 items-center">
-                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                 <a href="${escapeHtml(spaHref('/admin/subjects'))}" data-spa-nav="/admin/subjects" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('科目與單元', 'Subjects & topics'))}</a>
             </div>
             <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('為各課題安排混合學習內容的順序。學習者將依此順序在「自學課程」分頁學習。', 'Arrange mixed learning content per topic. Learners follow this order in Courses.'))}</p>
@@ -161,7 +161,7 @@ const global = window;
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 <button type="button" id="curr-import-all" class="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50">${escapeHtml(t('從課題匯入全部', 'Import all from topic'))}</button>
-                                <button type="button" id="curr-add-item" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">${escapeHtml(t('加入內容', 'Add content'))}</button>
+                                <button type="button" id="curr-add-item" class="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">${escapeHtml(t('加入內容', 'Add content'))}</button>
                             </div>
                         </div>
                         <ul id="curr-items-list" class="space-y-2"></ul>
@@ -182,7 +182,7 @@ const global = window;
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
                         <button type="button" id="curr-add-cancel" class="px-3 py-1.5 text-sm border rounded-lg">${escapeHtml(t('取消', 'Cancel'))}</button>
-                        <button type="button" id="curr-add-confirm" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg">${escapeHtml(t('加入', 'Add'))}</button>
+                        <button type="button" id="curr-add-confirm" class="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg">${escapeHtml(t('加入', 'Add'))}</button>
                     </div>
                 </form>
             </dialog>`;
@@ -226,7 +226,7 @@ const global = window;
             topicList.innerHTML = topics.map((tp, i) => {
                 const name = tp.name_zh || tp.name_en || '';
                 return `<button type="button" class="topic-pick w-full text-left px-3 py-2 rounded-lg border border-transparent text-sm hover:bg-slate-50" data-topic-id="${Number(tp.id)}" data-topic-name="${escapeHtml(name)}">
-                    <span class="text-indigo-600 font-mono text-xs mr-2">${i + 1}.</span>${escapeHtml(name)}
+                    <span class="text-brand-600 font-mono text-xs mr-2">${i + 1}.</span>${escapeHtml(name)}
                 </button>`;
             }).join('') || `<p class="text-slate-500 text-sm px-2">${escapeHtml(t('此科目尚無課題。', 'No topics in this subject.'))}</p>`;
 
@@ -254,7 +254,7 @@ const global = window;
             const missing = it.missing ? ' opacity-50' : '';
             return `<li class="item-row flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50/50${missing}" data-item-id="${Number(it.id)}">
                 <span class="item-drag-handle cursor-grab text-slate-400 select-none" title="${escapeHtml(t('拖曳排序', 'Drag to sort'))}">☰</span>
-                <span class="item-order-num text-xs font-mono text-indigo-600 w-6">${idx + 1}</span>
+                <span class="item-order-num text-xs font-mono text-brand-600 w-6">${idx + 1}</span>
                 <span class="type-badge">${escapeHtml(typeLabel)}</span>
                 <span class="flex-1 text-sm font-medium truncate">${escapeHtml(itemTitle)}</span>
                 <button type="button" class="text-red-600 text-xs hover:underline remove-btn" data-id="${Number(it.id)}">${escapeHtml(t('移除', 'Remove'))}</button>

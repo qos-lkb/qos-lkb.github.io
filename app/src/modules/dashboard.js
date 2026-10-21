@@ -31,7 +31,7 @@ const global = window;
             const login = escapeHtml(base + '/login.php?next=' + encodeURIComponent('app/dashboard'));
             main.innerHTML = `<div class="max-w-lg mx-auto text-center py-12">
                 <p class="text-slate-600 mb-4">${t('請先登入以查看學習儀表板。', 'Please log in to view your learning dashboard.')}</p>
-                <a href="${login}" class="text-indigo-600 underline">${t('登入', 'Log in')}</a>
+                <a href="${login}" class="text-brand-600 underline">${t('登入', 'Log in')}</a>
             </div>`;
             return;
         }
@@ -65,13 +65,13 @@ const global = window;
             const label = goal.goal_type === 'weekly_items'
                 ? t('本週完成項目', 'Weekly items')
                 : t('本週學習分鐘', 'Weekly minutes');
-            goalHtml = `<p class="text-sm text-indigo-100">${label}：${goal.target_value}</p>`;
+            goalHtml = `<p class="text-sm text-brand-100">${label}：${goal.target_value}</p>`;
         }
 
         const continueHtml = continueItems.length
             ? continueItems.map((item) => {
                 const title = lang === 'zh' ? item.title_zh : item.title_en;
-                return `<button type="button" class="dash-continue block w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition" data-route="${escapeHtml(item.route)}">
+                return `<button type="button" class="dash-continue block w-full text-left p-3 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 transition" data-route="${escapeHtml(item.route)}">
                     <span class="text-xs text-slate-400 uppercase">${escapeHtml(item.content_type)}</span>
                     <span class="block font-medium text-slate-800">${escapeHtml(title)}</span>
                 </button>`;
@@ -102,7 +102,7 @@ const global = window;
                 const name = lang === 'zh' ? wt.name_zh : wt.name_en;
                 const items = (wt.suggested_items || []).slice(0, 2).map((it) => {
                     const ttitle = lang === 'zh' ? it.title_zh : it.title_en;
-                    return `<button type="button" class="dash-suggest text-left text-indigo-600 text-sm hover:underline block" data-route="${escapeHtml(it.route)}">${escapeHtml(ttitle)}</button>`;
+                    return `<button type="button" class="dash-suggest text-left text-brand-600 text-sm hover:underline block" data-route="${escapeHtml(it.route)}">${escapeHtml(ttitle)}</button>`;
                 }).join('');
                 return `<div class="p-3 rounded-xl bg-amber-50 border border-amber-100 mb-2">
                     <p class="font-medium text-amber-900 text-sm">${escapeHtml(name)} (${Math.round(wt.mastery)}%)</p>
@@ -112,9 +112,9 @@ const global = window;
         } else if (rec.next_course_item) {
             const ni = rec.next_course_item;
             const ntitle = lang === 'zh' ? ni.title_zh : ni.title_en;
-            suggestHtml = `<button type="button" class="dash-suggest block w-full text-left p-4 rounded-xl bg-indigo-50 border border-indigo-100" data-route="${escapeHtml(ni.route)}">
-                <p class="text-sm text-indigo-600">${t('建議下一步', 'Suggested next')}</p>
-                <p class="font-bold text-indigo-900">${escapeHtml(ntitle)}</p>
+            suggestHtml = `<button type="button" class="dash-suggest block w-full text-left p-4 rounded-xl bg-brand-50 border border-brand-100" data-route="${escapeHtml(ni.route)}">
+                <p class="text-sm text-brand-600">${t('建議下一步', 'Suggested next')}</p>
+                <p class="font-bold text-brand-900">${escapeHtml(ntitle)}</p>
             </button>`;
         } else {
             suggestHtml = `<p class="text-sm text-slate-500">${t('繼續探索課程內容', 'Keep exploring course content')}</p>`;
@@ -129,7 +129,7 @@ const global = window;
         const streakHtml = streak
             ? `<div>
                 <p class="text-xs text-slate-400 uppercase tracking-wide">${t('連續學習', 'Streak')}</p>
-                <p class="text-3xl font-bold text-indigo-600 mt-1">${Number(streak.current_streak_days || 0)} <span class="text-lg font-normal">${t('天', 'days')}</span></p>
+                <p class="text-3xl font-bold text-brand-600 mt-1">${Number(streak.current_streak_days || 0)} <span class="text-lg font-normal">${t('天', 'days')}</span></p>
                 <p class="text-sm text-slate-500 mt-1">${t('最佳連續', 'Best')}：${Number(streak.best_streak_days || 0)} ${t('天', 'days')}</p>
             </div>`
             : `<p class="text-sm text-slate-500">${t('完成小測後顯示連續學習。', 'Streak will appear after you complete quizzes.')}</p>`;
@@ -158,7 +158,7 @@ const global = window;
             ? `<div class="space-y-2">${bookmarks.slice(0, 6).map((bm) => {
                 const title = lang === 'zh' ? (bm.title_zh || bm.title_en || '') : (bm.title_en || bm.title_zh || '');
                 const label = bookmarkTypeLabel(bm.content_type || '');
-                return `<button type="button" class="w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition" data-route="${escapeHtml(bm.route || '')}">
+                return `<button type="button" class="w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 transition" data-route="${escapeHtml(bm.route || '')}">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <span class="text-xs text-slate-500">${escapeHtml(label)}</span>
                         <span class="text-sm font-medium text-slate-800 truncate flex-1">${escapeHtml(title)}</span>
@@ -178,7 +178,7 @@ const global = window;
                     </div>
                     <div class="text-right">
                         <p class="text-xs text-slate-400 uppercase tracking-wide">${t('本週挑戰', 'Weekly challenge')}</p>
-                        <p class="text-sm font-bold text-indigo-700 mt-1">
+                        <p class="text-sm font-bold text-brand-700 mt-1">
                             ${leaderboard.weekly_champion ? escapeHtml(lang === 'zh' ? (leaderboard.weekly_champion.display_name || '') : (leaderboard.weekly_champion.display_name || '')) : '—'}
                         </p>
                         <p class="text-xs text-slate-500">${leaderboard.weekly_champion ? Number(leaderboard.weekly_champion.minutes_week || 0) : 0} ${t('分鐘', 'min')}</p>
@@ -209,7 +209,7 @@ const global = window;
             ? pendingAssignments.map((a) => {
                 const title = lang === 'zh' ? a.title_zh : a.title_en;
                 const due = a.due_at ? ` · ${t('截止', 'Due')} ${String(a.due_at).slice(0, 10)}` : '';
-                return `<button type="button" class="dash-assign block w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition" data-route="${escapeHtml(a.route)}">
+                return `<button type="button" class="dash-assign block w-full text-left p-3 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 transition" data-route="${escapeHtml(a.route)}">
                     <span class="text-xs text-slate-400">${escapeHtml(a.class_name || '')}${due}</span>
                     <span class="block font-medium text-slate-800">${escapeHtml(title)}</span>
                     <span class="text-xs text-amber-700">${assignStatusLabel(a.submission_status)}</span>
@@ -260,18 +260,18 @@ const global = window;
 
         const coachCtaHtml = coachCtas.map((c, i) => {
             if (c.action === 'focus-goal') {
-                return `<button type="button" id="dash-coach-goal" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">${escapeHtml(c.label)}</button>`;
+                return `<button type="button" id="dash-coach-goal" class="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">${escapeHtml(c.label)}</button>`;
             }
-            return `<button type="button" class="px-3 py-1.5 text-sm ${i === 0 ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-indigo-200 text-indigo-700 hover:bg-indigo-50'} rounded-lg" data-route="${escapeHtml(c.route || '')}">${escapeHtml(c.label)}</button>`;
+            return `<button type="button" class="px-3 py-1.5 text-sm ${i === 0 ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border border-brand-200 text-brand-700 hover:bg-brand-50'} rounded-lg" data-route="${escapeHtml(c.route || '')}">${escapeHtml(c.label)}</button>`;
         }).join('');
 
         const coachHtml = `
-            <section class="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 shadow-sm">
+            <section class="bg-brand-50 rounded-2xl border border-brand-100 p-6 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <h2 class="text-lg font-bold text-indigo-900">${t('學習教練', 'Learning coach')}</h2>
-                    <span class="text-xs text-indigo-700">${t('規則式建議', 'Rule-based tips')}</span>
+                    <h2 class="text-lg font-bold text-brand-900">${t('學習教練', 'Learning coach')}</h2>
+                    <span class="text-xs text-brand-700">${t('規則式建議', 'Rule-based tips')}</span>
                 </div>
-                <p class="text-sm text-indigo-950 mb-4">${escapeHtml(coachMessage)}</p>
+                <p class="text-sm text-brand-950 mb-4">${escapeHtml(coachMessage)}</p>
                 <div class="flex flex-wrap gap-2">${coachCtaHtml}</div>
             </section>`;
 
@@ -284,17 +284,17 @@ const global = window;
                     </div>
                     <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         ${global.AppNav && typeof global.AppNav.isTabVisible === 'function' && global.AppNav.isTabVisible('summer')
-                            ? `<button type="button" id="dash-goto-summer" class="text-indigo-600 hover:underline">${t('暑期功課', 'Summer homework')} →</button>`
+                            ? `<button type="button" id="dash-goto-summer" class="text-brand-600 hover:underline">${t('暑期功課', 'Summer homework')} →</button>`
                             : ''}
-                        <button type="button" id="dash-goto-courses" class="text-indigo-600 hover:underline">${t('瀏覽自學課程', 'Browse courses')} →</button>
+                        <button type="button" id="dash-goto-courses" class="text-brand-600 hover:underline">${t('瀏覽自學課程', 'Browse courses')} →</button>
                     </div>
                 </div>
 
                 ${coachHtml}
 
                 <div class="grid sm:grid-cols-3 gap-4">
-                    <div class="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white p-5 shadow-lg">
-                        <p class="text-xs uppercase tracking-wide text-indigo-200">${t('今日學習', 'Today')}</p>
+                    <div class="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-700 text-white p-5 shadow-lg">
+                        <p class="text-xs uppercase tracking-wide text-brand-200">${t('今日學習', 'Today')}</p>
                         <p class="text-3xl font-bold mt-1">${summary.minutes_today || 0} <span class="text-lg font-normal">${t('分鐘', 'min')}</span></p>
                         ${goalHtml}
                     </div>
@@ -312,7 +312,7 @@ const global = window;
                     <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                         <div class="flex items-center justify-between gap-2 mb-4">
                             <h2 class="text-lg font-bold text-slate-900">${t('課程習作', 'Assignments')}</h2>
-                            <button type="button" id="dash-goto-assignments" class="text-sm text-indigo-600 hover:underline">${t('全部', 'All')} →</button>
+                            <button type="button" id="dash-goto-assignments" class="text-sm text-brand-600 hover:underline">${t('全部', 'All')} →</button>
                         </div>
                         <div class="space-y-2">${assignmentsHtml}</div>
                     </section>
@@ -368,7 +368,7 @@ const global = window;
                             <label class="block text-xs text-slate-500 mb-1">${t('目標值', 'Target')}</label>
                             <input type="number" id="goal-value" min="1" max="999" value="${goal ? goal.target_value : 60}" class="border rounded-lg px-3 py-2 text-sm w-24">
                         </div>
-                        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${t('儲存', 'Save')}</button>
+                        <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700">${t('儲存', 'Save')}</button>
                     </form>
                     <p class="text-xs text-slate-400 mt-3">${t('本平台記錄學習活動以提供個人化建議；詳見私隱說明。', 'Learning activity is recorded to personalize recommendations.')}</p>
                 </section>

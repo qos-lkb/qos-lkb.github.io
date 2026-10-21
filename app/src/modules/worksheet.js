@@ -39,7 +39,7 @@ const global = window;
             const autoHint = sub.auto_score != null
                 ? ` ${t('（選擇題自動計分', ' (Auto MCQ score')}: ${sub.auto_score}）`
                 : '';
-            scoreHtml = `<p class="mt-3 text-sm text-indigo-700">${t('已提交，等候老師評分。', 'Submitted — awaiting teacher grading.')}${autoHint}</p>`;
+            scoreHtml = `<p class="mt-3 text-sm text-brand-700">${t('已提交，等候老師評分。', 'Submitted — awaiting teacher grading.')}${autoHint}</p>`;
         }
 
         const canSubmit = assignment.status === 'active'
@@ -48,30 +48,30 @@ const global = window;
 
         let submitBlock = '';
         if (showRedoBtn) {
-            submitBlock = `<div class="mt-4 pt-4 border-t border-indigo-100">
-                <button type="button" id="ws-redo-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${t('重做習作', 'Redo assignment')}</button>
+            submitBlock = `<div class="mt-4 pt-4 border-t border-brand-100">
+                <button type="button" id="ws-redo-btn" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700">${t('重做習作', 'Redo assignment')}</button>
             </div>`;
         } else if (canSubmit) {
             const submitLabel = sub.status === 'graded'
                 ? t('提交重做結果', 'Submit redo')
                 : (sub.status === 'submitted' ? t('重新提交', 'Resubmit') : t('提交習作', 'Submit assignment'));
-            submitBlock = `<div class="mt-4 pt-4 border-t border-indigo-100">
+            submitBlock = `<div class="mt-4 pt-4 border-t border-brand-100">
                 <label class="block text-xs text-slate-500 mb-1">${t('備註（選填）', 'Note (optional)')}</label>
                 <textarea id="ws-submit-comment" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm mb-2">${escapeHtml(sub.student_comment || '')}</textarea>
-                <button type="button" id="ws-submit-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${submitLabel}</button>
+                <button type="button" id="ws-submit-btn" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700">${submitLabel}</button>
                 <p id="ws-submit-msg" class="text-xs mt-2 hidden"></p>
                 ${sub.status === 'graded' ? `<p class="text-xs text-slate-500 mt-2">${t('重做後若分數較高會更新最高分；較低則保留原最高分。', 'If the redo scores higher, the best score is updated; otherwise the previous best is kept.')}</p>` : ''}
             </div>`;
         }
 
-        return `<div id="ws-assignment-banner" class="mb-6 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+        return `<div id="ws-assignment-banner" class="mb-6 p-4 rounded-xl bg-brand-50 border border-brand-100">
             <div class="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                    <p class="text-xs text-indigo-600 uppercase tracking-wide">${escapeHtml(assignment.class_name || t('課程習作', 'Course assignment'))}</p>
-                    <p class="font-bold text-indigo-950">${escapeHtml(title || '')}</p>
+                    <p class="text-xs text-brand-600 uppercase tracking-wide">${escapeHtml(assignment.class_name || t('課程習作', 'Course assignment'))}</p>
+                    <p class="font-bold text-brand-950">${escapeHtml(title || '')}</p>
                     ${due}
                 </div>
-                <span class="text-xs px-2 py-0.5 rounded-full bg-white text-indigo-800 border border-indigo-200">${assignmentStatusLabel(sub.status || 'pending')}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-white text-brand-800 border border-brand-200">${assignmentStatusLabel(sub.status || 'pending')}</span>
             </div>
             ${instructions ? `<p class="text-sm text-slate-700 mt-3 whitespace-pre-wrap">${escapeHtml(instructions)}</p>` : ''}
             ${scoreHtml}
@@ -116,7 +116,7 @@ const global = window;
 
         main.innerHTML = `
             <div class="reading-page" id="ws-page">
-                <button type="button" id="ws-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${backLabel}</button>
+                <button type="button" id="ws-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${backLabel}</button>
                 ${bannerHtml}
                 ${summaryHint}
                 <h1 id="ws-title" class="text-3xl font-bold mb-2">${escapeHtml(title)}</h1>

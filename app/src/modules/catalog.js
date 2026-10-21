@@ -142,22 +142,25 @@ const global = window;
         ).join(' ');
         const blurb = summary
             ? escapeHtml(summary)
-            : escapeHtml(t('點擊查看詳情並開始模擬', 'View details and start the simulation'));
+            : escapeHtml(t('點擊開始模擬，或查看說明', 'Launch the simulation, or view details'));
+        const htmlUrl = slug ? (`${(global.ScienceApi && ScienceApi.API_BASE) || '/api/v1'}/simulations/${encodeURIComponent(slug)}/html`) : '';
         return `
-            <div class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all" data-slug="${escapeHtml(slug)}" data-preview="${escapeHtml(previewRoute)}" data-title-zh="${escapeHtml(titleZh)}" data-title-en="${escapeHtml(titleEn)}" data-tags="${escapeHtml(tags.join(','))}">
-                <div class="h-32 md:h-36 bg-gradient-to-br from-slate-100 to-indigo-50/50 flex items-center justify-center border-b border-slate-100 relative overflow-hidden">
-                    ${screenshot ? `<img src="${escapeHtml(screenshot)}" alt="" class="w-full h-full object-cover">` :
-                        `<span class="text-slate-400 text-sm">${t('[實驗影像]', '[Experiment Image]')}</span>`}
-                </div>
-                <div class="p-4 md:p-5 flex-grow">
-                    <p class="text-[11px] text-indigo-600 font-medium mb-1">${escapeHtml(lang === 'zh' ? unitZh : unitEn)}</p>
-                    <h3 class="font-bold text-base md:text-lg text-slate-800 mb-2">${escapeHtml(lang === 'zh' ? titleZh : titleEn)}</h3>
-                    <p class="text-slate-600 text-xs md:text-sm line-clamp-2">${blurb}</p>
-                    ${tagHtml ? `<div class="mt-2 flex flex-wrap gap-1">${tagHtml}</div>` : ''}
-                </div>
-                <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                    <p class="text-[10px] text-slate-400">${t('最後更新：', 'Updated: ')}${escapeHtml(lastUpdated)}</p>
-                    <a href="${escapeHtml(exportUrl)}" class="text-[10px] text-indigo-600 hover:underline" download onclick="event.stopPropagation()">${t('下載源碼', 'Download')}</a>
+            <div class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col hover:border-brand-300 hover:shadow-md transition-all" data-slug="${escapeHtml(slug)}" data-preview="${escapeHtml(previewRoute)}" data-html-url="${escapeHtml(htmlUrl)}" data-title-zh="${escapeHtml(titleZh)}" data-title-en="${escapeHtml(titleEn)}" data-tags="${escapeHtml(tags.join(','))}">
+                <button type="button" class="sim-card-launch text-left flex-grow flex flex-col min-h-0" data-launch>
+                    <div class="h-32 md:h-36 bg-gradient-to-br from-slate-100 to-brand-50/50 flex items-center justify-center border-b border-slate-100 relative overflow-hidden">
+                        ${screenshot ? `<img src="${escapeHtml(screenshot)}" alt="" class="w-full h-full object-cover">` :
+                            `<span class="text-slate-400 text-sm">${t('[實驗影像]', '[Experiment Image]')}</span>`}
+                    </div>
+                    <div class="p-4 md:p-5 flex-grow">
+                        <p class="text-[11px] text-brand-600 font-medium mb-1">${escapeHtml(lang === 'zh' ? unitZh : unitEn)}</p>
+                        <h3 class="font-bold text-base md:text-lg text-slate-800 mb-2">${escapeHtml(lang === 'zh' ? titleZh : titleEn)}</h3>
+                        <p class="text-slate-600 text-xs md:text-sm line-clamp-2">${blurb}</p>
+                        ${tagHtml ? `<div class="mt-2 flex flex-wrap gap-1">${tagHtml}</div>` : ''}
+                    </div>
+                </button>
+                <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center gap-2">
+                    <button type="button" class="text-[11px] text-brand-700 font-semibold hover:underline min-h-[44px] px-1" data-details>${t('說明', 'Details')}</button>
+                    <a href="${escapeHtml(exportUrl)}" class="text-[10px] text-slate-500 hover:text-brand-600 hover:underline min-h-[44px] inline-flex items-center" download>${t('下載源碼', 'Download')}</a>
                 </div>
             </div>`;
     }
@@ -172,7 +175,7 @@ const global = window;
             <section class="topic-panel bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden ${openClass}" data-topic-key="${escapeHtml(topicKey)}">
                 <button type="button" class="topic-panel-header w-full flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-slate-50 text-left" aria-expanded="${expanded}">
                     <div class="flex items-center gap-3 min-w-0">
-                        <span class="w-1 h-6 rounded-full bg-indigo-500"></span>
+                        <span class="w-1 h-6 rounded-full bg-brand-600"></span>
                         <h2 class="text-base font-semibold text-slate-800 truncate">${escapeHtml(lang === 'zh' ? hZh : hEn)}</h2>
                         <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${(tInfo.items || []).length}</span>
                     </div>
@@ -335,7 +338,7 @@ const global = window;
                 ${items.map((item, idx) => {
                     const title = lang === 'zh' ? item.title_zh : item.title_en;
                     const active = activeSlug === item.slug ? ' active' : '';
-                    return `<button type="button" class="${cfg.itemClass} w-full text-left pl-6 pr-3 py-1.5 text-xs text-slate-500 hover:text-indigo-300${active}" data-slug="${escapeHtml(item.slug)}" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}" data-content-kind="${escapeHtml(kind)}">
+                    return `<button type="button" class="${cfg.itemClass} w-full text-left pl-6 pr-3 py-1.5 text-xs text-slate-500 hover:text-brand-300${active}" data-slug="${escapeHtml(item.slug)}" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}" data-content-kind="${escapeHtml(kind)}">
                         <span class="note-nav-index">${idx + 1}.</span> ${escapeHtml(title)}
                     </button>`;
                 }).join('')}
@@ -357,7 +360,7 @@ const global = window;
                 const topicOpen = subOpen && (topicId == null || String(topicId) === topId);
                 const count = topic.items.length;
                 html += `<div class="notes-topic-block">
-                    <button type="button" class="topic-nav-btn ${cfg.topicClass} w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}" data-content-kind="${escapeHtml(kind)}">
+                    <button type="button" class="topic-nav-btn ${cfg.topicClass} w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-brand-300" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}" data-content-kind="${escapeHtml(kind)}">
                         ${escapeHtml(lang === 'zh' ? topic.label_zh : topic.label_en)} ${count ? '(' + count + ')' : ''}
                     </button>
                     ${renderItemLinks(topic.items, subId, topId, topicOpen)}
@@ -368,7 +371,7 @@ const global = window;
                 const topId = '_loose';
                 const topicOpen = subOpen && (topicId == null || topicId === topId);
                 html += `<div class="notes-topic-block">
-                    <button type="button" class="topic-nav-btn ${cfg.topicClass} w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}" data-content-kind="${escapeHtml(kind)}">
+                    <button type="button" class="topic-nav-btn ${cfg.topicClass} w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-brand-300" data-subject-id="${escapeHtml(subId)}" data-topic-id="${escapeHtml(topId)}" data-content-kind="${escapeHtml(kind)}">
                         ${escapeHtml(t('一般', 'General'))} (${sub.looseItems.length})
                     </button>
                     ${renderItemLinks(sub.looseItems, subId, topId, topicOpen)}
@@ -471,7 +474,7 @@ const global = window;
                         const title = lang === 'zh' ? item.title_zh : item.title_en;
                         const extra = cfg.itemExtraHtml(item, lang);
                         return `<li>
-                            <a href="#" data-slug="${escapeHtml(item.slug)}" class="notes-linear-item flex items-center justify-between gap-4 px-4 py-4 hover:bg-indigo-50/50 transition-colors">
+                            <a href="#" data-slug="${escapeHtml(item.slug)}" class="notes-linear-item flex items-center justify-between gap-4 px-4 py-4 hover:bg-brand-50/50 transition-colors">
                                 <div class="flex items-start gap-3 min-w-0">
                                     <span class="notes-linear-num flex-shrink-0">${idx + 1}</span>
                                     <span class="font-medium text-slate-800">${escapeHtml(title)}</span>
@@ -520,7 +523,7 @@ const global = window;
                 const count = (topicInfo.items || []).length;
                 const tZh = topicInfo.label_zh || '';
                 const tEn = topicInfo.label_en || '';
-                html += `<button type="button" class="topic-nav-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-cat="${escapeHtml(categoryId)}" data-topic="${escapeHtml(topicKey)}">
+                html += `<button type="button" class="topic-nav-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-brand-300" data-cat="${escapeHtml(categoryId)}" data-topic="${escapeHtml(topicKey)}">
                     ${escapeHtml(lang === 'zh' ? tZh : tEn)} ${count ? '(' + count + ')' : ''}
                 </button>`;
             }
@@ -592,7 +595,7 @@ const global = window;
                 const tZh = topicInfo.label_zh || '';
                 const tEn = topicInfo.label_en || '';
                 html += `<div class="notes-topic-block">
-                    <button type="button" class="topic-nav-btn sim-topic-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-indigo-300" data-sim-cat="${escapeHtml(categoryId)}" data-sim-topic="${escapeHtml(topicKey)}">
+                    <button type="button" class="topic-nav-btn sim-topic-btn w-full text-left px-3 py-2 text-xs text-slate-400 hover:text-brand-300" data-sim-cat="${escapeHtml(categoryId)}" data-sim-topic="${escapeHtml(topicKey)}">
                         ${escapeHtml(lang === 'zh' ? tZh : tEn)} ${count ? '(' + count + ')' : ''}
                     </button>
                     <div class="notes-nav-list ${topicOpen ? 'open' : ''}">
@@ -601,7 +604,7 @@ const global = window;
                                 ? (titleMap[item.title]?.zh || item.title_zh || item.title)
                                 : (titleMap[item.title]?.en || item.title_en || item.title);
                             const active = activeSlug && item.slug === activeSlug ? ' active' : '';
-                            return `<button type="button" class="sim-nav-btn w-full text-left pl-6 pr-3 py-1.5 text-xs text-slate-500 hover:text-indigo-300${active}" data-slug="${escapeHtml(item.slug || '')}">
+                            return `<button type="button" class="sim-nav-btn w-full text-left pl-6 pr-3 py-1.5 text-xs text-slate-500 hover:text-brand-300${active}" data-slug="${escapeHtml(item.slug || '')}">
                                 <span class="note-nav-index">${idx + 1}.</span> ${escapeHtml(title)}
                             </button>`;
                         }).join('')}
@@ -691,7 +694,7 @@ const global = window;
                     <input type="search" id="sim-search" value="${escapeHtml(simFilterQuery)}" placeholder="${escapeHtml(t('搜尋標題或標籤…', 'Search title or tags…'))}" class="border rounded-lg px-3 py-2 text-sm w-full sm:w-56">
                     <select id="sim-tag-filter" class="border rounded-lg px-3 py-2 text-sm">${tagOpts}</select>
                 </div>
-                <a href="${escapeHtml(global.AppRouter.spaHref('/simulations/contribute'))}" data-spa-nav="/simulations/contribute" class="text-sm px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">${escapeHtml(t('投稿模擬程式', 'Contribute'))}</a>
+                <a href="${escapeHtml(global.AppRouter.spaHref('/simulations/contribute'))}" data-spa-nav="/simulations/contribute" class="text-sm px-3 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 whitespace-nowrap">${escapeHtml(t('投稿模擬程式', 'Contribute'))}</a>
             </div>`;
     }
 
@@ -715,12 +718,12 @@ const global = window;
                 if (!(filtered.items || []).length && (simFilterQuery || simFilterTag)) return '';
                 return topicSectionHtml(tk, filtered, i === 0);
             }).filter(Boolean).join('');
-            bodyHtml = sections || `<p class="text-slate-500 text-sm py-8 text-center">${escapeHtml(t('沒有符合的模擬程式。', 'No matching simulations.'))}</p>`;
+            bodyHtml = sections || `<div class="ui-empty-state"><p>${escapeHtml(t('沒有符合的模擬程式。', 'No matching simulations.'))}</p></div>`;
         } else {
             const filtered = filterTopicInfo(sub.topics[topicKey] || { items: [] });
             bodyHtml = (filtered.items || []).length
                 ? topicSectionHtml(topicKey, filtered, true)
-                : `<p class="text-slate-500 text-sm py-8 text-center">${escapeHtml(t('沒有符合的模擬程式。', 'No matching simulations.'))}</p>`;
+                : `<div class="ui-empty-state"><p>${escapeHtml(t('沒有符合的模擬程式。', 'No matching simulations.'))}</p></div>`;
         }
 
         container.innerHTML = simToolbarHtml(sub) + bodyHtml;
@@ -761,10 +764,16 @@ const global = window;
         });
 
         container.querySelectorAll('.sim-card').forEach(card => {
-            card.onclick = () => {
+            const launch = () => {
+                const url = card.dataset.htmlUrl;
+                if (url) openModal(url);
+            };
+            card.querySelector('[data-launch]')?.addEventListener('click', launch);
+            card.querySelector('[data-details]')?.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const route = card.dataset.preview;
                 if (route) navigate(route);
-            };
+            });
         });
     }
 

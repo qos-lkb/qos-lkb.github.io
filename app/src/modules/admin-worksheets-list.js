@@ -92,7 +92,7 @@ const global = window;
                     <td class="p-3">${escapeHtml(statusLabel(row.status))}</td>
                     <td class="p-3 text-xs">${escapeHtml(row.updated_at || '')}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
-                        ${canManage ? `<a href="${escapeHtml(spaHref('/admin/worksheets/' + id + '/edit'))}" data-spa-nav="/admin/worksheets/${id}/edit" class="text-indigo-600 hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
+                        ${canManage ? `<a href="${escapeHtml(spaHref('/admin/worksheets/' + id + '/edit'))}" data-spa-nav="/admin/worksheets/${id}/edit" class="text-brand-600 hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                         <a href="${escapeHtml(spaHref('/worksheet/' + encodeURIComponent(row.slug || '')))}" class="text-slate-600 hover:underline ml-2" target="_blank" rel="noopener">${escapeHtml(t('預覽', 'Preview'))}</a>
                         ${canManage ? `<button type="button" class="text-red-600 hover:underline ml-2 ws-delete" data-id="${id}">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                     </td>
@@ -101,8 +101,8 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
-                    <a href="${escapeHtml(spaHref('/admin/worksheets/new'))}" data-spa-nav="/admin/worksheets/new" class="text-sm rounded-lg bg-indigo-700 text-white px-3 py-1.5 font-semibold hover:bg-indigo-800">${escapeHtml(t('新增工作紙', 'New worksheet'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/worksheets/new'))}" data-spa-nav="/admin/worksheets/new" class="text-sm rounded-lg bg-brand-700 text-white px-3 py-1.5 font-semibold hover:bg-brand-800">${escapeHtml(t('新增工作紙', 'New worksheet'))}</a>
                     ${canAny ? `<a href="${escapeHtml(spaHref('/admin/review-queue'))}" data-spa-nav="/admin/review-queue" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('審核佇列', 'Review queue'))}</a>` : ''}
                     ${canCourses ? `<a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('課程派發', 'Course assign'))}</a>` : ''}
                     <button type="button" id="admin-ws-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
@@ -121,7 +121,7 @@ const global = window;
                             </tr>
                         </thead>
                         <tbody>
-                            ${rows || `<tr><td colspan="5" class="p-6 text-center text-slate-500">${escapeHtml(t('尚無工作紙。', 'No worksheets yet.'))} <a href="${escapeHtml(spaHref('/admin/worksheets/new'))}" data-spa-nav="/admin/worksheets/new" class="text-indigo-600 hover:underline">${escapeHtml(t('新增第一份工作紙', 'Create the first worksheet'))}</a></td></tr>`}
+                            ${rows || `<tr><td colspan="5" class="p-6 text-center text-slate-500">${escapeHtml(t('尚無工作紙。', 'No worksheets yet.'))} <a href="${escapeHtml(spaHref('/admin/worksheets/new'))}" data-spa-nav="/admin/worksheets/new" class="text-brand-600 hover:underline">${escapeHtml(t('新增第一份工作紙', 'Create the first worksheet'))}</a></td></tr>`}
                         </tbody>
                     </table>
                 </div>`;

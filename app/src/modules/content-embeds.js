@@ -408,13 +408,13 @@ const global = window;
                                 else if (selected === i) cls += ' incorrect';
                             } else if (selected === i) cls += ' selected';
                             return `<button type="button" class="${cls}" data-opt="${i}" ${locked ? 'disabled' : ''}>
-                                <span class="font-bold text-indigo-600 mr-2">${MCQ_LABELS[i] || i + 1}</span><span class="content-embed-q-opt-text">${renderOptionHtml(text, question.content_format)}</span>
+                                <span class="font-bold text-brand-600 mr-2">${MCQ_LABELS[i] || i + 1}</span><span class="content-embed-q-opt-text">${renderOptionHtml(text, question.content_format)}</span>
                             </button>`;
                         }).join('')}
                     </div>
                     ${showResult && answer ? renderExplanation(answer, lang) : ''}
                     <div class="content-embed-q-actions">
-                        ${!isWorksheetMode() && !checked ? `<button type="button" class="content-embed-q-check px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm" disabled>${t('確認答案', 'Check answer')}</button>` : ''}
+                        ${!isWorksheetMode() && !checked ? `<button type="button" class="content-embed-q-check px-4 py-2 bg-brand-600 text-white rounded-lg text-sm" disabled>${t('確認答案', 'Check answer')}</button>` : ''}
                         ${isWorksheetMode() && !locked ? `<p class="text-xs text-slate-500 mt-2">${t('選擇後於上方按「提交習作」送出。', 'Select an option, then submit the assignment above.')}</p>` : ''}
                         <p class="content-embed-q-result text-sm font-medium mt-2 hidden"></p>
                     </div>
@@ -583,7 +583,7 @@ const global = window;
                 <div class="content-embed-q-stem prose-article">${renderStemHtml(stem, question.content_format)}</div>
                 ${renderQuestionMedia(question.media)}
                 <textarea class="content-embed-q-textarea w-full border rounded-lg p-3 text-sm min-h-[5rem]" placeholder="${escapeHtml(t('在此作答…', 'Write your answer…'))}" ${locked ? 'readonly' : ''}>${escapeHtml(savedText)}</textarea>
-                ${!isWorksheetMode() ? `<button type="button" class="content-embed-q-reveal mt-2 px-4 py-2 border border-indigo-300 text-indigo-700 rounded-lg text-sm">${t('顯示參考答案', 'Show model answer')}</button>` : ''}
+                ${!isWorksheetMode() ? `<button type="button" class="content-embed-q-reveal mt-2 px-4 py-2 border border-brand-300 text-brand-700 rounded-lg text-sm">${t('顯示參考答案', 'Show model answer')}</button>` : ''}
                 <div class="content-embed-q-model hidden mt-3 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-sm"></div>
             </div>`;
 
@@ -639,7 +639,7 @@ const global = window;
                         return `<div class="content-embed-q-part border rounded-lg p-3 bg-slate-50">
                             <p class="font-medium mb-2">(${escapeHtml(label)}) ${escapeHtml(prompt)}</p>
                             <textarea class="content-embed-q-textarea w-full border rounded-lg p-2 text-sm min-h-[4rem]" data-part="${i}" ${locked ? 'readonly' : ''}>${escapeHtml(val)}</textarea>
-                            ${!isWorksheetMode() ? `<button type="button" class="content-embed-q-reveal-part mt-2 text-sm text-indigo-600 hover:underline" data-part="${i}">${t('顯示參考答案', 'Show model answer')}</button>` : ''}
+                            ${!isWorksheetMode() ? `<button type="button" class="content-embed-q-reveal-part mt-2 text-sm text-brand-600 hover:underline" data-part="${i}">${t('顯示參考答案', 'Show model answer')}</button>` : ''}
                             <div class="content-embed-q-model-part hidden mt-2 text-sm text-slate-700"></div>
                         </div>`;
                     }).join('')}
@@ -710,7 +710,7 @@ const global = window;
                     </label>`;
                     }).join('')}
                 </div>
-                ${!isWorksheetMode() ? `<button type="button" class="content-embed-q-reveal mt-3 px-4 py-2 border border-indigo-300 text-indigo-700 rounded-lg text-sm">${t('顯示參考答案', 'Show model answers')}</button>` : ''}
+                ${!isWorksheetMode() ? `<button type="button" class="content-embed-q-reveal mt-3 px-4 py-2 border border-brand-300 text-brand-700 rounded-lg text-sm">${t('顯示參考答案', 'Show model answers')}</button>` : ''}
                 <div class="content-embed-q-model hidden mt-3 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-sm"></div>
             </div>`;
 
@@ -849,7 +849,7 @@ const global = window;
                 <div class="content-embed-sim-frame-wrap">
                     <iframe class="content-embed-sim-frame" src="${escapeHtml(src)}" title="${escapeHtml(title)}" loading="lazy" allowfullscreen></iframe>
                 </div>
-                <button type="button" class="content-embed-sim-fullscreen mt-2 text-sm text-indigo-600 hover:underline">${t('全螢幕開啟', 'Open fullscreen')}</button>`;
+                <button type="button" class="content-embed-sim-fullscreen mt-2 text-sm text-brand-600 hover:underline">${t('全螢幕開啟', 'Open fullscreen')}</button>`;
 
             node.querySelector('.content-embed-sim-fullscreen')?.addEventListener('click', () => {
                 if (global.AppCatalog && global.AppCatalog.openModal) {

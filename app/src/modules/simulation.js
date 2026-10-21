@@ -60,28 +60,28 @@ const global = window;
 
             main.innerHTML = `
                 <div class="reading-page" id="simulation-page">
-                    <button type="button" id="simulation-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
+                    <button type="button" id="simulation-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
                     <h1 class="text-2xl sm:text-3xl font-bold mb-2">${escapeHtml(title)}</h1>
                     <p class="text-sm text-slate-500 mb-3">${metaParts.map((p) => escapeHtml(p)).join(' · ')}</p>
                     ${summary ? `<p class="text-slate-700 mb-4 leading-relaxed">${escapeHtml(summary)}</p>` : ''}
                     ${tagHtml ? `<div class="flex flex-wrap gap-1.5 mb-5">${tagHtml}</div>` : ''}
-                    <button type="button" id="simulation-launch" class="course-sim-launch w-full max-w-xl text-left bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer">
-                        <div class="h-40 sm:h-48 bg-gradient-to-br from-slate-100 to-indigo-50/50 flex items-center justify-center border-b border-slate-100 relative overflow-hidden">
+                    <button type="button" id="simulation-launch" class="course-sim-launch w-full max-w-xl text-left bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col hover:border-brand-300 hover:shadow-md transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-500/40">
+                        <div class="h-40 sm:h-48 bg-gradient-to-br from-slate-100 to-brand-50/50 flex items-center justify-center border-b border-slate-100 relative overflow-hidden">
                             ${screenshot
                                 ? `<img src="${escapeHtml(screenshot)}" alt="" class="w-full h-full object-cover">`
-                                : `<span class="text-5xl" aria-hidden="true">🔬</span>`}
+                                : `<span class="text-slate-400 text-sm">${t('[實驗影像]', '[Preview]')}</span>`}
                         </div>
-                        <div class="p-5 flex items-center gap-4">
-                            <span class="text-3xl flex-shrink-0" aria-hidden="true">🔬</span>
+                        <div class="p-5 flex items-center gap-4 min-h-[4.5rem]">
                             <div class="min-w-0 flex-1">
                                 <p class="font-semibold text-slate-800">${t('開始模擬實驗', 'Start simulation')}</p>
-                                <p class="text-sm text-slate-500 mt-0.5">${t('點擊以全螢幕開啟互動模擬', 'Click to open the interactive simulation')}</p>
+                                <p class="text-sm text-slate-500 mt-0.5">${t('點擊開啟互動模擬', 'Open the interactive simulation')}</p>
                             </div>
-                            <svg class="w-6 h-6 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                            <span class="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-accent-500 text-amber-950 text-sm font-semibold flex-shrink-0">${t('開始', 'Start')}
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></span>
                         </div>
                     </button>
                     <p class="mt-4">
-                        <a href="${escapeHtml(exportUrl)}" class="text-sm text-indigo-600 hover:underline" download>${escapeHtml(t('下載源碼', 'Download source'))}</a>
+                        <a href="${escapeHtml(exportUrl)}" class="text-sm text-brand-600 hover:underline" download>${escapeHtml(t('下載源碼', 'Download source'))}</a>
                     </p>
                 </div>`;
 
@@ -100,7 +100,7 @@ const global = window;
         } catch (err) {
             main.innerHTML = `
                 <div class="reading-page">
-                    <button type="button" id="simulation-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
+                    <button type="button" id="simulation-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
                     <p class="text-red-600">${escapeHtml(err.message || t('無法載入模擬實驗。', 'Could not load simulation.'))}</p>
                 </div>`;
             document.getElementById('simulation-back').onclick = () => navigate('/courses');

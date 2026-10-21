@@ -270,7 +270,7 @@ const global = window;
                 const ok = !!(opt.is_correct === true || opt.is_correct === 1 || opt.is_correct === '1');
                 return `<li class="border rounded-lg p-3 ${ok ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-100'}">
                     <div class="flex items-center gap-2 mb-2">
-                        <span class="font-bold text-indigo-600">${label}</span>
+                        <span class="font-bold text-brand-600">${label}</span>
                         ${ok ? `<span class="text-xs text-emerald-700">✓ ${escapeHtml(t('正確答案', 'Correct'))}</span>` : ''}
                     </div>
                     ${bilingualLine(opt.text_zh, opt.text_en, t('選項（中）', 'Option (ZH)'), t('選項（英）', 'Option (EN)'))}
@@ -360,9 +360,9 @@ const global = window;
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
+                <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-brand-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
                 ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/view'))}" data-spa-nav="/admin/summer-homework/${editId}/view" class="text-slate-600 hover:underline">${escapeHtml(t('內容／答案', 'Content / answers'))}</a>` : ''}
-                ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/preview'))}" data-spa-nav="/admin/summer-homework/${editId}/preview" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('學生畫面預覽', 'Student preview'))}</a>` : ''}
+                ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/preview'))}" data-spa-nav="/admin/summer-homework/${editId}/preview" class="text-brand-700 font-medium hover:underline">${escapeHtml(t('學生畫面預覽', 'Student preview'))}</a>` : ''}
                 ${editId ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + editId + '/analytics'))}" data-spa-nav="/admin/summer-homework/${editId}/analytics" class="text-slate-600 hover:underline">${escapeHtml(t('呈交分析', 'Analytics'))}</a>` : ''}
             </div>
             <p id="edit-flash" class="text-sm hidden mb-3 ${regraded > 0 ? 'text-emerald-700' : ''}">${regraded > 0 ? escapeHtml(t(`已儲存，並依最新答案重算 ${regraded} 筆呈交分數。`, `Saved; regraded ${regraded} attempts.`)) : ''}</p>
@@ -406,7 +406,7 @@ const global = window;
                     </div>
                     <div class="flex items-end pb-1">
                         <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                            <input type="checkbox" id="allow-late" value="1" checked class="rounded border-slate-300 text-indigo-600">
+                            <input type="checkbox" id="allow-late" value="1" checked class="rounded border-slate-300 text-brand-600">
                             ${escapeHtml(t('截止後仍允許呈交（遲交）', 'Allow late submit'))}
                         </label>
                     </div>
@@ -445,7 +445,7 @@ const global = window;
                             <button type="button" data-md-action="video" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::video</button>
                             <button type="button" data-md-action="article" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::article</button>
                             <button type="button" data-md-action="note" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::note</button>
-                            <button type="button" data-md-preview="body-zh" class="text-xs px-2 py-1 border border-indigo-200 text-indigo-700 rounded bg-white hover:bg-indigo-50">${escapeHtml(t('預覽', 'Preview'))}</button>
+                            <button type="button" data-md-preview="body-zh" class="text-xs px-2 py-1 border border-brand-200 text-brand-700 rounded bg-white hover:bg-brand-50">${escapeHtml(t('預覽', 'Preview'))}</button>
                         </div>
                         <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" rows="6"></textarea>
                         <div id="body-zh-preview" class="hidden mt-2 p-4 border rounded-lg bg-white prose-article text-sm"></div>
@@ -458,7 +458,7 @@ const global = window;
                             <button type="button" data-md-action="math" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('公式', 'Math'))}</button>
                             <button type="button" data-md-action="image" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">${escapeHtml(t('插入圖片', 'Image'))}</button>
                             <button type="button" data-md-action="note" class="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">::note</button>
-                            <button type="button" data-md-preview="body-en" class="text-xs px-2 py-1 border border-indigo-200 text-indigo-700 rounded bg-white hover:bg-indigo-50">${escapeHtml(t('預覽', 'Preview'))}</button>
+                            <button type="button" data-md-preview="body-en" class="text-xs px-2 py-1 border border-brand-200 text-brand-700 rounded bg-white hover:bg-brand-50">${escapeHtml(t('預覽', 'Preview'))}</button>
                         </div>
                         <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" rows="6"></textarea>
                         <div id="body-en-preview" class="hidden mt-2 p-4 border rounded-lg bg-white prose-article text-sm"></div>
@@ -480,18 +480,18 @@ const global = window;
                         <div class="flex flex-wrap gap-x-3 gap-y-1 items-center">
                             <button type="button" id="sh-toggle-en" class="text-sm text-slate-600">${escapeHtml(t('隱藏英文欄', 'Hide EN fields'))}</button>
                             <button type="button" id="sh-import-qb" class="text-sm text-slate-600">${escapeHtml(t('從試題庫匯入', 'Import from bank'))}</button>
-                            <button type="button" id="add-mcq" class="text-sm text-indigo-600">+ ${escapeHtml(t('選擇題', 'MCQ'))}</button>
-                            <button type="button" id="add-multi" class="text-sm text-indigo-600">+ ${escapeHtml(t('多選題', 'Multi'))}</button>
-                            <button type="button" id="add-fill" class="text-sm text-indigo-600">+ ${escapeHtml(t('填充題', 'Fill'))}</button>
-                            <button type="button" id="add-tf" class="text-sm text-indigo-600">+ ${escapeHtml(t('是非題', 'T/F'))}</button>
-                            <button type="button" id="add-short" class="text-sm text-indigo-600">+ ${escapeHtml(t('短答題', 'Short'))}</button>
-                            <button type="button" id="add-long" class="text-sm text-indigo-600">+ ${escapeHtml(t('長答題', 'Long'))}</button>
+                            <button type="button" id="add-mcq" class="text-sm text-brand-600">+ ${escapeHtml(t('選擇題', 'MCQ'))}</button>
+                            <button type="button" id="add-multi" class="text-sm text-brand-600">+ ${escapeHtml(t('多選題', 'Multi'))}</button>
+                            <button type="button" id="add-fill" class="text-sm text-brand-600">+ ${escapeHtml(t('填充題', 'Fill'))}</button>
+                            <button type="button" id="add-tf" class="text-sm text-brand-600">+ ${escapeHtml(t('是非題', 'T/F'))}</button>
+                            <button type="button" id="add-short" class="text-sm text-brand-600">+ ${escapeHtml(t('短答題', 'Short'))}</button>
+                            <button type="button" id="add-long" class="text-sm text-brand-600">+ ${escapeHtml(t('長答題', 'Long'))}</button>
                         </div>
                     </div>
                     <p class="text-xs text-slate-500 mb-2">${escapeHtml(t('題幹與選項可用 $...$／$$...$$ 寫公式；可用 ↑↓ 重排、下拉換型。', 'Math with $...$; reorder with ↑↓; change type via dropdown.'))}</p>
                     <div id="questions" class="space-y-4"></div>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium">${escapeHtml(t('儲存', 'Save'))}</button>
+                <button type="submit" class="w-full bg-brand-600 text-white py-2.5 rounded-lg font-medium">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>
             <div id="sh-import-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                 <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-3">
@@ -506,7 +506,7 @@ const global = window;
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
                         <button type="button" id="sh-import-cancel" class="px-3 py-1.5 text-sm border rounded-lg">${escapeHtml(t('取消', 'Cancel'))}</button>
-                        <button type="button" id="sh-import-run" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg">${escapeHtml(t('匯入', 'Import'))}</button>
+                        <button type="button" id="sh-import-run" class="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg">${escapeHtml(t('匯入', 'Import'))}</button>
                     </div>
                 </div>
             </div>`;
@@ -635,10 +635,10 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                    <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-brand-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
                     <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/analytics'))}" data-spa-nav="/admin/summer-homework/${itemId}/analytics" class="text-slate-600 hover:underline">${escapeHtml(t('呈交分析', 'Analytics'))}</a>
-                    <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/preview'))}" data-spa-nav="/admin/summer-homework/${itemId}/preview" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('學生畫面預覽', 'Student preview'))}</a>
-                    ${detail.can_manage ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/edit'))}" data-spa-nav="/admin/summer-homework/${itemId}/edit" class="text-indigo-700 font-medium hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
+                    <a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/preview'))}" data-spa-nav="/admin/summer-homework/${itemId}/preview" class="text-brand-700 font-medium hover:underline">${escapeHtml(t('學生畫面預覽', 'Student preview'))}</a>
+                    ${detail.can_manage ? `<a href="${escapeHtml(spaHref('/admin/summer-homework/' + itemId + '/edit'))}" data-spa-nav="/admin/summer-homework/${itemId}/edit" class="text-brand-700 font-medium hover:underline">${escapeHtml(t('編輯', 'Edit'))}</a>` : ''}
                 </div>
                 <p class="text-xs text-slate-500 mb-4">${escapeHtml(formLabel)} · ${escapeHtml(contentType)} · ${escapeHtml(statusLabel(detail.status))} · ${escapeHtml(t('含正確答案（教師／管理員檢視）', 'Includes answer key (staff view)'))}</p>
                 <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-950 mb-6">
@@ -708,7 +708,7 @@ const global = window;
             });
         } catch (err) {
             box.innerHTML = `<p class="text-red-600">${escapeHtml(err.message || t('載入失敗', 'Load failed'))}</p>
-                <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-indigo-700 text-sm mt-3 inline-block">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>`;
+                <a href="${escapeHtml(spaHref('/admin/summer-homework'))}" data-spa-nav="/admin/summer-homework" class="text-brand-700 text-sm mt-3 inline-block">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>`;
             bindSpaNav(box);
         }
     }

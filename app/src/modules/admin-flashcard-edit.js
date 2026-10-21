@@ -83,7 +83,7 @@ const global = window;
         const cid = Number(card.id || 0);
         return `<article class="fc-card-block border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3" data-card-id="${cid}">
             <div class="flex items-center justify-between gap-2">
-                <span class="text-xs font-mono text-indigo-600 fc-card-num">${idx + 1}</span>
+                <span class="text-xs font-mono text-brand-600 fc-card-num">${idx + 1}</span>
                 <div class="flex gap-2 text-xs">
                     <button type="button" class="fc-move-up px-2 py-1 border rounded-lg hover:bg-white">${escapeHtml(t('上移', 'Up'))}</button>
                     <button type="button" class="fc-move-down px-2 py-1 border rounded-lg hover:bg-white">${escapeHtml(t('下移', 'Down'))}</button>
@@ -169,7 +169,7 @@ const global = window;
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                <a href="${escapeHtml(spaHref('/admin/flashcard-sets'))}" data-spa-nav="/admin/flashcard-sets" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
+                <a href="${escapeHtml(spaHref('/admin/flashcard-sets'))}" data-spa-nav="/admin/flashcard-sets" class="text-brand-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
             </div>
             <p id="edit-flash" class="text-sm hidden mb-3"></p>
             <form id="edit-form" class="space-y-6">
@@ -221,13 +221,13 @@ const global = window;
                             <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('卡片', 'Cards'))}</h2>
                             <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(t('正面／背面支援 Markdown 與 MathJax（$...$）。', 'Front/back support Markdown and MathJax ($...$).'))}</p>
                         </div>
-                        <button type="button" id="btn-add-card" class="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">${escapeHtml(t('+ 新增卡片', '+ Add card'))}</button>
+                        <button type="button" id="btn-add-card" class="text-sm px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">${escapeHtml(t('+ 新增卡片', '+ Add card'))}</button>
                     </div>
                     <div id="cards-list" class="p-4 space-y-4"></div>
                     <p id="cards-empty" class="hidden p-6 text-center text-slate-500 text-sm">${escapeHtml(t('尚無卡片，請新增第一張。', 'No cards yet. Add the first one.'))}</p>
                 </section>
                 <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">${escapeHtml(t('儲存', 'Save'))}</button>
+                    <button type="submit" class="flex-1 bg-brand-600 text-white py-2 rounded-lg font-medium hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
                     ${editId ? `<button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50">${escapeHtml(t('刪除閃卡組', 'Delete set'))}</button>` : ''}
                 </div>
             </form>`;

@@ -121,7 +121,7 @@
                     <label class="block text-sm font-medium text-slate-700">${escapeHtml(label)}</label>
                     <div class="flex gap-2">
                         ${opts.upload ? `<button type="button" class="upload-img text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50" data-target="${className}">上載圖片</button>` : ''}
-                        <button type="button" class="preview-math text-xs px-2 py-1 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50" data-target="${className}">預覽</button>
+                        <button type="button" class="preview-math text-xs px-2 py-1 rounded border border-brand-200 text-brand-700 hover:bg-brand-50" data-target="${className}">預覽</button>
                     </div>
                 </div>
                 <p class="text-xs text-slate-500 mb-1">${hint}</p>
@@ -371,7 +371,7 @@
         wrap.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-sm font-medium">子題 (a)(b)…</span>
-                <button type="button" class="text-sm text-indigo-600 add-part">+ 新增子題</button>
+                <button type="button" class="text-sm text-brand-600 add-part">+ 新增子題</button>
             </div>
             <div class="parts-container"></div>`;
         const container = wrap.querySelector('.parts-container');
@@ -422,7 +422,7 @@
             <p class="text-xs text-slate-500 mb-2">題幹中使用 <code>{{1}}</code>、<code>{{2}}</code> 標記空格位置。</p>
             <div class="flex justify-between items-center mb-2">
                 <span class="text-sm font-medium">空格答案</span>
-                <button type="button" class="text-sm text-indigo-600 add-blank">+ 新增空格</button>
+                <button type="button" class="text-sm text-brand-600 add-blank">+ 新增空格</button>
             </div>
             <div class="blanks-container"></div>`;
         const container = wrap.querySelector('.blanks-container');
@@ -493,7 +493,7 @@
             <td class="p-2"><input type="number" min="0" step="0.5" class="q-score w-full border rounded px-1 py-1 text-xs" placeholder="—" value="${escapeHtml(q.default_score != null ? q.default_score : '')}"></td>
             <td class="p-2"><input class="q-source-zh w-full border rounded px-2 py-1 text-xs" placeholder="DSE 2023 Q5" value="${escapeHtml(q.source_zh || '')}"></td>
             <td class="p-2 whitespace-nowrap">
-                <button type="button" class="toggle-detail text-xs text-indigo-600 hover:underline mr-2">收合</button>
+                <button type="button" class="toggle-detail text-xs text-brand-600 hover:underline mr-2">收合</button>
                 <button type="button" class="remove-q text-xs text-red-600 hover:underline">移除</button>
             </td>`;
 

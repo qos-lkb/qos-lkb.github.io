@@ -171,15 +171,15 @@ const global = window;
         }
 
         if (adj.next) {
-            nextBtn = `<button type="button" class="course-nav-next px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" data-content-type="${escapeHtml(adj.next.content_type)}" data-slug="${escapeHtml(adj.next.slug)}" data-subject="${escapeHtml(adj.nextSubjectSlug)}" data-topic="${escapeHtml(adj.nextTopicSlug)}">${t('下一項', 'Next')} →</button>`;
+            nextBtn = `<button type="button" class="course-nav-next px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700" data-content-type="${escapeHtml(adj.next.content_type)}" data-slug="${escapeHtml(adj.next.slug)}" data-subject="${escapeHtml(adj.nextSubjectSlug)}" data-topic="${escapeHtml(adj.nextTopicSlug)}">${t('下一項', 'Next')} →</button>`;
         } else if (adj.topicNext) {
-            nextBtn = `<button type="button" class="course-nav-topic-next px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(adj.topicNext.slug)}">${t('下一課題', 'Next topic')} →</button>`;
+            nextBtn = `<button type="button" class="course-nav-topic-next px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(adj.topicNext.slug)}">${t('下一課題', 'Next topic')} →</button>`;
         }
 
         return `
             <div class="course-item-nav mt-8 pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap gap-2">${prevBtn}</div>
-                <a href="${escapeHtml(topicUrl)}" class="text-sm text-indigo-600 hover:underline course-nav-topic">${t('返回課題', 'Back to topic')}</a>
+                <a href="${escapeHtml(topicUrl)}" class="text-sm text-brand-600 hover:underline course-nav-topic">${t('返回課題', 'Back to topic')}</a>
                 <div class="flex flex-wrap gap-2">${nextBtn}</div>
             </div>
             <p class="text-xs text-slate-400 mt-2 text-center">
@@ -263,7 +263,7 @@ const global = window;
                 (sub.topics || []).forEach((tp, i) => {
                     const tpLabel = lang === 'zh' ? tp.name_zh : tp.name_en;
                     const active = activeTopicSlug === tp.slug;
-                    html += `<button type="button" class="course-topic-btn w-full text-left px-3 py-1.5 rounded-lg text-xs hover:bg-slate-800/60 ${active ? 'text-indigo-300 font-semibold' : 'text-slate-400'}" data-subject="${escapeHtml(sub.slug)}" data-topic="${escapeHtml(tp.slug)}"><span class="font-mono mr-1">${i + 1}.</span>${escapeHtml(tpLabel)} <span class="text-slate-600">(${tp.item_count || 0})</span></button>`;
+                    html += `<button type="button" class="course-topic-btn w-full text-left px-3 py-1.5 rounded-lg text-xs hover:bg-slate-800/60 ${active ? 'text-brand-300 font-semibold' : 'text-slate-400'}" data-subject="${escapeHtml(sub.slug)}" data-topic="${escapeHtml(tp.slug)}"><span class="font-mono mr-1">${i + 1}.</span>${escapeHtml(tpLabel)} <span class="text-slate-600">(${tp.item_count || 0})</span></button>`;
                 });
                 html += '</div>';
             }
@@ -285,7 +285,7 @@ const global = window;
         const topicCount = sub.topic_count || 0;
         const itemCount = sub.item_count || 0;
         return `
-            <button type="button" class="course-subject-card text-left bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 md:p-6 hover:border-indigo-300 hover:shadow-md transition-all" data-slug="${escapeHtml(sub.slug)}">
+            <button type="button" class="course-subject-card text-left bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 md:p-6 hover:border-brand-300 hover:shadow-md transition-all" data-slug="${escapeHtml(sub.slug)}">
                 <h3 class="font-bold text-lg text-slate-800 mb-2">${escapeHtml(name)}</h3>
                 <p class="text-sm text-slate-500">${topicCount} ${t('個課題', 'topics')} · ${itemCount} ${t('項學習內容', 'items')}</p>
             </button>`;
@@ -337,8 +337,8 @@ const global = window;
             const count = tp.item_count || 0;
             const empty = count === 0;
             return `
-                <button type="button" class="course-step w-full text-left flex items-start gap-4 p-4 rounded-xl border ${empty ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-slate-200/80 bg-white hover:border-indigo-300 shadow-sm'} transition-all" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(tp.slug)}" ${empty ? 'disabled' : ''}>
-                    <span class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center">${i + 1}</span>
+                <button type="button" class="course-step w-full text-left flex items-start gap-4 p-4 rounded-xl border ${empty ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-slate-200/80 bg-white hover:border-brand-300 shadow-sm'} transition-all" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(tp.slug)}" ${empty ? 'disabled' : ''}>
+                    <span class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center">${i + 1}</span>
                     <div class="min-w-0 flex-1">
                         <h3 class="font-semibold text-slate-800">${escapeHtml(tpLabel)}</h3>
                         <p class="text-xs text-slate-500 mt-1">${count} ${t('項內容', 'items')}${empty ? ' · ' + t('尚未編排', 'not configured') : ''}</p>
@@ -361,7 +361,7 @@ const global = window;
         const label = typeLabel(item.content_type);
         const doneBadge = completed ? '<span class="text-emerald-500 text-sm flex-shrink-0" title="' + t('已完成', 'Done') + '">✓</span>' : '';
         const bookmarkToggle = canBookmark
-            ? `<span class="course-bookmark-toggle cursor-pointer select-none flex-shrink-0 ${bookmarked ? 'text-indigo-600' : 'text-slate-400'}"
+            ? `<span class="course-bookmark-toggle cursor-pointer select-none flex-shrink-0 ${bookmarked ? 'text-brand-600' : 'text-slate-400'}"
                 role="button"
                 tabindex="0"
                 aria-label="${bookmarked ? escapeHtml(t('已收藏', 'Bookmarked')) : escapeHtml(t('未收藏', 'Not bookmarked'))}"
@@ -375,8 +375,8 @@ const global = window;
             meta = `<span class="text-xs text-slate-400">${item.duration_minutes}${t(' 分鐘', ' min')}</span>`;
         }
         return `
-            <button type="button" class="course-item-row w-full text-left flex items-center gap-3 p-4 rounded-xl border border-slate-200/80 bg-white hover:border-indigo-300 shadow-sm transition-all" data-idx="${idx}" data-content-type="${escapeHtml(item.content_type)}" data-slug="${escapeHtml(item.slug)}" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicSlug)}">
-                <span class="text-xs font-mono text-indigo-600 w-6">${idx + 1}</span>
+            <button type="button" class="course-item-row w-full text-left flex items-center gap-3 p-4 rounded-xl border border-slate-200/80 bg-white hover:border-brand-300 shadow-sm transition-all" data-idx="${idx}" data-content-type="${escapeHtml(item.content_type)}" data-slug="${escapeHtml(item.slug)}" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicSlug)}">
+                <span class="text-xs font-mono text-brand-600 w-6">${idx + 1}</span>
                 <span class="text-lg" aria-hidden="true">${icon}</span>
                 <div class="flex-1 min-w-0">
                     <p class="font-medium text-slate-800 truncate">${escapeHtml(title)}</p>
@@ -430,14 +430,14 @@ const global = window;
                     const stitle = lang === 'zh' ? sug.title_zh : sug.title_en;
                     recBanner = `<div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm">
                         <p class="text-amber-900 font-medium">${t('根據你的表現，建議先完成：', 'Based on your progress, try:')} ${escapeHtml(stitle)}</p>
-                        <button type="button" class="course-rec-link text-indigo-600 hover:underline" data-route="${escapeHtml(sug.route)}">${t('前往', 'Go')} →</button>
+                        <button type="button" class="course-rec-link text-brand-600 hover:underline" data-route="${escapeHtml(sug.route)}">${t('前往', 'Go')} →</button>
                     </div>`;
                 } else if (rec.next_course_item && rec.next_course_item.topic_slug === topicSlug) {
                     const ni = rec.next_course_item;
                     const ntitle = lang === 'zh' ? ni.title_zh : ni.title_en;
-                    recBanner = `<div class="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-sm">
-                        <p class="text-indigo-900">${t('建議下一步：', 'Suggested next:')} ${escapeHtml(ntitle)}</p>
-                        <button type="button" class="course-rec-link text-indigo-600 hover:underline" data-route="${escapeHtml(ni.route)}">${t('繼續', 'Continue')} →</button>
+                    recBanner = `<div class="mb-4 p-4 rounded-xl bg-brand-50 border border-brand-100 text-sm">
+                        <p class="text-brand-900">${t('建議下一步：', 'Suggested next:')} ${escapeHtml(ntitle)}</p>
+                        <button type="button" class="course-rec-link text-brand-600 hover:underline" data-route="${escapeHtml(ni.route)}">${t('繼續', 'Continue')} →</button>
                     </div>`;
                 }
             } catch (e) { /* ignore */ }
@@ -471,25 +471,25 @@ const global = window;
                         <p class="text-xs text-slate-500">${doneCount}/${items.length} ${t('項完成', 'items done')}</p>
                     </div>
                     <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-indigo-600 rounded-full" style="width:${pct}%"></div>
+                        <div class="h-full bg-brand-600 rounded-full" style="width:${pct}%"></div>
                     </div>
                     <p class="text-xs text-slate-500 mt-2">${pct}% ${t('進度', 'complete')}</p>
                 </div>`;
 
-            const coachFallback = `<div class="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-sm">
-                <p class="text-indigo-900">${t('你已完成部分內容；下一步推薦會在你做完測驗後更新。', 'Nice work. Recommendations will improve after you complete quizzes.')}</p>
+            const coachFallback = `<div class="mb-4 p-4 rounded-xl bg-brand-50 border border-brand-100 text-sm">
+                <p class="text-brand-900">${t('你已完成部分內容；下一步推薦會在你做完測驗後更新。', 'Nice work. Recommendations will improve after you complete quizzes.')}</p>
             </div>`;
 
             coachHtml = `
-                <div class="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+                <div class="mb-4 p-4 rounded-xl bg-brand-50 border border-brand-100">
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <p class="text-sm font-bold text-indigo-900">${t('學習教練', 'Learning coach')}</p>
-                        <p class="text-xs text-indigo-700">${t('規則式建議', 'Rule-based tips')}</p>
+                        <p class="text-sm font-bold text-brand-900">${t('學習教練', 'Learning coach')}</p>
+                        <p class="text-xs text-brand-700">${t('規則式建議', 'Rule-based tips')}</p>
                     </div>
                     ${recBanner || coachFallback}
                     <div class="flex flex-wrap items-center gap-2">
                         <button type="button"
-                            class="course-adaptive-quiz px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                            class="course-adaptive-quiz px-3 py-1.5 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700"
                             data-topic-id="${escapeHtml(String(ctx.topic.id))}">
                             ${t('開始適性小測', 'Start adaptive quiz')} →
                         </button>
@@ -527,10 +527,10 @@ const global = window;
 
                     <section class="rounded-xl border border-slate-200 bg-white p-4">
                         <h3 class="text-sm font-bold text-slate-900 mb-2">${t('發表留言', 'Write a message')}</h3>
-                        <p id="course-discussions-reply-hint" class="text-xs text-indigo-700 mb-2 hidden"></p>
+                        <p id="course-discussions-reply-hint" class="text-xs text-brand-700 mb-2 hidden"></p>
                         <textarea id="course-discussions-message" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea>
                         <div class="flex flex-wrap items-center gap-2 mt-3">
-                            <button type="button" id="course-discussions-send" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">${t('送出（等待審核）', 'Send (pending)')}</button>
+                            <button type="button" id="course-discussions-send" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-brand-700">${t('送出（等待審核）', 'Send (pending)')}</button>
                             <button type="button" id="course-discussions-cancel-reply" class="hidden text-sm text-slate-600 hover:underline">${t('取消回覆', 'Cancel reply')}</button>
                             <p class="text-xs text-slate-500">${t('內容需教師審核後才會顯示為已發布。', 'Posts require teacher approval before becoming published.')}</p>
                         </div>
@@ -540,25 +540,25 @@ const global = window;
 
         let topicNav = '<div class="flex flex-wrap justify-between gap-2 mt-6 pt-4 border-t border-slate-200">';
         if (topicPrev) {
-            topicNav += `<button type="button" class="course-topic-nav-prev text-sm text-indigo-600 hover:underline" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicPrev.slug)}">← ${t('上一課題', 'Previous topic')}</button>`;
+            topicNav += `<button type="button" class="course-topic-nav-prev text-sm text-brand-600 hover:underline" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicPrev.slug)}">← ${t('上一課題', 'Previous topic')}</button>`;
         } else {
             topicNav += '<span></span>';
         }
         if (topicNext) {
-            topicNav += `<button type="button" class="course-topic-nav-next text-sm text-indigo-600 hover:underline" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicNext.slug)}">${t('下一課題', 'Next topic')} →</button>`;
+            topicNav += `<button type="button" class="course-topic-nav-next text-sm text-brand-600 hover:underline" data-subject="${escapeHtml(subjectSlug)}" data-topic="${escapeHtml(topicNext.slug)}">${t('下一課題', 'Next topic')} →</button>`;
         }
         topicNav += '</div>';
 
         if (!items.length) {
             container.innerHTML = `
-                <p class="text-xs text-indigo-600 mb-2">${escapeHtml(subName)}</p>
+                <p class="text-xs text-brand-600 mb-2">${escapeHtml(subName)}</p>
                 <p class="text-slate-500 py-8">${t('編課者尚未安排此課題的學習內容。', 'No learning items configured for this topic yet.')}</p>
                 ${topicNav}
                 ${discussionHtml}`;
         } else {
             const canBookmark = !!global.ScienceApi.getUser();
             container.innerHTML = `
-                <p class="text-xs text-indigo-600 mb-2">${escapeHtml(subName)}</p>
+                <p class="text-xs text-brand-600 mb-2">${escapeHtml(subName)}</p>
                 ${topicProgressHtml}
                 ${coachHtml}
                 <p class="text-slate-600 text-sm mb-4">${t('依序完成以下內容：', 'Complete the following in order:')}</p>
@@ -601,7 +601,7 @@ const global = window;
                     else bookmarkSet.delete(key);
 
                     el.textContent = bookmarked ? '★' : '☆';
-                    el.classList.toggle('text-indigo-600', bookmarked);
+                    el.classList.toggle('text-brand-600', bookmarked);
                     el.classList.toggle('text-slate-400', !bookmarked);
                 } catch (err) {
                     alert(err.message || t('收藏失敗。', 'Bookmark failed.'));
@@ -721,14 +721,14 @@ const global = window;
                         return `
                             <div class="${isReply ? 'ml-4 pl-3 border-l border-slate-200 ' : ''}p-3 rounded-xl border border-slate-200 bg-white" data-post-id="${Number(p.id)}">
                                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                    <span class="text-xs font-medium text-indigo-700">${escapeHtml(p.display_name || '')}</span>
+                                    <span class="text-xs font-medium text-brand-700">${escapeHtml(p.display_name || '')}</span>
                                     <span class="text-xs text-slate-500">${escapeHtml(when)}</span>
                                 </div>
                                 <p class="text-sm text-slate-800 whitespace-pre-wrap">${escapeHtml(msg)}</p>
                                 <div class="flex flex-wrap items-center gap-3 mt-2">
-                                    <button type="button" class="course-discussion-react text-xs ${reacted ? 'text-indigo-600 font-medium' : 'text-slate-500'} hover:underline"
+                                    <button type="button" class="course-discussion-react text-xs ${reacted ? 'text-brand-600 font-medium' : 'text-slate-500'} hover:underline"
                                         data-post-id="${Number(p.id)}" aria-pressed="${reacted ? 'true' : 'false'}">👍 ${count}</button>
-                                    ${!isReply ? `<button type="button" class="course-discussion-reply text-xs text-indigo-600 hover:underline" data-post-id="${Number(p.id)}" data-name="${escapeHtml(p.display_name || '')}">${t('回覆', 'Reply')}</button>` : ''}
+                                    ${!isReply ? `<button type="button" class="course-discussion-reply text-xs text-brand-600 hover:underline" data-post-id="${Number(p.id)}" data-name="${escapeHtml(p.display_name || '')}">${t('回覆', 'Reply')}</button>` : ''}
                                 </div>
                             </div>`;
                     }
@@ -772,7 +772,7 @@ const global = window;
                                     });
                                     const reacted = !!res.reacted;
                                     btn.setAttribute('aria-pressed', reacted ? 'true' : 'false');
-                                    btn.classList.toggle('text-indigo-600', reacted);
+                                    btn.classList.toggle('text-brand-600', reacted);
                                     btn.classList.toggle('font-medium', reacted);
                                     btn.classList.toggle('text-slate-500', !reacted);
                                     btn.textContent = '👍 ' + Number(res.reaction_count || 0);

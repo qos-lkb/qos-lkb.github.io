@@ -44,7 +44,7 @@ const global = window;
 
         main.innerHTML = `
             <div class="reading-page max-w-3xl space-y-6" id="sim-contribute-page">
-                <button type="button" id="contribute-back" class="text-indigo-600 text-sm hover:underline">← ${escapeHtml(t('返回模擬程式', 'Back to simulations'))}</button>
+                <button type="button" id="contribute-back" class="text-brand-600 text-sm hover:underline">← ${escapeHtml(t('返回模擬程式', 'Back to simulations'))}</button>
                 <div>
                     <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">${escapeHtml(t('投稿模擬程式', 'Contribute a simulation'))}</h1>
                     <p class="mt-2 text-sm text-slate-600">${escapeHtml(t('提交後會進入待審核，管理員核准後才會公開顯示。', 'Submissions enter pending review and appear publicly only after an admin approves them.'))}</p>
@@ -102,7 +102,7 @@ const global = window;
                     </div>
                     <iframe id="c-preview-frame" title="preview" sandbox="${sandbox}" class="w-full h-64 border rounded-lg bg-slate-50"></iframe>
                     <p id="c-error" class="text-sm text-red-600 hidden"></p>
-                    <button type="submit" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 font-medium">${escapeHtml(t('送出審核', 'Submit for review'))}</button>
+                    <button type="submit" class="bg-brand-600 text-white px-5 py-2.5 rounded-lg hover:bg-brand-700 font-medium">${escapeHtml(t('送出審核', 'Submit for review'))}</button>
                 </form>
             </div>`;
 
@@ -160,7 +160,7 @@ const global = window;
                     <div class="reading-page max-w-xl space-y-4">
                         <h1 class="text-2xl font-bold text-slate-900">${escapeHtml(t('已送出審核', 'Submitted for review'))}</h1>
                         <p class="text-slate-600">${escapeHtml(t('感謝投稿！管理員審核通過後，模擬程式才會出現在公開目錄。', 'Thanks! Your simulation will appear in the public catalogue after an admin approves it.'))}</p>
-                        <a href="${escapeHtml(spaHref('/simulations'))}" data-spa="/simulations" class="inline-flex text-indigo-600 hover:underline">${escapeHtml(t('返回模擬程式', 'Back to simulations'))}</a>
+                        <a href="${escapeHtml(spaHref('/simulations'))}" data-spa="/simulations" class="inline-flex text-brand-600 hover:underline">${escapeHtml(t('返回模擬程式', 'Back to simulations'))}</a>
                     </div>`;
                 const a = main.querySelector('[data-spa]');
                 if (a) a.onclick = (ev) => { ev.preventDefault(); navigate('/simulations'); };

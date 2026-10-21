@@ -196,14 +196,14 @@ const global = window;
 
             const cohortToggle = canChase ? `
                 <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="${escapeHtml(t('習作學年', 'Homework year'))}">
-                    <button type="button" id="sh-cohort-current" class="text-sm px-3 py-1.5 rounded-lg border ${cohort !== 'previous' ? 'bg-indigo-700 text-white border-indigo-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${cohort !== 'previous' ? 'true' : 'false'}">${escapeHtml(t('本學年習作', 'This year'))}</button>
+                    <button type="button" id="sh-cohort-current" class="text-sm px-3 py-1.5 rounded-lg border ${cohort !== 'previous' ? 'bg-brand-700 text-white border-brand-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${cohort !== 'previous' ? 'true' : 'false'}">${escapeHtml(t('本學年習作', 'This year'))}</button>
                     <button type="button" id="sh-cohort-previous" class="text-sm px-3 py-1.5 rounded-lg border ${cohort === 'previous' ? 'bg-amber-700 text-white border-amber-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${cohort === 'previous' ? 'true' : 'false'}">${escapeHtml(t('上學年追收', 'Last-year chase'))}</button>
                 </div>` : '';
 
             const viewToggle = `
                 <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="${escapeHtml(t('檢視模式', 'View mode'))}">
-                    <button type="button" id="sh-view-matrix" class="text-sm px-3 py-1.5 rounded-lg border ${view === 'matrix' ? 'bg-indigo-700 text-white border-indigo-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${view === 'matrix' ? 'true' : 'false'}">${escapeHtml(t('矩陣', 'Matrix'))}</button>
-                    <button type="button" id="sh-view-incomplete" class="text-sm px-3 py-1.5 rounded-lg border ${view === 'incomplete' ? 'bg-indigo-700 text-white border-indigo-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${view === 'incomplete' ? 'true' : 'false'}">${escapeHtml(t('未完成清單', 'Incomplete list'))}（${incompleteCount}）</button>
+                    <button type="button" id="sh-view-matrix" class="text-sm px-3 py-1.5 rounded-lg border ${view === 'matrix' ? 'bg-brand-700 text-white border-brand-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${view === 'matrix' ? 'true' : 'false'}">${escapeHtml(t('矩陣', 'Matrix'))}</button>
+                    <button type="button" id="sh-view-incomplete" class="text-sm px-3 py-1.5 rounded-lg border ${view === 'incomplete' ? 'bg-brand-700 text-white border-brand-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}" role="tab" aria-selected="${view === 'incomplete' ? 'true' : 'false'}">${escapeHtml(t('未完成清單', 'Incomplete list'))}（${incompleteCount}）</button>
                 </div>`;
 
             let mainContent = '';
@@ -255,7 +255,7 @@ const global = window;
                             <td class="p-3 whitespace-nowrap">${escapeHtml(String(row.percent ?? '—'))}%</td>
                             <td class="p-3 whitespace-nowrap">${row.attempts}</td>
                             <td class="p-3 whitespace-nowrap space-x-2">
-                                <a href="${escapeHtml(spaHref(analytics) + '?user_id=' + row.student_user_id)}" data-spa-nav="${escapeHtml(analytics)}" data-user-id="${row.student_user_id}" class="text-indigo-600 hover:underline text-sm">${escapeHtml(t('分析', 'Analytics'))}</a>
+                                <a href="${escapeHtml(spaHref(analytics) + '?user_id=' + row.student_user_id)}" data-spa-nav="${escapeHtml(analytics)}" data-user-id="${row.student_user_id}" class="text-brand-600 hover:underline text-sm">${escapeHtml(t('分析', 'Analytics'))}</a>
                                 <a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}" class="text-slate-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a>
                                 <button type="button" class="sh-chase text-sm text-amber-700 hover:underline"
                                     data-email="${escapeHtml(row.email || '')}"
@@ -288,10 +288,10 @@ const global = window;
                         : t('無截止', 'No due date');
                     return `<th class="p-3 min-w-[11rem]">
                         <div class="font-semibold">
-                            <a class="text-indigo-700 hover:underline" href="${escapeHtml(spaHref('/admin/summer-homework/' + Number(item.id) + '/view'))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/view">${escapeHtml(titleText)}</a>
+                            <a class="text-brand-700 hover:underline" href="${escapeHtml(spaHref('/admin/summer-homework/' + Number(item.id) + '/view'))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/view">${escapeHtml(titleText)}</a>
                         </div>
                         <div class="text-xs font-normal text-slate-500 mt-0.5">${escapeHtml(due)}</div>
-                        <a class="text-xs text-indigo-600 hover:underline mt-1 inline-block" href="${escapeHtml(spaHref(`/admin/summer-homework/${Number(item.id)}/analytics`))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
+                        <a class="text-xs text-brand-600 hover:underline mt-1 inline-block" href="${escapeHtml(spaHref(`/admin/summer-homework/${Number(item.id)}/analytics`))}" data-spa-nav="/admin/summer-homework/${Number(item.id)}/analytics">${escapeHtml(t('分析', 'Analytics'))}</a>
                     </th>`;
                 }).join('');
 
@@ -324,7 +324,7 @@ const global = window;
                             <div class="mt-1.5 text-slate-800">${escapeHtml(String(cell.percent ?? '—'))}% ${scoreLine}</div>
                             <div class="text-xs text-slate-500 mt-0.5">
                                 ${escapeHtml(recordAt ? (t('首次及格 ', 'First pass ') + recordAt) : t('尚未及格', 'Not passed yet'))}
-                                · <a class="text-indigo-600 hover:underline" href="${escapeHtml(spaHref(`/admin/summer-homework/${iid}/analytics`) + '?user_id=' + uid)}" data-spa-nav="/admin/summer-homework/${iid}/analytics" data-user-id="${uid}">${attempts} ${escapeHtml(t('次', 'tries'))}</a>
+                                · <a class="text-brand-600 hover:underline" href="${escapeHtml(spaHref(`/admin/summer-homework/${iid}/analytics`) + '?user_id=' + uid)}" data-spa-nav="/admin/summer-homework/${iid}/analytics" data-user-id="${uid}">${attempts} ${escapeHtml(t('次', 'tries'))}</a>
                                 · ${cell.passed
                                     ? `<span class="text-emerald-700 font-medium">${escapeHtml(t('及格', 'Passed'))}</span>`
                                     : `<span class="text-amber-800 font-medium">${escapeHtml(t('須重做', 'Retry'))}</span>`}
@@ -379,7 +379,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學生與修讀語言', 'Students & MOI'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/worksheets`))}" data-spa-nav="/admin/courses/${id}/worksheets" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('工作紙派發', 'Worksheets'))}</a>

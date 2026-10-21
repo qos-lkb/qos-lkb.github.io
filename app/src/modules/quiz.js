@@ -73,7 +73,7 @@ const global = window;
                     cls += ' selected';
                 }
                 return `<button type="button" class="${cls} w-full text-left" data-opt="${i}" ${submitted ? 'disabled' : ''}>
-                    <span class="font-bold text-indigo-600 mr-2">${LABELS[i] || (i + 1)}</span>${escapeHtml(text)}
+                    <span class="font-bold text-brand-600 mr-2">${LABELS[i] || (i + 1)}</span>${escapeHtml(text)}
                 </button>`;
             }).join('');
 
@@ -90,8 +90,8 @@ const global = window;
                 ${expl}
                 <div class="flex gap-3 mt-8">
                     ${qIndex > 0 ? `<button type="button" id="quiz-prev" class="px-4 py-2 border rounded-lg">${t('上一題', 'Previous')}</button>` : ''}
-                    ${!submitted && qIndex < questions.length - 1 ? `<button type="button" id="quiz-next" class="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled>${t('下一題', 'Next')}</button>` : ''}
-                    ${!submitted && qIndex === questions.length - 1 ? `<button type="button" id="quiz-submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled>${t('提交', 'Submit')}</button>` : ''}
+                    ${!submitted && qIndex < questions.length - 1 ? `<button type="button" id="quiz-next" class="px-4 py-2 bg-brand-600 text-white rounded-lg" disabled>${t('下一題', 'Next')}</button>` : ''}
+                    ${!submitted && qIndex === questions.length - 1 ? `<button type="button" id="quiz-submit" class="px-4 py-2 bg-brand-600 text-white rounded-lg" disabled>${t('提交', 'Submit')}</button>` : ''}
                 </div>`;
 
             document.querySelectorAll('#quiz-options button').forEach(btn => {
@@ -156,7 +156,7 @@ const global = window;
         if (!questions.length) {
             main.innerHTML = `
                 <div class="max-w-2xl mx-auto">
-                    <button type="button" id="quiz-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
+                    <button type="button" id="quiz-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
                     <h1 class="text-2xl font-bold mb-2">${escapeHtml(title)}</h1>
                     <p class="text-slate-500">${t('此試題庫沒有可作答的四選一題目。', 'This bank has no MCQ items to attempt.')}</p>
                 </div>`;
@@ -171,7 +171,7 @@ const global = window;
 
         main.innerHTML = `
             <div class="max-w-2xl mx-auto">
-                <button type="button" id="quiz-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
+                <button type="button" id="quiz-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回列表', 'Back to list')}</button>
                 <h1 class="text-2xl font-bold mb-2">${escapeHtml(title)}</h1>
                 <p id="quiz-score" class="text-sm text-slate-500 mb-6"></p>
                 <div id="quiz-body" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm"></div>
@@ -218,7 +218,7 @@ const global = window;
         if (!questions.length) {
             main.innerHTML = `
                 <div class="max-w-2xl mx-auto">
-                    <button type="button" id="quiz-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
+                    <button type="button" id="quiz-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回', 'Back')}</button>
                     <p class="text-slate-500">${t('沒有可回顧的錯題。', 'No wrong questions to review.')}</p>
                 </div>`;
             document.getElementById('quiz-back').onclick = () => {
@@ -253,7 +253,7 @@ const global = window;
                     cls += ' selected';
                 }
                 return `<button type="button" class="${cls} w-full text-left" data-opt="${i}" ${submitted ? 'disabled' : ''}>
-                    <span class="font-bold text-indigo-600 mr-2">${LABELS[i] || (i + 1)}</span>${escapeHtml(text)}
+                    <span class="font-bold text-brand-600 mr-2">${LABELS[i] || (i + 1)}</span>${escapeHtml(text)}
                 </button>`;
             }).join('');
 
@@ -270,8 +270,8 @@ const global = window;
                 ${expl}
                 <div class="flex gap-3 mt-8">
                     ${qIndex > 0 ? `<button type="button" id="quiz-prev" class="px-4 py-2 border rounded-lg">${t('上一題', 'Previous')}</button>` : ''}
-                    ${!submitted && qIndex < questions.length - 1 ? `<button type="button" id="quiz-next" class="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled>${t('下一題', 'Next')}</button>` : ''}
-                    ${!submitted && qIndex === questions.length - 1 ? `<button type="button" id="quiz-submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled>${t('提交', 'Submit')}</button>` : ''}
+                    ${!submitted && qIndex < questions.length - 1 ? `<button type="button" id="quiz-next" class="px-4 py-2 bg-brand-600 text-white rounded-lg" disabled>${t('下一題', 'Next')}</button>` : ''}
+                    ${!submitted && qIndex === questions.length - 1 ? `<button type="button" id="quiz-submit" class="px-4 py-2 bg-brand-600 text-white rounded-lg" disabled>${t('提交', 'Submit')}</button>` : ''}
                 </div>`;
 
             document.querySelectorAll('#quiz-options button').forEach((btn) => {
@@ -341,7 +341,7 @@ const global = window;
 
         main.innerHTML = `
             <div class="max-w-2xl mx-auto">
-                <button type="button" id="quiz-back" class="text-indigo-600 text-sm mb-4 hover:underline">← ${t('返回課題', 'Back to topic')}</button>
+                <button type="button" id="quiz-back" class="text-brand-600 text-sm mb-4 hover:underline">← ${t('返回課題', 'Back to topic')}</button>
                 <h1 class="text-2xl font-bold mb-2">${t('錯題回顧', 'Wrong-answer review')}</h1>
                 <p class="text-sm text-slate-500 mb-2">${t('根據你最近的錯題產生。', 'Generated from your recent wrong answers.')}</p>
                 <p id="quiz-score" class="text-sm text-slate-500 mb-6"></p>

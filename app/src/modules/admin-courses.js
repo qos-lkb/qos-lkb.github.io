@@ -104,9 +104,9 @@ const global = window;
                     <td class="p-3 font-mono text-xs">${escapeHtml(c.invite_code || '')}</td>
                     <td class="p-3">${status}</td>
                     <td class="p-3 whitespace-nowrap text-sm">
-                        <a class="text-indigo-700 hover:underline" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}`))}" data-spa-nav="/admin/courses/${Number(c.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
-                        <a class="text-indigo-700 hover:underline ml-2" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}/students`))}" data-spa-nav="/admin/courses/${Number(c.id)}/students">${escapeHtml(t('學生', 'Students'))}</a>
-                        <a class="text-indigo-700 hover:underline ml-2" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}/report`))}" data-spa-nav="/admin/courses/${Number(c.id)}/report">${escapeHtml(t('報告', 'Report'))}</a>
+                        <a class="text-brand-700 hover:underline" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}`))}" data-spa-nav="/admin/courses/${Number(c.id)}">${escapeHtml(t('編輯', 'Edit'))}</a>
+                        <a class="text-brand-700 hover:underline ml-2" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}/students`))}" data-spa-nav="/admin/courses/${Number(c.id)}/students">${escapeHtml(t('學生', 'Students'))}</a>
+                        <a class="text-brand-700 hover:underline ml-2" href="${escapeHtml(spaHref(`/admin/courses/${Number(c.id)}/report`))}" data-spa-nav="/admin/courses/${Number(c.id)}/report">${escapeHtml(t('報告', 'Report'))}</a>
                         <button type="button" class="admin-course-delete text-red-600 hover:underline ml-2" data-id="${Number(c.id)}">${escapeHtml(t('刪除', 'Delete'))}</button>
                     </td>
                 </tr>`;
@@ -114,7 +114,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                 </div>
                 <p id="admin-courses-flash" class="text-sm mb-3 hidden"></p>
                 <form id="admin-course-create" class="mb-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end bg-white border border-slate-200 rounded-xl p-4">
@@ -135,7 +135,7 @@ const global = window;
                         <input type="checkbox" name="is_active" checked class="rounded border-slate-300">
                         ${escapeHtml(t('啟用', 'Active'))}
                     </label>
-                    <button type="submit" class="rounded-lg bg-indigo-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增課程', 'Create course'))}</button>
+                    <button type="submit" class="rounded-lg bg-brand-700 text-white px-3 py-2 text-sm font-semibold">${escapeHtml(t('新增課程', 'Create course'))}</button>
                 </form>
                 ${classes.length ? `
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -347,13 +347,13 @@ const global = window;
                 <td class="p-3">${s.class_no != null && s.class_no !== '' ? Number(s.class_no) : '—'}</td>
                 <td class="p-3">${escapeHtml(moiLabel(s.moi))}</td>
                 <td class="p-3">${escapeHtml(s.joined_at || '')}</td>
-                <td class="p-3"><a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}" class="text-indigo-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a></td>
+                <td class="p-3"><a href="${escapeHtml(spaHref(dossier))}" data-spa-nav="${escapeHtml(dossier)}" class="text-brand-600 hover:underline text-sm">${escapeHtml(t('課業', 'Dossier'))}</a></td>
             </tr>`;
             }).join('');
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 課程列表', '← Courses'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 課程列表', '← Courses'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-slate-600 hover:underline">${escapeHtml(canEditStudents ? t('學生與修讀語言', 'Students & MOI') : t('查看學生', 'View students'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
@@ -390,15 +390,15 @@ const global = window;
                         <code id="course-invite-code" class="bg-slate-100 px-2 py-1 rounded font-mono text-xs">${escapeHtml(c.invite_code || '')}</code>
                     </p>
                     <div class="flex flex-wrap items-center gap-3">
-                        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">${escapeHtml(t('儲存', 'Save'))}</button>
-                        <button type="button" id="course-reset-invite" class="text-sm text-indigo-600 hover:underline">${escapeHtml(t('重設邀請碼', 'Reset invite'))}</button>
+                        <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
+                        <button type="button" id="course-reset-invite" class="text-sm text-brand-600 hover:underline">${escapeHtml(t('重設邀請碼', 'Reset invite'))}</button>
                         <button type="button" id="course-edit-delete" class="text-red-600 hover:underline text-sm ml-auto">${escapeHtml(t('刪除課程', 'Delete course'))}</button>
                     </div>
                 </form>
                 <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm mb-4">
                     <div class="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                         <h2 class="font-bold text-slate-800">${escapeHtml(t('學生名單', 'Students'))}（${students.length}）</h2>
-                        <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-indigo-600 hover:underline">${escapeHtml(canEditStudents ? t('編輯學生與修讀語言', 'Edit students & MOI') : t('查看學生與修讀語言', 'View students & MOI'))}</a>
+                        <a href="${escapeHtml(spaHref(`/admin/courses/${id}/students`))}" data-spa-nav="/admin/courses/${id}/students" class="text-sm text-brand-600 hover:underline">${escapeHtml(canEditStudents ? t('編輯學生與修讀語言', 'Edit students & MOI') : t('查看學生與修讀語言', 'View students & MOI'))}</a>
                     </div>
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-100 text-left">

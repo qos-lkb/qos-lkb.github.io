@@ -118,12 +118,12 @@ const global = window;
             ['fill_blank', t('填充', 'Fill')],
             ['true_false', t('是非', 'T/F')],
         ].map(([val, label]) =>
-            `<button type="button" class="add-q-type text-xs px-2 py-1 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50" data-type="${val}">+ ${escapeHtml(label)}</button>`
+            `<button type="button" class="add-q-type text-xs px-2 py-1 rounded border border-brand-200 text-brand-700 hover:bg-brand-50" data-type="${val}">+ ${escapeHtml(label)}</button>`
         ).join('');
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                <a href="${escapeHtml(spaHref('/admin/question-banks'))}" data-spa-nav="/admin/question-banks" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
+                <a href="${escapeHtml(spaHref('/admin/question-banks'))}" data-spa-nav="/admin/question-banks" class="text-brand-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
             </div>
             <p id="edit-flash" class="text-sm hidden mb-3"></p>
             <form id="edit-form" class="space-y-6">
@@ -209,7 +209,7 @@ const global = window;
                 </section>
 
                 <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">${escapeHtml(t('儲存', 'Save'))}</button>
+                    <button type="submit" class="flex-1 bg-brand-600 text-white py-2 rounded-lg font-medium hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
                     ${editId ? `<button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50">${escapeHtml(t('刪除試題集', 'Delete bank'))}</button>` : ''}
                 </div>
             </form>`;

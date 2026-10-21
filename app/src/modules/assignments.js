@@ -17,7 +17,7 @@ const global = window;
 
     function statusBadgeClass(status) {
         if (status === 'graded') return 'bg-emerald-100 text-emerald-800';
-        if (status === 'submitted') return 'bg-indigo-100 text-indigo-800';
+        if (status === 'submitted') return 'bg-brand-100 text-brand-800';
         if (status === 'pending') return 'bg-amber-100 text-amber-800';
         return 'bg-slate-100 text-slate-700';
     }
@@ -44,7 +44,7 @@ const global = window;
         } catch (e) {
             main.innerHTML = `<div class="max-w-lg mx-auto text-center py-12">
                 <p class="text-slate-600 mb-4">${t('請先登入以查看課程習作。', 'Please log in to view assignments.')}</p>
-                <a href="../login.php?next=${encodeURIComponent('app/assignments')}" class="text-indigo-600 underline">${t('登入', 'Log in')}</a>
+                <a href="../login.php?next=${encodeURIComponent('app/assignments')}" class="text-brand-600 underline">${t('登入', 'Log in')}</a>
             </div>`;
             return;
         }
@@ -60,7 +60,7 @@ const global = window;
                 const score = sub.status === 'graded' && sub.score != null
                     ? `<span class="text-xs font-medium text-emerald-700">${sub.score} / ${a.max_score}</span>`
                     : '';
-                return `<button type="button" class="assign-item block w-full text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition" data-id="${a.id}">
+                return `<button type="button" class="assign-item block w-full text-left p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/40 transition" data-id="${a.id}">
                     <div class="flex flex-wrap items-start justify-between gap-2">
                         <div>
                             <p class="text-xs text-slate-400">${escapeHtml(a.class_name || '')}</p>
@@ -76,7 +76,7 @@ const global = window;
         main.innerHTML = `
             <div class="max-w-3xl mx-auto space-y-6">
                 <div>
-                    <button type="button" id="assign-back-dash" class="text-indigo-600 text-sm mb-3 hover:underline">← ${t('我的學習', 'My learning')}</button>
+                    <button type="button" id="assign-back-dash" class="text-brand-600 text-sm mb-3 hover:underline">← ${t('我的學習', 'My learning')}</button>
                     <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">${t('課程習作', 'Course assignments')}</h1>
                     <p class="text-sm text-slate-500 mt-1">${t('完成老師派發的工作紙習作，並查看評分。', 'Complete worksheet assignments from your teachers.')}</p>
                 </div>
@@ -100,7 +100,7 @@ const global = window;
         } catch (e) {
             main.innerHTML = `<div class="max-w-lg mx-auto py-12 text-center">
                 <p class="text-slate-600 mb-4">${escapeHtml(e.message || t('無法載入習作。', 'Could not load assignment.'))}</p>
-                <button type="button" id="assign-back-list" class="text-indigo-600 underline">${t('返回習作列表', 'Back to assignments')}</button>
+                <button type="button" id="assign-back-list" class="text-brand-600 underline">${t('返回習作列表', 'Back to assignments')}</button>
             </div>`;
             document.getElementById('assign-back-list')?.addEventListener('click', () => navigate('/assignments'));
             return;

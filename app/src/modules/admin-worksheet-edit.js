@@ -147,7 +147,7 @@ const global = window;
 
         box.innerHTML = `
             <div class="mb-4 flex flex-wrap gap-3 items-center text-sm">
-                <a href="${escapeHtml(spaHref('/admin/worksheets'))}" data-spa-nav="/admin/worksheets" class="text-indigo-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
+                <a href="${escapeHtml(spaHref('/admin/worksheets'))}" data-spa-nav="/admin/worksheets" class="text-brand-700 hover:underline">${escapeHtml(t('← 返回列表', '← Back to list'))}</a>
                 ${canQb ? `<a href="${escapeHtml(spaHref('/admin/question-banks'))}" data-spa-nav="/admin/question-banks" class="text-slate-600 hover:underline">${escapeHtml(t('試題庫', 'Question banks'))}</a>` : ''}
                 ${canCourses ? `<a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="text-slate-600 hover:underline">${escapeHtml(t('課程派發', 'Course assign'))}</a>` : ''}
             </div>
@@ -168,7 +168,7 @@ const global = window;
                         <button type="button" data-ws-embed="video" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ ${escapeHtml(t('影片', 'Video'))}</button>
                         <button type="button" data-ws-embed="simulation" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ ${escapeHtml(t('模擬', 'Sim'))}</button>
                         <button type="button" data-ws-embed="article" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ ${escapeHtml(t('文章', 'Article'))}</button>
-                        <button type="button" data-ws-embed="question" class="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">+ ${escapeHtml(t('題庫題目', 'Question'))}</button>
+                        <button type="button" data-ws-embed="question" class="text-xs px-2 py-1 rounded border border-brand-300 text-brand-700 hover:bg-brand-50">+ ${escapeHtml(t('題庫題目', 'Question'))}</button>
                     </div>
                     <textarea id="body-zh" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="12"></textarea>
                     <p class="text-xs text-slate-500 mt-1">${escapeHtml(t('可用 ::video / ::simulation / ::article / ::question 短碼，或上方按鈕插入。', 'Use ::video / ::simulation / ::article / ::question shortcodes, or the buttons above.'))}</p>
@@ -180,7 +180,7 @@ const global = window;
                         <button type="button" data-ws-embed="video" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Video</button>
                         <button type="button" data-ws-embed="simulation" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Sim</button>
                         <button type="button" data-ws-embed="article" class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">+ Article</button>
-                        <button type="button" data-ws-embed="question" class="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">+ Question</button>
+                        <button type="button" data-ws-embed="question" class="text-xs px-2 py-1 rounded border border-brand-300 text-brand-700 hover:bg-brand-50">+ Question</button>
                     </div>
                     <textarea id="body-en" class="w-full border rounded-lg px-3 py-2 mt-1 font-mono text-sm" rows="12"></textarea>
                 </div>
@@ -191,7 +191,7 @@ const global = window;
                 <div><label class="text-sm font-medium">${escapeHtml(t('排序', 'Sort'))}</label><input type="number" id="list-sort" value="0" class="w-full border rounded-lg px-3 py-2 mt-1"></div>
                 <div><label class="text-sm font-medium">${escapeHtml(t('狀態', 'Status'))}</label><select id="status" class="w-full border rounded-lg px-3 py-2 mt-1">${statusOpts}</select></div>
                 <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
+                    <button type="submit" class="flex-1 bg-brand-600 text-white py-2 rounded-lg">${escapeHtml(t('儲存', 'Save'))}</button>
                     ${editId ? `<button type="button" id="btn-delete" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg">${escapeHtml(t('刪除', 'Delete'))}</button>` : ''}
                 </div>
             </form>`;

@@ -97,7 +97,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
+                    <a href="${escapeHtml(spaHref(`/admin/courses/${id}`))}" data-spa-nav="/admin/courses/${id}" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 編輯課程', '← Edit course'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/report`))}" data-spa-nav="/admin/courses/${id}/report" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('學習報告', 'Report'))}</a>
                     <a href="${escapeHtml(spaHref(`/admin/courses/${id}/summer`))}" data-spa-nav="/admin/courses/${id}/summer" class="text-sm text-slate-600 hover:underline">${escapeHtml(t('暑期功課', 'Summer HW'))}</a>
                     ${c.can_chase_previous_summer || c.form_level === '2' || c.form_level === '3'
@@ -135,7 +135,7 @@ const global = window;
                                 <span>${escapeHtml(t('派發給全班學生', 'Assign to all students'))}</span>
                             </label>
                             <div id="student-pick-wrap" class="hidden border rounded-lg p-2 max-h-40 overflow-y-auto space-y-1"></div>
-                            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">${escapeHtml(t('建立派發', 'Create assignment'))}</button>
+                            <button type="submit" class="w-full bg-brand-600 text-white py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('建立派發', 'Create assignment'))}</button>
                         </form>
                     </div>
                     <div class="lg:col-span-3 space-y-4">
@@ -203,7 +203,7 @@ const global = window;
                 assignList.innerHTML = '<div class="space-y-2">' + assignments.map((a) => {
                     const titleText = a.title_zh || a.worksheet_title_zh || a.worksheet_slug;
                     const due = a.due_at ? (' · ' + t('截止 ', 'Due ') + String(a.due_at).replace('T', ' ').slice(0, 16)) : '';
-                    return `<button type="button" class="assign-row w-full text-left border rounded-lg px-3 py-2 hover:border-indigo-300" data-id="${Number(a.id)}">
+                    return `<button type="button" class="assign-row w-full text-left border rounded-lg px-3 py-2 hover:border-brand-300" data-id="${Number(a.id)}">
                         <span class="font-medium">${escapeHtml(titleText)}</span>
                         <span class="block text-xs text-slate-500">${escapeHtml(statusLabel(a.status))} · ${escapeHtml(t('已提交', 'Submitted'))} ${Number(a.submitted_count)}/${Number(a.student_count)} · ${escapeHtml(t('已評分', 'Graded'))} ${Number(a.graded_count)}${escapeHtml(due)}</span>
                     </button>`;
@@ -242,9 +242,9 @@ const global = window;
                             <td class="p-2"><input type="number" class="grade-score w-20 border rounded px-2 py-1" min="0" max="${Number(a.max_score)}" step="0.5" value="${escapeHtml(String(defaultScore))}"></td>
                             <td class="p-2"><input type="text" class="grade-feedback w-full border rounded px-2 py-1" value="${escapeHtml(s.feedback_zh || '')}" placeholder="${escapeHtml(t('評語', 'Feedback'))}"></td>
                             <td class="p-2 text-center text-xs text-slate-500">${s.auto_score != null ? escapeHtml(String(s.auto_score)) : '—'}
-                                ${s.auto_score != null ? ` <button type="button" class="btn-use-auto text-indigo-600 hover:underline" data-auto="${escapeHtml(String(s.auto_score))}">${escapeHtml(t('採用', 'Use'))}</button>` : ''}
+                                ${s.auto_score != null ? ` <button type="button" class="btn-use-auto text-brand-600 hover:underline" data-auto="${escapeHtml(String(s.auto_score))}">${escapeHtml(t('採用', 'Use'))}</button>` : ''}
                             </td>
-                            <td class="p-2"><button type="button" class="btn-save-grade text-indigo-600 hover:underline">${escapeHtml(t('儲存', 'Save'))}</button></td>
+                            <td class="p-2"><button type="button" class="btn-save-grade text-brand-600 hover:underline">${escapeHtml(t('儲存', 'Save'))}</button></td>
                         </tr>${respRows}`;
                     }).join('')
                     + '</tbody></table>';

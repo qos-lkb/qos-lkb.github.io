@@ -169,7 +169,7 @@ const global = window;
                         ${legacyNote}
                     </div>
                     <div class="flex flex-wrap gap-2 items-center">
-                        ${previewHref ? `<a href="${escapeHtml(previewHref)}"${previewNav} class="px-3 py-1.5 rounded-lg border border-indigo-200 text-sm text-indigo-700 hover:bg-indigo-50">${escapeHtml(t('預覽', 'Preview'))}</a>` : ''}
+                        ${previewHref ? `<a href="${escapeHtml(previewHref)}"${previewNav} class="px-3 py-1.5 rounded-lg border border-brand-200 text-sm text-brand-700 hover:bg-brand-50">${escapeHtml(t('預覽', 'Preview'))}</a>` : ''}
                         ${editHref ? `<a href="${escapeHtml(editHref)}"${editNav} class="px-3 py-1.5 rounded-lg border border-slate-300 text-sm text-slate-700 hover:bg-slate-50">${escapeHtml(editLabel)}</a>` : ''}
                         <button type="button" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700" data-action="publish">${escapeHtml(t('發佈', 'Publish'))}</button>
                         <button type="button" class="px-3 py-1.5 bg-slate-200 rounded-lg text-sm hover:bg-slate-300" data-action="reject">${escapeHtml(t('退回', 'Reject'))}</button>
@@ -179,7 +179,7 @@ const global = window;
 
             box.innerHTML = `
                 <div class="mb-4 flex flex-wrap gap-3 items-center">
-                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-indigo-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
+                    <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <button type="button" id="admin-review-reload" class="text-sm px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('重新整理', 'Reload'))}</button>
                 </div>
                 <p class="text-sm text-slate-600 mb-4">${escapeHtml(t('審核待發佈的學習筆記、工作紙、文章、影片、試題庫、閃卡組、暑期功課與互動學習工具。', 'Review pending notes, worksheets, articles, videos, question banks, flashcard sets, summer homework, and learning tools.'))}</p>
