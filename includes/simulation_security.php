@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Scheme+host of this request, for CSP. Sandboxed iframes have an opaque origin,
- * so 'self' does not match the real site and same-host scripts/images are blocked.
+ * Scheme+host of this request, for CSP. A sandboxed iframe without allow-same-origin
+ * has an opaque origin, so 'self' does not match the site and same-host assets are blocked.
  */
 function simulation_serving_origin(): string
 {
@@ -46,43 +46,17 @@ function simulation_html_csp(): string
 
 /**
  * Sandbox tokens for the SPA sim modal iframe.
- * allow-same-origin is omitted so the iframe gets an opaque origin (cannot reach parent
- * DOM / cookies). Screenshots use postMessage + sim-capture-bridge.js inside the HTML.
+ * allow-same-origin is required so the parent can snapshot the live document
+ * (same approach as a same-origin preview iframe).
  */
 function simulation_iframe_sandbox_attr(): string
 {
-    return 'allow-scripts allow-forms allow-popups allow-modals allow-downloads';
+    return 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads';
 }
 
 /**
- * Inline the screenshot bridge. External script src is blocked when the iframe
- * origin is opaque and CSP 'self' no longer matches the site host.
- */
-function simulation_inject_capture_bridge(string $html): string
-{
-    if ($html === '') {
-        return $html;
-    }
-    if (str_contains($html, 'data-sci-sim-capture-bridge') || str_contains($html, 'SCI_SIM_CAPTURE_REQUEST')) {
-        return $html;
-    }
-
-    $path = dirname(__DIR__) . '/assets/js/sim-capture-bridge.js';
-    $js = is_readable($path) ? (string) file_get_contents($path) : '';
-    if ($js === '') {
-        return $html;
-    }
-    $tag = '<script data-sci-sim-capture-bridge="1">' . $js . '</script>';
-    if (stripos($html, '</body>') !== false) {
-        return preg_replace('/<\/body>/i', $tag . '</body>', $html, 1) ?? ($html . $tag);
-    }
-
-    return $html . $tag;
-}
-
-/**
- * Prepare simulation HTML for a sandboxed iframe response.
- * Injects a site-root base href when the app is not hosted at /, then the capture bridge.
+ * Prepare simulation HTML for the sim modal iframe.
+ * Injects a site-root base href when the app is not hosted at /.
  *
  * Pass $baseHref to override (no trailing slash). Null reads web_base_path().
  * An empty string skips the base tag (same as a domain-root install).
@@ -103,7 +77,7 @@ function simulation_prepare_iframe_html(string $html, ?string $baseHref = null):
         }
     }
 
-    return simulation_inject_capture_bridge($html);
+    return $html;
 }
 
 /**

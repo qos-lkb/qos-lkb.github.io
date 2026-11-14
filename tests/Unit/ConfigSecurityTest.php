@@ -29,36 +29,22 @@ final class ConfigSecurityTest extends TestCase
         unset($_SERVER['HTTP_HOST'], $_SERVER['HTTPS']);
     }
 
-    public function testIframeSandboxOmitsSameOrigin(): void
+    public function testIframeSandboxAllowsSameOriginSnapshot(): void
     {
         $sandbox = simulation_iframe_sandbox_attr();
         self::assertStringContainsString('allow-scripts', $sandbox);
-        self::assertStringNotContainsString('allow-same-origin', $sandbox);
+        self::assertStringContainsString('allow-same-origin', $sandbox);
     }
 
-    public function testCaptureBridgeIsInjectedBeforeBodyClose(): void
-    {
-        $html = '<!DOCTYPE html><html><head></head><body><p>hi</p></body></html>';
-        $out = simulation_inject_capture_bridge($html);
-        self::assertStringContainsString('data-sci-sim-capture-bridge', $out);
-        self::assertStringContainsString('SCI_SIM_CAPTURE_REQUEST', $out);
-        $posScript = stripos($out, 'data-sci-sim-capture-bridge');
-        $posBody = stripos($out, '</body>');
-        self::assertNotFalse($posScript);
-        self::assertNotFalse($posBody);
-        self::assertLessThan($posBody, $posScript);
-    }
-
-    public function testPrepareIframeHtmlInjectsBaseAndBridge(): void
+    public function testPrepareIframeHtmlInjectsBaseOnly(): void
     {
         $html = '<!DOCTYPE html><html><head><title>t</title></head><body><p>hi</p></body></html>';
         $out = simulation_prepare_iframe_html($html, '/science_sims');
         self::assertStringContainsString('<head><base href="/science_sims/">', $out);
-        self::assertStringContainsString('data-sci-sim-capture-bridge', $out);
+        self::assertStringNotContainsString('data-sci-sim-capture-bridge', $out);
 
         $plain = simulation_prepare_iframe_html('<p>x</p>', '');
         self::assertStringNotContainsString('<base ', $plain);
-        self::assertStringContainsString('data-sci-sim-capture-bridge', $plain);
     }
 
     public function testPreviewTokenPathRejectsTraversal(): void
@@ -68,13 +54,6 @@ final class ConfigSecurityTest extends TestCase
         self::assertNull(simulation_preview_token_path($dir, 'not-a-token'));
         $ok = simulation_preview_token_path($dir, '0123456789abcdef0123456789abcdef');
         self::assertSame($dir . DIRECTORY_SEPARATOR . '0123456789abcdef0123456789abcdef.html', $ok);
-    }
-
-    public function testCaptureBridgeIsNotDuplicated(): void
-    {
-        $html = '<body><script data-sci-sim-capture-bridge="1">SCI_SIM_CAPTURE_REQUEST</script></body>';
-        $out = simulation_inject_capture_bridge($html);
-        self::assertSame(1, substr_count($out, 'data-sci-sim-capture-bridge'));
     }
 
     public function testDbWipeConfirmPhraseIsStable(): void
