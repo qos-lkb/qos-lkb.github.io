@@ -779,6 +779,40 @@ const global = window;
 
     let simOpenAt = 0;
     let simTrackSlug = '';
+    let simModalSlug = '';
+
+    function isSimModalAdmin() {
+        const user = global.ScienceApi && global.ScienceApi.getUser ? global.ScienceApi.getUser() : null;
+        if (!user) return false;
+        if (global.ScienceApi.hasPermission && global.ScienceApi.hasPermission('simulation.manage_any')) return true;
+        const roles = (user.roles || []).map((r) => String(r).toLowerCase());
+        return roles.includes('admin');
+    }
+
+    function updateSimModalEditButton() {
+        const btn = document.getElementById('sim-modal-edit');
+        if (!btn) return;
+        const show = !!simModalSlug && isSimModalAdmin();
+        btn.hidden = !show;
+        const label = t('編輯', 'Edit');
+        btn.textContent = label;
+        btn.setAttribute('aria-label', t('編輯模擬', 'Edit simulation'));
+        btn.setAttribute('title', t('編輯模擬', 'Edit simulation'));
+    }
+
+    async function navigateSimEditFromModal() {
+        if (!simModalSlug || !isSimModalAdmin()) return;
+        const slug = simModalSlug;
+        try {
+            const meta = await apiFetch('/simulations/' + encodeURIComponent(slug));
+            const id = meta && meta.id ? Number(meta.id) : 0;
+            if (!id) throw new Error(t('找不到模擬。', 'Simulation not found.'));
+            closeModal();
+            global.AppRouter.navigate('/admin/simulations/' + id + '/edit');
+        } catch (err) {
+            alert(err.message || t('無法開啟編輯', 'Could not open editor'));
+        }
+    }
 
     function openModal(url) {
         const modal = document.getElementById('sim-modal');
@@ -790,6 +824,8 @@ const global = window;
         document.body.style.overflow = 'hidden';
         if (global.SimModal) SimModal.onOpen(resolved);
         const m = String(url).match(/\/simulations\/([^/]+)\/html/);
+        simModalSlug = m ? decodeURIComponent(m[1]) : '';
+        updateSimModalEditButton();
         if (m && global.AppLearningTracker) {
             simTrackSlug = decodeURIComponent(m[1]);
             simOpenAt = Date.now();
@@ -807,10 +843,26 @@ const global = window;
             simTrackSlug = '';
             simOpenAt = 0;
         }
+        simModalSlug = '';
+        updateSimModalEditButton();
         if (modal) modal.classList.remove('active');
         if (iframe) iframe.src = '';
         document.body.style.overflow = '';
     }
+
+    function initSimModalEdit() {
+        const btn = document.getElementById('sim-modal-edit');
+        if (btn && !btn.dataset.bound) {
+            btn.dataset.bound = '1';
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigateSimEditFromModal();
+            });
+        }
+        document.addEventListener('langchange', () => updateSimModalEditButton());
+        updateSimModalEditButton();
+    }
+    initSimModalEdit();
 
     async function loadCatalog(options) {
         const opts = typeof options === 'boolean' ? { skipNavRender: options } : (options || {});

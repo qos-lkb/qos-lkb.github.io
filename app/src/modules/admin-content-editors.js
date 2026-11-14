@@ -629,8 +629,6 @@ const global = window;
         const userOpts = users.map((u) =>
             `<option value="${Number(u.id)}" ${Number(u.id) === Number(ownerId) ? 'selected' : ''}>${escapeHtml((u.email || '') + ' — ' + (u.display_name || ''))}</option>`
         ).join('');
-        const sandbox = 'allow-scripts allow-forms allow-popups allow-modals allow-downloads';
-
         box.innerHTML = `
             ${editorChrome('/admin/simulations', t('← 返回列表', '← Back to list'))}
             <form id="edit-form" class="space-y-6">
@@ -676,14 +674,11 @@ const global = window;
                         <div class="flex flex-wrap gap-2 items-center">
                             <input type="file" id="html-file" accept=".html,.htm,text/html" class="text-sm">
                             <button type="button" id="btn-load-html" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('載入 HTML 檔', 'Load HTML file'))}</button>
-                            <button type="button" id="btn-preview-html" class="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700">${escapeHtml(t('更新預覽', 'Refresh preview'))}</button>
+                            <button type="button" id="btn-preview-html" class="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700">${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}</button>
                         </div>
                     </div>
+                    <p class="text-xs text-slate-500">${escapeHtml(t('按「沙盒預覽」於全螢幕視窗中檢視（與前台模擬相同方式）。', 'Use “Sandbox preview” to open a full-screen preview like the public simulation viewer.'))}</p>
                     <textarea name="html" id="field-html" rows="16" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></textarea>
-                </section>
-                <section class="bg-white rounded-xl border p-6 space-y-3">
-                    <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}</h2>
-                    <iframe id="sim-edit-preview" title="${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}" sandbox="${sandbox}" referrerpolicy="no-referrer" class="w-full h-80 border rounded-lg bg-slate-50"></iframe>
                 </section>
                 <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>`;
@@ -693,14 +688,26 @@ const global = window;
         const subjectEl = document.getElementById('field-subject');
         const topicEl = document.getElementById('field-topic');
         const htmlEl = document.getElementById('field-html');
-        const preview = document.getElementById('sim-edit-preview');
         wireSubjectTopic(subjectEl, topicEl, topicsBySubject, row && row.subject_id, row && row.topic_id);
 
+        async function ensureSimModalReady() {
+            if (global.AppCatalog && typeof global.AppCatalog.openModal === 'function') return;
+            await import('./modal-capture.js');
+            if (global.SimModal && typeof global.SimModal.init === 'function' && !global.SimModal.__inited) {
+                global.SimModal.init();
+                global.SimModal.__inited = true;
+            }
+            await import('./catalog.js');
+        }
+
         let previewSeq = 0;
-        async function refreshPreview() {
-            if (!preview) return;
+        async function openSandboxPreview() {
             const seq = ++previewSeq;
             const html = htmlEl.value || '';
+            if (!html.trim()) {
+                showFlash(t('請先輸入或載入 HTML。', 'Enter or load HTML first.'));
+                return;
+            }
             if (html.length > 1500000) {
                 showFlash(t('HTML 內容過大（上限約 1.5 MB）。', 'HTML is too large (about 1.5 MB max).'));
                 return;
@@ -710,13 +717,19 @@ const global = window;
                     method: 'POST',
                     body: { html },
                 });
-                if (!preview.isConnected || seq !== previewSeq) return;
+                if (seq !== previewSeq) return;
                 const token = res && res.token ? String(res.token) : '';
                 if (!/^[a-f0-9]{32}$/.test(token)) {
                     throw new Error(t('無法建立預覽。', 'Could not create preview.'));
                 }
                 const base = global.ScienceApi.API_BASE || '/api/v1';
-                preview.src = base + '/admin/simulations/preview-html?token=' + token;
+                const previewUrl = base + '/admin/simulations/preview-html?token=' + token;
+                await ensureSimModalReady();
+                if (global.AppCatalog && typeof global.AppCatalog.openModal === 'function') {
+                    global.AppCatalog.openModal(previewUrl);
+                } else {
+                    showFlash(t('預覽元件未就緒，請重新整理頁面。', 'Preview UI not ready; reload the page.'));
+                }
             } catch (err) {
                 if (seq !== previewSeq) return;
                 showFlash(err.message || t('預覽失敗', 'Preview failed'));
@@ -735,10 +748,11 @@ const global = window;
             form.status.value = row.status || 'draft';
             form.html.value = row.html || '';
             form.submitter_note.value = row.submitter_note || '';
+        } else if (canAny) {
+            form.status.value = 'published';
         }
-        refreshPreview();
 
-        document.getElementById('btn-preview-html').onclick = () => refreshPreview();
+        document.getElementById('btn-preview-html').onclick = () => openSandboxPreview();
 
         document.getElementById('btn-load-html').onclick = async () => {
             const fileInput = document.getElementById('html-file');
@@ -756,7 +770,6 @@ const global = window;
                     form.title_zh.value = res.suggested_title;
                     form.title_en.value = res.suggested_title;
                 }
-                refreshPreview();
                 showFlash(t('已載入 HTML。', 'HTML loaded.'));
             } catch (err) {
                 showFlash(err.message || t('上載失敗', 'Upload failed'));
