@@ -683,7 +683,7 @@ const global = window;
                 </section>
                 <section class="bg-white rounded-xl border p-6 space-y-3">
                     <h2 class="text-sm font-semibold text-slate-800">${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}</h2>
-                    <iframe id="sim-edit-preview" title="preview" sandbox="${sandbox}" class="w-full h-80 border rounded-lg bg-slate-50"></iframe>
+                    <iframe id="sim-edit-preview" title="${escapeHtml(t('沙盒預覽', 'Sandbox preview'))}" sandbox="${sandbox}" referrerpolicy="no-referrer" class="w-full h-80 border rounded-lg bg-slate-50"></iframe>
                 </section>
                 <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>`;
@@ -696,12 +696,31 @@ const global = window;
         const preview = document.getElementById('sim-edit-preview');
         wireSubjectTopic(subjectEl, topicEl, topicsBySubject, row && row.subject_id, row && row.topic_id);
 
-        function refreshPreview() {
+        let previewSeq = 0;
+        async function refreshPreview() {
             if (!preview) return;
-            const blob = new Blob([htmlEl.value || ''], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            preview.src = url;
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            const seq = ++previewSeq;
+            const html = htmlEl.value || '';
+            if (html.length > 1500000) {
+                showFlash(t('HTML 內容過大（上限約 1.5 MB）。', 'HTML is too large (about 1.5 MB max).'));
+                return;
+            }
+            try {
+                const res = await global.ScienceApi.apiFetch('/admin/simulations/preview-html', {
+                    method: 'POST',
+                    body: { html },
+                });
+                if (!preview.isConnected || seq !== previewSeq) return;
+                const token = res && res.token ? String(res.token) : '';
+                if (!/^[a-f0-9]{32}$/.test(token)) {
+                    throw new Error(t('無法建立預覽。', 'Could not create preview.'));
+                }
+                const base = global.ScienceApi.API_BASE || '/api/v1';
+                preview.src = base + '/admin/simulations/preview-html?token=' + token;
+            } catch (err) {
+                if (seq !== previewSeq) return;
+                showFlash(err.message || t('預覽失敗', 'Preview failed'));
+            }
         }
 
         if (row) {

@@ -57,19 +57,7 @@ function api_handle_simulation_html(PDO $pdo, string $slug): void
     header('Content-Type: text/html; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
     header('Content-Security-Policy: ' . simulation_html_csp());
-
-    $html = (string) $sim['html'];
-    $baseHref = web_base_path();
-    if ($baseHref !== '') {
-        $baseTag = '<base href="' . htmlspecialchars($baseHref . '/', ENT_QUOTES, 'UTF-8') . '">';
-        if (stripos($html, '<head>') !== false) {
-            $html = preg_replace('/<head>/i', '<head>' . $baseTag, $html, 1) ?? ($baseTag . $html);
-        } else {
-            $html = $baseTag . $html;
-        }
-    }
-
-    echo simulation_inject_capture_bridge($html);
+    echo simulation_prepare_iframe_html((string) $sim['html']);
     exit;
 }
 
@@ -296,4 +284,143 @@ function api_handle_admin_simulation_upload(PDO $pdo, string $kind): void
     }
 
     api_json_error('not_found', '未知上載類型。', 404);
+}
+
+/**
+ * Editor sandbox preview.
+ * POST stores HTML outside the session and returns a token.
+ * GET renders that HTML with simulation_html_csp() so the iframe does not inherit the SPA CSP.
+ * Blob and srcdoc previews are blocked or stripped by the SPA frame-src / script-src policy.
+ */
+function api_handle_admin_simulation_preview(PDO $pdo, string $method): void
+{
+    if ($method === 'POST') {
+        api_admin_simulation_preview_store();
+        return;
+    }
+    if ($method === 'GET') {
+        api_admin_simulation_preview_show();
+        return;
+    }
+    api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+}
+
+function api_admin_simulation_preview_store(): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('simulation.manage_any') && !user_has_permission('simulation.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    $body = api_read_json_body();
+    $raw = $body['html'] ?? ($_POST['html'] ?? '');
+    if (!is_string($raw)) {
+        api_json_error('validation_error', 'HTML 內容無效。', 422);
+    }
+    if (strlen($raw) > sim_html_max_bytes()) {
+        api_json_error('validation_error', 'HTML 內容過大（上限約 1.5 MB）。', 422);
+    }
+    if (trim($raw) === '') {
+        $raw = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>預覽</title></head><body><p style="font-family:sans-serif;color:#64748b;padding:1rem">尚無 HTML 可預覽。</p></body></html>';
+    }
+
+    try {
+        $dir = simulation_preview_storage_dir();
+    } catch (RuntimeException $e) {
+        api_json_error('preview_failed', '無法建立預覽。', 500);
+    }
+    simulation_preview_sweep($dir);
+
+    $token = bin2hex(random_bytes(16));
+    $path = simulation_preview_token_path($dir, $token);
+    if ($path === null || file_put_contents($path, $raw, LOCK_EX) === false) {
+        api_json_error('preview_failed', '無法建立預覽。', 500);
+    }
+    chmod($path, 0600);
+
+    $_SESSION['sim_html_preview'] = [
+        'token' => $token,
+        'uid' => (int) $user['id'],
+        'exp' => time() + 600,
+    ];
+    api_json_ok(['token' => $token]);
+}
+
+function api_admin_simulation_preview_show(): void
+{
+    $user = current_user();
+    $token = isset($_GET['token']) && is_string($_GET['token']) ? $_GET['token'] : '';
+    $stored = $_SESSION['sim_html_preview'] ?? null;
+    $valid = $user !== null
+        && is_array($stored)
+        && isset($stored['token'], $stored['uid'], $stored['exp'])
+        && is_string($stored['token'])
+        && hash_equals($stored['token'], $token)
+        && (int) $stored['uid'] === (int) $user['id']
+        && (int) $stored['exp'] >= time();
+
+    $path = null;
+    if ($valid) {
+        try {
+            $path = simulation_preview_token_path(simulation_preview_storage_dir(), $token);
+        } catch (RuntimeException $e) {
+            $path = null;
+        }
+    }
+    if ($path === null || !is_file($path)) {
+        api_simulation_preview_error_page('預覽已失效，請再按「更新預覽」。', 404);
+    }
+
+    $html = file_get_contents($path);
+    if ($html === false) {
+        api_simulation_preview_error_page('無法載入預覽。', 500);
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Referrer-Policy: no-referrer');
+    header('Content-Security-Policy: ' . simulation_html_csp());
+    echo simulation_prepare_iframe_html($html);
+    exit;
+}
+
+function api_simulation_preview_error_page(string $message, int $status): never
+{
+    http_response_code($status);
+    header('Content-Type: text/html; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: no-store');
+    header('Content-Security-Policy: ' . "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'");
+    $safe = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    echo '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"></head><body><p style="font-family:sans-serif;color:#b91c1c;padding:1rem">'
+        . $safe . '</p></body></html>';
+    exit;
+}
+
+function simulation_preview_storage_dir(): string
+{
+    $dir = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'sci_sim_preview';
+    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+        throw new RuntimeException('Cannot create simulation preview directory.');
+    }
+
+    return $dir;
+}
+
+function simulation_preview_sweep(string $dir): void
+{
+    $cutoff = time() - 600;
+    $files = glob($dir . DIRECTORY_SEPARATOR . '*.html') ?: [];
+    foreach ($files as $file) {
+        if (!is_file($file)) {
+            continue;
+        }
+        $mtime = filemtime($file);
+        if ($mtime !== false && $mtime < $cutoff) {
+            unlink($file);
+        }
+    }
 }

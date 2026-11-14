@@ -49,6 +49,27 @@ final class ConfigSecurityTest extends TestCase
         self::assertLessThan($posBody, $posScript);
     }
 
+    public function testPrepareIframeHtmlInjectsBaseAndBridge(): void
+    {
+        $html = '<!DOCTYPE html><html><head><title>t</title></head><body><p>hi</p></body></html>';
+        $out = simulation_prepare_iframe_html($html, '/science_sims');
+        self::assertStringContainsString('<head><base href="/science_sims/">', $out);
+        self::assertStringContainsString('data-sci-sim-capture-bridge', $out);
+
+        $plain = simulation_prepare_iframe_html('<p>x</p>', '');
+        self::assertStringNotContainsString('<base ', $plain);
+        self::assertStringContainsString('data-sci-sim-capture-bridge', $plain);
+    }
+
+    public function testPreviewTokenPathRejectsTraversal(): void
+    {
+        $dir = '/tmp/sci_sim_preview';
+        self::assertNull(simulation_preview_token_path($dir, '../etc/passwd'));
+        self::assertNull(simulation_preview_token_path($dir, 'not-a-token'));
+        $ok = simulation_preview_token_path($dir, '0123456789abcdef0123456789abcdef');
+        self::assertSame($dir . DIRECTORY_SEPARATOR . '0123456789abcdef0123456789abcdef.html', $ok);
+    }
+
     public function testCaptureBridgeIsNotDuplicated(): void
     {
         $html = '<body><script data-sci-sim-capture-bridge="1">SCI_SIM_CAPTURE_REQUEST</script></body>';

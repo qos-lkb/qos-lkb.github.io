@@ -79,3 +79,41 @@ function simulation_inject_capture_bridge(string $html): string
 
     return $html . $tag;
 }
+
+/**
+ * Prepare simulation HTML for a sandboxed iframe response.
+ * Injects a site-root base href when the app is not hosted at /, then the capture bridge.
+ *
+ * Pass $baseHref to override (no trailing slash). Null reads web_base_path().
+ * An empty string skips the base tag (same as a domain-root install).
+ */
+function simulation_prepare_iframe_html(string $html, ?string $baseHref = null): string
+{
+    if ($baseHref === null) {
+        require_once __DIR__ . '/web_base.php';
+        $baseHref = web_base_path();
+    }
+    $baseHref = rtrim($baseHref, '/');
+    if ($baseHref !== '') {
+        $baseTag = '<base href="' . htmlspecialchars($baseHref . '/', ENT_QUOTES, 'UTF-8') . '">';
+        if (stripos($html, '<head>') !== false) {
+            $html = preg_replace('/<head>/i', '<head>' . $baseTag, $html, 1) ?? ($baseTag . $html);
+        } else {
+            $html = $baseTag . $html;
+        }
+    }
+
+    return simulation_inject_capture_bridge($html);
+}
+
+/**
+ * Temp-file path for a preview token. Rejects anything that is not 32 hex chars.
+ */
+function simulation_preview_token_path(string $dir, string $token): ?string
+{
+    if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
+        return null;
+    }
+
+    return rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $token . '.html';
+}

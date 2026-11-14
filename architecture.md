@@ -200,6 +200,7 @@ Handler: `api/v1/handlers/summer_homework.php`. Business logic: `includes/summer
 |--------|------|-------------|
 | GET/POST/DELETE | `/admin/simulations` | Simulation CRUD |
 | POST | `/admin/simulations/upload-html`, `/admin/simulations/upload-screenshot` | Simulation editor uploads |
+| GET/POST | `/admin/simulations/preview-html` | Editor sandbox preview (simulation CSP, not the SPA CSP) |
 | GET/POST/DELETE | `/admin/question-banks` | Question bank CRUD（canonical） |
 | GET/POST/DELETE | `/admin/learning-tools` | **Frozen** — writes return 410（Phase 7） |
 | GET/POST/DELETE | `/admin/articles` | Article CRUD |
