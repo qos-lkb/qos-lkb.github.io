@@ -7,6 +7,7 @@ require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_save.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_security.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_files.php';
+require_once dirname(__DIR__, 3) . '/includes/simulation_disk_import.php';
 require_once dirname(__DIR__, 3) . '/includes/web_base.php';
 
 /**
@@ -20,6 +21,50 @@ function api_require_sim_html_export(): array
         api_json_error('forbidden', '沒有權限。', 403);
     }
     return $user;
+}
+
+function api_handle_admin_simulations_import_disk(PDO $pdo, string $method): void
+{
+    $user = api_require_sim_html_export();
+    if ($method === 'GET') {
+        $search = isset($_GET['q']) ? trim((string) $_GET['q']) : '';
+        api_json_ok(sim_unregistered_disk_plan($pdo, $search));
+        return;
+    }
+    if ($method === 'POST') {
+        api_verify_csrf_or_fail();
+        $body = api_read_json_body();
+        $status = (string) ($body['status'] ?? 'draft');
+        $search = trim((string) ($body['search'] ?? ''));
+        $paths = [];
+        if (!empty($body['import_all'])) {
+            $scan = sim_unregistered_disk_plan($pdo, $search);
+            foreach ($scan['items'] as $item) {
+                if ($item['importable'] ?? false) {
+                    $paths[] = (string) $item['path'];
+                }
+            }
+        } elseif (isset($body['paths']) && is_array($body['paths'])) {
+            $paths = array_map('strval', $body['paths']);
+        }
+        if ($paths === []) {
+            api_json_error('validation_error', '沒有選取任何檔案。', 422);
+        }
+        $canPublish = user_has_permission('simulation.manage_any');
+        $result = sim_disk_import_execute($pdo, $paths, (int) $user['id'], $status, $canPublish);
+        if (!$result['ok']) {
+            api_json_error('import_failed', (string) ($result['error'] ?? '匯入失敗。'), 422);
+        }
+        api_json_ok([
+            'created' => $result['created'],
+            'linked' => $result['linked'],
+            'skipped' => $result['skipped'],
+            'errors' => $result['errors'],
+            'plan' => sim_unregistered_disk_plan($pdo, $search),
+        ]);
+        return;
+    }
+    api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
 }
 
 function api_handle_admin_simulations_export_html(PDO $pdo, string $method): void

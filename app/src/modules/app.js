@@ -83,6 +83,11 @@
                     label: { zh: '模擬 HTML 匯出', en: 'Sim HTML export' },
                     anyPerm: ['simulation.manage_any', 'user.manage'],
                 },
+                {
+                    route: '/admin/import-disk-simulations',
+                    label: { zh: '磁碟模擬匯入', en: 'Import sims from disk' },
+                    anyPerm: ['simulation.manage_any', 'user.manage'],
+                },
                 { route: '/admin/db', label: { zh: '資料庫', en: 'Database' } },
                 { route: '/admin/qsis-import', label: { zh: 'QSIS 匯入', en: 'QSIS import' } },
                 { route: '/admin/data-dictionary', label: { zh: '資料字典', en: 'Data dictionary' } },
@@ -1055,6 +1060,11 @@
             '/admin/export-sim-html': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSimHtmlExport();
+                });
+            },
+            '/admin/import-disk-simulations': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimDiskImport();
                 });
             },
             '/admin/db': async () => {
