@@ -3,973 +3,1189 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>太陽能光伏效應模擬器 (專業物理版)</title>
-    
-    <!-- Tailwind CSS -->
+    <title>光伏板原理 | Photovoltaic Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- MathJax Configuration & Script -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
     <script>
         window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']] // 啟用 $ 作為行內公式符號
-            },
-            svg: {
-                fontCache: 'global'
-            }
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
         };
     </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <style>
-       /* Canvas 容器樣式確保響應式 */
-       #canvas-container {
-           width: 100%;
-           aspect-ratio: 4 / 3; 
-           position: relative;
-       }
-       canvas {
-           width: 100%;
-           height: 100%;
-           display: block;
-           background: #f0f9ff;
-           border-radius: 0.75rem;
-           border: 2px solid #cbd5e1;
-       }
-       /* 自定義 Range Slider 樣式 */
-       input[type=range] {
-           -webkit-appearance: none; 
-           background: transparent; 
-       }
-       input[type=range]::-webkit-slider-thumb {
-           -webkit-appearance: none;
-           height: 16px;
-           width: 16px;
-           border-radius: 50%;
-           background: #4f46e5;
-           cursor: pointer;
-           margin-top: -6px;
-           box-shadow: 0 0 2px rgba(0,0,0,0.5);
-       }
-       input[type=range]::-webkit-slider-runnable-track {
-           width: 100%;
-           height: 4px;
-           cursor: pointer;
-           background: #cbd5e1;
-           border-radius: 2px;
-       }
-       input[type=range]:focus {
-           outline: none;
-       }
-       
-       /* Modal 動畫 */
-       .modal-enter { opacity: 0; transform: scale(0.9); }
-       .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 300ms, transform 300ms; }
-       .modal-exit { opacity: 1; }
-       .modal-exit-active { opacity: 0; transform: scale(0.9); transition: opacity 300ms, transform 300ms; }
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; width: 100%; height: auto; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #d97706; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        #photonFrequency::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #ef4444, #22c55e, #8b5cf6);
+        }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .load-btn, .preset-btn, .flow-btn { flex: 1; padding: 8px; border-radius: 10px; font-weight: 800; font-size: 0.72rem; border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+        .load-btn.active, .preset-btn.active { background: #d97706; color: #fff; border-color: #d97706; }
+        .flow-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+        #btnFlowConventional.active { background: #ef4444; border-color: #ef4444; }
+        .dashboard-card { background: white; padding: 1rem; border-radius: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #3b82f6; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #fcd34d; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+        .mj-box mjx-container { color: #fcd34d !important; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #d97706; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+<body class="h-full flex flex-col text-slate-800">
 
-    <!-- Header -->
-    <header class="bg-indigo-600 text-white p-3 md:p-4 shadow-md shrink-0 z-20">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-lg md:text-2xl font-bold flex items-center gap-2">
-                <svg class="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                <span data-lang="title">物理模擬：太陽能光伏板</span>
-            </h1>
-            <div class="flex gap-2">
-                <button onclick="toggleModal()" class="text-xs md:text-sm bg-indigo-500 hover:bg-indigo-400 px-3 py-1.5 rounded transition shadow-sm border border-indigo-400 flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span data-lang="principleBtn">原理</span>
-                </button>
-                <button onclick="toggleLang()" class="text-xs md:text-sm bg-white text-indigo-700 hover:bg-slate-100 px-3 py-1.5 rounded font-bold transition shadow-sm border border-slate-200">
-                    中 / EN
-                </button>
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/25 text-xl">☀</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">光伏板原理</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">PN 接面、入射角與大氣視寧度</p>
+                </div>
             </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-amber-50 text-amber-800 rounded-xl font-bold text-sm shadow-sm border border-amber-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow overflow-y-auto">
-        
-        <!-- 左側：控制與儀表板 (佔 1/3) -->
-        <div class="space-y-4 md:space-y-5 order-2 lg:order-1 pb-10 lg:col-span-1">
-            
-            <!-- 控制面板 -->
-            <div class="bg-white p-4 md:p-5 rounded-xl shadow-lg border border-slate-200">
-                <h2 class="text-lg md:text-xl font-bold mb-3 flex items-center gap-2 text-slate-800">
-                    <svg class="w-5 h-5 md:w-6 md:h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    <span data-lang="controlsHeader">物理變因控制</span>
-                </h2>
-                
-                <div class="space-y-4">
-                    <!-- Row 1: Time & Cloud -->
-                    <div class="grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                        <div>
-                            <label class="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                                <span data-lang="timeLabel">時間</span>
-                                <span class="font-bold text-indigo-600 font-mono" id="time-val">12:00</span>
-                            </label>
-                            <input type="range" id="time-slider" min="6" max="19" step="0.1" value="12" 
-                                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500">
-                        </div>
-                        <div>
-                            <label class="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                                <span data-lang="cloudLabel">雲層 (%)</span>
-                                <span class="font-bold text-slate-600" id="cloud-val">0</span>
-                            </label>
-                            <input type="range" id="cloud-slider" min="0" max="100" value="0" 
-                                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
-                        </div>
-                    </div>
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-4 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btnPause" class="flex-1 py-2 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white" data-i18n="pause">暫停</button>
+                    <button type="button" id="btnReset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                </div>
 
-                    <!-- Row 2: Seeing & Temp -->
-                    <div class="grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                        <div>
-                            <label class="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                                <span data-lang="seeingLabel" class="truncate">大氣透明度 (Seeing)</span>
-                                <span class="font-bold text-sky-600" id="seeing-val">1.0</span>
-                            </label>
-                            <input type="range" id="seeing-slider" min="0.1" max="1.0" step="0.05" value="0.85" 
-                                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-500">
-                            <div class="text-[10px] text-slate-400 text-right">0.1(混濁) - 1.0(真空)</div>
-                        </div>
-                        <div>
-                            <label class="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                                <span data-lang="tempLabel">工作溫度 (°C)</span>
-                                <span class="font-bold text-red-500" id="temp-val">25</span>
-                            </label>
-                            <input type="range" id="temp-slider" min="-10" max="80" step="1" value="25" 
-                                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-red-500">
-                        </div>
-                    </div>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="sunny" data-i18n="preSunny">☀ 正午晴空</button>
+                    <button type="button" class="preset-btn" data-preset="morning" data-i18n="preMorning">🌅 清晨斜照</button>
+                    <button type="button" class="preset-btn" data-preset="haze" data-i18n="preHaze">🌫 霧霾（低視寧度）</button>
+                    <button type="button" class="preset-btn" data-preset="redweak" data-i18n="preRed">🔴 紅光（能量偏低）</button>
+                </div>
 
-                     <!-- Row 3: Efficiency -->
-                    <div>
-                        <label class="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                            <span data-lang="effLabel">光伏板效率 (Efficiency)</span>
-                            <span class="font-bold text-green-600"><span id="eff-val">18</span>%</span>
-                        </label>
-                        <input type="range" id="eff-slider" min="10" max="35" step="1" value="18" 
-                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-green-600">
-                         <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
-                            <span>多晶矽 (Low)</span>
-                            <span>實驗室級 (High)</span>
-                        </div>
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelTime">時間</span>
+                        <span id="disp-time" class="text-amber-600 font-mono">12:00</span>
+                    </span>
+                    <input type="range" id="timeOfDay" min="6" max="19" step="0.1" value="12">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span data-i18n="timeDawn">日出</span>
+                        <span data-i18n="timeNoon">正午</span>
+                        <span data-i18n="timeDusk">日落</span>
+                    </div>
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelAngle">面板傾角（相對陽光）</span>
+                        <span id="disp-angle" class="text-orange-600">10°</span>
+                    </span>
+                    <input type="range" id="panelAngle" min="0" max="75" value="10">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span data-i18n="angleFace">正對太陽</span>
+                        <span data-i18n="angleSide">近乎側向</span>
+                    </div>
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelSeeing">大氣寧視度</span>
+                        <span id="disp-seeing" class="text-sky-600">0.90</span>
+                    </span>
+                    <input type="range" id="atmSeeing" min="0.1" max="1" step="0.05" value="0.90">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span data-i18n="seeingLow">混濁</span>
+                        <span data-i18n="seeingHigh">清澈</span>
+                    </div>
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelCloud">雲層覆蓋</span>
+                        <span id="disp-cloud" class="text-slate-600">0%</span>
+                    </span>
+                    <input type="range" id="cloudCover" min="0" max="100" value="0">
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelTemp">工作溫度</span>
+                        <span id="disp-temp" class="text-rose-600">25°C</span>
+                    </span>
+                    <input type="range" id="cellTemp" min="-10" max="80" step="1" value="25">
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelFrequency">光子頻率（能量／顏色）</span>
+                        <span id="disp-frequency" class="text-violet-600">72</span>
+                    </span>
+                    <input type="range" id="photonFrequency" min="1" max="100" value="72">
+                </label>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelSpeed">粒子移動速度</span>
+                        <span id="disp-speed" class="text-slate-600">1.2×</span>
+                    </span>
+                    <input type="range" id="speedMultiplier" min="0.1" max="3" step="0.1" value="1.2">
+                </label>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-2" data-i18n="labelLoad">外部負載</p>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btnMotor" class="load-btn active" data-i18n="loadMotor">馬達</button>
+                    <button type="button" id="btnSpeaker" class="load-btn" data-i18n="loadSpeaker">揚聲器</button>
+                </div>
+
+                <div class="space-y-1.5 mb-3 border-t pt-3">
+                    <label class="check-row"><input type="checkbox" id="showField" checked><span data-i18n="showField">顯示 PN 接面電場</span></label>
+                    <p class="text-[11px] font-bold text-slate-500 mt-2 mb-1.5" data-i18n="labelFlowMode">電路標示（二選一）</p>
+                    <div class="flex gap-2">
+                        <button type="button" id="btnFlowElectron" class="flow-btn active" data-i18n="flowElectron">電子流</button>
+                        <button type="button" id="btnFlowConventional" class="flow-btn" data-i18n="flowConventional">電流</button>
+                    </div>
+                </div>
+
+                <div class="border-t pt-3">
+                    <h3 class="font-bold text-xs mb-2 text-slate-600" data-i18n="legendTitle">圖例</h3>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                        <div class="flex items-center"><span class="w-3 h-3 bg-yellow-400 rounded-full mr-1.5"></span><span data-i18n="legPhoton">光子</span></div>
+                        <div class="flex items-center"><span class="w-3 h-3 bg-blue-500 rounded-full mr-1.5"></span><span data-i18n="legElectron">電子 (−)</span></div>
+                        <div class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-1.5"></span><span data-i18n="legHole">空穴 (+)</span></div>
+                        <div class="flex items-center"><span class="w-3 h-0.5 bg-violet-500 mr-1.5"></span><span data-i18n="legField">內建電場</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- 儀表板 (Dashboard) -->
-            <div class="bg-slate-800 text-white p-5 md:p-6 rounded-xl shadow-lg relative overflow-hidden border-t-4 border-indigo-500">
-                <div class="absolute -right-4 -top-4 text-slate-700 opacity-20 transform rotate-12 pointer-events-none">
-                    <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path></svg>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-amber-800 mb-2" data-i18n="liveTitle">即時解讀</div>
+                <p id="insightText" class="text-slate-600 leading-relaxed mb-3"></p>
+                <div class="space-y-1 font-mono text-[11px] text-slate-600">
+                    <div class="flex justify-between"><span data-i18n="liveElev">太陽高度角</span><b id="live-elev">—</b></div>
+                    <div class="flex justify-between"><span data-i18n="liveIrr">有效輻照度 S</span><b id="live-irr" class="text-amber-700">—</b></div>
                 </div>
+                <div class="mj-box mt-3 text-[12px]">\( S_{\mathrm{eff}} = 1366\sin\theta\cos\alpha\,(1-C)\,\tau \)</div>
+            </div>
+        </aside>
 
-                <h2 class="text-lg md:text-xl font-bold mb-4 pb-2 border-b border-slate-700 flex justify-between">
-                    <span data-lang="measurementsHeader">實時測量</span>
-                    <span class="text-xs bg-red-500 text-white px-2 py-1 rounded animate-pulse">LIVE</span>
-                </h2>
+        <section class="order-1 lg:order-2 lg:col-span-3 flex flex-col gap-4">
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-2">
+                <canvas id="simCanvas" width="800" height="500"></canvas>
+            </div>
 
-                <div class="grid grid-cols-2 gap-4 relative z-10">
-                    <!-- 輻射照度 -->
-                    <div class="col-span-2 bg-slate-700/50 p-3 rounded flex justify-between items-center border border-slate-600/50">
-                        <div>
-                            <div class="text-slate-300 text-xs md:text-sm" data-lang="irradianceLabel">有效輻射照度 (S)</div>
-                            <div class="text-[10px] text-slate-400">大氣層外常數: 1366 W/m²</div>
-                        </div>
-                        <div class="text-xl md:text-2xl font-mono text-yellow-400 font-bold">
-                            <span id="irradiance-display">1000</span> <span class="text-sm">W/m²</span>
-                        </div>
-                    </div>
-
-                    <!-- 電壓 & 電流 -->
-                    <div class="bg-slate-700/50 p-3 rounded text-center border border-slate-600/50">
-                        <div class="text-slate-400 text-xs uppercase mb-1" data-lang="voltageLabel">電壓 (V)</div>
-                        <div class="text-xl md:text-3xl font-mono font-bold text-green-400"><span id="voltage-display">24.0</span> <span class="text-sm">V</span></div>
-                    </div>
-                    <div class="bg-slate-700/50 p-3 rounded text-center border border-slate-600/50">
-                        <div class="text-slate-400 text-xs uppercase mb-1" data-lang="currentLabel">電流 (I)</div>
-                        <div class="text-xl md:text-3xl font-mono font-bold text-cyan-400"><span id="current-display">15.0</span> <span class="text-sm">A</span></div>
-                    </div>
-
-                    <!-- 功率 -->
-                    <div class="col-span-2 bg-gradient-to-r from-indigo-900 to-slate-800 p-4 rounded border border-indigo-500/50 shadow-inner">
-                        <div class="flex justify-between items-end">
-                            <div class="text-slate-300 text-xs uppercase mb-1" data-lang="powerLabel">瞬時功率 (P=IV)</div>
-                            <div class="text-right">
-                                <span id="power-display" class="text-3xl md:text-5xl font-mono font-bold text-white tracking-tighter">360</span>
-                                <span class="text-lg font-bold text-indigo-300">W</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 能量累積 -->
-                    <div class="col-span-2 bg-slate-900 p-3 rounded flex justify-between items-center border-l-4 border-orange-500">
-                        <div>
-                            <div class="text-slate-400 text-[10px] md:text-xs uppercase" data-lang="energyLabel">產生總能量 (E)</div>
-                            <div class="text-xl md:text-2xl font-mono font-bold text-orange-400">
-                                <span id="energy-display">0.00</span> <span class="text-sm">kJ</span>
-                            </div>
-                        </div>
-                        <button onclick="resetEnergy()" class="bg-slate-700 hover:bg-slate-600 active:bg-slate-500 px-3 py-1 md:px-4 md:py-2 rounded text-xs md:text-sm transition duration-150 ease-in-out border border-slate-600">
-                            <span data-lang="resetBtn">重置</span>
-                        </button>
-                    </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                <div class="dashboard-card" style="border-top-color:#f59e0b">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statIrr">輻照度 (W/m²)</div>
+                    <div id="statIrr" class="text-2xl font-mono text-amber-600">0</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#facc15">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statPhotons">光子數量</div>
+                    <div id="statPhotons" class="text-2xl font-mono text-slate-800">0</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#3b82f6">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statElectrons">電子數量</div>
+                    <div id="statElectrons" class="text-2xl font-mono text-slate-800">0</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#ef4444">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statHoles">空穴數量</div>
+                    <div id="statHoles" class="text-2xl font-mono text-slate-800">0</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#10b981">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statCurrent">電流 (mA)</div>
+                    <div id="statCurrent" class="text-2xl font-mono text-emerald-600">0.0</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#8b5cf6">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statVoltage">電壓 (V)</div>
+                    <div id="statVoltage" class="text-2xl font-mono text-violet-600">0.00</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#f97316">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statPower">功率 (mW)</div>
+                    <div id="statPower" class="text-2xl font-mono text-orange-600">0.0</div>
                 </div>
             </div>
-            
-            <!-- 公式 -->
-             <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-sm text-slate-700 shadow-sm">
-                <h4 class="font-bold text-indigo-900 text-xs mb-2" data-lang="physicsHeader">物理原理</h4>
-                <div class="flex flex-col gap-2 overflow-x-auto">
-                    <div class="flex justify-between items-center border-b border-indigo-100 pb-1">
-                        <!-- S_eff = S_const * sin(theta) * (1-Cloud) * Atmosphere -->
-                        <span>$$ S_{\text{eff}} = 1366 \cdot \sin(\theta) \cdot (1-C_{\%}) \cdot \tau_{\text{atm}} $$</span>
-                    </div>
-                    <div class="flex justify-between items-center border-b border-indigo-100 pb-1">
-                         <!-- V(T) = V_0 * [1 - coeff * (T-25)] -->
-                        <span>$$ V(T) = V_0 \cdot [1 - 0.004 \cdot (T - 25)] $$</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                         <!-- P_out = S_eff * A * efficiency * TempFactor -->
-                        <span>$$ P_{\text{out}} = S_{\text{eff}} \cdot A \cdot \eta \cdot f(T) $$</span>
-                    </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
+                    <div class="text-[11px] font-bold text-slate-600 mb-1" data-i18n="chartPower">功率變化</div>
+                    <canvas id="chartPower" class="w-full h-[100px]"></canvas>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
+                    <div class="text-[11px] font-bold text-slate-600 mb-1" data-i18n="chartCurrent">電流變化</div>
+                    <canvas id="chartCurrent" class="w-full h-[100px]"></canvas>
                 </div>
             </div>
-        </div>
 
-        <!-- 右側：Canvas 視覺模擬區 (佔 2/3) -->
-        <div class="flex flex-col order-1 lg:order-2 lg:col-span-2">
-            <h3 class="text-lg font-bold mb-2 text-slate-700 flex justify-between items-center">
-                <span data-lang="simView">模擬視圖</span>
-                <span class="text-xs font-normal text-slate-500 hidden md:inline">HTML5 Canvas Engine</span>
-            </h3>
-            <div id="canvas-container" class="shadow-lg bg-white rounded-xl relative">
-                <canvas id="simCanvas" width="800" height="600"></canvas>
-            </div>
-            <p class="text-xs text-slate-400 mt-2 text-center" data-lang="animNote">
-                *溫度升高會增加內電阻並降低能隙電壓，導致效率下降
-            </p>
-        </div>
-
+            <div id="statusDisplay" class="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-center text-sm font-bold text-slate-700" data-i18n="statusRunning">系統運作中</div>
+        </section>
     </main>
 
-    <!-- Principle Modal -->
-    <div id="principle-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm" onclick="toggleModal()"></div>
-        <div class="fixed inset-0 z-10 overflow-y-auto">
-            <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-                <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-xl border-t-4 border-indigo-600">
-                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                                </svg>
-                            </div>
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                                <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title" data-lang="modalTitle">物理原理詳解</h3>
-                                <div class="mt-4 text-sm text-gray-600 space-y-4" id="modal-content">
-                                    <!-- Dynamic Content Loaded Here -->
-                                </div>
-                            </div>
-                        </div>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-amber-500 to-orange-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">太陽能電池（光伏板）原理</h2>
+                    <p class="text-xs text-amber-100" data-i18n="modalSub">光伏效應、入射角與大氣視寧度</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m1t">1. 光子與能量</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">太陽光由光子組成。光子能量 \(E = hf\)。頻率愈高（偏藍／紫），單個光子能量愈大；有效輻照度愈高，單位時間到達的光子愈多。</p>
+                    <div class="mj-box mt-2">\( E = hf \)</div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. PN 接面與載子分離</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m2d">光伏板核心是多層半導體。N 型富電子、P 型富空穴；中間 PN 接面形成內建電場。光子被吸收時可激發電子–空穴對：電子推向 N 層、空穴留在 P 層。</p>
+                </div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m6t">3. 時間、角度與大氣寧視度</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m6d">到達面板的有效輻照度取決於太陽高度角 θ（隨時間）、面板相對陽光的傾角 α、雲層 C，以及大氣寧視度 τ（空氣愈混濁，光子愈少）。大氣層外太陽常數約為 1366 W/m²。</p>
+                    <div class="mj-box">\( S_{\mathrm{eff}} = 1366 \cdot \sin\theta \cdot \cos\alpha \cdot (1-C) \cdot \tau \)</div>
+                    <p class="text-xs text-slate-600 mt-2" data-i18n="m6e">溫度升高會使開路電壓下降（約 −0.4%/°C），所以炎熱正午未必輸出最大。</p>
+                    <div class="mj-box mt-2">\( V(T) = V_0[1 - 0.004(T-25)] \)</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                        <h4 class="font-bold text-blue-800 text-xs mb-1" data-i18n="m3t">外電路電流</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m3d">分離後的電子經導線流向負載再返回 P 層，與空穴復合。電子流方向與電流方向相反。</p>
                     </div>
-                    <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                        <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto" onclick="toggleModal()" data-lang="closeBtn">關閉</button>
+                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                        <h4 class="font-bold text-emerald-800 text-xs mb-1" data-i18n="m4t">光照與輸出</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m4d">S_eff 決定光子數目；頻率決定能否激發。兩者與溫度共同決定電流、電壓與功率。</p>
                     </div>
                 </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m5t">4. 生活例子</h3>
+                    <p class="text-xs text-violet-800" data-i18n="m5d">屋頂太陽能板宜朝南並隨季節調整傾角；霧霾或陰天輸出大降；沙漠高溫會令電壓下跌。太空站在大氣外 τ≈1，輸出最高。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <script>
-        // ==========================================
-        // 1. 語言配置 (Languages)
-        // ==========================================
-        let currentLang = 'zh-Hant';
-        const translations = {
-            'zh-Hant': {
-                title: "物理模擬：太陽能光伏板",
-                principleBtn: "原理",
-                controlsHeader: "物理變因控制",
-                cloudLabel: "雲層 (%)",
-                timeLabel: "時間",
-                seeingLabel: "大氣透明度 (Seeing)",
-                tempLabel: "工作溫度 (°C)",
-                effLabel: "光伏板效率 (%)",
-                measurementsHeader: "實時測量",
-                irradianceLabel: "有效輻射照度 (S)",
-                voltageLabel: "電壓 (V)",
-                currentLabel: "電流 (I)",
-                powerLabel: "瞬時功率 (P=IV)",
-                energyLabel: "產生總能量 (E)",
-                resetBtn: "重置",
-                physicsHeader: "物理原理",
-                simView: "模擬視圖",
-                animNote: "*溫度升高會增加內電阻並降低能隙電壓，導致效率下降",
-                modalTitle: "物理原理與變因分析",
-                closeBtn: "關閉",
-                modalContent: `
-                    <p>本模擬器展示了影響太陽能發電功率 ($P$) 的五個主要物理因素：</p>
-                    <ul class="list-disc pl-5 space-y-2 text-gray-700">
-                        <li>
-                            <strong>1. 時間與入射角 ($\sin\\theta$):</strong> 
-                            太陽光強度隨入射角度變化。正午時陽光直射（角度接近 $90^{\\circ}$），單位面積接收的能量最大；早晚傾斜入射，能量分散，強度減弱。
-                        </li>
-                        <li>
-                            <strong>2. 雲層覆蓋 ($C_{\\%}$):</strong> 
-                            雲層會反射和散射陽光。覆蓋率越高，到達地面的直射輻射 ($\\text{Direct}$) 越少，僅剩部分散射光 ($\\text{Diffuse}$)，導致輸入功率顯著下降。
-                        </li>
-                        <li>
-                            <strong>3. 大氣透明度 (Seeing / $\\tau_{\\text{atm}}$):</strong> 
-                            模擬大氣層對光線的吸收與散射。空氣越混濁（如霧霾、高濕度），$\\text{Seeing}$ 值越低，到達光伏板的光子越少。
-                        </li>
-                        <li>
-                            <strong>4. 溫度 (Temperature / $T$):</strong> 
-                            這是一個反直覺的因素。<strong>溫度升高會導致效率下降</strong>。
-                            <br>物理機制：溫度升高使半導體材料的本徵載子濃度增加，導致開路電壓 ($V_{oc}$) 下降。一般矽晶板每升高 $1^{\\circ}C$，電壓約下降 $0.4\\%$。
-                        </li>
-                        <li>
-                            <strong>5. 轉換效率 (Efficiency / $\\eta$):</strong> 
-                            由光伏板的材料與製程決定（如單晶矽 vs 多晶矽）。它代表光能轉化為電能的比例，餘下能量則轉化為廢熱。
-                        </li>
-                    </ul>
-                `
-            },
-            'en': {
-                title: "Physics Sim: Solar PV Panel",
-                principleBtn: "Principles",
-                controlsHeader: "Variables Control",
-                cloudLabel: "Clouds (%)",
-                timeLabel: "Time",
-                seeingLabel: "Atmosphere (Seeing)",
-                tempLabel: "Temperature (°C)",
-                effLabel: "Panel Efficiency (%)",
-                measurementsHeader: "Measurements",
-                irradianceLabel: "Effective Irradiance (S)",
-                voltageLabel: "Voltage (V)",
-                currentLabel: "Current (I)",
-                powerLabel: "Instant Power (P=IV)",
-                energyLabel: "Total Energy (E)",
-                resetBtn: "Reset",
-                physicsHeader: "Physics Equations",
-                simView: "Simulation View",
-                animNote: "*Higher temp lowers band-gap voltage, reducing efficiency.",
-                modalTitle: "Physics Principles & Variables",
-                closeBtn: "Close",
-                modalContent: `
-                    <p>This simulation demonstrates the five main physical factors affecting Solar PV power output ($P$):</p>
-                    <ul class="list-disc pl-5 space-y-2 text-gray-700">
-                        <li>
-                            <strong>1. Time & Incident Angle ($\sin\\theta$):</strong> 
-                            Sunlight intensity varies with the angle of incidence. At noon (approx $90^{\\circ}$), energy density is highest; at sunrise/sunset, light is spread out, reducing intensity.
-                        </li>
-                        <li>
-                            <strong>2. Cloud Cover ($C_{\\%}$):</strong> 
-                            Clouds reflect and scatter photons. Higher coverage reduces direct irradiance, leaving only diffuse light, which significantly lowers input power.
-                        </li>
-                        <li>
-                            <strong>3. Atmosphere (Seeing / $\\tau_{\\text{atm}}$):</strong> 
-                            Represents atmospheric extinction. Turbid air (smog, humidity) lowers the Seeing value, meaning fewer photons reach the panel compared to a vacuum.
-                        </li>
-                        <li>
-                            <strong>4. Temperature ($T$):</strong> 
-                            A counter-intuitive factor: <strong>Higher temperature reduces efficiency</strong>.
-                            <br>Physics: Heat increases intrinsic carrier concentration, lowering the band-gap and thus the Open Circuit Voltage ($V_{oc}$). Voltage drops ~$0.4\\%$ per $1^{\\circ}C$ rise.
-                        </li>
-                        <li>
-                            <strong>5. Efficiency ($\\eta$):</strong> 
-                            Determined by material quality (e.g., Monocrystalline vs Polycrystalline). It defines the ratio of photon energy converted to electrical energy vs. waste heat.
-                        </li>
-                    </ul>
-                `
-            }
-        };
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-amber-500 to-orange-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-amber-100" data-i18n="stepsSub">如何使用本模擬</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">選「正午晴空」，再把時間拖到清晨或傍晚，看太陽位置、高度角與輻照度如何一起下降。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">固定正午，調大面板傾角，比較 cos α 如何減少到達 PN 接面的光子。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">選「霧霾」或調低大氣寧視度、加雲層，觀察天空變濁、光子變少、功率下跌。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">提高工作溫度，對比電壓下降；再切換電子流／電流標示與馬達／揚聲器負載。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        function toggleLang() {
-            currentLang = currentLang === 'zh-Hant' ? 'en' : 'zh-Hant';
-            updateTexts();
+<script>
+const SOLAR_CONSTANT = 1366;
+const TEMP_COEFF_V = -0.004;
+const MIN_EXCITE_FREQ = 22;
+const CHART_LEN = 80;
+const TIME_MID = 12.5;
+const TIME_HALF = 6.5;
+
+const PRESETS = {
+    sunny:   { time: 12, angle: 10, seeing: 0.90, cloud: 0,  temp: 25, frequency: 72, speed: 1.2 },
+    morning: { time: 7.2, angle: 20, seeing: 0.80, cloud: 10, temp: 18, frequency: 55, speed: 1 },
+    haze:    { time: 12, angle: 10, seeing: 0.25, cloud: 25, temp: 32, frequency: 50, speed: 1 },
+    redweak: { time: 12, angle: 15, seeing: 0.90, cloud: 0,  temp: 25, frequency: 12, speed: 1 }
+};
+
+const i18n = {
+    zh: {
+        title: '光伏板原理', badge: '物理', subtitle: 'PN 接面、入射角與大氣視寧度',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        pause: '暫停', resume: '恢復', reset: '重置',
+        presets: '教學情境',
+        preSunny: '☀ 正午晴空', preMorning: '🌅 清晨斜照', preHaze: '🌫 霧霾（低視寧度）', preRed: '🔴 紅光（能量偏低）',
+        labelTime: '時間', timeDawn: '日出', timeNoon: '正午', timeDusk: '日落',
+        labelAngle: '面板傾角（相對陽光）', labelSeeing: '大氣寧視度', labelCloud: '雲層覆蓋', labelTemp: '工作溫度',
+        labelFrequency: '光子頻率（能量／顏色）', labelSpeed: '粒子移動速度',
+        angleFace: '正對太陽', angleSide: '近乎側向', seeingLow: '混濁', seeingHigh: '清澈',
+        labelLoad: '外部負載', loadMotor: '馬達', loadSpeaker: '揚聲器',
+        showField: '顯示 PN 接面電場',
+        labelFlowMode: '電路標示（二選一）', flowElectron: '電子流', flowConventional: '電流',
+        legendTitle: '圖例', legPhoton: '光子', legElectron: '電子 (−)', legHole: '空穴 (+)', legField: '內建電場',
+        liveTitle: '即時解讀', liveElev: '太陽高度角', liveIrr: '有效輻照度 S',
+        statIrr: '輻照度 (W/m²)', statPhotons: '光子數量', statElectrons: '電子數量', statHoles: '空穴數量',
+        statCurrent: '電流 (mA)', statVoltage: '電壓 (V)', statPower: '功率 (mW)',
+        chartPower: '功率變化', chartCurrent: '電流變化',
+        statusRunning: '系統運作中', statusPaused: '模擬已暫停', statusReset: '已重新開始',
+        canvasN: 'N 型半導體 ⮕', canvasJunction: 'PN 接面（耗盡區）⮕', canvasP: 'P 型半導體 ⮕',
+        canvasElectronFlow: '電子流 ➡➡', canvasConventional: '電流 (I) ➡➡',
+        loadMotorLabel: '馬達', loadSpeakerLabel: '揚聲器',
+        insightDark: '有效輻照度接近零：清晨、日落、側向面板或極低視寧度都會令光伏板幾乎無輸出。',
+        insightLowAngle: '入射角不佳：太陽偏低或面板傾角太大，cos α／sin θ 變小，單位面積接收的能量減少。',
+        insightHaze: '大氣寧視度偏低：霧霾或混濁空氣吸收、散射光子，到達接面的數目明顯下降。',
+        insightCloud: '雲層阻擋直射光，只剩部分散射光，有效輻照度與功率一起下跌。',
+        insightHot: '工作溫度偏高：開路電壓約以 −0.4%/°C 下降，即使陽光充足，輸出功率仍會減少。',
+        insightLowEnergy: '光子能量偏低：部分光子無法激發電子–空穴對（E = hf 不足）。',
+        insightGood: '正午、面板近乎正對、大氣清澈：載子持續分離，外電路有穩定電流與功率。',
+        insightPartial: '有光照但輸出有限：可比較時間、傾角、寧視度、雲層或光子能量。',
+        stepsTitle: '觀察步驟', stepsSub: '如何使用本模擬',
+        s1: '選「正午晴空」，再把時間拖到清晨或傍晚，看太陽位置、高度角與輻照度如何一起下降。',
+        s2: '固定正午，調大面板傾角，比較 cos α 如何減少到達 PN 接面的光子。',
+        s3: '選「霧霾」或調低大氣寧視度、加雲層，觀察天空變濁、光子變少、功率下跌。',
+        s4: '提高工作溫度，對比電壓下降；再切換電子流／電流標示與馬達／揚聲器負載。',
+        modalTitle: '太陽能電池（光伏板）原理', modalSub: '光伏效應、入射角與大氣視寧度', modalClose: '關閉',
+        m1t: '1. 光子與能量',
+        m1d: '太陽光由光子組成。光子能量 E = hf。頻率愈高（偏藍／紫），單個光子能量愈大；有效輻照度愈高，單位時間到達的光子愈多。',
+        m2t: '2. PN 接面與載子分離',
+        m2d: '光伏板核心是多層半導體。N 型富電子、P 型富空穴；中間 PN 接面形成內建電場。光子被吸收時可激發電子–空穴對：電子推向 N 層、空穴留在 P 層。',
+        m6t: '3. 時間、角度與大氣寧視度',
+        m6d: '到達面板的有效輻照度取決於太陽高度角 θ（隨時間）、面板相對陽光的傾角 α、雲層 C，以及大氣寧視度 τ（空氣愈混濁，光子愈少）。大氣層外太陽常數約為 1366 W/m²。',
+        m6e: '溫度升高會使開路電壓下降（約 −0.4%/°C），所以炎熱正午未必輸出最大。',
+        m3t: '外電路電流',
+        m3d: '分離後的電子經導線流向負載再返回 P 層，與空穴復合。電子流方向與電流方向相反。',
+        m4t: '光照與輸出',
+        m4d: 'S_eff 決定光子數目；頻率決定能否激發。兩者與溫度共同決定電流、電壓與功率。',
+        m5t: '4. 生活例子',
+        m5d: '屋頂太陽能板宜朝南並隨季節調整傾角；霧霾或陰天輸出大降；沙漠高溫會令電壓下跌。太空站在大氣外 τ≈1，輸出最高。',
+        pageTitle: '光伏板原理 | Photovoltaic Panel'
+    },
+    en: {
+        title: 'Photovoltaic Panel', badge: 'Physics', subtitle: 'PN junction, incidence angle & atmospheric seeing',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls',
+        pause: 'Pause', resume: 'Resume', reset: 'Reset',
+        presets: 'Scenarios',
+        preSunny: '☀ Clear noon', preMorning: '🌅 Low morning sun', preHaze: '🌫 Haze (poor seeing)', preRed: '🔴 Red light (low energy)',
+        labelTime: 'Time of day', timeDawn: 'Sunrise', timeNoon: 'Noon', timeDusk: 'Sunset',
+        labelAngle: 'Panel tilt (to the sun)', labelSeeing: 'Atmospheric seeing', labelCloud: 'Cloud cover', labelTemp: 'Cell temperature',
+        labelFrequency: 'Photon frequency (energy / colour)', labelSpeed: 'Particle speed',
+        angleFace: 'Facing sun', angleSide: 'Nearly edge-on', seeingLow: 'Turbid', seeingHigh: 'Clear',
+        labelLoad: 'External load', loadMotor: 'Motor', loadSpeaker: 'Speaker',
+        showField: 'Show PN junction field',
+        labelFlowMode: 'Circuit label (pick one)', flowElectron: 'Electron flow', flowConventional: 'Current',
+        legendTitle: 'Legend', legPhoton: 'Photon', legElectron: 'Electron (−)', legHole: 'Hole (+)', legField: 'Built-in field',
+        liveTitle: 'Live insight', liveElev: 'Solar elevation', liveIrr: 'Effective irradiance S',
+        statIrr: 'Irradiance (W/m²)', statPhotons: 'Photons', statElectrons: 'Electrons', statHoles: 'Holes',
+        statCurrent: 'Current (mA)', statVoltage: 'Voltage (V)', statPower: 'Power (mW)',
+        chartPower: 'Power trace', chartCurrent: 'Current trace',
+        statusRunning: 'System running', statusPaused: 'Simulation paused', statusReset: 'Reset complete',
+        canvasN: 'N-type semiconductor ⮕', canvasJunction: 'PN junction (depletion) ⮕', canvasP: 'P-type semiconductor ⮕',
+        canvasElectronFlow: 'Electron flow ➡➡', canvasConventional: 'Current (I) ➡➡',
+        loadMotorLabel: 'Motor', loadSpeakerLabel: 'Speaker',
+        insightDark: 'Effective irradiance is near zero: dawn, dusk, a steep tilt or very poor seeing leaves almost no output.',
+        insightLowAngle: 'Poor incidence: a low sun or a large panel tilt shrinks sin θ / cos α, so energy per area falls.',
+        insightHaze: 'Poor atmospheric seeing: haze absorbs and scatters photons, so fewer reach the junction.',
+        insightCloud: 'Clouds block direct sunlight. Only some diffuse light remains, so S_eff and power drop together.',
+        insightHot: 'High cell temperature: open-circuit voltage falls by about −0.4%/°C, so power can drop even in bright sun.',
+        insightLowEnergy: 'Low photon energy: some photons cannot create electron–hole pairs (E = hf too small).',
+        insightGood: 'Noon, panel nearly facing the sun, clear air: carriers separate steadily and power the load.',
+        insightPartial: 'Some light but limited output: compare time, tilt, seeing, clouds or photon energy.',
+        stepsTitle: 'What to watch', stepsSub: 'How to use this simulator',
+        s1: 'Pick Clear noon, then drag time to morning or evening and watch the sun, elevation and irradiance fall together.',
+        s2: 'Keep noon, increase panel tilt, and see how cos α cuts the number of photons reaching the PN junction.',
+        s3: 'Pick Haze or lower seeing and add clouds: the sky turns murky, photons thin out and power falls.',
+        s4: 'Raise cell temperature and compare the voltage drop; then switch electron-flow / current labels and motor / speaker.',
+        modalTitle: 'How solar cells work', modalSub: 'Photovoltaic effect, incidence & seeing', modalClose: 'Close',
+        m1t: '1. Photons and energy',
+        m1d: 'Sunlight consists of photons. Energy E = hf. Higher frequency (bluer) means more energy per photon; higher effective irradiance means more photons per second.',
+        m2t: '2. PN junction and carrier separation',
+        m2d: 'A solar cell uses semiconductor layers: N-type (electrons) and P-type (holes). The PN junction has a built-in field. Absorbed photons create electron–hole pairs; electrons move to N, holes stay in P.',
+        m6t: '3. Time, angle and atmospheric seeing',
+        m6d: 'Effective irradiance depends on solar elevation θ (from time of day), panel tilt α, cloud cover C, and atmospheric seeing τ (more haze → fewer photons). The solar constant outside the atmosphere is about 1366 W/m².',
+        m6e: 'Higher temperature lowers open-circuit voltage (about −0.4%/°C), so a hot noon is not always the peak output.',
+        m3t: 'External circuit',
+        m3d: 'Electrons travel through wires to the load and return to recombine with holes. Electron flow is opposite to conventional current.',
+        m4t: 'Light and output',
+        m4d: 'S_eff sets the photon count; frequency sets excitation. Together with temperature they set current, voltage and power.',
+        m5t: '4. Everyday examples',
+        m5d: 'Rooftop panels should face the sun and change tilt with season. Haze or cloud cuts output; desert heat lowers voltage. In space τ ≈ 1 and output is highest.',
+        pageTitle: 'Photovoltaic Panel | 光伏板原理'
+    }
+};
+
+let lang = 'zh';
+const els = {};
+[
+    'btnPause','btnReset','btnMotor','btnSpeaker','btn-principle','btn-steps','btn-lang','btn-lang-mobile',
+    'modal-principle','modal-close','modal-confirm','modal-steps','steps-close','steps-confirm',
+    'timeOfDay','photonFrequency','speedMultiplier','panelAngle','atmSeeing','cloudCover','cellTemp',
+    'disp-time','disp-frequency','disp-speed','disp-angle','disp-seeing','disp-cloud','disp-temp',
+    'statIrr','statPhotons','statElectrons','statHoles','statCurrent','statVoltage','statPower',
+    'statusDisplay','insightText','live-elev','live-irr','simCanvas','chartPower','chartCurrent',
+    'showField','btnFlowElectron','btnFlowConventional'
+].forEach(id => els[id] = document.getElementById(id));
+
+const canvas = els.simCanvas;
+const ctx = canvas.getContext('2d');
+const chartCtx = {
+    power: els.chartPower.getContext('2d'),
+    current: els.chartCurrent.getContext('2d')
+};
+
+let isPaused = false;
+let loadType = 'motor';
+let flowMode = 'electron';
+let motorAngle = 0;
+let currentFlow = 0;
+let photons = [];
+let particles = [];
+let circuitParticles = [];
+let effects = [];
+let bouncePhotons = [];
+let osc = null;
+let gainNode = null;
+let powerHistory = [];
+let currentHistory = [];
+let frameTick = 0;
+
+const cellX = 200;
+const cellY = 130;
+const cellWidth = 350;
+const nHeight = 80;
+const junctionHeight = 70;
+const pHeight = 100;
+const cellHeight = nHeight + junctionHeight + pHeight;
+const sunRadius = 28;
+
+function t(key) { return i18n[lang][key] ?? key; }
+
+function formatClock(hours) {
+    const h = Math.floor(hours);
+    const m = Math.floor((hours - h) * 60);
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+function solarFactors() {
+    const timeVal = parseFloat(els.timeOfDay.value);
+    const dist = Math.abs(timeVal - TIME_MID);
+    let sunElev = Math.cos((dist / TIME_HALF) * (Math.PI / 2));
+    if (sunElev < 0) sunElev = 0;
+    const panelDeg = parseFloat(els.panelAngle.value);
+    const panelFactor = Math.max(0, Math.cos(panelDeg * Math.PI / 180));
+    const cloud = parseFloat(els.cloudCover.value) / 100;
+    const seeing = parseFloat(els.atmSeeing.value);
+    const irradiance = SOLAR_CONSTANT * sunElev * panelFactor * (1 - 0.9 * cloud) * seeing;
+    return {
+        timeVal,
+        sunElev,
+        elevDeg: Math.asin(Math.min(1, sunElev)) * 180 / Math.PI,
+        panelDeg,
+        panelFactor,
+        cloud,
+        seeing,
+        irradiance: Math.max(0, irradiance)
+    };
+}
+
+function effectiveIntensity() {
+    return solarFactors().irradiance / (SOLAR_CONSTANT / 100);
+}
+
+function exciteProbability(freq) {
+    if (freq >= MIN_EXCITE_FREQ) return 1;
+    return Math.max(0.05, freq / MIN_EXCITE_FREQ);
+}
+
+function getSunPos() {
+    const timeVal = parseFloat(els.timeOfDay.value);
+    const pct = (timeVal - 6) / (19 - 6);
+    const x = 50 + pct * 520;
+    const noonH = 32;
+    const horizonH = 108;
+    const y = horizonH - (horizonH - noonH) * Math.sin(pct * Math.PI);
+    return { x, y };
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    els.btnPause.textContent = isPaused ? t('resume') : t('pause');
+    syncSliders();
+    updateInsight();
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([els['modal-principle'], document.querySelector('aside')]).catch(() => {});
+    }
+}
+
+function syncSliders() {
+    els['disp-time'].textContent = formatClock(parseFloat(els.timeOfDay.value));
+    els['disp-frequency'].textContent = els.photonFrequency.value;
+    els['disp-speed'].textContent = parseFloat(els.speedMultiplier.value).toFixed(1) + '×';
+    els['disp-angle'].textContent = els.panelAngle.value + '°';
+    els['disp-seeing'].textContent = parseFloat(els.atmSeeing.value).toFixed(2);
+    els['disp-cloud'].textContent = els.cloudCover.value + '%';
+    els['disp-temp'].textContent = els.cellTemp.value + '°C';
+}
+
+function updateInsight() {
+    const f = solarFactors();
+    const freq = parseFloat(els.photonFrequency.value);
+    const temp = parseFloat(els.cellTemp.value);
+    let msg;
+    if (f.irradiance < 8) msg = t('insightDark');
+    else if (f.seeing < 0.45) msg = t('insightHaze');
+    else if (f.cloud > 0.55) msg = t('insightCloud');
+    else if (f.elevDeg < 28 || f.panelDeg > 50) msg = t('insightLowAngle');
+    else if (temp >= 50) msg = t('insightHot');
+    else if (freq < MIN_EXCITE_FREQ) msg = t('insightLowEnergy');
+    else if (currentFlow > 2 && f.irradiance > 400) msg = t('insightGood');
+    else msg = t('insightPartial');
+    els.insightText.textContent = msg;
+    els['live-elev'].textContent = f.elevDeg.toFixed(0) + '°';
+    els['live-irr'].textContent = f.irradiance.toFixed(0) + ' W/m²';
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+async function initAudio() {
+    try {
+        await Tone.start();
+        if (!osc) {
+            gainNode = new Tone.Gain(0).toDestination();
+            osc = new Tone.Oscillator(440, 'triangle').connect(gainNode).start();
         }
+    } catch (e) { /* optional */ }
+}
 
-        function updateTexts() {
-            const t = translations[currentLang];
-            document.querySelectorAll('[data-lang]').forEach(el => {
-                const key = el.getAttribute('data-lang');
-                if (t[key]) {
-                    if (key === 'modalContent') {
-                        document.getElementById('modal-content').innerHTML = t[key];
-                        // Re-render MathJax in modal after content update
-                        if(window.MathJax) {
-                            MathJax.typesetPromise([document.getElementById('modal-content')]);
-                        }
-                    } else {
-                        el.textContent = t[key];
-                    }
-                }
-            });
-        }
+function updateAudio() {
+    if (loadType === 'speaker' && !isPaused && osc && gainNode) {
+        if (currentFlow > 0) {
+            osc.frequency.rampTo(200 + Math.min(currentFlow * 30, 800), 0.1);
+            gainNode.gain.rampTo(0.1, 0.1);
+        } else gainNode.gain.rampTo(0, 0.1);
+    } else if (gainNode) gainNode.gain.rampTo(0, 0.1);
+}
 
-        function toggleModal() {
-            const modal = document.getElementById('principle-modal');
-            const isHidden = modal.classList.contains('hidden');
-            if (isHidden) {
-                modal.classList.remove('hidden');
-                // Ensure MathJax renders when modal opens
-                if(window.MathJax) {
-                    MathJax.typesetPromise([document.getElementById('modal-content')]);
-                }
+function setLoadButtons() {
+    els.btnMotor.classList.toggle('active', loadType === 'motor');
+    els.btnSpeaker.classList.toggle('active', loadType === 'speaker');
+}
+
+function setFlowButtons() {
+    els.btnFlowElectron.classList.toggle('active', flowMode === 'electron');
+    els.btnFlowConventional.classList.toggle('active', flowMode === 'conventional');
+}
+
+function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    els.timeOfDay.value = p.time;
+    els.panelAngle.value = p.angle;
+    els.atmSeeing.value = p.seeing;
+    els.cloudCover.value = p.cloud;
+    els.cellTemp.value = p.temp;
+    els.photonFrequency.value = p.frequency;
+    els.speedMultiplier.value = p.speed;
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.preset === name));
+    syncSliders();
+    updateInsight();
+}
+
+els.btnPause.addEventListener('click', () => {
+    isPaused = !isPaused;
+    els.btnPause.textContent = isPaused ? t('resume') : t('pause');
+    els.btnPause.classList.toggle('bg-amber-500', !isPaused);
+    els.btnPause.classList.toggle('bg-emerald-600', isPaused);
+    els.statusDisplay.textContent = isPaused ? t('statusPaused') : t('statusRunning');
+});
+
+els.btnReset.addEventListener('click', () => {
+    photons = []; particles = []; circuitParticles = []; effects = []; bouncePhotons = [];
+    motorAngle = 0; currentFlow = 0;
+    powerHistory = []; currentHistory = [];
+    ['statPhotons','statElectrons','statHoles'].forEach(id => els[id].textContent = '0');
+    els.statIrr.textContent = '0';
+    els.statCurrent.textContent = '0.0';
+    els.statVoltage.textContent = '0.00';
+    els.statPower.textContent = '0.0';
+    if (gainNode) gainNode.gain.rampTo(0, 0.1);
+    els.statusDisplay.textContent = t('statusReset');
+    setTimeout(() => { if (!isPaused) els.statusDisplay.textContent = t('statusRunning'); }, 1500);
+    updateInsight();
+});
+
+els.btnMotor.addEventListener('click', () => { loadType = 'motor'; setLoadButtons(); });
+els.btnSpeaker.addEventListener('click', async () => { loadType = 'speaker'; setLoadButtons(); await initAudio(); });
+els.btnFlowElectron.addEventListener('click', () => { flowMode = 'electron'; setFlowButtons(); });
+els.btnFlowConventional.addEventListener('click', () => { flowMode = 'conventional'; setFlowButtons(); });
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+['timeOfDay','photonFrequency','speedMultiplier','panelAngle','atmSeeing','cloudCover','cellTemp'].forEach(id => {
+    els[id].addEventListener('input', () => { syncSliders(); updateInsight(); });
+});
+
+function getPhotonColor(freq) {
+    return `hsl(${240 - freq * 2.4}, 100%, 60%)`;
+}
+
+function createPhoton() {
+    if (isPaused) return;
+    const adjustedIntensity = effectiveIntensity() * 0.65;
+    if (Math.random() * 100 >= adjustedIntensity) return;
+    const sun = getSunPos();
+    const spread = (Math.random() * Math.PI) - (Math.PI / 2);
+    photons.push({
+        x: sun.x + Math.cos(spread) * sunRadius * 0.4,
+        y: sun.y + Math.sin(spread) * sunRadius * 0.4,
+        targetX: cellX + Math.random() * cellWidth,
+        targetY: cellY + nHeight + Math.random() * junctionHeight,
+        speed: (2 + Math.random() * 2) * els.speedMultiplier.value,
+        color: getPhotonColor(els.photonFrequency.value),
+        energy: parseFloat(els.photonFrequency.value)
+    });
+}
+
+function addEffect(x, y, color) {
+    effects.push({ x, y, color, life: 1.0, radius: 6.0 });
+}
+
+function update() {
+    if (isPaused) { updateAudio(); return; }
+    const globalSpeed = parseFloat(els.speedMultiplier.value);
+    createPhoton();
+    frameTick++;
+
+    for (let i = effects.length - 1; i >= 0; i--) {
+        effects[i].life -= 0.08;
+        effects[i].radius += 1.8;
+        if (effects[i].life <= 0) effects.splice(i, 1);
+    }
+
+    for (let i = bouncePhotons.length - 1; i >= 0; i--) {
+        const b = bouncePhotons[i];
+        b.x += b.vx; b.y += b.vy; b.life -= 0.02;
+        if (b.life <= 0) bouncePhotons.splice(i, 1);
+    }
+
+    for (let i = photons.length - 1; i >= 0; i--) {
+        const p = photons[i];
+        const dx = p.targetX - p.x, dy = p.targetY - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 5) {
+            if (Math.random() < exciteProbability(p.energy)) {
+                addEffect(p.targetX, p.targetY, 'rgba(59, 130, 246, 0.8)');
+                particles.push({ x: p.targetX, y: p.targetY, type: 'e', speed: 1.2 * globalSpeed });
+                particles.push({ x: p.targetX, y: p.targetY, type: 'h', speed: 1.2 * globalSpeed });
             } else {
-                modal.classList.add('hidden');
+                addEffect(p.targetX, p.targetY, 'rgba(148, 163, 184, 0.6)');
+                bouncePhotons.push({ x: p.targetX, y: p.targetY, vx: 1.5 + Math.random(), vy: -1 - Math.random() * 2, life: 1, color: p.color });
+            }
+            photons.splice(i, 1);
+        } else {
+            p.x += (dx / dist) * p.speed;
+            p.y += (dy / dist) * p.speed;
+        }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.speed = 1.2 * globalSpeed;
+        if (p.type === 'e') {
+            p.y -= p.speed;
+            if (p.y <= cellY + 5) {
+                if (Math.random() > 0.6) {
+                    circuitParticles.push({ pos: 0, speed: 0.015 * globalSpeed });
+                    particles.splice(i, 1);
+                } else { p.y = cellY + 5; p.x += (Math.random() - 0.5) * 2; }
+            }
+        } else {
+            p.y += p.speed;
+            if (p.y >= cellY + cellHeight - 5) {
+                p.y = cellY + cellHeight - 5;
+                p.x += (Math.random() - 0.5) * 2;
             }
         }
+    }
 
-        // ==========================================
-        // 2. 物理常數與狀態 (Physics Model)
-        // ==========================================
-        const SOLAR_CONSTANT_SPACE = 1366; // W/m^2 (Space)
-        const PANEL_AREA = 2.0;            // m^2
-        const SYSTEM_VOLTAGE_BASE = 24.0;  // V at 25°C
-        const TEMP_COEFF_V = -0.004;       // -0.4% per degree C
-
-        const simState = {
-            cloudPercentage: 0,
-            timeValue: 12.0,
-            seeing: 0.85,
-            temperature: 25,
-            efficiency: 0.18,
-            
-            effectiveIrradiance: 0,
-            voltage: 0,
-            current: 0,
-            power: 0,
-            totalEnergy: 0,
-            lastTime: Date.now()
-        };
-
-        // DOM Elements
-        const sliderCloud = document.getElementById('cloud-slider');
-        const sliderTime = document.getElementById('time-slider');
-        const sliderSeeing = document.getElementById('seeing-slider');
-        const sliderTemp = document.getElementById('temp-slider');
-        const sliderEff = document.getElementById('eff-slider');
-
-        const valCloud = document.getElementById('cloud-val');
-        const valTime = document.getElementById('time-val');
-        const valSeeing = document.getElementById('seeing-val');
-        const valTemp = document.getElementById('temp-val');
-        const valEff = document.getElementById('eff-val');
-
-        const dispIrradiance = document.getElementById('irradiance-display');
-        const dispVoltage = document.getElementById('voltage-display');
-        const dispCurrent = document.getElementById('current-display');
-        const dispPower = document.getElementById('power-display');
-        const dispEnergy = document.getElementById('energy-display');
-
-        // ==========================================
-        // 3. Canvas 繪圖引擎
-        // ==========================================
-        const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        function resizeCanvas() {
-            const container = document.getElementById('canvas-container');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        let sunRotation = 0;
-        let electrons = []; 
-
-        function draw() {
-            const CW = canvas.width;
-            const CH = canvas.height;
-            ctx.clearRect(0, 0, CW, CH);
-
-            drawSky(CW, CH);
-
-            const sunPos = getSunPosition(CW, CH);
-            // Draw Sun even if low, but clamp slightly or fade
-            drawSun(sunPos.x, sunPos.y);
-
-            drawClouds(CW, CH);
-            
-            const diagW = Math.min(400, CW * 0.55);
-            const diagH = Math.min(300, CH * 0.45);
-            const diagX = CW * 0.1; 
-            const diagY = CH - diagH - (CH * 0.1);
-            
-            drawLightBeams(CW, CH, sunPos.x, sunPos.y, diagX, diagY, diagW);
-            drawPNJunctionDiagram(diagX, diagY, diagW, diagH);
-            drawRectangularCircuit(diagX, diagY, diagW, diagH, CW);
-
-            requestAnimationFrame(draw);
-        }
-
-        // Updated Sun Position Logic: Keep it higher on screen
-        function getSunPosition(w, h) {
-            const t = simState.timeValue;
-            const range = 19 - 6;
-            const pct = (t - 6) / range; 
-            
-            const x = w * (0.05 + 0.9 * pct); // From 5% to 95% width
-            
-            const noonH = h * 0.05; // High noon (top)
-            // Modified: Raised the lowest sun position (horizon) to h * 0.35
-            // This ensures it stays visually "above" the semiconductor diagram (which starts around h * 0.45)
-            const horizonH = h * 0.35; 
-            
-            // Arc
-            const y = horizonH - (horizonH - noonH) * Math.sin(pct * Math.PI);
-            
-            return { x, y };
-        }
-
-        function drawSky(w, h) {
-            // Seeing affects sky clarity/color
-            const clarity = simState.seeing; // 0.1 - 1.0
-            const t = simState.timeValue;
-            const distFromNoon = Math.abs(12.5 - t);
-            const timeDarkness = Math.min(distFromNoon / 6.5, 0.7);
-
-            const r1 = 186 * clarity * (1-timeDarkness);
-            const g1 = 230 * clarity * (1-timeDarkness);
-            const b1 = 253 * (1-timeDarkness); // Blue stays a bit
-
-            const gradient = ctx.createLinearGradient(0, 0, 0, h);
-            gradient.addColorStop(0, `rgb(${r1}, ${g1}, ${b1})`); 
-            gradient.addColorStop(1, `rgb(${240*(1-timeDarkness)}, ${249*(1-timeDarkness)}, ${255*(1-timeDarkness)})`); 
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, w, h);
-        }
-
-        function drawSun(x, y) {
-            ctx.save();
-            ctx.translate(x, y);
-            sunRotation += 0.005;
-            ctx.rotate(sunRotation);
-
-            const intensity = Math.max(0, simState.effectiveIrradiance / 1000); // normalized approx
-            
-            // Rays
-            ctx.strokeStyle = `rgba(250, 204, 21, ${0.4 + 0.4 * intensity})`; 
-            ctx.lineWidth = 4;
-            for (let i = 0; i < 12; i++) {
-                ctx.beginPath();
-                ctx.moveTo(30, 0);
-                ctx.lineTo(55, 0);
-                ctx.stroke();
-                ctx.rotate(Math.PI / 6);
+    currentFlow = circuitParticles.length;
+    for (let i = circuitParticles.length - 1; i >= 0; i--) {
+        const cp = circuitParticles[i];
+        cp.speed = 0.015 * globalSpeed;
+        cp.pos += cp.speed;
+        if (cp.pos >= 1) {
+            const holeIdx = particles.findIndex(p => p.type === 'h' && p.y >= cellY + cellHeight - 15);
+            if (holeIdx !== -1) {
+                addEffect(particles[holeIdx].x, particles[holeIdx].y, 'rgba(239, 68, 68, 0.8)');
+                particles.splice(holeIdx, 1);
             }
-            ctx.restore();
-
-            // Sun Core
-            ctx.beginPath();
-            ctx.arc(x, y, 30, 0, Math.PI * 2);
-            ctx.fillStyle = intensity > 0.1 ? "#facc15" : "#fdba74"; // Orange if weak
-            ctx.shadowColor = "rgba(250, 204, 21, 0.8)";
-            ctx.shadowBlur = 40 * intensity * simState.seeing; // Blur reduced by seeing
-            ctx.fill();
-            ctx.shadowBlur = 0;
+            circuitParticles.splice(i, 1);
         }
+    }
 
-        // Improved Realistic Clouds
-        function drawClouds(w, h) {
-            const cover = simState.cloudPercentage / 100;
-            if (cover <= 0.01) return;
+    if (loadType === 'motor') motorAngle += currentFlow * 0.08 * globalSpeed;
+    updateDashboard();
+    updateAudio();
+    if (frameTick % 8 === 0) updateInsight();
+}
 
-            ctx.save();
-            // Opacity based on coverage, but never fully opaque to allow some "light" feel
-            ctx.globalAlpha = Math.min(cover * 1.2, 0.95); 
-            
-            // Generate pseudo-random clouds based on time/frame? 
-            // For stability, we use fixed positions but layered drawing
-            
-            const cloudColor = "#cbd5e1"; // Base slate-300
-            
-            // Helper for fluffy circle
-            const fluffyCircle = (cx, cy, r) => {
-                const grad = ctx.createRadialGradient(cx, cy, r*0.2, cx, cy, r);
-                grad.addColorStop(0, "rgba(255,255,255,0.9)");
-                grad.addColorStop(0.6, "rgba(240,240,240,0.8)");
-                grad.addColorStop(1, "rgba(200,200,200,0)"); // Soft edge
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(cx, cy, r, 0, Math.PI*2);
-                ctx.fill();
-            };
+function readVoltage() {
+    const { irradiance } = solarFactors();
+    const freq = parseFloat(els.photonFrequency.value);
+    const temp = parseFloat(els.cellTemp.value);
+    const tempFactor = Math.max(0.15, 1 + TEMP_COEFF_V * (temp - 25));
+    const frequencyBonus = (freq / 100) * 0.35 * exciteProbability(freq);
+    if (irradiance <= 0) return 0;
+    let v = 0.40 * Math.min(1, irradiance / 1000) + frequencyBonus + (currentFlow > 0 ? 0.05 : 0);
+    v *= tempFactor;
+    if (irradiance < 50) v *= irradiance / 50;
+    return Math.max(0, v);
+}
 
-            // Draw a "layer" of clouds
-            // We use simple math to distribute puffs
-            const numPuffs = 20 * cover; 
-            for(let i=0; i<numPuffs; i++) {
-                // Determine pos
-                const px = w * ((i * 13 % 100)/100); 
-                const py = h * 0.1 + (h * 0.2 * ((i * 7 % 100)/100));
-                const size = 60 + ((i * 3 % 50));
-                fluffyCircle(px, py, size);
-            }
-            
-            // Draw a big main cloud if cover is high
-            if (cover > 0.5) {
-                fluffyCircle(w*0.5, h*0.2, 120);
-                fluffyCircle(w*0.3, h*0.25, 100);
-                fluffyCircle(w*0.7, h*0.15, 110);
-            }
+function updateDashboard() {
+    const { irradiance } = solarFactors();
+    els.statIrr.textContent = irradiance.toFixed(0);
+    const hasActivity = photons.length || particles.length || circuitParticles.length;
+    if (!hasActivity) {
+        els.statPhotons.textContent = '0';
+        els.statElectrons.textContent = '0';
+        els.statHoles.textContent = '0';
+        els.statCurrent.textContent = '0.0';
+        els.statVoltage.textContent = '0.00';
+        els.statPower.textContent = '0.0';
+        pushChart(0, 0);
+        return;
+    }
+    const eCount = particles.filter(p => p.type === 'e').length + circuitParticles.length;
+    const currentVal = currentFlow * 2.5;
+    const voltageVal = readVoltage();
+    const powerVal = currentVal * voltageVal;
 
-            ctx.restore();
+    els.statPhotons.textContent = photons.length;
+    els.statElectrons.textContent = eCount;
+    els.statHoles.textContent = particles.filter(p => p.type === 'h').length;
+    els.statCurrent.textContent = currentVal.toFixed(1);
+    els.statVoltage.textContent = voltageVal.toFixed(2);
+    els.statPower.textContent = powerVal.toFixed(1);
+    pushChart(powerVal, currentVal);
+}
+
+function pushChart(power, current) {
+    powerHistory.push(power);
+    currentHistory.push(current);
+    if (powerHistory.length > CHART_LEN) powerHistory.shift();
+    if (currentHistory.length > CHART_LEN) currentHistory.shift();
+}
+
+function drawMiniChart(c, data, color) {
+    const w = c.canvas.width = c.canvas.clientWidth || 280;
+    const h = c.canvas.height = c.canvas.clientHeight || 100;
+    c.clearRect(0, 0, w, h);
+    if (data.length < 2) return;
+    const max = Math.max(...data, 0.001);
+    c.strokeStyle = '#e2e8f0';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(0, h - 4);
+    c.lineTo(w, h - 4);
+    c.stroke();
+    c.strokeStyle = color;
+    c.lineWidth = 2;
+    c.beginPath();
+    data.forEach((v, i) => {
+        const x = (i / (CHART_LEN - 1)) * w;
+        const y = h - 4 - (v / max) * (h - 12);
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    });
+    c.stroke();
+    c.fillStyle = color;
+    c.globalAlpha = 0.12;
+    c.lineTo(w, h - 4);
+    c.lineTo(0, h - 4);
+    c.closePath();
+    c.fill();
+    c.globalAlpha = 1;
+}
+
+function drawSky() {
+    const f = solarFactors();
+    const distFromNoon = Math.abs(TIME_MID - f.timeVal);
+    const timeDarkness = Math.min(distFromNoon / TIME_HALF, 0.75);
+    const clarity = f.seeing;
+    const r1 = 186 * clarity * (1 - timeDarkness);
+    const g1 = 230 * clarity * (1 - timeDarkness);
+    const b1 = 253 * (1 - timeDarkness * 0.85);
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, `rgb(${r1}, ${g1}, ${b1})`);
+    grad.addColorStop(1, `rgb(${240 * (1 - timeDarkness)}, ${249 * (1 - timeDarkness)}, ${255 * (1 - timeDarkness)})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (clarity < 0.95) {
+        ctx.fillStyle = `rgba(148, 163, 184, ${(1 - clarity) * 0.45})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+function drawClouds() {
+    const cover = parseFloat(els.cloudCover.value) / 100;
+    if (cover <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = Math.min(cover * 1.15, 0.92);
+    const fluffy = (cx, cy, r) => {
+        const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+        g.addColorStop(0, 'rgba(255,255,255,0.9)');
+        g.addColorStop(0.6, 'rgba(240,240,240,0.8)');
+        g.addColorStop(1, 'rgba(200,200,200,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+    };
+    const n = 14 * cover;
+    for (let i = 0; i < n; i++) {
+        fluffy(canvas.width * ((i * 13 % 100) / 100), 28 + 70 * ((i * 7 % 100) / 100), 40 + (i * 3 % 36));
+    }
+    if (cover > 0.5) {
+        fluffy(canvas.width * 0.45, 55, 90);
+        fluffy(canvas.width * 0.28, 70, 70);
+        fluffy(canvas.width * 0.62, 48, 80);
+    }
+    ctx.restore();
+}
+
+function drawBeams(sun) {
+    const f = solarFactors();
+    const intensity = (f.irradiance / 1000) * f.seeing;
+    if (intensity <= 0.02) return;
+    const panelCX = cellX + cellWidth / 2;
+    const g = ctx.createLinearGradient(sun.x, sun.y, panelCX, cellY);
+    g.addColorStop(0, `rgba(255, 255, 150, ${0.28 * intensity})`);
+    g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(sun.x - 18, sun.y);
+    ctx.lineTo(sun.x + 18, sun.y);
+    ctx.lineTo(cellX + cellWidth, cellY);
+    ctx.lineTo(cellX, cellY);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function drawSun() {
+    const sun = getSunPos();
+    const f = solarFactors();
+    const pulse = 1 + Math.sin(frameTick * 0.05) * 0.04;
+    const glow = sunRadius + 6 + (f.irradiance / 1000) * 18;
+
+    const grad = ctx.createRadialGradient(sun.x, sun.y, sunRadius * 0.2, sun.x, sun.y, glow * pulse);
+    grad.addColorStop(0, '#fef08a');
+    grad.addColorStop(0.5, f.irradiance > 80 ? '#facc15' : '#fdba74');
+    grad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sun.x, sun.y, glow * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(sun.x, sun.y);
+    ctx.rotate(frameTick * 0.008);
+    ctx.strokeStyle = `rgba(251, 191, 36, ${0.25 + f.seeing * 0.35})`;
+    ctx.lineWidth = 2;
+    const rays = 8 + Math.floor(f.irradiance / 180);
+    for (let i = 0; i < rays; i++) {
+        const a = (i / rays) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * (sunRadius + 2), Math.sin(a) * (sunRadius + 2));
+        ctx.lineTo(Math.cos(a) * (sunRadius + 12 + f.irradiance * 0.012), Math.sin(a) * (sunRadius + 12 + f.irradiance * 0.012));
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = f.irradiance > 80 ? '#facc15' : '#fdba74';
+    ctx.shadowColor = `rgba(250, 204, 21, ${0.55 * f.seeing})`;
+    ctx.shadowBlur = 28 * f.seeing * Math.min(1, f.irradiance / 800);
+    ctx.beginPath();
+    ctx.arc(sun.x, sun.y, sunRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    return sun;
+}
+
+function drawFieldArrows() {
+    if (!els.showField.checked) return;
+    const jy = cellY + nHeight + junctionHeight / 2;
+    ctx.strokeStyle = 'rgba(124, 58, 237, 0.55)';
+    ctx.fillStyle = 'rgba(124, 58, 237, 0.55)';
+    ctx.lineWidth = 1.5;
+    for (let x = cellX + 20; x < cellX + cellWidth - 20; x += 38) {
+        ctx.beginPath();
+        ctx.moveTo(x, jy - 14);
+        ctx.lineTo(x, jy + 14);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, jy + 14);
+        ctx.lineTo(x - 4, jy + 6);
+        ctx.lineTo(x + 4, jy + 6);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+function draw() {
+    drawSky();
+    const sun = drawSun();
+    drawClouds();
+    drawBeams(sun);
+
+    ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#1e40af';
+    ctx.fillText(t('canvasN'), cellX - 15, cellY + nHeight / 2 + 5);
+    ctx.fillStyle = '#854d0e';
+    ctx.fillText(t('canvasJunction'), cellX - 15, cellY + nHeight + junctionHeight / 2 + 5);
+    ctx.fillStyle = '#991b1b';
+    ctx.fillText(t('canvasP'), cellX - 15, cellY + nHeight + junctionHeight + pHeight / 2 + 5);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#dbeafe';
+    ctx.fillRect(cellX, cellY, cellWidth, nHeight);
+    ctx.strokeStyle = '#1e40af';
+    ctx.strokeRect(cellX, cellY, cellWidth, nHeight);
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(cellX, cellY + nHeight, cellWidth, junctionHeight);
+    ctx.strokeStyle = '#854d0e';
+    ctx.strokeRect(cellX, cellY + nHeight, cellWidth, junctionHeight);
+    ctx.fillStyle = '#fee2e2';
+    ctx.fillRect(cellX, cellY + nHeight + junctionHeight, cellWidth, pHeight);
+    ctx.strokeStyle = '#991b1b';
+    ctx.strokeRect(cellX, cellY + nHeight + junctionHeight, cellWidth, pHeight);
+
+    drawFieldArrows();
+
+    const loadX = 720, loadY = 250;
+    const topContactX = cellX + cellWidth / 2;
+    const contactOffset = loadType === 'motor' ? 35 : 30;
+
+    ctx.beginPath();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#475569';
+    ctx.moveTo(topContactX, cellY);
+    ctx.lineTo(topContactX, cellY - 40);
+    ctx.lineTo(loadX, cellY - 40);
+    ctx.lineTo(loadX, loadY - contactOffset);
+    ctx.moveTo(topContactX, cellY + cellHeight);
+    ctx.lineTo(topContactX, cellY + cellHeight + 40);
+    ctx.lineTo(loadX, cellY + cellHeight + 40);
+    ctx.lineTo(loadX, loadY + contactOffset);
+    ctx.stroke();
+
+    drawLoad(loadX, loadY);
+
+    photons.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+    });
+
+    bouncePhotons.forEach(b => {
+        ctx.globalAlpha = b.life;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = b.color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    effects.forEach(eff => {
+        ctx.save();
+        ctx.globalAlpha = eff.life;
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI * 2);
+        ctx.fillStyle = eff.color;
+        ctx.fill();
+        ctx.restore();
+    });
+
+    particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = p.type === 'e' ? '#3b82f6' : '#ef4444';
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 9px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.type === 'e' ? '−' : '+', p.x, p.y + 3);
+    });
+
+    circuitParticles.forEach(cp => {
+        let px, py;
+        const path1 = 40, path2 = loadX - topContactX;
+        const path3 = (loadY - contactOffset) - (cellY - 40);
+        const path4 = contactOffset * 2;
+        const path5 = (cellY + cellHeight + 40) - (loadY + contactOffset);
+        const path6 = loadX - topContactX;
+        const path7 = 40;
+        const total = path1 + path2 + path3 + path4 + path5 + path6 + path7;
+        let prog = cp.pos * total;
+
+        if (prog < path1) { px = topContactX; py = cellY - prog; }
+        else if (prog < path1 + path2) { px = topContactX + (prog - path1); py = cellY - 40; }
+        else if (prog < path1 + path2 + path3) { px = loadX; py = (cellY - 40) + (prog - path1 - path2); }
+        else if (prog < path1 + path2 + path3 + path4) { px = loadX; py = (loadY - contactOffset) + (prog - path1 - path2 - path3); }
+        else if (prog < path1 + path2 + path3 + path4 + path5) { px = loadX; py = (loadY + contactOffset) + (prog - path1 - path2 - path3 - path4); }
+        else if (prog < path1 + path2 + path3 + path4 + path5 + path6) { px = loadX - (prog - path1 - path2 - path3 - path4 - path5); py = cellY + cellHeight + 40; }
+        else { px = topContactX; py = (cellY + cellHeight + 40) - (prog - path1 - path2 - path3 - path4 - path5 - path6); }
+
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#3b82f6';
+        ctx.fill();
+    });
+
+    if (currentFlow > 0) {
+        ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'center';
+        if (flowMode === 'electron') {
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillText(t('canvasElectronFlow'), loadX - 120, cellY - 55);
+        } else {
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText(t('canvasConventional'), loadX - 120, cellY + cellHeight + 65);
         }
+    }
 
-        function drawLightBeams(w, h, sunX, sunY, panelX, panelY, panelW) {
-            // Seeing affects beam sharpness/intensity
-            const intensity = (simState.effectiveIrradiance / 1000) * simState.seeing;
-            if (intensity <= 0.02) return;
+    drawMiniChart(chartCtx.power, powerHistory, '#f97316');
+    drawMiniChart(chartCtx.current, currentHistory, '#10b981');
+}
 
-            const panelCenterX = panelX + panelW/2;
-            
-            ctx.save();
-            const gradient = ctx.createLinearGradient(sunX, sunY, panelCenterX, panelY);
-            gradient.addColorStop(0, `rgba(255, 255, 150, ${0.3 * intensity})`);
-            gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
-            
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.moveTo(sunX - 20, sunY); 
-            ctx.lineTo(sunX + 20, sunY); 
-            ctx.lineTo(panelX + panelW, panelY);   
-            ctx.lineTo(panelX, panelY);           
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
+function drawLoad(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    const drawLabel = (text) => {
+        ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'right';
+        const tw = ctx.measureText(text).width;
+        const pad = 6;
+        const rx = -45 - tw - pad;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillRect(rx, -10, tw + pad * 2, 20);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillText(text, -45, 5);
+    };
 
-        function drawPNJunctionDiagram(x, y, w, h) {
-            const nHeight = h * 0.35;
-            const depHeight = h * 0.15;
-            const pHeight = h * 0.5;
-            
-            ctx.save();
-            ctx.translate(x, y);
-            
-            // Frame
-            ctx.strokeStyle = "#475569";
-            ctx.lineWidth = 3;
-            ctx.strokeRect(0, 0, w, h);
-
-            // Localization
-            const isZh = currentLang === 'zh-Hant';
-            const textN = isZh ? "N-型 (e⁻)" : "N-Type (e⁻)";
-            const textP = isZh ? "P-型 (h⁺)" : "P-Type (h⁺)";
-            const textE = isZh ? "電場 ↓" : "E-Field ↓";
-
-            // N-Type
-            ctx.fillStyle = "#bbf7d0"; ctx.fillRect(0, 0, w, nHeight);
-            ctx.fillStyle = "#14532d"; ctx.font = "bold 14px sans-serif";
-            ctx.textAlign = "left"; ctx.textBaseline = "middle";
-            ctx.fillText(textN, 10, nHeight/2);
-            drawStaticCharges(w, nHeight, 0, 0, '-', "#166534");
-
-            // Depletion
-            const depY = nHeight;
-            const depGrad = ctx.createLinearGradient(0, depY, 0, depY + depHeight);
-            depGrad.addColorStop(0, "#dcfce7"); depGrad.addColorStop(1, "#fee2e2"); 
-            ctx.fillStyle = depGrad; ctx.fillRect(0, depY, w, depHeight);
-            ctx.fillStyle = "#64748b"; ctx.font = "italic 12px serif";
-            ctx.textAlign = "center"; ctx.fillText(textE, w/2, depY + depHeight/2);
-            drawEFieldArrows(w, depY, depHeight);
-
-            // P-Type
-            const pY = nHeight + depHeight;
-            ctx.fillStyle = "#fecaca"; ctx.fillRect(0, pY, w, pHeight);
-            ctx.fillStyle = "#7f1d1d"; ctx.font = "bold 14px sans-serif";
-            ctx.textAlign = "left"; ctx.textBaseline = "middle";
-            ctx.fillText(textP, 10, pY + pHeight/2);
-            drawStaticCharges(w, pHeight, 0, pY, '+', "#991b1b");
-
-            // Animated Electrons
-            drawAnimatedElectrons(w, h);
-            ctx.restore();
-        }
-
-        function drawStaticCharges(w, h, offsetX, offsetY, symbol, color) {
-            ctx.fillStyle = color; ctx.font = "12px monospace"; ctx.textAlign = "center";
-            ctx.globalAlpha = 0.3;
-            const rows = 2; const cols = 8;
-            for(let r=0; r<rows; r++) {
-                for(let c=0; c<cols; c++) {
-                    const cx = (w/(cols+1)) * (c+1);
-                    const cy = (h/(rows+1)) * (r+1);
-                    ctx.fillText(symbol, offsetX + cx, offsetY + cy);
-                }
-            }
-            ctx.globalAlpha = 1.0;
-        }
-
-        function drawEFieldArrows(w, y, h) {
-            ctx.strokeStyle = "#94a3b8"; ctx.fillStyle = "#94a3b8"; ctx.lineWidth = 1;
-            const arrowCount = 4;
-            for(let i=0; i<arrowCount; i++) {
-                const ax = (w/(arrowCount+1)) * (i+1);
-                ctx.beginPath(); ctx.moveTo(ax, y + 2); ctx.lineTo(ax, y + h - 2); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(ax, y + h - 2); ctx.lineTo(ax - 3, y + h - 6); ctx.lineTo(ax + 3, y + h - 6); ctx.fill();
-            }
-        }
-
-        function drawRectangularCircuit(px, py, pw, ph, cw) {
-            const circuitRightX = Math.min(px + pw + 120, cw - 20); 
-            const loadY = py + ph / 2; 
-            const nConnY = py + (ph * 0.17); // N-side (Top)
-            const pConnY = py + ph - (ph * 0.25); // P-side (Bottom)
-
-            // Draw Wire
-            ctx.beginPath();
-            ctx.strokeStyle = "#334155"; ctx.lineWidth = 4; ctx.lineJoin = "round";
-            ctx.moveTo(px + pw, nConnY);
-            ctx.lineTo(circuitRightX, nConnY);
-            ctx.lineTo(circuitRightX, loadY - 25);
-            ctx.moveTo(circuitRightX, loadY + 25);
-            ctx.lineTo(circuitRightX, pConnY);
-            ctx.lineTo(px + pw, pConnY);
-            ctx.stroke();
-
-            // Connections
-            ctx.fillStyle = "#334155";
-            ctx.beginPath(); ctx.arc(px + pw, nConnY, 4, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(px + pw, pConnY, 4, 0, Math.PI*2); ctx.fill();
-
-            drawLoadComponent(circuitRightX, loadY);
-            drawCircuitElectrons(px + pw, nConnY, circuitRightX, pConnY);
-            
-            // --- NEW: Draw Flow Arrows (Current I vs Electron e-) ---
-            if (simState.current > 0.05) {
-                drawFlowArrows(px + pw, nConnY, circuitRightX, pConnY);
-            }
-        }
-        
-        function drawFlowArrows(startX, topY, rightX, bottomY) {
-            const midX = (startX + rightX) / 2;
-            
-            // Determine labels based on language
-            const isZh = currentLang === 'zh-Hant';
-            const labelI = isZh ? "電流" : "Current";
-            const labelE = isZh ? "電子" : "Electron Flow";
-
-            // 1. Top Wire (N-side)
-            // Electron (e-) flows OUT of N (Left to Right)
-            drawArrow(midX - 20, topY - 15, midX + 20, topY - 15, "#3b82f6", labelE); // changed to blue
-            // Current (I) flows INTO N (Right to Left)
-            drawArrow(midX + 20, topY + 15, midX - 20, topY + 15, "#ef4444", labelI);
-
-            // 2. Bottom Wire (P-side)
-            // Electron (e-) flows INTO P (Right to Left)
-            drawArrow(midX + 20, bottomY + 15, midX - 20, bottomY + 15, "#3b82f6", labelE); // changed to blue
-            // Current (I) flows OUT of P (Left to Right)
-            drawArrow(midX - 20, bottomY - 15, midX + 20, bottomY - 15, "#ef4444", labelI);
-        }
-
-        function drawArrow(x1, y1, x2, y2, color, label) {
-            ctx.save();
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
+    if (loadType === 'motor') {
+        ctx.beginPath();
+        ctx.arc(0, 0, 35, 0, Math.PI * 2);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
+        ctx.stroke();
+        drawLabel(t('loadMotorLabel'));
+        ctx.rotate(motorAngle);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(-4, -30, 8, 60);
+        ctx.fillRect(-30, -4, 60, 8);
+        ctx.rotate(-motorAngle);
+    } else {
+        ctx.beginPath();
+        ctx.moveTo(-15, -15);
+        ctx.lineTo(15, -30);
+        ctx.lineTo(15, 30);
+        ctx.lineTo(-15, 15);
+        ctx.closePath();
+        ctx.fillStyle = '#475569';
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.stroke();
+        drawLabel(t('loadSpeakerLabel'));
+        if (currentFlow > 0) {
+            ctx.strokeStyle = '#475569';
             ctx.lineWidth = 2;
-            
-            // Draw Line
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-            
-            // Draw Arrow Head
-            const headLen = 8;
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            ctx.beginPath();
-            ctx.moveTo(x2, y2);
-            ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
-            ctx.fill();
-            
-            // Draw Label centered relative to arrow
-            ctx.font = "bold 12px sans-serif"; // Slightly smaller font to fit longer text
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            // Draw text at the start/center of arrow shaft
-            ctx.fillText(label, x1 + (x2-x1)*0.5, y1 - 5); 
-            
-            ctx.restore();
-        }
-
-        function drawLoadComponent(x, y) {
-            const brightness = Math.min(simState.power / 300, 1);
-            ctx.save(); ctx.translate(x, y);
-            
-            // Heat Effect (Red glow if temp is high?)
-            const tempGlow = Math.max(0, (simState.temperature - 50)/50);
-            
-            ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2);
-            
-            // Lamp Color
-            const r = 100 + (155 * brightness) + (tempGlow*50);
-            const g = 116 + (139 * brightness) - (tempGlow*50);
-            const b = 139 - (139 * brightness) - (tempGlow*50);
-            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-            
-            if (brightness > 0.1) {
-                ctx.shadowColor = "rgba(255, 255, 0, 0.9)"; ctx.shadowBlur = brightness * 40;
-            }
-            ctx.fill();
-            ctx.strokeStyle = "#475569"; ctx.lineWidth = 2; ctx.stroke();
-            
-            // Filament
-            ctx.beginPath(); ctx.moveTo(-10, 10); ctx.lineTo(-5, -5); ctx.lineTo(0, 5); ctx.lineTo(5, -5); ctx.lineTo(10, 10);
-            ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 1.5; ctx.stroke();
-
-            ctx.fillStyle = "#475569"; ctx.font = "12px sans-serif"; ctx.textAlign = "left";
-            const isZh = currentLang === 'zh-Hant';
-            ctx.fillText(isZh ? "負載" : "Load", 25, 5);
-            ctx.restore();
-        }
-
-        let circuitElectrons = [];
-        function drawCircuitElectrons(startX, startY, endX, endY) {
-            const current = simState.current;
-            if (current < 0.1) { circuitElectrons = []; return; }
-
-            if (Math.random() < current * 0.05) {
-                circuitElectrons.push({ progress: 0, speed: 0.01 + (current * 0.002) });
-            }
-
-            ctx.fillStyle = "#3b82f6"; // changed to blue
-            for (let i = circuitElectrons.length - 1; i >= 0; i--) {
-                let e = circuitElectrons[i];
-                e.progress += e.speed;
-                let ex, ey;
-                if (e.progress < 0.33) {
-                    const p = e.progress / 0.33; ex = startX + (endX - startX) * p; ey = startY;
-                } else if (e.progress < 0.66) {
-                    const p = (e.progress - 0.33) / 0.33; ex = endX; ey = startY + (endY - startY) * p;
-                } else if (e.progress < 1.0) {
-                     const p = (e.progress - 0.66) / 0.34; ex = endX - (endX - startX) * p; ey = endY;
-                } else {
-                    circuitElectrons.splice(i, 1); continue;
+            for (let i = 1; i <= 3; i++) {
+                const offset = (Date.now() * 0.05 + i * 20) % 40;
+                const radius = 10 + offset * (currentFlow / 5);
+                if (radius > 5 && radius < 60) {
+                    ctx.beginPath();
+                    ctx.arc(15, 0, radius, -Math.PI / 4, Math.PI / 4);
+                    ctx.globalAlpha = 1 - radius / 60;
+                    ctx.stroke();
                 }
-                ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI*2); ctx.fill();
             }
+            ctx.globalAlpha = 1;
         }
+    }
+    ctx.restore();
+}
 
-        function drawAnimatedElectrons(containerW, containerH) {
-            const spawnChance = simState.current * 0.08; 
-            if (Math.random() < spawnChance) {
-                electrons.push({
-                    x: Math.random() * (containerW - 40) + 20,
-                    y: containerH - 10,
-                    speed: 1 + Math.random() * 2 + (simState.current * 0.15)
-                });
-            }
-            ctx.fillStyle = "#3b82f6"; ctx.shadowColor = "#60a5fa"; ctx.shadowBlur = 4; // changed to blue
-            for (let i = electrons.length - 1; i >= 0; i--) {
-                const e = electrons[i]; e.y -= e.speed;
-                ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI*2); ctx.fill();
-                if (e.y < 0) electrons.splice(i, 1);
-            }
-            ctx.shadowBlur = 0;
-        }
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 
-        // ==========================================
-        // 4. 物理計算核心
-        // ==========================================
-        function updateSimulationState() {
-            // 1. Get Inputs
-            simState.timeValue = parseFloat(sliderTime.value);
-            simState.cloudPercentage = parseInt(sliderCloud.value);
-            simState.seeing = parseFloat(sliderSeeing.value);
-            simState.temperature = parseInt(sliderTemp.value);
-            simState.efficiency = parseInt(sliderEff.value) / 100;
+function toggleLang() { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); }
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
 
-            // 2. Update Text Labels
-            // Time String
-            const h = Math.floor(simState.timeValue);
-            const m = Math.floor((simState.timeValue - h) * 60);
-            valTime.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-            valCloud.innerText = simState.cloudPercentage;
-            valSeeing.innerText = simState.seeing.toFixed(2);
-            valTemp.innerText = simState.temperature;
-            valEff.innerText = (simState.efficiency * 100).toFixed(0);
+els['btn-principle'].addEventListener('click', () => {
+    openModal(els['modal-principle']);
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+});
+els['modal-close'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-confirm'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-principle'].addEventListener('click', ev => { if (ev.target === els['modal-principle']) closeModal(els['modal-principle']); });
 
-            // 3. Solar Calculation
-            // Angle Factor (Sin wave from 6am to 7pm)
-            const timeMid = 12.5;
-            const timeRangeHalf = 6.5; 
-            const dist = Math.abs(simState.timeValue - timeMid);
-            let angleFactor = Math.cos((dist / timeRangeHalf) * (Math.PI / 2)); 
-            if (angleFactor < 0) angleFactor = 0;
+els['btn-steps'].addEventListener('click', () => openModal(els['modal-steps']));
+els['steps-close'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['steps-confirm'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['modal-steps'].addEventListener('click', ev => { if (ev.target === els['modal-steps']) closeModal(els['modal-steps']); });
 
-            const cloudTrans = 1 - (simState.cloudPercentage * 0.9 / 100); 
-            
-            // EFFECTIVE IRRADIANCE = Space Constant * Angle * Cloud * Atmosphere(Seeing)
-            // Seeing 1.0 means perfect vacuum (1366). Seeing 0.8 is typical clear day (~1100).
-            simState.effectiveIrradiance = SOLAR_CONSTANT_SPACE * angleFactor * cloudTrans * simState.seeing;
-            
-            // 4. Electrical Calculation
-            // Temperature Effect on Voltage
-            // V = V_base * (1 + coeff * (T - 25))
-            const tempDiff = simState.temperature - 25;
-            const voltageFactor = 1 + (TEMP_COEFF_V * tempDiff);
-            simState.voltage = SYSTEM_VOLTAGE_BASE * voltageFactor;
-            
-            // Low Light Voltage Drop
-            if (simState.effectiveIrradiance < 50) {
-                 simState.voltage *= (simState.effectiveIrradiance / 50);
-            }
-            if (simState.voltage < 0) simState.voltage = 0;
+document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape') return;
+    [els['modal-principle'], els['modal-steps']].forEach(m => {
+        if (!m.classList.contains('opacity-0')) closeModal(m);
+    });
+});
 
-            // Output Power = Irradiance * Area * Efficiency * TempFactor(Implicit in V/I relation or explicit?)
-            // Usually Efficiency is quoted at 25C.
-            // P_out = P_in * Efficiency_at_25 * VoltageDe-rating
-            // Let's simplify: P_out = (S * A) * (Eff * VoltageFactor)
-            const powerInput = simState.effectiveIrradiance * PANEL_AREA;
-            const powerOutput = powerInput * simState.efficiency * voltageFactor;
-
-            simState.power = powerOutput > 0 ? powerOutput : 0;
-            simState.current = (simState.voltage > 0.1) ? (simState.power / simState.voltage) : 0;
-
-            // 5. Update Displays
-            dispIrradiance.innerText = simState.effectiveIrradiance.toFixed(0);
-            dispVoltage.innerText = simState.voltage.toFixed(1);
-            dispCurrent.innerText = simState.current.toFixed(2);
-            dispPower.innerText = simState.power.toFixed(0);
-        }
-
-        // Energy Integration Loop
-        function energyLoop() {
-            const now = Date.now();
-            const dt = (now - simState.lastTime) / 1000;
-            simState.lastTime = now;
-            simState.totalEnergy += simState.power * dt;
-            dispEnergy.innerText = (simState.totalEnergy / 1000).toFixed(2);
-            setTimeout(energyLoop, 100);
-        }
-
-        function resetEnergy() {
-            simState.totalEnergy = 0;
-            dispEnergy.innerText = "0.00";
-        }
-
-        // Init
-        [sliderTime, sliderCloud, sliderSeeing, sliderTemp, sliderEff].forEach(el => {
-            el.addEventListener('input', updateSimulationState);
-        });
-        
-        // Initial setup
-        document.getElementById('modal-content').innerHTML = translations[currentLang].modalContent;
-        updateSimulationState(); 
-        requestAnimationFrame(draw); 
-        energyLoop(); 
-
-    </script>
+applyPreset('sunny');
+applyLang();
+setLoadButtons();
+setFlowButtons();
+loop();
+</script>
 </body>
 </html>

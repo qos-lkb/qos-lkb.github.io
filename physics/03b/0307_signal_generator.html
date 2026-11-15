@@ -1,982 +1,760 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>物理教室：雙訊號拍頻演示</title>
+    <title>訊號產生器 | Signal Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
     <style>
-        body { font-family: 'Noto Sans TC', sans-serif; touch-action: manipulation; }
-        
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        canvas { display: block; }
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%;
-            background: #4F46E5; cursor: pointer; margin-top: -10px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: transform 0.1s;
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #4f46e5; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
         }
-        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; cursor: pointer; background: #E5E7EB; border-radius: 4px;
-        }
-        input[type=range]:focus { outline: none; }
-
-        .oscilloscope-bg { background: radial-gradient(circle, rgba(30,27,75,1) 0%, rgba(17,24,39,1) 100%); }
-        
-        .modal { transition: opacity 0.3s ease-in-out; opacity: 0; pointer-events: none; }
-        .modal.active { opacity: 1; pointer-events: auto; }
-
-        .note-btn {
-            transition: all 0.2s; background-color: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
-        }
-        .note-btn:hover {
-            background-color: #e0e7ff; color: #4338ca; border-color: #c7d2fe; transform: translateY(-1px);
-        }
-        .note-btn:active { transform: scale(0.95) translateY(0); }
-
-        .wave-btn { border: 2px solid #E2E8F0; transition: all 0.2s ease; }
-        .wave-btn:hover { border-color: #6366F1; color: #4F46E5; background-color: #EEF2FF; }
-        .wave-btn.active {
-            background-color: #4F46E5; border-color: #4F46E5; color: white;
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
-        }
-
-        /* 針對兩個面板的樣式區隔 */
-        .panel-container { transition: all 0.3s ease; }
-        .panel-active { border-color: #818cf8; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        input[type=range].slider-b::-webkit-slider-thumb { background: #059669; }
+        .modal-backdrop { transition: opacity .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .preset-btn { width: 100%; text-align: left; padding: 8px 12px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
+        .preset-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
+        .preset-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+        .wave-btn { border: 2px solid #e2e8f0; transition: all .15s; font-size: 11px; font-weight: 700; }
+        .wave-btn:hover { border-color: #6366f1; color: #4f46e5; background: #eef2ff; }
+        .wave-btn.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+        .wave-btn.active-b { background: #059669; border-color: #059669; color: #fff; }
+        .note-btn { transition: all .15s; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; font-size: 11px; font-weight: 700; }
+        .note-btn:hover { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
+        .panel-active-a { border-color: #818cf8 !important; box-shadow: 0 8px 20px -6px rgba(79, 70, 229, .25); }
+        .panel-active-b { border-color: #34d399 !important; box-shadow: 0 8px 20px -6px rgba(5, 150, 105, .25); }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #4f46e5; }
+        .oscilloscope-bg { background: radial-gradient(circle at 50% 40%, #1e1b4b 0%, #0f172a 100%); }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #a5b4fc; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #a5b4fc !important; }
+        .freq-display { cursor: pointer; border-bottom: 2px solid transparent; }
+        .freq-display:hover { border-bottom-color: currentColor; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+<body class="h-full flex flex-col text-slate-800">
 
-    <!-- 頂部導航列 -->
-    <header class="bg-white shadow-md z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-wave-square text-indigo-600 text-2xl"></i>
-                    <h1 class="text-xl font-bold text-slate-800 tracking-wide" id="app-title">物理教室：雙訊號拍頻演示</h1>
-                </div>
-                <div class="flex items-center space-x-3">
-                    <!-- 原理按鈕 -->
-                    <button onclick="toggleModal()" class="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 font-medium hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition flex items-center gap-2 shadow-sm">
-                        <i class="fa-regular fa-lightbulb"></i> <span id="btn-theory">原理</span>
-                    </button>
-                    
-                    <!-- AI 助教按鈕 (已移至此) -->
-                    <button onclick="toggleAIModal()" class="px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-bold hover:shadow-lg hover:scale-105 transition flex items-center gap-2 shadow-md border border-white/20">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> <span id="btn-ai">AI 助教</span>
-                    </button>
-
-                    <!-- 分隔線 -->
-                    <div class="h-6 w-px bg-slate-300 mx-1"></div>
-                    
-                    <!-- 語言切換 (已移至此) -->
-                    <button onclick="toggleLanguage()" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition border border-slate-200">
-                        <span id="lang-display">中 / EN</span>
-                    </button>
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/25 text-lg">∿</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">訊號產生器</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">雙訊號源、拍頻與波形示波</p>
                 </div>
             </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl font-bold text-sm shadow-sm border border-indigo-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
 
-    <main class="flex-grow flex flex-col items-center p-4 w-full max-w-7xl mx-auto space-y-6">
-        
-        <!-- 共用示波器 -->
-        <div class="w-full bg-white rounded-3xl shadow-lg overflow-hidden border border-slate-200">
-            <div class="relative w-full h-48 oscilloscope-bg flex items-center justify-center">
-                <canvas id="oscilloscope" class="absolute inset-0 w-full h-full"></canvas>
-                <div class="relative z-10 text-center select-none pointer-events-none bg-black/30 backdrop-blur-sm px-4 py-1 rounded-full border border-white/10">
-                    <span class="text-indigo-200 text-sm font-medium tracking-wider" id="scope-label">疊加輸出 (Combined Output)</span>
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-4 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play-both" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="playBoth">同時播放</button>
+                    <button type="button" id="btn-stop-all" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-700 hover:bg-slate-800 text-white" data-i18n="stopAll">全部停止</button>
+                </div>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presetTitle">教學情境</p>
+                <div class="space-y-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="beat" data-i18n="preBeat">① 拍頻：440 Hz 與 442 Hz</button>
+                    <button type="button" class="preset-btn" data-preset="unison" data-i18n="preUnison">② 同度：440 Hz 與 440 Hz</button>
+                    <button type="button" class="preset-btn" data-preset="octave" data-i18n="preOctave">③ 八度：440 Hz 與 880 Hz</button>
+                    <button type="button" class="preset-btn" data-preset="fifth" data-i18n="preFifth">④ 完全五度：440 Hz 與 660 Hz</button>
+                    <button type="button" class="preset-btn" data-preset="waveform" data-i18n="preWave">⑤ 波形比較：正弦 vs 方波</button>
+                </div>
+                <label class="check-row mb-2"><input type="checkbox" id="chk-trace-a" checked><span data-i18n="showTraceA">示波器顯示 A（靛藍）</span></label>
+                <label class="check-row mb-2"><input type="checkbox" id="chk-trace-b" checked><span data-i18n="showTraceB">示波器顯示 B（翠綠）</span></label>
+                <label class="check-row"><input type="checkbox" id="chk-envelope" checked><span data-i18n="showEnvelope">顯示拍頻包絡線</span></label>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-indigo-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div id="hearing-badge" class="mb-2 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100">—</div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statBeat">拍頻 f<sub>beat</sub></span><b id="stat-beat" class="font-mono text-indigo-600">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statRatio">頻率比 f<sub>B</sub>/f<sub>A</sub></span><b id="stat-ratio" class="font-mono">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statPeriodA">A 週期 T<sub>A</sub></span><b id="stat-period-a" class="font-mono">—</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statPeriodB">B 週期 T<sub>B</sub></span><b id="stat-period-b" class="font-mono">—</b></div>
+                <div class="mt-3 mj-box text-[13px]" id="beat-formula">\(f_{\mathrm{beat}} = |f_1 - f_2|\)</div>
+            </div>
+            <button type="button" id="btn-reset" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-sm" data-i18n="btnReset">重置模擬</button>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-3 flex flex-col gap-4 min-h-0">
+            <div class="bg-white rounded-3xl shadow-lg overflow-hidden border border-slate-200">
+                <div class="relative w-full h-44 sm:h-52 oscilloscope-bg">
+                    <canvas id="oscilloscope" class="absolute inset-0 w-full h-full"></canvas>
+                    <div class="absolute top-2 left-3 flex gap-3 text-[10px] font-bold">
+                        <span class="text-indigo-300 flex items-center gap-1"><span class="w-3 h-0.5 bg-indigo-400 inline-block"></span> A</span>
+                        <span class="text-emerald-300 flex items-center gap-1"><span class="w-3 h-0.5 bg-emerald-400 inline-block"></span> B</span>
+                        <span class="text-amber-300 flex items-center gap-1"><span class="w-3 h-0.5 bg-amber-400 inline-block border-dashed"></span> <span data-i18n="legendSum">疊加</span></span>
+                    </div>
+                    <div class="absolute bottom-2 right-3 text-indigo-200/80 text-[10px] font-mono" id="scope-time">—</div>
                 </div>
             </div>
-        </div>
 
-        <!-- 雙控制面板容器 -->
-        <div class="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            <!-- 訊號源 A -->
-            <div id="panel-1" class="panel-container bg-white rounded-2xl shadow-md border-2 border-slate-100 p-6 flex flex-col h-full">
-                <div class="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-                    <h2 class="text-lg font-bold text-indigo-600 flex items-center gap-2">
-                        <span class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm">A</span>
-                        <span id="label-source-a">訊號源 A</span>
-                    </h2>
-                    <div class="flex items-end gap-2">
-                        <!-- 可編輯的頻率顯示區域 A -->
-                        <div class="relative h-10 flex items-center justify-end min-w-[120px]">
-                            <span id="freq-display-1" onclick="editFrequency(1)" class="text-3xl font-mono font-bold text-slate-700 tabular-nums cursor-pointer border-b-2 border-transparent hover:border-indigo-300 hover:text-indigo-600 transition-colors duration-200 px-1" title="點擊輸入數值">440</span>
-                            <input type="number" id="freq-input-1" class="hidden absolute right-0 w-32 text-3xl font-mono font-bold text-indigo-600 bg-white border-b-2 border-indigo-600 outline-none text-right p-0" onblur="confirmFrequency(1)" onkeydown="checkEnter(event, 1)">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 訊號源 A -->
+                <div id="panel-a" class="bg-white rounded-2xl shadow-md border-2 border-slate-100 p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                        <h2 class="text-base font-bold text-indigo-600 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-black">A</span>
+                            <span data-i18n="sourceA">訊號源 A</span>
+                        </h2>
+                        <div class="flex items-end gap-1">
+                            <span id="freq-display-a" class="freq-display text-2xl font-mono font-bold text-slate-700 tabular-nums text-indigo-600" title="">440</span>
+                            <input type="number" id="freq-input-a" class="hidden w-28 text-2xl font-mono font-bold text-indigo-600 bg-white border-b-2 border-indigo-600 outline-none text-right" min="20" max="20000" step="1">
+                            <span class="text-xs text-slate-400 mb-1">Hz</span>
                         </div>
-                        <span class="text-sm text-slate-400 font-sans mb-2">Hz</span>
                     </div>
+                    <div class="mb-4">
+                        <input type="range" id="freq-slider-a" min="0" max="1000" step="1" value="0">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-1"><span>20</span><span>440</span><span>20k</span></div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex justify-between text-[11px] font-bold text-slate-500 mb-1"><span data-i18n="labelVol">音量</span><span id="vol-disp-a" class="text-indigo-600">50%</span></div>
+                        <input type="range" id="vol-slider-a" min="0" max="100" value="50">
+                    </div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase mb-2" data-i18n="waveLabel">波形</p>
+                    <div class="grid grid-cols-3 gap-1.5 mb-4" id="wave-btns-a"></div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase mb-2" data-i18n="noteLabel">音階</p>
+                    <div class="space-y-1.5 max-h-32 overflow-y-auto mb-4" id="notes-a"></div>
+                    <button type="button" id="play-btn-a" class="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-indigo-600 hover:text-white transition text-sm" data-i18n="playA">播放 A</button>
                 </div>
 
-                <!-- 頻率滑桿 A -->
-                <div class="mb-6">
-                    <div class="relative flex items-center">
-                        <input type="range" id="freq-slider-1" min="20" max="20000" value="440" step="1" class="z-10" oninput="updateFreq(1, this.value)">
-                    </div>
-                    <div class="flex justify-between text-xs text-slate-400 font-mono mt-2">
-                        <span>20 Hz</span>
-                        <span>20,000 Hz</span>
-                    </div>
-                </div>
-
-                <!-- 波形 A -->
-                <div class="mb-6">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block" id="label-wave-a">波形</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="changeWaveform(1, 'sine')" id="btn-sine-1" class="wave-btn active rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-wave-square"></i> Sine</button>
-                        <button onclick="changeWaveform(1, 'square')" id="btn-square-1" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-square"></i> Square</button>
-                        <button onclick="changeWaveform(1, 'triangle')" id="btn-triangle-1" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-play fa-rotate-270"></i> Triangle</button>
-                        <button onclick="changeWaveform(1, 'violin')" id="btn-violin-1" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-music"></i> Strings</button>
-                        <button onclick="changeWaveform(1, 'clarinet')" id="btn-clarinet-1" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-wind"></i> Wood</button>
-                        <button onclick="changeWaveform(1, 'trumpet')" id="btn-trumpet-1" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-bullhorn"></i> Brass</button>
-                    </div>
-                </div>
-
-                <!-- 音階 A -->
-                <div class="mb-6 flex-grow">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block" id="label-note-a">音階</label>
-                    <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        <div class="flex flex-wrap justify-center gap-1" id="octave-3-container-1"></div>
-                        <div class="flex flex-wrap justify-center gap-1" id="octave-4-container-1"></div>
-                        <div class="flex flex-wrap justify-center gap-1" id="octave-5-container-1"></div>
-                    </div>
-                </div>
-
-                <!-- 播放 A -->
-                <button onclick="toggleSound(1)" id="play-btn-1" class="w-full py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-indigo-600 hover:text-white transition flex items-center justify-center gap-2 group">
-                    <i class="fa-solid fa-play" id="play-icon-1"></i> <span id="btn-txt-1">播放 A</span>
-                </button>
-            </div>
-
-            <!-- 訊號源 B -->
-            <div id="panel-2" class="panel-container bg-white rounded-2xl shadow-md border-2 border-slate-100 p-6 flex flex-col h-full">
-                <div class="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-                    <h2 class="text-lg font-bold text-emerald-600 flex items-center gap-2">
-                        <span class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm">B</span>
-                        <span id="label-source-b">訊號源 B</span>
-                    </h2>
-                    <div class="flex items-end gap-2">
-                        <!-- 可編輯的頻率顯示區域 B -->
-                        <div class="relative h-10 flex items-center justify-end min-w-[120px]">
-                            <span id="freq-display-2" onclick="editFrequency(2)" class="text-3xl font-mono font-bold text-slate-700 tabular-nums cursor-pointer border-b-2 border-transparent hover:border-emerald-300 hover:text-emerald-600 transition-colors duration-200 px-1" title="點擊輸入數值">440</span>
-                            <input type="number" id="freq-input-2" class="hidden absolute right-0 w-32 text-3xl font-mono font-bold text-emerald-600 bg-white border-b-2 border-emerald-600 outline-none text-right p-0" onblur="confirmFrequency(2)" onkeydown="checkEnter(event, 2)">
+                <!-- 訊號源 B -->
+                <div id="panel-b" class="bg-white rounded-2xl shadow-md border-2 border-slate-100 p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                        <h2 class="text-base font-bold text-emerald-600 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-black">B</span>
+                            <span data-i18n="sourceB">訊號源 B</span>
+                        </h2>
+                        <div class="flex items-end gap-1">
+                            <span id="freq-display-b" class="freq-display text-2xl font-mono font-bold text-slate-700 tabular-nums text-emerald-600" title="">442</span>
+                            <input type="number" id="freq-input-b" class="hidden w-28 text-2xl font-mono font-bold text-emerald-600 bg-white border-b-2 border-emerald-600 outline-none text-right" min="20" max="20000" step="1">
+                            <span class="text-xs text-slate-400 mb-1">Hz</span>
                         </div>
-                        <span class="text-sm text-slate-400 font-sans mb-2">Hz</span>
                     </div>
+                    <div class="mb-4">
+                        <input type="range" id="freq-slider-b" min="0" max="1000" step="1" value="0" class="slider-b">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-1"><span>20</span><span>440</span><span>20k</span></div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex justify-between text-[11px] font-bold text-slate-500 mb-1"><span data-i18n="labelVol">音量</span><span id="vol-disp-b" class="text-emerald-600">50%</span></div>
+                        <input type="range" id="vol-slider-b" min="0" max="100" value="50">
+                    </div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase mb-2" data-i18n="waveLabel">波形</p>
+                    <div class="grid grid-cols-3 gap-1.5 mb-4" id="wave-btns-b"></div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase mb-2" data-i18n="noteLabel">音階</p>
+                    <div class="space-y-1.5 max-h-32 overflow-y-auto mb-4" id="notes-b"></div>
+                    <button type="button" id="play-btn-b" class="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-emerald-600 hover:text-white transition text-sm" data-i18n="playB">播放 B</button>
                 </div>
-
-                <!-- 頻率滑桿 B -->
-                <div class="mb-6">
-                    <div class="relative flex items-center">
-                        <input type="range" id="freq-slider-2" min="20" max="20000" value="440" step="1" class="z-10" oninput="updateFreq(2, this.value)">
-                    </div>
-                    <div class="flex justify-between text-xs text-slate-400 font-mono mt-2">
-                        <span>20 Hz</span>
-                        <span>20,000 Hz</span>
-                    </div>
-                </div>
-
-                <!-- 波形 B -->
-                <div class="mb-6">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block" id="label-wave-b">波形</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="changeWaveform(2, 'sine')" id="btn-sine-2" class="wave-btn active rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-wave-square"></i> Sine</button>
-                        <button onclick="changeWaveform(2, 'square')" id="btn-square-2" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-square"></i> Square</button>
-                        <button onclick="changeWaveform(2, 'triangle')" id="btn-triangle-2" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-play fa-rotate-270"></i> Triangle</button>
-                        <button onclick="changeWaveform(2, 'violin')" id="btn-violin-2" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-music"></i> Strings</button>
-                        <button onclick="changeWaveform(2, 'clarinet')" id="btn-clarinet-2" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-wind"></i> Wood</button>
-                        <button onclick="changeWaveform(2, 'trumpet')" id="btn-trumpet-2" class="wave-btn rounded p-2 text-xs flex flex-col items-center gap-1"><i class="fa-solid fa-bullhorn"></i> Brass</button>
-                    </div>
-                </div>
-
-                <!-- 音階 B -->
-                <div class="mb-6 flex-grow">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block" id="label-note-b">音階</label>
-                    <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        <div class="flex flex-wrap justify-center gap-1" id="octave-3-container-2"></div>
-                        <div class="flex flex-wrap justify-center gap-1" id="octave-4-container-2"></div>
-                        <div class="flex flex-wrap justify-center gap-1" id="octave-5-container-2"></div>
-                    </div>
-                </div>
-
-                <!-- 播放 B -->
-                <button onclick="toggleSound(2)" id="play-btn-2" class="w-full py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-emerald-600 hover:text-white transition flex items-center justify-center gap-2 group">
-                    <i class="fa-solid fa-play" id="play-icon-2"></i> <span id="btn-txt-2">播放 B</span>
-                </button>
             </div>
-        </div>
-        
+        </section>
     </main>
 
-    <footer class="py-6 text-center text-slate-400 text-sm">
-        <p>&copy; 2025 Physics Lab Demo. Designed for Education.</p>
-    </footer>
-
-    <!-- 原理說明 Modal -->
-    <div id="theory-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto transform transition-all scale-100">
-            <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                <h2 class="text-2xl font-bold text-slate-800" id="modal-title">聲音物理原理說明</h2>
-                <button onclick="toggleModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition"><i class="fa-solid fa-times text-xl"></i></button>
+    <!-- 原理解說 -->
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">訊號產生器原理</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="modalSub">Signal generator &amp; beat frequency</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15">✕</button>
             </div>
-            <div class="p-6 text-slate-600" id="modal-content">
-                <!-- Content injected by JS -->
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m1t">1. 訊號產生器</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m1d">訊號產生器能輸出精確頻率與波形的電訊號，驅動揚聲器後轉為聲波。調整頻率改變<strong>音調</strong>，調整波形改變<strong>音色</strong>。</p>
+                </div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m2t">2. 人耳聽頻範圍</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m2d">一般可聽約 <strong>20 Hz–20 kHz</strong>。低於 20 Hz 為次聲波，高於 20 kHz 為超聲波；隨年齡增長，對高頻敏感度下降。</p>
+                </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-2" data-i18n="m3t">3. 拍頻（Beat Frequency）</h3>
+                    <p class="text-xs leading-relaxed mb-3" data-i18n="m3d">兩個頻率接近的波疊加時，會週期性相長／相消干涉，聽到音量忽大忽小，稱為「拍」。</p>
+                    <div class="mj-box">\(f_{\mathrm{beat}} = |f_1 - f_2|\)</div>
+                    <p class="text-xs text-slate-500 mt-2" data-i18n="m3ex">例：440 Hz 與 442 Hz → 每秒 2 次音量起伏（2 Hz）。</p>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m4t">4. 生活例子</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m4d">調音器聽拍頻對準同度；超聲波清洗（&gt;20 kHz）；次聲波監測地震與火山活動。</p>
+                </div>
             </div>
-            <div class="p-4 border-t border-slate-100 text-right bg-slate-50 rounded-b-2xl">
-                <button onclick="toggleModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-medium" id="btn-close">關閉</button>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <!-- AI 助教 Modal -->
-    <div id="ai-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col transform transition-all scale-100 border border-violet-100">
-            <!-- Header -->
-            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-violet-50 to-fuchsia-50">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-white shadow-lg">
-                        <i class="fa-solid fa-robot text-lg"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-800">AI 物理助教</h2>
-                        <p class="text-xs text-slate-500">Powered by Google Gemini</p>
-                    </div>
-                </div>
-                <button onclick="toggleAIModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white transition">
-                    <i class="fa-solid fa-times text-xl"></i>
-                </button>
+    <!-- 觀察步驟 -->
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15">✕</button>
             </div>
-
-            <!-- Content Area -->
-            <div class="flex-grow overflow-y-auto p-6 bg-slate-50/50" id="ai-content-area">
-                
-                <!-- 歡迎畫面 -->
-                <div id="ai-welcome" class="text-center py-8 space-y-6">
-                    <p class="text-slate-600 text-lg">嗨！我是你的 AI 實驗夥伴。我可以幫你分析目前的波形，或者為你設定一個有趣的物理實驗。</p>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
-                        <button onclick="analyzeCurrentState()" class="group p-4 bg-white rounded-xl border-2 border-indigo-100 hover:border-indigo-500 hover:shadow-md transition text-left flex flex-col gap-2">
-                            <span class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition">
-                                <i class="fa-solid fa-magnifying-glass-waveform text-xl"></i>
-                            </span>
-                            <span class="font-bold text-slate-700">分析當前現象</span>
-                            <span class="text-xs text-slate-500">解釋目前的頻率組合會產生什麼物理效果（如拍頻、和聲）。</span>
-                        </button>
-
-                        <button onclick="suggestExperiment()" class="group p-4 bg-white rounded-xl border-2 border-fuchsia-100 hover:border-fuchsia-500 hover:shadow-md transition text-left flex flex-col gap-2">
-                            <span class="w-10 h-10 rounded-lg bg-fuchsia-100 text-fuchsia-600 flex items-center justify-center group-hover:scale-110 transition">
-                                <i class="fa-solid fa-flask text-xl"></i>
-                            </span>
-                            <span class="font-bold text-slate-700">智能實驗建議</span>
-                            <span class="text-xs text-slate-500">讓我為你自動設定一個有趣的聲學實驗！(自動調整滑桿)</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 載入中 -->
-                <div id="ai-loading" class="hidden flex flex-col items-center justify-center py-12 space-y-4">
-                    <div class="w-12 h-12 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin"></div>
-                    <p class="text-violet-600 font-medium animate-pulse">AI 正在思考中...</p>
-                </div>
-
-                <!-- 結果顯示 -->
-                <div id="ai-result" class="hidden space-y-4">
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 prose prose-slate max-w-none text-slate-700" id="ai-markdown-output">
-                        <!-- Markdown content goes here -->
-                    </div>
-                    <div class="flex justify-center pt-4">
-                        <button onclick="resetAIView()" class="px-6 py-2 bg-slate-200 text-slate-700 rounded-full hover:bg-slate-300 font-medium transition">
-                            <i class="fa-solid fa-arrow-left mr-2"></i> 返回選單
-                        </button>
-                    </div>
-                </div>
-
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-xs" data-i18n="s1">1. 選「拍頻」情境，按「同時播放」，注意音量週期性起伏。</div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-xs" data-i18n="s2">2. 微調 B 的頻率滑桿（對數刻度），觀察拍頻 f<sub>beat</sub> 如何隨 |f<sub>A</sub>−f<sub>B</sub>| 改變。</div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s3">3. 切換「八度」或「完全五度」，比較音程與波形疊加模樣。</div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-xs" data-i18n="s4">4. 選「波形比較」，同一頻率下聽正弦波與方波的音色差異，並觀察示波器。</div>
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs" data-i18n="s5">5. 將頻率調至 20 kHz 以上，對照「聽頻範圍」提示——多數人聽不到。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <script>
-        // --- 核心資料 ---
-        const apiKey = ""; // System will inject key
-        let audioCtx;
-        let generators = {
-            1: { active: false, osc: null, gain: null, freq: 440, type: 'sine' },
-            2: { active: false, osc: null, gain: null, freq: 440, type: 'sine' }
-        };
-        let currentLang = 'zh';
+<script>
+const FMIN = 20, FMAX = 20000;
+const WAVES = [
+    { id: 'sine', zh: '正弦', en: 'Sine' },
+    { id: 'square', zh: '方波', en: 'Square' },
+    { id: 'triangle', zh: '三角', en: 'Triangle' },
+    { id: 'violin', zh: '弦樂', en: 'Strings' },
+    { id: 'clarinet', zh: '木管', en: 'Wood' },
+    { id: 'trumpet', zh: '銅管', en: 'Brass' }
+];
+const PRESETS = {
+    beat:     { a: { freq: 440, type: 'sine' }, b: { freq: 442, type: 'sine' } },
+    unison:   { a: { freq: 440, type: 'sine' }, b: { freq: 440, type: 'sine' } },
+    octave:   { a: { freq: 440, type: 'sine' }, b: { freq: 880, type: 'sine' } },
+    fifth:    { a: { freq: 440, type: 'sine' }, b: { freq: 660, type: 'sine' } },
+    waveform: { a: { freq: 440, type: 'sine' }, b: { freq: 440, type: 'square' } }
+};
 
-        // 樂器泛音
-        const instrumentHarmonics = {
-            clarinet: { real: new Float32Array([0,0,0,0,0,0,0,0]), imag: new Float32Array([0,1,0,0.5,0,0.25,0,0.125]) },
-            trumpet: { real: new Float32Array([0,0,0,0,0,0,0,0,0]), imag: new Float32Array([0,1,0.8,0.6,0.8,0.5,0.4,0.2,0.1]) }
-        };
+const i18n = {
+    zh: {
+        title: '訊號產生器', badge: '物理', subtitle: '雙訊號源、拍頻與波形示波',
+        btnSteps: '觀察步驟', btnPrinciple: '原理解說',
+        controlTitle: '實驗控制', playBoth: '同時播放', stopAll: '全部停止', btnReset: '重置模擬',
+        presetTitle: '教學情境',
+        preBeat: '① 拍頻：440 Hz 與 442 Hz',
+        preUnison: '② 同度：440 Hz 與 440 Hz',
+        preOctave: '③ 八度：440 Hz 與 880 Hz',
+        preFifth: '④ 完全五度：440 Hz 與 660 Hz',
+        preWave: '⑤ 波形比較：正弦 vs 方波',
+        showTraceA: '示波器顯示 A（靛藍）', showTraceB: '示波器顯示 B（翠綠）', showEnvelope: '顯示拍頻包絡線',
+        liveTitle: '即時數據', statBeat: '拍頻 f<sub>beat</sub>', statRatio: '頻率比 f<sub>B</sub>/f<sub>A</sub>',
+        statPeriodA: 'A 週期 T<sub>A</sub>', statPeriodB: 'B 週期 T<sub>B</sub>',
+        legendSum: '疊加', sourceA: '訊號源 A', sourceB: '訊號源 B',
+        waveLabel: '波形', noteLabel: '音階', labelVol: '音量',
+        playA: '播放 A', stopA: '停止 A', playB: '播放 B', stopB: '停止 B',
+        hearAudible: '可聽範圍（20 Hz–20 kHz）', hearInfra: '次聲波（&lt; 20 Hz）', hearUltra: '超聲波（&gt; 20 kHz）',
+        hearMixed: '混合：部分超出可聽範圍',
+        modalTitle: '訊號產生器原理', modalSub: 'Signal generator & beat frequency', modalClose: '關閉',
+        m1t: '1. 訊號產生器', m1d: '訊號產生器能輸出精確頻率與波形的電訊號，驅動揚聲器後轉為聲波。調整頻率改變<strong>音調</strong>，調整波形改變<strong>音色</strong>。',
+        m2t: '2. 人耳聽頻範圍', m2d: '一般可聽約 <strong>20 Hz–20 kHz</strong>。低於 20 Hz 為次聲波，高於 20 kHz 為超聲波；隨年齡增長，對高頻敏感度下降。',
+        m3t: '3. 拍頻（Beat Frequency）', m3d: '兩個頻率接近的波疊加時，會週期性相長／相消干涉，聽到音量忽大忽小，稱為「拍」。',
+        m3ex: '例：440 Hz 與 442 Hz → 每秒 2 次音量起伏（2 Hz）。',
+        m4t: '4. 生活例子', m4d: '調音器聽拍頻對準同度；超聲波清洗（&gt;20 kHz）；次聲波監測地震與火山活動。',
+        stepsTitle: '觀察步驟',
+        s1: '1. 選「拍頻」情境，按「同時播放」，注意音量週期性起伏。',
+        s2: '2. 微調 B 的頻率滑桿（對數刻度），觀察拍頻 f<sub>beat</sub> 如何隨 |f<sub>A</sub>−f<sub>B</sub>| 改變。',
+        s3: '3. 切換「八度」或「完全五度」，比較音程與波形疊加模樣。',
+        s4: '4. 選「波形比較」，同一頻率下聽正弦波與方波的音色差異，並觀察示波器。',
+        s5: '5. 將頻率調至 20 kHz 以上，對照「聽頻範圍」提示——多數人聽不到。'
+    },
+    en: {
+        title: 'Signal Generator', badge: 'Physics', subtitle: 'Dual sources, beats & oscilloscope',
+        btnSteps: 'What to watch', btnPrinciple: 'Theory',
+        controlTitle: 'Controls', playBoth: 'Play both', stopAll: 'Stop all', btnReset: 'Reset',
+        presetTitle: 'Scenarios',
+        preBeat: '① Beats: 440 Hz & 442 Hz',
+        preUnison: '② Unison: 440 Hz & 440 Hz',
+        preOctave: '③ Octave: 440 Hz & 880 Hz',
+        preFifth: '④ Perfect 5th: 440 Hz & 660 Hz',
+        preWave: '⑤ Waveforms: sine vs square',
+        showTraceA: 'Show A on scope (indigo)', showTraceB: 'Show B on scope (emerald)', showEnvelope: 'Show beat envelope',
+        liveTitle: 'Live data', statBeat: 'Beat f<sub>beat</sub>', statRatio: 'Ratio f<sub>B</sub>/f<sub>A</sub>',
+        statPeriodA: 'Period T<sub>A</sub>', statPeriodB: 'Period T<sub>B</sub>',
+        legendSum: 'Sum', sourceA: 'Source A', sourceB: 'Source B',
+        waveLabel: 'Waveform', noteLabel: 'Notes', labelVol: 'Volume',
+        playA: 'Play A', stopA: 'Stop A', playB: 'Play B', stopB: 'Stop B',
+        hearAudible: 'Audible (20 Hz–20 kHz)', hearInfra: 'Infrasound (&lt; 20 Hz)', hearUltra: 'Ultrasound (&gt; 20 kHz)',
+        hearMixed: 'Mixed: some frequencies out of range',
+        modalTitle: 'Signal generator theory', modalSub: 'Signal generator & beat frequency', modalClose: 'Close',
+        m1t: '1. Signal generator', m1d: 'A signal generator outputs precise frequency and waveform. Driving a speaker converts the <strong>electrical signal</strong> into <strong>sound</strong>. Frequency sets pitch; waveform sets timbre.',
+        m2t: '2. Hearing range', m2d: 'Typical audible range: <strong>20 Hz–20 kHz</strong>. Below 20 Hz is infrasound; above 20 kHz is ultrasound. High-frequency sensitivity declines with age.',
+        m3t: '3. Beat frequency', m3d: 'When two close frequencies superpose, constructive/destructive interference causes periodic loudness pulses called beats.',
+        m3ex: 'Example: 440 Hz & 442 Hz → volume pulses 2 times per second (2 Hz).',
+        m4t: '4. Everyday links', m4d: 'Tuning with beats; ultrasonic cleaning (&gt;20 kHz); infrasound for earthquake monitoring.',
+        stepsTitle: 'What to watch',
+        s1: '1. Load Beats, press Play both, and listen for periodic loudness changes.',
+        s2: '2. Fine-tune B with the log slider and watch f<sub>beat</sub> = |f<sub>A</sub>−f<sub>B</sub>|.',
+        s3: '3. Try Octave or Perfect 5th and compare intervals and wave shapes.',
+        s4: '4. Load Waveform comparison: same frequency, sine vs square timbre on scope and by ear.',
+        s5: '5. Push a source above 20 kHz and read the hearing-range badge — most people cannot hear it.'
+    }
+};
 
-        // 音階資料
-        const createOctaveData = (startFreq) => {
-            const ratio = Math.pow(2, 1/12);
-            let f = startFreq;
-            const notes = [];
-            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-            for (let i = 0; i < 12; i++) {
-                notes.push({ name: names[i], freq: f });
-                f = f * ratio;
-            }
-            return notes;
-        };
-        const musicalNotes = {
-            3: createOctaveData(130.81),
-            4: createOctaveData(261.63),
-            5: createOctaveData(523.25)
-        };
+const instrumentHarmonics = {
+    clarinet: { real: new Float32Array(8), imag: new Float32Array([0, 1, 0, 0.5, 0, 0.25, 0, 0.125]) },
+    trumpet:  { real: new Float32Array(9), imag: new Float32Array([0, 1, 0.8, 0.6, 0.8, 0.5, 0.4, 0.2, 0.1]) }
+};
 
-        // --- 語言包 ---
-        const i18n = {
-            zh: {
-                title: "物理教室：雙訊號拍頻演示",
-                theoryBtn: "原理",
-                scopeLabel: "疊加輸出 (Combined Output)",
-                sourceA: "訊號源 A", sourceB: "訊號源 B",
-                waveLabel: "波形", noteLabel: "音階",
-                playA: "播放 A", stopA: "停止 A",
-                playB: "播放 B", stopB: "停止 B",
-                modalTitle: "聲音物理原理說明",
-                close: "關閉",
-                content: `
-                    <div class="space-y-6 text-slate-700">
-                        <section>
-                            <h3 class="flex items-center gap-2 font-bold text-indigo-700 text-lg mb-2">
-                                <i class="fa-solid fa-wave-square"></i> 1. 訊號產生器的作用
-                            </h3>
-                            <p class="leading-relaxed">
-                                訊號產生器 (Signal Generator) 是物理與電子實驗中的核心設備，能產生精確的電子振盪訊號。
-                                在本實驗中，它驅動揚聲器振動空氣，將<strong>電訊號</strong>轉換為<strong>聲波</strong>。
-                                透過調整頻率（音調高低）與波形（音色），我們可以研究聲波的物理特性。
-                            </p>
-                        </section>
+const state = {
+    lang: 'zh',
+    preset: 'beat',
+    showA: true, showB: true, showEnv: true,
+    animTime: 0,
+    gens: {
+        a: { active: false, osc: null, gain: null, freq: 440, type: 'sine', vol: 0.5 },
+        b: { active: false, osc: null, gain: null, freq: 442, type: 'sine', vol: 0.5 }
+    }
+};
 
-                        <section>
-                            <h3 class="flex items-center gap-2 font-bold text-indigo-700 text-lg mb-2">
-                                <i class="fa-solid fa-ear-listen"></i> 2. 人類的聽頻範圍
-                            </h3>
-                            <p class="leading-relaxed mb-2">
-                                人耳並非對所有頻率的聲音都有反應。一般健康年輕人的可聽範圍約為 <strong>20 Hz 至 20,000 Hz</strong>。
-                            </p>
-                            <div class="bg-slate-50 p-3 rounded-lg text-sm space-y-1 border border-slate-200">
-                                <p><span class="font-bold text-slate-600">次聲波 (< 20 Hz)：</span> 頻率過低，人耳無法聽見，但身體可能感覺到振動。</p>
-                                <p><span class="font-bold text-slate-600">超聲波 (> 20,000 Hz)：</span> 頻率過高，人耳無法聽見（蝙蝠、海豚可聽見）。</p>
-                                <p class="text-slate-500 italic mt-1">* 隨著年齡增長，人對高頻聲音的敏感度會顯著下降（例如聽不到 15,000 Hz 以上的聲音）。</p>
-                            </div>
-                        </section>
+let audioCtx = null;
+const canvas = document.getElementById('oscilloscope');
+const ctx = canvas.getContext('2d');
 
-                        <section>
-                            <h3 class="flex items-center gap-2 font-bold text-indigo-700 text-lg mb-2">
-                                <i class="fa-solid fa-stopwatch"></i> 3. 拍頻 (Beat Frequency)
-                            </h3>
-                            <p class="leading-relaxed mb-3">
-                                當兩個<strong>頻率極為接近</strong>（例如 440 Hz 與 442 Hz）的聲波同時播放時，它們會發生<strong>疊加干涉 (Interference)</strong>。
-                            </p>
-                            
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                <div class="bg-indigo-50 p-3 rounded border-l-4 border-indigo-500">
-                                    <h4 class="font-bold text-indigo-900 text-sm">相長干涉 (Constructive)</h4>
-                                    <p class="text-xs text-indigo-800">波峰遇波峰 → 振幅變大 → <strong>聲音變大</strong></p>
-                                </div>
-                                <div class="bg-indigo-50 p-3 rounded border-l-4 border-indigo-500">
-                                    <h4 class="font-bold text-indigo-900 text-sm">相消干涉 (Destructive)</h4>
-                                    <p class="text-xs text-indigo-800">波峰遇波谷 → 振幅抵消 → <strong>聲音變小</strong></p>
-                                </div>
-                            </div>
+function t(k) { return i18n[state.lang][k] || k; }
 
-                            <p class="leading-relaxed">
-                                這種週期性的音量強弱變化稱為「拍」(Beats)。拍的頻率等於兩聲源頻率之差的絕對值：
-                            </p>
-                            <div class="text-center py-2">
-                                <span class="inline-block px-4 py-1 bg-slate-100 rounded-full font-mono font-bold text-indigo-600 border border-slate-200">
-                                    f<sub>beat</sub> = | f<sub>1</sub> - f<sub>2</sub> |
-                                </span>
-                            </div>
-                            <p class="text-sm text-slate-500 mt-2">
-                                <strong>範例：</strong> 若 f1 = 440 Hz，f2 = 442 Hz，則每秒會聽到 2 次聲音忽大忽小的變化 (2 Hz)。
-                            </p>
-                        </section>
-                    </div>
-                `
-            },
-            en: {
-                title: "Physics Lab: Beat Frequency Demo",
-                theoryBtn: "Theory",
-                scopeLabel: "Combined Output",
-                sourceA: "Source A", sourceB: "Source B",
-                waveLabel: "Waveform", noteLabel: "Musical Notes",
-                playA: "Play A", stopA: "Stop A",
-                playB: "Play B", stopB: "Stop B",
-                modalTitle: "Physics Principles Explained",
-                close: "Close",
-                content: `
-                    <div class="space-y-6 text-slate-700">
-                        <section>
-                            <h3 class="flex items-center gap-2 font-bold text-indigo-700 text-lg mb-2">
-                                <i class="fa-solid fa-wave-square"></i> 1. The Signal Generator
-                            </h3>
-                            <p class="leading-relaxed">
-                                A Signal Generator is a core device in physics and electronics labs that produces precise electronic oscillation signals.
-                                In this demo, it drives speakers to vibrate air, converting <strong>electrical signals</strong> into <strong>sound waves</strong>.
-                                By adjusting frequency (pitch) and waveform (timbre), we can study the physical properties of waves.
-                            </p>
-                        </section>
+function freqToSlider(f) {
+    f = Math.max(FMIN, Math.min(FMAX, f));
+    return 1000 * (Math.log10(f) - Math.log10(FMIN)) / (Math.log10(FMAX) - Math.log10(FMIN));
+}
+function sliderToFreq(s) {
+    const logF = Math.log10(FMIN) + (s / 1000) * (Math.log10(FMAX) - Math.log10(FMIN));
+    return Math.max(FMIN, Math.min(FMAX, Math.pow(10, logF)));
+}
+function fmtFreq(f) {
+    if (f >= 1000) return (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' k';
+    return Math.round(f).toString();
+}
+function fmtPeriod(f) {
+    if (!f) return '—';
+    const T = 1 / f;
+    if (T >= 1) return T.toFixed(2) + ' s';
+    if (T >= 0.001) return (T * 1000).toFixed(1) + ' ms';
+    return (T * 1e6).toFixed(0) + ' µs';
+}
 
-                        <section>
-                            <h3 class="flex items-center gap-2 font-bold text-indigo-700 text-lg mb-2">
-                                <i class="fa-solid fa-ear-listen"></i> 2. Human Hearing Range
-                            </h3>
-                            <p class="leading-relaxed mb-2">
-                                The human ear does not respond to all sound frequencies. The typical audible range for a healthy young person is <strong>20 Hz to 20,000 Hz</strong>.
-                            </p>
-                            <div class="bg-slate-50 p-3 rounded-lg text-sm space-y-1 border border-slate-200">
-                                <p><span class="font-bold text-slate-600">Infrasound (< 20 Hz):</span> Frequency is too low to be heard but vibration might be felt.</p>
-                                <p><span class="font-bold text-slate-600">Ultrasound (> 20,000 Hz):</span> Frequency is too high to be heard (audible to bats, dolphins, etc.).</p>
-                                <p class="text-slate-500 italic mt-1">* Sensitivity to high frequencies declines significantly with age (e.g., inability to hear above 15,000 Hz).</p>
-                            </div>
-                        </section>
+function createOctaveData(startFreq) {
+    const ratio = Math.pow(2, 1 / 12);
+    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    let f = startFreq;
+    return names.map(name => { const n = { name, freq: f }; f *= ratio; return n; });
+}
+const musicalNotes = { 3: createOctaveData(130.81), 4: createOctaveData(261.63), 5: createOctaveData(523.25) };
 
-                        <section>
-                            <h3 class="flex items-center gap-2 font-bold text-indigo-700 text-lg mb-2">
-                                <i class="fa-solid fa-stopwatch"></i> 3. Beat Frequency
-                            </h3>
-                            <p class="leading-relaxed mb-3">
-                                When two sound waves of <strong>very similar frequencies</strong> (e.g., 440 Hz and 442 Hz) are played together, they undergo <strong>Interference</strong>.
-                            </p>
-                            
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                <div class="bg-indigo-50 p-3 rounded border-l-4 border-indigo-500">
-                                    <h4 class="font-bold text-indigo-900 text-sm">Constructive Interference</h4>
-                                    <p class="text-xs text-indigo-800">Peak meets Peak → Amplitude increases → <strong>Louder Sound</strong></p>
-                                </div>
-                                <div class="bg-indigo-50 p-3 rounded border-l-4 border-indigo-500">
-                                    <h4 class="font-bold text-indigo-900 text-sm">Destructive Interference</h4>
-                                    <p class="text-xs text-indigo-800">Peak meets Trough → Amplitude cancels → <strong>Softer Sound</strong></p>
-                                </div>
-                            </div>
+function applyI18n() {
+    document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const v = i18n[state.lang][el.dataset.i18n];
+        if (v !== undefined) el.innerHTML = v;
+    });
+    buildWaveButtons();
+    buildNoteButtons();
+    updatePlayButtons();
+    updateLiveStats();
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise([document.getElementById('beat-formula')]);
+}
 
-                            <p class="leading-relaxed">
-                                This periodic variation in volume is called "Beats". The beat frequency equals the absolute difference between the two source frequencies:
-                            </p>
-                            <div class="text-center py-2">
-                                <span class="inline-block px-4 py-1 bg-slate-100 rounded-full font-mono font-bold text-indigo-600 border border-slate-200">
-                                    f<sub>beat</sub> = | f<sub>1</sub> - f<sub>2</sub> |
-                                </span>
-                            </div>
-                            <p class="text-sm text-slate-500 mt-2">
-                                <strong>Example:</strong> If f1 = 440 Hz and f2 = 442 Hz, you will hear the volume pulse 2 times per second (2 Hz).
-                            </p>
-                        </section>
-                    </div>
-                `
-            }
-        };
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
 
-        // --- 初始化 ---
-        function init() {
-            initNoteButtons(1);
-            initNoteButtons(2);
-            updateTexts(); // 修正：初始化時立即載入文字內容
-            animate();
-        }
+function getWaveValue(type, angle) {
+    let y = 0;
+    if (type === 'sine') y = Math.sin(angle);
+    else if (type === 'square') y = Math.sign(Math.sin(angle)) * 0.8;
+    else if (type === 'triangle') y = (2 / Math.PI) * Math.asin(Math.sin(angle));
+    else if (type === 'violin') {
+        let p = angle % (2 * Math.PI);
+        if (p < 0) p += 2 * Math.PI;
+        y = -1 + p / Math.PI;
+    } else if (type === 'clarinet') {
+        y = Math.sin(angle) + 0.5 * Math.sin(3 * angle) + 0.25 * Math.sin(5 * angle);
+        y *= 0.6;
+    } else if (type === 'trumpet') {
+        const h = instrumentHarmonics.trumpet.imag;
+        for (let n = 1; n < h.length; n++) y += h[n] * Math.sin(n * angle);
+        y *= 0.35;
+    }
+    return y;
+}
 
-        function initAudio() {
-            if (!audioCtx) {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
-            }
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-        }
+function setOscillatorType(osc, type) {
+    if (type === 'violin') osc.type = 'sawtooth';
+    else if (type === 'clarinet') osc.setPeriodicWave(audioCtx.createPeriodicWave(instrumentHarmonics.clarinet.real, instrumentHarmonics.clarinet.imag));
+    else if (type === 'trumpet') osc.setPeriodicWave(audioCtx.createPeriodicWave(instrumentHarmonics.trumpet.real, instrumentHarmonics.trumpet.imag));
+    else osc.type = type;
+}
 
-        // 產生按鈕
-        function initNoteButtons(id) {
-            const createBtn = (note, octave) => {
+function updateGainNode(id) {
+    const g = state.gens[id];
+    if (g.active && g.gain) {
+        const target = g.vol * 0.5;
+        g.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+        g.gain.gain.setTargetAtTime(target, audioCtx.currentTime, 0.02);
+    }
+}
+
+function startGen(id) {
+    initAudio();
+    const g = state.gens[id];
+    if (g.active) return;
+    g.osc = audioCtx.createOscillator();
+    g.gain = audioCtx.createGain();
+    g.osc.frequency.setValueAtTime(g.freq, audioCtx.currentTime);
+    setOscillatorType(g.osc, g.type);
+    g.osc.connect(g.gain);
+    g.gain.connect(audioCtx.destination);
+    g.gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.gain.linearRampToValueAtTime(g.vol * 0.5, audioCtx.currentTime + 0.08);
+    g.osc.start();
+    g.active = true;
+    updatePlayButtons();
+    updatePanelHighlight();
+}
+
+function stopGen(id) {
+    const g = state.gens[id];
+    if (!g.active) return;
+    if (g.gain) {
+        g.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+        g.gain.gain.setValueAtTime(g.gain.gain.value, audioCtx.currentTime);
+        g.gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    }
+    if (g.osc) g.osc.stop(audioCtx.currentTime + 0.1);
+    setTimeout(() => {
+        if (g.osc) g.osc.disconnect();
+        if (g.gain) g.gain.disconnect();
+        g.osc = null; g.gain = null;
+    }, 120);
+    g.active = false;
+    updatePlayButtons();
+    updatePanelHighlight();
+}
+
+function toggleGen(id) {
+    state.gens[id].active ? stopGen(id) : startGen(id);
+}
+
+function setFreq(id, freq) {
+    freq = Math.max(FMIN, Math.min(FMAX, +freq));
+    const g = state.gens[id];
+    g.freq = freq;
+    const suffix = id === 'a' ? 'a' : 'b';
+    document.getElementById('freq-slider-' + suffix).value = freqToSlider(freq);
+    document.getElementById('freq-display-' + suffix).textContent = fmtFreq(freq);
+    if (g.active && g.osc) g.osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.02);
+    updateLiveStats();
+}
+
+function setWave(id, type) {
+    state.gens[id].type = type;
+    buildWaveButtons();
+    const g = state.gens[id];
+    if (g.active && g.osc) setOscillatorType(g.osc, type);
+}
+
+function buildWaveButtons() {
+    ['a', 'b'].forEach(suffix => {
+        const id = suffix === 'a' ? 'a' : 'b';
+        const box = document.getElementById('wave-btns-' + suffix);
+        box.innerHTML = '';
+        WAVES.forEach(w => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'wave-btn rounded-lg py-2 px-1' +
+                (state.gens[id].type === w.id ? (suffix === 'b' ? ' active-b' : ' active') : '');
+            btn.textContent = state.lang === 'zh' ? w.zh : w.en;
+            btn.onclick = () => setWave(id, w.id);
+            box.appendChild(btn);
+        });
+    });
+}
+
+function buildNoteButtons() {
+    ['a', 'b'].forEach(suffix => {
+        const id = suffix === 'a' ? 'a' : 'b';
+        const box = document.getElementById('notes-' + suffix);
+        box.innerHTML = '';
+        [3, 4, 5].forEach(oct => {
+            const row = document.createElement('div');
+            row.className = 'flex flex-wrap gap-1 justify-center';
+            musicalNotes[oct].forEach(note => {
                 const btn = document.createElement('button');
-                btn.className = 'note-btn w-10 h-8 sm:w-12 sm:h-10 flex items-center justify-center rounded text-xs sm:text-sm font-mono font-medium';
-                btn.textContent = note.name + octave;
-                btn.onclick = () => updateFreq(id, note.freq);
-                return btn;
-            };
-            
-            [3,4,5].forEach(octave => {
-                const container = document.getElementById(`octave-${octave}-container-${id}`);
-                // 增加安全性檢查
-                if (container) {
-                    container.innerHTML = '';
-                    musicalNotes[octave].forEach(note => container.appendChild(createBtn(note, octave)));
-                }
+                btn.type = 'button';
+                btn.className = 'note-btn px-2 py-1 rounded';
+                btn.textContent = note.name + oct;
+                btn.onclick = () => setFreq(id, note.freq);
+                row.appendChild(btn);
             });
+            box.appendChild(row);
+        });
+    });
+}
+
+function updatePlayButtons() {
+    ['a', 'b'].forEach(suffix => {
+        const id = suffix === 'a' ? 'a' : 'b';
+        const btn = document.getElementById('play-btn-' + suffix);
+        const playing = state.gens[id].active;
+        if (suffix === 'a') {
+            btn.className = playing
+                ? 'w-full py-2.5 rounded-xl text-white font-bold transition text-sm bg-indigo-600 shadow-inner'
+                : 'w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-indigo-600 hover:text-white transition text-sm';
+            btn.textContent = playing ? t('stopA') : t('playA');
+        } else {
+            btn.className = playing
+                ? 'w-full py-2.5 rounded-xl text-white font-bold transition text-sm bg-emerald-600 shadow-inner'
+                : 'w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-emerald-600 hover:text-white transition text-sm';
+            btn.textContent = playing ? t('stopB') : t('playB');
         }
+    });
+}
 
-        // --- 核心控制 ---
-        function updateFreq(id, val) {
-            val = parseFloat(val).toFixed(2);
-            generators[id].freq = val;
-            
-            // Update UI
-            const slider = document.getElementById(`freq-slider-${id}`);
-            const display = document.getElementById(`freq-display-${id}`);
-            if (slider) slider.value = val;
-            if (display) display.textContent = Math.round(val);
+function updatePanelHighlight() {
+    document.getElementById('panel-a').classList.toggle('panel-active-a', state.gens.a.active);
+    document.getElementById('panel-b').classList.toggle('panel-active-b', state.gens.b.active);
+}
 
-            // Update Audio
-            const gen = generators[id];
-            if (gen.active && gen.osc) {
-                gen.osc.frequency.setTargetAtTime(val, audioCtx.currentTime, 0.02);
-            }
+function hearingClass(f) {
+    if (f < 20) return 'infra';
+    if (f > 20000) return 'ultra';
+    return 'audible';
+}
+
+function updateLiveStats() {
+    const fa = state.gens.a.freq, fb = state.gens.b.freq;
+    const beat = Math.abs(fa - fb);
+    document.getElementById('stat-beat').textContent = beat.toFixed(beat < 10 ? 2 : 1) + ' Hz';
+    document.getElementById('stat-ratio').textContent = fa ? (fb / fa).toFixed(3) : '—';
+    document.getElementById('stat-period-a').textContent = fmtPeriod(fa);
+    document.getElementById('stat-period-b').textContent = fmtPeriod(fb);
+
+    const classes = [hearingClass(fa), hearingClass(fb)];
+    const badge = document.getElementById('hearing-badge');
+    let key = 'hearAudible', cls = 'bg-emerald-50 text-emerald-800 border-emerald-100';
+    if (classes.every(c => c === 'audible')) { key = 'hearAudible'; }
+    else if (classes.every(c => c === 'infra')) { key = 'hearInfra'; cls = 'bg-slate-100 text-slate-700 border-slate-200'; }
+    else if (classes.every(c => c === 'ultra')) { key = 'hearUltra'; cls = 'bg-violet-50 text-violet-800 border-violet-100'; }
+    else if (classes.some(c => c !== 'audible')) { key = 'hearMixed'; cls = 'bg-amber-50 text-amber-800 border-amber-100'; }
+    badge.className = 'mb-2 rounded-lg px-2 py-1.5 text-[11px] font-bold border ' + cls;
+    badge.innerHTML = t(key);
+}
+
+function loadPreset(name) {
+    state.preset = name;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+    const p = PRESETS[name];
+    setFreq('a', p.a.freq);
+    setWave('a', p.a.type);
+    setFreq('b', p.b.freq);
+    setWave('b', p.b.type);
+}
+
+function resetAll() {
+    stopGen('a');
+    stopGen('b');
+    state.gens.a.vol = 0.5;
+    state.gens.b.vol = 0.5;
+    document.getElementById('vol-slider-a').value = 50;
+    document.getElementById('vol-slider-b').value = 50;
+    document.getElementById('vol-disp-a').textContent = '50%';
+    document.getElementById('vol-disp-b').textContent = '50%';
+    loadPreset('beat');
+}
+
+function sampleAt(t, id) {
+    const g = state.gens[id];
+    if (!g.active) return 0;
+    return g.vol * getWaveValue(g.type, 2 * Math.PI * g.freq * t);
+}
+
+function drawScope(dt) {
+    if (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight) {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+    }
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    state.animTime += dt;
+    const timeWindow = state.gens.a.freq > 2000 || state.gens.b.freq > 2000 ? 0.008 : 0.025;
+    document.getElementById('scope-time').textContent = (timeWindow * 1000).toFixed(0) + ' ms/div';
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) {
+        const y = (h / 10) * i;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    for (let i = 0; i <= 12; i++) {
+        const x = (w / 12) * i;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+
+    const tEnd = state.animTime;
+    const tStart = tEnd - timeWindow;
+
+    function drawTrace(color, fn, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width || 2;
+        ctx.beginPath();
+        for (let x = 0; x < w; x++) {
+            const t = tStart + (x / w) * timeWindow;
+            const y = h / 2 - fn(t) * (h / 5);
+            x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
+        ctx.stroke();
+    }
 
-        // --- 手動輸入頻率功能 ---
-        function editFrequency(id) {
-            const display = document.getElementById(`freq-display-${id}`);
-            const input = document.getElementById(`freq-input-${id}`);
-            
-            if (display && input) {
-                // 設定當前值並顯示輸入框
-                input.value = generators[id].freq;
-                display.classList.add('hidden');
-                input.classList.remove('hidden');
-                input.focus();
-                input.select(); // 全選文字方便修改
-            }
-        }
+    if (state.showEnv && state.gens.a.active && state.gens.b.active &&
+        state.gens.a.type === 'sine' && state.gens.b.type === 'sine') {
+        drawTrace('rgba(251, 191, 36, 0.35)', t => {
+            const ya = sampleAt(t, 'a'), yb = sampleAt(t, 'b');
+            return Math.abs(ya + yb);
+        }, 1.5);
+    }
 
-        function confirmFrequency(id) {
-            const display = document.getElementById(`freq-display-${id}`);
-            const input = document.getElementById(`freq-input-${id}`);
-            
-            if (input) {
-                let val = parseFloat(input.value);
-                
-                // 驗證範圍
-                if (isNaN(val)) val = generators[id].freq; // 若無效則還原
-                if (val < 20) val = 20;
-                if (val > 20000) val = 20000;
-                
-                // 更新系統
-                updateFreq(id, val);
-                
-                // 還原介面
-                input.classList.add('hidden');
-                if (display) display.classList.remove('hidden');
-            }
-        }
+    if (state.showA && state.gens.a.active) drawTrace('#818cf8', t => sampleAt(t, 'a'));
+    if (state.showB && state.gens.b.active) drawTrace('#34d399', t => sampleAt(t, 'b'));
 
-        function checkEnter(event, id) {
-            if (event.key === 'Enter') {
-                const input = document.getElementById(`freq-input-${id}`);
-                if (input) input.blur();
-            }
-        }
+    if (state.gens.a.active || state.gens.b.active) {
+        drawTrace('#fbbf24', t => {
+            let s = 0;
+            if (state.gens.a.active) s += sampleAt(t, 'a');
+            if (state.gens.b.active) s += sampleAt(t, 'b');
+            return s;
+        }, 2.5);
+    } else {
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+    }
+}
 
-        function changeWaveform(id, type) {
-            generators[id].type = type;
-            
-            // Update UI
-            const types = ['sine', 'square', 'triangle', 'violin', 'clarinet', 'trumpet'];
-            types.forEach(t => {
-                const btn = document.getElementById(`btn-${t}-${id}`);
-                if (btn) {
-                    if(t === type) btn.classList.add('active');
-                    else btn.classList.remove('active');
-                }
-            });
+let lastTs = 0;
+function frame(ts) {
+    const dt = Math.min((ts - lastTs) / 1000 || 0.016, 0.05);
+    lastTs = ts;
+    drawScope(dt);
+    requestAnimationFrame(frame);
+}
 
-            // Update Audio
-            const gen = generators[id];
-            if (gen.active && gen.osc) {
-                setOscillatorType(gen.osc, type);
-            }
-        }
+function setupFreqEdit(suffix) {
+    const id = suffix === 'a' ? 'a' : 'b';
+    const display = document.getElementById('freq-display-' + suffix);
+    const input = document.getElementById('freq-input-' + suffix);
+    display.onclick = () => {
+        input.value = Math.round(state.gens[id].freq);
+        display.classList.add('hidden');
+        input.classList.remove('hidden');
+        input.focus();
+        input.select();
+    };
+    input.onblur = () => {
+        setFreq(id, input.value);
+        input.classList.add('hidden');
+        display.classList.remove('hidden');
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') input.blur(); };
+    document.getElementById('freq-slider-' + suffix).oninput = e => setFreq(id, sliderToFreq(e.target.value));
+}
 
-        function toggleSound(id) {
-            initAudio();
-            const gen = generators[id];
-            
-            if (gen.active) {
-                // Stop
-                if(gen.gain) {
-                    gen.gain.gain.cancelScheduledValues(audioCtx.currentTime);
-                    gen.gain.gain.setValueAtTime(gen.gain.gain.value, audioCtx.currentTime);
-                    gen.gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-                }
-                if(gen.osc) gen.osc.stop(audioCtx.currentTime + 0.1);
-                
-                setTimeout(() => {
-                    if(gen.osc) gen.osc.disconnect();
-                    if(gen.gain) gen.gain.disconnect();
-                    gen.osc = null;
-                    gen.gain = null;
-                }, 150);
-                
-                gen.active = false;
-                updatePlayButton(id, false);
-                const panel = document.getElementById(`panel-${id}`);
-                if (panel) panel.classList.remove('panel-active');
+function setModal(id, open) {
+    const wrap = document.getElementById(id);
+    const box = wrap.querySelector('.modal-content');
+    wrap.classList.toggle('opacity-0', !open);
+    wrap.classList.toggle('pointer-events-none', !open);
+    box.classList.toggle('opacity-0', !open);
+    box.classList.toggle('scale-95', !open);
+}
+function closeAllModals() {
+    setModal('modal-principle', false);
+    setModal('modal-steps', false);
+}
 
-            } else {
-                // Start
-                gen.osc = audioCtx.createOscillator();
-                gen.gain = audioCtx.createGain();
-                
-                gen.osc.frequency.setValueAtTime(gen.freq, audioCtx.currentTime);
-                setOscillatorType(gen.osc, gen.type);
+function init() {
+    buildWaveButtons();
+    buildNoteButtons();
+    setFreq('a', 440);
+    setFreq('b', 442);
 
-                gen.osc.connect(gen.gain);
-                gen.gain.connect(audioCtx.destination);
+    setupFreqEdit('a');
+    setupFreqEdit('b');
 
-                // Gain 設為 0.25 (因為有兩個音源，避免總和過大)
-                gen.gain.gain.setValueAtTime(0, audioCtx.currentTime);
-                gen.gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.1);
+    document.getElementById('play-btn-a').onclick = () => toggleGen('a');
+    document.getElementById('play-btn-b').onclick = () => toggleGen('b');
+    document.getElementById('btn-play-both').onclick = () => { startGen('a'); startGen('b'); };
+    document.getElementById('btn-stop-all').onclick = () => { stopGen('a'); stopGen('b'); };
+    document.getElementById('btn-reset').onclick = resetAll;
 
-                gen.osc.start();
-                gen.active = true;
-                updatePlayButton(id, true);
-                const panel = document.getElementById(`panel-${id}`);
-                if (panel) panel.classList.add('panel-active');
-            }
-        }
+    document.getElementById('vol-slider-a').oninput = e => {
+        state.gens.a.vol = e.target.value / 100;
+        document.getElementById('vol-disp-a').textContent = e.target.value + '%';
+        updateGainNode('a');
+    };
+    document.getElementById('vol-slider-b').oninput = e => {
+        state.gens.b.vol = e.target.value / 100;
+        document.getElementById('vol-disp-b').textContent = e.target.value + '%';
+        updateGainNode('b');
+    };
 
-        function setOscillatorType(osc, type) {
-            if (type === 'violin') {
-                osc.type = 'sawtooth';
-            } else if (type === 'clarinet') {
-                const wave = audioCtx.createPeriodicWave(instrumentHarmonics.clarinet.real, instrumentHarmonics.clarinet.imag);
-                osc.setPeriodicWave(wave);
-            } else if (type === 'trumpet') {
-                const wave = audioCtx.createPeriodicWave(instrumentHarmonics.trumpet.real, instrumentHarmonics.trumpet.imag);
-                osc.setPeriodicWave(wave);
-            } else {
-                osc.type = type;
-            }
-        }
+    document.querySelectorAll('.preset-btn').forEach(b => b.onclick = () => loadPreset(b.dataset.preset));
+    document.getElementById('chk-trace-a').onchange = e => { state.showA = e.target.checked; };
+    document.getElementById('chk-trace-b').onchange = e => { state.showB = e.target.checked; };
+    document.getElementById('chk-envelope').onchange = e => { state.showEnv = e.target.checked; };
 
-        function updatePlayButton(id, isPlaying) {
-            const btn = document.getElementById(`play-btn-${id}`);
-            const icon = document.getElementById(`play-icon-${id}`);
-            const txt = document.getElementById(`btn-txt-${id}`);
-            const langData = i18n[currentLang];
-            const colorClass = id === 1 ? 'hover:bg-indigo-600' : 'hover:bg-emerald-600';
-            const activeColor = id === 1 ? 'bg-indigo-600' : 'bg-emerald-600';
-            
-            if (btn && icon && txt) {
-                if (isPlaying) {
-                    btn.className = `w-full py-3 rounded-xl text-white font-bold transition flex items-center justify-center gap-2 ${activeColor} shadow-inner`;
-                    icon.className = 'fa-solid fa-stop';
-                    txt.textContent = id === 1 ? langData.stopA : langData.stopB;
-                } else {
-                    btn.className = `w-full py-3 rounded-xl bg-slate-100 text-slate-600 font-bold ${colorClass} hover:text-white transition flex items-center justify-center gap-2 group`;
-                    icon.className = 'fa-solid fa-play';
-                    txt.textContent = id === 1 ? langData.playA : langData.playB;
-                }
-            }
-        }
+    document.getElementById('btn-lang').onclick =
+    document.getElementById('btn-lang-mobile').onclick = () => {
+        state.lang = state.lang === 'zh' ? 'en' : 'zh';
+        applyI18n();
+    };
+    document.getElementById('btn-principle').onclick = () => { closeAllModals(); setModal('modal-principle', true); };
+    document.getElementById('btn-steps').onclick = () => { closeAllModals(); setModal('modal-steps', true); };
+    document.getElementById('modal-close').onclick = document.getElementById('modal-confirm').onclick = () => setModal('modal-principle', false);
+    document.getElementById('steps-close').onclick = document.getElementById('steps-confirm').onclick = () => setModal('modal-steps', false);
+    document.getElementById('modal-principle').addEventListener('click', e => { if (e.target.id === 'modal-principle') setModal('modal-principle', false); });
+    document.getElementById('modal-steps').addEventListener('click', e => { if (e.target.id === 'modal-steps') setModal('modal-steps', false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
 
-        // --- 示波器繪圖 ---
-        function getWaveValue(type, angle) {
-            let y = 0;
-            if (type === 'sine') y = Math.sin(angle);
-            else if (type === 'square') y = Math.sign(Math.sin(angle)) * 0.8;
-            else if (type === 'triangle') y = (2/Math.PI) * Math.asin(Math.sin(angle));
-            else if (type === 'violin') {
-                let p = (angle % (2 * Math.PI));
-                if (p < 0) p += 2 * Math.PI;
-                y = -1 + (p / Math.PI);
-            }
-            else if (type === 'clarinet') {
-                y += 1.0 * Math.sin(angle);
-                y += 0.5 * Math.sin(3*angle);
-                y += 0.25 * Math.sin(5*angle);
-                y *= 0.6;
-            }
-            else if (type === 'trumpet') {
-                 const h = instrumentHarmonics.trumpet.imag;
-                 for(let n=1; n<h.length; n++) y += h[n]*Math.sin(n*angle);
-                 y *= 0.35;
-            }
-            return y;
-        }
-
-        const canvas = document.getElementById('oscilloscope');
-        const ctx = canvas.getContext('2d');
-        let time = 0;
-
-        function animate() {
-            if (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight) {
-                canvas.width = canvas.offsetWidth;
-                canvas.height = canvas.offsetHeight;
-            }
-            const w = canvas.width;
-            const h = canvas.height;
-            
-            ctx.clearRect(0, 0, w, h);
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#818cf8'; // indigo-400
-            ctx.beginPath();
-
-            // 若兩者都沒播放，畫平線
-            if (!generators[1].active && !generators[2].active) {
-                ctx.moveTo(0, h/2);
-                ctx.lineTo(w, h/2);
-                ctx.stroke();
-                requestAnimationFrame(animate);
-                return;
-            }
-
-            // 時間推進
-            time += 0.2;
-
-            for (let x = 0; x < w; x++) {
-                let totalY = 0;
-                
-                // 訊號 1
-                if (generators[1].active) {
-                    const k1 = (generators[1].freq / 500) * 0.1;
-                    const effK1 = Math.min(k1, 2.0);
-                    // 為了視覺化拍頻，我們需要讓波稍微移動得快一點，或者用 spatial beat
-                    // 這裡使用標準波動公式 sin(kx - wt)
-                    totalY += getWaveValue(generators[1].type, x * effK1 - time);
-                }
-
-                // 訊號 2
-                if (generators[2].active) {
-                    const k2 = (generators[2].freq / 500) * 0.1;
-                    const effK2 = Math.min(k2, 2.0);
-                    // 稍微偏移相位或不做偏移直接加
-                    totalY += getWaveValue(generators[2].type, x * effK2 - time);
-                }
-
-                // 縮放振幅以適應畫布 (如果兩個都開，振幅會疊加，所以除以較大的數)
-                // 這裡 h/5 讓單波佔 20% 高，雙波疊加最大 40% 高，不會爆框
-                const plotY = h/2 + totalY * (h/5);
-                
-                if (x === 0) ctx.moveTo(x, plotY);
-                else ctx.lineTo(x, plotY);
-            }
-            
-            ctx.stroke();
-            requestAnimationFrame(animate);
-        }
-
-        // --- 語言切換 ---
-        function toggleLanguage() {
-            currentLang = currentLang === 'zh' ? 'en' : 'zh';
-            updateTexts(); // 切換語言後更新文字
-        }
-
-        // 獨立出更新文字的函式，供初始化與切換語言時使用
-        function updateTexts() {
-            const data = i18n[currentLang];
-            
-            // 已固定顯示 中 / EN，不需切換 lang-display
-            // document.getElementById('lang-display').textContent = currentLang === 'zh' ? 'EN' : '中';
-            
-            document.getElementById('app-title').textContent = data.title;
-            document.getElementById('btn-theory').textContent = data.theoryBtn;
-            document.getElementById('scope-label').textContent = data.scopeLabel;
-            
-            document.getElementById('label-source-a').textContent = data.sourceA;
-            document.getElementById('label-source-b').textContent = data.sourceB;
-            
-            document.getElementById('label-wave-a').textContent = data.waveLabel;
-            document.getElementById('label-wave-b').textContent = data.waveLabel;
-            document.getElementById('label-note-a').textContent = data.noteLabel;
-            document.getElementById('label-note-b').textContent = data.noteLabel;
-
-            document.getElementById('modal-title').textContent = data.modalTitle;
-            document.getElementById('modal-content').innerHTML = data.content;
-            document.getElementById('btn-close').textContent = data.close;
-
-            updatePlayButton(1, generators[1].active);
-            updatePlayButton(2, generators[2].active);
-        }
-
-        function toggleModal() {
-            const m = document.getElementById('theory-modal');
-            if (m) {
-                m.classList.toggle('active');
-            }
-        }
-        
-        // 確保元素存在再綁定事件
-        const theoryModal = document.getElementById('theory-modal');
-        if (theoryModal) {
-            theoryModal.addEventListener('click', (e) => {
-                if(e.target.id === 'theory-modal') toggleModal();
-            });
-        }
-
-        // --- AI 助教功能 ---
-        function toggleAIModal() {
-            const m = document.getElementById('ai-modal');
-            if (m) {
-                m.classList.toggle('active');
-                if (m.classList.contains('active')) {
-                    resetAIView();
-                }
-            }
-        }
-        
-        const aiModal = document.getElementById('ai-modal');
-        if (aiModal) {
-            aiModal.addEventListener('click', (e) => {
-                if(e.target.id === 'ai-modal') toggleAIModal();
-            });
-        }
-
-        function resetAIView() {
-            const welcome = document.getElementById('ai-welcome');
-            const loading = document.getElementById('ai-loading');
-            const result = document.getElementById('ai-result');
-            if (welcome && loading && result) {
-                welcome.classList.remove('hidden');
-                loading.classList.add('hidden');
-                result.classList.add('hidden');
-            }
-        }
-
-        function showAILoading() {
-            const welcome = document.getElementById('ai-welcome');
-            const loading = document.getElementById('ai-loading');
-            const result = document.getElementById('ai-result');
-            if (welcome && loading && result) {
-                welcome.classList.add('hidden');
-                loading.classList.remove('hidden');
-                result.classList.add('hidden');
-            }
-        }
-
-        function showAIResult(htmlContent) {
-            const loading = document.getElementById('ai-loading');
-            const result = document.getElementById('ai-result');
-            const output = document.getElementById('ai-markdown-output');
-            if (loading && result && output) {
-                loading.classList.add('hidden');
-                result.classList.remove('hidden');
-                output.innerHTML = htmlContent;
-            }
-        }
-
-        // 通用 Gemini API 呼叫
-        async function callGemini(prompt, isJson = false) {
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: isJson ? { responseMimeType: "application/json" } : {}
-                    })
-                });
-                
-                if (!response.ok) throw new Error('API Error');
-                
-                const data = await response.json();
-                const text = data.candidates[0].content.parts[0].text;
-                return isJson ? JSON.parse(text) : text;
-            } catch (error) {
-                console.error(error);
-                return null;
-            }
-        }
-
-        // 功能 1：分析當前現象
-        async function analyzeCurrentState() {
-            showAILoading();
-            
-            const stateDesc = `
-                Source A: ${generators[1].freq} Hz, Waveform: ${generators[1].type}
-                Source B: ${generators[2].freq} Hz, Waveform: ${generators[2].type}
-                Active Status: A=${generators[1].active}, B=${generators[2].active}
-            `;
-            
-            const prompt = `
-                你是一位物理老師。請根據以下訊號產生器的設定，向學生解釋他們正在聽到的現象。
-                當前設定：${stateDesc}
-                
-                請分析：
-                1. 頻率關係（例如：拍頻、音程、同度）。
-                2. 如果有拍頻，請計算拍頻頻率。
-                3. 波形音色差異（如果有）。
-                4. 給出一個簡短的觀察建議。
-                
-                請使用繁體中文，並使用簡單的 HTML 標籤 (<h3>, <p>, <ul>, <li>, <strong>) 來格式化輸出。不要使用 Markdown 代碼塊。
-            `;
-
-            const result = await callGemini(prompt);
-            
-            if (result) {
-                showAIResult(result);
-            } else {
-                showAIResult("<p class='text-red-500'>抱歉，AI 暫時無法連線，請稍後再試。</p>");
-            }
-        }
-
-        // 功能 2：智能實驗建議
-        async function suggestExperiment() {
-            showAILoading();
-            
-            const prompt = `
-                你是一位物理老師。請設計一個有趣的聲學實驗，使用兩個訊號產生器。
-                實驗類型可以是：拍頻演示(Beat Frequency)、音樂音程(Musical Intervals)、波形比較(Waveform Comparison)、或聽覺錯覺。
-                
-                請回傳一個 JSON 物件，包含以下欄位：
-                {
-                    "freqA": number (20-2000),
-                    "freqB": number (20-2000),
-                    "typeA": "sine"|"square"|"triangle"|"violin"|"clarinet"|"trumpet",
-                    "typeB": "sine"|"square"|"triangle"|"violin"|"clarinet"|"trumpet",
-                    "title": "實驗標題 (繁體中文)",
-                    "description": "實驗說明與觀察重點 (繁體中文 HTML 格式)"
-                }
-                確保頻率差異是有意義的（例如拍頻差 1-10Hz，或音程符合簡單整數比）。
-            `;
-
-            const result = await callGemini(prompt, true);
-            
-            if (result) {
-                // 自動套用設定
-                updateFreq(1, result.freqA);
-                changeWaveform(1, result.typeA);
-                updateFreq(2, result.freqB);
-                changeWaveform(2, result.typeB);
-                
-                // 確保聲音是開啟的（如果原本沒開）
-                // 這裡選擇不自動開啟聲音以免嚇到使用者，而是設定好讓使用者自己按播放
-                // 或者我們可以開啟它，加上一個提示
-                
-                const htmlContent = `
-                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 mb-4">
-                        <h3 class="text-xl font-bold text-indigo-800 mb-2">✨ AI 已為您設定實驗：${result.title}</h3>
-                        <div class="flex gap-4 text-sm text-indigo-600 font-mono mb-2">
-                            <span>A: ${result.freqA}Hz (${result.typeA})</span>
-                            <span>B: ${result.freqB}Hz (${result.typeB})</span>
-                        </div>
-                        <p class="text-xs text-slate-500"><i class="fa-solid fa-check"></i> 參數已自動同步至控制面板</p>
-                    </div>
-                    <div class="mt-4">
-                        <h4 class="font-bold text-slate-700 mb-2">實驗說明：</h4>
-                        ${result.description}
-                    </div>
-                    <p class="mt-4 text-sm text-slate-500 italic">請按下「播放」按鈕來開始觀察！</p>
-                `;
-                
-                showAIResult(htmlContent);
-            } else {
-                showAIResult("<p class='text-red-500'>抱歉，AI 暫時無法連線，請稍後再試。</p>");
-            }
-        }
-
-        // 啟動
-        init();
-    </script>
+    applyI18n();
+    requestAnimationFrame(frame);
+}
+init();
+</script>
 </body>
 </html>

@@ -48,6 +48,7 @@ final class SimulationFilesTest extends TestCase
     public function testAliasSlug(): void
     {
         self::assertSame('physics/02/0211_elevator.html', sim_alias_path_for_slug('physics-02-elevator'));
+        self::assertSame('physics/03a/0301_how_we_see.html', sim_alias_path_for_slug('how-do-we-see'));
         self::assertNull(sim_alias_path_for_slug('osmosis'));
     }
 

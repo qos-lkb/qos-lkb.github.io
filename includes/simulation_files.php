@@ -575,7 +575,7 @@ function sim_export_execute(PDO $pdo, string $mode): array
             continue;
         }
 
-        $doWrite = ($mode === 'apply' && $status === 'create')
+        $doWrite = ($mode === 'apply' && in_array($status, ['create', 'differ'], true))
             || ($mode === 'overwrite' && $status === 'differ');
         $doLink = ($mode === 'apply' && $status === 'same')
             || ($mode === 'adopt' && in_array($status, ['differ', 'disk_only'], true));

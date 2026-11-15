@@ -2,482 +2,821 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量子力學：電子駐波模擬</title>
-    
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>量子角動量及駐波 | Quantum Angular Momentum</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- MathJax 配置 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
     <script>
-        MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']]
-            },
-            svg: {
-                fontCache: 'global'
-            }
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
         };
     </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
     <style>
-        body {
-            background-color: #0f172a; /* Slate 900 */
-            color: #e2e8f0; /* Slate 200 */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+            background: #22d3ee; cursor: pointer; margin-top: -7px;
+            box-shadow: 0 0 0 2px #0f172a, 0 0 8px rgba(34, 211, 238, 0.5);
         }
-        canvas {
-            box-shadow: 0 0 30px rgba(56, 189, 248, 0.15);
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #475569; border-radius: 2px;
         }
-        /* 自定義捲軸 */
-        ::-webkit-scrollbar {
-            width: 8px;
+        .preset-btn {
+            padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px;
+            border: 1px solid #374151; background: #1f2937; color: #d1d5db; text-align: left;
         }
-        ::-webkit-scrollbar-track {
-            background: #1e293b; 
+        .preset-btn:hover { background: #374151; border-color: #22d3ee; }
+        .preset-btn.active { background: #0891b2; color: #fff; border-color: #0891b2; }
+        .check-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; color: #cbd5e1; }
+        .check-row input { width: 16px; height: 16px; accent-color: #22d3ee; cursor: pointer; }
+        .toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; inset: 0; background: #475569; border-radius: 999px; cursor: pointer; transition: .25s;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #475569; 
-            border-radius: 4px;
+        .toggle-slider::before {
+            content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px;
+            background: #fff; border-radius: 50%; transition: .25s;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #64748b; 
-        }
-        
-        /* 模態框動畫 */
-        .modal-enter {
-            opacity: 0;
-            transform: scale(0.95);
-        }
-        .modal-enter-active {
-            opacity: 1;
-            transform: scale(1);
-            transition: opacity 300ms, transform 300ms;
-        }
-        .modal-exit {
-            opacity: 1;
-            transform: scale(1);
-        }
-        .modal-exit-active {
-            opacity: 0;
-            transform: scale(0.95);
-            transition: opacity 200ms, transform 200ms;
-        }
-        
-        /* 確保 Modal 在最上層 */
-        #theoryModal {
-            z-index: 9999;
-        }
+        .toggle-switch input:checked + .toggle-slider { background: #0891b2; }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+        .modal-backdrop { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .25s ease, visibility .25s ease; }
+        .modal-backdrop.open { opacity: 1; pointer-events: auto; visibility: visible; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; opacity: 0; transform: scale(.95); }
+        .modal-backdrop.open .modal-content { transform: none; opacity: 1; }
+        .math-var { font-family: 'Times New Roman', Times, serif; font-style: italic; }
+        .mj-box { background: #0f172a; color: #67e8f9; border: 1px solid #334155; border-radius: 12px; padding: 10px 14px; }
+        .mj-box mjx-container { color: #67e8f9 !important; }
+        .status-constructive { color: #4ade80; }
+        .status-destructive { color: #f87171; animation: pulse-red 1.5s ease-in-out infinite; }
+        @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+        #sim-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen relative overflow-hidden">
+<body class="h-full flex flex-col bg-slate-900 text-slate-100 overflow-hidden">
 
-    <!-- 頂部導航列 -->
-    <nav class="w-full bg-slate-800/80 backdrop-blur-md border-b border-slate-700 h-16 flex items-center justify-between px-6 fixed top-0 z-50">
-        <!-- Logo / 標題 -->
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white font-bold text-lg">
-                Ψ
-            </div>
-            <h1 class="text-xl font-bold text-sky-100 tracking-wide" data-i18n="appTitle">
-                量子力學模擬
-            </h1>
-        </div>
-
-        <!-- 右上角功能區 -->
-        <div class="flex items-center gap-4">
-            <button id="btnTheory" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 hover:text-white rounded-lg transition-colors border border-slate-600">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-                <span data-i18n="btnTheory">原理解說</span>
-            </button>
-            
-            <button id="btnLang" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-sky-400 border border-sky-400/30 hover:bg-sky-400/10 rounded-lg transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.204 1.257c-.338 1.909-.742 3.826-1.21 5.742m-5.462 8.354C3.805 16.561 6.556 12.87 9.873 9.471M12.5 17.5l-2.5 2.5m2.5-2.5l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span id="langText">English</span>
-            </button>
-        </div>
-    </nav>
-
-    <!-- 主要內容區 -->
-    <main class="flex-grow flex flex-col lg:flex-row items-center justify-center p-6 gap-8 mt-16 z-10">
-        
-        <!-- Canvas 容器 -->
-        <div class="relative group">
-            <div class="absolute -inset-1 bg-gradient-to-r from-sky-600 to-indigo-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-            <div class="relative bg-slate-800 rounded-xl p-2 border border-slate-700">
-                <canvas id="quantumCanvas" width="550" height="550" class="bg-slate-900 rounded-lg cursor-crosshair"></canvas>
-                <!-- 覆蓋層資訊 -->
-                <div class="absolute top-6 left-6 pointer-events-none">
-                    <span class="inline-block px-2 py-1 rounded bg-slate-800/80 text-xs font-mono text-sky-400 border border-slate-700">
-                        r = n × λ/2π
-                    </span>
+    <header class="shrink-0 z-20 bg-slate-800/95 backdrop-blur-md border-b border-slate-700 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-violet-600 text-white flex items-center justify-center shadow-md text-lg font-black">ℏ</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2 flex-wrap">
+                        <span data-i18n="title">量子角動量及駐波</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-cyan-900/60 text-cyan-300 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-400" data-i18n="subtitle">德布羅意駐波與角動量量子化 L = nℏ</p>
                 </div>
             </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-700 text-xs font-bold rounded-lg border border-slate-600">中 / EN</button>
         </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <div class="hidden sm:flex items-center bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 text-sm mr-1">
+                <span class="text-slate-400" data-i18n="formulaLabel">條件</span>
+                <span class="font-mono text-cyan-300 ml-2">2πr = nλ</span>
+            </div>
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-cyan-300 rounded-xl font-bold text-sm border border-slate-600" data-i18n="btnSteps">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-violet-600 hover:from-cyan-700 text-white rounded-xl font-bold text-sm shadow-sm" data-i18n="btnPrinciple">原理解說</button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-sm border border-slate-600">中 / EN</button>
+        </div>
+    </header>
 
-        <!-- 控制面板 -->
-        <div class="w-full max-w-md flex flex-col gap-6">
-            
-            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 shadow-xl backdrop-blur-sm">
-                <h2 class="text-xl font-bold text-white mb-1" data-i18n="panelTitle">參數控制</h2>
-                <p class="text-sm text-slate-400 mb-6" data-i18n="panelSubtitle">調整主量子數以觀察駐波形成</p>
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto lg:overflow-hidden">
 
-                <!-- Slider -->
-                <div class="mb-8">
-                    <div class="flex justify-between items-end mb-4">
-                        <label for="quantumNum" class="text-sky-300 font-semibold" data-i18n="quantumNumLabel">
-                            主量子數 (n)
-                        </label>
-                        <span class="text-4xl font-bold text-white font-mono" id="nDisplay">3</span>
-                    </div>
-                    <input type="range" id="quantumNum" min="1" max="10" value="3" step="1" 
-                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500 hover:accent-sky-400 transition-all">
-                    <div class="flex justify-between text-xs text-slate-500 mt-2 font-mono">
-                        <span>n=1</span>
-                        <span>n=10</span>
-                    </div>
+        <aside class="bg-slate-800 rounded-xl p-5 shadow-xl border border-slate-700 flex flex-col lg:overflow-y-auto">
+            <h2 class="text-base font-bold mb-4 border-b border-slate-600 pb-2 text-slate-200" data-i18n="controlTitle">參數設定</h2>
+
+            <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+            <div class="grid grid-cols-1 gap-1.5 mb-3">
+                <button type="button" class="preset-btn" data-preset="ground" data-i18n="preGround">① 基態 n = 1（最低能級）</button>
+                <button type="button" class="preset-btn active" data-preset="typical" data-i18n="preTypical">② n = 3 穩定駐波</button>
+                <button type="button" class="preset-btn" data-preset="destructive" data-i18n="preDestructive">③ n = 3.5 破壞性干涉</button>
+                <button type="button" class="preset-btn" data-preset="high" data-i18n="preHigh">④ n = 6 高量子數</button>
+            </div>
+            <button type="button" id="btn-reset" class="w-full py-2 rounded-xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 mb-5" data-i18n="reset">重置</button>
+
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2 text-slate-300" data-i18n="labelN">
+                    主量子數 <span class="math-var">n</span>
+                </label>
+                <div class="flex justify-between items-center mb-1 text-xs text-slate-500">
+                    <span>1</span>
+                    <span id="val-n" class="font-mono text-xl font-bold text-cyan-300">3.0</span>
+                    <span>7</span>
                 </div>
-
-                <!-- 狀態顯示 -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                        <div class="text-xs text-slate-500 mb-1" data-i18n="angularMomentumLabel">角動量 (L)</div>
-                        <div class="text-lg text-amber-400 font-mono" id="angularMomentumDisplay"></div>
-                    </div>
-                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                        <div class="text-xs text-slate-500 mb-1" data-i18n="nodesLabel">波節數量</div>
-                        <div class="text-lg text-rose-400 font-mono" id="nodesDisplay">6</div>
-                    </div>
-                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 col-span-2">
-                        <div class="text-xs text-slate-500 mb-1" data-i18n="wavelengthLabel">德布羅意波長</div>
-                        <div class="text-lg text-emerald-400 font-mono">λ = <span id="lambdaDisplay"></span></div>
-                    </div>
-                </div>
+                <input type="range" id="input-n" min="1" max="7" step="0.1" value="3">
+                <p class="text-[11px] text-slate-500 mt-2" data-i18n="nHint">整數 n → 穩定駐波；非整數 → 首尾波形不吻合，軌道無法存在。</p>
             </div>
 
-            <!-- 簡易提示 -->
-            <div class="bg-indigo-900/20 p-4 rounded-lg border border-indigo-500/30 text-indigo-200 text-sm">
+            <div class="space-y-3 mb-4">
+                <label class="check-row">
+                    <span data-i18n="labelAnimate">波動動畫</span>
+                    <span class="toggle-switch"><input type="checkbox" id="toggle-anim" checked><span class="toggle-slider"></span></span>
+                </label>
+                <label class="check-row">
+                    <span data-i18n="labelUnfold">展平圓周（2πr = nλ）</span>
+                    <span class="toggle-switch"><input type="checkbox" id="toggle-unfold"><span class="toggle-slider"></span></span>
+                </label>
+                <label class="check-row">
+                    <span data-i18n="labelEnvelope">顯示波腹／波節</span>
+                    <span class="toggle-switch"><input type="checkbox" id="toggle-envelope" checked><span class="toggle-slider"></span></span>
+                </label>
+            </div>
+
+            <div class="bg-indigo-900/25 p-3 rounded-lg border border-indigo-500/30 text-indigo-200 text-xs mb-4 leading-relaxed">
                 <strong data-i18n="tipTitle">💡 觀察重點：</strong>
-                <span data-i18n="tipContent">
-                    注意：隨著主量子數 n 增加，電子軌道半徑 r 也會變大。藍色波形在圓周上形成整數個波長的駐波。
-                </span>
+                <span data-i18n="tipContent">n 增大時，軌道半徑 r 亦增大（波耳模型）。圓周上須形成 n 個完整波長的駐波，波節共 2n 個。</span>
             </div>
-        </div>
+
+            <div class="bg-slate-900 rounded-lg p-4 border border-slate-600 mt-auto space-y-3">
+                <h3 class="text-slate-400 text-xs uppercase tracking-wider" data-i18n="resultTitle">即時讀數</h3>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-slate-400" data-i18n="resState">狀態</span>
+                    <span id="res-state" class="font-bold status-constructive">—</span>
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-slate-400" data-i18n="resL">角動量 L</span>
+                    <span id="res-L" class="font-mono text-lg font-bold text-amber-300">—</span>
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-slate-400" data-i18n="resNodes">波節數量 (2n)</span>
+                    <span id="res-nodes" class="font-mono text-rose-300">—</span>
+                </div>
+                <div class="flex justify-between items-center text-sm gap-2">
+                    <span class="text-slate-400 shrink-0" data-i18n="resLambda">德布羅意波長</span>
+                    <span id="res-lambda" class="font-mono text-emerald-300 text-xs text-right">—</span>
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-slate-400" data-i18n="resWaves">圓周波數</span>
+                    <span id="res-waves" class="font-mono text-cyan-300">3 λ</span>
+                </div>
+                <div id="live-formula" class="mj-box text-xs mt-2">
+                    $$ L = mvr = n\frac{h}{2\pi} = n\hbar $$
+                </div>
+            </div>
+        </aside>
+
+        <section class="lg:col-span-2 flex flex-col min-h-0 lg:h-full">
+            <div class="bg-slate-800 rounded-xl p-3 sm:p-4 shadow-xl border border-slate-700 flex flex-col flex-1 min-h-[340px] lg:min-h-0 relative">
+                <div class="flex justify-between items-center mb-2 gap-2 shrink-0">
+                    <h3 class="text-base font-semibold text-slate-200" data-i18n="viewTitle">電子德布羅意駐波</h3>
+                    <span class="text-[10px] text-slate-500 bg-slate-900 px-2 py-1 rounded shrink-0" data-i18n="viewHint">環形軌道 ↔ 展平直線</span>
+                </div>
+                <div id="canvas-wrap" class="relative flex-1 min-h-[280px] bg-slate-950 rounded-lg overflow-hidden border border-slate-700">
+                    <canvas id="sim-canvas"></canvas>
+                    <div id="canvas-badge" class="absolute top-3 left-3 pointer-events-none px-2 py-1 rounded bg-slate-800/85 text-[11px] font-mono text-cyan-400 border border-slate-700">
+                        λ = 2πr / n
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <!-- 原理解說 Modal (預設隱藏) -->
-    <div id="theoryModal" class="fixed inset-0 hidden items-center justify-center opacity-0 transition-opacity duration-300">
-        <!-- 背景遮罩 -->
-        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="modalBackdrop"></div>
-        
-        <!-- 內容卡片 -->
-        <div class="relative bg-slate-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-600 shadow-2xl transform scale-95 transition-transform duration-300 p-8 z-10" id="modalContent">
-            <!-- 關閉按鈕 -->
-            <button id="closeModal" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-
-            <h2 class="text-2xl font-bold text-white mb-6 border-b border-slate-700 pb-2" data-i18n="theoryTitle">
-                物理原理：波耳量子化條件
-            </h2>
-
-            <div class="space-y-6 text-slate-300 leading-relaxed">
-                <section>
-                    <h3 class="text-lg font-semibold text-sky-400 mb-2" data-i18n="theorySec1Title">1. 德布羅意物質波</h3>
-                    <p data-i18n="theorySec1Content">
-                        1924年，路易·德布羅意提出電子具有波動性。對於一個動量為 $p$ 的電子，其波長 $\lambda$ 為：
-                    </p>
-                    <div class="bg-slate-900 p-3 rounded text-center my-2 border border-slate-700">
-                        $$ \lambda = \frac{h}{p} $$
-                    </div>
-                </section>
-
-                <section>
-                    <h3 class="text-lg font-semibold text-sky-400 mb-2" data-i18n="theorySec2Title">2. 駐波條件</h3>
-                    <p data-i18n="theorySec2Content">
-                        為了讓電子在原子核周圍形成穩定的軌道，電子的物質波必須頭尾相接形成<strong>駐波</strong>（Standing Wave）。如果沒有形成駐波，波會因破壞性干涉而消失。這要求軌道的圓周長必須是波長的整數倍：
-                    </p>
-                    <div class="bg-slate-900 p-3 rounded text-center my-2 border border-slate-700">
-                        $$ 2\pi r_n = n \lambda \quad (n = 1, 2, 3...) $$
-                    </div>
-                    <p class="text-sm text-slate-400 mt-2">
-                        <span data-i18n="theorySec2Note">這解釋了為什麼電子的軌道半徑是量子化的（不連續的）。</span>
-                    </p>
-                </section>
-
-                <section>
-                    <h3 class="text-lg font-semibold text-sky-400 mb-2" data-i18n="theorySec3Title">3. 角動量量子化</h3>
-                    <p data-i18n="theorySec3Content">
-                        將德布羅意波長代入上述條件，我們可以推導出波耳的角動量量子化假設。角動量 $L$ 也必須是 $\hbar$ (約化普朗克常數) 的整數倍：
-                    </p>
-                    <div class="bg-slate-900 p-3 rounded text-center my-2 border border-slate-700">
-                        $$ L = mvr = n \frac{h}{2\pi} = n\hbar $$
-                    </div>
-                </section>
+    <!-- 原理解說 -->
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-cyan-600 to-violet-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="principle-title" class="text-lg font-bold" data-i18n="modalTitle">德布羅意駐波與角動量量子化</h2>
+                    <p class="text-xs text-white/80 mt-0.5" data-i18n="modalSub">Bohr model &amp; standing matter waves</p>
+                </div>
+                <button type="button" id="principle-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
             </div>
-            
-            <div class="mt-8 pt-4 border-t border-slate-700 text-center">
-                <button id="closeModalBtn" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded-lg transition-colors font-medium">
-                    <span data-i18n="btnClose">關閉</span>
-                </button>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-cyan-50 p-4 rounded-2xl border border-cyan-100">
+                    <h3 class="font-bold text-cyan-900 mb-1" data-i18n="m1t">1. 德布羅意假說</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m1d">1924 年德布羅意提出電子具有波動性，形成沿軌道的物質波。波長 λ = h/p，其中 p 為動量。</p>
+                </div>
+                <div class="mj-box bg-slate-900 text-cyan-300 border border-slate-700 rounded-xl p-4 text-sm">
+                    <p class="text-left text-xs text-slate-300 mb-2" data-i18n="m2t">2. 駐波條件</p>
+                    $$ 2\pi r_n = n\lambda \quad (n = 1, 2, 3, \ldots) $$
+                    <p class="text-xs mt-3 text-left text-slate-300" data-i18n="m2d">圓周長必須容納整數個波長，首尾同相，形成穩定駐波。非整數 n 時首尾反相或錯相，波相互消。</p>
+                    <p class="text-xs mt-2 text-left text-slate-400" data-i18n="m2note">因此電子軌道半徑 r<sub>n</sub> 只能取特定離散值，不能任意連續。</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-violet-50 p-3 rounded-xl border border-violet-100">
+                        <h4 class="font-bold text-violet-800 mb-1" data-i18n="m3t">角動量量子化</h4>
+                        <p data-i18n="m3d">代入 λ = h/p 並用 L = mvr = pr，得 L = nh/(2π) = nℏ。只有特定 n 的軌道穩定。</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 mb-1" data-i18n="m4t">DSE 重點</h4>
+                        <p data-i18n="m4d">展平波形可數出 n 個波長；比較 n = 3 與 n = 3.5，理解為何後者不能形成穩定原子軌道。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="principle-confirm" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl text-sm" data-i18n="btnOk">明白了</button>
             </div>
         </div>
     </div>
 
-    <!-- JavaScript 邏輯 -->
-    <script>
-        // 使用立即執行函式 (IIFE) 避免全域變數污染和重複宣告錯誤
-        (function() {
-            // --- 1. 語言與翻譯資料 ---
-            const translations = {
-                zh: {
-                    appTitle: "量子力學模擬",
-                    btnTheory: "原理解說",
-                    panelTitle: "參數控制",
-                    panelSubtitle: "調整主量子數以觀察駐波形成",
-                    quantumNumLabel: "主量子數 (n)",
-                    wavelengthLabel: "德布羅意波長",
-                    angularMomentumLabel: "角動量 (L)",
-                    nodesLabel: "波節數量 (2n)",
-                    tipTitle: "💡 觀察重點：",
-                    tipContent: "注意：隨著主量子數 n 增加，電子軌道半徑 r 也會變大。藍色波形在圓周上形成整數個波長的駐波。",
-                    theoryTitle: "物理原理：波耳量子化條件",
-                    theorySec1Title: "1. 德布羅意物質波",
-                    theorySec1Content: "1924年，路易·德布羅意提出電子具有波動性。對於一個動量為 $p$ 的電子，其波長 $\\lambda$ 為：",
-                    theorySec2Title: "2. 駐波條件",
-                    theorySec2Content: "為了讓電子在原子核周圍形成穩定的軌道，電子的物質波必須頭尾相接形成<strong>駐波</strong>（Standing Wave）。如果沒有形成駐波，波會因破壞性干涉而消失。這要求軌道的圓周長必須是波長的整數倍：",
-                    theorySec2Note: "這解釋了為什麼電子的軌道半徑是量子化的（不連續的）。",
-                    theorySec3Title: "3. 角動量量子化",
-                    theorySec3Content: "將德布羅意波長代入上述條件，我們可以推導出波耳的角動量量子化假設。角動量 $L$ 也必須是 $\\hbar$ (約化普朗克常數) 的整數倍：",
-                    btnClose: "關閉"
-                },
-                en: {
-                    appTitle: "Quantum Simulation",
-                    btnTheory: "Theory & Math",
-                    panelTitle: "Controls",
-                    panelSubtitle: "Adjust principal quantum number to see standing waves",
-                    quantumNumLabel: "Quantum Number (n)",
-                    wavelengthLabel: "De Broglie Wavelength",
-                    angularMomentumLabel: "Angular Momentum (L)",
-                    nodesLabel: "Number of Nodes (2n)",
-                    tipTitle: "💡 Key Observation:",
-                    tipContent: "Note: As the quantum number n increases, the orbit radius r also increases. The blue wave forms an integer number of wavelengths.",
-                    theoryTitle: "Physics: Bohr Quantization",
-                    theorySec1Title: "1. De Broglie Matter Waves",
-                    theorySec1Content: "In 1924, Louis de Broglie proposed that electrons have wave properties. For an electron with momentum $p$, the wavelength $\\lambda$ is:",
-                    theorySec2Title: "2. Standing Wave Condition",
-                    theorySec2Content: "For a stable orbit, the electron wave must form a <strong>Standing Wave</strong> around the nucleus. Without this, destructive interference would occur. This requires the circumference to be an integer multiple of the wavelength:",
-                    theorySec2Note: "This explains why electron orbital radii are quantized (discrete).",
-                    theorySec3Title: "3. Angular Momentum Quantization",
-                    theorySec3Content: "Substituting the wavelength into the condition above derives Bohr's angular momentum quantization postulate. Angular Momentum $L$ must be an integer multiple of $\\hbar$:",
-                    btnClose: "Close"
-                }
-            };
+    <!-- 觀察步驟 -->
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-cyan-600 to-violet-600 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="flex gap-3"><span class="font-black text-cyan-600 shrink-0">1</span><p data-i18n="s1">觀察環形軌道上的青色物質波；整數 n 時波幅穩定，電子（黃點）沿軌道運動。</p></div>
+                <div class="flex gap-3"><span class="font-black text-cyan-600 shrink-0">2</span><p data-i18n="s2">拖曳 n 滑桿或選預設；整數 n 為綠色「穩定駐波」，非整數為紅色「破壞性干涉」。</p></div>
+                <div class="flex gap-3"><span class="font-black text-cyan-600 shrink-0">3</span><p data-i18n="s3">開啟「展平圓周」，把環形拉直成 2πr 直線，數出 n 個波長 λ 的分界線。</p></div>
+                <div class="flex gap-3"><span class="font-black text-cyan-600 shrink-0">4</span><p data-i18n="s4">切換 n = 3.5，展平後觀察首尾波形高度不一致（Δ 標示），理解軌道無法閉合。</p></div>
+                <div class="flex gap-3"><span class="font-black text-cyan-600 shrink-0">5</span><p data-i18n="s5">對照左側 L/ℏ 讀數與公式 L = nℏ；按「重置」回到 n = 3。</p></div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl text-sm" data-i18n="btnStart">開始實驗</button>
+            </div>
+        </div>
+    </div>
 
-            let currentLang = 'zh';
+<script>
+const PRESETS = {
+    ground: { n: 1 },
+    typical: { n: 3 },
+    destructive: { n: 3.5 },
+    high: { n: 6 }
+};
 
-            function updateLanguage(lang) {
-                currentLang = lang;
-                const t = translations[lang];
-                
-                // 更新所有帶有 data-i18n 的元素
-                document.querySelectorAll('[data-i18n]').forEach(el => {
-                    const key = el.getAttribute('data-i18n');
-                    if (t[key]) {
-                        el.innerHTML = t[key];
-                    }
-                });
+const DEFAULT = { n: 3, isAnimating: true, isUnfolded: false, showEnvelope: true };
 
-                // 更新按鈕文字
-                document.getElementById('langText').textContent = lang === 'zh' ? 'English' : '中文';
+const i18n = {
+    zh: {
+        title: '量子角動量及駐波', badge: '物理', subtitle: '德布羅意駐波與角動量量子化 L = nℏ',
+        formulaLabel: '條件', btnSteps: '觀察步驟', btnPrinciple: '原理解說', btnOk: '明白了', btnStart: '開始實驗', reset: '重置',
+        controlTitle: '參數設定', presets: '教學情境',
+        preGround: '① 基態 n = 1（最低能級）',
+        preTypical: '② n = 3 穩定駐波',
+        preDestructive: '③ n = 3.5 破壞性干涉',
+        preHigh: '④ n = 6 高量子數',
+        labelN: '主量子數 n', nHint: '整數 n → 穩定駐波；非整數 → 首尾波形不吻合，軌道無法存在。',
+        labelAnimate: '波動動畫', labelUnfold: '展平圓周（2πr = nλ）', labelEnvelope: '顯示波腹／波節',
+        resultTitle: '即時讀數', resState: '狀態', resWaves: '圓周波數',
+        stateConstructive: '穩定駐波', stateDestructive: '破壞性干涉',
+        wavesUnit: ' λ',
+        viewTitle: '電子德布羅意駐波', viewHint: '環形軌道 ↔ 展平直線',
+        modalTitle: '德布羅意駐波與角動量量子化', modalSub: 'Bohr model & standing matter waves',
+        m1t: '1. 德布羅意假說', m1d: '1924 年德布羅意提出電子具有波動性，形成沿軌道的物質波。波長 λ = h/p，其中 p 為動量。',
+        m2t: '2. 駐波條件', m2d: '圓周長必須容納整數個波長，首尾同相，形成穩定駐波。非整數 n 時首尾反相或錯相，波相互消。',
+        m3t: '角動量量子化', m3d: '代入 λ = h/p 並用 L = mvr = pr，得 L = nh/(2π) = nℏ。只有特定 n 的軌道穩定。',
+        m4t: 'DSE 重點', m4d: '展平波形可數出 n 個波長；比較 n = 3 與 n = 3.5，理解為何後者不能形成穩定原子軌道。',
+        stepsTitle: '觀察步驟',
+        s1: '觀察環形軌道上的青色物質波；整數 n 時波幅穩定，電子（黃點）沿軌道運動。',
+        s2: '拖曳 n 滑桿或選預設；整數 n 為綠色「穩定駐波」，非整數為紅色「破壞性干涉」。',
+        s3: '開啟「展平圓周」，把環形拉直成 2πr 直線，數出 n 個波長 λ 的分界線。',
+        s4: '切換 n = 3.5，展平後觀察首尾波形高度不一致（Δ 標示），理解軌道無法閉合。',
+        s5: '對照左側 L/ℏ 讀數與公式 L = nℏ；按「重置」回到 n = 3。',
+        tipTitle: '💡 觀察重點：',
+        tipContent: 'n 增大時，軌道半徑 r 亦增大（波耳模型）。圓周上須形成 n 個完整波長的駐波，波節共 2n 個。',
+        resL: '角動量 L', resNodes: '波節數量 (2n)', resLambda: '德布羅意波長',
+        m2note: '因此電子軌道半徑 r<sub>n</sub> 只能取特定離散值，不能任意連續。',
+        canvasCircumference: '圓周 2πr',
+        canvasLambda: 'λ',
+        canvasMismatch: '首尾 Δ',
+        canvasAntinode: '波腹',
+        canvasNode: '波節',
+        canvasNucleus: '原子核'
+    },
+    en: {
+        title: 'Quantum Angular Momentum & Standing Waves', badge: 'Physics', subtitle: 'de Broglie standing waves & L = nℏ',
+        formulaLabel: 'Condition', btnSteps: 'Steps', btnPrinciple: 'Theory', btnOk: 'Got it', btnStart: 'Start', reset: 'Reset',
+        controlTitle: 'Parameters', presets: 'Teaching presets',
+        preGround: '① Ground state n = 1 (lowest level)',
+        preTypical: '② n = 3 stable standing wave',
+        preDestructive: '③ n = 3.5 destructive interference',
+        preHigh: '④ n = 6 high quantum number',
+        labelN: 'Principal quantum number n', nHint: 'Integer n → stable standing wave; non-integer → ends do not match, orbit forbidden.',
+        labelAnimate: 'Wave animation', labelUnfold: 'Unfold circumference (2πr = nλ)', labelEnvelope: 'Show antinodes / nodes',
+        resultTitle: 'Live readout', resState: 'Status', resWaves: 'Waves around ring',
+        stateConstructive: 'Standing wave', stateDestructive: 'Destructive interference',
+        wavesUnit: ' λ',
+        viewTitle: 'Electron de Broglie standing wave', viewHint: 'Circular orbit ↔ straightened line',
+        modalTitle: 'de Broglie Waves & Angular Momentum Quantization', modalSub: 'Bohr model & standing matter waves',
+        m1t: '1. de Broglie hypothesis', m1d: 'In 1924 de Broglie proposed matter waves for electrons: λ = h/p, where p is momentum.',
+        m2t: '2. Standing-wave condition', m2d: 'The circumference must fit an integer number of wavelengths with matching phase at the ends. Non-integer n causes cancellation.',
+        m3t: 'Quantized angular momentum', m3d: 'With λ = h/p and L = mvr = pr, we get L = nh/(2π) = nℏ. Only certain n give stable orbits.',
+        m4t: 'Exam focus', m4d: 'Unfold the ring to count n wavelengths; compare n = 3 vs n = 3.5 to see why the latter cannot close.',
+        stepsTitle: 'Observation steps',
+        s1: 'Watch the cyan matter wave on the circular orbit; for integer n the amplitude is steady and the electron (yellow dot) moves along the orbit.',
+        s2: 'Drag the n slider or pick a preset; integer n shows green “standing wave”, non-integer shows red “destructive interference”.',
+        s3: 'Enable “Unfold circumference” to straighten the ring into length 2πr and count n wavelength markers.',
+        s4: 'Switch to n = 3.5 and unfold; note the height mismatch (Δ) at the ends — the orbit cannot close.',
+        s5: 'Compare the L/ℏ readout with L = nℏ; press Reset to return to n = 3.',
+        tipTitle: '💡 Key observation:',
+        tipContent: 'As n increases, orbit radius r also increases (Bohr model). The ring must fit n full wavelengths with 2n nodes.',
+        resL: 'Angular momentum L', resNodes: 'Nodes (2n)', resLambda: 'de Broglie wavelength',
+        m2note: 'Hence orbital radius r<sub>n</sub> is quantized — only discrete values are allowed.',
+        canvasCircumference: 'Circumference 2πr',
+        canvasLambda: 'λ',
+        canvasMismatch: 'End Δ',
+        canvasAntinode: 'Antinode',
+        canvasNode: 'Node',
+        canvasNucleus: 'Nucleus'
+    }
+};
 
-                // 重新渲染數學公式
-                if (window.MathJax && window.MathJax.typesetPromise) {
-                    MathJax.typesetPromise();
-                }
-            }
+let lang = 'zh';
+let activePreset = 'typical';
 
-            // --- 2. 應用程式邏輯 ---
-            const canvas = document.getElementById('quantumCanvas');
-            const ctx = canvas.getContext('2d');
-            const slider = document.getElementById('quantumNum');
-            const nDisplay = document.getElementById('nDisplay');
-            const lambdaDisplay = document.getElementById('lambdaDisplay');
-            const nodesDisplay = document.getElementById('nodesDisplay');
-            const angularMomentumDisplay = document.getElementById('angularMomentumDisplay');
+const state = {
+    n: DEFAULT.n,
+    isAnimating: DEFAULT.isAnimating,
+    isUnfolded: DEFAULT.isUnfolded,
+    showEnvelope: DEFAULT.showEnvelope,
+    unfoldProgress: 0,
+    time: 0,
+    radiusBase: 0,
+    amplitude: 0
+};
 
-            // Modal 邏輯 (修正版)
-            const theoryModal = document.getElementById('theoryModal');
-            const modalContent = document.getElementById('modalContent');
-            const btnTheory = document.getElementById('btnTheory');
-            const closeModal = document.getElementById('closeModal');
-            const closeModalBtn = document.getElementById('closeModalBtn');
-            const modalBackdrop = document.getElementById('modalBackdrop');
+const canvas = document.getElementById('sim-canvas');
+const ctx = canvas.getContext('2d');
+const inputN = document.getElementById('input-n');
+const valN = document.getElementById('val-n');
+const toggleAnim = document.getElementById('toggle-anim');
+const toggleUnfold = document.getElementById('toggle-unfold');
+const toggleEnvelope = document.getElementById('toggle-envelope');
+const resState = document.getElementById('res-state');
+const resL = document.getElementById('res-L');
+const resNodes = document.getElementById('res-nodes');
+const resLambda = document.getElementById('res-lambda');
+const resWaves = document.getElementById('res-waves');
+const canvasBadge = document.getElementById('canvas-badge');
 
-            function toggleModal(show) {
-                if (show) {
-                    // 顯示
-                    theoryModal.classList.remove('hidden');
-                    // 強制重繪以觸發過渡效果
-                    void theoryModal.offsetWidth;
-                    theoryModal.classList.remove('opacity-0');
-                    theoryModal.classList.add('flex');
-                    
-                    modalContent.classList.remove('scale-95');
-                    modalContent.classList.add('scale-100');
-                } else {
-                    // 隱藏
-                    theoryModal.classList.add('opacity-0');
-                    modalContent.classList.remove('scale-100');
-                    modalContent.classList.add('scale-95');
-                    
-                    // 等待動畫結束後再隱藏 DOM
-                    setTimeout(() => {
-                        theoryModal.classList.remove('flex');
-                        theoryModal.classList.add('hidden');
-                    }, 300);
-                }
-            }
+const STEPS = 480;
 
-            btnTheory.addEventListener('click', () => toggleModal(true));
-            closeModal.addEventListener('click', () => toggleModal(false));
-            closeModalBtn.addEventListener('click', () => toggleModal(false));
-            modalBackdrop.addEventListener('click', () => toggleModal(false));
+function t(key) { return i18n[lang][key] || key; }
 
-            // 語言切換邏輯
-            document.getElementById('btnLang').addEventListener('click', () => {
-                const newLang = currentLang === 'zh' ? 'en' : 'zh';
-                updateLanguage(newLang);
-            });
+function isIntegerN(n) {
+    return Math.abs(n - Math.round(n)) < 0.001;
+}
 
-            // --- 3. 繪圖與物理核心 ---
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            
-            // 基礎半徑邏輯
-            // 物理上 r 正比於 n^2，但為了視覺化方便（避免 n=1 太小），
-            // 我們使用一個折衷的線性映射：n=1->70px, n=10->250px
-            function getRadius(n) {
-                return 50 + (n * 20);
-            }
+function waveOffset(theta, n, amplitude, timeFactor) {
+    return amplitude * Math.cos(n * theta) * timeFactor;
+}
 
-            let waveAmplitude = 15; 
-            let time = 0; 
-            let n = parseInt(slider.value);
-            let baseRadius = getRadius(n);
+function morphPoint(cx, cy, theta, rOffset, radiusBase, p) {
+    const r = radiusBase + rOffset;
+    const xCirc = cx + r * Math.cos(theta);
+    const yCirc = cy + r * Math.sin(theta);
+    const xLin = cx - Math.PI * radiusBase + theta * radiusBase;
+    const yLin = cy - rOffset;
+    return {
+        x: xCirc * (1 - p) + xLin * p,
+        y: yCirc * (1 - p) + yLin * p
+    };
+}
 
-            // 更新數據顯示
-            function updateStats() {
-                nDisplay.textContent = n;
-                // 更新半徑
-                baseRadius = getRadius(n);
-                
-                // 調整振幅：半徑越大，振幅稍微大一點比較好看，但不要太大
-                waveAmplitude = 15 + n; 
+function computeOrbitMetrics() {
+    const parent = document.getElementById('canvas-wrap');
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    const minDim = Math.min(w, h);
+    const nVis = isIntegerN(state.n) ? Math.round(state.n) : state.n;
 
-                // 更新文字顯示
-                // 注意：這裡加入了 $ 符號，讓 MathJax 識別這是公式
-                lambdaDisplay.innerHTML = `$2\\pi r_{${n}}/${n}$`;
-                nodesDisplay.textContent = n * 2;
-                
-                // 角動量顯示 L = n * hbar (加入 $ 符號)
-                angularMomentumDisplay.innerHTML = `$${n}\\hbar$`;
+    // 展平後水平寬度 = 2πr，必須完整放入畫布
+    const padX = 28;
+    const rMaxUnfold = (w - padX) / (2 * Math.PI);
 
-                // 觸發 MathJax 重新渲染 (只針對動態部分)
-                if (window.MathJax && window.MathJax.typesetPromise) {
-                    window.MathJax.typesetPromise([lambdaDisplay, angularMomentumDisplay])
-                        .catch((err) => console.error('MathJax render error:', err));
-                }
-            }
+    // 圓周模式：r + 波幅 + 標籤須在 minDim 內
+    const ampRatio = 0.085;
+    const rMaxCircle = (minDim * 0.42) / (1 + ampRatio * 2);
 
-            slider.addEventListener('input', (e) => {
-                n = parseInt(e.target.value);
-                updateStats();
-            });
+    const rCap = Math.max(28, Math.min(rMaxUnfold, rMaxCircle));
 
-            function draw() {
-                // 清除畫布
-                ctx.fillStyle = '#0f172a';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 波耳模型：n 越大 r 越大，但上限受可視範圍約束
+    const t = (Math.max(1, Math.min(7, nVis)) - 1) / 6;
+    state.radiusBase = rCap * (0.36 + 0.64 * t);
 
-                // 1. 繪製參考圓 (虛線)
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
-                ctx.strokeStyle = '#334155';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([4, 4]); 
-                ctx.stroke();
-                ctx.setLineDash([]);
+    // 波幅隨 r 縮放，並限制垂直空間（展平時需預留 λ 標尺與標籤）
+    const ampFromHeight = Math.max(6, (h * 0.5 - 36) / 1.7);
+    state.amplitude = Math.min(state.radiusBase * ampRatio, ampFromHeight);
+}
 
-                // 2. 繪製電子波函數
-                ctx.beginPath();
-                ctx.strokeStyle = '#38bdf8'; 
-                ctx.lineWidth = 3;
-                ctx.shadowColor = '#0ea5e9';
-                ctx.shadowBlur = 10;
+function resize() {
+    const parent = document.getElementById('canvas-wrap');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(parent.clientWidth * dpr);
+    canvas.height = Math.floor(parent.clientHeight * dpr);
+    canvas.style.width = parent.clientWidth + 'px';
+    canvas.style.height = parent.clientHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    computeOrbitMetrics();
+}
 
-                const steps = 720; 
-                const standingWaveFactor = Math.cos(time); 
+function drawNucleus(cx, cy, p) {
+    ctx.save();
+    ctx.globalAlpha = 1 - p * 0.85;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.shadowColor = '#f87171';
+    ctx.shadowBlur = 14;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('+', cx, cy);
+    if (p < 0.5) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px "Noto Sans TC", sans-serif';
+        ctx.fillText(t('canvasNucleus'), cx, cy + 22);
+    }
+    ctx.restore();
+}
 
-                for (let i = 0; i <= steps; i++) {
-                    const theta = (i / steps) * Math.PI * 2;
-                    
-                    // 駐波公式
-                    const r = baseRadius + waveAmplitude * Math.sin(n * theta) * standingWaveFactor;
+function drawOrbitPath(cx, cy, p) {
+    ctx.beginPath();
+    for (let i = 0; i <= STEPS; i++) {
+        const theta = (i / STEPS) * Math.PI * 2;
+        const pt = morphPoint(cx, cy, theta, 0, state.radiusBase, p);
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
 
-                    const x = centerX + r * Math.cos(theta);
-                    const y = centerY + r * Math.sin(theta);
+function drawUnfoldGuides(cx, cy, p) {
+    if (p <= 0.01) return;
+    const boxLeft = cx - Math.PI * state.radiusBase;
+    const boxRight = cx + Math.PI * state.radiusBase;
+    const boxTop = cy - state.amplitude * 1.35;
+    const boxBottom = cy + state.amplitude * 1.35;
+    const waveLengthPx = (Math.PI * 2 * state.radiusBase) / state.n;
 
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.closePath();
-                ctx.stroke();
+    ctx.save();
+    ctx.globalAlpha = p;
 
-                // 3. 繪製波節 (Nodes)
-                ctx.fillStyle = '#f43f5e'; 
-                ctx.shadowBlur = 0;
-                
-                for (let k = 0; k < 2 * n; k++) {
-                    const nodeTheta = (k * Math.PI) / n;
-                    const nodeX = centerX + baseRadius * Math.cos(nodeTheta);
-                    const nodeY = centerY + baseRadius * Math.sin(nodeTheta);
-                    
-                    ctx.beginPath();
-                    // 波節大小隨 n 稍微調整，避免擠在一起
-                    ctx.arc(nodeX, nodeY, n > 5 ? 3 : 4, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(boxLeft, boxTop);
+    ctx.lineTo(boxLeft, boxBottom);
+    ctx.moveTo(boxRight, boxTop);
+    ctx.lineTo(boxRight, boxBottom);
+    ctx.stroke();
 
-                // 4. 繪製原子核
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
-                ctx.fillStyle = '#fbbf24'; 
-                ctx.shadowColor = '#fbbf24';
-                ctx.shadowBlur = 15;
-                ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(t('canvasCircumference'), cx, boxBottom + 20);
 
-                // 5. 標註半徑文字 (選擇性)
-                ctx.fillStyle = '#94a3b8';
-                ctx.font = '12px monospace';
-                ctx.fillText(`n=${n}`, centerX + 15, centerY - 15);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    for (let k = 1; k < state.n; k++) {
+        const xMark = boxLeft + k * waveLengthPx;
+        if (xMark <= boxRight + 1) {
+            ctx.moveTo(xMark, cy - state.amplitude * 1.15);
+            ctx.lineTo(xMark, cy + state.amplitude * 1.15);
+        }
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-                time += 0.04; 
-                requestAnimationFrame(draw);
-            }
+    const startX = boxLeft;
+    const endX = boxLeft + waveLengthPx;
+    const bracketY = boxTop - 8;
+    ctx.beginPath();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.moveTo(startX, bracketY);
+    ctx.lineTo(endX, bracketY);
+    ctx.moveTo(startX, bracketY - 4);
+    ctx.lineTo(startX, bracketY + 4);
+    ctx.moveTo(endX, bracketY - 4);
+    ctx.lineTo(endX, bracketY + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText(t('canvasLambda'), (startX + endX) / 2, bracketY - 6);
 
-            // 初始執行
-            updateStats();
-            draw();
-        })();
-    </script>
+    if (!isIntegerN(state.n)) {
+        const startY = cy - waveOffset(0, state.n, state.amplitude, 1);
+        const endY = cy - waveOffset(Math.PI * 2, state.n, state.amplitude, 1);
+        const delta = Math.abs(endY - startY);
+        if (delta > 2) {
+            ctx.strokeStyle = '#f87171';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(boxLeft, startY);
+            ctx.lineTo(boxLeft - 12, startY);
+            ctx.moveTo(boxRight, endY);
+            ctx.lineTo(boxRight + 12, endY);
+            ctx.stroke();
+            ctx.fillStyle = '#f87171';
+            ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+            ctx.fillText(t('canvasMismatch'), cx, boxTop - 24);
+        }
+    }
+
+    ctx.restore();
+}
+
+function drawEnvelope(cx, cy, p, timeFactor) {
+    if (!state.showEnvelope || !isIntegerN(state.n)) return;
+    ctx.beginPath();
+    for (let i = 0; i <= STEPS; i++) {
+        const theta = (i / STEPS) * Math.PI * 2;
+        const rOffset = state.amplitude * Math.cos(state.n * theta);
+        const pt = morphPoint(cx, cy, theta, rOffset, state.radiusBase, p);
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+    }
+    for (let i = STEPS; i >= 0; i--) {
+        const theta = (i / STEPS) * Math.PI * 2;
+        const rOffset = -state.amplitude * Math.cos(state.n * theta);
+        const pt = morphPoint(cx, cy, theta, rOffset, state.radiusBase, p);
+        ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.08)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(34, 211, 238, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    if (p > 0.4) {
+        const nInt = Math.round(state.n);
+        ctx.font = '10px "Noto Sans TC", sans-serif';
+        for (let k = 0; k < nInt; k++) {
+            const thetaAnti = (k / nInt) * Math.PI * 2;
+            const rAnti = state.amplitude * Math.cos(state.n * thetaAnti) * timeFactor;
+            const ptAnti = morphPoint(cx, cy, thetaAnti, rAnti, state.radiusBase, p);
+            ctx.beginPath();
+            ctx.arc(ptAnti.x, ptAnti.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#22d3ee';
+            ctx.fill();
+        }
+        if (p > 0.7) {
+            ctx.fillStyle = '#64748b';
+            ctx.textAlign = 'center';
+            ctx.fillText(t('canvasNode'), boxLeftLabel(cx, p), cy + state.amplitude * 1.45);
+            ctx.fillStyle = '#22d3ee';
+            ctx.fillText(t('canvasAntinode'), cx, cy - state.amplitude * 1.55);
+        }
+    }
+}
+
+function drawCircularNodes(cx, cy, p) {
+    if (!state.showEnvelope || !isIntegerN(state.n) || p > 0.35) return;
+    const nInt = Math.round(state.n);
+    const dotR = nInt > 5 ? 3 : 4;
+    ctx.fillStyle = '#f43f5e';
+    ctx.shadowBlur = 0;
+    for (let k = 0; k < 2 * nInt; k++) {
+        const theta = ((2 * k + 1) * Math.PI) / (2 * nInt);
+        const x = cx + state.radiusBase * Math.cos(theta);
+        const y = cy + state.radiusBase * Math.sin(theta);
+        ctx.beginPath();
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function boxLeftLabel(cx, p) {
+    return cx - Math.PI * state.radiusBase * p;
+}
+
+function drawWave(cx, cy, p) {
+    const integerN = isIntegerN(state.n);
+    const timeFactor = state.isAnimating ? Math.cos(state.time * 3) : 1;
+
+    drawEnvelope(cx, cy, p, timeFactor);
+
+    ctx.beginPath();
+    for (let i = 0; i <= STEPS; i++) {
+        const theta = (i / STEPS) * Math.PI * 2;
+        const rOffset = waveOffset(theta, state.n, state.amplitude, timeFactor);
+        const pt = morphPoint(cx, cy, theta, rOffset, state.radiusBase, p);
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+    }
+
+    ctx.lineWidth = 3;
+    if (integerN) {
+        ctx.strokeStyle = '#22d3ee';
+        ctx.shadowColor = '#06b6d4';
+        ctx.shadowBlur = 18;
+    } else {
+        ctx.strokeStyle = '#f87171';
+        ctx.shadowColor = '#dc2626';
+        ctx.shadowBlur = 10;
+        ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.cos(state.time * 5));
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    if (!integerN && p < 0.5) {
+        const seamX = cx + state.radiusBase;
+        ctx.beginPath();
+        ctx.arc(seamX, cy, 18, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.9 - p})`;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = `rgba(239, 68, 68, ${0.9 - p})`;
+        ctx.font = '10px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(t('canvasMismatch'), seamX + 22, cy + 4);
+    }
+}
+
+function drawElectron(cx, cy, p) {
+    if (!state.isAnimating || !isIntegerN(state.n)) return;
+    const eTheta = (state.time * 1.5) % (Math.PI * 2);
+    const pt = morphPoint(cx, cy, eTheta, 0, state.radiusBase, p);
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur = 14;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('e⁻', pt.x, pt.y);
+}
+
+function draw() {
+    const w = canvas.width / (window.devicePixelRatio || 1);
+    const h = canvas.height / (window.devicePixelRatio || 1);
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const p = state.unfoldProgress;
+
+    drawNucleus(cx, cy, p);
+    drawUnfoldGuides(cx, cy, p);
+    drawOrbitPath(cx, cy, p);
+    drawCircularNodes(cx, cy, p);
+    drawWave(cx, cy, p);
+    drawElectron(cx, cy, p);
+
+    if (p < 0.35 && isIntegerN(state.n)) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`n=${Math.round(state.n)}`, cx + 14, cy - 14);
+    }
+}
+
+function updateReadout() {
+    computeOrbitMetrics();
+    valN.textContent = state.n.toFixed(1);
+    const integerN = isIntegerN(state.n);
+    const nInt = Math.round(state.n);
+    resState.textContent = integerN ? t('stateConstructive') : t('stateDestructive');
+    resState.className = 'font-bold ' + (integerN ? 'status-constructive' : 'status-destructive');
+    resWaves.textContent = state.n.toFixed(1) + t('wavesUnit');
+
+    if (integerN) {
+        resL.innerHTML = `$${nInt}\\hbar$`;
+        resNodes.textContent = String(2 * nInt);
+        resLambda.innerHTML = `$\\lambda = 2\\pi r_{${nInt}}/${nInt}$`;
+        canvasBadge.textContent = `λ = 2πr${nInt}/${nInt}`;
+    } else {
+        resL.textContent = '—';
+        resNodes.textContent = '—';
+        resLambda.textContent = '—';
+        canvasBadge.textContent = 'λ = 2πr / n';
+    }
+
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([resL, resLambda]).catch(() => {});
+    }
+}
+
+function applyParams(fromPreset) {
+    inputN.value = state.n;
+    updateReadout();
+    if (fromPreset) {
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.preset === activePreset);
+        });
+    }
+}
+
+function setPreset(name) {
+    activePreset = name;
+    state.n = PRESETS[name].n;
+    applyParams(true);
+}
+
+function resetAll() {
+    activePreset = 'typical';
+    state.n = DEFAULT.n;
+    state.isAnimating = DEFAULT.isAnimating;
+    state.isUnfolded = DEFAULT.isUnfolded;
+    state.showEnvelope = DEFAULT.showEnvelope;
+    state.time = 0;
+    toggleAnim.checked = DEFAULT.isAnimating;
+    toggleUnfold.checked = DEFAULT.isUnfolded;
+    toggleEnvelope.checked = DEFAULT.showEnvelope;
+    applyParams(true);
+}
+
+function applyLanguage() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang][key] != null) el.innerHTML = i18n[lang][key];
+    });
+    document.getElementById('btn-lang').textContent = lang === 'zh' ? '中 / EN' : 'EN / 中';
+    document.getElementById('btn-lang-mobile').textContent = lang === 'zh' ? '中 / EN' : 'EN / 中';
+    updateReadout();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+}
+
+function toggleLanguage() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLanguage();
+}
+
+function openModal(id) {
+    document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+function bindModal(modalId, closeIds) {
+    const modal = document.getElementById(modalId);
+    closeIds.forEach(cid => {
+        document.getElementById(cid).addEventListener('click', () => closeModal(modalId));
+    });
+    modal.addEventListener('click', e => {
+        if (e.target === modal) closeModal(modalId);
+    });
+}
+
+document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+document.getElementById('btn-lang-mobile').addEventListener('click', toggleLanguage);
+document.getElementById('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+document.getElementById('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+bindModal('modal-principle', ['principle-close', 'principle-confirm']);
+bindModal('modal-steps', ['steps-close', 'steps-confirm']);
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        closeModal('modal-principle');
+        closeModal('modal-steps');
+    }
+});
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => setPreset(btn.dataset.preset));
+});
+
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+
+inputN.addEventListener('input', e => {
+    state.n = parseFloat(e.target.value);
+    activePreset = '';
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    applyParams(false);
+});
+
+toggleAnim.addEventListener('change', e => { state.isAnimating = e.target.checked; });
+toggleUnfold.addEventListener('change', e => { state.isUnfolded = e.target.checked; });
+toggleEnvelope.addEventListener('change', e => { state.showEnvelope = e.target.checked; });
+
+window.addEventListener('resize', resize);
+
+let lastTime = 0;
+function animate(ts) {
+    const dt = (ts - lastTime) / 1000 || 0;
+    lastTime = ts;
+    if (state.isAnimating) state.time += dt;
+
+    if (state.isUnfolded && state.unfoldProgress < 1) {
+        state.unfoldProgress = Math.min(1, state.unfoldProgress + dt * 1.8);
+    } else if (!state.isUnfolded && state.unfoldProgress > 0) {
+        state.unfoldProgress = Math.max(0, state.unfoldProgress - dt * 1.8);
+    }
+
+    draw();
+    requestAnimationFrame(animate);
+}
+
+resize();
+applyLanguage();
+resetAll();
+requestAnimationFrame(animate);
+</script>
 </body>
 </html>
