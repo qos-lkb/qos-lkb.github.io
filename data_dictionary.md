@@ -9,7 +9,7 @@ php update_data_dictionary.php
 
 > **注意**：本專案不使用 FOREIGN KEY；關聯由 PHP 應用層維護。
 
-**最後更新**：2026-11-15 14:06 HKT
+**Schema 來源**：[`schema.sql`](schema.sql) · sha256 `89b841730a80`（僅 schema 變更時需重產）
 
 ## 目錄 | Table of contents
 

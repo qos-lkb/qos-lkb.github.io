@@ -332,7 +332,10 @@ function dd_parse_key_line(string $line): array
  */
 function dd_render_data_dictionary(array $sections): string
 {
-    $now = (new DateTimeImmutable('now', new DateTimeZone('Asia/Hong_Kong')))->format('Y-m-d H:i');
+    $schemaFile = dd_schema_path();
+    $schemaHash = is_readable($schemaFile)
+        ? substr(hash_file('sha256', $schemaFile) ?: '', 0, 12)
+        : '—';
 
     $out = [];
     $out[] = '# 資料字典 | Data Dictionary';
@@ -346,7 +349,7 @@ function dd_render_data_dictionary(array $sections): string
     $out[] = '';
     $out[] = '> **注意**：本專案不使用 FOREIGN KEY；關聯由 PHP 應用層維護。';
     $out[] = '';
-    $out[] = '**最後更新**：' . $now . ' HKT';
+    $out[] = '**Schema 來源**：[`schema.sql`](schema.sql) · sha256 `' . $schemaHash . '`（僅 schema 變更時需重產）';
     $out[] = '';
 
     $out[] = '## 目錄 | Table of contents';

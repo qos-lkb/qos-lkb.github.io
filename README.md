@@ -299,7 +299,7 @@ php scripts/apply_schema.php
 - [change_log.md](change_log.md) — 依 Git 整理的變更紀錄
 - [architecture.md](architecture.md) — 架構、API、部署、資料模型（含暑期功課呈交／分析；大小寫不敏感磁碟上等同 `ARCHITECTURE.md`）
 - [schema.sql](schema.sql) — 完整資料庫 schema
-- [data_dictionary.md](data_dictionary.md) — 資料表欄位字典（`php update_data_dictionary.php` 產生）
+- [data_dictionary.md](data_dictionary.md) — 資料表欄位字典（`php update_data_dictionary.php` 產生）。若 `git pull` 因本機改過此檔而中斷，執行 `bash scripts/git-pull.sh` 或 `git restore data_dictionary.md` 後再 pull。
 - [rule.md](rule.md) — 開發規範（模擬 HTML、PHP、SPA、工作紙嵌入、暑期功課）
 - [.cursorrules](.cursorrules) — Cursor AI 專案規則摘要
 - [prompt.md](prompt.md) — 建立新模擬之提示範本
