@@ -3,945 +3,1094 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>赫羅圖 (Hertzsprung-Russell Diagram) 探索器</title>
-    
-    <!-- Tailwind CSS -->
+    <title>赫羅圖 | Hertzsprung–Russell Diagram</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart.js for the Scatter Plot -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Google Fonts: Noto Sans TC for Traditional Chinese -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #0f172a; /* Slate 900 */
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #020617; }
+        canvas { display: block; width: 100%; height: 100%; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #334155; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #f59e0b; border: 2px solid #fff; margin-top: -5px; cursor: pointer;
         }
-        /* Custom scrollbar for the data panel */
-        .custom-scroll::-webkit-scrollbar {
-            width: 8px;
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .preset-btn, .track-btn {
+            flex: 1; padding: 7px 8px; border-radius: 10px; font-weight: 800; font-size: 0.7rem;
+            border: 1px solid #334155; background: #0f172a; color: #cbd5e1;
         }
-        .custom-scroll::-webkit-scrollbar-track {
-            background: #1e293b; 
+        .preset-btn.active, .track-btn.active { background: #d97706; color: #fff; border-color: #d97706; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #cbd5e1; cursor: pointer; }
+        .check-row input { width: 14px; height: 14px; accent-color: #f59e0b; }
+        .stat { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 10px 12px; border-top: 3px solid #64748b; }
+        select {
+            width: 100%; background: #0f172a; color: #e2e8f0; border: 1px solid #334155;
+            border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 700;
         }
-        .custom-scroll::-webkit-scrollbar-thumb {
-            background: #475569; 
-            border-radius: 4px;
-        }
-        .custom-scroll::-webkit-scrollbar-thumb:hover {
-            background: #64748b; 
-        }
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     </style>
 </head>
-<body class="text-gray-200 h-screen flex flex-col overflow-hidden">
+<body class="h-full flex flex-col text-slate-200">
 
-    <!-- Navbar -->
-    <nav class="bg-slate-900 border-b border-slate-700 p-4 shadow-lg z-10 flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-yellow-400 animate-pulse"></div>
-            <h1 class="text-xl md:text-2xl font-bold text-white tracking-wide">
-                HR Diagram 
-                <span id="nav-subtitle" class="text-slate-400 text-sm font-normal ml-2">赫羅圖恆星探索器</span>
-            </h1>
-        </div>
-        <div class="flex items-center gap-3">
-            <div id="nav-version" class="text-xs text-slate-500 hidden md:block">
-                天文觀測數據庫 v1.0
-            </div>
-            
-            <!-- 原理解說按鈕 -->
-            <button onclick="toggleInfoModal(true)" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-2 rounded shadow transition-colors flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span id="btn-explain-text">原理解說</span>
-            </button>
-
-            <!-- 新增: 生命週期按鈕 -->
-            <button onclick="toggleLifecycleModal(true)" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-2 rounded shadow transition-colors flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span id="btn-lifecycle-text">生命週期</span>
-            </button>
-
-            <!-- 語言切換按鈕 -->
-            <button onclick="toggleLanguage()" class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-3 py-2 rounded shadow transition-colors font-mono border border-slate-600">
-                中 / Eng
-            </button>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="flex-1 flex flex-col md:flex-row h-full overflow-hidden relative">
-        
-        <!-- Left: Chart Area -->
-        <div class="w-full md:w-2/3 lg:w-3/4 p-4 flex flex-col relative bg-slate-950">
-            <!-- Background Stars Animation Layer -->
-            <div class="absolute inset-0 z-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(white 1px, transparent 1px); background-size: 50px 50px;"></div>
-
-            <div class="relative z-10 w-full h-full flex items-center justify-center p-2 border border-slate-800 rounded-lg bg-slate-900/50 backdrop-blur-sm shadow-inner">
-                <canvas id="hrChart"></canvas>
-            </div>
-            
-            <div class="mt-2 text-center text-xs text-slate-500 z-10">
-                <span class="inline-block w-3 h-3 bg-blue-400 rounded-full mr-1"></span><span id="legend-ms">主序星</span>
-                <span class="inline-block w-3 h-3 bg-red-500 rounded-full ml-3 mr-1"></span><span id="legend-giant">巨星/超巨星</span>
-                <span class="inline-block w-3 h-3 bg-white rounded-full ml-3 mr-1"></span><span id="legend-wd">白矮星</span>
-                <p id="chart-tip" class="mt-1">點擊圖表中的星點以查看詳情</p>
-            </div>
-        </div>
-
-        <!-- Right: Info Panel -->
-        <div class="w-full md:w-1/3 lg:w-1/4 bg-slate-800 border-l border-slate-700 p-6 flex flex-col shadow-2xl z-20 custom-scroll overflow-y-auto">
-            
-            <div id="empty-state" class="flex flex-col items-center justify-center h-full text-slate-400 opacity-70">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-                <p id="empty-text-1">請在左側圖表中</p>
-                <p id="empty-text-2">選擇一顆恆星</p>
-            </div>
-
-            <div id="star-details" class="hidden transition-all duration-300 ease-in-out">
-                <div class="mb-6 pb-4 border-b border-slate-600">
-                    <h2 id="star-name" class="text-3xl font-bold text-white mb-1">Star Name</h2>
-                    <p class="text-blue-300 font-mono text-sm"><span id="lbl-spec-type">光譜類型:</span> <span id="star-type"></span></p>
-                </div>
-
-                <div class="space-y-4">
-                    <!-- Physical Properties -->
-                    <div>
-                        <h3 id="lbl-phys-prop" class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">物理性質</h3>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-slate-700/50 p-3 rounded hover:bg-slate-700 transition">
-                                <p id="lbl-temp" class="text-xs text-slate-400">表面溫度 (K)</p>
-                                <p id="star-temp" class="text-lg font-mono text-white">0</p>
-                            </div>
-                            <div class="bg-slate-700/50 p-3 rounded hover:bg-slate-700 transition">
-                                <p id="lbl-lum" class="text-xs text-slate-400">光度 (L☉)</p>
-                                <p id="star-lum" class="text-lg font-mono text-white">0</p>
-                            </div>
-                            <div class="bg-slate-700/50 p-3 rounded hover:bg-slate-700 transition">
-                                <p id="lbl-rad" class="text-xs text-slate-400">半徑 (R☉)</p>
-                                <p id="star-radius" class="text-lg font-mono text-white">0</p>
-                            </div>
-                            <div class="bg-slate-700/50 p-3 rounded hover:bg-slate-700 transition">
-                                <p id="lbl-color" class="text-xs text-slate-400">顏色指數 (B-V)</p>
-                                <p id="star-bv" class="text-lg font-mono text-white">0</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Coordinates Section Removed -->
-                    
-                    <!-- Nature/Description -->
-                    <div class="mt-6">
-                        <h3 id="lbl-desc" class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">星體本質與備註</h3>
-                        <p id="star-desc" class="text-sm text-slate-300 leading-relaxed bg-slate-700/30 p-3 rounded">
-                            --
-                        </p>
-                    </div>
-
-                    <!-- Visual Representation Placeholder -->
-                    <div class="mt-6 flex justify-center items-center h-24 bg-black rounded-lg relative overflow-hidden">
-                         <div id="star-visual" class="rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)] transition-all duration-500"></div>
-                         <p id="lbl-visual" class="absolute bottom-1 right-2 text-[10px] text-slate-600">示意圖 (非比例)</p>
-                    </div>
+    <header class="shrink-0 z-20 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-amber-400 text-slate-900 flex items-center justify-center shadow-md text-xl font-black">★</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">赫羅圖</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-900/80 text-indigo-200 font-bold border border-indigo-700/60" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-400" data-i18n="subtitle">光度、溫度與恆星演化</p>
                 </div>
             </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-800 text-xs font-bold rounded-lg border border-slate-600">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-xl font-bold text-sm border border-amber-700/50 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm border border-slate-600">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-4 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto custom-scroll">
+            <div class="bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-800">
+                <h2 class="font-bold text-slate-100 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <button type="button" id="btnReset" class="w-full mb-3 py-2 rounded-xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-white" data-i18n="reset">重置</button>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="sun" data-i18n="preSun">① 找出太陽</button>
+                    <button type="button" class="preset-btn" data-preset="compare" data-i18n="preCompare">② 紅矮星 vs 藍超巨星</button>
+                    <button type="button" class="preset-btn" data-preset="regions" data-i18n="preRegions">③ 四個星族區域</button>
+                    <button type="button" class="preset-btn" data-preset="mass" data-i18n="preMass">④ 主序質量</button>
+                    <button type="button" class="preset-btn" data-preset="solarEvo" data-i18n="preSolarEvo">⑤ 太陽質量演化</button>
+                    <button type="button" class="preset-btn" data-preset="massiveEvo" data-i18n="preMassiveEvo">⑥ 大質量演化</button>
+                </div>
+
+                <label class="block mb-3">
+                    <span class="text-[11px] font-bold text-slate-400 mb-1 block" data-i18n="labelStar">著名恆星</span>
+                    <select id="starSelect"></select>
+                </label>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                        <span data-i18n="labelMass">主序質量</span>
+                        <span id="disp-mass" class="text-amber-400">1.0 M☉</span>
+                    </span>
+                    <input type="range" id="massSlider" min="0.1" max="25" step="0.1" value="1">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                        <span data-i18n="massLow">紅矮星</span>
+                        <span data-i18n="massHigh">O 型巨星</span>
+                    </div>
+                </label>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="labelTrack">演化軌跡</p>
+                <div class="flex gap-2 mb-2">
+                    <button type="button" id="btnTrackSolar" class="track-btn" data-i18n="trackSolar">太陽質量</button>
+                    <button type="button" id="btnTrackMassive" class="track-btn" data-i18n="trackMassive">大質量</button>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btnPlay" class="flex-1 py-2 rounded-xl font-bold text-sm bg-amber-600 hover:bg-amber-500 text-white" data-i18n="play">播放演化</button>
+                    <button type="button" id="btnStop" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-white" data-i18n="stop">停止</button>
+                </div>
+
+                <div class="space-y-1.5 border-t border-slate-800 pt-3">
+                    <label class="check-row"><input type="checkbox" id="showRegions" checked><span data-i18n="showRegions">顯示區域標籤</span></label>
+                    <label class="check-row"><input type="checkbox" id="showBg" checked><span data-i18n="showBg">顯示背景星族</span></label>
+                    <label class="check-row"><input type="checkbox" id="showGuides" checked><span data-i18n="showGuides">太陽參考線</span></label>
+                    <label class="check-row"><input type="checkbox" id="showMS" checked><span data-i18n="showMS">主序星</span></label>
+                    <label class="check-row"><input type="checkbox" id="showGiant" checked><span data-i18n="showGiant">巨星</span></label>
+                    <label class="check-row"><input type="checkbox" id="showSG" checked><span data-i18n="showSG">超巨星</span></label>
+                    <label class="check-row"><input type="checkbox" id="showWD" checked><span data-i18n="showWD">白矮星</span></label>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-800 text-xs">
+                <div class="font-black text-amber-300 mb-2" data-i18n="liveTitle">即時解讀</div>
+                <p id="insightText" class="text-slate-300 leading-relaxed"></p>
+                <p id="stageText" class="mt-2 text-sky-300 font-bold hidden"></p>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-3 flex flex-col gap-3 min-h-[520px]">
+            <div class="bg-slate-950 rounded-3xl shadow-sm border border-slate-800 overflow-hidden flex-1 min-h-[420px] relative">
+                <canvas id="hrCanvas"></canvas>
+                <p class="absolute bottom-2 left-0 right-0 text-center text-[10px] text-slate-500 pointer-events-none" data-i18n="chartTip">點擊星點查看詳情 · 顏色＝表面溫度 · 大小≈半徑</p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <div class="stat" style="border-top-color:#38bdf8">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statName">恆星</div>
+                    <div id="statName" class="text-sm font-black text-white truncate">太陽</div>
+                </div>
+                <div class="stat" style="border-top-color:#f59e0b">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statTemp">表面溫度</div>
+                    <div id="statTemp" class="text-sm font-mono text-amber-200">5778 K</div>
+                </div>
+                <div class="stat" style="border-top-color:#a78bfa">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statLum">光度</div>
+                    <div id="statLum" class="text-sm font-mono text-violet-200">1.00 L☉</div>
+                </div>
+                <div class="stat" style="border-top-color:#34d399">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statRad">半徑</div>
+                    <div id="statRad" class="text-sm font-mono text-emerald-200">1.00 R☉</div>
+                </div>
+                <div class="stat col-span-2 md:col-span-1" style="border-top-color:#fb7185">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statSpec">光譜／類型</div>
+                    <div id="statSpec" class="text-sm font-mono text-rose-200">G2V</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-600 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">赫羅圖原理</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">光度–溫度圖與恆星生命</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scroll space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-sky-950/50 p-4 rounded-2xl border border-sky-800/60">
+                    <h3 class="font-bold text-sky-200 mb-1" data-i18n="m1t">1. 甚麼是赫羅圖？</h3>
+                    <p class="text-xs" data-i18n="m1d">赫羅圖不是星空地圖，而是把每顆恆星畫在「表面溫度」與「光度」的座標上。溫度由左（熱、藍）到右（冷、紅）反向排列；光度由下（暗）到上（亮）用對數尺度。</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-amber-200 text-xs mb-1" data-i18n="m2t">主序帶</h4>
+                        <p class="text-[11px]" data-i18n="m2d">約九成恆星（包括太陽）在核心把氫融合成氦，穩定地排成一條由左上到右下的帶。質量愈大，位置愈靠左上，壽命愈短。</p>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-rose-200 text-xs mb-1" data-i18n="m3t">巨星、超巨星與白矮星</h4>
+                        <p class="text-[11px]" data-i18n="m3d">燃料耗盡後恆星膨脹變紅（右上），或留下又熱又暗的緻密核心（左下白矮星）。L ∝ R²T⁴ 解釋為何冷巨星仍很亮、熱白矮星卻很暗。</p>
+                    </div>
+                </div>
+                <div class="bg-indigo-950/50 p-4 rounded-2xl border border-indigo-800/60">
+                    <h3 class="font-bold text-indigo-200 mb-1" data-i18n="m4t">2. 演化分岔</h3>
+                    <p class="text-xs" data-i18n="m4d">太陽質量：主序 → 紅巨星 → 行星狀星雲 → 白矮星。大質量（≳8 M☉）：主序 → 超巨星 → 超新星 → 中子星或黑洞（殘骸不再畫在經典赫羅圖上）。</p>
+                </div>
+                <div class="bg-emerald-950/40 p-4 rounded-2xl border border-emerald-800/50">
+                    <h3 class="font-bold text-emerald-200 mb-1" data-i18n="m5t">3. 生活例子</h3>
+                    <p class="text-xs" data-i18n="m5d">夜空中的織女、牛郎是主序星；參宿四是快走到盡頭的紅超巨星；天狼星旁的伴星是白矮星。星團的主序「拐點」愈低，星團愈老。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
         </div>
     </div>
 
-    <!-- 原理解說 Modal -->
-    <div id="infoModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-slate-800 border border-slate-600 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col relative">
-            
-            <!-- Modal Header -->
-            <div class="flex justify-between items-center p-6 border-b border-slate-700 bg-slate-800/50">
-                <h2 id="modal-title" class="text-2xl font-bold text-white flex items-center gap-2">
-                    <!-- Icon injected via JS -->
-                    赫羅圖 (H-R Diagram) 原理解析
-                </h2>
-                <button onclick="toggleInfoModal(false)" class="text-slate-400 hover:text-white transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-amber-100" data-i18n="stepsSub">先調什麼、看什麼、比較什麼</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
             </div>
-
-            <!-- Modal Body -->
-            <div id="modal-content" class="p-6 overflow-y-auto custom-scroll text-slate-300 leading-relaxed space-y-6">
-                <!-- Content injected via JS -->
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-300">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">用「找出太陽」：確認橫軸愈左愈熱、縱軸愈上愈亮，太陽在 G 型、1 L☉。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">比較比鄰星與參宿七：同樣是「星」，溫度、光度、半徑差幾個數量級。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">開關星族篩選與區域標籤，找出主序帶、巨星、超巨星、白矮星各在哪一區。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">拖動主序質量：質量愈大愈靠左上、壽命愈短；再播放太陽質量與大質量演化，比較終點。</span></li>
+                </ol>
             </div>
-
-            <!-- Modal Footer -->
-            <div class="p-4 border-t border-slate-700 bg-slate-800/50 flex justify-end">
-                <button id="btn-close" onclick="toggleInfoModal(false)" class="bg-slate-600 hover:bg-slate-500 text-white px-6 py-2 rounded transition-colors">
-                    關閉
-                </button>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <!-- 新增: 生命週期 Modal -->
-    <div id="lifecycleModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-slate-800 border border-indigo-500/50 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col relative">
-            
-            <!-- Modal Header -->
-            <div class="flex justify-between items-center p-6 border-b border-slate-700 bg-slate-800/50">
-                <h2 id="lifecycle-title" class="text-2xl font-bold text-white flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    恆星的生命週期
-                </h2>
-                <button onclick="toggleLifecycleModal(false)" class="text-slate-400 hover:text-white transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
+<script>
+const T_SUN = 5778;
+const T_MIN = 2200, T_MAX = 36000;
+const L_MIN = 1e-4, L_MAX = 1.2e6;
+const SPEC = [
+    { cls: 'O', t: 30000 }, { cls: 'B', t: 10000 }, { cls: 'A', t: 7500 },
+    { cls: 'F', t: 6000 }, { cls: 'G', t: 5200 }, { cls: 'K', t: 3700 }, { cls: 'M', t: 2400 }
+];
 
-            <!-- Modal Body -->
-            <div id="lifecycle-content" class="p-6 overflow-y-auto custom-scroll text-slate-300 leading-relaxed space-y-6">
-                <!-- Content injected via JS -->
-            </div>
+const NAMED = [
+    { id: 'sun', zh: '太陽', en: 'Sun', temp: 5778, lum: 1, spec: 'G2V', cls: 'ms',
+      noteZh: '黃矮星，主序帶中央。地球能量與季節的源頭。', noteEn: 'Yellow dwarf at the centre of the main sequence. Source of Earth’s energy.' },
+    { id: 'sirius-a', zh: '天狼星 A', en: 'Sirius A', temp: 9940, lum: 25.4, spec: 'A1V', cls: 'ms',
+      noteZh: '夜空最亮星，熱而白的 A 型主序星。', noteEn: 'Brightest night-sky star. A hot white A-type main-sequence star.' },
+    { id: 'sirius-b', zh: '天狼星 B', en: 'Sirius B', temp: 25200, lum: 0.056, spec: 'DA2', cls: 'wd',
+      noteZh: '地球大小的白矮星，質量卻接近太陽。', noteEn: 'Earth-sized white dwarf with nearly a solar mass.' },
+    { id: 'proxima', zh: '比鄰星', en: 'Proxima Centauri', temp: 3042, lum: 0.0017, spec: 'M5.5Ve', cls: 'ms',
+      noteZh: '最近的紅矮星，又冷又暗，肉眼看不見。', noteEn: 'Nearest red dwarf: cool, faint, invisible to the naked eye.' },
+    { id: 'betelgeuse', zh: '參宿四', en: 'Betelgeuse', temp: 3500, lum: 126000, spec: 'M1-2 Ia', cls: 'sg',
+      noteZh: '紅超巨星。若放在太陽位置，外層可吞沒木星軌道。', noteEn: 'Red supergiant. At the Sun’s place it would swallow Jupiter’s orbit.' },
+    { id: 'rigel', zh: '參宿七', en: 'Rigel', temp: 12100, lum: 120000, spec: 'B8 Ia', cls: 'sg',
+      noteZh: '藍超巨星：又熱又亮，壽命遠短於太陽。', noteEn: 'Blue supergiant: hot, luminous, far shorter-lived than the Sun.' },
+    { id: 'vega', zh: '織女星', en: 'Vega', temp: 9602, lum: 40.12, spec: 'A0V', cls: 'ms',
+      noteZh: '夏季大三角的 A 型主序星，常用作光度標準。', noteEn: 'A-type main-sequence star in the Summer Triangle; a brightness standard.' },
+    { id: 'arcturus', zh: '大角星', en: 'Arcturus', temp: 4286, lum: 170, spec: 'K0III', cls: 'giant',
+      noteZh: '已離開主序的紅巨星，比太陽年長。', noteEn: 'Red giant that has left the main sequence; older than the Sun.' },
+    { id: 'aldebaran', zh: '畢宿五', en: 'Aldebaran', temp: 3910, lum: 518, spec: 'K5III', cls: 'giant',
+      noteZh: '金牛座之眼，典型的冷而亮的巨星。', noteEn: 'The eye of Taurus: a typical cool, bright giant.' },
+    { id: 'antares', zh: '心宿二', en: 'Antares', temp: 3400, lum: 57500, spec: 'M1.5 Iab', cls: 'sg',
+      noteZh: '天蠍座心臟，顏色像火星的紅超巨星。', noteEn: 'Heart of Scorpius; a red supergiant the colour of Mars.' },
+    { id: 'polaris', zh: '北極星', en: 'Polaris', temp: 6015, lum: 1260, spec: 'F7Ib', cls: 'sg',
+      noteZh: '造父變星，光度會規律變化，可用來測距離。', noteEn: 'A Cepheid variable whose pulse period measures distance.' },
+    { id: 'deneb', zh: '天津四', en: 'Deneb', temp: 8525, lum: 196000, spec: 'A2 Ia', cls: 'sg',
+      noteZh: '極亮的藍白超巨星。若放到天狼星距離，會比滿月更亮。', noteEn: 'Blue-white supergiant. At Sirius’s distance it would outshine the full Moon.' },
+    { id: 'barnard', zh: '巴納德星', en: 'Barnard’s Star', temp: 3134, lum: 0.0035, spec: 'M4V', cls: 'ms',
+      noteZh: '古老紅矮星，自行運動極快。', noteEn: 'An ancient red dwarf with very high proper motion.' },
+    { id: 'alpha-cen-a', zh: '南門二 A', en: 'α Centauri A', temp: 5790, lum: 1.519, spec: 'G2V', cls: 'ms',
+      noteZh: '最近恆星系統的主星，性質幾乎像太陽。', noteEn: 'Primary of the nearest star system; almost a solar twin.' },
+    { id: 'altair', zh: '牛郎星', en: 'Altair', temp: 7550, lum: 10.6, spec: 'A7V', cls: 'ms',
+      noteZh: '夏季大三角的近距 A 型主序星。', noteEn: 'Nearby A-type main-sequence star in the Summer Triangle.' },
+    { id: 'procyon-a', zh: '南河三 A', en: 'Procyon A', temp: 6530, lum: 6.93, spec: 'F5IV-V', cls: 'ms',
+      noteZh: '正要離開主序、走向次巨星。', noteEn: 'Leaving the main sequence toward the subgiant branch.' },
+    { id: 'procyon-b', zh: '南河三 B', en: 'Procyon B', temp: 7740, lum: 0.00049, spec: 'DQZ', cls: 'wd',
+      noteZh: '黯淡白矮星，與南河三組成雙星。', noteEn: 'Faint white-dwarf companion of Procyon A.' },
+    { id: 'tau-ceti', zh: '天倉五', en: 'Tau Ceti', temp: 5344, lum: 0.52, spec: 'G8V', cls: 'ms',
+      noteZh: '穩定的類太陽黃矮星。', noteEn: 'A stable, Sun-like yellow dwarf.' },
+    { id: 'pollux', zh: '北河三', en: 'Pollux', temp: 4666, lum: 43, spec: 'K0III', cls: 'giant',
+      noteZh: '雙子座的橙巨星。', noteEn: 'Orange giant in Gemini.' },
+    { id: 'regulus', zh: '軒轅十四', en: 'Regulus', temp: 12460, lum: 288, spec: 'B7V', cls: 'ms',
+      noteZh: '熱的 B 型主序星，自轉極快。', noteEn: 'Hot B-type main-sequence star that spins very fast.' },
+    { id: 'spica', zh: '角宿一', en: 'Spica', temp: 22400, lum: 12100, spec: 'B1 III-IV', cls: 'giant',
+      noteZh: '室女座亮星，高溫藍巨星。', noteEn: 'Virgo’s bright star: a hot blue giant.' },
+    { id: 'canopus', zh: '老人星', en: 'Canopus', temp: 7350, lum: 10700, spec: 'A9II', cls: 'giant',
+      noteZh: '全天第二亮，屬於亮巨星。', noteEn: 'Second-brightest star in the sky; a bright giant.' },
+    { id: 'fomalhaut', zh: '北落師門', en: 'Fomalhaut', temp: 8590, lum: 16.6, spec: 'A3V', cls: 'ms',
+      noteZh: 'A 型主序星，周圍有塵埃盤。', noteEn: 'A-type main-sequence star with a dusty debris disk.' },
+    { id: 'eps-eri', zh: '天苑四', en: 'ε Eridani', temp: 5084, lum: 0.34, spec: 'K2V', cls: 'ms',
+      noteZh: '年輕的橙矮星，比太陽稍冷、稍暗。', noteEn: 'Young orange dwarf: cooler and fainter than the Sun.' }
+];
 
-             <!-- Modal Footer -->
-            <div class="p-4 border-t border-slate-700 bg-slate-800/50 flex justify-end">
-                <button id="btn-close-lifecycle" onclick="toggleLifecycleModal(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded transition-colors">
-                    關閉
-                </button>
-            </div>
-        </div>
-    </div>
+NAMED.forEach(s => { s.radius = Math.sqrt(s.lum) / Math.pow(s.temp / T_SUN, 2); s.named = true; });
 
+function mulberry32(a) {
+    return function () {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
 
-    <!-- JavaScript Logic -->
-    <script>
-        // --- 0. 多語言配置 (i18n) ---
-        let currentLang = 'zh'; // 'zh' or 'en'
+function msFromMass(M) {
+    let L, R;
+    if (M < 0.43) L = 0.23 * Math.pow(M, 2.3);
+    else if (M < 2) L = Math.pow(M, 4);
+    else if (M < 55) L = 1.5 * Math.pow(M, 3.5);
+    else L = 32000 * M;
+    R = M < 1 ? Math.pow(M, 0.8) : Math.pow(M, 0.57);
+    const temp = T_SUN * Math.pow(L / (R * R), 0.25);
+    return { M, lum: L, radius: R, temp };
+}
 
-        const i18n = {
-            zh: {
-                subtitle: "赫羅圖恆星探索器",
-                version: "天文觀測數據庫 v1.0",
-                btnExplain: "原理解說",
-                btnLifecycle: "生命週期", // New
-                btnClose: "關閉",
-                legendMS: "主序星",
-                legendGiant: "巨星/超巨星",
-                legendWD: "白矮星",
-                chartTip: "點擊圖表中的星點以查看詳情",
-                empty1: "請在左側圖表中",
-                empty2: "選擇一顆恆星",
-                lblSpecType: "光譜類型:",
-                lblPhysProp: "物理性質",
-                lblTemp: "表面溫度 (K)",
-                lblLum: "光度 (L☉)",
-                lblRad: "半徑 (R☉)",
-                lblColor: "顏色指數 (B-V)",
-                lblDesc: "星體本質與備註",
-                lblVisual: "示意圖 (非比例)",
-                axisX: "表面溫度 (K) [反向, 對數尺度]",
-                axisY: "光度 (L☉ - 太陽光度)",
-                modalTitle: "赫羅圖 (H-R Diagram) 原理解析",
-                modalBody: `
-                    <section>
-                        <h3 class="text-lg font-bold text-blue-300 mb-2">1. 甚麼是赫羅圖？</h3>
-                        <p>赫羅圖 (Hertzsprung-Russell diagram) 是天文學中最著名的統計圖表。它並不描繪星星在天空中的位置，而是展示了恆星的<strong class="text-white">光度（亮度）</strong>與<strong class="text-white">表面溫度（顏色）</strong>之間的關係。</p>
-                    </section>
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <section>
-                            <h3 class="text-lg font-bold text-blue-300 mb-2">2. 圖表的描述</h3>
-                            <ul class="list-disc list-inside space-y-1 text-sm">
-                                <li><strong class="text-white">橫軸 (X)：</strong> 代表表面溫度。注意，<span class="text-yellow-400">溫度是反向排列的</span>，左邊是高溫（藍色），右邊是低溫（紅色）。</li>
-                                <li><strong class="text-white">縱軸 (Y)：</strong> 代表光度，即恆星真實的發光能力。這是對數尺度。</li>
-                            </ul>
-                        </section>
-                        <section>
-                            <h3 class="text-lg font-bold text-blue-300 mb-2">3. 重要的天文訊息</h3>
-                            <p class="text-sm">恆星不是隨機分佈的，而是聚集在特定區域（如主序帶）。這顯示恆星的性質必須遵守特定的物理法則，且會隨著年齡改變位置。</p>
-                        </section>
-                    </div>
-                    <section class="bg-slate-700/30 p-4 rounded-lg border-l-4 border-blue-500">
-                        <h3 class="text-lg font-bold text-blue-300 mb-2">4. 對天文學家的用途</h3>
-                        <ul class="space-y-2 text-sm">
-                            <li>🔭 <strong class="text-white">推算距離：</strong> 利用主序星擬合法。</li>
-                            <li>⏳ <strong class="text-white">測定年齡：</strong> 觀察星團主序星的拐點。</li>
-                            <li>🌟 <strong class="text-white">研究演化：</strong> 追蹤恆星的生命軌跡。</li>
-                        </ul>
-                    </section>
-                    <section>
-                        <h3 class="text-lg font-bold text-blue-300 mb-4">5. 圖中星體的分類</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
-                                <h4 class="font-bold text-white mb-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block mr-2"></span>主序星</h4>
-                                <p class="text-xs">包含90%的恆星（如太陽），正穩定燃燒氫氣。</p>
-                            </div>
-                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
-                                <h4 class="font-bold text-white mb-1"><span class="w-2 h-2 rounded-full bg-red-500 inline-block mr-2"></span>巨星/超巨星</h4>
-                                <p class="text-xs">體積龐大，瀕臨死亡的膨脹恆星。</p>
-                            </div>
-                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
-                                <h4 class="font-bold text-white mb-1"><span class="w-2 h-2 rounded-full bg-white inline-block mr-2"></span>白矮星</h4>
-                                <p class="text-xs">體積小、溫度高，恆星死亡後的殘骸。</p>
-                            </div>
-                        </div>
-                    </section>
-                `,
-                // New: Lifecycle Modal Content
-                modalLifecycleTitle: "恆星的演化與生命週期",
-                modalLifecycleBody: `
-                    <div class="space-y-8">
-                        <!-- Stage 1: Birth -->
-                        <div class="relative pl-8 border-l-2 border-slate-600">
-                            <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-500"></div>
-                            <h3 class="text-xl font-bold text-white mb-2">1. 誕生 (Birth)</h3>
-                            <p class="text-sm text-slate-400 mb-2">分子雲塌縮 -> 原恆星</p>
-                            <p>恆星誕生於巨大的星際氣體和塵埃雲（星雲）。當重力導致雲團塌縮，中心溫度升高，形成<strong class="text-white">原恆星</strong>。當核心溫度足以引發核融合時，一顆恆星就此誕生。</p>
-                        </div>
+function spectralFromT(T) {
+    if (T >= 30000) return 'O';
+    if (T >= 10000) return 'B';
+    if (T >= 7500) return 'A';
+    if (T >= 6000) return 'F';
+    if (T >= 5200) return 'G';
+    if (T >= 3700) return 'K';
+    return 'M';
+}
 
-                        <!-- Stage 2: Main Sequence -->
-                        <div class="relative pl-8 border-l-2 border-slate-600">
-                            <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-yellow-400"></div>
-                            <h3 class="text-xl font-bold text-white mb-2">2. 主序星階段 (Main Sequence)</h3>
-                            <p class="text-sm text-slate-400 mb-2">穩定燃燒氫氣 (如：太陽)</p>
-                            <p>這是恆星生命中最長的一段時期。恆星在核心將氫融合成氦，產生的能量抵抗重力，保持穩定。赫羅圖上那條從左上到右下的帶狀區域就是主序帶。</p>
-                        </div>
+function lifeGyr(M) {
+    return 10 / Math.pow(Math.max(M, 0.08), 2.5);
+}
 
-                        <!-- Stage 3: Death (Divergence) -->
-                        <div class="grid md:grid-cols-2 gap-6 mt-4">
-                            <!-- Low Mass Path -->
-                            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                                <h4 class="text-lg font-bold text-orange-300 mb-3">低質量恆星 (如太陽)</h4>
-                                <ul class="space-y-3">
-                                    <li class="flex items-start">
-                                        <span class="text-red-500 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">紅巨星 (Red Giant):</strong><br>
-                                            氫燃料耗盡，核心塌縮但外層膨脹並冷卻變紅。
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-purple-400 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">行星狀星雲 (Planetary Nebula):</strong><br>
-                                            外層大氣被拋入太空，形成美麗的氣殼。
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-white font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">白矮星 (White Dwarf):</strong><br>
-                                            留下的核心，體積小如地球但極熱，最終慢慢冷卻消失。
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <!-- High Mass Path -->
-                            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                                <h4 class="text-lg font-bold text-blue-300 mb-3">高質量恆星 (>8倍太陽質量)</h4>
-                                <ul class="space-y-3">
-                                    <li class="flex items-start">
-                                        <span class="text-red-500 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">紅超巨星 (Red Supergiant):</strong><br>
-                                            體積巨大，核心進行更重的元素融合（碳、氖...直到鐵）。
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-yellow-500 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">超新星爆炸 (Supernova):</strong><br>
-                                            鐵核無法融合產生能量，恆星瞬間塌縮並猛烈爆炸，亮度可比擬整個星系。
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-cyan-400 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">中子星或黑洞:</strong><br>
-                                            極度緻密的殘骸。質量最大的恆星將塌縮成連光都無法逃脫的黑洞。
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                `
-            },
-            en: {
-                subtitle: "Stellar Explorer",
-                version: "Astronomical Database v1.0",
-                btnExplain: "Explanation",
-                btnLifecycle: "Lifecycle", // New
-                btnClose: "Close",
-                legendMS: "Main Sequence",
-                legendGiant: "Giants/Supergiants",
-                legendWD: "White Dwarfs",
-                chartTip: "Click on a star to view details",
-                empty1: "Please select a star",
-                empty2: "from the chart on the left",
-                lblSpecType: "Spectral Type:",
-                lblPhysProp: "Physical Properties",
-                lblTemp: "Surface Temp (K)",
-                lblLum: "Luminosity (L☉)",
-                lblRad: "Radius (R☉)",
-                lblColor: "Color Index (B-V)",
-                lblDesc: "Nature & Notes",
-                lblVisual: "Illustration (Not to scale)",
-                axisX: "Surface Temperature (K) [Reverse, Log Scale]",
-                axisY: "Luminosity (L☉ - Solar Luminosity)",
-                modalTitle: "Understanding the H-R Diagram",
-                modalBody: `
-                    <section>
-                        <h3 class="text-lg font-bold text-blue-300 mb-2">1. What is the H-R Diagram?</h3>
-                        <p>The Hertzsprung-Russell diagram is a famous scatter plot of stars showing the relationship between their stars' <strong class="text-white">luminosity</strong> and their <strong class="text-white">temperature</strong>.</p>
-                    </section>
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <section>
-                            <h3 class="text-lg font-bold text-blue-300 mb-2">2. Description</h3>
-                            <ul class="list-disc list-inside space-y-1 text-sm">
-                                <li><strong class="text-white">X-Axis:</strong> Surface Temperature. Note that <span class="text-yellow-400">temperature is plotted backwards</span> (Hot/Blue on left, Cold/Red on right).</li>
-                                <li><strong class="text-white">Y-Axis:</strong> Luminosity (brightness relative to Sun) on a logarithmic scale.</li>
-                            </ul>
-                        </section>
-                        <section>
-                            <h3 class="text-lg font-bold text-blue-300 mb-2">3. Key Insights</h3>
-                            <p class="text-sm">Stars are not randomly distributed but cluster in specific regions (like the Main Sequence), implying they follow specific physical laws and evolutionary paths.</p>
-                        </section>
-                    </div>
-                    <section class="bg-slate-700/30 p-4 rounded-lg border-l-4 border-blue-500">
-                        <h3 class="text-lg font-bold text-blue-300 mb-2">4. Use in Astronomy</h3>
-                        <ul class="space-y-2 text-sm">
-                            <li>🔭 <strong class="text-white">Distance:</strong> Estimating distance via spectroscopic parallax.</li>
-                            <li>⏳ <strong class="text-white">Age:</strong> Determining the age of star clusters via the "turn-off point".</li>
-                            <li>🌟 <strong class="text-white">Evolution:</strong> Tracking a star's life cycle.</li>
-                        </ul>
-                    </section>
-                    <section>
-                        <h3 class="text-lg font-bold text-blue-300 mb-4">5. Stellar Classification</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
-                                <h4 class="font-bold text-white mb-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block mr-2"></span>Main Sequence</h4>
-                                <p class="text-xs">90% of stars (like the Sun), fusing hydrogen stably.</p>
-                            </div>
-                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
-                                <h4 class="font-bold text-white mb-1"><span class="w-2 h-2 rounded-full bg-red-500 inline-block mr-2"></span>Giants</h4>
-                                <p class="text-xs">Large, dying stars that have expanded.</p>
-                            </div>
-                            <div class="bg-slate-900 p-3 rounded border border-slate-700">
-                                <h4 class="font-bold text-white mb-1"><span class="w-2 h-2 rounded-full bg-white inline-block mr-2"></span>White Dwarfs</h4>
-                                <p class="text-xs">Small, hot, dense remnants of dead stars.</p>
-                            </div>
-                        </div>
-                    </section>
-                `,
-                // New: Lifecycle Modal Content
-                modalLifecycleTitle: "Stellar Evolution & Lifecycle",
-                modalLifecycleBody: `
-                    <div class="space-y-8">
-                        <!-- Stage 1: Birth -->
-                        <div class="relative pl-8 border-l-2 border-slate-600">
-                            <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-500"></div>
-                            <h3 class="text-xl font-bold text-white mb-2">1. Birth</h3>
-                            <p class="text-sm text-slate-400 mb-2">Cloud Collapse -> Protostar</p>
-                            <p>Stars are born in giant clouds of gas and dust (nebulae). As gravity causes the cloud to collapse, the center heats up to form a <strong class="text-white">Protostar</strong>. When the core is hot enough for nuclear fusion, a star is born.</p>
-                        </div>
-
-                        <!-- Stage 2: Main Sequence -->
-                        <div class="relative pl-8 border-l-2 border-slate-600">
-                            <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-yellow-400"></div>
-                            <h3 class="text-xl font-bold text-white mb-2">2. Main Sequence</h3>
-                            <p class="text-sm text-slate-400 mb-2">Stable Hydrogen Fusion (e.g., The Sun)</p>
-                            <p>The longest phase of a star's life. It fuses hydrogen into helium in its core. The outward pressure of energy balances gravity. This is the diagonal band on the H-R Diagram.</p>
-                        </div>
-
-                        <!-- Stage 3: Death (Divergence) -->
-                        <div class="grid md:grid-cols-2 gap-6 mt-4">
-                            <!-- Low Mass Path -->
-                            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                                <h4 class="text-lg font-bold text-orange-300 mb-3">Low Mass Stars (like Sun)</h4>
-                                <ul class="space-y-3">
-                                    <li class="flex items-start">
-                                        <span class="text-red-500 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">Red Giant:</strong><br>
-                                            Hydrogen runs out, core collapses, outer layers expand and cool.
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-purple-400 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">Planetary Nebula:</strong><br>
-                                            Outer atmosphere is ejected into space, forming a glowing shell.
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-white font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">White Dwarf:</strong><br>
-                                            The remaining hot, dense core. Earth-sized but massive.
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <!-- High Mass Path -->
-                            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                                <h4 class="text-lg font-bold text-blue-300 mb-3">High Mass Stars (>8x Sun)</h4>
-                                <ul class="space-y-3">
-                                    <li class="flex items-start">
-                                        <span class="text-red-500 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">Red Supergiant:</strong><br>
-                                            Huge expansion. Fuses heavier elements (Carbon... up to Iron).
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-yellow-500 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">Supernova:</strong><br>
-                                            Iron core collapses instantly, causing a massive explosion brighter than a galaxy.
-                                        </div>
-                                    </li>
-                                    <li class="flex items-start">
-                                        <span class="text-cyan-400 font-bold mr-2">→</span>
-                                        <div>
-                                            <strong class="text-white">Neutron Star or Black Hole:</strong><br>
-                                            Extremely dense remnants. The most massive stars become Black Holes.
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                `
-            }
-        };
-
-        // --- 1. Data Dataset (Updated with English Descriptions) ---
-        const starsData = [
-            // --- 原始數據 ---
-            { name: "太陽 (Sun)", temp: 5778, lum: 1, radius: 1, ra: "00h 00m 00s", dec: "+00° 00' 00\"", type: "G2V", desc: "我們太陽系中心的恆星，位於主序帶的黃矮星。生命與文明的源頭。", desc_en: "The star at the center of our Solar System. A yellow dwarf on the main sequence. The source of life and civilization." },
-            { name: "天狼星 A (Sirius A)", temp: 9940, lum: 25.4, radius: 1.71, ra: "06h 45m 08s", dec: "-16° 42' 58\"", type: "A1V", desc: "夜空中最亮的恆星。距離地球約 8.6 光年。它有一顆白矮星伴星。", desc_en: "Brightest star in the night sky. About 8.6 light-years away. It has a white dwarf companion." },
-            { name: "參宿四 (Betelgeuse)", temp: 3500, lum: 126000, radius: 887, ra: "05h 55m 10s", dec: "+07° 24' 25\"", type: "M1-M2Ia-ab", desc: "著名的紅超巨星，位於獵戶座肩膀。體積巨大，如果放在太陽系中心，其邊緣將吞沒木星軌道。", desc_en: "Famous red supergiant in Orion. It is huge; if placed at the center of the solar system, it would engulf Jupiter's orbit." },
-            { name: "參宿七 (Rigel)", temp: 12100, lum: 120000, radius: 78.9, ra: "05h 14m 32s", dec: "-08° 12' 05\"", type: "B8Ia", desc: "藍超巨星，獵戶座中最亮的星。雖然年輕，但燃燒劇烈，壽命將遠短於太陽。", desc_en: "Blue supergiant, brightest in Orion. Though young, it burns furiously and will have a much shorter life than the Sun." },
-            { name: "比鄰星 (Proxima Centauri)", temp: 3042, lum: 0.0017, radius: 0.15, ra: "14h 29m 43s", dec: "-62° 40' 46\"", type: "M5.5Ve", desc: "距離太陽系最近的恆星（4.24光年），是一顆紅矮星。光度極低，肉眼無法看見。", desc_en: "Closest star to the Solar System (4.24 ly). A red dwarf, too faint to be seen with the naked eye." },
-            { name: "織女星 (Vega)", temp: 9602, lum: 40.12, radius: 2.36, ra: "18h 36m 56s", dec: "+38° 47' 01\"", type: "A0V", desc: "天琴座最亮的星，夏季大三角之一。它是天文學校準光度的標準星之一。", desc_en: "Brightest star in Lyra, part of the Summer Triangle. Used as a standard star for calibrating brightness." },
-            { name: "大角星 (Arcturus)", temp: 4286, lum: 170, radius: 25.4, ra: "14h 15m 39s", dec: "+19° 10' 56\"", type: "K0III", desc: "紅巨星，北半球夜空中最亮的恆星之一。年齡比太陽老，已脫離主序帶。", desc_en: "Red giant, one of the brightest stars in the northern hemisphere. Older than the Sun and has left the main sequence." },
-            { name: "天狼星 B (Sirius B)", temp: 25200, lum: 0.056, radius: 0.0084, ra: "06h 45m 09s", dec: "-16° 43' 06\"", type: "DA2", desc: "天狼星的伴星，一顆白矮星。體積與地球相當，但質量接近太陽，密度極高。", desc_en: "Companion to Sirius A, a white dwarf. Size of Earth but mass comparable to the Sun. Extremely dense." },
-            { name: "老人星 (Canopus)", temp: 7350, lum: 10700, radius: 71, ra: "06h 23m 57s", dec: "-52° 41' 44\"", type: "A9II", desc: "全天第二亮星，屬於亮巨星或超巨星。常用於太空探測器的導航參考點。", desc_en: "Second brightest star in the sky. A bright giant or supergiant. Often used for spacecraft navigation." },
-            { name: "五車二 (Capella)", temp: 4940, lum: 78.7, radius: 11.98, ra: "05h 16m 41s", dec: "+45° 59' 53\"", type: "G3III", desc: "御夫座最亮星，實際上是一個由兩顆黃巨星組成的聯星系統。", desc_en: "Brightest in Auriga. Actually a binary system of two yellow giant stars." },
-            { name: "畢宿五 (Aldebaran)", temp: 3910, lum: 518, radius: 44.2, ra: "04h 35m 55s", dec: "+16° 30' 33\"", type: "K5III", desc: "紅巨星，金牛座之眼。先驅者10號探測器正朝向它的方向飛行。", desc_en: "Red giant, the Eye of Taurus. Pioneer 10 is heading in its general direction." },
-            { name: "心宿二 (Antares)", temp: 3400, lum: 57500, radius: 680, ra: "16h 29m 24s", dec: "-26° 25' 55\"", type: "M1.5Iab-b", desc: "紅超巨星，天蠍座的心臟。名字意為「火星的對手」，因為顏色與火星相似。", desc_en: "Red supergiant, heart of Scorpio. Name means 'Rival of Mars' due to its similar color." },
-            { name: "北極星 (Polaris)", temp: 6015, lum: 1260, radius: 37.5, ra: "02h 31m 49s", dec: "+89° 15' 51\"", type: "F7Ib", desc: "目前的北極星，是一顆造父變星，天文學家用來測量距離的重要工具。", desc_en: "The current North Star. A Cepheid variable, an important tool for measuring distances." },
-            { name: "天津四 (Deneb)", temp: 8525, lum: 196000, radius: 203, ra: "20h 41m 25s", dec: "+45° 16' 49\"", type: "A2Ia", desc: "極其明亮的藍白超巨星，也是已知最明亮的恆星之一。如果它在天狼星的位置，將比滿月還亮。", desc_en: "Extremely bright blue-white supergiant. If placed where Sirius is, it would cast shadows like the full moon." },
-            { name: "巴納德星 (Barnard's Star)", temp: 3134, lum: 0.0035, radius: 0.196, ra: "17h 57m 48s", dec: "+04° 41' 36\"", type: "M4V", desc: "一顆非常古老的紅矮星，以其極高的自行運動（在天球上移動速度快）而聞名。", desc_en: "Very old red dwarf. Famous for having the highest proper motion of any star." },
-            { name: "南門二 A (Alpha Centauri A)", temp: 5790, lum: 1.519, radius: 1.22, ra: "14h 39m 36s", dec: "-60° 50' 02\"", type: "G2V", desc: "最接近太陽系的恆星系統主星，性質與太陽非常相似。", desc_en: "Main star of the closest star system to us. Very similar to the Sun." },
-            { name: "參宿五 (Bellatrix)", temp: 21800, lum: 9211, radius: 5.7, ra: "05h 25m 07s", dec: "+06° 20' 58\"", type: "B2III", desc: "獵戶座的「亞馬遜女戰士」，一顆熾熱的藍色巨星。", desc_en: "The 'Amazon Star' of Orion. A hot blue giant." },
-            { name: "軒轅十四 (Regulus)", temp: 12460, lum: 288, radius: 3.09, ra: "10h 08m 22s", dec: "+11° 58' 01\"", type: "B7V", desc: "獅子座最亮星。它旋轉極快，形狀變成明顯的扁球體。", desc_en: "Brightest in Leo. Rotates so fast it is significantly oblate (flattened)." },
-            { name: "Procyon B", temp: 7740, lum: 0.00049, radius: 0.012, ra: "07h 39m 18s", dec: "+05° 13' 29\"", type: "DQZ", desc: "南河三的伴星，也是一顆黯淡的白矮星。", desc_en: "Companion to Procyon A. A faint white dwarf." },
-            { name: "Spica (角宿一)", temp: 22400, lum: 12100, radius: 7.4, ra: "13h 25m 11s", dec: "-11° 09' 40\"", type: "B1III-IV", desc: "室女座最亮星，是一顆密近雙星系統，因潮汐力而變形。", desc_en: "Brightest in Virgo. A close binary system distorted by tidal forces." },
-            
-            { name: "水委一 (Achernar)", temp: 15000, lum: 3150, radius: 7.3, ra: "01h 37m 42s", dec: "-57° 14' 12\"", type: "B3Vp", desc: "波江座最亮星，旋轉速度極快，是最扁的恆星之一。", desc_en: "Brightest in Eridanus. Spins so fast it is one of the flattest stars known." },
-            { name: "牛郎星 (Altair)", temp: 7550, lum: 10.6, radius: 1.79, ra: "19h 50m 47s", dec: "+08° 52' 06\"", type: "A7V", desc: "天鷹座最亮星，夏季大三角之一，距離地球僅16.7光年。", desc_en: "Brightest in Aquila. Part of the Summer Triangle. Only 16.7 ly away." },
-            { name: "北落師門 (Fomalhaut)", temp: 8590, lum: 16.6, radius: 1.84, ra: "22h 57m 39s", dec: "-29° 37' 20\"", type: "A3V", desc: "南魚座最亮星，周圍擁有著名的塵埃盤和系外行星。", desc_en: "Brightest in Piscis Austrinus. Famous for its dust ring and exoplanet." },
-            { name: "南河三 A (Procyon A)", temp: 6530, lum: 6.93, radius: 2.04, ra: "07h 39m 18s", dec: "+05° 13' 29\"", type: "F5IV-V", desc: "小犬座最亮星，即將離開主序帶進入次巨星階段。", desc_en: "Brightest in Canis Minor. Leaving the main sequence to become a subgiant." },
-            { name: "天倉五 (Tau Ceti)", temp: 5344, lum: 0.52, radius: 0.79, ra: "01h 44m 04s", dec: "-15° 56' 14\"", type: "G8V", desc: "鯨魚座的一顆穩定黃矮星，因為性質與太陽相似，常是搜尋外星生命的目標。", desc_en: "Stable yellow dwarf in Cetus. Similar to Sun, popular target for SETI." },
-            { name: "天苑四 (Epsilon Eridani)", temp: 5084, lum: 0.34, radius: 0.73, ra: "03h 32m 55s", dec: "-09° 27' 29\"", type: "K2V", desc: "波江座的年輕橙矮星，距離我們非常近，擁有行星系統。", desc_en: "Young orange dwarf in Eridanus. Very close and hosts a planetary system." },
-            { name: "輦道增七 A (Albireo A)", temp: 4080, lum: 1200, radius: 69, ra: "19h 30m 43s", dec: "+27° 57' 34\"", type: "K3II", desc: "天鵝座美麗的雙星系統主星，呈現金黃色。", desc_en: "Golden primary of the beautiful double star Albireo in Cygnus." },
-            { name: "61 Cygni A", temp: 4530, lum: 0.15, radius: 0.66, ra: "21h 06m 53s", dec: "+38° 44' 57\"", type: "K5V", desc: "天鵝座的著名雙星，是人類歷史上第一顆被測量出距離的恆星。", desc_en: "Famous binary in Cygnus. First star to have its distance measured." },
-            { name: "61 Cygni B", temp: 4040, lum: 0.085, radius: 0.59, ra: "21h 06m 55s", dec: "+38° 44' 29\"", type: "K7V", desc: "61 Cygni 的伴星，比主星稍暗且紅。", desc_en: "Companion to 61 Cygni A. Fainter and redder." },
-            { name: "Lacaille 9352", temp: 3690, lum: 0.033, radius: 0.47, ra: "23h 05m 52s", dec: "-35° 51' 11\"", type: "M0.5V", desc: "南魚座的一顆紅矮星，也是距離太陽系最近的恆星之一。", desc_en: "Red dwarf in Piscis Austrinus. One of the closest stars." },
-            { name: "Gliese 1", temp: 3400, lum: 0.012, radius: 0.35, ra: "00h 05m 24s", dec: "-37° 21' 26\"", type: "M1.5V", desc: "位於玉夫座的紅矮星，鄰近太陽系。", desc_en: "Red dwarf in Sculptor, near the Solar System." },
-            { name: "北河三 (Pollux)", temp: 4666, lum: 43, radius: 8.8, ra: "07h 45m 18s", dec: "+28° 01' 34\"", type: "K0III", desc: "雙子座的一顆紅巨星，是已知擁有行星的最亮恆星之一。", desc_en: "Red giant in Gemini. One of the brightest stars known to have a planet." },
-            { name: "馬腹一 (Hadar)", temp: 25000, lum: 112000, radius: 13, ra: "14h 03m 49s", dec: "-60° 22' 22\"", type: "B1III", desc: "半人馬座第二亮星，是一顆藍白巨星。", desc_en: "Second brightest in Centaurus. A blue-white giant." },
-            { name: "開陽星 (Mizar)", temp: 9000, lum: 33, radius: 2.4, ra: "13h 23m 55s", dec: "+54° 55' 31\"", type: "A2V", desc: "北斗七星之一，是著名的光學雙星（與輔星 Alcor）。", desc_en: "Star in the Big Dipper. Famous optical double with Alcor." },
-            { name: "王良四 (Schedar)", temp: 4530, lum: 676, radius: 42, ra: "00h 40m 30s", dec: "+56° 32' 14\"", type: "K0IIIa", desc: "仙后座的橙色巨星。", desc_en: "Orange giant in Cassiopeia." },
-            
-            // --- Generic Stars ---
-            { name: "Generic B-Type", temp: 18000, lum: 2000, radius: 5, ra: "--", dec: "--", type: "B5V", desc: "典型 B 型主序星。", desc_en: "Typical B-type main sequence star." },
-            { name: "Generic A-Type", temp: 8500, lum: 20, radius: 1.8, ra: "--", dec: "--", type: "A5V", desc: "典型 A 型主序星。", desc_en: "Typical A-type main sequence star." },
-            { name: "Generic F-Type", temp: 7000, lum: 4, radius: 1.4, ra: "--", dec: "--", type: "F2V", desc: "典型 F 型主序星。", desc_en: "Typical F-type main sequence star." },
-            { name: "Generic G-Type", temp: 5500, lum: 0.8, radius: 0.9, ra: "--", dec: "--", type: "G8V", desc: "典型 G 型主序星。", desc_en: "Typical G-type main sequence star." },
-            { name: "Generic K-Type", temp: 4800, lum: 0.4, radius: 0.8, ra: "--", dec: "--", type: "K2V", desc: "典型 K 型主序星。", desc_en: "Typical K-type main sequence star." },
-            { name: "Generic K-Late", temp: 4000, lum: 0.1, radius: 0.6, ra: "--", dec: "--", type: "K8V", desc: "晚期 K 型主序星。", desc_en: "Late K-type main sequence star." },
-            { name: "Generic M-Early", temp: 3500, lum: 0.05, radius: 0.4, ra: "--", dec: "--", type: "M2V", desc: "早期 M 型紅矮星。", desc_en: "Early M-type red dwarf." }
-        ];
-
-        // --- Generators (Updated with English Descriptions) ---
-        function generateBackgroundStars(count) {
-            const newStars = [];
-            for(let i=0; i<count; i++) {
-                const r = Math.random();
-                let temp;
-                if (r < 0.6) temp = 2000 + Math.random() * 3500;
-                else if (r < 0.85) temp = 5500 + Math.random() * 4500;
-                else temp = 10000 + Math.random() * 20000;
-
-                const logT_Sun = Math.log10(5778);
-                const logT = Math.log10(temp);
-                let slope = 4.8;
-                if(temp < 4000) slope = 5.5;
-                const logL = slope * (logT - logT_Sun);
-                const noise = (Math.random() - 0.5) * 0.8; 
-                const lum = Math.pow(10, logL + noise);
-                const radius = Math.sqrt(lum) / Math.pow(temp/5778, 2);
-
-                newStars.push({
-                    name: `HIP ${Math.floor(Math.random()*100000)}`,
-                    temp: Math.round(temp),
-                    lum: parseFloat(lum.toFixed(5)),
-                    radius: parseFloat(radius.toFixed(3)),
-                    ra: "--", dec: "--",
-                    type: "MS (Background)",
-                    desc: "背景主序星 (模擬觀測數據)，展示了恆星演化的主要路徑。",
-                    desc_en: "Background main sequence star (simulated data), showing the main path of stellar evolution."
-                });
-            }
-            return newStars;
-        }
-
-        function generateGiants(count, isSupergiant = false) {
-            const newStars = [];
-            for(let i=0; i<count; i++) {
-                const temp = 3000 + Math.random() * 2000;
-                let lum, typeLabel, descLabel, descLabelEn, typeLabelEn;
-
-                if (isSupergiant) {
-                    const logL = 4 + Math.random() * 1.7; 
-                    lum = Math.pow(10, logL);
-                    typeLabel = "Supergiant (I)";
-                    descLabel = "背景紅超巨星，這類恆星體積巨大，壽命將盡。";
-                    descLabelEn = "Background red supergiant. Massive star nearing the end of its life.";
-                } else {
-                    const logL = 1.7 + Math.random() * 1.6;
-                    lum = Math.pow(10, logL);
-                    typeLabel = "Giant (III)";
-                    descLabel = "背景紅巨星，這是像太陽這樣的恆星在耗盡氫燃料後的演化階段。";
-                    descLabelEn = "Background red giant. The evolutionary stage of a sun-like star after exhausting its hydrogen.";
-                }
-
-                const radius = Math.sqrt(lum) / Math.pow(temp/5778, 2);
-
-                newStars.push({
-                    name: `HIP ${Math.floor(Math.random()*100000)}`,
-                    temp: Math.round(temp),
-                    lum: parseFloat(lum.toFixed(2)),
-                    radius: parseFloat(radius.toFixed(2)),
-                    ra: "--", dec: "--",
-                    type: typeLabel,
-                    desc: descLabel,
-                    desc_en: descLabelEn
-                });
-            }
-            return newStars;
-        }
-
-        function generateWhiteDwarfs(count) {
-            const newStars = [];
-            for(let i=0; i<count; i++) {
-                const temp = 8000 + Math.random() * 22000;
-                const logT = Math.log10(temp);
-                const logL = 3 * logT - 13 + (Math.random() - 0.5); 
-                const lum = Math.pow(10, logL);
-                const radius = Math.sqrt(lum) / Math.pow(temp/5778, 2);
-
-                newStars.push({
-                    name: `WD ${Math.floor(Math.random()*100000)}`,
-                    temp: Math.round(temp),
-                    lum: parseFloat(lum.toFixed(5)),
-                    radius: parseFloat(radius.toFixed(4)),
-                    ra: "--", dec: "--",
-                    type: "White Dwarf (VII)",
-                    desc: "背景白矮星，恆星死亡後留下的緻密核心，體積通常與地球相當。",
-                    desc_en: "Background white dwarf. The dense core remnant of a dead star, roughly the size of Earth."
-                });
-            }
-            return newStars;
-        }
-
-        // 生成各類恆星並加入數據集
-        const backgroundMS = generateBackgroundStars(300);
-        const backgroundGiants = generateGiants(60); 
-        const backgroundSuperGiants = generateGiants(20, true);
-        const backgroundWhiteDwarfs = generateWhiteDwarfs(40);
-
-        starsData.push(...backgroundMS, ...backgroundGiants, ...backgroundSuperGiants, ...backgroundWhiteDwarfs);
-
-        // --- 追踪當前選擇的變量 ---
-        let selectedStarIndex = -1;
-        const sunIndex = starsData.findIndex(s => s.name.includes("太陽"));
-        if (sunIndex !== -1) {
-            selectedStarIndex = sunIndex;
-        }
-
-        // --- Helper Functions ---
-        function getColorFromTemp(temp) {
-            if (temp >= 30000) return 'rgba(157, 180, 255, 0.9)'; // Blue
-            if (temp >= 10000) return 'rgba(178, 200, 255, 0.9)'; // Blue-White
-            if (temp >= 7500)  return 'rgba(255, 255, 255, 0.9)'; // White
-            if (temp >= 6000)  return 'rgba(255, 244, 232, 0.9)'; // Yellow-White
-            if (temp >= 5200)  return 'rgba(255, 235, 59, 0.9)';   // Yellow
-            if (temp >= 3700)  return 'rgba(255, 152, 0, 0.9)';   // Orange
-            return 'rgba(255, 87, 34, 0.9)';                      // Red
-        }
-
-        // --- Chart Configuration ---
-        const ctx = document.getElementById('hrChart').getContext('2d');
-        const chartData = starsData.map(star => ({ x: star.temp, y: star.lum, starInfo: star }));
-        const backgroundColors = starsData.map(star => getColorFromTemp(star.temp));
-
-        const sunLinePlugin = {
-            id: 'sunLine',
-            afterDraw: (chart) => {
-                const ctx = chart.ctx;
-                const yAxis = chart.scales.y;
-                const xAxis = chart.scales.x;
-                const yPos = yAxis.getPixelForValue(1);
-                if (yPos >= yAxis.top && yPos <= yAxis.bottom) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-                    ctx.lineWidth = 2;
-                    ctx.moveTo(xAxis.left, yPos);
-                    ctx.lineTo(xAxis.right, yPos);
-                    ctx.stroke();
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    ctx.font = 'bold 12px "Noto Sans TC"';
-                    ctx.textAlign = 'right';
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillText('1 L☉ (Sun)', xAxis.right - 8, yPos - 4);
-                    ctx.restore();
-                }
-            }
-        };
-
-        const hrChart = new Chart(ctx, {
-            type: 'scatter',
-            data: {
-                datasets: [{
-                    label: 'Stars',
-                    data: chartData,
-                    backgroundColor: backgroundColors,
-                    borderColor: (context) => (context.dataIndex === selectedStarIndex) ? '#ffffff' : 'rgba(255,255,255,0.3)',
-                    borderWidth: (context) => (context.dataIndex === selectedStarIndex) ? 3 : 1,
-                    pointRadius: (context) => {
-                        const star = context.raw?.starInfo;
-                        if(!star) return 5;
-                        let size = Math.log10(star.radius) * 2 + 5; 
-                        return Math.max(3, Math.min(size, 12));
-                    },
-                    pointHoverRadius: 15,
-                    pointHoverBorderWidth: 3,
-                    pointHoverBorderColor: '#fff'
-                }]
-            },
-            plugins: [sunLinePlugin],
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: { padding: 10 },
-                scales: {
-                    x: {
-                        type: 'logarithmic',
-                        position: 'bottom',
-                        reverse: true,
-                        title: {
-                            display: true,
-                            text: i18n[currentLang].axisX, // Initial text
-                            color: '#94a3b8',
-                            font: { size: 14 }
-                        },
-                        ticks: {
-                            color: '#64748b',
-                            autoSkip: false,
-                            maxRotation: 0,
-                            callback: function(value) {
-                                const targetValues = [2000, 3000, 4000, 6000, 7000, 10000, 20000, 30000];
-                                return targetValues.includes(value) ? value : '';
-                            }
-                        },
-                        grid: { color: '#334155' },
-                        min: 2000, max: 30000,
-                        afterBuildTicks: (axis) => {
-                            axis.ticks = [2000, 3000, 4000, 6000, 7000, 10000, 20000, 30000].map(v => ({ value: v }));
-                        }
-                    },
-                    y: {
-                        type: 'logarithmic',
-                        title: {
-                            display: true,
-                            text: i18n[currentLang].axisY, // Initial text
-                            color: '#94a3b8',
-                            font: { size: 14 }
-                        },
-                        ticks: {
-                            color: '#64748b',
-                            callback: (value) => [100000, 1000, 10, 1, 0.1, 0.001].includes(value) ? value.toString() : null
-                        },
-                        grid: { color: '#334155' },
-                        min: 0.0001, max: 1000000
-                    }
-                },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                        titleColor: '#fff',
-                        bodyColor: '#cbd5e1',
-                        borderColor: '#475569',
-                        borderWidth: 1,
-                        callbacks: {
-                            label: (context) => context.raw.starInfo.name,
-                            afterLabel: (context) => `Type: ${context.raw.starInfo.type}`
-                        }
-                    }
-                },
-                onClick: (event, elements) => {
-                    if (elements.length > 0) {
-                        const index = elements[0].index;
-                        selectedStarIndex = index;
-                        hrChart.update();
-                        showStarDetails(chartData[index].starInfo);
-                    }
-                }
-            }
+function makeBackground() {
+    const rnd = mulberry32(20260913);
+    const out = [];
+    for (let i = 0; i < 90; i++) {
+        const M = 0.12 * Math.pow(40 / 0.12, rnd());
+        const m = msFromMass(M);
+        const jitter = Math.pow(10, (rnd() - 0.5) * 0.35);
+        out.push({
+            id: 'bg-ms-' + i, temp: m.temp * (0.96 + rnd() * 0.08), lum: m.lum * jitter,
+            radius: m.radius, spec: spectralFromT(m.temp) + 'V', cls: 'ms', named: false,
+            zh: '背景主序星', en: 'Background MS', noteZh: '模擬主序星族。', noteEn: 'Simulated main-sequence star.'
         });
+    }
+    for (let i = 0; i < 18; i++) {
+        const temp = 3200 + rnd() * 1800;
+        const lum = Math.pow(10, 1.6 + rnd() * 1.5);
+        out.push({
+            id: 'bg-g-' + i, temp, lum, radius: Math.sqrt(lum) / Math.pow(temp / T_SUN, 2),
+            spec: 'K/M III', cls: 'giant', named: false,
+            zh: '背景巨星', en: 'Background giant', noteZh: '氫耗盡後膨脹的巨星。', noteEn: 'An expanded giant after core hydrogen is gone.'
+        });
+    }
+    for (let i = 0; i < 8; i++) {
+        const temp = 3200 + rnd() * 9000;
+        const lum = Math.pow(10, 4.2 + rnd() * 1.4);
+        out.push({
+            id: 'bg-sg-' + i, temp, lum, radius: Math.sqrt(lum) / Math.pow(temp / T_SUN, 2),
+            spec: 'I', cls: 'sg', named: false,
+            zh: '背景超巨星', en: 'Background SG', noteZh: '大質量恆星的晚期。', noteEn: 'Late stage of a massive star.'
+        });
+    }
+    for (let i = 0; i < 14; i++) {
+        const temp = 7000 + rnd() * 20000;
+        const lum = Math.pow(10, -3.6 + (Math.log10(temp) - 3.8) * 1.6 + (rnd() - 0.5) * 0.6);
+        out.push({
+            id: 'bg-wd-' + i, temp, lum: Math.max(1.2e-4, lum),
+            radius: Math.sqrt(Math.max(1.2e-4, lum)) / Math.pow(temp / T_SUN, 2),
+            spec: 'D', cls: 'wd', named: false,
+            zh: '背景白矮星', en: 'Background WD', noteZh: '緻密的恆星殘骸。', noteEn: 'A dense stellar remnant.'
+        });
+    }
+    return out;
+}
 
-        // --- DOM Logic ---
-        
-        function toggleInfoModal(show) {
-            const modal = document.getElementById('infoModal');
-            // Update modal content based on current language before showing
-            if(show) {
-                document.getElementById('modal-title').innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                    </svg>
-                    ${i18n[currentLang].modalTitle}`;
-                document.getElementById('modal-content').innerHTML = i18n[currentLang].modalBody;
-                document.getElementById('btn-close').innerText = i18n[currentLang].btnClose;
-                
-                modal.classList.remove('hidden');
-                modal.onclick = (e) => (e.target === modal) ? toggleInfoModal(false) : null;
-            } else {
-                modal.classList.add('hidden');
-            }
-        }
+const BACKGROUND = makeBackground();
 
-        // New function for Lifecycle Modal
-        function toggleLifecycleModal(show) {
-            const modal = document.getElementById('lifecycleModal');
-            if(show) {
-                // Update text
-                document.getElementById('lifecycle-title').innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    ${i18n[currentLang].modalLifecycleTitle}`;
-                document.getElementById('lifecycle-content').innerHTML = i18n[currentLang].modalLifecycleBody;
-                document.getElementById('btn-close-lifecycle').innerText = i18n[currentLang].btnClose;
+const TRACKS = {
+    solar: [
+        { t: 0.00, temp: 3900, lum: 9, zh: '原恆星', en: 'Protostar' },
+        { t: 0.10, temp: 5000, lum: 2.2, zh: '接近主序', en: 'Approaching MS' },
+        { t: 0.20, temp: 5778, lum: 1, zh: '零齡主序', en: 'Zero-age MS' },
+        { t: 0.55, temp: 5770, lum: 1.15, zh: '穩定主序', en: 'Stable MS' },
+        { t: 0.70, temp: 5400, lum: 2.4, zh: '主序末期', en: 'Late MS' },
+        { t: 0.78, temp: 4900, lum: 14, zh: '次巨星', en: 'Subgiant' },
+        { t: 0.86, temp: 3500, lum: 450, zh: '紅巨星', en: 'Red giant' },
+        { t: 0.90, temp: 4800, lum: 55, zh: '氦燃燒', en: 'Helium burning' },
+        { t: 0.94, temp: 3200, lum: 2800, zh: '漸近巨星支', en: 'AGB' },
+        { t: 0.97, temp: 8500, lum: 30, zh: '行星狀星雲', en: 'Planetary nebula' },
+        { t: 1.00, temp: 18000, lum: 0.012, zh: '白矮星', en: 'White dwarf' }
+    ],
+    massive: [
+        { t: 0.00, temp: 28000, lum: 22000, zh: '大質量主序', en: 'Massive MS' },
+        { t: 0.28, temp: 24000, lum: 40000, zh: '主序中期', en: 'Mid MS' },
+        { t: 0.48, temp: 16000, lum: 70000, zh: '藍超巨星', en: 'Blue supergiant' },
+        { t: 0.70, temp: 3600, lum: 130000, zh: '紅超巨星', en: 'Red supergiant' },
+        { t: 0.86, temp: 4200, lum: 200000, zh: '核心塌縮前', en: 'Pre-collapse' },
+        { t: 0.94, temp: 9000, lum: 800000, zh: '超新星', en: 'Supernova' },
+        { t: 1.00, temp: 9000, lum: 0.00012, zh: '殘骸離開圖表', en: 'Remnant leaves the plot' }
+    ]
+};
 
-                modal.classList.remove('hidden');
-                modal.onclick = (e) => (e.target === modal) ? toggleLifecycleModal(false) : null;
-            } else {
-                modal.classList.add('hidden');
-            }
-        }
+const i18n = {
+    zh: {
+        title: '赫羅圖', badge: '中一科學', subtitle: '光度、溫度與恆星演化',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制', reset: '重置',
+        presets: '教學情境',
+        preSun: '① 找出太陽', preCompare: '② 紅矮星 vs 藍超巨星', preRegions: '③ 四個星族區域',
+        preMass: '④ 主序質量', preSolarEvo: '⑤ 太陽質量演化', preMassiveEvo: '⑥ 大質量演化',
+        labelStar: '著名恆星', labelMass: '主序質量', massLow: '紅矮星', massHigh: 'O 型巨星',
+        labelTrack: '演化軌跡', trackSolar: '太陽質量', trackMassive: '大質量',
+        play: '播放演化', stop: '停止',
+        showRegions: '顯示區域標籤', showBg: '顯示背景星族', showGuides: '太陽參考線',
+        showMS: '主序星', showGiant: '巨星', showSG: '超巨星', showWD: '白矮星',
+        liveTitle: '即時解讀',
+        chartTip: '點擊星點查看詳情 · 顏色＝表面溫度 · 大小≈半徑',
+        statName: '恆星', statTemp: '表面溫度', statLum: '光度', statRad: '半徑', statSpec: '光譜／類型',
+        axisX: '表面溫度 (K)  →  愈右愈冷', axisY: '光度 (L☉)',
+        regionMS: '主序帶', regionGiant: '巨星', regionSG: '超巨星', regionWD: '白矮星',
+        sunLum: '1 L☉', sunTemp: '太陽',
+        clsMs: '主序星', clsGiant: '巨星', clsSg: '超巨星', clsWd: '白矮星',
+        massStar: '模型主序星', evoStar: '演化中的恆星',
+        insightSun: '太陽在 G 型主序：約 5800 K、1 L☉。以此為尺，比較其他星的冷熱與明暗。',
+        insightMass: (M, T, L, life) => `質量 ${M} M☉ 的主序星：約 ${T} K、${L} L☉。主序壽命約 ${life}。質量愈大愈靠左上、燃料燒得愈快。`,
+        insightEvo: (stage) => `演化階段：${stage}。注意軌跡如何離開主序帶。`,
+        insightStar: (name, cls, vsT, vsL, vsR, note) => `${name}是${cls}。相對太陽：溫度 ${vsT}、光度 ${vsL}、半徑 ${vsR}。${note}`,
+        insightEndMassive: '超新星之後，中子星或黑洞不再出現在經典赫羅圖上——圖只描述還在發光的星體。',
+        hotter: '較熱', cooler: '較冷', brighter: '更亮', fainter: '更暗', larger: '更大', smaller: '更小',
+        lifeYr: (g) => g >= 1 ? `${(g * 10).toFixed(0)} 億年` : `${(g * 1000).toFixed(0)} 百萬年`,
+        stepsTitle: '觀察步驟', stepsSub: '先調什麼、看什麼、比較什麼',
+        s1: '用「找出太陽」：確認橫軸愈左愈熱、縱軸愈上愈亮，太陽在 G 型、1 L☉。',
+        s2: '比較比鄰星與參宿七：同樣是「星」，溫度、光度、半徑差幾個數量級。',
+        s3: '開關星族篩選與區域標籤，找出主序帶、巨星、超巨星、白矮星各在哪一區。',
+        s4: '拖動主序質量：質量愈大愈靠左上、壽命愈短；再播放太陽質量與大質量演化，比較終點。',
+        modalTitle: '赫羅圖原理', modalSub: '光度–溫度圖與恆星生命', modalClose: '關閉',
+        m1t: '1. 甚麼是赫羅圖？',
+        m1d: '赫羅圖不是星空地圖，而是把每顆恆星畫在「表面溫度」與「光度」的座標上。溫度由左（熱、藍）到右（冷、紅）反向排列；光度由下（暗）到上（亮）用對數尺度。',
+        m2t: '主序帶',
+        m2d: '約九成恆星（包括太陽）在核心把氫融合成氦，穩定地排成一條由左上到右下的帶。質量愈大，位置愈靠左上，壽命愈短。',
+        m3t: '巨星、超巨星與白矮星',
+        m3d: '燃料耗盡後恆星膨脹變紅（右上），或留下又熱又暗的緻密核心（左下白矮星）。L ∝ R²T⁴ 解釋為何冷巨星仍很亮、熱白矮星卻很暗。',
+        m4t: '2. 演化分岔',
+        m4d: '太陽質量：主序 → 紅巨星 → 行星狀星雲 → 白矮星。大質量（≳8 M☉）：主序 → 超巨星 → 超新星 → 中子星或黑洞（殘骸不再畫在經典赫羅圖上）。',
+        m5t: '3. 生活例子',
+        m5d: '夜空中的織女、牛郎是主序星；參宿四是快走到盡頭的紅超巨星；天狼星旁的伴星是白矮星。星團的主序「拐點」愈低，星團愈老。',
+        pageTitle: '赫羅圖 | Hertzsprung–Russell Diagram'
+    },
+    en: {
+        title: 'H–R Diagram', badge: 'S1 Science', subtitle: 'Luminosity, temperature and stellar evolution',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls', reset: 'Reset',
+        presets: 'Scenarios',
+        preSun: '① Find the Sun', preCompare: '② Red dwarf vs blue SG', preRegions: '③ Four regions',
+        preMass: '④ Main-sequence mass', preSolarEvo: '⑤ Solar-mass path', preMassiveEvo: '⑥ Massive-star path',
+        labelStar: 'Famous stars', labelMass: 'Main-sequence mass', massLow: 'Red dwarf', massHigh: 'O-type',
+        labelTrack: 'Evolutionary track', trackSolar: 'Solar mass', trackMassive: 'Massive',
+        play: 'Play evolution', stop: 'Stop',
+        showRegions: 'Region labels', showBg: 'Background population', showGuides: 'Solar guides',
+        showMS: 'Main sequence', showGiant: 'Giants', showSG: 'Supergiants', showWD: 'White dwarfs',
+        liveTitle: 'Live insight',
+        chartTip: 'Click a star · colour = temperature · size ≈ radius',
+        statName: 'Star', statTemp: 'Temperature', statLum: 'Luminosity', statRad: 'Radius', statSpec: 'Spectrum / type',
+        axisX: 'Surface temperature (K)  →  cooler to the right', axisY: 'Luminosity (L☉)',
+        regionMS: 'Main sequence', regionGiant: 'Giants', regionSG: 'Supergiants', regionWD: 'White dwarfs',
+        sunLum: '1 L☉', sunTemp: 'Sun',
+        clsMs: 'a main-sequence star', clsGiant: 'a giant', clsSg: 'a supergiant', clsWd: 'a white dwarf',
+        massStar: 'Model MS star', evoStar: 'Evolving star',
+        insightSun: 'The Sun sits on the G-type main sequence: about 5800 K and 1 L☉. Use it as the ruler for hotter/cooler and brighter/fainter.',
+        insightMass: (M, T, L, life) => `A ${M} M☉ main-sequence star: about ${T} K and ${L} L☉. MS lifetime ≈ ${life}. Higher mass sits upper-left and burns faster.`,
+        insightEvo: (stage) => `Stage: ${stage}. Watch how the track leaves the main sequence.`,
+        insightStar: (name, cls, vsT, vsL, vsR, note) => `${name} is ${cls}. Versus the Sun: ${vsT}, ${vsL}, ${vsR}. ${note}`,
+        insightEndMassive: 'After a supernova, a neutron star or black hole is not plotted on the classic H–R diagram — the chart only shows shining stars.',
+        hotter: 'hotter', cooler: 'cooler', brighter: 'brighter', fainter: 'fainter', larger: 'larger', smaller: 'smaller',
+        lifeYr: (g) => g >= 1 ? `${g.toFixed(1)} Gyr` : `${(g * 1000).toFixed(0)} Myr`,
+        stepsTitle: 'What to watch', stepsSub: 'Adjust, observe, compare',
+        s1: 'Use “Find the Sun”: left is hotter, up is brighter; the Sun is a G star at 1 L☉.',
+        s2: 'Compare Proxima with Rigel: both are stars, yet T, L and R differ by orders of magnitude.',
+        s3: 'Toggle filters and region labels to locate the main sequence, giants, supergiants and white dwarfs.',
+        s4: 'Drag main-sequence mass (higher mass → upper-left, shorter life), then play the solar-mass and massive tracks and compare endings.',
+        modalTitle: 'How the H–R diagram works', modalSub: 'Luminosity–temperature and stellar lives', modalClose: 'Close',
+        m1t: '1. What is the H–R diagram?',
+        m1d: 'It is not a sky map. Each star is plotted by surface temperature and luminosity. Temperature runs backwards (hot/blue left, cool/red right); luminosity is logarithmic.',
+        m2t: 'Main sequence',
+        m2d: 'About 90% of stars, including the Sun, fuse hydrogen in the core and form a band from upper-left to lower-right. Higher mass sits further up-left and lives a shorter life.',
+        m3t: 'Giants, supergiants and white dwarfs',
+        m3d: 'When fuel runs out, stars swell and redden (upper right) or leave a hot, faint core (lower-left white dwarfs). L ∝ R²T⁴ explains bright cool giants and dim hot white dwarfs.',
+        m4t: '2. Two endings',
+        m4d: 'Solar mass: MS → red giant → planetary nebula → white dwarf. Massive (≳8 M☉): MS → supergiant → supernova → neutron star or black hole (remnants leave the classic plot).',
+        m5t: '3. Everyday examples',
+        m5d: 'Vega and Altair are main-sequence stars; Betelgeuse is a dying red supergiant; Sirius B is a white dwarf. A lower cluster turn-off means an older cluster.',
+        pageTitle: 'Hertzsprung–Russell Diagram | 赫羅圖'
+    }
+};
 
-        // Language Toggle Function
-        function toggleLanguage() {
-            currentLang = currentLang === 'zh' ? 'en' : 'zh';
-            const text = i18n[currentLang];
+let lang = 'zh';
+const state = {
+    selectedId: 'sun',
+    mass: 1,
+    showMassStar: false,
+    track: 'solar',
+    evoT: -1,
+    playing: false,
+    hoverId: null,
+    preset: 'sun'
+};
 
-            // 1. Update Static UI
-            document.getElementById('nav-subtitle').innerText = text.subtitle;
-            document.getElementById('nav-version').innerText = text.version;
-            document.getElementById('btn-explain-text').innerText = text.btnExplain;
-            document.getElementById('btn-lifecycle-text').innerText = text.btnLifecycle;
-            
-            document.getElementById('legend-ms').innerText = text.legendMS;
-            document.getElementById('legend-giant').innerText = text.legendGiant;
-            document.getElementById('legend-wd').innerText = text.legendWD;
-            document.getElementById('chart-tip').innerText = text.chartTip;
+const els = {};
+[
+    'btnReset', 'btn-principle', 'btn-steps', 'btn-lang', 'btn-lang-mobile',
+    'modal-principle', 'modal-close', 'modal-confirm', 'modal-steps', 'steps-close', 'steps-confirm',
+    'starSelect', 'massSlider', 'disp-mass', 'btnTrackSolar', 'btnTrackMassive', 'btnPlay', 'btnStop',
+    'showRegions', 'showBg', 'showGuides', 'showMS', 'showGiant', 'showSG', 'showWD',
+    'insightText', 'stageText', 'hrCanvas',
+    'statName', 'statTemp', 'statLum', 'statRad', 'statSpec'
+].forEach(id => { els[id] = document.getElementById(id); });
 
-            document.getElementById('empty-text-1').innerText = text.empty1;
-            document.getElementById('empty-text-2').innerText = text.empty2;
+const canvas = els.hrCanvas;
+const ctx = canvas.getContext('2d');
+let plot = { x: 70, y: 36, w: 400, h: 360 };
+let animId = 0;
 
-            document.getElementById('lbl-spec-type').innerText = text.lblSpecType;
-            document.getElementById('lbl-phys-prop').innerText = text.lblPhysProp;
-            document.getElementById('lbl-temp').innerText = text.lblTemp;
-            document.getElementById('lbl-lum').innerText = text.lblLum;
-            document.getElementById('lbl-rad').innerText = text.lblRad;
-            document.getElementById('lbl-color').innerText = text.lblColor;
-            
-            document.getElementById('lbl-desc').innerText = text.lblDesc;
-            document.getElementById('lbl-visual').innerText = text.lblVisual;
+function t(key) { return i18n[lang][key]; }
 
-            // 2. Update Chart Axes
-            hrChart.options.scales.x.title.text = text.axisX;
-            hrChart.options.scales.y.title.text = text.axisY;
-            hrChart.update();
+function fmtNum(n) {
+    if (!isFinite(n)) return '—';
+    const a = Math.abs(n);
+    if (a >= 1e6 || (a > 0 && a < 0.01)) return n.toExponential(2);
+    if (a >= 100) return Math.round(n).toLocaleString('en-US');
+    if (a >= 10) return n.toFixed(1);
+    if (a >= 1) return n.toFixed(2);
+    return n.toFixed(3);
+}
 
-            // 3. Update Current Star Details (if selected)
-            if (selectedStarIndex !== -1) {
-                showStarDetails(starsData[selectedStarIndex]);
-            }
-        }
+function vsWord(value, high, low) {
+    if (value > 1.15) return high;
+    if (value < 0.85) return low;
+    return lang === 'zh' ? '相近' : 'similar';
+}
 
-        function showStarDetails(star) {
-            document.getElementById('empty-state').classList.add('hidden');
-            document.getElementById('star-details').classList.remove('hidden');
+function tempColor(temp) {
+    const T = Math.max(2000, Math.min(40000, temp));
+    let r, g, b;
+    if (T >= 10000) {
+        const u = Math.min(1, (T - 10000) / 20000);
+        r = 202 - u * 45; g = 215 - u * 35; b = 255;
+    } else if (T >= 6000) {
+        const u = (T - 6000) / 4000;
+        r = 255 - u * 7; g = 236 + u * 11; b = 210 + u * 45;
+    } else if (T >= 3700) {
+        const u = (T - 3700) / 2300;
+        r = 255; g = 176 + u * 60; b = 96 + u * 114;
+    } else {
+        const u = (T - 2000) / 1700;
+        r = 255; g = 120 + u * 56; b = 60 + u * 36;
+    }
+    return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
 
-            document.getElementById('star-name').innerText = star.name; // Names are universal enough or bilingual in source
-            document.getElementById('star-type').innerText = star.type;
-            document.getElementById('star-temp').innerText = star.temp.toLocaleString();
-            document.getElementById('star-lum').innerText = star.lum.toLocaleString();
-            document.getElementById('star-radius').innerText = star.radius;
-            
-            let bv = 0;
-            if(star.temp > 30000) bv = -0.3;
-            else if(star.temp > 10000) bv = 0.0;
-            else if(star.temp > 6000) bv = 0.4;
-            else if(star.temp > 5000) bv = 0.65;
-            else if(star.temp > 3500) bv = 1.4;
-            else bv = 1.8;
-            document.getElementById('star-bv').innerText = bv.toFixed(2);
-            
-            // Choose description based on language
-            const desc = currentLang === 'en' && star.desc_en ? star.desc_en : star.desc;
-            document.getElementById('star-desc').innerText = desc;
+function logT(v) { return Math.log10(v); }
+function logL(v) { return Math.log10(Math.max(v, L_MIN * 0.5)); }
 
-            const visual = document.getElementById('star-visual');
-            visual.style.backgroundColor = getColorFromTemp(star.temp);
-            
-            let visualSize = 24;
-            if (star.radius > 1) {
-                visualSize = 24 + Math.min(Math.log2(star.radius) * 10, 60); 
-            } else {
-                visualSize = Math.max(10, 24 - Math.abs(Math.log2(star.radius) * 5)); 
-            }
-            
-            visual.style.width = `${visualSize}px`;
-            visual.style.height = `${visualSize}px`;
-            visual.style.boxShadow = `0 0 ${visualSize/1.5}px ${getColorFromTemp(star.temp)}`;
-        }
+function toXY(temp, lum) {
+    const tx = (logT(T_MAX) - logT(temp)) / (logT(T_MAX) - logT(T_MIN));
+    const ty = (logL(lum) - logL(L_MIN)) / (logL(L_MAX) - logL(L_MIN));
+    return { x: plot.x + tx * plot.w, y: plot.y + plot.h - ty * plot.h };
+}
 
-        // Init
-        window.onload = function() {
-            const sunData = starsData.find(s => s.name.includes("太陽"));
-            if (sunData) {
-                showStarDetails(sunData);
-                hrChart.update();
-            }
-        };
+function filters() {
+    return {
+        ms: els.showMS.checked, giant: els.showGiant.checked,
+        sg: els.showSG.checked, wd: els.showWD.checked, bg: els.showBg.checked
+    };
+}
 
-    </script>
+function visibleStars() {
+    const f = filters();
+    const list = [];
+    NAMED.forEach(s => { if (f[s.cls]) list.push(s); });
+    if (f.bg) BACKGROUND.forEach(s => { if (f[s.cls]) list.push(s); });
+    return list;
+}
+
+function massStar() {
+    const m = msFromMass(state.mass);
+    return {
+        id: '__mass__', zh: t('massStar'), en: t('massStar'),
+        temp: m.temp, lum: m.lum, radius: m.radius,
+        spec: spectralFromT(m.temp) + 'V', cls: 'ms', named: true,
+        noteZh: '', noteEn: '', M: m.M
+    };
+}
+
+function lerpTrack(kind, u) {
+    const pts = TRACKS[kind];
+    const x = Math.max(0, Math.min(1, u));
+    let i = 0;
+    while (i < pts.length - 2 && pts[i + 1].t < x) i++;
+    const a = pts[i], b = pts[i + 1];
+    const f = (x - a.t) / (b.t - a.t || 1);
+    const temp = a.temp * Math.pow(b.temp / a.temp, f);
+    const lum = a.lum * Math.pow(b.lum / a.lum, f);
+    return {
+        id: '__evo__', zh: t('evoStar'), en: t('evoStar'),
+        temp, lum, radius: Math.sqrt(lum) / Math.pow(temp / T_SUN, 2),
+        spec: spectralFromT(temp), cls: lum < 0.05 && temp > 7000 ? 'wd' : (lum > 20000 ? 'sg' : (lum > 20 && temp < 5200 ? 'giant' : 'ms')),
+        named: true, stageZh: (f < 0.5 ? a : b).zh, stageEn: (f < 0.5 ? a : b).en,
+        noteZh: '', noteEn: ''
+    };
+}
+
+function currentStar() {
+    if (state.evoT >= 0) return lerpTrack(state.track, state.evoT);
+    if (state.selectedId === '__mass__') return massStar();
+    return NAMED.find(s => s.id === state.selectedId) || NAMED[0];
+}
+
+function starName(s) { return lang === 'en' ? s.en : s.zh; }
+function clsLabel(cls) {
+    return { ms: t('clsMs'), giant: t('clsGiant'), sg: t('clsSg'), wd: t('clsWd') }[cls] || cls;
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (typeof i18n[lang][k] === 'string') el.textContent = i18n[lang][k];
+    });
+    fillStarSelect();
+    syncMassLabel();
+    updateInsight();
+    draw();
+}
+
+function fillStarSelect() {
+    const sel = els.starSelect;
+    const extra = state.selectedId === '__mass__'
+        ? `<option value="__mass__">${t('massStar')}</option>`
+        : '';
+    sel.innerHTML = extra + NAMED.map(s => `<option value="${s.id}">${starName(s)} · ${s.spec}</option>`).join('');
+    if ([...sel.options].some(o => o.value === state.selectedId)) sel.value = state.selectedId;
+}
+
+function syncMassLabel() {
+    els['disp-mass'].textContent = `${Number(state.mass).toFixed(1)} M☉`;
+}
+
+function setPresetActive(name) {
+    state.preset = name;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+}
+
+function setTrackButtons() {
+    els.btnTrackSolar.classList.toggle('active', state.track === 'solar');
+    els.btnTrackMassive.classList.toggle('active', state.track === 'massive');
+}
+
+function setModal(id, open) {
+    const el = document.getElementById(id);
+    const box = el.querySelector('.modal-content');
+    if (open) {
+        el.classList.remove('opacity-0', 'pointer-events-none');
+        box.classList.remove('scale-95', 'opacity-0');
+    } else {
+        el.classList.add('opacity-0', 'pointer-events-none');
+        box.classList.add('scale-95', 'opacity-0');
+    }
+}
+
+function updateInsight() {
+    const s = currentStar();
+    const txt = els.insightText;
+    const stage = els.stageText;
+    stage.classList.add('hidden');
+
+    if (s.id === '__mass__') {
+        const life = i18n[lang].lifeYr(lifeGyr(state.mass));
+        txt.textContent = i18n[lang].insightMass(state.mass.toFixed(1), fmtNum(s.temp), fmtNum(s.lum), life);
+    } else if (s.id === '__evo__') {
+        const label = lang === 'en' ? s.stageEn : s.stageZh;
+        txt.textContent = i18n[lang].insightEvo(label);
+        if (state.track === 'massive' && state.evoT > 0.95) txt.textContent = t('insightEndMassive');
+        stage.textContent = label;
+        stage.classList.remove('hidden');
+    } else if (s.id === 'sun') {
+        txt.textContent = t('insightSun');
+    } else {
+        const vsT = vsWord(s.temp / T_SUN, t('hotter'), t('cooler'));
+        const vsL = vsWord(s.lum, t('brighter'), t('fainter'));
+        const vsR = vsWord(s.radius, t('larger'), t('smaller'));
+        const note = lang === 'en' ? s.noteEn : s.noteZh;
+        txt.textContent = i18n[lang].insightStar(starName(s), clsLabel(s.cls), vsT, vsL, vsR, note);
+    }
+
+    els.statName.textContent = starName(s);
+    els.statTemp.textContent = `${fmtNum(s.temp)} K`;
+    els.statLum.textContent = `${fmtNum(s.lum)} L☉`;
+    els.statRad.textContent = `${fmtNum(s.radius)} R☉`;
+    els.statSpec.textContent = `${s.spec} · ${clsLabel(s.cls)}`;
+}
+
+function resize() {
+    const wrap = canvas.parentElement;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    plot = { x: 64, y: 40, w: Math.max(120, w - 88), h: Math.max(160, h - 78) };
+    draw();
+}
+
+function drawBand(points, color) {
+    if (points.length < 2) return;
+    ctx.beginPath();
+    points.forEach((p, i) => {
+        const q = toXY(p.temp, p.lum);
+        if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+    });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 18;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.16;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+}
+
+function drawTrackLine(kind) {
+    const pts = TRACKS[kind];
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+        const q = toXY(p.temp, Math.max(p.lum, L_MIN * 1.05));
+        if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+    });
+    ctx.strokeStyle = kind === 'solar' ? '#fbbf24' : '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let i = 0; i < 50; i++) {
+        ctx.globalAlpha = 0.15 + (i % 5) * 0.05;
+        ctx.beginPath();
+        ctx.arc((i * 97) % cssW, (i * 53) % cssH, i % 3 === 0 ? 1.2 : 0.6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (els.showRegions.checked) {
+        const ridge = [];
+        for (let M = 0.1; M <= 32; M *= 1.08) ridge.push(msFromMass(M));
+        drawBand(ridge, '#38bdf8');
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plot.x, plot.y, plot.w, plot.h);
+    ctx.clip();
+
+    if (state.evoT >= 0) drawTrackLine(state.track);
+
+    if (els.showGuides.checked) {
+        const y1 = toXY(T_SUN, 1);
+        const xSun = toXY(T_SUN, 1);
+        ctx.strokeStyle = 'rgba(248,250,252,0.35)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(plot.x, y1.y); ctx.lineTo(plot.x + plot.w, y1.y);
+        ctx.moveTo(xSun.x, plot.y); ctx.lineTo(xSun.x, plot.y + plot.h);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(248,250,252,0.7)';
+        ctx.font = '11px "Noto Sans TC"';
+        ctx.textAlign = 'right';
+        ctx.fillText(t('sunLum'), plot.x + plot.w - 6, y1.y - 6);
+        ctx.textAlign = 'center';
+        ctx.fillText(t('sunTemp'), xSun.x, plot.y + plot.h - 8);
+    }
+
+    const stars = visibleStars();
+    stars.filter(s => !s.named).forEach(s => drawStar(s, false));
+    stars.filter(s => s.named).forEach(s => drawStar(s, s.id === state.selectedId && state.evoT < 0 && !state.showMassStar));
+
+    if (state.showMassStar || state.selectedId === '__mass__') {
+        drawStar(massStar(), state.selectedId === '__mass__' && state.evoT < 0);
+    }
+    if (state.evoT >= 0) drawStar(currentStar(), true);
+
+    ctx.restore();
+
+    if (els.showRegions.checked) {
+        ctx.font = 'bold 12px "Noto Sans TC"';
+        ctx.globalAlpha = 0.85;
+        labelAt(9000, 80, t('regionMS'), '#7dd3fc');
+        labelAt(3800, 180, t('regionGiant'), '#fb7185');
+        labelAt(7000, 80000, t('regionSG'), '#f472b6');
+        labelAt(14000, 0.004, t('regionWD'), '#e2e8f0');
+        ctx.globalAlpha = 1;
+    }
+
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(plot.x, plot.y, plot.w, plot.h);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px "Noto Sans TC"';
+    ctx.textAlign = 'center';
+    const ticksT = [30000, 20000, 10000, 7500, 6000, 4000, 3000];
+    ticksT.forEach(tv => {
+        const p = toXY(tv, L_MIN);
+        ctx.beginPath();
+        ctx.moveTo(p.x, plot.y + plot.h);
+        ctx.lineTo(p.x, plot.y + plot.h + 5);
+        ctx.strokeStyle = '#475569';
+        ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(String(tv), p.x, plot.y + plot.h + 16);
+    });
+    SPEC.forEach(s => {
+        const p = toXY(s.t, L_MAX);
+        ctx.fillStyle = tempColor(s.t);
+        ctx.font = 'bold 12px "Noto Sans TC"';
+        ctx.fillText(s.cls, p.x, plot.y - 10);
+    });
+
+    ctx.save();
+    ctx.translate(18, plot.y + plot.h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px "Noto Sans TC"';
+    ctx.textAlign = 'center';
+    ctx.fillText(t('axisY'), 0, 0);
+    ctx.restore();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px "Noto Sans TC"';
+    ctx.fillText(t('axisX'), plot.x + plot.w / 2, cssH - 8);
+
+    const ticksL = [1e6, 1e4, 1e2, 1, 0.01, 0.0001];
+    ctx.textAlign = 'right';
+    ctx.font = '11px "Noto Sans TC"';
+    ticksL.forEach(lv => {
+        const p = toXY(T_MIN, lv);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(lv >= 1 ? lv.toString() : lv.toString(), plot.x - 8, p.y + 3);
+    });
+
+    const hover = stars.find(s => s.id === state.hoverId) || (state.hoverId === '__mass__' ? massStar() : null);
+    if (hover) {
+        const p = toXY(hover.temp, hover.lum);
+        ctx.fillStyle = 'rgba(15,23,42,0.92)';
+        ctx.strokeStyle = '#64748b';
+        const label = starName(hover);
+        ctx.font = '12px "Noto Sans TC"';
+        const tw = ctx.measureText(label).width + 16;
+        const tx = Math.min(p.x + 12, plot.x + plot.w - tw - 4);
+        const ty = Math.max(p.y - 28, plot.y + 4);
+        ctx.fillRect(tx, ty, tw, 22);
+        ctx.strokeRect(tx, ty, tw, 22);
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, tx + 8, ty + 15);
+    }
+}
+
+function labelAt(temp, lum, text, color) {
+    const p = toXY(temp, lum);
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, p.x, p.y);
+}
+
+function drawStar(s, selected) {
+    const p = toXY(s.temp, s.lum);
+    if (p.x < plot.x - 8 || p.x > plot.x + plot.w + 8) return;
+    const r = Math.max(2.2, Math.min(11, 3.2 + Math.log10(Math.max(s.radius, 0.004)) * 2.1));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = tempColor(s.temp);
+    ctx.globalAlpha = s.named ? 0.95 : 0.45;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = selected ? '#fff' : 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = selected ? 2.4 : 0.6;
+    ctx.stroke();
+    if (selected) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(251,191,36,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+}
+
+function starAt(mx, my) {
+    const extras = [];
+    if (state.showMassStar || state.selectedId === '__mass__') extras.push(massStar());
+    if (state.evoT >= 0) extras.push(currentStar());
+    const list = extras.concat(visibleStars().slice().reverse());
+    let best = null, bestD = 14;
+    list.forEach(s => {
+        const p = toXY(s.temp, s.lum);
+        const d = Math.hypot(p.x - mx, p.y - my);
+        if (d < bestD) { bestD = d; best = s; }
+    });
+    return best;
+}
+
+function selectStar(s, fromMass) {
+    if (!s) return;
+    if (s.id === '__evo__') return;
+    state.selectedId = s.id;
+    if (s.id !== '__mass__') {
+        state.showMassStar = !!fromMass;
+        fillStarSelect();
+        if (NAMED.some(n => n.id === s.id)) els.starSelect.value = s.id;
+    }
+    updateInsight();
+    draw();
+}
+
+function applyPreset(name) {
+    setPresetActive(name);
+    stopEvo();
+    els.showRegions.checked = true;
+    els.showBg.checked = true;
+    els.showGuides.checked = true;
+    els.showMS.checked = true;
+    els.showGiant.checked = true;
+    els.showSG.checked = true;
+    els.showWD.checked = true;
+    state.showMassStar = false;
+    if (name === 'sun') {
+        state.selectedId = 'sun';
+        state.mass = 1;
+    } else if (name === 'compare') {
+        state.selectedId = 'rigel';
+        els.showGiant.checked = false;
+        els.showWD.checked = false;
+        els.showBg.checked = false;
+    } else if (name === 'regions') {
+        state.selectedId = 'sun';
+        els.showBg.checked = true;
+    } else if (name === 'mass') {
+        state.mass = 8;
+        state.selectedId = '__mass__';
+        state.showMassStar = true;
+        els.showBg.checked = false;
+    } else if (name === 'solarEvo') {
+        state.track = 'solar';
+        state.mass = 1;
+        els.massSlider.value = 1;
+        syncMassLabel();
+        startEvo();
+        return;
+    } else if (name === 'massiveEvo') {
+        state.track = 'massive';
+        state.mass = 15;
+        els.massSlider.value = 15;
+        syncMassLabel();
+        startEvo();
+        return;
+    }
+    els.massSlider.value = state.mass;
+    syncMassLabel();
+    fillStarSelect();
+    setTrackButtons();
+    updateInsight();
+    draw();
+}
+
+function startEvo() {
+    state.playing = true;
+    state.evoT = 0;
+    setTrackButtons();
+    const t0 = performance.now();
+    const dur = 8000;
+    const step = (now) => {
+        if (!state.playing) return;
+        state.evoT = Math.min(1, (now - t0) / dur);
+        updateInsight();
+        draw();
+        if (state.evoT < 1) animId = requestAnimationFrame(step);
+        else state.playing = false;
+    };
+    cancelAnimationFrame(animId);
+    animId = requestAnimationFrame(step);
+}
+
+function stopEvo() {
+    state.playing = false;
+    state.evoT = -1;
+    cancelAnimationFrame(animId);
+}
+
+function resetAll() {
+    stopEvo();
+    state.mass = 1;
+    state.selectedId = 'sun';
+    state.showMassStar = false;
+    state.track = 'solar';
+    els.massSlider.value = 1;
+    els.showRegions.checked = true;
+    els.showBg.checked = true;
+    els.showGuides.checked = true;
+    els.showMS.checked = true;
+    els.showGiant.checked = true;
+    els.showSG.checked = true;
+    els.showWD.checked = true;
+    setPresetActive('sun');
+    setTrackButtons();
+    syncMassLabel();
+    fillStarSelect();
+    updateInsight();
+    draw();
+}
+
+els.btnReset.addEventListener('click', resetAll);
+els.massSlider.addEventListener('input', () => {
+    state.mass = parseFloat(els.massSlider.value);
+    state.selectedId = '__mass__';
+    state.showMassStar = true;
+    stopEvo();
+    setPresetActive('mass');
+    syncMassLabel();
+    fillStarSelect();
+    updateInsight();
+    draw();
+});
+els.starSelect.addEventListener('change', () => {
+    stopEvo();
+    if (els.starSelect.value === '__mass__') {
+        state.selectedId = '__mass__';
+        state.showMassStar = true;
+        updateInsight();
+        draw();
+        return;
+    }
+    state.showMassStar = false;
+    selectStar(NAMED.find(s => s.id === els.starSelect.value));
+    setPresetActive('');
+});
+document.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+els.btnTrackSolar.addEventListener('click', () => { state.track = 'solar'; setTrackButtons(); if (state.evoT >= 0) { updateInsight(); draw(); } });
+els.btnTrackMassive.addEventListener('click', () => { state.track = 'massive'; setTrackButtons(); if (state.evoT >= 0) { updateInsight(); draw(); } });
+els.btnPlay.addEventListener('click', startEvo);
+els.btnStop.addEventListener('click', () => { stopEvo(); updateInsight(); draw(); });
+['showRegions', 'showBg', 'showGuides', 'showMS', 'showGiant', 'showSG', 'showWD'].forEach(id => {
+    els[id].addEventListener('change', () => { updateInsight(); draw(); });
+});
+
+function canvasPos(ev) {
+    const r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+canvas.addEventListener('mousemove', ev => {
+    const p = canvasPos(ev);
+    const s = starAt(p.x, p.y);
+    const id = s ? s.id : null;
+    if (id !== state.hoverId) { state.hoverId = id; draw(); }
+    canvas.style.cursor = s ? 'pointer' : 'crosshair';
+});
+canvas.addEventListener('mouseleave', () => { state.hoverId = null; draw(); });
+canvas.addEventListener('click', ev => {
+    const p = canvasPos(ev);
+    const s = starAt(p.x, p.y);
+    if (!s) return;
+    if (s.id === '__evo__') return;
+    stopEvo();
+    state.showMassStar = s.id === '__mass__';
+    selectStar(s, s.id === '__mass__');
+    setPresetActive('');
+});
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
+els['btn-principle'].addEventListener('click', () => setModal('modal-principle', true));
+els['btn-steps'].addEventListener('click', () => setModal('modal-steps', true));
+els['modal-close'].addEventListener('click', () => setModal('modal-principle', false));
+els['modal-confirm'].addEventListener('click', () => setModal('modal-principle', false));
+els['steps-close'].addEventListener('click', () => setModal('modal-steps', false));
+els['steps-confirm'].addEventListener('click', () => setModal('modal-steps', false));
+els['modal-principle'].addEventListener('click', ev => { if (ev.target === els['modal-principle']) setModal('modal-principle', false); });
+els['modal-steps'].addEventListener('click', ev => { if (ev.target === els['modal-steps']) setModal('modal-steps', false); });
+document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape') return;
+    setModal('modal-principle', false);
+    setModal('modal-steps', false);
+});
+
+window.addEventListener('resize', resize);
+fillStarSelect();
+setTrackButtons();
+updateInsight();
+resize();
+</script>
 </body>
 </html>

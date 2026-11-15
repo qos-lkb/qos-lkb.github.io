@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>軌道運動 | Orbital Motion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' },
+            startup: {
+                pageReady() {
+                    return MathJax.startup.defaultPageReady().then(() => {
+                        if (typeof window.onMathJaxReady === 'function') window.onMathJaxReady();
+                    });
+                }
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #4f46e5; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        .preset-btn { padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover { background: #eef2ff; border-color: #a5b4fc; }
+        .preset-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #4f46e5; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #a5b4fc; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+        .mj-box mjx-container { color: #a5b4fc !important; }
+        .mj-calc { overflow-x: auto; font-size: 13px; line-height: 1.85; color: #334155; }
+        .calc-step { padding: 10px 12px; border-radius: 10px; background: #eef2ff; border: 1px solid #c7d2fe; margin-bottom: 8px; }
+        .calc-step:last-child { margin-bottom: 0; }
+        select {
+            width: 100%; background: #fff; color: #0f172a; border: 1px solid #cbd5e1;
+            border-radius: 10px; padding: 8px 10px; font-size: 13px; font-weight: 700;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        #stage-wrap { flex: 1 1 28rem; min-height: 26rem; }
+        @media (min-width: 640px) { #stage-wrap { min-height: 34rem; } }
+        @media (min-width: 1024px) { #stage-wrap { min-height: 40rem; } }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-sky-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(50 12 12)"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">軌道運動</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">萬有引力、圓周運動與開普勒第三定律</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-indigo-50 text-indigo-800 rounded-xl font-bold text-sm shadow-sm border border-indigo-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-[92rem] mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:col-span-4 lg:overflow-y-auto lg:max-h-full custom-scroll">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="pause">暫停</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                </div>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="earth" data-i18n="preEarth">① 太陽–地球：一年與 1 AU</button>
+                    <button type="button" class="preset-btn" data-preset="innerOuter" data-i18n="preInnerOuter">② 水星 vs 海王星：遠則慢</button>
+                    <button type="button" class="preset-btn" data-preset="sats" data-i18n="preSats">③ 地球衛星：ISS／同步／月球</button>
+                    <button type="button" class="preset-btn" data-preset="scale" data-i18n="preScale">④ 調半徑：驗證 r³ ∝ T²</button>
+                    <button type="button" class="preset-btn" data-preset="massSun" data-i18n="preMassSun">⑤ 由地球推算太陽質量</button>
+                    <button type="button" class="preset-btn" data-preset="massEarth" data-i18n="preMassEarth">⑥ 由月球推算地球質量</button>
+                </div>
+
+                <label class="block mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1 block" data-i18n="labelSys">天體系統</span>
+                    <select id="in-system"></select>
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelRscale">軌道半徑倍數 r / r₀</span>
+                        <span id="disp-rscale" class="text-indigo-700">1.00×</span>
+                    </span>
+                    <input type="range" id="in-rscale" min="40" max="250" step="1" value="100">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>0.40×</span>
+                        <span data-i18n="rscaleHint">實際半徑 = 1.00×</span>
+                        <span>2.50×</span>
+                    </div>
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelSpeed">模擬速度</span>
+                        <span id="disp-speed" class="text-sky-700">1.0×</span>
+                    </span>
+                    <input type="range" id="in-speed" min="0" max="100" value="50">
+                </label>
+
+                <div class="space-y-2">
+                    <label class="check-row"><input type="checkbox" id="in-vec" checked><span data-i18n="showVec">顯示 Fg／v 向量</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-others" checked><span data-i18n="showOthers">顯示同系統其他軌道</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-calc" checked><span data-i18n="showCalc">顯示計算公式</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-graph" checked><span data-i18n="showGraph">顯示 r³ 對 T² 關係圖</span></label>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-3" data-i18n="hintTip">天體大小與距離為示意比例；數據與公式用真實數值。</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-indigo-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statM">中心質量 M</span><b id="val-M" class="text-indigo-700">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statm">環繞質量 m</span><b id="val-m" class="text-emerald-700">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statr">軌道半徑 r</span><b id="val-r" class="text-amber-700">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statv">軌道速率 v</span><b id="val-v">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statF">萬有引力 F<sub>g</sub></span><b id="val-F" class="text-rose-600">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statT">公轉週期 T</span><b id="val-T" class="text-indigo-600">—</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statRot">自轉週期</span><b id="val-rot" class="text-slate-600">—</b></div>
+                <div class="mt-3 rounded-xl bg-indigo-50 border border-indigo-100 p-2.5">
+                    <div class="font-black text-indigo-900 mb-1" data-i18n="keplerCheck">開普勒核對 r³ / T²</div>
+                    <div class="flex justify-between py-0.5"><span>r³ / T²</span><b id="val-ratio" class="font-mono text-[11px]">—</b></div>
+                    <div class="flex justify-between py-0.5"><span>GM / 4π²</span><b id="val-k" class="font-mono text-[11px]">—</b></div>
+                    <p id="kepler-match" class="mt-1 font-bold text-emerald-700" data-i18n="keplerOk">吻合：同一中心質量時比值為常數</p>
+                </div>
+                <div class="mt-3 rounded-xl bg-amber-50 border border-amber-100 p-2.5">
+                    <div class="font-black text-amber-900 mb-1" id="mass-title">由軌道推算中心質量</div>
+                    <div class="flex justify-between py-0.5"><span>M = 4π²r³ / (GT²)</span><b id="val-Mcalc" class="font-mono text-[11px] text-amber-800">—</b></div>
+                    <div class="flex justify-between py-0.5"><span data-i18n="statMknown">已知質量</span><b id="val-Mknown" class="font-mono text-[11px]">—</b></div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-8 flex flex-col gap-3 min-h-0 lg:min-h-[42rem]">
+            <div id="stage-wrap" class="relative bg-slate-950 rounded-3xl shadow-xl overflow-hidden border border-slate-800">
+                <canvas id="simCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                <div class="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-700 px-2.5 py-1.5 text-[11px] text-slate-200 pointer-events-none">
+                    <span id="hud-pair" class="font-bold">太陽 – 地球</span>
+                </div>
+                <div class="absolute bottom-2 right-2 bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-700 p-2.5 text-[10px] space-y-1 pointer-events-none text-slate-200">
+                    <div class="flex items-center gap-2"><span class="w-5 h-1 bg-rose-400 rounded"></span><span>F<sub>g</sub> = F<sub>c</sub></span></div>
+                    <div class="flex items-center gap-2"><span class="w-5 h-1 bg-amber-400 rounded"></span><span>v</span></div>
+                </div>
+            </div>
+
+            <div id="panel-calc" class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                <h3 class="font-black text-indigo-800 text-sm mb-3" data-i18n="calcTitle">三條公式互相導出</h3>
+                <div id="calc-steps" class="mj-calc"></div>
+            </div>
+
+            <div id="panel-graph" class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
+                    <h3 class="font-black text-indigo-800 text-sm" data-i18n="graphTitle">r³ 對 T² 關係線圖</h3>
+                    <p class="text-[10px] text-slate-500" data-i18n="graphHint">同一中心質量：點應落在過原點的直線上。可點選圖上的點切換天體。選內行星時自動放大內太陽系。</p>
+                </div>
+                <div class="relative h-[260px] sm:h-[320px] rounded-xl border border-slate-100 bg-slate-50 overflow-hidden">
+                    <canvas id="graphCanvas" class="absolute inset-0 w-full h-full cursor-pointer"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-600 to-sky-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">軌道運動原理</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="modalSub">萬有引力 = 向心力 → 開普勒第三定律</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m1t">1. 牛頓萬有引力</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">兩質量互相吸引，力沿連線指向對方，大小與距離平方成反比。對圓軌道，此力提供全部向心力。</p>
+                    <div class="mj-box mt-2">\( F_g = G\dfrac{Mm}{r^{2}} \)</div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 圓周運動</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">勻速圓周運動需要指向圓心的向心力。令 F<sub>g</sub> = F<sub>c</sub>，可求出軌道速率與週期。</p>
+                    <div class="mj-box">\( G\dfrac{Mm}{r^{2}} = \dfrac{mv^{2}}{r} \;\Rightarrow\; v = \sqrt{\dfrac{GM}{r}},\quad T = 2\pi\sqrt{\dfrac{r^{3}}{GM}} \)</div>
+                </div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m3t">3. 開普勒第三定律</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m3d">把上式兩邊平方，即得 r³ 與 T² 成正比。同一中心質量 M 時，r³ / T² 為常數；r³ 對 T² 圖是過原點的直線，斜率 = GM / 4π²。</p>
+                    <div class="mj-box">\( \dfrac{r^{3}}{T^{2}} = \dfrac{GM}{4\pi^{2}} \quad\text{或}\quad r^{3} \propto T^{2} \)</div>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m6t">4. 由軌道求中心質量</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m6d">測得環繞天體的 r 與 T，即可反推中心質量。用地球的 1 AU 與一年可求太陽質量；用月球的距離與 27 日可求地球質量。</p>
+                    <div class="mj-box">\( M = \dfrac{4\pi^{2} r^{3}}{G T^{2}} \)</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 mb-1" data-i18n="m4t">圖的讀法</h4>
+                        <p data-i18n="m4d">橫軸 T²、縱軸 r³。太陽系八大行星應落在同一直線；地球衛星落在另一條直線，因為地球質量較太陽小。</p>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                        <h4 class="font-bold text-emerald-800 mb-1" data-i18n="m5t">生活例子</h4>
+                        <p data-i18n="m5d">近地衛星約 90 分鐘一圈；地球同步衛星約 24 小時；月球約 27 日。半徑愈大，週期愈長，且 T 隨 r^{3/2} 增加。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="step1">選「太陽–地球」，核對 F<sub>g</sub> 與 F<sub>c</sub> 相等，並記下 v、T。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="step2">切換水星與海王星：外行星角速度明顯較慢。比較兩點在 r³–T² 圖上的位置。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="step3">改看地球衛星（ISS、同步、月球）：直線斜率不同，因為中心質量換成地球。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="step4">選「由地球推算太陽質量」與「由月球推算地球質量」，核對 M = 4π²r³/(GT²)。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">5</span><span data-i18n="step5">可用核取方塊隱藏公式或關係圖，讓軌道畫面更大；拖動半徑倍數時點沿直線移動。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const G = 6.6743e-11;
+const AU = 1.495978707e11;
+const DAY = 86400;
+const YEAR = 365.25 * DAY;
+const TWO_PI = Math.PI * 2;
+const R_EARTH = 6.371e6;
+
+const BODIES = {
+    sun:     { M: 1.9885e30, a: 0,           visR: 36, color: '#FDB813', kind: 'star',  rot: 25.05 * DAY },
+    mercury: { M: 3.301e23,  a: 0.387098*AU, visR: 7,  color: '#9ca3af', kind: 'rock',  rot: 58.646 * DAY },
+    venus:   { M: 4.867e24,  a: 0.723332*AU, visR: 11, color: '#e3bb76', kind: 'rock',  rot: 243.025 * DAY },
+    earth:   { M: 5.972e24,  a: 1.000000*AU, visR: 12, color: '#3b82c9', kind: 'earth', rot: DAY },
+    mars:    { M: 6.417e23,  a: 1.523679*AU, visR: 9,  color: '#e27b58', kind: 'rock',  rot: 1.026 * DAY },
+    jupiter: { M: 1.898e27,  a: 5.204267*AU, visR: 22, color: '#c88b3a', kind: 'gas',   rot: 0.4135 * DAY },
+    saturn:  { M: 5.683e26,  a: 9.582017*AU, visR: 19, color: '#ead6b8', kind: 'rings', rot: 0.444 * DAY },
+    uranus:  { M: 8.681e25,  a: 19.191*AU,   visR: 15, color: '#67e8f9', kind: 'ice',   rot: 0.718 * DAY },
+    neptune: { M: 1.024e26,  a: 30.070*AU,   visR: 14, color: '#60a5fa', kind: 'ice',   rot: 0.671 * DAY },
+    moon:    { M: 7.342e22,  a: 3.844e8,     visR: 6,  color: '#d1d5db', kind: 'rock',  rot: 27.322 * DAY },
+    iss:     { M: 4.2e5,     a: R_EARTH + 4.08e5, visR: 4, color: '#f8fafc', kind: 'sat', rot: 1e12 },
+    gps:     { M: 1.63e3,    a: 2.656e7,     visR: 4,  color: '#86efac', kind: 'sat',   rot: 1e12 },
+    geo:     { M: 2.0e3,     a: 4.2164e7,    visR: 4,  color: '#fde68a', kind: 'sat',   rot: 1e12 }
+};
+
+const SUN_ORBITERS = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
+const EARTH_ORBITERS = ['iss', 'gps', 'geo', 'moon'];
+const SYSTEMS = [
+    ['sun', 'mercury'], ['sun', 'venus'], ['sun', 'earth'], ['sun', 'mars'],
+    ['sun', 'jupiter'], ['sun', 'saturn'], ['sun', 'uranus'], ['sun', 'neptune'],
+    ['earth', 'iss'], ['earth', 'gps'], ['earth', 'geo'], ['earth', 'moon']
+];
+
+const PRESETS = {
+    earth:      { center: 'sun', orbit: 'earth', rScale: 1, others: true },
+    innerOuter: { center: 'sun', orbit: 'neptune', rScale: 1, others: true },
+    sats:       { center: 'earth', orbit: 'geo', rScale: 1, others: true },
+    scale:      { center: 'sun', orbit: 'earth', rScale: 1.6, others: true },
+    massSun:    { center: 'sun', orbit: 'earth', rScale: 1, others: true },
+    massEarth:  { center: 'earth', orbit: 'moon', rScale: 1, others: true }
+};
+
+const i18n = {
+    zh: {
+        title: '軌道運動', badge: '物理', subtitle: '萬有引力、圓周運動與開普勒第三定律',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        play: '播放', pause: '暫停', reset: '重置',
+        presets: '教學情境',
+        preEarth: '① 太陽–地球：一年與 1 AU',
+        preInnerOuter: '② 水星 vs 海王星：遠則慢',
+        preSats: '③ 地球衛星：ISS／同步／月球',
+        preScale: '④ 調半徑：驗證 r³ ∝ T²',
+        preMassSun: '⑤ 由地球推算太陽質量',
+        preMassEarth: '⑥ 由月球推算地球質量',
+        labelSys: '天體系統', labelRscale: '軌道半徑倍數 r / r₀', rscaleHint: '實際半徑 = 1.00×',
+        labelSpeed: '模擬速度', showVec: '顯示 Fg／v 向量', showOthers: '顯示同系統其他軌道',
+        showCalc: '顯示計算公式', showGraph: '顯示 r³ 對 T² 關係圖',
+        hintTip: '天體大小與距離為示意比例；數據與公式用真實數值。',
+        liveTitle: '即時數據', statM: '中心質量 M', statm: '環繞質量 m', statr: '軌道半徑 r',
+        statv: '軌道速率 v', statF: '萬有引力 Fg', statT: '公轉週期 T', statRot: '自轉週期',
+        keplerCheck: '開普勒核對 r³ / T²', keplerOk: '吻合：同一中心質量時比值為常數',
+        statMknown: '已知質量',
+        massSun: '由地球推算太陽質量', massPlanet: '由行星推算太陽質量',
+        massMoon: '由月球推算地球質量', massSat: '由衛星推算地球質量',
+        massGeneric: '由軌道推算中心質量',
+        calcTitle: '公式與質量推算',
+        calc1: '① 牛頓萬有引力', calc2: '② 向心力由引力提供', calc3: '③ 開普勒第三定律',
+        calc4: '④ 由軌道推算中心質量',
+        graphTitle: 'r³ 對 T² 關係線圖', graphHint: '橫軸 T²、縱軸 r³。同一中心質量：點應落在過原點的直線上。可點選圖上的點切換天體。',
+        graphX: 'T²', graphY: 'r³', graphLine: 'r³ = (GM/4π²) T²',
+        units: { kg: 'kg', m: 'm', ms: 'm s⁻¹', N: 'N', hours: '小時', days: '日', years: '年', au3: 'AU³', yr2: 'yr²', r3si: '(10⁸ m)³', day2: 'day²' },
+        bodies: {
+            sun: '太陽', mercury: '水星', venus: '金星', earth: '地球', mars: '火星',
+            jupiter: '木星', saturn: '土星', uranus: '天王星', neptune: '海王星',
+            moon: '月球', iss: '國際太空站', gps: 'GPS 衛星', geo: '同步衛星'
+        },
+        pair: (c, o) => `${c} – ${o}`,
+        stepsTitle: '觀察步驟',
+        step1: '選「太陽–地球」，核對 Fg 與 Fc 相等，並記下 v、T。',
+        step2: '切換水星與海王星：外行星角速度明顯較慢。比較兩點在 r³–T² 圖上的位置。',
+        step3: '改看地球衛星（ISS、同步、月球）：直線斜率不同，因為中心質量換成地球。',
+        step4: '選「由地球推算太陽質量」與「由月球推算地球質量」，核對 M = 4π²r³/(GT²)。',
+        step5: '可用核取方塊隱藏公式或關係圖，讓軌道畫面更大；拖動半徑倍數時點沿直線移動。',
+        modalTitle: '軌道運動原理', modalSub: '萬有引力 = 向心力 → 開普勒第三定律', modalClose: '關閉',
+        m1t: '1. 牛頓萬有引力',
+        m1d: '兩質量互相吸引，力沿連線指向對方，大小與距離平方成反比。對圓軌道，此力提供全部向心力。',
+        m2t: '2. 圓周運動',
+        m2d: '勻速圓周運動需要指向圓心的向心力。令 Fg = Fc，可求出軌道速率與週期。',
+        m3t: '3. 開普勒第三定律',
+        m3d: '把上式兩邊平方，即得 r³ 與 T² 成正比。同一中心質量 M 時，r³ / T² 為常數；r³ 對 T² 圖是過原點的直線，斜率 = GM / 4π²。',
+        m4t: '圖的讀法',
+        m4d: '橫軸 T²、縱軸 r³。太陽系八大行星應落在同一直線；地球衛星落在另一條直線，因為地球質量較太陽小。',
+        m5t: '生活例子',
+        m5d: '近地衛星約 90 分鐘一圈；地球同步衛星約 24 小時；月球約 27 日。半徑愈大，週期愈長，且 T 隨 r^(3/2) 增加。',
+        m6t: '4. 由軌道求中心質量',
+        m6d: '測得環繞天體的 r 與 T，即可反推中心質量。用地球的 1 AU 與一年可求太陽質量；用月球的距離與 27 日可求地球質量。'
+    },
+    en: {
+        title: 'Orbital Motion', badge: 'Physics', subtitle: 'Gravitation, circular motion & Kepler’s third law',
+        btnPrinciple: 'Theory', btnSteps: 'What to watch', controlTitle: 'Controls',
+        play: 'Play', pause: 'Pause', reset: 'Reset',
+        presets: 'Scenarios',
+        preEarth: '① Sun–Earth: one year and 1 AU',
+        preInnerOuter: '② Mercury vs Neptune: farther is slower',
+        preSats: '③ Earth satellites: ISS / GEO / Moon',
+        preScale: '④ Scale radius: check r³ ∝ T²',
+        preMassSun: '⑤ Sun’s mass from Earth',
+        preMassEarth: '⑥ Earth’s mass from the Moon',
+        labelSys: 'System', labelRscale: 'Radius factor r / r₀', rscaleHint: 'True radius = 1.00×',
+        labelSpeed: 'Sim speed', showVec: 'Show Fg / v vectors', showOthers: 'Show other orbits in system',
+        showCalc: 'Show formulas', showGraph: 'Show r³ against T²',
+        hintTip: 'Sizes and distances are schematic; tables and formulas use real values.',
+        liveTitle: 'Live data', statM: 'Central mass M', statm: 'Orbiter mass m', statr: 'Orbital radius r',
+        statv: 'Orbital speed v', statF: 'Gravity Fg', statT: 'Period T', statRot: 'Rotation period',
+        keplerCheck: 'Kepler check r³ / T²', keplerOk: 'Match: the ratio is constant for one central mass',
+        statMknown: 'Known mass',
+        massSun: 'Sun’s mass from Earth', massPlanet: 'Sun’s mass from the planet',
+        massMoon: 'Earth’s mass from the Moon', massSat: 'Earth’s mass from the satellite',
+        massGeneric: 'Central mass from the orbit',
+        calcTitle: 'Formulas and mass from the orbit',
+        calc1: '① Newton’s gravity', calc2: '② Gravity supplies centripetal force', calc3: '③ Kepler’s third law',
+        calc4: '④ Central mass from r and T',
+        graphTitle: 'r³ against T²', graphHint: 'x = T², y = r³. Same central mass: points lie on a line through the origin. Click a point to switch body.',
+        graphX: 'T²', graphY: 'r³', graphLine: 'r³ = (GM/4π²) T²',
+        units: { kg: 'kg', m: 'm', ms: 'm s⁻¹', N: 'N', hours: 'h', days: 'd', years: 'yr', au3: 'AU³', yr2: 'yr²', r3si: '(10⁸ m)³', day2: 'd²' },
+        bodies: {
+            sun: 'Sun', mercury: 'Mercury', venus: 'Venus', earth: 'Earth', mars: 'Mars',
+            jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune',
+            moon: 'Moon', iss: 'ISS', gps: 'GPS', geo: 'GEO sat'
+        },
+        pair: (c, o) => `${c} – ${o}`,
+        stepsTitle: 'What to watch',
+        step1: 'Pick Sun–Earth. Check Fg = Fc and note v and T.',
+        step2: 'Switch Mercury and Neptune: the outer planet crawls. Compare both points on the r³–T² graph.',
+        step3: 'Open Earth satellites (ISS, GEO, Moon): the line is different because M is now Earth’s mass.',
+        step4: 'Use “Sun’s mass from Earth” and “Earth’s mass from the Moon”; check M = 4π²r³/(GT²).',
+        step5: 'Hide the formula or graph panels to enlarge the orbit view. Drag the radius factor: the point slides along the line.',
+        modalTitle: 'Orbital motion', modalSub: 'Gravity = centripetal force → Kepler III', modalClose: 'Close',
+        m1t: '1. Newton’s law of gravitation',
+        m1d: 'Two masses attract along the line joining them, with force ∝ 1/r². For a circular orbit this force is the whole centripetal force.',
+        m2t: '2. Circular motion',
+        m2d: 'Uniform circular motion needs a centripetal force toward the centre. Set Fg = Fc to get orbital speed and period.',
+        m3t: '3. Kepler’s third law',
+        m3d: 'Squaring both sides gives r³ ∝ T². For one central mass M, r³ / T² is constant; a graph of r³ against T² is a straight line through the origin with slope GM / 4π².',
+        m4t: 'Reading the graph',
+        m4d: 'x = T², y = r³. The eight planets share one line; Earth satellites sit on another line because Earth is much less massive than the Sun.',
+        m5t: 'Everyday examples',
+        m5d: 'LEO ~90 min; geostationary ~24 h; the Moon ~27 d. Larger r means longer T, with T ∝ r^(3/2).',
+        m6t: '4. Central mass from the orbit',
+        m6d: 'Measure r and T of the orbiter to find the central mass. Earth’s 1 AU and one year give the Sun’s mass; the Moon’s distance and 27 days give Earth’s mass.'
+    }
+};
+
+let lang = 'zh';
+let playing = true;
+let simTime = 0;
+let lastTs = 0;
+let speedMul = 1;
+let rScale = 1;
+let showVec = true;
+let showOthers = true;
+let showCalc = true;
+let showGraph = true;
+let centerId = 'sun';
+let orbitId = 'earth';
+let activePreset = 'earth';
+let calcKey = '';
+let graphHit = [];
+let mjTimer = 0;
+
+const simCanvas = document.getElementById('simCanvas');
+const simCtx = simCanvas.getContext('2d', { alpha: false });
+const graphCanvas = document.getElementById('graphCanvas');
+const graphCtx = graphCanvas.getContext('2d');
+const bgCanvas = document.createElement('canvas');
+const bgCtx = bgCanvas.getContext('2d', { alpha: false });
+let simW = 0, simH = 0;
+
+function t() { return i18n[lang]; }
+function bodyName(id) { return t().bodies[id] || id; }
+function orbitersOf(id) { return id === 'sun' ? SUN_ORBITERS : (id === 'earth' ? EARTH_ORBITERS : []); }
+function sysKey(c, o) { return c + '_' + o; }
+
+function periodOf(center, r) {
+    return TWO_PI * Math.sqrt((r * r * r) / (G * BODIES[center].M));
+}
+
+function physics(center, orbit, scale) {
+    const c = BODIES[center], o = BODIES[orbit];
+    const r = o.a * scale;
+    const GM = G * c.M;
+    const T = periodOf(center, r);
+    const v = Math.sqrt(GM / r);
+    const F = GM * o.M / (r * r);
+    const Fc = o.M * v * v / r;
+    const r3 = r * r * r;
+    const T2 = T * T;
+    const k = 4 * Math.PI * Math.PI / GM;
+    const kInv = GM / (4 * Math.PI * Math.PI);
+    const Mcalc = 4 * Math.PI * Math.PI * r3 / (G * T2);
+    return { r, T, v, F, Fc, r3, T2, k, kInv, Mcalc, ratio: r3 / T2, GM, M: c.M, m: o.M };
+}
+
+function formatSci(num) {
+    if (!isFinite(num) || num === 0) return '0';
+    const sign = num < 0 ? '−' : '';
+    const x = Math.abs(num);
+    const exp = Math.floor(Math.log10(x));
+    const m = x / Math.pow(10, exp);
+    return `${sign}${m.toFixed(2)} × 10${expToSup(exp)}`;
+}
+
+function expToSup(exp) {
+    const map = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+    return String(exp).split('').map(ch => map[ch] || ch).join('');
+}
+
+function mjSci(num) {
+    if (!isFinite(num) || num === 0) return '0';
+    const sign = num < 0 ? '-' : '';
+    const x = Math.abs(num);
+    const exp = Math.floor(Math.log10(x));
+    const m = x / Math.pow(10, exp);
+    return `${sign}${m.toFixed(2)}\\times 10^{${exp}}`;
+}
+
+function formatTime(seconds) {
+    const u = t().units;
+    const days = seconds / DAY;
+    if (days < 2) return (seconds / 3600).toFixed(1) + ' ' + u.hours;
+    if (days > 800) return (seconds / YEAR).toFixed(2) + ' ' + u.years;
+    return days.toFixed(1) + ' ' + u.days;
+}
+
+function speedFromSlider(val) {
+    return val < 50 ? 0.1 + (val / 50) * 0.9 : 1 + ((val - 50) / 50) * 9;
+}
+
+function fitCanvas(canvas, ctx) {
+    const dpr = window.devicePixelRatio || 1;
+    const rec = canvas.getBoundingClientRect();
+    const w = Math.max(1, rec.width), h = Math.max(1, rec.height);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+}
+
+function generateStars(w, h) {
+    const dpr = window.devicePixelRatio || 1;
+    bgCanvas.width = Math.round(w * dpr);
+    bgCanvas.height = Math.round(h * dpr);
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bgCtx.fillStyle = '#030712';
+    bgCtx.fillRect(0, 0, w, h);
+    const n = Math.floor((w * h) / 4200);
+    for (let i = 0; i < n; i++) {
+        bgCtx.globalAlpha = Math.random() * 0.8 + 0.12;
+        bgCtx.fillStyle = '#fff';
+        bgCtx.beginPath();
+        bgCtx.arc(Math.random() * w, Math.random() * h, Math.random() * 1.15, 0, TWO_PI);
+        bgCtx.fill();
+    }
+    bgCtx.globalAlpha = 1;
+}
+
+function visualRadius(r, rList, rMinVis, rMaxVis) {
+    const rs = rList.map(Math.sqrt);
+    const lo = Math.min(...rs), hi = Math.max(...rs);
+    if (hi <= lo) return (rMinVis + rMaxVis) / 2;
+    const t = (Math.sqrt(r) - lo) / (hi - lo);
+    return rMinVis + t * (rMaxVis - rMinVis);
+}
+
+function drawBody(ctx, x, y, radius, color, kind, rot) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (kind === 'star') {
+        const g = ctx.createRadialGradient(0, 0, radius * 0.25, 0, 0, radius * 2.1);
+        g.addColorStop(0, color);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(0, 0, radius * 2.1, 0, TWO_PI); ctx.fill();
+    }
+    ctx.rotate(rot);
+    ctx.beginPath(); ctx.arc(0, 0, radius, 0, TWO_PI);
+    ctx.fillStyle = color; ctx.fill();
+    if (kind === 'earth') {
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath(); ctx.arc(-radius * 0.28, -radius * 0.18, radius * 0.38, 0, TWO_PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(radius * 0.38, radius * 0.28, radius * 0.28, 0, TWO_PI); ctx.fill();
+    } else if (kind === 'gas') {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(-radius, -radius * 0.38, radius * 2, radius * 0.18);
+        ctx.fillRect(-radius, radius * 0.18, radius * 2, radius * 0.26);
+    } else if (kind === 'rings') {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, radius * 2.15, radius * 0.55, Math.PI / 8, 0, TWO_PI);
+        ctx.strokeStyle = 'rgba(234,214,184,0.65)';
+        ctx.lineWidth = radius * 0.38;
+        ctx.stroke();
+    } else if (kind === 'sat') {
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(-radius * 1.4, -radius * 0.22, radius * 0.7, radius * 0.44);
+        ctx.fillRect(radius * 0.7, -radius * 0.22, radius * 0.7, radius * 0.44);
+    } else if (kind !== 'star') {
+        const sh = ctx.createRadialGradient(-radius * 0.28, -radius * 0.28, radius * 0.08, 0, 0, radius);
+        sh.addColorStop(0, 'rgba(255,255,255,0.22)');
+        sh.addColorStop(1, 'rgba(0,0,0,0.55)');
+        ctx.fillStyle = sh; ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawVector(ctx, x, y, angle, length, color, label) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(length + 1, 0); ctx.lineTo(length - 8, -5); ctx.lineTo(length - 8, 5);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.translate(length + 10, 0); ctx.rotate(-angle);
+    ctx.fillStyle = color; ctx.font = 'italic 700 12px "Times New Roman", serif';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText(label, 0, -4);
+    ctx.restore();
+}
+
+function drawScene() {
+    const { w, h } = fitCanvas(simCanvas, simCtx);
+    simW = w; simH = h;
+    if (bgCanvas.width === 0) generateStars(w, h);
+    simCtx.drawImage(bgCanvas, 0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const ids = orbitersOf(centerId);
+    const rList = ids.map(id => BODIES[id].a * (id === orbitId ? rScale : 1));
+    const visScale = Math.min(1.4, Math.min(w, h) / 400);
+    const rMinVis = Math.min(w, h) * 0.18;
+    const rMaxVis = Math.min(w, h) * 0.46;
+    const sel = physics(centerId, orbitId, rScale);
+
+    simCtx.save();
+    ids.forEach((id, i) => {
+        if (!showOthers && id !== orbitId) return;
+        const r = rList[i];
+        const vis = visualRadius(r, rList, rMinVis, rMaxVis);
+        simCtx.beginPath();
+        simCtx.arc(cx, cy, vis, 0, TWO_PI);
+        simCtx.strokeStyle = id === orbitId ? 'rgba(165,180,252,0.45)' : 'rgba(255,255,255,0.08)';
+        simCtx.lineWidth = id === orbitId ? 1.6 : 1;
+        simCtx.setLineDash(id === orbitId ? [] : [3, 5]);
+        simCtx.stroke();
+        simCtx.setLineDash([]);
+    });
+    simCtx.restore();
+
+    const cBody = BODIES[centerId];
+    const cRot = (simTime / cBody.rot) * TWO_PI;
+    const cVis = cBody.visR * visScale;
+    drawBody(simCtx, cx, cy, cVis, cBody.color, cBody.kind, cRot);
+    simCtx.fillStyle = 'rgba(226,232,240,0.85)';
+    simCtx.font = '12px "Noto Sans TC", sans-serif';
+    simCtx.textAlign = 'center';
+    simCtx.fillText(bodyName(centerId), cx, cy + cVis + 16);
+
+    ids.forEach((id, i) => {
+        if (!showOthers && id !== orbitId) return;
+        const r = rList[i];
+        const vis = visualRadius(r, rList, rMinVis, rMaxVis);
+        const T = periodOf(centerId, r);
+        const ang = (simTime / T) * TWO_PI;
+        const ox = cx + Math.cos(ang) * vis;
+        const oy = cy + Math.sin(ang) * vis;
+        const ob = BODIES[id];
+        const oRot = (simTime / ob.rot) * TWO_PI;
+        const rad = (id === orbitId ? ob.visR : Math.max(3.2, ob.visR * 0.55)) * visScale;
+        drawBody(simCtx, ox, oy, rad, ob.color, ob.kind, oRot);
+        if (id === orbitId || showOthers) {
+            simCtx.fillStyle = id === orbitId ? '#fff' : 'rgba(226,232,240,0.55)';
+            simCtx.font = (id === orbitId ? '12px' : '10px') + ' "Noto Sans TC", sans-serif';
+            simCtx.textAlign = 'center';
+            simCtx.fillText(bodyName(id), ox, oy + rad + 14);
+        }
+        if (id === orbitId && showVec) {
+            drawVector(simCtx, ox, oy, ang + Math.PI, 70 * visScale, '#fb7185', 'Fg = Fc');
+            drawVector(simCtx, ox, oy, ang + Math.PI / 2, 58 * visScale, '#fbbf24', 'v');
+        }
+    });
+
+    document.getElementById('hud-pair').textContent = t().pair(bodyName(centerId), bodyName(orbitId));
+    return sel;
+}
+
+function graphUnits() {
+    const u = t().units;
+    if (centerId === 'sun') {
+        return { r3u: AU * AU * AU, T2u: YEAR * YEAR, xUnit: u.yr2, yUnit: u.au3 };
+    }
+    const r8 = 1e8;
+    return { r3u: r8 * r8 * r8, T2u: DAY * DAY, xUnit: u.day2, yUnit: u.r3si };
+}
+
+function companionPoints() {
+    let ids = orbitersOf(centerId);
+    if (centerId === 'earth' && orbitId !== 'moon') {
+        ids = ids.filter(id => id !== 'moon');
+    }
+    if (centerId === 'sun' && ['mercury', 'venus', 'earth', 'mars'].includes(orbitId)) {
+        ids = ['mercury', 'venus', 'earth', 'mars'];
+    }
+    return ids.map(id => {
+        const scale = id === orbitId ? rScale : 1;
+        const p = physics(centerId, id, scale);
+        return { id, ...p };
+    });
+}
+
+function niceMax(x) {
+    if (!(x > 0)) return 1;
+    const exp = Math.pow(10, Math.floor(Math.log10(x)));
+    const n = x / exp;
+    const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+    return nice * exp;
+}
+
+function drawGraph() {
+    if (!showGraph || graphCanvas.offsetParent === null) return;
+    const { w, h } = fitCanvas(graphCanvas, graphCtx);
+    if (w < 20 || h < 20) return;
+    const ctx = graphCtx;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, w, h);
+
+    const pts = companionPoints();
+    const units = graphUnits();
+    const padL = 52, padR = 16, padT = 16, padB = 40;
+    const gw = w - padL - padR, gh = h - padT - padB;
+    const xs = pts.map(p => p.T2 / units.T2u);
+    const ys = pts.map(p => p.r3 / units.r3u);
+    const xMax = niceMax(Math.max(...xs, 0.08) * 1.08);
+    const yMax = niceMax(Math.max(...ys, 0.08) * 1.08);
+
+    const xOf = x => padL + (x / xMax) * gw;
+    const yOf = y => padT + gh - (y / yMax) * gh;
+
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) {
+        const xv = (xMax * i) / 4, yv = (yMax * i) / 4;
+        ctx.beginPath(); ctx.moveTo(xOf(xv), padT); ctx.lineTo(xOf(xv), padT + gh); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(padL, yOf(yv)); ctx.lineTo(padL + gw, yOf(yv)); ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(formatAxis(xv), xOf(xv), padT + gh + 16);
+        ctx.save();
+        ctx.textAlign = 'right';
+        ctx.fillText(formatAxis(yv), padL - 6, yOf(yv) + 3);
+        ctx.restore();
+    }
+
+    const kPt = physics(centerId, orbitId, 1);
+    const slope = units.T2u / (kPt.k * units.r3u);
+    ctx.beginPath();
+    ctx.moveTo(xOf(0), yOf(0));
+    const xEnd = xMax, yEnd = slope * xEnd;
+    if (yEnd <= yMax) ctx.lineTo(xOf(xEnd), yOf(yEnd));
+    else ctx.lineTo(xOf(yMax / slope), yOf(yMax));
+    ctx.strokeStyle = '#818cf8';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#4f46e5';
+    ctx.font = '10px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(t().graphLine, padL + 8, padT + 14);
+
+    graphHit = [];
+    const labeled = [];
+    pts.forEach(p => {
+        const px = xOf(p.T2 / units.T2u);
+        const py = yOf(p.r3 / units.r3u);
+        graphHit.push({ id: p.id, x: px, y: py });
+        const sel = p.id === orbitId;
+        ctx.beginPath();
+        ctx.arc(px, py, sel ? 7 : 5, 0, TWO_PI);
+        ctx.fillStyle = BODIES[p.id].color;
+        ctx.fill();
+        ctx.strokeStyle = sel ? '#312e81' : '#0f172a';
+        ctx.lineWidth = sel ? 2.4 : 1;
+        ctx.stroke();
+        const crowded = labeled.some(q => Math.hypot(q.x - px, q.y - py) < 28);
+        if (!sel && crowded) return;
+        labeled.push({ x: px, y: py });
+        ctx.fillStyle = '#0f172a';
+        ctx.font = (sel ? 'bold 11px' : '10px') + ' "Noto Sans TC", sans-serif';
+        ctx.textAlign = px > padL + gw * 0.72 ? 'right' : 'left';
+        ctx.fillText(bodyName(p.id), px + (px > padL + gw * 0.72 ? -10 : 10), py - 8);
+    });
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '11px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${t().graphX} / ${units.xUnit}`, padL + gw / 2, h - 8);
+    ctx.save();
+    ctx.translate(14, padT + gh / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${t().graphY} / ${units.yUnit}`, 0, 0);
+    ctx.restore();
+}
+
+function formatAxis(v) {
+    if (v === 0) return '0';
+    if (v >= 100) return v.toFixed(0);
+    if (v >= 10) return v.toFixed(1);
+    if (v >= 1) return v.toFixed(2);
+    return v.toPrecision(2);
+}
+
+function typesetCalc(el) {
+    const run = () => {
+        if (!window.MathJax?.typesetPromise) {
+            mjTimer = setTimeout(run, 200);
+            return;
+        }
+        if (MathJax.typesetClear) MathJax.typesetClear([el]);
+        MathJax.typesetPromise([el]).catch(() => {});
+    };
+    clearTimeout(mjTimer);
+    mjTimer = setTimeout(run, 50);
+}
+
+function massLabel() {
+    const T = t();
+    if (centerId === 'sun') return orbitId === 'earth' ? T.massSun : T.massPlanet;
+    if (centerId === 'earth') return orbitId === 'moon' ? T.massMoon : T.massSat;
+    return T.massGeneric;
+}
+
+function updateCalc(p) {
+    if (!showCalc) return;
+    const T = t();
+    const key = [centerId, orbitId, rScale.toFixed(3), lang, showCalc].join('|');
+    if (key === calcKey) return;
+    calcKey = key;
+    const el = document.getElementById('calc-steps');
+    el.innerHTML = `
+        <div class="calc-step">
+            <div class="text-[11px] font-black text-indigo-700 mb-1">${T.calc1}</div>
+            <div class="mj-display">$$ F_g = G\\dfrac{Mm}{r^{2}} = ${mjSci(p.F)}\\,\\mathrm{N} $$</div>
+        </div>
+        <div class="calc-step">
+            <div class="text-[11px] font-black text-indigo-700 mb-1">${T.calc2}</div>
+            <div class="mj-display">$$ F_c = \\dfrac{mv^{2}}{r} = F_g \\;\\Rightarrow\\; v = \\sqrt{\\dfrac{GM}{r}} = ${mjSci(p.v)}\\,\\mathrm{m\\,s^{-1}},\\quad T = 2\\pi\\sqrt{\\dfrac{r^{3}}{GM}} = ${mjSci(p.T)}\\,\\mathrm{s} $$</div>
+        </div>
+        <div class="calc-step">
+            <div class="text-[11px] font-black text-indigo-700 mb-1">${T.calc3}</div>
+            <div class="mj-display">$$ \\dfrac{r^{3}}{T^{2}} = ${mjSci(p.ratio)} = \\dfrac{GM}{4\\pi^{2}} = ${mjSci(p.kInv)}\\,\\mathrm{m^{3}\\,s^{-2}} $$</div>
+        </div>
+        <div class="calc-step">
+            <div class="text-[11px] font-black text-amber-800 mb-1">${T.calc4} · ${massLabel()}</div>
+            <div class="mj-display">$$ M = \\dfrac{4\\pi^{2} r^{3}}{G T^{2}} = ${mjSci(p.Mcalc)}\\,\\mathrm{kg} $$</div>
+        </div>`;
+    typesetCalc(el);
+}
+
+function updateLive(p) {
+    const u = t().units;
+    document.getElementById('val-M').textContent = formatSci(p.M) + ' ' + u.kg;
+    document.getElementById('val-m').textContent = formatSci(p.m) + ' ' + u.kg;
+    document.getElementById('val-r').textContent = formatSci(p.r) + ' ' + u.m;
+    document.getElementById('val-v').textContent = formatSci(p.v) + ' ' + u.ms;
+    document.getElementById('val-F').textContent = formatSci(p.F) + ' ' + u.N;
+    document.getElementById('val-T').textContent = formatTime(p.T);
+    document.getElementById('val-rot').textContent = BODIES[orbitId].kind === 'sat' ? '—' : formatTime(BODIES[orbitId].rot);
+    document.getElementById('val-ratio').textContent = formatSci(p.ratio) + ' m³ s⁻²';
+    document.getElementById('val-k').textContent = formatSci(p.kInv) + ' m³ s⁻²';
+    document.getElementById('val-Mcalc').textContent = formatSci(p.Mcalc) + ' ' + u.kg;
+    document.getElementById('val-Mknown').textContent = formatSci(p.M) + ' ' + u.kg;
+    document.getElementById('mass-title').textContent = massLabel();
+}
+
+function syncPanels() {
+    document.getElementById('panel-calc').classList.toggle('hidden', !showCalc);
+    document.getElementById('panel-graph').classList.toggle('hidden', !showGraph);
+    calcKey = '';
+    requestAnimationFrame(() => {
+        onResize();
+        if (showCalc) updateCalc(physics(centerId, orbitId, rScale));
+        if (showGraph) drawGraph();
+    });
+}
+
+function fillSystemSelect() {
+    const sel = document.getElementById('in-system');
+    const cur = sysKey(centerId, orbitId);
+    sel.innerHTML = SYSTEMS.map(([c, o]) => {
+        const v = sysKey(c, o);
+        return `<option value="${v}" ${v === cur ? 'selected' : ''}>${t().pair(bodyName(c), bodyName(o))}</option>`;
+    }).join('');
+}
+
+function setPlayLabel() {
+    document.getElementById('btn-play').textContent = playing ? t().pause : t().play;
+    const btn = document.getElementById('btn-play');
+    btn.classList.toggle('bg-emerald-600', !playing);
+    btn.classList.toggle('hover:bg-emerald-700', !playing);
+    btn.classList.toggle('bg-amber-500', playing);
+    btn.classList.toggle('hover:bg-amber-600', playing);
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    fillSystemSelect();
+    setPlayLabel();
+    document.getElementById('mass-title').textContent = massLabel();
+    calcKey = '';
+    const p = physics(centerId, orbitId, rScale);
+    updateLive(p);
+    updateCalc(p);
+    drawGraph();
+    if (window.MathJax?.typesetPromise) {
+        MathJax.typesetPromise([document.getElementById('modal-principle')]).catch(() => {});
+    }
+}
+
+function setSystem(c, o, keepScale) {
+    centerId = c;
+    orbitId = o;
+    if (!keepScale) {
+        rScale = 1;
+        document.getElementById('in-rscale').value = '100';
+        document.getElementById('disp-rscale').textContent = '1.00×';
+    }
+    simTime = 0;
+    fillSystemSelect();
+    calcKey = '';
+    const p = physics(centerId, orbitId, rScale);
+    updateLive(p);
+    updateCalc(p);
+    drawGraph();
+}
+
+function applyPreset(name) {
+    activePreset = name;
+    const p = PRESETS[name];
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+    rScale = p.rScale;
+    document.getElementById('in-rscale').value = String(Math.round(rScale * 100));
+    document.getElementById('disp-rscale').textContent = rScale.toFixed(2) + '×';
+    showOthers = p.others;
+    document.getElementById('in-others').checked = showOthers;
+    setSystem(p.center, p.orbit, true);
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function onResize() {
+    const rec = simCanvas.getBoundingClientRect();
+    generateStars(Math.max(1, rec.width), Math.max(1, rec.height));
+    drawGraph();
+}
+
+function loop(ts) {
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+    const selT = physics(centerId, orbitId, rScale).T;
+    if (playing) simTime += dt * speedMul * (selT / 8);
+    const p = drawScene();
+    updateLive(p);
+    updateCalc(p);
+    requestAnimationFrame(loop);
+}
+
+document.getElementById('btn-play').addEventListener('click', () => {
+    playing = !playing;
+    setPlayLabel();
+});
+document.getElementById('btn-reset').addEventListener('click', () => {
+    simTime = 0;
+    if (activePreset && PRESETS[activePreset]) applyPreset(activePreset);
+    else setSystem(centerId, orbitId, false);
+    if (!playing) { playing = true; setPlayLabel(); }
+});
+document.getElementById('in-system').addEventListener('change', e => {
+    const [c, o] = e.target.value.split('_');
+    activePreset = null;
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    setSystem(c, o, false);
+});
+document.getElementById('in-rscale').addEventListener('input', e => {
+    rScale = Number(e.target.value) / 100;
+    document.getElementById('disp-rscale').textContent = rScale.toFixed(2) + '×';
+    calcKey = '';
+    const p = physics(centerId, orbitId, rScale);
+    updateLive(p);
+    updateCalc(p);
+    drawGraph();
+});
+document.getElementById('in-speed').addEventListener('input', e => {
+    speedMul = speedFromSlider(Number(e.target.value));
+    document.getElementById('disp-speed').textContent = speedMul.toFixed(1) + '×';
+});
+document.getElementById('in-vec').addEventListener('change', e => { showVec = e.target.checked; });
+document.getElementById('in-others').addEventListener('change', e => { showOthers = e.target.checked; });
+document.getElementById('in-calc').addEventListener('change', e => { showCalc = e.target.checked; syncPanels(); });
+document.getElementById('in-graph').addEventListener('change', e => { showGraph = e.target.checked; syncPanels(); });
+document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+graphCanvas.addEventListener('click', ev => {
+    const rec = graphCanvas.getBoundingClientRect();
+    const x = ev.clientX - rec.left, y = ev.clientY - rec.top;
+    let best = null, bestD = 16;
+    graphHit.forEach(h => {
+        const d = Math.hypot(h.x - x, h.y - y);
+        if (d < bestD) { bestD = d; best = h; }
+    });
+    if (best) {
+        activePreset = null;
+        document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+        setSystem(centerId, best.id, best.id === orbitId);
+    }
+});
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+document.getElementById('btn-lang').addEventListener('click', toggleLang);
+document.getElementById('btn-lang-mobile').addEventListener('click', toggleLang);
+
+const modalP = document.getElementById('modal-principle');
+const modalS = document.getElementById('modal-steps');
+document.getElementById('btn-principle').addEventListener('click', () => {
+    openModal(modalP);
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise([modalP]).catch(() => {});
+});
+document.getElementById('modal-close').addEventListener('click', () => closeModal(modalP));
+document.getElementById('modal-confirm').addEventListener('click', () => closeModal(modalP));
+modalP.addEventListener('click', ev => { if (ev.target === modalP) closeModal(modalP); });
+document.getElementById('btn-steps').addEventListener('click', () => openModal(modalS));
+document.getElementById('steps-close').addEventListener('click', () => closeModal(modalS));
+document.getElementById('steps-confirm').addEventListener('click', () => closeModal(modalS));
+modalS.addEventListener('click', ev => { if (ev.target === modalS) closeModal(modalS); });
+
+document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape') return;
+    if (!modalS.classList.contains('pointer-events-none')) { closeModal(modalS); return; }
+    if (!modalP.classList.contains('pointer-events-none')) closeModal(modalP);
+});
+
+window.addEventListener('resize', onResize);
+window.onMathJaxReady = () => {
+    calcKey = '';
+    updateCalc(physics(centerId, orbitId, rScale));
+    if (window.MathJax?.typesetPromise) {
+        MathJax.typesetPromise([document.getElementById('modal-principle')]).catch(() => {});
+    }
+};
+fillSystemSelect();
+applyLang();
+onResize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

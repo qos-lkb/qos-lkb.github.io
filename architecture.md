@@ -92,7 +92,7 @@ mysql -u USER -p DB_NAME < schema.sql
 
 ### Full API direction
 
-Learner SPA and admin UI are converging on **`/api/v1` only** (session + CSRF). Contract: [`docs/openapi.yaml`](docs/openapi.yaml). Gap list: [`docs/api_gaps.md`](docs/api_gaps.md)（核心／運維／暑期報表已補）. Routes registered in [`api/v1/build_router.php`](api/v1/build_router.php). Simulation HTML on disk can be synced with `php scripts/sync_simulations_to_db.php` (path→slug aliases in `scripts/sim_path_aliases.php`). New sims: [`templates/sim_skeleton.html`](templates/sim_skeleton.html) + checklist [`docs/sim_standards.md`](docs/sim_standards.md); lint with `php scripts/check_sim_standards.php`.
+Learner SPA and admin UI are converging on **`/api/v1` only** (session + CSRF). Contract: [`docs/openapi.yaml`](docs/openapi.yaml). Gap list: [`docs/api_gaps.md`](docs/api_gaps.md)（核心／運維／暑期報表已補）. Routes registered in [`api/v1/build_router.php`](api/v1/build_router.php). Simulation HTML stays on disk (`simulations.html_path`); do not copy the body into the database. Path aliases: `scripts/sim_path_aliases.php`. New sims: [`templates/sim_skeleton.html`](templates/sim_skeleton.html) + checklist [`docs/sim_standards.md`](docs/sim_standards.md); lint with `php scripts/check_sim_standards.php`.
 
 ### Tables (summary)
 
@@ -264,7 +264,7 @@ Simulations open in a **sandboxed iframe** via `/api/v1/simulations/{slug}/html`
 
 ## Data & admin (current model)
 
-- **Catalogue data** comes from **MariaDB** (`/api/v1/catalog`). Disk HTML is source of truth; sync with `scripts/sync_simulations_to_db.php`. `index.csv` is retired (`docs/reference/index.csv.bak`).
+- **Catalogue data** comes from **MariaDB** (`/api/v1/catalog`). Disk HTML is source of truth via `simulations.html_path`. `scripts/sync_simulations_to_db.php` only checks that those files exist. `index.csv` is retired (`docs/reference/index.csv.bak`).
 - **Content types** (each with `draft` → `pending_review` → `published` workflow):
 
 | Tables | Purpose |

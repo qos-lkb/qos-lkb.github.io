@@ -79,7 +79,7 @@ science_sims/
 5. **SPA 建置**（推薦）：`cd app && npm install && npm run build`；`app/index.php` 會優先服務 `app/dist/`。未建置時退回 `index.legacy.html`。
 6. 將網站根目錄指到本專案，於瀏覽器開啟 **`/app/`**。後台入口：**`/app/admin`**（經 `/api/v1`）。
 7. 選填：`.env` 設定 **`DEFAULT_REDIRECT_URL`**，則 **`/index.html`** 會轉址。
-8. 選填：磁碟模擬 HTML 同步至 DB — `php scripts/sync_simulations_to_db.php`（`--dry-run` 預覽）。API 契約：[`docs/openapi.yaml`](docs/openapi.yaml)。
+8. 模擬 HTML 放在科目資料夾，由 `simulations.html_path` 指向；不要把內文同步進資料庫。`php scripts/sync_simulations_to_db.php` 只檢查檔案是否齊全。API 契約：[`docs/openapi.yaml`](docs/openapi.yaml)。
 
 ### 2. 僅預覽單一模擬（無 PHP）
 

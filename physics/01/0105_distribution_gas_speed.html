@@ -3,30 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>氣體分子動力論模擬 (Maxwell-Boltzmann)</title>
-    
-    <!-- Tailwind CSS -->
+    <title>氣體分子速率分佈 | Gas Molecular Speed Distribution</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- MathJax for LaTeX support -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script>
         window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']]
-            },
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
             svg: {
-                fontCache: 'global'
-            }
+                fontCache: 'global',
+                displayAlign: 'center',
+                linebreaks: { automatic: true, width: 'container' }
+            },
+            options: { enableMenu: false }
         };
     </script>
-    <script type="text/javascript" id="MathJax-script" async
-        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
-    </script>
-
-    <!-- Three.js Import Map -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
     <script type="importmap">
         {
             "imports": {
@@ -35,609 +28,1402 @@
             }
         }
     </script>
-
     <style>
-        body { margin: 0; overflow: hidden; background-color: #1a202c; color: white; }
-        canvas { display: block; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #2d3748; }
-        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
-        
-        /* Modal Animation */
-        .modal-enter { opacity: 0; transform: scale(0.9); pointer-events: none; }
-        .modal-enter-active { opacity: 1; transform: scale(1); pointer-events: auto; transition: all 0.2s ease-out; }
-        .modal-exit { opacity: 1; transform: scale(1); pointer-events: auto; }
-        .modal-exit-active { opacity: 0; transform: scale(0.9); pointer-events: none; transition: all 0.2s ease-in; }
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #0284c7; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        input[type=range]:disabled { opacity: .45; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .graph-wrap { position: relative; flex: 1 1 0; min-height: 0; }
+        .graph-wrap canvas { width: 100%; height: 100%; display: block; }
+        /* 標籤：變數 vs 公式 */
+        .math-tag {
+            display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: 0.05em;
+            padding: 2px 7px; border-radius: 999px; line-height: 1.4; vertical-align: middle;
+        }
+        .math-tag-var { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+        .math-tag-formula { background: #0f172a; color: #7dd3fc; border: 1px solid #334155; }
+        /* 變數符號（$T$、$v_{\mathrm{rms}}$） */
+        .mj-sym {
+            display: inline-flex; align-items: center; white-space: nowrap;
+            padding: 1px 7px; border-radius: 6px; background: #fffbeb; border: 1px solid #fde68a;
+        }
+        .mj-sym mjx-container { display: inline !important; margin: 0 !important; padding: 0 !important; font-size: 11px; white-space: nowrap; vertical-align: -0.1em; }
+        /* 變數數值（298 K、500 m/s）— 行內、不置中 */
+        .mj-val {
+            display: inline-flex; align-items: center; white-space: nowrap;
+            padding: 2px 8px; border-radius: 8px; background: #f8fafc; border: 1px solid #cbd5e1; font-weight: 700;
+        }
+        .mj-val mjx-container { display: inline !important; margin: 0 !important; padding: 0 !important; white-space: nowrap; vertical-align: -0.1em; }
+        /* 行內變數（說明文字中的 $T$） */
+        .mj-inline { white-space: nowrap; display: inline; }
+        .mj-inline mjx-container,
+        #sidebar-math mjx-container:not([display="true"]),
+        #stats-panel mjx-container:not([display="true"]),
+        #chart-math mjx-container:not([display="true"]),
+        #live-formula mjx-container:not([display="true"]),
+        .check-row mjx-container, .preset-btn mjx-container,
+        #theoryContent p mjx-container:not([display="true"]),
+        #theoryContent li mjx-container:not([display="true"]),
+        #theoryContent h4 mjx-container:not([display="true"]) {
+            display: inline !important; margin: 0 !important; padding: 0 !important;
+            white-space: nowrap; vertical-align: -0.12em;
+        }
+        /* 數學公式（展示式、置中、可換行） */
+        .mj-formula, .mj-box {
+            overflow-x: auto; background: #0f172a; color: #7dd3fc; border-radius: 10px;
+            padding: 10px 12px; font-size: 13px; text-align: center; white-space: normal;
+        }
+        .mj-formula mjx-container, .mj-box mjx-container { color: #7dd3fc !important; }
+        .formula-block { margin: 8px 0; text-align: center; }
+        .formula-block-head { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 6px; }
+        /* 變數卡片（即時讀數）— 行內排列、不置中 */
+        .var-card {
+            background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+            border: 1px solid #fde68a; border-radius: 10px; padding: 8px 10px;
+        }
+        .var-card-desc { font-size: 10px; color: #78716c; margin-top: 2px; }
+        .var-card .mj-val { margin-top: 4px; font-size: 13px; border-color: #e2e8f0; background: #fff; }
+        /* 公式演算步驟 */
+        .mj-calc { font-size: 11px; line-height: 1.6; color: #334155; }
+        .calc-step {
+            padding: 10px; border-radius: 10px; background: #f8fafc;
+            border: 1px solid #e2e8f0; margin-bottom: 6px;
+        }
+        .calc-step:last-child { margin-bottom: 0; }
+        .calc-step-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 10px; font-weight: 700; color: #64748b; }
+        .calc-vars { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+        .calc-var-pair, .calc-var-result { display: inline-flex; align-items: center; gap: 4px; }
+        .mj-formula mjx-container[display="true"], .mj-box mjx-container[display="true"],
+        .mj-display mjx-container[display="true"] {
+            display: block !important; margin: 0.35rem auto !important;
+            white-space: normal; text-align: center;
+        }
+        .control-mj-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: nowrap; }
+        .control-mj-row .param-text { min-width: 0; }
+        .control-mj-row .mj-val { flex-shrink: 0; }
+        #canvas-container { position: relative; width: 100%; height: 100%; background: #050810; border-radius: 12px; overflow: hidden; }
+        #canvas-container canvas { display: block; width: 100%; height: 100%; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; flex-wrap: nowrap; }
+        .check-row > span { line-height: 1.35; flex: 1 1 auto; }
+        .check-row input { width: 15px; height: 15px; accent-color: #0284c7; }
+        .preset-btn { padding: 6px 8px; border-radius: 8px; font-weight: 700; font-size: 11px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: center; }
+        .preset-btn:hover { background: #e0f2fe; border-color: #7dd3fc; }
+        .preset-btn.active { background: #0284c7; color: #fff; border-color: #0284c7; }
     </style>
 </head>
-<body class="flex flex-col h-screen font-sans">
+<body class="h-full flex flex-col text-slate-800 overflow-hidden">
 
-    <!-- Header -->
-    <header class="bg-gray-800 p-3 shadow-md z-10 flex justify-between items-center shrink-0">
-        <div class="flex items-center gap-4">
-            <div>
-                <h1 class="text-xl font-bold text-blue-400" data-i18n="title">理想氣體分子模擬</h1>
-                <p class="text-xs text-gray-400 hidden sm:block" data-i18n="subtitle">微觀碰撞 vs 巨觀速率分佈</p>
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-sky-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="8" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="18" cy="10" r="2"/><circle cx="8" cy="16" r="2"/><circle cx="16" cy="17" r="2"/><path d="M6 8l6-2M12 6l6 4M8 16l4-8"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">氣體分子速率分佈</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">微觀碰撞 vs 巨觀 Maxwell–Boltzmann 分佈</p>
+                </div>
             </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
         </div>
-
-        <!-- Right Buttons -->
-        <div class="flex gap-2">
-            <button id="theoryBtn" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium transition" data-i18n="theoryBtn">原理解說</button>
-            <button id="langBtn" class="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium transition border border-gray-500">中 / EN</button>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-800 rounded-xl font-bold text-sm shadow-sm border border-sky-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
 
-    <!-- Main Content Area -->
-    <div class="flex flex-1 overflow-hidden flex-col lg:flex-row relative">
-        
-        <!-- Left: 3D Simulation -->
-        <div id="canvas-container" class="relative w-full lg:w-3/5 h-3/5 lg:h-full bg-black border-b lg:border-b-0 lg:border-r border-gray-700">
-            <!-- Info Overlay -->
-            <div class="absolute top-2 left-2 bg-black/70 backdrop-blur-sm p-4 rounded-lg text-sm text-gray-300 pointer-events-none select-none z-10 border border-gray-600 shadow-lg min-w-[200px]">
-                <div class="space-y-2">
-                    <p class="border-b border-gray-600 pb-1 mb-1 font-semibold text-gray-400">系統狀態 (Real Units)</p>
-                    <p><span data-i18n="volume">體積 \(V\)</span>: <span class="text-blue-300 font-mono text-base ml-1">24000</span> cm³</p>
-                    <p><span data-i18n="particleCount">粒子數</span>: <span class="text-white font-mono text-base ml-1">1000</span> (sim)</p>
-                    <p>
-                        <span data-i18n="pressure">氣壓 \(P\)</span>: 
-                        <span id="pressureDisplay" class="text-yellow-400 font-mono text-xl ml-1">--</span> Pa
-                    </p>
-                    <p>
-                        <span data-i18n="avgSpeed">方均根速率 \(v_{rms}\)</span>: 
-                        <span id="avgSpeedDisplay" class="text-green-400 font-mono text-base ml-1">--</span> \(m\ s^{-1}\)
-                    </p>
+    <main class="flex-1 min-h-0 w-full max-w-[92rem] mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-auto lg:overflow-hidden">
+        <aside id="sidebar-math" class="flex flex-col gap-3 order-2 lg:order-1 lg:col-span-4 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm flex items-center gap-2">
+                    <span data-i18n="controlTitle">實驗控制</span>
+                    <span class="math-tag math-tag-var" data-i18n="tagVar">變數</span>
+                </h2>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="play">開始</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
                 </div>
-                <div class="mt-3 pt-2 border-t border-gray-600 text-xs text-gray-500">
-                    <span data-i18n="controlTip">左鍵旋轉 / 滾輪縮放</span>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="gasPresets">氣體預設</p>
+                <div class="grid grid-cols-4 gap-1.5 mb-4" id="gas-presets"></div>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="tempPresets">溫度情境</p>
+                <div class="grid grid-cols-2 gap-1.5 mb-4" id="temp-presets"></div>
+
+                <div class="space-y-4">
+                    <label class="block">
+                        <span class="control-mj-row text-[11px] font-bold text-slate-600 mb-1">
+                            <span class="flex items-center gap-1.5 min-w-0">
+                                <span class="param-text" data-i18n="tempDesc">系統溫度</span>
+                                <span class="mj-sym">$T$</span>
+                            </span>
+                            <span id="tempValue" class="mj-val text-orange-700">$298\ \mathrm{K}$</span>
+                        </span>
+                        <input type="range" id="tempSlider" min="100" max="1000" step="1" value="298">
+                    </label>
+                    <label class="block">
+                        <span class="control-mj-row text-[11px] font-bold text-slate-600 mb-1">
+                            <span class="flex items-center gap-1.5 min-w-0">
+                                <span class="param-text" data-i18n="massDesc">摩爾質量</span>
+                                <span class="mj-sym">$M$</span>
+                            </span>
+                            <span id="massValue" class="mj-val text-cyan-800">$0.0288\ \mathrm{kg\,mol^{-1}}$</span>
+                        </span>
+                        <input type="range" id="massSlider" min="0.002" max="0.132" step="0.0001" value="0.0288">
+                    </label>
+                    <label class="block">
+                        <span class="control-mj-row text-[11px] font-bold text-slate-600 mb-1">
+                            <span class="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                <span class="param-text" data-i18n="axisMaxDesc">速率軸上限</span>
+                                <span class="mj-sym">$v_{\max}$</span>
+                                <span class="text-[10px] font-normal text-slate-400" data-i18n="axisFixed">（固定）</span>
+                            </span>
+                            <span id="axisMaxValue" class="mj-val text-fuchsia-700">$2000\ \mathrm{m\,s^{-1}}$</span>
+                        </span>
+                        <input type="range" id="axisMaxSlider" min="400" max="12000" step="50" value="2000">
+                        <p class="text-[10px] text-slate-400 mt-1" data-i18n="axisMaxHint">$v$、$N$ 軸均固定；調 $T$ 時曲線左右移動、高度改變，方便比較</p>
+                        <button type="button" id="btn-axis-auto" class="mt-1.5 w-full preset-btn text-[10px]" data-i18n="axisAuto">依目前氣體重設 $v$ 軸</button>
+                    </label>
+                    <label class="block">
+                        <span class="control-mj-row text-[11px] font-bold text-slate-600 mb-1">
+                            <span class="flex items-center gap-1.5 min-w-0">
+                                <span class="param-text" data-i18n="countDesc">粒子數</span>
+                                <span class="mj-sym">$N$</span>
+                            </span>
+                            <span id="countValue" class="mj-val text-indigo-700">$1000$</span>
+                        </span>
+                        <input type="range" id="countSlider" min="400" max="1200" step="100" value="1000">
+                    </label>
+                    <label class="block">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span data-i18n="timeScaleLabel">3D 時間倍率</span>
+                            <span id="timeScaleValue" class="text-violet-600 font-mono">0.25×</span>
+                        </span>
+                        <input type="range" id="timeScaleSlider" min="5" max="100" step="5" value="25">
+                    </label>
+                    <label class="block">
+                        <span class="control-mj-row text-[11px] font-bold text-slate-600 mb-1">
+                            <span class="flex items-center gap-1.5 min-w-0">
+                                <span class="param-text" data-i18n="wallDesc">器壁恢復係數</span>
+                                <span class="mj-sym">$e$</span>
+                            </span>
+                            <span id="wallValue" class="mj-val text-rose-700 font-mono">$1.00$</span>
+                        </span>
+                        <input type="range" id="wallSlider" min="50" max="100" step="1" value="100">
+                    </label>
+                    <label class="block" id="wrap-thermo">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span data-i18n="thermoLabel">恆溫器強度</span>
+                            <span id="thermoValue" class="text-emerald-600 font-mono">6%</span>
+                        </span>
+                        <input type="range" id="thermoSlider" min="0" max="20" step="1" value="6">
+                    </label>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                    <label class="check-row"><input type="checkbox" id="chk-thermo-on" checked><span data-i18n="thermoOn">啟用 Berendsen 恆溫器</span></label>
+                    <label class="check-row"><input type="checkbox" id="chk-theory" checked><span data-i18n="showTheory">顯示理論 M–B 曲線</span></label>
+                    <label class="check-row"><input type="checkbox" id="chk-markers" checked><span data-i18n="showMarkers">標示 v<sub>mp</sub>、v<sub>avg</sub>、v<sub>rms</sub></span></label>
+                    <label class="check-row"><input type="checkbox" id="chk-rotate" checked><span data-i18n="autoRotate">3D 自動旋轉</span></label>
+                    <label class="check-row"><input type="checkbox" id="chk-flash" checked><span data-i18n="collisionFlash">碰撞白閃提示</span></label>
                 </div>
             </div>
-        </div>
 
-        <!-- Right: Statistics & Controls -->
-        <div class="w-full lg:w-2/5 h-2/5 lg:h-full bg-gray-900 p-4 flex flex-col overflow-y-auto">
-            
-            <!-- Controls Section -->
-            <div class="bg-gray-800 p-4 rounded-lg mb-4 border border-gray-700 shadow-sm shrink-0">
-                <h3 class="text-sm font-bold text-gray-300 mb-3 border-b border-gray-600 pb-1" data-i18n="controlsTitle">實驗參數設定</h3>
-                
-                <!-- Temp Slider -->
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-1">
-                        <label for="tempSlider" class="text-sm font-medium text-orange-400"><span data-i18n="tempLabel">系統溫度 \(T\)</span>:</label>
-                        <span id="tempValue" class="text-sm font-mono text-white bg-gray-700 px-2 py-0.5 rounded">298 K</span>
+            <div id="stats-panel" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-sm space-y-2">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wide" data-i18n="statsTitle">即時數據</h3>
+                    <span class="math-tag math-tag-var" data-i18n="tagVar">變數</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="var-card">
+                        <span class="mj-sym">$P$</span>
+                        <div class="var-card-desc" data-i18n="pressureDesc">氣壓</div>
+                        <div class="mj-val text-amber-700"><span id="pressureDisplay">--</span></div>
                     </div>
-                    <input type="range" id="tempSlider" min="100" max="1000" step="1" value="298" class="w-full accent-orange-500 cursor-pointer h-2 bg-gray-600 rounded-lg appearance-none">
-                </div>
-
-                <!-- Mass Slider -->
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label for="massSlider" class="text-sm font-medium text-cyan-400"><span data-i18n="massLabel">摩爾質量 \(M\) (\(kg\ mol^{-1}\))</span>:</label>
-                        <span id="massValue" class="text-sm font-mono text-white bg-gray-700 px-2 py-0.5 rounded">0.0288</span>
+                    <div class="var-card">
+                        <span class="text-[11px] font-bold text-slate-600" data-i18n="fitScore">分佈吻合度</span>
+                        <div class="var-card-desc">&nbsp;</div>
+                        <div class="font-mono text-base text-indigo-700 font-bold"><span id="fitDisplay">--</span>%</div>
                     </div>
-                    <input type="range" id="massSlider" min="0.002" max="0.1" step="0.0001" value="0.0288" class="w-full accent-cyan-500 cursor-pointer h-2 bg-gray-600 rounded-lg appearance-none">
-                    <div class="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
-                        <span>H₂ (0.002)</span>
-                        <span>Air (0.029)</span>
-                        <span>Heavy (0.1)</span>
+                    <div class="var-card">
+                        <span class="mj-sym">$v_{\mathrm{rms}}$</span>
+                        <div class="var-card-desc" data-i18n="vRmsDesc">方均根速率</div>
+                        <div class="mj-val text-emerald-700"><span id="avgSpeedDisplay">--</span></div>
+                    </div>
+                    <div class="var-card">
+                        <span class="mj-sym">$v_{\mathrm{mp}}$</span>
+                        <div class="var-card-desc" data-i18n="vMpDesc">最概然速率</div>
+                        <div class="mj-val text-sky-700"><span id="vMpDisplay">--</span></div>
+                    </div>
+                    <div class="var-card">
+                        <span class="mj-sym">$v_{\mathrm{avg}}$</span>
+                        <div class="var-card-desc" data-i18n="vAvgDesc">平均速率</div>
+                        <div class="mj-val text-violet-700"><span id="vAvgDisplay">--</span></div>
+                    </div>
+                    <div class="var-card">
+                        <span class="text-[11px] font-bold text-slate-600" data-i18n="collRate">碰撞率</span>
+                        <div class="var-card-desc">&nbsp;</div>
+                        <div class="font-mono text-sm text-rose-700 font-bold"><span id="collDisplay">--</span> /s</div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Chart Section -->
-            <h2 class="text-lg font-semibold mb-2 text-center text-gray-200 shrink-0" data-i18n="chartTitle">速率分佈 (Maxwell-Boltzmann)</h2>
-            <div class="relative flex-1 min-h-[200px] w-full">
-                <canvas id="speedChart"></canvas>
-            </div>
-            <div class="mt-2 text-xs text-gray-400 text-center shrink-0">
-                <span data-i18n="chartX">X軸: 速率 (\(m\ s^{-1}\))</span> | <span data-i18n="chartY">Y軸: 分子數量 (固定最大值 25%)</span>
-            </div>
-        </div>
-
-        <!-- Theory Modal -->
-        <div id="modalOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center modal-enter hidden backdrop-blur-sm">
-            <div class="bg-gray-800 border border-gray-600 rounded-lg p-6 max-w-lg w-[90%] shadow-2xl relative">
-                <button id="closeModal" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl">&times;</button>
-                <h3 class="text-xl font-bold text-blue-400 mb-4" data-i18n="theoryTitle">物理原理</h3>
-                <div class="text-sm text-gray-300 space-y-3 leading-relaxed h-[60vh] overflow-y-auto pr-2" id="theoryContent">
-                    <!-- Content injected by JS -->
+                <div class="flex items-center gap-2 pt-1">
+                    <span class="math-tag math-tag-formula" data-i18n="tagFormula">公式</span>
+                    <span class="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                        <span class="mj-sym">$v_{\mathrm{rms}}$</span>
+                        <span data-i18n="calcTitle">演算</span>
+                    </span>
                 </div>
+                <div id="live-formula" class="mj-calc"></div>
+                <p class="text-[10px] text-slate-400" data-i18n="controlTip">3D 視圖：左鍵旋轉／滾輪縮放；圖表與讀數為真實 SI 單位</p>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-8 flex flex-col gap-2 min-h-0 lg:h-full">
+            <div id="canvas-container" class="min-h-[220px] lg:min-h-0 lg:flex-[7]">
+                <div class="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm px-3 py-2 rounded-lg text-[11px] text-slate-300 border border-white/10 pointer-events-none">
+                    <span data-i18n="sceneHint">顏色＝速率（藍慢→紅快）；白閃＝碰撞</span>
+                </div>
+                <div id="gas-badge" class="absolute top-3 right-3 z-10 bg-sky-600/80 backdrop-blur-sm px-3 py-1.5 rounded-lg text-[11px] font-bold text-white pointer-events-none">Air</div>
+            </div>
+
+            <div id="chart-math" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col min-h-[180px] lg:min-h-0 lg:flex-[3]">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <h2 class="text-sm font-bold text-slate-700" data-i18n="chartDistTitle">速率分佈（Maxwell–Boltzmann）</h2>
+                    <div class="flex gap-2 text-[10px] font-bold">
+                        <span class="inline-flex items-center gap-1 text-sky-600"><span class="w-3 h-3 rounded-sm bg-sky-400/80 inline-block"></span><span data-i18n="legendSim">模擬</span></span>
+                        <span class="inline-flex items-center gap-1 text-indigo-600"><span class="w-4 border-t-2 border-dashed border-indigo-500 inline-block"></span><span data-i18n="legendTheory">理論</span></span>
+                    </div>
+                </div>
+                <div class="graph-wrap flex-1 min-h-[200px]">
+                    <canvas id="chart-dist"></canvas>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                    <span data-i18n="chartDistHint">柱狀＝模擬；虛線＝理論（同一 $N$ 刻度）</span>
+                    <span aria-hidden="true">·</span>
+                    <span id="axis-range-label" class="mj-val text-[10px] text-slate-600"></span>
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 opacity-0 invisible" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative scale-95 opacity-0">
+            <button type="button" class="modal-close absolute top-3 right-3 text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="Close">&times;</button>
+            <h2 id="steps-title" class="text-lg font-black text-sky-800 mb-4" data-i18n="stepsTitle">觀察步驟</h2>
+            <div class="text-sm text-slate-600 space-y-3 leading-relaxed">
+                <p data-i18n="s1">1. 按「開始」觀察 3D 分子碰撞；可暫停後調參再繼續。</p>
+                <p data-i18n="s2">2. 選不同氣體預設（H₂、N₂…），比較 v_rms 與分佈峰 v_mp 的差異。</p>
+                <p data-i18n="s3">3. 調高 T 或選「高溫」情境，分佈右移展寬；觀察「分佈吻合度」是否維持高。</p>
+                <p data-i18n="s4">4. 關閉恆溫器或降低器壁 e，看能量是否偏離理論曲線。</p>
             </div>
         </div>
     </div>
 
-    <!-- Script Module -->
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 opacity-0 invisible" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white rounded-2xl shadow-xl max-w-2xl w-full relative scale-95 opacity-0 max-h-[88vh] overflow-hidden flex flex-col">
+            <div class="bg-gradient-to-r from-sky-500 to-indigo-600 p-5 text-white flex justify-between items-start shrink-0">
+                <div class="pr-8">
+                    <h2 id="principle-title" class="text-lg font-black" data-i18n="theoryTitle">物理原理：氣體動力論</h2>
+                    <p class="text-xs text-sky-100 mt-1" data-i18n="theorySubtitle">微觀碰撞如何產生巨觀 Maxwell–Boltzmann 速率分佈</p>
+                </div>
+                <button type="button" class="modal-close w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 text-white text-lg leading-none shrink-0" aria-label="Close">&times;</button>
+            </div>
+            <div class="p-5 sm:p-6 overflow-y-auto text-sm text-slate-600 leading-relaxed" id="theoryContent"></div>
+        </div>
+    </div>
+
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- 多語言設定 ---
-        let currentLang = 'zh';
+        let lang = 'zh';
+        const GAS_PRESETS = [
+            { id: 'H2', mass: 0.002016, zh: '氫 H₂', en: 'H₂' },
+            { id: 'He', mass: 0.004003, zh: '氦 He', en: 'He' },
+            { id: 'N2', mass: 0.028014, zh: '氮 N₂', en: 'N₂' },
+            { id: 'Air', mass: 0.02897, zh: '空氣', en: 'Air' },
+            { id: 'O2', mass: 0.031999, zh: '氧 O₂', en: 'O₂' },
+            { id: 'CO2', mass: 0.044009, zh: 'CO₂', en: 'CO₂' },
+            { id: 'Ar', mass: 0.039948, zh: '氬 Ar', en: 'Ar' },
+            { id: 'Xe', mass: 0.131293, zh: '氙 Xe', en: 'Xe' }
+        ];
+        const TEMP_PRESETS = [
+            { id: 'cold', temp: 200, zh: '冷氣體 200 K', en: 'Cold 200 K' },
+            { id: 'room', temp: 298, zh: '室溫 298 K', en: 'Room 298 K' },
+            { id: 'warm', temp: 500, zh: '溫暖 500 K', en: 'Warm 500 K' },
+            { id: 'hot', temp: 800, zh: '高溫 800 K', en: 'Hot 800 K' }
+        ];
+
         const i18n = {
             zh: {
-                title: "理想氣體分子模擬",
-                subtitle: "微觀碰撞 vs 巨觀速率分佈",
-                controlsTitle: "實驗參數設定",
-                tempLabel: "系統溫度 \\(T\\)",
-                massLabel: "摩爾質量 \\(M\\) (\\(kg\\ mol^{-1}\\))",
-                theoryBtn: "原理解說",
-                particleCount: "粒子數",
-                avgSpeed: "方均根速率 \\(v_{rms}\\)",
-                pressure: "氣壓 \\(P\\)",
-                volume: "體積 \\(V\\)",
-                controlTip: "左鍵旋轉 / 滾輪縮放",
-                chartTitle: "速率分佈 (Maxwell-Boltzmann)",
-                chartX: "X軸: 速率 (\\(m\\ s^{-1}\\))",
-                chartY: "Y軸: 分子數量",
-                theoryTitle: "物理原理：氣體動力論",
+                title: '氣體分子速率分佈', badge: '物理',
+                subtitle: '微觀碰撞 vs 巨觀 Maxwell–Boltzmann 分佈',
+                btnSteps: '觀察步驟', btnPrinciple: '原理解說',
+                controlTitle: '實驗控制', play: '開始', pause: '暫停', resume: '繼續', reset: '重置',
+                gasPresets: '氣體預設', tempPresets: '溫度情境',
+                tempDesc: '系統溫度', massDesc: '摩爾質量', axisMaxDesc: '速率軸上限', axisFixed: '（固定）',
+                axisMaxHint: '$v$、$N$ 軸均固定；調 $T$ 時曲線左右移動、高度改變，方便比較', axisAuto: '依目前氣體重設 $v$ 軸',
+                countDesc: '粒子數', timeScaleLabel: '3D 時間倍率', wallDesc: '器壁恢復係數',
+                thermoLabel: '恆溫器強度', thermoOn: '啟用 Berendsen 恆溫器',
+                showTheory: '顯示理論 M–B 曲線', showMarkers: '標示 $v_{\\mathrm{mp}}$、$v_{\\mathrm{avg}}$、$v_{\\mathrm{rms}}$',
+                autoRotate: '3D 自動旋轉', collisionFlash: '碰撞白閃提示',
+                statsTitle: '即時數據', tagVar: '變數', tagFormula: '公式', calcTitle: '演算',
+                pressureDesc: '氣壓', vRmsDesc: '方均根速率', vMpDesc: '最概然速率', vAvgDesc: '平均速率',
+                fitScore: '分佈吻合度', collRate: '碰撞率',
+                controlTip: '3D 視圖：左鍵旋轉／滾輪縮放；圖表與讀數為真實 SI 單位',
+                sceneHint: '顏色＝速率（藍慢→紅快）；白閃＝碰撞',
+                chartDistTitle: '速率分佈（Maxwell–Boltzmann）',
+                chartDistHint: '柱狀＝模擬；虛線＝理論（同一 $N$ 刻度）',
+                legendSim: '模擬', legendTheory: '理論',
+                stepsTitle: '觀察步驟',
+                s1: '1. 按「開始」觀察 3D 分子碰撞；可暫停後調參再繼續。',
+                s2: '2. 選不同氣體預設（H₂、N₂…），比較 $v_{\\mathrm{rms}}$ 與分佈峰 $v_{\\mathrm{mp}}$ 的差異。',
+                s3: '3. 固定 $v$ 軸下調高 $T$：分佈峰與 $v_{\\mathrm{rms}}$ 標線應右移（同一刻度便於比較不同 $T$）。',
+                s4: '4. 關閉恆溫器或降低器壁 $e$，看能量是否偏離理論曲線。',
+                theoryTitle: '物理原理：氣體動力論',
+                theorySubtitle: '微觀碰撞如何產生巨觀 Maxwell–Boltzmann 速率分佈',
                 theoryBody: `
-                    <p><strong>1. 真實物理公式：</strong><br>
-                    本模擬現在使用真實的理想氣體常數 $R = 8.314$ J/(mol·K) 進行計算。
-                    方均根速率公式為：
-                    $$v_{rms} = \\sqrt{\\frac{3RT}{M}}$$
-                    例如：空氣在 298 K 時的 $v_{rms}$ 約為 508 $m\\ s^{-1}$，而氫氣則接近 1900 $m\\ s^{-1}$。</p>
-                    
-                    <p><strong>2. 氣壓 (Pressure)：</strong><br>
-                    我們設定了一個 $24$ 公升 ($0.024 \text{ m}^3$) 的虛擬體積來計算壓力。當 $T=298$ K 時，系統壓力校準為約 $1$ atm ($101325$ Pa)。</p>
-                    
-                    <p><strong>3. 視覺化調整：</strong><br>
-                    由於真實分子的運動速度極快（數百 $m\\ s^{-1}$），為了讓您能看清分子運動，我們在 3D 視圖中對時間進行了慢動作處理，但右側的數據與圖表完全反映真實物理數值。</p>
-                `
+                    <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 mb-4">
+                        <h3 class="font-bold text-sky-900 mb-1">1. 氣體動力論的基本想法</h3>
+                        <p class="text-xs">巨觀上的溫度與壓力，來自大量分子無規則運動與器壁、彼此之間的碰撞。理想氣體假設分子體積可忽略、碰撞為彈性，且除碰撞瞬間外互不相干。</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">2. Maxwell–Boltzmann 速率分佈</h3>
+                        <p class="text-xs mb-2">在溫度 $T$ 達平衡時，分子速率 $v$ 並非單一，而服從 M–B 分佈。$v^2$ 因子表示「球殼體積」隨速率增大而增加；指數項則反映高能分子較少。</p>
+                        <div class="formula-block"><div class="formula-block-head"><span class="math-tag math-tag-formula">公式</span></div><div class="mj-formula">$$f(v)=4\\pi\\left(\\frac{M}{2\\pi RT}\\right)^{3/2} v^2 \\exp\\!\\left(-\\frac{Mv^2}{2RT}\\right)$$</div></div>
+                        <p class="text-xs mt-2">$f(v)\\,\\mathrm{d}v$ 表示速率落在 $v$ 至 $v+\\mathrm{d}v$ 間的機率密度。柱狀圖的高度 $\\propto f(v)\\,\\Delta v\\,N$，虛線為同一公式。</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">3. 三種特徵速率</h3>
+                        <p class="text-xs mb-2">由分佈可定義三個常用速率（<span class="mj-sym">$v_{\\mathrm{mp}}$</span>、<span class="mj-sym">$v_{\\mathrm{avg}}$</span>、<span class="mj-sym">$v_{\\mathrm{rms}}$</span>），大小關係為 $v_{\\mathrm{mp}} &lt; v_{\\mathrm{avg}} &lt; v_{\\mathrm{rms}}$：</p>
+                        <div class="grid sm:grid-cols-3 gap-2 text-xs">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="flex items-center gap-1.5 mb-1"><span class="font-bold text-sky-700">最概然速率</span><span class="mj-sym">$v_{\\mathrm{mp}}$</span></div>
+                                <div class="formula-block my-1"><div class="formula-block-head"><span class="math-tag math-tag-formula">公式</span></div><div class="mj-formula text-[11px]">$$v_{\\mathrm{mp}}=\\sqrt{\\dfrac{2RT}{M}}$$</div></div>
+                                <p class="text-[10px] text-slate-500">分佈峰位置</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="flex items-center gap-1.5 mb-1"><span class="font-bold text-violet-700">平均速率</span><span class="mj-sym">$v_{\\mathrm{avg}}$</span></div>
+                                <div class="formula-block my-1"><div class="formula-block-head"><span class="math-tag math-tag-formula">公式</span></div><div class="mj-formula text-[11px]">$$v_{\\mathrm{avg}}=\\sqrt{\\dfrac{8RT}{\\pi M}}$$</div></div>
+                                <p class="text-[10px] text-slate-500">算術平均</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="flex items-center gap-1.5 mb-1"><span class="font-bold text-emerald-700">方均根速率</span><span class="mj-sym">$v_{\\mathrm{rms}}$</span></div>
+                                <div class="formula-block my-1"><div class="formula-block-head"><span class="math-tag math-tag-formula">公式</span></div><div class="mj-formula text-[11px]">$$v_{\\mathrm{rms}}=\\sqrt{\\dfrac{3RT}{M}}$$</div></div>
+                                <p class="text-[10px] text-slate-500">與動能直接相關</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid sm:grid-cols-2 gap-3 mb-4">
+                        <div class="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                            <h4 class="font-bold text-orange-800 text-xs mb-1">升溫 ($T\\uparrow$)</h4>
+                            <p class="text-[11px]">分佈<strong>右移</strong>且<strong>展寬</strong>；$v_{\\mathrm{rms}}$、$v_{\\mathrm{mp}}$ 均增大。固定 $v$ 軸下，峰與標線向右移動。</p>
+                        </div>
+                        <div class="bg-cyan-50 p-3 rounded-xl border border-cyan-100">
+                            <h4 class="font-bold text-cyan-800 text-xs mb-1">較輕氣體 ($M\\downarrow$)</h4>
+                            <p class="text-[11px]">同溫下 $v_{\\mathrm{rms}} \\propto 1/\\sqrt{M}$；H₂ 遠快於 Xe。例如室溫空氣 $v_{\\mathrm{rms}}\\approx500\\ \\mathrm{m\\,s^{-1}}$，H₂ 約 $1900\\ \\mathrm{m\\,s^{-1}}$。</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">4. 微觀碰撞與溫度</h3>
+                        <p class="text-xs mb-2">溫度是分子平均平動動能的量度（只考慮平移自由度）：</p>
+                        <div class="formula-block"><div class="formula-block-head"><span class="math-tag math-tag-formula">公式</span></div><div class="mj-formula">$$\\langle E_k\\rangle = \\frac{3}{2}\\,\\frac{R}{M}\\,T = \\frac{3}{2}\\,k_B T$$</div></div>
+                        <p class="text-xs mt-2">本模擬中分子作<strong>彈性碰撞</strong>（白閃＝剛碰撞）；Berendsen 恆溫器按設定 $T$ 微調總動能。若關閉恆溫器或令器壁 $e&lt;1$，能量會偏離理論曲線。</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">5. 理想氣體壓力</h3>
+                        <p class="text-xs mb-2">分子撞擊器壁產生巨觀壓力。由動量變化可推得：</p>
+                        <div class="formula-block"><div class="formula-block-head"><span class="math-tag math-tag-formula">公式</span></div><div class="mj-formula">$$P=\\frac{1}{3}\\,\\frac{N}{V}\\,m\\,\\overline{v^2} = \\frac{1}{3}\\,\\frac{N}{V}\\,M\\,\\overline{v^2}$$</div></div>
+                        <p class="text-xs mt-2">亦寫成 $P \\propto N\\langle \\tfrac{1}{2}mv^2\\rangle$。本模擬在 $298\\ \\mathrm{K}$、空氣下校準至約 $1\\ \\mathrm{atm}$（$101325\\ \\mathrm{Pa}$）。</p>
+                    </div>
+
+                    <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-4">
+                        <h3 class="font-bold text-indigo-900 mb-1">6. 如何讀本模擬</h3>
+                        <ul class="text-xs space-y-1.5 list-disc pl-4">
+                            <li>3D 盒：顏色＝速率；碰撞越多，分佈越接近 M–B 曲線。</li>
+                            <li>$v$、$N$ 軸<strong>固定</strong>：便於比較不同 $T$ 下曲線左／右移與高度變化。</li>
+                            <li>「分佈吻合度」：模擬柱狀與理論虛線的接近程度（恆溫、$e=1$ 時應高）。</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                        <h3 class="font-bold text-emerald-900 mb-1">7. 生活例子</h3>
+                        <p class="text-xs"><strong>地球大氣：</strong>輕分子 H₂、He 逃逸較快，重分子 N₂、O₂ 留在大氣中。<strong>同溫不同氣體：</strong>氫氣分子運動遠快於氙氣，故擴散、聲速不同。<strong>升溫：</strong>熱空氣分子平均速率增大，壓力（密閉容器內）隨之上升——與本模擬右側讀數一致。</p>
+                    </div>`
             },
             en: {
-                title: "Ideal Gas Simulation",
-                subtitle: "Micro Collisions vs Macro Distribution",
-                controlsTitle: "Parameters",
-                tempLabel: "Temperature \\(T\\)",
-                massLabel: "Molar Mass \\(M\\) (\\(kg\\ mol^{-1}\\))",
-                theoryBtn: "Theory",
-                particleCount: "Particles",
-                avgSpeed: "RMS Speed \\(v_{rms}\\)",
-                pressure: "Pressure \\(P\\)",
-                volume: "Volume \\(V\\)",
-                controlTip: "L-Click Rotate / Scroll Zoom",
-                chartTitle: "Speed Distribution",
-                chartX: "X: Speed (\\(m\\ s^{-1}\\))",
-                chartY: "Y: Particle Count",
-                theoryTitle: "Physics: Kinetic Theory",
+                title: 'Gas Molecular Speed Distribution', badge: 'Physics',
+                subtitle: 'Micro collisions vs macro Maxwell–Boltzmann distribution',
+                btnSteps: 'Steps', btnPrinciple: 'Theory',
+                controlTitle: 'Controls', play: 'Start', pause: 'Pause', resume: 'Resume', reset: 'Reset',
+                gasPresets: 'Gas presets', tempPresets: 'Temperature scenarios',
+                tempDesc: 'Temperature', massDesc: 'Molar mass', axisMaxDesc: 'Speed axis max', axisFixed: '(fixed)',
+                axisMaxHint: 'Both $v$ and $N$ axes stay fixed when $T$ changes — compare position and height', axisAuto: 'Reset $v$ axis for current gas',
+                countDesc: 'Particle count', timeScaleLabel: '3D time scale', wallDesc: 'Wall restitution',
+                thermoLabel: 'Thermostat strength', thermoOn: 'Berendsen thermostat',
+                showTheory: 'Show theoretical M–B curve', showMarkers: 'Mark $v_{\\mathrm{mp}}$, $v_{\\mathrm{avg}}$, $v_{\\mathrm{rms}}$',
+                autoRotate: 'Auto-rotate 3D', collisionFlash: 'Collision flash',
+                statsTitle: 'Live data', tagVar: 'Variables', tagFormula: 'Formula', calcTitle: 'calculation',
+                pressureDesc: 'Pressure', vRmsDesc: 'RMS speed', vMpDesc: 'Most probable', vAvgDesc: 'Mean speed',
+                fitScore: 'Distribution fit', collRate: 'Collision rate',
+                controlTip: '3D: drag to rotate / scroll to zoom; charts use real SI units',
+                sceneHint: 'Color = speed (blue slow → red fast); white flash = collision',
+                chartDistTitle: 'Speed distribution (Maxwell–Boltzmann)',
+                chartDistHint: 'Bars = simulation; dashed = theory (same $N$ scale)',
+                legendSim: 'Simulation', legendTheory: 'Theory',
+                stepsTitle: 'Observation steps',
+                s1: '1. Press Start to watch collisions; pause to change parameters.',
+                s2: '2. Try gas presets (H₂, N₂, …) and compare $v_{\\mathrm{rms}}$ with peak $v_{\\mathrm{mp}}$.',
+                s3: '3. With a fixed $v$ axis, raise $T$ — the peak and $v_{\\mathrm{rms}}$ markers shift right on the same scale.',
+                s4: '4. Disable the thermostat or lower wall $e$ to see energy drift from theory.',
+                theoryTitle: 'Kinetic theory of gases',
+                theorySubtitle: 'How microscopic collisions produce the macroscopic Maxwell–Boltzmann distribution',
                 theoryBody: `
-                    <p><strong>1. Real Physics Formula:</strong><br>
-                    The simulation now uses the real Ideal Gas Constant $R = 8.314$ J/(mol·K).
-                    RMS Speed formula:
-                    $$v_{rms} = \\sqrt{\\frac{3RT}{M}}$$
-                    E.g., for Air at 298 K, $v_{rms} \\approx 508$ $m\\ s^{-1}$; for Hydrogen, it's approx 1900 $m\\ s^{-1}$.</p>
-                    
-                    <p><strong>2. Pressure:</strong><br>
-                    We set a virtual volume of $24$ Liters ($0.024 \text{ m}^3$). At $T=298$ K, pressure is calibrated to approx $1$ atm ($101325$ Pa).</p>
-                    
-                    <p><strong>3. Visualization:</strong><br>
-                    Since real molecules move incredibly fast (hundreds of $m\\ s^{-1}$), the 3D view is slowed down (time-dilated) for visibility, but all charts and data reflect real physical values.</p>
-                `
+                    <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 mb-4">
+                        <h3 class="font-bold text-sky-900 mb-1">1. Basic idea</h3>
+                        <p class="text-xs">Macroscopic temperature and pressure arise from countless random molecular motions and collisions with walls and each other. An ideal gas assumes negligible molecular volume, elastic collisions, and no interactions except during collisions.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">2. Maxwell–Boltzmann speed distribution</h3>
+                        <p class="text-xs mb-2">At equilibrium temperature $T$, molecular speeds follow the M–B distribution. The $v^2$ factor reflects increasing spherical shell volume; the exponential suppresses very high speeds.</p>
+                        <div class="formula-block"><div class="formula-block-head"><span class="math-tag math-tag-formula">Formula</span></div><div class="mj-formula">$$f(v)=4\\pi\\left(\\frac{M}{2\\pi RT}\\right)^{3/2} v^2 \\exp\\!\\left(-\\frac{Mv^2}{2RT}\\right)$$</div></div>
+                        <p class="text-xs mt-2">$f(v)\\,\\mathrm{d}v$ is the probability density for speeds between $v$ and $v+\\mathrm{d}v$. Bar height $\\propto f(v)\\,\\Delta v\\,N$; the dashed curve uses the same formula.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">3. Three characteristic speeds</h3>
+                        <p class="text-xs mb-2">Three variables — <span class="mj-sym">$v_{\\mathrm{mp}}$</span>, <span class="mj-sym">$v_{\\mathrm{avg}}$</span>, <span class="mj-sym">$v_{\\mathrm{rms}}$</span> — satisfy $v_{\\mathrm{mp}} &lt; v_{\\mathrm{avg}} &lt; v_{\\mathrm{rms}}$:</p>
+                        <div class="grid sm:grid-cols-3 gap-2 text-xs">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="flex items-center gap-1.5 mb-1"><span class="font-bold text-sky-700">Most probable</span><span class="mj-sym">$v_{\\mathrm{mp}}$</span></div>
+                                <div class="formula-block my-1"><div class="formula-block-head"><span class="math-tag math-tag-formula">Formula</span></div><div class="mj-formula text-[11px]">$$v_{\\mathrm{mp}}=\\sqrt{\\dfrac{2RT}{M}}$$</div></div>
+                                <p class="text-[10px] text-slate-500">Peak of distribution</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="flex items-center gap-1.5 mb-1"><span class="font-bold text-violet-700">Mean speed</span><span class="mj-sym">$v_{\\mathrm{avg}}$</span></div>
+                                <div class="formula-block my-1"><div class="formula-block-head"><span class="math-tag math-tag-formula">Formula</span></div><div class="mj-formula text-[11px]">$$v_{\\mathrm{avg}}=\\sqrt{\\dfrac{8RT}{\\pi M}}$$</div></div>
+                                <p class="text-[10px] text-slate-500">Arithmetic mean</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="flex items-center gap-1.5 mb-1"><span class="font-bold text-emerald-700">RMS speed</span><span class="mj-sym">$v_{\\mathrm{rms}}$</span></div>
+                                <div class="formula-block my-1"><div class="formula-block-head"><span class="math-tag math-tag-formula">Formula</span></div><div class="mj-formula text-[11px]">$$v_{\\mathrm{rms}}=\\sqrt{\\dfrac{3RT}{M}}$$</div></div>
+                                <p class="text-[10px] text-slate-500">Linked to kinetic energy</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid sm:grid-cols-2 gap-3 mb-4">
+                        <div class="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                            <h4 class="font-bold text-orange-800 text-xs mb-1">Raise $T$</h4>
+                            <p class="text-[11px]">Distribution shifts <strong>right</strong> and <strong>broadens</strong>; both $v_{\\mathrm{rms}}$ and $v_{\\mathrm{mp}}$ increase. On a fixed $v$ axis, the peak moves right.</p>
+                        </div>
+                        <div class="bg-cyan-50 p-3 rounded-xl border border-cyan-100">
+                            <h4 class="font-bold text-cyan-800 text-xs mb-1">Lighter gas ($M\\downarrow$)</h4>
+                            <p class="text-[11px]">At the same $T$, $v_{\\mathrm{rms}} \\propto 1/\\sqrt{M}$. H₂ is much faster than Xe — air $\\approx500\\ \\mathrm{m\\,s^{-1}}$, H₂ $\\approx1900\\ \\mathrm{m\\,s^{-1}}$ at room temperature.</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">4. Collisions and temperature</h3>
+                        <p class="text-xs mb-2">Temperature measures mean translational kinetic energy:</p>
+                        <div class="formula-block"><div class="formula-block-head"><span class="math-tag math-tag-formula">Formula</span></div><div class="mj-formula">$$\\langle E_k\\rangle = \\frac{3}{2}\\,\\frac{R}{M}\\,T = \\frac{3}{2}\\,k_B T$$</div></div>
+                        <p class="text-xs mt-2">Molecules undergo <strong>elastic collisions</strong> (white flash); the Berendsen thermostat nudges total energy toward the set $T$. Disabling it or setting wall $e&lt;1$ makes the curve drift from theory.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h3 class="font-bold text-slate-800 mb-2">5. Ideal gas pressure</h3>
+                        <p class="text-xs mb-2">Wall impacts produce macroscopic pressure:</p>
+                        <div class="formula-block"><div class="formula-block-head"><span class="math-tag math-tag-formula">Formula</span></div><div class="mj-formula">$$P=\\frac{1}{3}\\,\\frac{N}{V}\\,m\\,\\overline{v^2} = \\frac{1}{3}\\,\\frac{N}{V}\\,M\\,\\overline{v^2}$$</div></div>
+                        <p class="text-xs mt-2">Also written $P \\propto N\\langle \\tfrac{1}{2}mv^2\\rangle$. Calibrated to ~$1\\ \\mathrm{atm}$ ($101325\\ \\mathrm{Pa}$) for air at $298\\ \\mathrm{K}$.</p>
+                    </div>
+
+                    <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-4">
+                        <h3 class="font-bold text-indigo-900 mb-1">6. Reading this simulation</h3>
+                        <ul class="text-xs space-y-1.5 list-disc pl-4">
+                            <li>3D box: colour = speed; more collisions → closer fit to the M–B curve.</li>
+                            <li>Fixed $v$ and $N$ axes let you compare how curves shift and change height at different $T$.</li>
+                            <li>“Distribution fit” scores how well bars match the theoretical dashed curve.</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                        <h3 class="font-bold text-emerald-900 mb-1">7. Real-world links</h3>
+                        <p class="text-xs"><strong>Atmosphere:</strong> light H₂ and He escape faster; N₂ and O₂ remain.<strong> Same T, different gases:</strong> H₂ diffuses and transmits sound faster than Xe.<strong> Heating:</strong> faster average speeds raise pressure in a sealed container — matching the live readout here.</p>
+                    </div>`
             }
         };
 
-        function updateLang() {
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (i18n[currentLang][key]) {
-                    el.innerHTML = i18n[currentLang][key];
-                }
-            });
-            document.getElementById('theoryContent').innerHTML = i18n[currentLang].theoryBody;
-            
-            // Trigger MathJax typeset for the whole document body
-            if (window.MathJax && window.MathJax.typesetPromise) {
-                window.MathJax.typesetPromise([document.body]);
+        let typesetTimer = null;
+        let typesetPendingNodes = null;
+        let lastFormulaKey = '';
+        const MATH_ROOT_IDS = ['sidebar-math', 'stats-panel', 'chart-math', 'live-formula', 'theoryContent'];
+
+        function whenMathJaxReady(fn) {
+            if (window.MathJax?.typesetPromise) {
+                fn();
+                return;
             }
-            
-            speedChart.data.datasets[0].label = currentLang === 'zh' ? '分子數量' : 'Particle Count';
-            // Chart.js Canvas title doesn't support MathJax, using unicode as fallback for canvas title,
-            // but the HTML legend below uses MathJax.
-            speedChart.options.scales.x.title.text = currentLang === 'zh' ? '速率 (m s⁻¹)' : 'Speed (m s⁻¹)';
-            speedChart.options.scales.y.title.text = i18n[currentLang].chartY;
-            speedChart.update();
+            const wait = setInterval(() => {
+                if (window.MathJax?.typesetPromise) {
+                    clearInterval(wait);
+                    fn();
+                }
+            }, 40);
         }
 
-        // --- 物理參數 ---
-        const PARTICLE_COUNT = 1000;
+        function typesetMath(nodes) {
+            if (!window.MathJax?.typesetPromise) return Promise.resolve();
+            const list = nodes ? (Array.isArray(nodes) ? nodes : [nodes]) : MATH_ROOT_IDS.map(id => document.getElementById(id)).filter(Boolean);
+            return MathJax.typesetPromise(list).catch(err => console.warn('MathJax typeset:', err));
+        }
+
+        function scheduleTypeset(nodes) {
+            if (nodes) typesetPendingNodes = nodes;
+            if (typesetTimer) return;
+            typesetTimer = setTimeout(() => {
+                typesetTimer = null;
+                const pending = typesetPendingNodes;
+                typesetPendingNodes = null;
+                if (!window.MathJax?.typesetPromise) {
+                    scheduleTypeset(pending);
+                    return;
+                }
+                typesetMath(pending);
+            }, 48);
+        }
+
+        function setMathHtml(el, tex) {
+            if (!el) return;
+            if (el.dataset.mathTex === tex) return;
+            el.dataset.mathTex = tex;
+            if (window.MathJax?.typesetClear) MathJax.typesetClear([el]);
+            el.innerHTML = tex;
+        }
+
+        function fmtTemp(T) { return `$${T}\\ \\mathrm{K}$`; }
+        function fmtMass(M) { return `$${M.toFixed(4)}\\ \\mathrm{kg\\,mol^{-1}}$`; }
+        function fmtSpeed(v) { return `$${Math.round(v)}\\ \\mathrm{m\\,s^{-1}}$`; }
+        function fmtPressure(P) { return `$${Math.round(P)}\\ \\mathrm{Pa}$`; }
+        function fmtCount(N) { return `$${N}$`; }
+        function fmtWall(e) { return `$${e.toFixed(2)}$`; }
+        function fmtAxisMax(v) { return `$${v}\\ \\mathrm{m\\,s^{-1}}$`; }
+        function fmtAxisRange() {
+            return `$0 \\le v \\le ${chartXMax}\\ \\mathrm{m\\,s^{-1}},\\; 0 \\le N \\le ${chartYMax}$`;
+        }
+
+        function applyLang() {
+            lastFormulaKey = '';
+            document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const k = el.getAttribute('data-i18n');
+                if (i18n[lang][k]) el.innerHTML = i18n[lang][k];
+            });
+            document.getElementById('theoryContent').innerHTML = i18n[lang].theoryBody;
+            document.querySelectorAll('#gas-presets .preset-btn').forEach(btn => {
+                const g = GAS_PRESETS.find(x => x.id === btn.dataset.gas);
+                if (g) btn.textContent = lang === 'zh' ? g.zh : g.en;
+            });
+            document.querySelectorAll('#temp-presets .preset-btn').forEach(btn => {
+                const p = TEMP_PRESETS.find(x => x.id === btn.dataset.temp);
+                if (p) btn.textContent = lang === 'zh' ? p.zh : p.en;
+            });
+            updatePlayBtn();
+            updateControlMathDisplays();
+            scheduleTypeset();
+        }
+
+        function updateControlMathDisplays() {
+            setMathHtml(document.getElementById('tempValue'), fmtTemp(targetTemp));
+            setMathHtml(document.getElementById('massValue'), fmtMass(molarMass));
+            setMathHtml(document.getElementById('axisMaxValue'), fmtAxisMax(chartXMax));
+            setMathHtml(document.getElementById('countValue'), fmtCount(activeCount));
+            setMathHtml(document.getElementById('axis-range-label'), fmtAxisRange());
+        }
+
+        function toggleModal(id, show) {
+            const m = document.getElementById(id);
+            const c = m.querySelector('.modal-content');
+            if (show) {
+                m.classList.remove('invisible', 'opacity-0');
+                m.classList.add('opacity-100');
+                c.classList.remove('scale-95', 'opacity-0');
+                c.classList.add('scale-100', 'opacity-100');
+            } else {
+                m.classList.add('opacity-0');
+                c.classList.add('scale-95', 'opacity-0');
+                c.classList.remove('scale-100', 'opacity-100');
+                setTimeout(() => m.classList.add('invisible'), 250);
+            }
+        }
+
+        const MAX_PARTICLES = 1200;
         const BOX_SIZE = 40;
         const HALF_BOX = BOX_SIZE / 2;
         const PARTICLE_RADIUS = 0.4;
-        
-        // 真實物理常數
-        const R_GAS = 8.314; // J / (mol K)
-        
-        // 初始設定 (Air at STP approx)
-        let targetTemp = 298; 
-        let molarMass = 0.0288; // kg/mol
-        
-        // 物理數據
-        const positions = new Float32Array(PARTICLE_COUNT * 3);
-        const velocities = new Float32Array(PARTICLE_COUNT * 3); // Real m/s
-        const speeds = new Float32Array(PARTICLE_COUNT);
-        
+        const R_GAS = 8.314;
+        const BASE_DT = 0.0008;
+        const BIN_COUNT = 55;
+        const PRESSURE_K = 0.013636;
+        const T_AXIS_REF = 1000; // 固定 v 軸參考溫度（不隨目前 T 縮放）
+        const T_YAXIS_REF = 100;  // 固定 N 軸參考溫度（最低 T → 峰值最高）
+
+        let running = false;
+        let targetTemp = 298;
+        let molarMass = 0.02897;
+        let activeCount = 1000;
+        let timeScale = 0.25;
+        let wallRestitution = 1;
+        let thermoStrength = 0.06;
+        let activeGasId = 'Air';
+        let activeTempId = 'room';
+
+        const positions = new Float32Array(MAX_PARTICLES * 3);
+        const velocities = new Float32Array(MAX_PARTICLES * 3);
+        const speeds = new Float32Array(MAX_PARTICLES);
         const collidingIndices = new Set();
 
-        // --- Chart.js 設定 ---
-        const ctx = document.getElementById('speedChart').getContext('2d');
-        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
-        gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+        let collisionCount = 0;
+        let collWindowStart = performance.now();
+        let collPerSec = 0;
 
-        const speedChart = new Chart(ctx, {
-            type: 'line', 
-            data: {
-                labels: [],
-                datasets: [{
-                    label: '分子數量',
-                    data: [],
-                    borderColor: 'rgba(96, 165, 250, 1)', 
-                    backgroundColor: gradient,
-                    borderWidth: 2,
-                    tension: 0.4, 
-                    fill: true,   
-                    pointRadius: 0 
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 0 },
-                interaction: { intersect: false, mode: 'index' },
-                scales: {
-                    x: {
-                        title: { display: true, text: '速率 (m s⁻¹)', color: '#9ca3af' },
-                        ticks: { color: '#9ca3af', maxTicksLimit: 8 },
-                        grid: { color: '#374151' }
-                    },
-                    y: {
-                        display: true, 
-                        beginAtZero: true,
-                        max: PARTICLE_COUNT * 0.25,
-                        title: { display: true, text: 'N', color: '#9ca3af' },
-                        ticks: { color: '#9ca3af' },
-                        grid: { color: '#374151', display: false } 
-                    }
-                },
-                plugins: {
-                    legend: { display: false }
-                }
+        function fitCanvas(canvas) {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const rect = canvas.getBoundingClientRect();
+            const w = Math.max(1, Math.round(rect.width * dpr));
+            const h = Math.max(1, Math.round(rect.height * dpr));
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
             }
-        });
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            return { w: rect.width, h: rect.height, ctx };
+        }
 
-        // --- Three.js 初始化 ---
+        function niceMax(v) {
+            if (v < 1e-6) return 1;
+            const exp = Math.pow(10, Math.floor(Math.log10(v)));
+            const n = v / exp;
+            if (n <= 1) return exp;
+            if (n <= 2) return 2 * exp;
+            if (n <= 5) return 5 * exp;
+            return 10 * exp;
+        }
+
+        function drawAxisArrow(ctx, x1, y1, x2, y2, color) {
+            const ang = Math.atan2(y2 - y1, x2 - x1);
+            const s = 6;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - s * Math.cos(ang - 0.4), y2 - s * Math.sin(ang - 0.4));
+            ctx.lineTo(x2 - s * Math.cos(ang + 0.4), y2 - s * Math.sin(ang + 0.4));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function mbPdf(v, T, M) {
+            if (v <= 0 || T <= 0 || M <= 0) return 0;
+            const a = M / (2 * R_GAS * T);
+            return 4 * Math.PI * Math.pow(a / Math.PI, 1.5) * v * v * Math.exp(-a * v * v);
+        }
+
+        function theorySpeeds(T, M) {
+            return {
+                vRms: Math.sqrt(3 * R_GAS * T / M),
+                vMp: Math.sqrt(2 * R_GAS * T / M),
+                vAvg: Math.sqrt(8 * R_GAS * T / (Math.PI * M))
+            };
+        }
+
+        const chartDist = document.getElementById('chart-dist');
+        let distBins = new Array(BIN_COUNT).fill(0);
+        let chartXMax = 2000;
+        let chartYMax = 80;
+
+        function computeFitScore() {
+            const binSize = chartXMax / BIN_COUNT;
+            const th = theorySpeeds(targetTemp, molarMass);
+            const theoryBins = new Array(BIN_COUNT).fill(0);
+            let thSum = 0;
+            for (let i = 0; i < BIN_COUNT; i++) {
+                const vMid = (i + 0.5) * binSize;
+                theoryBins[i] = mbPdf(vMid, targetTemp, molarMass) * binSize * activeCount;
+                thSum += theoryBins[i];
+            }
+            const simSum = distBins.reduce((a, b) => a + b, 0) || 1;
+            let err = 0;
+            for (let i = 0; i < BIN_COUNT; i++) {
+                const simN = (distBins[i] / simSum) * thSum;
+                const diff = simN - theoryBins[i];
+                err += diff * diff / (theoryBins[i] + 0.5);
+            }
+            const rmse = Math.sqrt(err / BIN_COUNT);
+            return Math.max(0, Math.min(100, 100 - rmse * 8));
+        }
+
+        function drawDistChart(vRms, th) {
+            const { w, h, ctx } = fitCanvas(chartDist);
+            ctx.clearRect(0, 0, w, h);
+            const mL = 44, mR = 14, mT = 18, mB = 30;
+            const cw = w - mL - mR, ch = h - mT - mB;
+            const ox = mL, oy = mT + ch;
+            const xMax = chartXMax;
+            const yMax = chartYMax;
+            const binSize = xMax / BIN_COUNT;
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(mL, mT, cw, ch);
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '9px "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const yy = mT + ch * (1 - i / 4);
+                ctx.beginPath();
+                ctx.moveTo(mL, yy);
+                ctx.lineTo(mL + cw, yy);
+                ctx.stroke();
+                ctx.fillText(String(Math.round(yMax * i / 4)), mL - 4, yy + 3);
+            }
+            ctx.textAlign = 'center';
+            for (let i = 0; i <= 4; i++) {
+                const tickV = Math.round((xMax * i) / 4);
+                ctx.fillText(String(tickV), mL + (cw * i) / 4, oy + 14);
+            }
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(mL, mT, cw, ch);
+            ctx.clip();
+
+            const binW = cw / BIN_COUNT;
+            const barW = binW * 0.78;
+            for (let i = 0; i < BIN_COUNT; i++) {
+                const bh = (distBins[i] / yMax) * ch;
+                const x = mL + i * binW + (binW - barW) / 2;
+                const grad = ctx.createLinearGradient(0, oy - bh, 0, oy);
+                grad.addColorStop(0, 'rgba(14, 165, 233, 0.9)');
+                grad.addColorStop(1, 'rgba(14, 165, 233, 0.3)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(x, oy - bh, barW, bh);
+            }
+
+            if (document.getElementById('chk-theory').checked) {
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2.2;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                for (let px = 0; px <= cw; px++) {
+                    const v = (px / cw) * xMax;
+                    const nTheory = mbPdf(v, targetTemp, molarMass) * binSize * activeCount;
+                    const py = oy - (nTheory / yMax) * ch;
+                    if (px === 0) ctx.moveTo(mL + px, py);
+                    else ctx.lineTo(mL + px, py);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            if (document.getElementById('chk-markers').checked) {
+                const markers = [
+                    { v: th.vMp, color: '#0ea5e9', label: 'v_mp' },
+                    { v: th.vAvg, color: '#8b5cf6', label: 'v_avg' },
+                    { v: vRms, color: '#10b981', label: 'v_rms' }
+                ];
+                ctx.font = '9px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                markers.forEach(({ v, color, label }) => {
+                    if (v > xMax) return;
+                    const x = mL + (v / xMax) * cw;
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, mT);
+                    ctx.lineTo(x, oy);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = color;
+                    ctx.fillText(label, x, mT + 10);
+                });
+            }
+            ctx.restore();
+
+            drawAxisArrow(ctx, ox, oy, ox, mT - 2, '#334155');
+            drawAxisArrow(ctx, ox, oy, ox + cw + 5, oy, '#334155');
+            ctx.fillStyle = '#334155';
+            ctx.font = '10px "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('N', ox - 10, mT - 4);
+            ctx.textAlign = 'left';
+            ctx.fillText('v (m/s)', ox + cw + 6, oy + 3);
+        }
+
+        function updateLiveFormula(th) {
+            const el = document.getElementById('live-formula');
+            const M = molarMass.toFixed(4);
+            const key = `${lang}|${targetTemp}|${M}|${Math.round(th.vRms)}`;
+            if (key === lastFormulaKey) return;
+            lastFormulaKey = key;
+            const tagF = lang === 'zh' ? '公式' : 'Formula';
+            const tagV = lang === 'zh' ? '變數' : 'Variable';
+            const lbl1 = lang === 'zh' ? '① 寫出公式' : '① Write formula';
+            const lbl2 = lang === 'zh' ? '② 代入數值' : '② Substitute values';
+            const lbl3 = lang === 'zh' ? '③ 變數讀數' : '③ Variable value';
+            if (window.MathJax?.typesetClear) MathJax.typesetClear([el]);
+            el.innerHTML = `
+                <div class="calc-step">
+                    <div class="calc-step-head"><span class="math-tag math-tag-formula">${tagF}</span><span>${lbl1}</span></div>
+                    <div class="mj-formula">$$v_{\\mathrm{rms}}=\\sqrt{\\dfrac{3RT}{M}}$$</div>
+                </div>
+                <div class="calc-step">
+                    <div class="calc-step-head"><span class="math-tag math-tag-formula">${tagF}</span><span>${lbl2}</span></div>
+                    <div class="calc-vars">
+                        <span class="calc-var-pair"><span class="mj-sym">$T$</span><span class="mj-val">${fmtTemp(targetTemp)}</span></span>
+                        <span class="calc-var-pair"><span class="mj-sym">$M$</span><span class="mj-val">${fmtMass(molarMass)}</span></span>
+                    </div>
+                    <div class="mj-formula">$$v_{\\mathrm{rms}}=\\sqrt{\\dfrac{3\\times 8.314\\times ${targetTemp}}{${M}}}$$</div>
+                </div>
+                <div class="calc-step">
+                    <div class="calc-step-head"><span class="math-tag math-tag-var">${tagV}</span><span>${lbl3}</span></div>
+                    <div class="calc-var-result">
+                        <span class="mj-sym">$v_{\\mathrm{rms}}$</span>
+                        <span class="mj-val text-emerald-700">${fmtSpeed(th.vRms)}</span>
+                    </div>
+                </div>`;
+            scheduleTypeset([el]);
+        }
+
+        // --- Three.js ---
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
+        scene.background = new THREE.Color(0x050810);
+        scene.fog = new THREE.Fog(0x050810, 120, 220);
 
-        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 500);
-        camera.position.set(80, 60, 80); 
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
+        camera.position.set(78, 58, 78);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(container.clientWidth, container.clientHeight);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.3;
+        controls.autoRotateSpeed = 0.35;
 
-        scene.add(new THREE.AmbientLight(0x404040));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(20, 50, 20);
+        scene.add(new THREE.AmbientLight(0x334155, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(30, 50, 20);
         scene.add(dirLight);
 
         const boxGeo = new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE);
-        const edges = new THREE.EdgesGeometry(boxGeo);
-        const boxMat = new THREE.LineBasicMaterial({ color: 0x555555 });
-        scene.add(new THREE.LineSegments(edges, boxMat));
+        scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0x475569 })));
+        scene.add(new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0x1e293b, transparent: true, opacity: 0.06, side: THREE.BackSide })));
 
-        const sphereGeo = new THREE.SphereGeometry(PARTICLE_RADIUS, 8, 8);
-        const sphereMat = new THREE.MeshPhongMaterial({ color: 0xffaa00, shininess: 100 });
-        const particlesMesh = new THREE.InstancedMesh(sphereGeo, sphereMat, PARTICLE_COUNT);
+        const sphereGeo = new THREE.SphereGeometry(PARTICLE_RADIUS, 10, 10);
+        const particlesMesh = new THREE.InstancedMesh(sphereGeo, new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 80 }), MAX_PARTICLES);
+        particlesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        particlesMesh.count = activeCount;
         scene.add(particlesMesh);
 
         const dummy = new THREE.Object3D();
         const color = new THREE.Color();
 
-        // --- 物理引擎 ---
-
-        function initPhysics() {
-            // 初始化 Chart labels (0 - 3000 m/s)
-            // 氫氣 v_rms 約 1900，所以範圍需要很大
-            const maxSpeedChart = 3000; 
-            const binCount = 60; // 50 m/s per bin
-            speedChart.data.labels = [];
-            speedChart.data.datasets[0].data = [];
-            for(let i=0; i<binCount; i++) {
-                speedChart.data.labels.push(((i/binCount)*maxSpeedChart).toFixed(0));
-                speedChart.data.datasets[0].data.push(0);
-            }
-
-            // 初始化位置和速度
-            // Box-Muller 產生常態分佈，並縮放到約略的目標 v_rms
-            const initial_v_rms = Math.sqrt((3 * R_GAS * targetTemp) / molarMass);
-
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                positions[i * 3] = (Math.random() - 0.5) * BOX_SIZE * 0.9;
-                positions[i * 3 + 1] = (Math.random() - 0.5) * BOX_SIZE * 0.9;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * BOX_SIZE * 0.9;
-
-                // 產生高斯分佈速度
-                const u1 = Math.random();
-                const u2 = Math.random();
-                const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
-                const u3 = Math.random();
-                const u4 = Math.random();
-                const z1 = Math.sqrt(-2.0 * Math.log(u3)) * Math.cos(2.0 * Math.PI * u4);
-                const u5 = Math.random();
-                const u6 = Math.random();
-                const z2 = Math.sqrt(-2.0 * Math.log(u5)) * Math.cos(2.0 * Math.PI * u6);
-
-                // 標準化並縮放到大約初始速度
-                velocities[i * 3] = z0 * (initial_v_rms / 1.732); 
-                velocities[i * 3 + 1] = z1 * (initial_v_rms / 1.732);
-                velocities[i * 3 + 2] = z2 * (initial_v_rms / 1.732);
-            }
+        function resize3D() {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            if (w < 1 || h < 1) return;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h, false);
         }
 
-        const gridSize = Math.ceil(BOX_SIZE / (PARTICLE_RADIUS * 2.2)); 
+        const ro = new ResizeObserver(() => {
+            resize3D();
+            drawDistChart(lastVRms, lastTh);
+        });
+        ro.observe(container);
+        ro.observe(chartDist.parentElement);
+
+        const gridSize = Math.ceil(BOX_SIZE / (PARTICLE_RADIUS * 2.2));
         const cellSize = BOX_SIZE / gridSize;
-        const grid = new Array(gridSize * gridSize * gridSize).fill(null).map(() => []);
+        const grid = Array.from({ length: gridSize ** 3 }, () => []);
+        const NEIGHBOR_OFFSETS = [];
+        for (let dz = -1; dz <= 1; dz++)
+            for (let dy = -1; dy <= 1; dy++)
+                for (let dx = -1; dx <= 1; dx++)
+                    NEIGHBOR_OFFSETS.push([dx, dy, dz]);
 
         function getGridIndex(x, y, z) {
             const ix = Math.floor((x + HALF_BOX) / cellSize);
             const iy = Math.floor((y + HALF_BOX) / cellSize);
             const iz = Math.floor((z + HALF_BOX) / cellSize);
-            const cx = Math.max(0, Math.min(gridSize - 1, ix));
-            const cy = Math.max(0, Math.min(gridSize - 1, iy));
-            const cz = Math.max(0, Math.min(gridSize - 1, iz));
-            return cx + cy * gridSize + cz * gridSize * gridSize;
+            if (ix < 0 || iy < 0 || iz < 0 || ix >= gridSize || iy >= gridSize || iz >= gridSize) return -1;
+            return ix + iy * gridSize + iz * gridSize * gridSize;
         }
 
         function resolveCollision(i, j) {
-            const idx1 = i * 3;
-            const idx2 = j * 3;
-
+            const idx1 = i * 3, idx2 = j * 3;
             const dx = positions[idx1] - positions[idx2];
-            const dy = positions[idx1+1] - positions[idx2+1];
-            const dz = positions[idx1+2] - positions[idx2+2];
-            const distSq = dx*dx + dy*dy + dz*dz;
+            const dy = positions[idx1 + 1] - positions[idx2 + 1];
+            const dz = positions[idx1 + 2] - positions[idx2 + 2];
+            const distSq = dx * dx + dy * dy + dz * dz;
             const minDist = PARTICLE_RADIUS * 2;
+            if (distSq >= minDist * minDist || distSq === 0) return;
 
-            if (distSq < minDist * minDist && distSq > 0) {
-                const dist = Math.sqrt(distSq);
-                
-                const overlap = (minDist - dist) * 0.5;
-                const nx = dx / dist;
-                const ny = dy / dist;
-                const nz = dz / dist;
+            const dist = Math.sqrt(distSq);
+            const overlap = (minDist - dist) * 0.5;
+            const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+            positions[idx1] += nx * overlap;
+            positions[idx1 + 1] += ny * overlap;
+            positions[idx1 + 2] += nz * overlap;
+            positions[idx2] -= nx * overlap;
+            positions[idx2 + 1] -= ny * overlap;
+            positions[idx2 + 2] -= nz * overlap;
 
-                positions[idx1] += nx * overlap;
-                positions[idx1+1] += ny * overlap;
-                positions[idx1+2] += nz * overlap;
-                positions[idx2] -= nx * overlap;
-                positions[idx2+1] -= ny * overlap;
-                positions[idx2+2] -= nz * overlap;
+            const vx = velocities[idx1] - velocities[idx2];
+            const vy = velocities[idx1 + 1] - velocities[idx2 + 1];
+            const vz = velocities[idx1 + 2] - velocities[idx2 + 2];
+            const dot = vx * nx + vy * ny + vz * nz;
+            if (dot > 0) return;
 
-                const vx = velocities[idx1] - velocities[idx2];
-                const vy = velocities[idx1+1] - velocities[idx2+1];
-                const vz = velocities[idx1+2] - velocities[idx2+2];
+            velocities[idx1] -= dot * nx;
+            velocities[idx1 + 1] -= dot * ny;
+            velocities[idx1 + 2] -= dot * nz;
+            velocities[idx2] += dot * nx;
+            velocities[idx2 + 1] += dot * ny;
+            velocities[idx2 + 2] += dot * nz;
+            collidingIndices.add(i);
+            collidingIndices.add(j);
+            collisionCount++;
+        }
 
-                const dot = vx*nx + vy*ny + vz*nz;
-
-                if (dot > 0) return;
-
-                velocities[idx1] -= dot * nx;
-                velocities[idx1+1] -= dot * ny;
-                velocities[idx1+2] -= dot * nz;
-                velocities[idx2] += dot * nx;
-                velocities[idx2+1] += dot * ny;
-                velocities[idx2+2] += dot * nz;
-
-                collidingIndices.add(i);
-                collidingIndices.add(j);
+        function reflectWall(idx, axis) {
+            const posIdx = idx * 3 + axis;
+            const limit = HALF_BOX - PARTICLE_RADIUS;
+            if (Math.abs(positions[posIdx]) > limit) {
+                positions[posIdx] = Math.sign(positions[posIdx]) * limit;
+                velocities[posIdx] *= -wallRestitution;
             }
+        }
+
+        function assignMaxwellianVelocities(T, M) {
+            const sigma = Math.sqrt(R_GAS * T / M);
+            for (let i = 0; i < activeCount; i++) {
+                for (let a = 0; a < 3; a++) {
+                    const u = Math.max(1e-12, Math.random());
+                    velocities[i * 3 + a] = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()) * sigma;
+                }
+            }
+        }
+
+        function computeDefaultAxisMax(M) {
+            const vRmsAtTmax = theorySpeeds(T_AXIS_REF, M).vRms;
+            return niceMax(vRmsAtTmax * 2.2);
+        }
+
+        function computeDefaultYMax() {
+            const binSize = chartXMax / BIN_COUNT;
+            const thCold = theorySpeeds(T_YAXIS_REF, molarMass);
+            const peakCount = mbPdf(thCold.vMp, T_YAXIS_REF, molarMass) * binSize * activeCount;
+            const uniformFloor = (activeCount / BIN_COUNT) * 2.5;
+            return niceMax(Math.max(peakCount * 1.15, uniformFloor));
+        }
+
+        function updateAxisMaxDisplay() {
+            document.getElementById('axisMaxSlider').value = chartXMax;
+            setMathHtml(document.getElementById('axisMaxValue'), fmtAxisMax(chartXMax));
+            setMathHtml(document.getElementById('axis-range-label'), fmtAxisRange());
+            scheduleTypeset([document.getElementById('sidebar-math'), document.getElementById('chart-math')]);
+        }
+
+        function syncChartAxes() {
+            chartXMax = computeDefaultAxisMax(molarMass);
+            chartYMax = computeDefaultYMax();
+            updateAxisMaxDisplay();
+        }
+
+        function syncYMaxOnly() {
+            chartYMax = computeDefaultYMax();
+            updateAxisMaxDisplay();
+        }
+
+        function initPhysics() {
+            collisionCount = 0;
+            collWindowStart = performance.now();
+            particlesMesh.count = activeCount;
+
+            for (let i = 0; i < activeCount; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * BOX_SIZE * 0.88;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * BOX_SIZE * 0.88;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * BOX_SIZE * 0.88;
+            }
+            assignMaxwellianVelocities(targetTemp, molarMass);
+            distBins.fill(0);
         }
 
         function updatePhysics() {
             collidingIndices.clear();
-            for(let i=0; i<grid.length; i++) grid[i].length = 0;
+            grid.forEach(c => { c.length = 0; });
+            const dt = BASE_DT * timeScale;
+            let totalVSq = 0;
 
-            let currentTotalKE = 0; 
-            
-            // 時間縮放因子
-            const dt = 0.0008; 
-
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
+            for (let i = 0; i < activeCount; i++) {
                 const idx = i * 3;
-                
-                // 位置更新
-                positions[idx] += velocities[idx] * dt; 
-                positions[idx+1] += velocities[idx+1] * dt;
-                positions[idx+2] += velocities[idx+2] * dt;
+                positions[idx] += velocities[idx] * dt;
+                positions[idx + 1] += velocities[idx + 1] * dt;
+                positions[idx + 2] += velocities[idx + 2] * dt;
+                reflectWall(i, 0);
+                reflectWall(i, 1);
+                reflectWall(i, 2);
 
-                if (Math.abs(positions[idx]) > HALF_BOX - PARTICLE_RADIUS) {
-                    positions[idx] = Math.sign(positions[idx]) * (HALF_BOX - PARTICLE_RADIUS);
-                    velocities[idx] *= -1;
-                }
-                if (Math.abs(positions[idx+1]) > HALF_BOX - PARTICLE_RADIUS) {
-                    positions[idx+1] = Math.sign(positions[idx+1]) * (HALF_BOX - PARTICLE_RADIUS);
-                    velocities[idx+1] *= -1;
-                }
-                if (Math.abs(positions[idx+2]) > HALF_BOX - PARTICLE_RADIUS) {
-                    positions[idx+2] = Math.sign(positions[idx+2]) * (HALF_BOX - PARTICLE_RADIUS);
-                    velocities[idx+2] *= -1;
-                }
-
-                const vSq = velocities[idx]**2 + velocities[idx+1]**2 + velocities[idx+2]**2;
-                currentTotalKE += vSq;
+                const vSq = velocities[idx] ** 2 + velocities[idx + 1] ** 2 + velocities[idx + 2] ** 2;
+                totalVSq += vSq;
                 speeds[i] = Math.sqrt(vSq);
 
-                const gridIdx = getGridIndex(positions[idx], positions[idx+1], positions[idx+2]);
-                grid[gridIdx].push(i);
+                const gi = getGridIndex(positions[idx], positions[idx + 1], positions[idx + 2]);
+                if (gi >= 0) grid[gi].push(i);
             }
 
             for (let g = 0; g < grid.length; g++) {
                 const cell = grid[g];
-                if (cell.length < 2) continue;
-                for (let i = 0; i < cell.length; i++) {
-                    for (let j = i + 1; j < cell.length; j++) {
-                        resolveCollision(cell[i], cell[j]);
-                    }
+                for (let a = 0; a < cell.length; a++)
+                    for (let b = a + 1; b < cell.length; b++)
+                        resolveCollision(cell[a], cell[b]);
+
+                const cx = g % gridSize;
+                const cy = Math.floor(g / gridSize) % gridSize;
+                const cz = Math.floor(g / (gridSize * gridSize));
+                for (const [dx, dy, dz] of NEIGHBOR_OFFSETS) {
+                    if (dx === 0 && dy === 0 && dz === 0) continue;
+                    if (dx < 0 || (dx === 0 && dy < 0) || (dx === 0 && dy === 0 && dz < 0)) continue;
+                    const nx = cx + dx, ny = cy + dy, nz = cz + dz;
+                    if (nx < 0 || ny < 0 || nz < 0 || nx >= gridSize || ny >= gridSize || nz >= gridSize) continue;
+                    const ncell = grid[nx + ny * gridSize + nz * gridSize * gridSize];
+                    for (const i of cell)
+                        for (const j of ncell)
+                            if (i < j) resolveCollision(i, j);
                 }
             }
 
-            // 恆溫器 (Thermostat)
-            const targetAvgVSq = (3 * R_GAS * targetTemp) / molarMass;
-            const currentAvgVSq = currentTotalKE / PARTICLE_COUNT; 
-            
-            if (currentAvgVSq > 0) {
-                const scale = Math.sqrt(targetAvgVSq / currentAvgVSq);
-                const rate = 0.05; 
-                const finalScale = 1 + (scale - 1) * rate;
-
-                for(let i=0; i<PARTICLE_COUNT*3; i++) {
-                    velocities[i] *= finalScale;
+            if (document.getElementById('chk-thermo-on').checked && thermoStrength > 0) {
+                const targetAvgVSq = (3 * R_GAS * targetTemp) / molarMass;
+                const currentAvgVSq = totalVSq / activeCount;
+                if (currentAvgVSq > 0) {
+                    const scale = Math.sqrt(targetAvgVSq / currentAvgVSq);
+                    const f = 1 + (scale - 1) * thermoStrength;
+                    for (let i = 0; i < activeCount * 3; i++) velocities[i] *= f;
                 }
             }
-            
-            // 計算結果 - 真實方均根速率
-            const v_rms = Math.sqrt(currentTotalKE / PARTICLE_COUNT);
-            
-            // 氣壓計算 (Pressure Calculation)
-            // K = 101325 / 7430400 = 0.013636 (校準係數)
-            const pressure = 0.013636 * molarMass * currentTotalKE;
 
-            return { v_rms: v_rms, pressure: pressure };
+            const vRms = Math.sqrt(totalVSq / activeCount);
+            const pressure = PRESSURE_K * molarMass * totalVSq * (activeCount / 1000);
+            return { vRms, pressure, totalVSq };
         }
 
-        function updateChart() {
-            const bins = new Array(speedChart.data.labels.length).fill(0);
-            const maxVal = parseFloat(speedChart.data.labels[speedChart.data.labels.length-1]);
-            const binSize = maxVal / bins.length;
-
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                let binIndex = Math.floor(speeds[i] / binSize);
-                if (binIndex >= bins.length) binIndex = bins.length - 1;
-                bins[binIndex]++;
+        function updateBins() {
+            distBins.fill(0);
+            const binSize = chartXMax / BIN_COUNT;
+            for (let i = 0; i < activeCount; i++) {
+                let bi = Math.floor(speeds[i] / binSize);
+                if (bi >= BIN_COUNT) bi = BIN_COUNT - 1;
+                if (bi >= 0) distBins[bi]++;
             }
-
-            const smoothBins = [...bins];
-            for(let i=1; i<bins.length-1; i++) {
-                smoothBins[i] = (bins[i-1] + bins[i] + bins[i+1]) / 3;
-            }
-
-            speedChart.data.datasets[0].data = smoothBins;
-            speedChart.update();
         }
 
-        // --- 主循環 ---
-        initPhysics();
-        updateLang();
-
+        let lastVRms = 500;
+        let lastTh = theorySpeeds(298, 0.029);
         let frameCount = 0;
-        function animate() {
-            requestAnimationFrame(animate);
 
-            const results = updatePhysics();
-
-            // 更新顯示
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                dummy.position.set(positions[i*3], positions[i*3+1], positions[i*3+2]);
+        function renderScene(vRms) {
+            const colorScale = Math.max(vRms * 1.8, 300);
+            const showFlash = document.getElementById('chk-flash').checked;
+            for (let i = 0; i < activeCount; i++) {
+                dummy.position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
                 dummy.updateMatrix();
-                
-                if (collidingIndices.has(i)) {
-                    color.setHex(0xffffff); 
+                if (showFlash && collidingIndices.has(i)) {
+                    color.setHex(0xffffff);
                 } else {
-                    const v = speeds[i];
-                    const t = Math.min(1, v / 1500); 
-                    color.setHSL(0.6 - t * 0.6, 1.0, 0.5); 
+                    const t = Math.min(1, speeds[i] / colorScale);
+                    color.setHSL(0.58 - t * 0.58, 0.92, 0.48 + t * 0.12);
                 }
-                
                 particlesMesh.setColorAt(i, color);
                 particlesMesh.setMatrixAt(i, dummy.matrix);
             }
             particlesMesh.instanceMatrix.needsUpdate = true;
             if (particlesMesh.instanceColor) particlesMesh.instanceColor.needsUpdate = true;
-
+            controls.autoRotate = document.getElementById('chk-rotate').checked;
             controls.update();
             renderer.render(scene, camera);
-
-            if (frameCount % 5 === 0) {
-                updateChart();
-                document.getElementById('avgSpeedDisplay').textContent = results.v_rms.toFixed(0);
-                document.getElementById('pressureDisplay').textContent = Math.round(results.pressure).toLocaleString();
-            }
-            frameCount++;
         }
+
+        function updateStats(vRms, pressure, th) {
+            const now = performance.now();
+            if (now - collWindowStart > 1000) {
+                collPerSec = Math.round(collisionCount * 1000 / (now - collWindowStart));
+                collisionCount = 0;
+                collWindowStart = now;
+            }
+            setMathHtml(document.getElementById('avgSpeedDisplay'), fmtSpeed(vRms));
+            setMathHtml(document.getElementById('vMpDisplay'), fmtSpeed(th.vMp));
+            setMathHtml(document.getElementById('vAvgDisplay'), fmtSpeed(th.vAvg));
+            setMathHtml(document.getElementById('pressureDisplay'), fmtPressure(pressure));
+            document.getElementById('collDisplay').textContent = String(collPerSec);
+            document.getElementById('fitDisplay').textContent = computeFitScore().toFixed(0);
+            updateLiveFormula(th);
+            scheduleTypeset([document.getElementById('stats-panel'), document.getElementById('live-formula')]);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (running) {
+                const { vRms, pressure } = updatePhysics();
+                lastVRms = vRms;
+                lastTh = theorySpeeds(targetTemp, molarMass);
+                renderScene(vRms);
+                if (frameCount % 4 === 0) {
+                    updateBins();
+                    drawDistChart(vRms, lastTh);
+                    updateStats(vRms, pressure, lastTh);
+                }
+                frameCount++;
+            } else {
+                renderScene(lastVRms);
+            }
+        }
+
+        function updatePlayBtn() {
+            const btn = document.getElementById('btn-play');
+            if (running) {
+                btn.textContent = i18n[lang].pause;
+                btn.className = 'flex-1 py-2 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white';
+            } else {
+                btn.textContent = frameCount > 0 ? i18n[lang].resume : i18n[lang].play;
+                btn.className = 'flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white';
+            }
+        }
+
+        function setGasPreset(id) {
+            const g = GAS_PRESETS.find(x => x.id === id);
+            if (!g) return;
+            activeGasId = id;
+            molarMass = g.mass;
+            document.getElementById('massSlider').value = molarMass;
+            setMathHtml(document.getElementById('massValue'), fmtMass(molarMass));
+            document.getElementById('gas-badge').textContent = lang === 'zh' ? g.zh : g.en;
+            document.querySelectorAll('#gas-presets .preset-btn').forEach(b => b.classList.toggle('active', b.dataset.gas === id));
+            syncChartAxes();
+            refreshTheoryDisplays();
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
+        }
+
+        function setTempPreset(id) {
+            const p = TEMP_PRESETS.find(x => x.id === id);
+            if (!p) return;
+            activeTempId = id;
+            targetTemp = p.temp;
+            document.getElementById('tempSlider').value = targetTemp;
+            setMathHtml(document.getElementById('tempValue'), fmtTemp(targetTemp));
+            document.querySelectorAll('#temp-presets .preset-btn').forEach(b => b.classList.toggle('active', b.dataset.temp === id));
+            refreshTheoryDisplays();
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
+        }
+
+        function buildPresets() {
+            const gasWrap = document.getElementById('gas-presets');
+            GAS_PRESETS.forEach(g => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'preset-btn' + (g.id === activeGasId ? ' active' : '');
+                btn.dataset.gas = g.id;
+                btn.textContent = lang === 'zh' ? g.zh : g.en;
+                btn.addEventListener('click', () => setGasPreset(g.id));
+                gasWrap.appendChild(btn);
+            });
+            const tempWrap = document.getElementById('temp-presets');
+            TEMP_PRESETS.forEach(p => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'preset-btn' + (p.id === activeTempId ? ' active' : '');
+                btn.dataset.temp = p.id;
+                btn.textContent = lang === 'zh' ? p.zh : p.en;
+                btn.addEventListener('click', () => setTempPreset(p.id));
+                tempWrap.appendChild(btn);
+            });
+        }
+
+        // --- UI wiring ---
+        buildPresets();
+        syncChartAxes();
+        initPhysics();
+        applyLang();
+        refreshTheoryDisplays();
+        whenMathJaxReady(() => scheduleTypeset());
+        resize3D();
         animate();
 
-        // --- 互動事件 ---
-        
-        const tempSlider = document.getElementById('tempSlider');
-        const tempValue = document.getElementById('tempValue');
-        tempSlider.addEventListener('input', (e) => {
-            targetTemp = parseInt(e.target.value);
-            tempValue.textContent = targetTemp + " K";
+        document.getElementById('btn-play').addEventListener('click', () => {
+            running = !running;
+            updatePlayBtn();
         });
 
-        const massSlider = document.getElementById('massSlider');
-        const massValue = document.getElementById('massValue');
-        massSlider.addEventListener('input', (e) => {
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            running = false;
+            frameCount = 0;
+            initPhysics();
+            updatePlayBtn();
+            refreshTheoryDisplays();
+            drawDistChart(lastTh.vRms, lastTh);
+        });
+
+        document.getElementById('tempSlider').addEventListener('input', e => {
+            targetTemp = parseInt(e.target.value, 10);
+            setMathHtml(document.getElementById('tempValue'), fmtTemp(targetTemp));
+            activeTempId = '';
+            document.querySelectorAll('#temp-presets .preset-btn').forEach(b => b.classList.remove('active'));
+            refreshTheoryDisplays();
+            scheduleTypeset([document.getElementById('sidebar-math')]);
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
+        });
+
+        document.getElementById('massSlider').addEventListener('input', e => {
             molarMass = parseFloat(e.target.value);
-            massValue.textContent = molarMass.toFixed(4); // Removed unit string here
+            setMathHtml(document.getElementById('massValue'), fmtMass(molarMass));
+            activeGasId = '';
+            document.querySelectorAll('#gas-presets .preset-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('gas-badge').textContent = 'Custom';
+            syncChartAxes();
+            refreshTheoryDisplays();
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
         });
 
-        document.getElementById('langBtn').addEventListener('click', () => {
-            currentLang = currentLang === 'zh' ? 'en' : 'zh';
-            updateLang();
+        document.getElementById('axisMaxSlider').addEventListener('input', e => {
+            chartXMax = parseInt(e.target.value, 10);
+            syncYMaxOnly();
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
         });
 
-        const modal = document.getElementById('modalOverlay');
-        const theoryBtn = document.getElementById('theoryBtn');
-        const closeModal = document.getElementById('closeModal');
+        document.getElementById('btn-axis-auto').addEventListener('click', () => {
+            syncChartAxes();
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
+        });
 
-        function toggleModal(show) {
-            if (show) {
-                modal.classList.remove('hidden');
-                modal.classList.remove('modal-exit');
-                modal.classList.remove('modal-exit-active');
-                modal.classList.add('modal-enter');
-                setTimeout(() => {
-                    modal.classList.remove('modal-enter');
-                    modal.classList.add('modal-enter-active');
-                }, 10);
-            } else {
-                modal.classList.remove('modal-enter-active');
-                modal.classList.add('modal-exit');
-                setTimeout(() => modal.classList.add('modal-exit-active'), 10);
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('modal-exit');
-                    modal.classList.remove('modal-exit-active');
-                }, 200);
-            }
+        document.getElementById('countSlider').addEventListener('input', e => {
+            activeCount = parseInt(e.target.value, 10);
+            setMathHtml(document.getElementById('countValue'), fmtCount(activeCount));
+            particlesMesh.count = activeCount;
+            syncYMaxOnly();
+            scheduleTypeset([document.getElementById('sidebar-math')]);
+            drawDistChart(lastVRms, theorySpeeds(targetTemp, molarMass));
+        });
+
+        document.getElementById('timeScaleSlider').addEventListener('input', e => {
+            timeScale = parseInt(e.target.value, 10) / 100;
+            document.getElementById('timeScaleValue').textContent = timeScale.toFixed(2) + '×';
+        });
+
+        document.getElementById('wallSlider').addEventListener('input', e => {
+            wallRestitution = parseInt(e.target.value, 10) / 100;
+            setMathHtml(document.getElementById('wallValue'), fmtWall(wallRestitution));
+            scheduleTypeset([document.getElementById('sidebar-math')]);
+        });
+
+        document.getElementById('thermoSlider').addEventListener('input', e => {
+            thermoStrength = parseInt(e.target.value, 10) / 100;
+            document.getElementById('thermoValue').textContent = Math.round(thermoStrength * 100) + '%';
+        });
+
+        document.getElementById('chk-thermo-on').addEventListener('change', e => {
+            document.getElementById('thermoSlider').disabled = !e.target.checked;
+        });
+
+        ['chk-theory', 'chk-markers', 'chk-rotate', 'chk-flash'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => drawDistChart(lastVRms, lastTh));
+        });
+
+        function switchLang() {
+            lang = lang === 'zh' ? 'en' : 'zh';
+            lastFormulaKey = '';
+            applyLang();
+            const g = GAS_PRESETS.find(x => x.id === activeGasId);
+            if (g) document.getElementById('gas-badge').textContent = lang === 'zh' ? g.zh : g.en;
+            updateLiveFormula(lastTh);
+            drawDistChart(lastVRms, lastTh);
+            scheduleTypeset();
         }
 
-        theoryBtn.addEventListener('click', () => {
-            toggleModal(true);
-        });
-        closeModal.addEventListener('click', () => toggleModal(false));
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) toggleModal(false);
-        });
+        function refreshTheoryDisplays() {
+            lastTh = theorySpeeds(targetTemp, molarMass);
+            lastVRms = lastTh.vRms;
+            const totalVSq = lastTh.vRms ** 2 * activeCount;
+            const p0 = PRESSURE_K * molarMass * totalVSq * (activeCount / 1000);
+            setMathHtml(document.getElementById('avgSpeedDisplay'), fmtSpeed(lastTh.vRms));
+            setMathHtml(document.getElementById('vMpDisplay'), fmtSpeed(lastTh.vMp));
+            setMathHtml(document.getElementById('vAvgDisplay'), fmtSpeed(lastTh.vAvg));
+            setMathHtml(document.getElementById('pressureDisplay'), fmtPressure(p0));
+            lastFormulaKey = '';
+            updateLiveFormula(lastTh);
+            scheduleTypeset([document.getElementById('stats-panel'), document.getElementById('live-formula')]);
+        }
+        document.getElementById('btn-lang').addEventListener('click', switchLang);
+        document.getElementById('btn-lang-mobile').addEventListener('click', switchLang);
 
-        window.addEventListener('resize', () => {
-            if(container) {
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
+        document.getElementById('btn-steps').addEventListener('click', () => toggleModal('modal-steps', true));
+        document.getElementById('btn-principle').addEventListener('click', () => {
+            toggleModal('modal-principle', true);
+            scheduleTypeset([document.getElementById('theoryContent')]);
+        });
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => {
+                toggleModal('modal-steps', false);
+                toggleModal('modal-principle', false);
+            });
+        });
+        ['modal-steps', 'modal-principle'].forEach(id => {
+            document.getElementById(id).addEventListener('click', e => {
+                if (e.target.id === id) toggleModal(id, false);
+            });
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                toggleModal('modal-steps', false);
+                toggleModal('modal-principle', false);
             }
         });
 
+        window.addEventListener('resize', () => drawDistChart(lastVRms, lastTh));
     </script>
 </body>
 </html>

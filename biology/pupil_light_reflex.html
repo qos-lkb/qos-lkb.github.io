@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pupil Light Reflex Simulation 瞳孔光反射模擬</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Microsoft JhengHei', sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 5px;
+            color: #1a252f;
+            text-align: center;
+        }
+        p.subtitle {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+        #container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 950px;
+            width: 100%;
+        }
+        canvas {
+            background-color: #000000;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            width: 90%;
+            gap: 15px;
+        }
+        .slider-container label {
+            font-weight: 600;
+            color: #334155;
+            width: 240px;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+            height: 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .info-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .info-card {
+            background: #ffffff;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-top: 4px solid #3b82f6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-left: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .info-card h4 {
+            margin: 0 0 5px 0;
+            color: #1e293b;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .info-card p {
+            margin: 0;
+            font-size: 1.05em;
+            color: #0f172a;
+            font-weight: 700;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+            font-size: 0.85em;
+            color: #475569;
+            font-weight: 600;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .color-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pupil Light Reflex Simulation 瞳孔光反射模擬</h1>
+    <p class="subtitle">Adjust light intensity to observe radial muscles, circular muscles, and pupil size changes<br>調整光線強度以觀察放射肌、環狀肌及瞳孔大小的變化</p>
+
+    <div id="container">
+        <div class="legend">
+            <div class="legend-item"><div class="color-box" style="background:#ef4444;"></div> Circular Muscle 環狀肌</div>
+            <div class="legend-item"><div class="color-box" style="background:#2563eb;"></div> Radial Muscle 放射肌</div>
+            <div class="legend-item"><div class="color-box" style="background:#a7f3d0; border: 1px solid #059669;"></div> Iris Structure 虹膜</div>
+            <div class="legend-item"><div class="color-box" style="background:#000000; border: 1px solid #64748b;"></div> Pupil 瞳孔</div>
+            <div class="legend-item"><div class="color-box" style="background:#eab308;"></div> Incident Light 光線</div>
+        </div>
+
+        <canvas id="simCanvas" width="900" height="480"></canvas>
+
+        <div class="controls">
+            <div class="slider-container">
+                <label for="lightSlider">Light Intensity 光線強度:</label>
+                <input type="range" id="lightSlider" min="0" max="100" value="50">
+                <span id="lightVal" style="font-weight: bold; width: 180px; color: #2563eb;">Medium Intensity 中等光線</span>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-card">
+                    <h4>Circular Muscle<br>環狀肌</h4>
+                    <p id="circularStatus">Relaxed 鬆弛</p>
+                </div>
+                <div class="info-card">
+                    <h4>Radial Muscle<br>放射肌</h4>
+                    <p id="radialStatus">Relaxed 鬆弛</p>
+                </div>
+                <div class="info-card">
+                    <h4>Pupil State<br>瞳孔狀態</h4>
+                    <p id="pupilStatus">Normal 直徑正常</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('lightSlider');
+
+        const lightValLabel = document.getElementById('lightVal');
+        const circularStatus = document.getElementById('circularStatus');
+        const radialStatus = document.getElementById('radialStatus');
+        const pupilStatus = document.getElementById('pupilStatus');
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Intensity factor: 0 (Dim / Dark) to 1 (Bright)
+            const factor = slider.value / 100;
+
+            // --- 0. BACKGROUND LIGHTING EFFECT ---
+            const bgAlpha = 0.05 + factor * 0.45;
+            ctx.fillStyle = `rgba(255, 253, 208, ${bgAlpha})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Pupil radius calculation
+            const maxPupilR = 98;
+            const minPupilR = 28;
+            const pupilRadius = maxPupilR - (factor * (maxPupilR - minPupilR));
+            const outerIrisRadius = 135;
+
+            // --- 1. VIEW PANELS DIVIDER ---
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(450, 20);
+            ctx.lineTo(450, 460);
+            ctx.stroke();
+
+            // Panel Titles
+            ctx.fillStyle = '#1e293b';
+            ctx.font = 'bold 15px Segoe UI, Microsoft JhengHei, Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Anterior View (Front View 正面圖)', 225, 40);
+            ctx.fillText('Cross-Sectional View (側面剖面圖)', 675, 40);
+
+            // =========================================================
+            // LEFT PANEL: FRONT VIEW OF IRIS & PUPIL
+            // =========================================================
+            const cx = 225;
+            const cy = 250;
+
+            // Sclera / Eye Background Outer Limit
+            ctx.beginPath();
+            ctx.arc(cx, cy, outerIrisRadius + 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#f8fafc';
+            ctx.fill();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Lighter Iris Base Background
+            ctx.beginPath();
+            ctx.arc(cx, cy, outerIrisRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#a7f3d0'; 
+            ctx.fill();
+            ctx.strokeStyle = '#059669';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // RADIAL MUSCLES (Radiating Fibers)
+            const numSpokes = 32;
+            const radialLineWidth = 1.5 + (1 - factor) * 2.5; 
+            ctx.strokeStyle = '#2563eb'; 
+            ctx.lineWidth = radialLineWidth;
+
+            for (let i = 0; i < numSpokes; i++) {
+                const angle = (i * 2 * Math.PI) / numSpokes;
+                const innerX = cx + pupilRadius * Math.cos(angle);
+                const innerY = cy + pupilRadius * Math.sin(angle);
+                const outerX = cx + outerIrisRadius * Math.cos(angle);
+                const outerY = cy + outerIrisRadius * Math.sin(angle);
+
+                ctx.beginPath();
+                ctx.moveTo(innerX, innerY);
+                ctx.lineTo(outerX, outerY);
+                ctx.stroke();
+            }
+
+            // CIRCULAR MUSCLES (Concentric Rings near Pupil Edge)
+            const circularRings = 4;
+            const circularLineWidth = 1.5 + (factor * 3.5); 
+            ctx.strokeStyle = '#ef4444'; 
+
+            for (let r = 0; r < circularRings; r++) {
+                const ringRadius = pupilRadius + 6 + (r * 7);
+                if (ringRadius < outerIrisRadius - 5) {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
+                    ctx.lineWidth = circularLineWidth;
+                    ctx.stroke();
+                }
+            }
+
+            // PUPIL (Center Hole)
+            ctx.beginPath();
+            ctx.arc(cx, cy, pupilRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Light Reflection Glint on Pupil
+            ctx.beginPath();
+            ctx.arc(cx - pupilRadius * 0.3, cy - pupilRadius * 0.3, Math.max(3, pupilRadius * 0.15), 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fill();
+
+
+            // =========================================================
+            // RIGHT PANEL: CROSS-SECTIONAL SIDE VIEW
+            // =========================================================
+            const rx = 675;
+            const ry = 250;
+
+            // Incoming Light Rays
+            const lightRayCount = 7;
+            const raySpread = 160;
+            ctx.strokeStyle = `rgba(234, 179, 8, ${0.2 + factor * 0.75})`;
+            ctx.lineWidth = 1 + factor * 2.5;
+
+            for (let i = 0; i < lightRayCount; i++) {
+                const startY = ry - (raySpread / 2) + (i * (raySpread / (lightRayCount - 1)));
+                
+                // Rays entering through pupil opening
+                if (Math.abs(startY - ry) <= pupilRadius) {
+                    ctx.beginPath();
+                    ctx.moveTo(rx - 180, startY);
+                    ctx.lineTo(rx + 140, startY);
+                    ctx.stroke();
+                } else {
+                    // Rays blocked by Iris
+                    ctx.beginPath();
+                    ctx.moveTo(rx - 180, startY);
+                    ctx.lineTo(rx - 30, startY);
+                    ctx.stroke();
+                }
+            }
+
+            // CORNEA
+            ctx.beginPath();
+            ctx.arc(rx - 100, ry, 120, -Math.PI * 0.3, Math.PI * 0.3);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.fillStyle = '#0284c7';
+            ctx.font = 'bold 11px Segoe UI, Microsoft JhengHei, Arial';
+            ctx.fillText('Cornea 角膜', rx - 100, ry - 110);
+
+            // LENS
+            ctx.beginPath();
+            ctx.ellipse(rx + 10, ry, 18, 65, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(186, 230, 253, 0.7)';
+            ctx.fill();
+            ctx.strokeStyle = '#0284c7';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#0284c7';
+            ctx.fillText('Lens 晶體', rx + 10, ry - 75);
+
+            // UPPER & LOWER IRIS FLAPS IN SIDE VIEW
+            const upperIrisTopY = ry - outerIrisRadius;
+            const upperIrisBottomY = ry - pupilRadius;
+
+            const lowerIrisTopY = ry + pupilRadius;
+            const lowerIrisBottomY = ry + outerIrisRadius;
+
+            // Draw Upper Iris Flap
+            drawIrisFlap(rx - 30, upperIrisTopY, upperIrisBottomY, factor);
+            // Draw Lower Iris Flap
+            drawIrisFlap(rx - 30, lowerIrisTopY, lowerIrisBottomY, factor);
+
+            // --- UPDATE INTERFACE STATUS DISPLAY ---
+            updateUI(factor);
+        }
+
+        function drawIrisFlap(x, startY, endY, factor) {
+            const width = 24;
+
+            // Lighter Iris Structure Tissue
+            ctx.beginPath();
+            ctx.fillStyle = '#a7f3d0';
+            ctx.strokeStyle = '#059669';
+            ctx.lineWidth = 2;
+            ctx.roundRect(x, Math.min(startY, endY), width, Math.abs(endY - startY), 4);
+            ctx.fill();
+            ctx.stroke();
+
+            // Circular Muscle Block (Sphincter) near pupil edge
+            const cmHeight = 12 + factor * 8;
+            const cmY = (startY < endY) ? endY - cmHeight : startY;
+
+            ctx.beginPath();
+            ctx.fillStyle = '#ef4444';
+            ctx.strokeStyle = '#b91c1c';
+            ctx.lineWidth = 1.5;
+            ctx.rect(x + 2, cmY, width - 4, cmHeight);
+            ctx.fill();
+            ctx.stroke();
+
+            // Radial Muscle Line along length of iris
+            ctx.strokeStyle = '#2563eb';
+            ctx.lineWidth = 2 + (1 - factor) * 2;
+            ctx.beginPath();
+            ctx.moveTo(x + width / 2, startY);
+            ctx.lineTo(x + width / 2, endY);
+            ctx.stroke();
+        }
+
+        function updateUI(factor) {
+            if (factor < 0.35) {
+                // Dim Light State
+                lightValLabel.innerText = "Dim Light 弱光";
+                lightValLabel.style.color = "#d97706";
+
+                circularStatus.innerText = "Relaxed 鬆弛";
+                circularStatus.style.color = "#16a34a";
+
+                radialStatus.innerText = "Contracted 收縮";
+                radialStatus.style.color = "#dc2626";
+
+                pupilStatus.innerText = "Dilated 擴張";
+                pupilStatus.style.color = "#2563eb";
+            } else if (factor > 0.65) {
+                // Bright Light State
+                lightValLabel.innerText = "Bright Light 強光";
+                lightValLabel.style.color = "#ea580c";
+
+                circularStatus.innerText = "Contracted 收縮";
+                circularStatus.style.color = "#dc2626";
+
+                radialStatus.innerText = "Relaxed 鬆弛";
+                radialStatus.style.color = "#16a34a";
+
+                pupilStatus.innerText = "Constricted 縮小";
+                pupilStatus.style.color = "#2563eb";
+            } else {
+                // Medium Light State
+                lightValLabel.innerText = "Medium Light 中等光線";
+                lightValLabel.style.color = "#2563eb";
+
+                circularStatus.innerText = "Moderate 適中";
+                circularStatus.style.color = "#475569";
+
+                radialStatus.innerText = "Moderate 適中";
+                radialStatus.style.color = "#475569";
+
+                pupilStatus.innerText = "Normal 直徑正常";
+                pupilStatus.style.color = "#2563eb";
+            }
+        }
+
+        slider.addEventListener('input', draw);
+        draw();
+    </script>
+</body>
+</html>

@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食物能量測定 | Food Calorimetry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global', displayAlign: 'center', linebreaks: { automatic: false } },
+            options: { enableMenu: false }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body { font-family: 'Noto Sans TC', sans-serif; touch-action: manipulation; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        @keyframes flicker {
+            0%   { transform: scale(1) rotate(-1deg); opacity: 0.9; }
+            25%  { transform: scale(1.05) rotate(1deg); opacity: 1; }
+            50%  { transform: scale(0.95) rotate(-2deg); opacity: 0.8; }
+            75%  { transform: scale(1.1) rotate(2deg); opacity: 0.9; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .flame-animate {
+            transform-origin: bottom center;
+            animation: flicker 0.15s infinite alternate;
+        }
+
+        @keyframes bubbleRise {
+            0% { transform: translateY(0) scale(0.5); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 0.8; }
+            100% { transform: translateY(-40px) scale(1.2); opacity: 0; }
+        }
+        .bubble {
+            animation: bubbleRise 1.6s infinite ease-in;
+            fill: rgba(255, 255, 255, 0.75);
+        }
+
+        .food-charring { transition: fill 5s ease-out; }
+
+        @keyframes swirlSpoon {
+            0%   { transform: translate(0, 0); }
+            25%  { transform: translate(9px, -6px); }
+            50%  { transform: translate(1px, 8px); }
+            75%  { transform: translate(-9px, 2px); }
+            100% { transform: translate(0, 0); }
+        }
+        #spoon-rig { transition: transform 0.9s ease-in-out; }
+        #svg-spoon.swirling { animation: swirlSpoon 1.8s ease-in-out infinite; }
+        #bunsen-flame.heating { transform-origin: 0px -132px; animation: flicker 0.12s infinite alternate; }
+        .is-hidden { display: none; }
+
+        @keyframes spinHint { to { transform: rotate(360deg); } }
+        .swirl-hint {
+            transform-box: fill-box;
+            transform-origin: center;
+        }
+        .swirl-hint.spin { animation: spinHint 2.2s linear infinite; }
+        .lab-label { paint-order: stroke; stroke: #f8fafc; stroke-width: 5px; stroke-linejoin: round; }
+
+        .modal-backdrop { transition: opacity 0.25s ease, visibility 0.25s ease; }
+        .modal-content { transition: transform 0.25s ease, opacity 0.25s ease; }
+
+        .mj-box mjx-container { color: #1e40af !important; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-full flex flex-col overflow-x-hidden">
+
+    <header class="w-full max-w-7xl mx-auto bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 sticky top-2 z-20 shrink-0">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-rose-500 to-orange-500 text-white flex items-center justify-center shadow-md shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2 flex-wrap">
+                        <span data-i18n="title">食物能量測定</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold border border-rose-200" data-i18n="badge">中二科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">燃燒 0.2 g 食物樣本，利用比熱公式估算能量</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 shrink-0">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+            <div class="hidden lg:flex bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-xl text-xs items-center gap-1.5 shadow-sm max-w-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span data-i18n="heatLossNote">真實實驗中會有大量熱量散失至空氣與試管</span>
+            </div>
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h12"/><path d="M9 12h12"/><path d="M9 19h12"/><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="19" r="1" fill="currentColor"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 flex flex-col lg:flex-row gap-4 overflow-auto lg:overflow-hidden pb-6">
+
+        <!-- 左：控制與即時數據 -->
+        <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-2 lg:order-1 flex flex-col gap-4 min-h-0">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                <div>
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3" data-i18n="step1">1. 選擇食物樣本（0.2 g）</h2>
+                    <div id="food-selector" class="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-0.5"></div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3" data-i18n="step2">2. 實驗固定變因</h2>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div class="bg-blue-50 p-2 rounded-xl border border-blue-100 text-center">
+                            <div class="text-slate-500 text-xs" data-i18n="waterVol">水體積（質量）</div>
+                            <div class="font-mono font-bold text-blue-700" data-i18n="waterAmt">10 ml (10 g)</div>
+                        </div>
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 text-center">
+                            <div class="text-slate-500 text-xs" data-i18n="waterC">水比熱 (c)</div>
+                            <div class="font-mono font-bold text-slate-700">4.2 J/g°C</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-1">
+                    <button type="button" id="ignite-btn" class="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-200/60 transition-all active:scale-95">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                        <span id="ignite-text" data-i18n="btnIgnite">本生燈點燃</span>
+                    </button>
+                    <button type="button" id="reset-btn" class="w-full mt-2 py-2.5 rounded-xl font-bold text-slate-600 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 transition-all hidden">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        <span data-i18n="btnReset">重置裝置</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 rounded-2xl p-5 text-white shadow-lg flex flex-col min-h-[200px]">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <span data-i18n="dataPanel">即時測量數據</span>
+                </h3>
+                <div class="space-y-4 font-mono">
+                    <div class="flex justify-between items-end border-b border-slate-700 pb-2">
+                        <span class="text-slate-400 text-sm" data-i18n="tempInitial">初溫 (T₁)</span>
+                        <span class="text-xl">25.0 <span class="text-xs text-slate-500">°C</span></span>
+                    </div>
+                    <div class="flex justify-between items-end border-b border-slate-700 pb-2">
+                        <span class="text-slate-400 text-sm" data-i18n="tempCurrent">當前水溫 (T₂)</span>
+                        <span id="display-temp" class="text-3xl font-bold text-rose-400">25.0 <span class="text-sm text-slate-500">°C</span></span>
+                    </div>
+                    <div class="flex justify-between items-end pb-2">
+                        <span class="text-slate-400 text-sm" data-i18n="tempDelta">溫度變化 (ΔT)</span>
+                        <span id="display-delta" class="text-xl text-amber-400">+0.0 <span class="text-xs text-slate-500">°C</span></span>
+                    </div>
+                </div>
+                <div id="status-indicator" class="mt-auto text-center py-2 bg-slate-700 rounded-xl text-sm font-bold text-slate-300 animate-pulse hidden">
+                    <span data-i18n="statusBurning">燃燒匙在管底慢慢打圈…</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中：SVG 實驗舞台 -->
+        <section class="flex-1 order-1 lg:order-2 lg:self-start min-w-0 bg-white rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col">
+            <svg id="lab-svg" viewBox="40 20 620 450" class="w-full h-auto" style="aspect-ratio: 62 / 45" aria-label="食物能量測定裝置">
+                <defs>
+                    <linearGradient id="glass" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(255,255,255,0.72)" />
+                        <stop offset="40%" stop-color="rgba(255,255,255,0.08)" />
+                        <stop offset="100%" stop-color="rgba(255,255,255,0.35)" />
+                    </linearGradient>
+                    <linearGradient id="waterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(186,230,253,0.55)" />
+                        <stop offset="100%" stop-color="rgba(14,165,233,0.72)" />
+                    </linearGradient>
+                    <linearGradient id="mercury" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#f87171" />
+                        <stop offset="100%" stop-color="#b91c1c" />
+                    </linearGradient>
+                    <radialGradient id="flameGrad" cx="50%" cy="70%" r="55%">
+                        <stop offset="0%" stop-color="#ffffff" />
+                        <stop offset="28%" stop-color="#fef08a" />
+                        <stop offset="68%" stop-color="#f97316" />
+                        <stop offset="100%" stop-color="#ea580c" stop-opacity="0" />
+                    </radialGradient>
+                    <linearGradient id="metalTube" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#78716c" />
+                        <stop offset="38%" stop-color="#e7e5e4" />
+                        <stop offset="70%" stop-color="#a8a29e" />
+                        <stop offset="100%" stop-color="#44403c" />
+                    </linearGradient>
+                    <linearGradient id="metalBase" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#5c564f" />
+                        <stop offset="45%" stop-color="#c4bdb3" />
+                        <stop offset="100%" stop-color="#3f3a36" />
+                    </linearGradient>
+                    <linearGradient id="blueOuter" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stop-color="rgba(37,99,235,0.4)" />
+                        <stop offset="55%" stop-color="rgba(56,189,248,0.8)" />
+                        <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+                    </linearGradient>
+                    <linearGradient id="blueInner" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stop-color="rgba(37,99,235,0.75)" />
+                        <stop offset="50%" stop-color="rgba(191,219,254,0.95)" />
+                        <stop offset="100%" stop-color="rgba(255,255,255,0.6)" />
+                    </linearGradient>
+                    <clipPath id="tubeClip">
+                        <path d="M 8 -28 H 268 A 28 28 0 0 1 268 28 H 8 Z" />
+                    </clipPath>
+                </defs>
+
+                <rect width="680" height="480" fill="#f1f5f9" />
+                <rect y="424" width="680" height="56" fill="#e2e8f0" />
+
+                <!-- 鐵架台 -->
+                <rect x="28" y="412" width="168" height="18" rx="4" fill="#334155" />
+                <rect x="42" y="400" width="140" height="16" rx="3" fill="#475569" />
+                <rect x="98" y="28" width="14" height="384" rx="5" fill="#64748b" />
+                <rect x="100" y="28" width="4" height="384" rx="2" fill="#cbd5e1" opacity="0.45" />
+
+                <!-- 試管夾 -->
+                <rect x="90" y="118" width="30" height="28" rx="4" fill="#334155" />
+                <rect x="118" y="127" width="78" height="9" rx="3" fill="#64748b" />
+                <path d="M 188 118 C 228 104 252 132 232 156" fill="none" stroke="#475569" stroke-width="7" stroke-linecap="round" />
+                <path d="M 186 146 C 224 162 254 150 236 128" fill="none" stroke="#475569" stroke-width="7" stroke-linecap="round" />
+
+                <!-- 傾斜大試管（管口左上、管底右下） -->
+                <g id="boiling-tube" transform="translate(176, 108) rotate(32)">
+                    <path d="M 0 -32 H 270 A 32 32 0 0 1 270 32 H 0 Z" fill="#f8fafc" />
+                    <g clip-path="url(#tubeClip)">
+                        <!-- 水面在螢幕座標為水平線（管身旋轉後仍保持水平） -->
+                        <path d="M 239.9 -32 L 256.2 -32 L 270 -32 L 276.4 -31.3 L 282.6 -29.4 L 288.3 -26.3 L 293.2 -22 L 297.2 -16.9 L 300 -11.1 L 301.6 -4.8 L 302 1.6 L 301.6 4.8 L 300 11.1 L 297.2 16.9 L 293.2 22 L 288.3 26.3 L 282.6 29.4 L 276.4 31.3 L 270 32 L 249.2 32 L 221.5 32 L 193.8 32 L 166.2 32 L 138.5 32 Z" fill="url(#waterGrad)" />
+                        <line x1="138.5" y1="32" x2="239.9" y2="-32" stroke="#0369a1" stroke-width="1.8" />
+                        <g id="bubbles" style="display: none;">
+                            <circle class="bubble" cx="230" cy="22" r="2.2" style="animation-delay: 0s" />
+                            <circle class="bubble" cx="260" cy="16" r="1.7" style="animation-delay: .4s" />
+                            <circle class="bubble" cx="285" cy="8" r="2" style="animation-delay: .8s" />
+                        </g>
+                    </g>
+                    <g id="thermometer" transform="translate(0, 6)">
+                        <rect x="8" y="-6" width="230" height="12" rx="6" fill="rgba(255,255,255,0.92)" stroke="#94a3b8" stroke-width="1.4" />
+                        <rect id="svg-liquid" x="210" y="-2.2" width="20" height="4.4" rx="2" fill="url(#mercury)" />
+                        <circle cx="238" cy="0" r="8.5" fill="#ef4444" stroke="#991b1b" stroke-width="1" />
+                        <path d="M 28 -6 V -13 M 68 -6 V -13 M 108 -6 V -13 M 148 -6 V -13 M 188 -6 V -13 M 222 -6 V -13" stroke="#475569" stroke-width="1.3" />
+                    </g>
+                    <path d="M 0 -32 H 270 A 32 32 0 0 1 270 32 H 0 Z" fill="url(#glass)" stroke="#475569" stroke-width="3.2" />
+                    <path d="M 16 -18 H 248" stroke="rgba(255,255,255,0.85)" stroke-width="3.5" stroke-linecap="round" />
+                    <ellipse cx="2" cy="0" rx="9" ry="32" fill="none" stroke="#334155" stroke-width="3.5" />
+                </g>
+
+                <!-- 管口外伸長溫度計 stem（畫在試管之上） -->
+                <g id="thermo-stem-out" transform="translate(176, 108) rotate(32) translate(0, 6)">
+                    <rect x="-108" y="-6" width="118" height="12" rx="6" fill="rgba(255,255,255,0.96)" stroke="#94a3b8" stroke-width="1.4" />
+                    <path d="M -88 -6 V -13 M -48 -6 V -13 M -8 -6 V -13" stroke="#475569" stroke-width="1.3" />
+                </g>
+
+                <!-- 溫度計夾（固定在鐵架台，夾住伸出管口的 stem） -->
+                <rect x="90" y="58" width="24" height="24" rx="4" fill="#334155" />
+                <rect x="112" y="66" width="28" height="8" rx="2" fill="#64748b" />
+                <g transform="translate(122, 72) rotate(-32)">
+                    <rect x="-16" y="-11" width="32" height="22" rx="3" fill="#334155" />
+                    <path d="M -11 -2 L 11 -2" stroke="#e2e8f0" stroke-width="6" stroke-linecap="round" />
+                    <path d="M -11 4 L 11 4" stroke="#475569" stroke-width="2.5" stroke-linecap="round" />
+                </g>
+
+                <!-- 本生燈（藍焰，對齊本生燈模擬的金屬燈身） -->
+                <g id="bunsen" transform="translate(598, 418)">
+                    <rect x="-46" y="-4" width="92" height="14" rx="3" fill="#d6d3d1" stroke="#a8a29e" />
+                    <path d="M -34 -6 L -20 -26 L 20 -26 L 34 -6 L 24 4 L -24 4 Z" fill="url(#metalBase)" stroke="rgba(40,36,32,0.4)" stroke-width="1" />
+                    <path d="M -9 -26 L -5 -42 L 5 -42 L 9 -26 Z" fill="url(#metalTube)" />
+                    <rect x="-34" y="-44" width="18" height="9" rx="2" fill="url(#metalTube)" />
+                    <circle cx="-25" cy="-39.5" r="2.3" fill="#57534e" />
+                    <rect x="-13" y="-58" width="26" height="16" rx="6" fill="url(#metalTube)" stroke="rgba(40,36,32,0.28)" />
+                    <circle cx="-6" cy="-50" r="2.1" fill="#1c1917" />
+                    <circle cx="5" cy="-50" r="2.1" fill="#1c1917" />
+                    <rect x="-6.5" y="-124" width="13" height="66" rx="1.5" fill="url(#metalTube)" />
+                    <rect x="-9" y="-128" width="18" height="8" rx="1.5" fill="#44403c" />
+                    <path d="M -8 -126 Q 0 -131 8 -126 Q 0 -123 -8 -126 Z" fill="#2a2724" />
+                    <g id="bunsen-flame">
+                        <path d="M -11 -128 Q -4 -196 0 -204 Q 4 -196 11 -128 Z" fill="url(#blueOuter)" />
+                        <path d="M -5 -128 Q -1 -172 0 -180 Q 1 -172 5 -128 Z" fill="url(#blueInner)" />
+                    </g>
+                </g>
+
+                <!-- 燃燒匙：匙窩向上盛住食物，柄向下；先在本生燈上，自燃後移到管底 -->
+                <g id="spoon-rig" transform="translate(598, 252) rotate(26)">
+                    <g id="svg-spoon">
+                        <ellipse id="heat-glow" cx="0" cy="-22" rx="20" ry="8" fill="#fb923c" opacity="0" />
+                        <line x1="0" y1="10" x2="0" y2="128" stroke="#78716c" stroke-width="4.2" stroke-linecap="round" />
+                        <line x1="1.2" y1="10" x2="1.2" y2="124" stroke="#e7e5e4" stroke-width="1.2" stroke-linecap="round" />
+                        <path d="M -16 -2 C -16 12 16 12 16 -2 L 12 -2 C 12 7 -12 7 -12 -2 Z" fill="#e2e8f0" stroke="#475569" stroke-width="1.5" />
+                        <ellipse cx="0" cy="-2" rx="18" ry="6.2" fill="#f8fafc" stroke="#334155" stroke-width="1.6" />
+                        <ellipse id="svg-food" cx="0" cy="-3" rx="10.5" ry="5" fill="#d97706" class="food-charring" stroke="rgba(0,0,0,0.28)" stroke-width="0.9" />
+                        <g id="svg-flame" transform="translate(0, -8)" style="opacity: 0; transform-origin: 0px 10px;">
+                            <path class="flame-animate" d="M 0 -34 C 10 -16 13 -6 13 2 C 13 11 6 15 0 15 C -6 15 -13 11 -13 2 C -13 -6 -10 -16 0 -34 Z" fill="url(#flameGrad)" />
+                            <path class="flame-animate" style="animation-delay: .08s" d="M 0 -20 C 5 -9 6 -3 6 2 C 6 6 3 8 0 8 C -3 8 -6 6 -6 2 C -6 -3 -5 -9 0 -20 Z" fill="#fef9c3" />
+                        </g>
+                    </g>
+                    <g transform="rotate(-26)" class="lab-label" fill="#1e293b" font-size="15" font-weight="700">
+                        <line x1="-12" y1="-6" x2="-36" y2="-20" stroke="#64748b" stroke-width="1.2" />
+                        <text x="-124" y="-16" data-i18n="annoFood">燃燒着的食物</text>
+                        <line x1="-14" y1="48" x2="-32" y2="74" stroke="#64748b" stroke-width="1.2" />
+                        <text x="-96" y="90" data-i18n="annoSpoon">燃燒匙</text>
+                    </g>
+                    <g id="swirl-mark" transform="translate(34, -28) rotate(-26)" class="is-hidden">
+                        <g class="swirl-hint">
+                            <path d="M 16 0 A 16 16 0 1 1 2 14" fill="none" stroke="#0f766e" stroke-width="2.2" />
+                            <polygon points="0,8 10,16 -2,18" fill="#0f766e" />
+                        </g>
+                        <text x="28" y="8" fill="#0f766e" font-size="15" font-weight="700" class="lab-label" data-i18n="annoSwirl">慢慢打圈</text>
+                    </g>
+                </g>
+
+                <g id="annotations" class="lab-label" fill="#1e293b" font-size="15" font-weight="700">
+                    <line x1="262" y1="78" x2="316" y2="154" stroke="#64748b" stroke-width="1.2" />
+                    <text x="198" y="72" data-i18n="annoTube">大試管</text>
+                    <line x1="82" y1="94" x2="116" y2="74" stroke="#64748b" stroke-width="1.2" />
+                    <text x="52" y="98" data-i18n="annoThermo">溫度計</text>
+                    <line x1="400" y1="168" x2="300" y2="208" stroke="#64748b" stroke-width="1.2" />
+                    <text x="404" y="164" data-i18n="annoWater">10 ml 蒸餾水</text>
+                    <line x1="548" y1="452" x2="598" y2="400" stroke="#64748b" stroke-width="1.2" />
+                    <text x="492" y="462" data-i18n="annoBunsen">本生燈</text>
+                </g>
+            </svg>
+            <p class="m-3 shrink-0 text-center text-[11px] sm:text-xs font-bold text-rose-800 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2" data-i18n="warnHeat">注意：不要在接近溫度計泡的位置直接加熱大試管。</p>
+        </section>
+
+        <!-- 右：計算與圖表 -->
+        <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-3 flex flex-col gap-4 min-h-0">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 shrink-0">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/></svg>
+                    <span data-i18n="calcTitle">能量計算</span>
+                </h3>
+                <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <div class="mj-box text-center font-bold text-blue-800 mb-2">$$E = m \cdot c \cdot \Delta T$$</div>
+                    <ul class="space-y-1 text-slate-600 text-xs font-mono">
+                        <li><span data-i18n="calcM">m</span> = <span data-i18n="waterG">10 g</span></li>
+                        <li><span data-i18n="calcC">c</span> = 4.2 J/g°C</li>
+                        <li>ΔT = <span id="calc-dt" class="font-bold text-rose-500">0.0</span> °C</li>
+                    </ul>
+                    <div class="mt-3 pt-3 border-t border-blue-200 flex justify-between items-center">
+                        <span class="text-slate-600 font-bold text-sm" data-i18n="calcResult">食物釋放能量 (E)</span>
+                        <span class="text-lg font-bold text-blue-700 font-mono"><span id="calc-energy">0</span> J</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex-1 flex flex-col min-h-[280px]">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-3" data-i18n="recordTitle">實驗記錄與比較</h3>
+                <div class="overflow-x-auto mb-4">
+                    <table class="w-full text-xs text-left text-slate-600">
+                        <thead class="bg-slate-50 text-slate-500 uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="px-2 py-2" data-i18n="thFood">食物 (0.2 g)</th>
+                                <th class="px-2 py-2" data-i18n="thDeltaT">ΔT (°C)</th>
+                                <th class="px-2 py-2 text-right" data-i18n="thEnergy">能量 (J)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="record-tbody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <div class="flex-1 relative w-full min-h-[150px]">
+                    <canvas id="energyChart"></canvas>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- 原理解說 Modal -->
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-orange-500 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">原理解說</h2>
+                    <p class="text-xs opacity-80" data-i18n="modalSub">比熱量熱與食物能量</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <h3 class="font-bold text-slate-900 mb-1" data-i18n="m1t">1. 實驗原理</h3>
+                    <p class="text-xs" data-i18n="m1d">先用本生燈把匙上的食物加熱至自燃，再移到傾斜大試管底部慢慢打圈。能量部分傳給管內的水。用比熱公式估算。</p>
+                    <div class="mj-box text-center mt-2">$$E = m \cdot c \cdot \Delta T$$</div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <h3 class="font-bold text-slate-900 mb-1" data-i18n="m2t">2. 符號意義</h3>
+                    <p class="text-xs" data-i18n="m2d"><strong>E</strong>：能量（J）；<strong>m</strong>：水質量（g）；<strong>c</strong>：比熱（4.2 J/g°C）；<strong>ΔT</strong> = T₂ − T₁。</p>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m3t">3. 實驗限制</h3>
+                    <p class="text-xs text-amber-800" data-i18n="m3d">不要在接近溫度計泡的位置直接加熱大試管。真實實驗會有熱量散失到空氣和玻璃，測得值通常低於包裝標示。水體積與打圈方式須保持一致。</p>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m4t">4. 生活應用</h3>
+                    <p class="text-xs text-emerald-800" data-i18n="m4d">營養標籤上的 kJ 來自實驗室測定；高脂食物（如花生、腰果）每克能量通常高於澱粉或糖類。</p>
+                </div>
+            </div>
+            <div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 觀察步驟 Modal -->
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-orange-500 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-xs" data-i18n="s1">1. 選擇 0.2 g 食物。確認大試管內有 10 ml 水，溫度計泡浸在水中。</div>
+                <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-xs" data-i18n="s2">2. 按「本生燈點燃」。食物在本生燈上加熱至自燃，再移到管底慢慢打圈。</div>
+                <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-xs" data-i18n="s3">3. 觀察食物碳化、水中氣泡與溫度計紅色液柱。記下 T₁、T₂ 與 ΔT。</div>
+                <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-xs" data-i18n="s4">4. 用 E = m·c·ΔT 算出能量，重置後再測其餘食物，比較長條圖。</div>
+                <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-xs" data-i18n="s5">5. 思考：為何測得能量通常低於包裝上的 kJ？</div>
+            </div>
+            <div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const I18N = {
+            zh: {
+                title: "食物能量測定",
+                subtitle: "燃燒 0.2 g 食物樣本，利用比熱公式估算能量",
+                badge: "中二科學",
+                heatLossNote: "真實實驗中會有大量熱量散失至空氣與試管",
+                step1: "1. 選擇食物樣本（0.2 g）",
+                step2: "2. 實驗固定變因",
+                waterVol: "水體積（質量）",
+                waterC: "水比熱 (c)",
+                btnIgnite: "本生燈點燃",
+                btnReset: "重置裝置",
+                dataPanel: "即時測量數據",
+                tempInitial: "初溫 (T₁)",
+                tempCurrent: "當前水溫 (T₂)",
+                tempDelta: "溫度變化 (ΔT)",
+                statusHeat: "本生燈加熱食物…",
+                statusIgnite: "食物自燃，正移向大試管…",
+                statusBurning: "燃燒匙在管底慢慢打圈…",
+                annoBunsen: "本生燈",
+                annoTube: "大試管",
+                annoThermo: "溫度計",
+                annoFood: "燃燒着的食物",
+                annoSpoon: "燃燒匙",
+                annoSwirl: "慢慢打圈",
+                annoWater: "10 ml 蒸餾水",
+                waterAmt: "10 ml (10 g)",
+                waterG: "10 g",
+                warnHeat: "注意：不要在接近溫度計泡的位置直接加熱大試管。",
+                calcTitle: "能量計算",
+                calcM: "m（水質量）",
+                calcC: "c（比熱）",
+                calcResult: "食物釋放能量 (E)",
+                recordTitle: "實驗記錄與比較",
+                thFood: "食物 (0.2 g)",
+                thDeltaT: "ΔT (°C)",
+                thEnergy: "能量 (J)",
+                chartLabel: "釋放能量 (J)",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                stepsTitle: "觀察步驟",
+                modalTitle: "原理解說",
+                modalSub: "比熱量熱與食物能量",
+                modalClose: "關閉",
+                m1t: "1. 實驗原理",
+                m1d: "先用本生燈把匙上的食物加熱至自燃，再移到傾斜大試管底部慢慢打圈。能量部分傳給管內的水。用比熱公式估算。",
+                m2t: "2. 符號意義",
+                m2d: "E：能量（J）；m：水質量（g）；c：比熱（4.2 J/g°C）；ΔT = T₂ − T₁。",
+                m3t: "3. 實驗限制",
+                m3d: "不要在接近溫度計泡的位置直接加熱大試管。真實實驗會有熱量散失到空氣和玻璃，測得值通常低於包裝標示。水體積與打圈方式須保持一致。",
+                m4t: "4. 生活應用",
+                m4d: "營養標籤上的 kJ 來自實驗室測定；高脂食物（如花生、腰果、牛油）每克能量通常高於澱粉或糖類。",
+                s1: "1. 選擇 0.2 g 食物。確認大試管內有 10 ml 水，溫度計泡浸在水中。",
+                s2: "2. 按「本生燈點燃」。食物在本生燈上加熱至自燃，再移到管底慢慢打圈。",
+                s3: "3. 觀察食物碳化、水中氣泡與溫度計紅色液柱。記下 T₁、T₂ 與 ΔT。",
+                s4: "4. 用 E = m·c·ΔT 算出能量，重置後再測其餘食物，比較長條圖。",
+                s5: "5. 思考：為何測得能量通常低於包裝上的 kJ？"
+            },
+            en: {
+                title: "Food Calorimetry",
+                subtitle: "Burn 0.2 g samples; estimate energy via specific heat",
+                badge: "Junior Science",
+                heatLossNote: "In real labs, much heat is lost to air and glassware",
+                step1: "1. Select food sample (0.2 g)",
+                step2: "2. Controlled variables",
+                waterVol: "Water volume (mass)",
+                waterC: "Specific heat (c)",
+                btnIgnite: "Light on Bunsen",
+                btnReset: "Reset apparatus",
+                dataPanel: "Live measurements",
+                tempInitial: "Initial temp (T₁)",
+                tempCurrent: "Current temp (T₂)",
+                tempDelta: "Temp change (ΔT)",
+                statusHeat: "Heating the food on the Bunsen burner…",
+                statusIgnite: "Food has ignited — moving to the tube…",
+                statusBurning: "Swirling the burning spoon under the tube…",
+                annoBunsen: "Bunsen burner",
+                annoTube: "Boiling tube",
+                annoThermo: "Thermometer",
+                annoFood: "Burning food",
+                annoSpoon: "Burning spoon",
+                annoSwirl: "Swirl slowly",
+                annoWater: "10 ml distilled water",
+                waterAmt: "10 ml (10 g)",
+                waterG: "10 g",
+                warnHeat: "Do not heat the tube directly beside the thermometer bulb.",
+                calcTitle: "Energy calculation",
+                calcM: "m (water mass)",
+                calcC: "c (specific heat)",
+                calcResult: "Energy released (E)",
+                recordTitle: "Records & comparison",
+                thFood: "Food (0.2 g)",
+                thDeltaT: "ΔT (°C)",
+                thEnergy: "Energy (J)",
+                chartLabel: "Energy released (J)",
+                btnSteps: "Steps",
+                btnPrinciple: "Principle",
+                stepsTitle: "Observation steps",
+                modalTitle: "Principle",
+                modalSub: "Specific heat & food energy",
+                modalClose: "Close",
+                m1t: "1. Principle",
+                m1d: "Heat the food on a Bunsen burner until it ignites, then swirl the spoon under the tilted tube. Part of the energy heats the water.",
+                m2t: "2. Symbols",
+                m2d: "E: energy (J); m: water mass (g); c: 4.2 J/g°C; ΔT = T₂ − T₁.",
+                m3t: "3. Limitations",
+                m3d: "Do not heat next to the thermometer bulb. Heat lost to air and glass makes the result lower than the label value.",
+                m4t: "4. Applications",
+                m4d: "Nutrition labels use lab calorimetry; high-fat foods (peanut, cashew, butter) usually release more energy per gram.",
+                s1: "1. Choose 0.2 g of food. Check 10 ml of water and the thermometer bulb in the water.",
+                s2: "2. Press Light on Bunsen. The food ignites, then the spoon moves under the tube and swirls.",
+                s3: "3. Watch charring, bubbles, and the red thread. Note T₁, T₂ and ΔT.",
+                s4: "4. Calculate E, reset, and compare all foods on the bar chart.",
+                s5: "5. Why is the measured energy often lower than the kJ on the packet?"
+            }
+        };
+
+        const FOODS = {
+            marshmallow: { id: 'marshmallow', nameZh: '棉花糖', nameEn: 'Marshmallow', maxDt: 6, color: '#fce7f3', chartColor: '#f472b6', chartBorder: '#db2777', timeMs: 2500, emoji: '🍡' },
+            sugar: { id: 'sugar', nameZh: '方糖', nameEn: 'Sugar cube', maxDt: 9.2, color: '#f8fafc', chartColor: '#e2e8f0', chartBorder: '#94a3b8', timeMs: 2800, emoji: '🍬' },
+            bread: { id: 'bread', nameZh: '麵包', nameEn: 'Bread', maxDt: 11.5, color: '#d4a574', timeMs: 3200, emoji: '🍞' },
+            cracker: { id: 'cracker', nameZh: '梳打餅', nameEn: 'Cracker', maxDt: 13.8, color: '#fde68a', chartColor: '#fbbf24', chartBorder: '#d97706', timeMs: 3000, emoji: '🍪' },
+            popcorn: { id: 'popcorn', nameZh: '爆米花', nameEn: 'Popcorn', maxDt: 15.2, color: '#fef3c7', chartColor: '#fde68a', chartBorder: '#f59e0b', timeMs: 3300, emoji: '🍿' },
+            chip: { id: 'chip', nameZh: '洋芋片', nameEn: 'Potato chip', maxDt: 18, color: '#fcd34d', timeMs: 3500, emoji: '🥔' },
+            peanut: { id: 'peanut', nameZh: '花生', nameEn: 'Peanut', maxDt: 20.8, color: '#d97706', timeMs: 4000, emoji: '🥜' },
+            chocolate: { id: 'chocolate', nameZh: '朱古力', nameEn: 'Chocolate', maxDt: 21.5, color: '#78350f', timeMs: 4200, emoji: '🍫' },
+            cashew: { id: 'cashew', nameZh: '腰果', nameEn: 'Cashew', maxDt: 23.2, color: '#f59e0b', timeMs: 4500, emoji: '🌰' },
+            butter: { id: 'butter', nameZh: '牛油', nameEn: 'Butter', maxDt: 24.5, color: '#fde047', chartColor: '#eab308', chartBorder: '#ca8a04', timeMs: 4800, emoji: '🧈' }
+        };
+
+        let state = {
+            lang: 'zh',
+            selectedFood: 'peanut',
+            isBurning: false,
+            initialTemp: 25.0,
+            currentTemp: 25.0,
+            waterMass: 10,
+            foodMass: 0.2,
+            specificHeat: 4.2,
+            records: [],
+            intervalId: null,
+            timers: [],
+            statusKey: ''
+        };
+
+        const SPOON_AT_BURNER = 'translate(598, 252) rotate(26)';
+        const SPOON_AT_TUBE = 'translate(455, 304) rotate(26)';
+
+        const els = {
+            foodSelector: document.getElementById('food-selector'),
+            igniteBtn: document.getElementById('ignite-btn'),
+            resetBtn: document.getElementById('reset-btn'),
+            displayTemp: document.getElementById('display-temp'),
+            displayDelta: document.getElementById('display-delta'),
+            statusInd: document.getElementById('status-indicator'),
+            svgLiquid: document.getElementById('svg-liquid'),
+            svgFood: document.getElementById('svg-food'),
+            svgFlame: document.getElementById('svg-flame'),
+            svgBubbles: document.getElementById('bubbles'),
+            spoon: document.getElementById('svg-spoon'),
+            spoonRig: document.getElementById('spoon-rig'),
+            heatGlow: document.getElementById('heat-glow'),
+            swirlMark: document.getElementById('swirl-mark'),
+            bunsenFlame: document.getElementById('bunsen-flame'),
+            calcDt: document.getElementById('calc-dt'),
+            calcEnergy: document.getElementById('calc-energy'),
+            recordTbody: document.getElementById('record-tbody'),
+            annotations: document.getElementById('annotations')
+        };
+
+        let myChart = null;
+
+        function applyI18n() {
+            document.documentElement.lang = state.lang === 'en' ? 'en' : 'zh-Hant';
+            const pack = I18N[state.lang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.dataset.i18n;
+                if (pack[key] == null) return;
+                if (/<[a-z][\s\S]*>/i.test(pack[key])) el.innerHTML = pack[key];
+                else el.textContent = pack[key];
+            });
+            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                MathJax.typesetPromise().catch(function () {});
+            }
+        }
+
+        function toggleLanguage() {
+            state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            applyI18n();
+            generateFoodButtons();
+            renderTable();
+            if (myChart) {
+                myChart.data.datasets[0].label = I18N[state.lang].chartLabel;
+                myChart.data.labels = state.records.map(r =>
+                    state.lang === 'zh' ? FOODS[r.foodId].nameZh : FOODS[r.foodId].nameEn
+                );
+                myChart.update();
+            }
+        }
+
+        function init() {
+            generateFoodButtons();
+            updateFoodSVG();
+            initChart();
+            updateThermometer(state.initialTemp);
+            updateDataDisplay(state.initialTemp);
+            applyI18n();
+
+            els.igniteBtn.addEventListener('click', startExperiment);
+            els.resetBtn.addEventListener('click', resetExperiment);
+
+            document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+            document.getElementById('btn-lang-mobile').addEventListener('click', toggleLanguage);
+        }
+
+        function generateFoodButtons() {
+            els.foodSelector.innerHTML = '';
+            Object.values(FOODS).sort((a, b) => a.maxDt - b.maxDt).forEach(food => {
+                const name = state.lang === 'zh' ? food.nameZh : food.nameEn;
+                const isSelected = state.selectedFood === food.id;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `p-2.5 rounded-xl border text-left transition-all flex items-center gap-2 ${
+                    isSelected ? 'bg-rose-50 border-rose-400 ring-1 ring-rose-400' : 'bg-white border-slate-200 hover:bg-slate-50'
+                }`;
+                btn.disabled = state.isBurning;
+                if (state.isBurning && !isSelected) btn.classList.add('opacity-50', 'grayscale');
+                btn.innerHTML = `<div class="text-xl">${food.emoji}</div><div class="font-bold text-sm text-slate-700">${name}</div>`;
+                btn.onclick = () => {
+                    if (!state.isBurning) {
+                        state.selectedFood = food.id;
+                        resetApparatus();
+                        generateFoodButtons();
+                        updateFoodSVG();
+                    }
+                };
+                els.foodSelector.appendChild(btn);
+            });
+        }
+
+        function updateFoodSVG() {
+            const food = FOODS[state.selectedFood];
+            els.svgFood.setAttribute('fill', food.color);
+            els.svgFood.classList.remove('food-charring');
+            els.svgFood.style.fill = food.color;
+        }
+
+        function setStatus(key) {
+            state.statusKey = key;
+            const el = els.statusInd.querySelector('[data-i18n]');
+            el.dataset.i18n = key;
+            el.textContent = I18N[state.lang][key];
+            els.statusInd.classList.remove('hidden');
+        }
+
+        function later(fn, ms) {
+            const id = setTimeout(fn, ms);
+            state.timers.push(id);
+            return id;
+        }
+
+        function clearTimers() {
+            state.timers.forEach(clearTimeout);
+            state.timers = [];
+            clearInterval(state.intervalId);
+            state.intervalId = null;
+        }
+
+        function startExperiment() {
+            if (state.isBurning) return;
+            const food = FOODS[state.selectedFood];
+            state.isBurning = true;
+            els.igniteBtn.disabled = true;
+            els.igniteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            generateFoodButtons();
+            els.spoonRig.setAttribute('transform', SPOON_AT_BURNER);
+            els.bunsenFlame.classList.add('heating');
+            setStatus('statusHeat');
+
+            later(() => {
+                els.svgFlame.style.opacity = '1';
+                els.svgFood.classList.add('food-charring');
+                els.svgFood.style.fill = '#1e293b';
+                setStatus('statusIgnite');
+            }, 900);
+
+            later(() => {
+                els.spoonRig.setAttribute('transform', SPOON_AT_TUBE);
+                els.swirlMark.classList.remove('is-hidden');
+                els.swirlMark.querySelector('.swirl-hint').classList.add('spin');
+                setStatus('statusBurning');
+                later(() => beginHeating(food), 900);
+            }, 1700);
+        }
+
+        function beginHeating(food) {
+            if (!state.isBurning) return;
+            els.spoon.classList.add('swirling');
+            els.heatGlow.setAttribute('opacity', '0.45');
+            els.svgBubbles.style.display = 'block';
+
+            const targetTemp = state.initialTemp + food.maxDt;
+            const duration = food.timeMs;
+            const fps = 30;
+            const steps = (duration / 1000) * fps;
+            const tempIncrement = food.maxDt / steps;
+            let currentStep = 0;
+
+            state.intervalId = setInterval(() => {
+                currentStep++;
+                state.currentTemp += tempIncrement;
+                const displayT = state.currentTemp + (Math.random() * 0.2 - 0.1);
+                updateThermometer(displayT);
+                updateDataDisplay(displayT);
+                if (currentStep >= steps) endExperiment(targetTemp);
+            }, 1000 / fps);
+        }
+
+        function endExperiment(finalTemp) {
+            clearTimers();
+            state.currentTemp = finalTemp;
+            updateThermometer(finalTemp);
+            updateDataDisplay(finalTemp);
+            state.isBurning = false;
+
+            els.svgFlame.style.opacity = '0';
+            els.svgBubbles.style.display = 'none';
+            els.spoon.classList.remove('swirling');
+            els.swirlMark.querySelector('.swirl-hint').classList.remove('spin');
+            els.bunsenFlame.classList.remove('heating');
+            els.heatGlow.setAttribute('opacity', '0');
+            els.statusInd.classList.add('hidden');
+            els.igniteBtn.classList.add('hidden');
+            els.resetBtn.classList.remove('hidden');
+            recordData();
+        }
+
+        function resetExperiment() {
+            resetApparatus();
+            generateFoodButtons();
+        }
+
+        function resetApparatus() {
+            clearTimers();
+            state.isBurning = false;
+            state.statusKey = '';
+            els.spoonRig.setAttribute('transform', SPOON_AT_BURNER);
+            els.swirlMark.classList.add('is-hidden');
+            els.swirlMark.querySelector('.swirl-hint').classList.remove('spin');
+            els.bunsenFlame.classList.remove('heating');
+            state.currentTemp = state.initialTemp;
+            updateThermometer(state.initialTemp);
+            updateDataDisplay(state.initialTemp);
+            updateFoodSVG();
+
+            els.svgFlame.style.opacity = '0';
+            els.svgBubbles.style.display = 'none';
+            els.spoon.classList.remove('swirling');
+            els.heatGlow.setAttribute('opacity', '0');
+            els.statusInd.classList.add('hidden');
+
+            els.igniteBtn.classList.remove('hidden', 'opacity-50', 'cursor-not-allowed');
+            els.igniteBtn.disabled = false;
+            els.resetBtn.classList.add('hidden');
+        }
+
+        function foodChartColors(food) {
+            const fill = food.chartColor || food.color;
+            const border = food.chartBorder || fill;
+            return {
+                fill: fill.length === 7 ? fill + 'dd' : fill,
+                border,
+                borderWidth: food.chartBorder ? 2.5 : 1
+            };
+        }
+
+        function updateThermometer(temp) {
+            const right = 230;
+            const maxStem = 222;
+            const w0 = (state.initialTemp / 100) * 79;
+            const risePerC = (79 / 100) * 4;
+            const deltaT = Math.max(0, temp - state.initialTemp);
+            const w = Math.min(maxStem, Math.max(2, w0 + deltaT * risePerC));
+            els.svgLiquid.setAttribute('x', right - w);
+            els.svgLiquid.setAttribute('width', w);
+        }
+
+        function updateDataDisplay(temp) {
+            const dt = Math.max(0, temp - state.initialTemp);
+            els.displayTemp.innerHTML = `${temp.toFixed(1)} <span class="text-sm text-slate-500">°C</span>`;
+            els.displayDelta.innerHTML = `+${dt.toFixed(1)} <span class="text-xs text-slate-500">°C</span>`;
+            els.calcDt.textContent = dt.toFixed(1);
+            els.calcEnergy.textContent = Math.round(state.waterMass * state.specificHeat * dt);
+        }
+
+        function recordData() {
+            const food = FOODS[state.selectedFood];
+            const dt = food.maxDt;
+            const energy = Math.round(state.waterMass * state.specificHeat * dt);
+            const existingIdx = state.records.findIndex(r => r.foodId === food.id);
+            if (existingIdx >= 0) state.records[existingIdx] = { foodId: food.id, dt, energy };
+            else state.records.push({ foodId: food.id, dt, energy });
+            renderTable();
+            updateChart();
+        }
+
+        function renderTable() {
+            els.recordTbody.innerHTML = '';
+            state.records.forEach(r => {
+                const name = state.lang === 'zh' ? FOODS[r.foodId].nameZh : FOODS[r.foodId].nameEn;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-2 py-2 font-medium">${FOODS[r.foodId].emoji} ${name}</td>
+                    <td class="px-2 py-2 text-rose-600 font-mono">+${r.dt.toFixed(1)}</td>
+                    <td class="px-2 py-2 text-right text-blue-600 font-mono font-bold">${r.energy}</td>`;
+                els.recordTbody.appendChild(tr);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('energyChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: I18N[state.lang].chartLabel,
+                        data: [],
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(37, 99, 235, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'J' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updateChart() {
+            if (!myChart) return;
+            myChart.data.labels = state.records.map(r =>
+                state.lang === 'zh' ? FOODS[r.foodId].nameZh : FOODS[r.foodId].nameEn
+            );
+            myChart.data.datasets[0].backgroundColor = state.records.map(r => foodChartColors(FOODS[r.foodId]).fill);
+            myChart.data.datasets[0].borderColor = state.records.map(r => foodChartColors(FOODS[r.foodId]).border);
+            myChart.data.datasets[0].borderWidth = state.records.map(r => foodChartColors(FOODS[r.foodId]).borderWidth);
+            myChart.data.datasets[0].data = state.records.map(r => r.energy);
+            myChart.update();
+        }
+
+        function openPrinciple() {
+            const mp = document.getElementById('modal-principle');
+            const mc = mp.querySelector('.modal-content');
+            mp.classList.remove('opacity-0', 'pointer-events-none');
+            mc.classList.remove('scale-95', 'opacity-0');
+            mc.classList.add('scale-100', 'opacity-100');
+            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) MathJax.typesetPromise().catch(function () {});
+        }
+        function closePrinciple() {
+            const mp = document.getElementById('modal-principle');
+            const mc = mp.querySelector('.modal-content');
+            mc.classList.remove('scale-100', 'opacity-100');
+            mc.classList.add('scale-95', 'opacity-0');
+            mp.classList.add('opacity-0', 'pointer-events-none');
+        }
+        function openSteps() {
+            const ms = document.getElementById('modal-steps');
+            const sc = ms.querySelector('.modal-content');
+            ms.classList.remove('opacity-0', 'pointer-events-none');
+            sc.classList.remove('scale-95', 'opacity-0');
+            sc.classList.add('scale-100', 'opacity-100');
+        }
+        function closeSteps() {
+            const ms = document.getElementById('modal-steps');
+            const sc = ms.querySelector('.modal-content');
+            sc.classList.remove('scale-100', 'opacity-100');
+            sc.classList.add('scale-95', 'opacity-0');
+            ms.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        document.getElementById('btn-steps').addEventListener('click', () => { closePrinciple(); openSteps(); });
+        document.getElementById('btn-principle').addEventListener('click', () => { closeSteps(); openPrinciple(); });
+        ['modal-close', 'modal-confirm'].forEach(id => document.getElementById(id).addEventListener('click', closePrinciple));
+        ['steps-close', 'steps-confirm'].forEach(id => document.getElementById(id).addEventListener('click', closeSteps));
+        document.getElementById('modal-principle').addEventListener('click', e => { if (e.target.id === 'modal-principle') closePrinciple(); });
+        document.getElementById('modal-steps').addEventListener('click', e => { if (e.target.id === 'modal-steps') closeSteps(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePrinciple(); closeSteps(); } });
+
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+    </script>
+</body>
+</html>

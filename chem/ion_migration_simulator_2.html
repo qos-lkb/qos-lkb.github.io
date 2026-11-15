@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>離子移動與顯色反應雙模式模擬器 Ion Migration Simulator</title>
+  <style>
+    * { box-sizing: border-box; font-family: "Segoe UI", Microsoft JhengHei, Arial, sans-serif; }
+    body { background-color: #f4f7f6; color: #333; margin: 0; padding: 12px; display: flex; flex-direction: column; align-items: center; }
+    h1 { margin: 0 0 10px 0; color: #2c3e50; font-size: 22px; text-align: center; }
+    .container { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 820px; width: 100%; }
+    
+    /* 模式切換頁籤 */
+    .mode-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tab-btn { flex: 1; padding: 8px 10px; border: 2px solid #3498db; background: #fff; color: #3498db; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+    .tab-btn.active { background: #3498db; color: #fff; }
+
+    .control-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; background: #eef2f5; padding: 10px 12px; border-radius: 8px; }
+    .control-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+    .control-group { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 150px; }
+    label { font-weight: bold; font-size: 12px; color: #444; }
+    
+    select, input, button { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; height: 34px; box-sizing: border-box; }
+    .btn-group { display: flex; gap: 6px; width: 100%; }
+    
+    button { cursor: pointer; background-color: #3498db; color: white; border: none; font-weight: bold; transition: 0.2s; white-space: nowrap; flex-shrink: 0; }
+    button:hover { background-color: #2980b9; }
+    button.power-btn { background-color: #2ecc71; flex: 1; }
+    button.power-btn.off { background-color: #e74c3c; }
+    button.clear-btn { background-color: #e67e22; flex: 1; }
+
+    .rule-tip { background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 6px 10px; font-size: 12px; border-radius: 4px; margin-bottom: 8px; }
+
+    canvas { background-color: #fafafa; border: 2px solid #ddd; border-radius: 8px; width: 100%; height: 300px; display: block; }
+    
+    .active-ions { margin-top: 8px; padding: 8px; background: #f8f9fa; border: 1px dashed #bbb; border-radius: 6px; }
+    .ion-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .ion-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; background: #fff; border: 1px solid #ddd; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.2); }
+    
+    .reaction-log { margin-top: 8px; padding: 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px; font-size: 12px; color: #856404; display: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>離子移動與顯色反應模擬器 Ion Migration Simulator</h1>
+
+  <!-- 實驗模式切換鈕 -->
+  <div class="mode-tabs">
+    <button id="tabFilter" class="tab-btn active">📄 濾紙實驗法 (Filter Paper)</button>
+    <button id="tabUTube" class="tab-btn">🧪 U-型管實驗法 (U-Tube)</button>
+  </div>
+
+  <div class="rule-tip" id="ruleTip">
+    💡 <b>移動規律 Movement Rule：</b> 通電後，<b>正離子 Cations</b>向 <b>`-` 極 (左 Left)</b> 移動；<b>負離子 Anions</b>向 <b>`+` 極 (右 Right)</b> 移動。
+  </div>
+  
+  <div class="control-panel">
+    <!-- 第一行：選擇與加入 -->
+    <div class="control-row">
+      <div class="control-group" style="flex: 2; min-width: 240px;">
+        <label for="ionSelect">選擇離子 Select Ion：</label>
+        <select id="ionSelect"></select>
+      </div>
+      <div class="control-group" style="flex: 1.5; min-width: 180px;">
+        <label for="posSelect">投放位置 Position：</label>
+        <select id="posSelect"></select>
+      </div>
+      <div class="control-group" style="flex: 0 0 auto;">
+        <label>&nbsp;</label>
+        <button id="addIonBtn">加入離子 Add Ion</button>
+      </div>
+    </div>
+
+    <!-- 第二行：電壓與操作按鈕 -->
+    <div class="control-row">
+      <div class="control-group" style="flex: 1.5; min-width: 180px;">
+        <label for="voltageSlider">直流電壓 Voltage: <span id="voltageVal">15</span> V</label>
+        <input type="range" id="voltageSlider" min="0" max="30" value="15" style="height: auto;">
+      </div>
+      <div class="control-group" style="flex: 1; min-width: 220px;">
+        <label>電源與重置 Controls：</label>
+        <div class="btn-group">
+          <button id="powerBtn" class="power-btn off">開啟電源 Power ON</button>
+          <button id="clearBtn" class="clear-btn">清空溶液 Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="simCanvas" width="760" height="300"></canvas>
+
+  <div class="reaction-log" id="reactionLog"></div>
+
+  <div class="active-ions">
+    <label>溶液中已加入的離子 Active Ions in Solution：</label>
+    <div class="ion-tags" id="ionTagsBox">無 None (請選擇離子、位置後點擊加入)</div>
+  </div>
+</div>
+
+<script>
+  let currentMode = 'filter';
+
+  // 中英對照離子資料庫（包含英式英文與離子標示）
+  const ION_DATABASE = {
+    'Cu2':    { formula: 'Cu²⁺', name: '銅(II)離子 Copper(II) ion', charge: 2, color: '#1E88E5' },
+    'Fe2':    { formula: 'Fe²⁺', name: '鐵(II)離子 Iron(II) ion', charge: 2, color: '#81C784' },
+    'Fe3':    { formula: 'Fe³⁺', name: '鐵(III)離子 Iron(III) ion', charge: 3, color: '#EF6C00' },
+    'Mn2':    { formula: 'Mn²⁺', name: '錳(II)離子 Manganese(II) ion', charge: 2, color: '#F48FB1' },
+    'Cr2':    { formula: 'Cr²⁺', name: '鉻(II)離子 Chromium(II) ion', charge: 2, color: '#4FC3F7' },
+    'Cr3':    { formula: 'Cr³⁺', name: '鉻(III)離子 Chromium(III) ion', charge: 3, color: '#2E7D32' },
+    'Co2':    { formula: 'Co²⁺', name: '鈷(II)離子 Cobalt(II) ion', charge: 2, color: '#EC407A' },
+    'Ni2':    { formula: 'Ni²⁺', name: '鎳(II)離子 Nickel(II) ion', charge: 2, color: '#66BB6A' },
+    'Ba2':    { formula: 'Ba²⁺', name: '鋇離子 Barium ion', charge: 2, color: '#E0E0E0', isColorless: true },
+    'MnO4':   { formula: 'MnO₄⁻', name: '高錳酸根離子 Permanganate ion', charge: -1, color: '#7B1FA2' },
+    'Cr2O7':  { formula: 'Cr₂O₇²⁻', name: '重鉻酸根離子 Dichromate ion', charge: -2, color: '#F57C00' },
+    'SCN':    { formula: 'SCN⁻', name: '硫氰酸根離子 Thiocyanate ion', charge: -1, color: '#E0F7FA', isColorless: true },
+    'FeCN6':  { formula: '[Fe(CN)₆]³⁻', name: '鐵氰酸根離子 Hexacyanoferrate(III) ion', charge: -3, color: '#FFF176' },
+    'OH':     { formula: 'OH⁻', name: '氫氧根離子 Hydroxide ion', charge: -1, color: '#E1F5FE', isColorless: true },
+    'SO4':    { formula: 'SO₄²⁻', name: '硫酸根離子 Sulphate ion', charge: -2, color: '#ECEFF1', isColorless: true }
+  };
+
+  // 中英對照化學反應資料庫
+  const REACTIONS = [
+    { pair: ['Fe3', 'SCN'], prodFormula: '[Fe(SCN)]²⁺', prodName: '硫氰酸鐵(III)離子 Iron(III) thiocyanate ion (血紅色 / Blood Red)', color: '#B71C1C', charge: 2 },
+    { pair: ['Fe2', 'FeCN6'], prodFormula: '普魯士藍', prodName: '普魯士藍沉澱 Prussian blue ppt. (深藍色 / Dark Blue)', color: '#0D47A1', charge: 0 },
+    { pair: ['Fe3', 'OH'], prodFormula: 'Fe(OH)₃', prodName: '氫氧化鐵沉澱 Iron(III) hydroxide ppt. (紅棕色 / Red-Brown)', color: '#8D6E63', charge: 0 },
+    { pair: ['Cu2', 'OH'], prodFormula: 'Cu(OH)₂', prodName: '氫氧化銅沉澱 Copper(II) hydroxide ppt. (淺藍色 / Light Blue)', color: '#00BCD4', charge: 0 },
+    { pair: ['Cr3', 'OH'], prodFormula: 'Cr(OH)₃', prodName: '氫氧化鉻沉澱 Chromium(III) hydroxide ppt. (灰綠色 / Grey-Green)', color: '#4CAF50', charge: 0 },
+    { pair: ['Mn2', 'OH'], prodFormula: 'Mn(OH)₂', prodName: '氫氧化錳沉澱 Manganese(II) hydroxide ppt. (淡棕色 / Pale Brown)', color: '#D7CCC8', charge: 0 },
+    { pair: ['Ba2', 'SO4'], prodFormula: 'BaSO₄', prodName: '硫酸鋇沉澱 Barium sulphate ppt. (白色 / White)', color: '#FFFFFF', charge: 0 }
+  ];
+
+  // U-型管幾何參數
+  const XL = 290, XR = 470, Y_TOP = 50, Y_BOT = 160;
+  const R = (XR - XL) / 2;
+  const TUBE_WIDTH = 36;
+  const L1 = Y_BOT - Y_TOP;
+  const L2 = Math.PI * R;
+  const L3 = L1;
+  const L_TOTAL = L1 + L2 + L3;
+
+  const canvas = document.getElementById('simCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let isPowerOn = false;
+  let voltage = 15;
+  let particles = [];
+  let addedBatches = [];
+  let activeReactions = new Set();
+
+  function populateSelects() {
+    const ionSelect = document.getElementById('ionSelect');
+    ionSelect.innerHTML = '';
+    const catGroup = document.createElement('optgroup'); catGroup.label = '正離子 / 陽離子 Cations';
+    const anGroup = document.createElement('optgroup'); anGroup.label = '負離子 / 陰離子 Anions';
+    for (let key in ION_DATABASE) {
+      const ion = ION_DATABASE[key];
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = `${ion.formula} - ${ion.name} ${ion.isColorless ? '(無色 / Colorless)' : ''}`;
+      if (ion.charge > 0) catGroup.appendChild(opt); else anGroup.appendChild(opt);
+    }
+    ionSelect.appendChild(catGroup); ionSelect.appendChild(anGroup);
+
+    updatePosOptions();
+  }
+
+  function updatePosOptions() {
+    const posSelect = document.getElementById('posSelect');
+    posSelect.innerHTML = '';
+    if (currentMode === 'filter') {
+      posSelect.innerHTML = `
+        <option value="left">左側 Left (- 極旁)</option>
+        <option value="center" selected>中間 Center</option>
+        <option value="right">右側 Right (+ 極旁)</option>
+      `;
+    } else {
+      posSelect.innerHTML = `
+        <option value="left">左管臂 Left arm (- 極旁)</option>
+        <option value="center" selected>底部彎曲處 Bottom</option>
+        <option value="right">右管臂 Right arm (+ 極旁)</option>
+      `;
+    }
+  }
+
+  function getUTubePos(s, r) {
+    let x, y, nx, ny;
+    if (s <= L1) {
+      x = XL; y = Y_TOP + s; nx = 1; ny = 0;
+    } else if (s <= L1 + L2) {
+      let s_rel = s - L1;
+      let theta = Math.PI - (s_rel / L2) * Math.PI;
+      x = (XL + XR) / 2 + R * Math.cos(theta);
+      y = Y_BOT + R * Math.sin(theta);
+      nx = Math.cos(theta); ny = Math.sin(theta);
+    } else {
+      let s_rel = s - L1 - L2;
+      x = XR; y = Y_BOT - s_rel; nx = 1; ny = 0;
+    }
+    return { x: x + nx * r, y: y + ny * r };
+  }
+
+  class Particle {
+    constructor(key, startXorS, customProps = null) {
+      if (customProps) {
+        this.key = key; this.formula = customProps.formula; this.charge = customProps.charge; this.color = customProps.color; this.isColorless = false;
+      } else {
+        const ion = ION_DATABASE[key];
+        this.key = key; this.formula = ion.formula; this.charge = ion.charge; this.color = ion.color; this.isColorless = !!ion.isColorless;
+      }
+      this.radius = 5;
+      this.remove = false;
+
+      if (currentMode === 'filter') {
+        this.x = startXorS + (Math.random() - 0.5) * 35;
+        this.y = canvas.height / 2 + (Math.random() - 0.5) * 45;
+      } else {
+        this.s = startXorS + (Math.random() - 0.5) * 15;
+        this.r = (Math.random() - 0.5) * (TUBE_WIDTH - 10);
+      }
+    }
+
+    update() {
+      if (currentMode === 'filter') {
+        this.x += (Math.random() - 0.5) * 0.5;
+        this.y += (Math.random() - 0.5) * 0.5;
+        if (isPowerOn && voltage > 0 && this.charge !== 0) {
+          this.x += (-this.charge * voltage) * 0.015;
+        }
+        const minX = 65, maxX = 695, minY = 75, maxY = 205;
+        if (this.x < minX) this.x = minX; if (this.x > maxX) this.x = maxX;
+        if (this.y < minY) this.y = minY; if (this.y > maxY) this.y = maxY;
+      } else {
+        this.s += (Math.random() - 0.5) * 0.5;
+        this.r += (Math.random() - 0.5) * 0.3;
+        if (isPowerOn && voltage > 0 && this.charge !== 0) {
+          this.s += (-this.charge * voltage) * 0.04;
+        }
+        if (this.s < 5) this.s = 5;
+        if (this.s > L_TOTAL - 5) this.s = L_TOTAL - 5;
+        const maxR = (TUBE_WIDTH - 10) / 2;
+        if (this.r < -maxR) this.r = -maxR;
+        if (this.r > maxR) this.r = maxR;
+      }
+    }
+
+    draw() {
+      if (currentMode === 'utube') {
+        const pos = getUTubePos(this.s, this.r);
+        this.x = pos.x; this.y = pos.y;
+      }
+
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = this.isColorless ? 0.3 : 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = this.isColorless ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.2)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  function addIonBatch() {
+    const key = document.getElementById('ionSelect').value;
+    const pos = document.getElementById('posSelect').value;
+    let startVal;
+
+    if (currentMode === 'filter') {
+      startVal = canvas.width / 2;
+      if (pos === 'left') startVal = 110; else if (pos === 'right') startVal = 650;
+    } else {
+      startVal = L_TOTAL / 2;
+      if (pos === 'left') startVal = L1 * 0.4; else if (pos === 'right') startVal = L1 + L2 + L3 * 0.6;
+    }
+
+    addedBatches.push({ key: key, pos: pos });
+    for (let i = 0; i < 60; i++) particles.push(new Particle(key, startVal));
+    renderIonTags();
+  }
+
+  function checkReactions() {
+    for (let i = 0; i < particles.length; i++) {
+      let p1 = particles[i]; if (p1.remove || !p1.x) continue;
+      for (let j = i + 1; j < particles.length; j++) {
+        let p2 = particles[j]; if (p2.remove || !p2.x) continue;
+        const dx = p1.x - p2.x, dy = p1.y - p2.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 10) {
+          for (let rxn of REACTIONS) {
+            if ((p1.key === rxn.pair[0] && p2.key === rxn.pair[1]) || (p1.key === rxn.pair[1] && p2.key === rxn.pair[0])) {
+              p1.remove = true; p2.remove = true;
+              let midVal = currentMode === 'filter' ? (p1.x + p2.x) / 2 : (p1.s + p2.s) / 2;
+              particles.push(new Particle(rxn.prodFormula, midVal, { formula: rxn.prodFormula, charge: rxn.charge, color: rxn.color }));
+              activeReactions.add(rxn.prodName);
+              updateReactionLog();
+              break;
+            }
+          }
+        }
+      }
+    }
+    particles = particles.filter(p => !p.remove);
+  }
+
+  function updateReactionLog() {
+    const logBox = document.getElementById('reactionLog');
+    if (activeReactions.size > 0) {
+      logBox.style.display = 'block';
+      logBox.innerHTML = '⚡ <b>生成新物質/沉澱反應 Reaction:</b> ' + Array.from(activeReactions).join('； ');
+    } else logBox.style.display = 'none';
+  }
+
+  function clearAll() {
+    particles = []; addedBatches = []; activeReactions.clear();
+    updateReactionLog(); renderIonTags();
+  }
+
+  function renderIonTags() {
+    const box = document.getElementById('ionTagsBox');
+    if (addedBatches.length === 0) {
+      box.innerHTML = '<span style="color:#888;">無 None (請選擇離子、位置後點擊加入)</span>'; return;
+    }
+    box.innerHTML = '';
+    const posTextMap = currentMode === 'filter' ?
+      { left: '左側 Left (-)', center: '中間 Center', right: '右側 Right (+)' } :
+      { left: '左臂 Left (-)', center: '底部 Bottom', right: '右臂 Right (+)' };
+
+    addedBatches.forEach(b => {
+      const ion = ION_DATABASE[b.key]; if (!ion) return;
+      const tag = document.createElement('div');
+      tag.className = 'ion-tag';
+      tag.innerHTML = `<span class="color-dot" style="background:${ion.color}"></span>${ion.formula} (${posTextMap[b.pos]})`;
+      box.appendChild(tag);
+    });
+  }
+
+  function drawFilterPaperScene() {
+    ctx.fillStyle = "#f0f0f0"; ctx.fillRect(50, 60, 660, 160);
+    ctx.strokeStyle = "#bbb"; ctx.lineWidth = 2; ctx.strokeRect(50, 60, 660, 160);
+
+    ctx.beginPath(); ctx.setLineDash([5, 5]);
+    ctx.moveTo(canvas.width / 2, 60); ctx.lineTo(canvas.width / 2, 220);
+    ctx.strokeStyle = "#aaa"; ctx.stroke(); ctx.setLineDash([]);
+
+    ctx.fillStyle = "#34495e"; ctx.fillRect(30, 40, 20, 200);
+    ctx.fillStyle = "#34495e"; ctx.fillRect(710, 40, 20, 200);
+
+    ctx.fillStyle = "#e74c3c"; ctx.font = "bold 32px Arial"; ctx.fillText("-", 8, 145);
+    ctx.fillStyle = "#2980b9"; ctx.font = "bold 32px Arial"; ctx.fillText("+", 735, 145);
+
+    ctx.beginPath(); ctx.lineWidth = 3;
+    ctx.strokeStyle = isPowerOn ? "#f39c12" : "#95a5a6";
+    ctx.moveTo(40, 40); ctx.lineTo(40, 15); ctx.lineTo(330, 15);
+    ctx.moveTo(720, 40); ctx.lineTo(720, 15); ctx.lineTo(430, 15);
+    ctx.stroke();
+  }
+
+  function drawUTubeScene() {
+    const halfW = TUBE_WIDTH / 2;
+    ctx.lineWidth = 3; ctx.strokeStyle = "#7f8c8d"; ctx.fillStyle = "rgba(224, 247, 250, 0.3)";
+
+    ctx.beginPath();
+    ctx.moveTo(XL - halfW, Y_TOP);
+    ctx.lineTo(XL - halfW, Y_BOT);
+    ctx.arc((XL + XR)/2, Y_BOT, R + halfW, Math.PI, 0, true);
+    ctx.lineTo(XR + halfW, Y_TOP);
+    ctx.moveTo(XR - halfW, Y_TOP);
+    ctx.lineTo(XR - halfW, Y_BOT);
+    ctx.arc((XL + XR)/2, Y_BOT, R - halfW, 0, Math.PI, false);
+    ctx.lineTo(XL + halfW, Y_TOP);
+    ctx.stroke(); ctx.fill();
+
+    ctx.fillStyle = "#34495e"; ctx.fillRect(XL - 5, Y_TOP - 20, 10, 80);
+    ctx.fillStyle = "#e74c3c"; ctx.font = "bold 28px Arial"; ctx.fillText("-", XL - 35, Y_TOP + 15);
+
+    ctx.fillStyle = "#34495e"; ctx.fillRect(XR - 5, Y_TOP - 20, 10, 80);
+    ctx.fillStyle = "#2980b9"; ctx.font = "bold 28px Arial"; ctx.fillText("+", XR + 20, Y_TOP + 15);
+
+    ctx.beginPath(); ctx.lineWidth = 3;
+    ctx.strokeStyle = isPowerOn ? "#f39c12" : "#95a5a6";
+    ctx.moveTo(XL, Y_TOP - 20); ctx.lineTo(XL, 15); ctx.lineTo(330, 15);
+    ctx.moveTo(XR, Y_TOP - 20); ctx.lineTo(XR, 15); ctx.lineTo(430, 15);
+    ctx.stroke();
+  }
+
+  function drawScene() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (currentMode === 'filter') drawFilterPaperScene();
+    else drawUTubeScene();
+
+    ctx.fillStyle = isPowerOn ? "#2ecc71" : "#e74c3c";
+    ctx.fillRect(330, 5, 100, 20);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 12px Arial";
+    ctx.fillText(isPowerOn ? "POWER ON" : "POWER OFF", 342, 19);
+
+    checkReactions();
+    particles.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(drawScene);
+  }
+
+  function togglePower() {
+    isPowerOn = !isPowerOn;
+    const btn = document.getElementById('powerBtn');
+    btn.innerText = isPowerOn ? "關閉電源 Power OFF" : "開啟電源 Power ON";
+    if (isPowerOn) btn.classList.remove('off'); else btn.classList.add('off');
+  }
+
+  function switchMode(mode) {
+    if (currentMode === mode) return;
+    currentMode = mode;
+    document.getElementById('tabFilter').classList.toggle('active', mode === 'filter');
+    document.getElementById('tabUTube').classList.toggle('active', mode === 'utube');
+    
+    updatePosOptions();
+    clearAll();
+  }
+
+  document.getElementById('tabFilter').addEventListener('click', () => switchMode('filter'));
+  document.getElementById('tabUTube').addEventListener('click', () => switchMode('utube'));
+  document.getElementById('addIonBtn').addEventListener('click', addIonBatch);
+  document.getElementById('clearBtn').addEventListener('click', clearAll);
+  document.getElementById('powerBtn').addEventListener('click', togglePower);
+  document.getElementById('voltageSlider').addEventListener('input', (e) => {
+    voltage = parseInt(e.target.value); document.getElementById('voltageVal').innerText = voltage;
+  });
+
+  populateSelects();
+  drawScene();
+</script>
+</body>
+</html>

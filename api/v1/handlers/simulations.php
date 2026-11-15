@@ -54,10 +54,18 @@ function api_handle_simulation_html(PDO $pdo, string $slug): void
         exit;
     }
 
+    $body = sim_body_from_row($sim);
+    if (trim($body) === '') {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Not found';
+        exit;
+    }
+
     header('Content-Type: text/html; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
     header('Content-Security-Policy: ' . simulation_html_csp());
-    echo simulation_prepare_iframe_html((string) $sim['html']);
+    echo simulation_prepare_iframe_html($body);
     exit;
 }
 
@@ -88,6 +96,7 @@ function api_handle_admin_simulations(PDO $pdo, string $method): void
                 api_json_error('forbidden', '沒有權限。', 403);
             }
             $sim['tags'] = sim_get_tag_slugs($pdo, $id);
+            $sim['html'] = sim_body_from_row($sim);
             api_json_ok($sim);
             return;
         }

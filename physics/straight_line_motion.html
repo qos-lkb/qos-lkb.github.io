@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直線運動 | Linear Motion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #0284c7; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        input[type=range]:disabled { opacity: .45; }
+        .preset-btn { padding: 7px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover { background: #e0f2fe; border-color: #7dd3fc; }
+        .preset-btn.active { background: #0284c7; color: #fff; border-color: #0284c7; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #0284c7; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #7dd3fc; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+        .mj-box mjx-container { color: #7dd3fc !important; }
+        .mj-calc { overflow-x: auto; font-size: 13px; line-height: 1.85; color: #334155; }
+        .calc-step { padding: 10px 12px; border-radius: 10px; background: #f0f9ff; border: 1px solid #bae6fd; margin-bottom: 8px; }
+        .calc-step:last-child { margin-bottom: 0; }
+        #live-math .calc-step { text-align: left; font-size: 11px; font-weight: 700; color: #334155; }
+        .a-live { box-shadow: 0 0 0 2px #fb7185; }
+        #scene { width: 100%; height: 100%; background: #7dd3fc; }
+        .graph-wrap { position: relative; min-height: 128px; }
+        .graph-wrap canvas { width: 100%; height: 100%; cursor: crosshair; }
+</style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-rose-500 text-white flex items-center justify-center shadow-md shadow-sky-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h14"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 17V11l4-5h6l4 4v7"/><path d="M9 11h6"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">直線運動</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">勻速／勻加速：s–t、v–t、a–t 同步</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-800 rounded-xl font-bold text-sm shadow-sm border border-sky-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-[92rem] mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:col-span-4 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="play">開始</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                </div>
+                <label class="check-row mb-3"><input type="checkbox" id="in-slow"><span data-i18n="slowMo">慢動作（0.4×）</span></label>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="uniform" data-i18n="preUniform">① 勻速向右（a＝0）</button>
+                    <button type="button" class="preset-btn" data-preset="accel" data-i18n="preAccel">② 由靜止勻加速</button>
+                    <button type="button" class="preset-btn" data-preset="brake" data-i18n="preBrake">③ 減速停車</button>
+                    <button type="button" class="preset-btn" data-preset="reverse" data-i18n="preReverse">④ 反向勻速</button>
+                    <button type="button" class="preset-btn" data-preset="turn" data-i18n="preTurn">⑤ 減速後掉頭</button>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="block">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span data-i18n="labelS0">初位置 s₀</span>
+                            <span id="disp-s0" class="text-sky-700">0 m</span>
+                        </span>
+                        <input type="range" id="in-s0" min="-20" max="80" step="1" value="0">
+                    </label>
+                    <label class="block">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span data-i18n="labelV0">初速度 v₀（＋向右）</span>
+                            <span id="disp-v0" class="text-emerald-700">6.0 m/s</span>
+                        </span>
+                        <input type="range" id="in-v0" min="-15" max="15" step="0.5" value="6">
+                    </label>
+                    <label class="block" id="wrap-a">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span data-i18n="labelA">加速度 a（＋向右）</span>
+                            <span id="disp-a" class="text-rose-600">0.0 m/s²</span>
+                        </span>
+                        <input type="range" id="in-a" min="-8" max="8" step="0.5" value="0">
+                    </label>
+                    <label class="block">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                            <span data-i18n="labelScrub">時間軸檢視</span>
+                            <span id="disp-scrub" class="text-indigo-600">0.00 s</span>
+                        </span>
+                        <input type="range" id="in-scrub" min="0" max="1600" step="1" value="0">
+                    </label>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                    <label class="check-row"><input type="checkbox" id="in-vec" checked><span data-i18n="showVec">顯示速度／加速度箭咀</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-area" checked><span data-i18n="showArea">顯示 v–t 面積（＝位移）</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-pred" checked><span data-i18n="showPred">顯示預測曲線</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-slope"><span data-i18n="showSlope">顯示斜率（導數）</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-trail" checked><span data-i18n="showTrail">顯示位置軌跡</span></label>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-3" data-i18n="pauseHint">暫停時可改加速度，分段觀察運動。</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <div class="font-black text-sky-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div id="live-math" class="mj-calc"></div>
+                <div class="flex justify-between py-1 mt-1 border-t border-dashed border-slate-100">
+                    <span class="text-[11px] font-bold text-slate-500" data-i18n="statType">運動類型</span>
+                    <b id="stat-type" class="text-[11px] text-indigo-700">勻速</b>
+                </div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-8 flex flex-col gap-3 min-h-[36rem]">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative h-[250px] sm:h-[280px]">
+                <canvas id="scene"></canvas>
+                <div class="absolute top-2 left-2 right-2 flex flex-wrap gap-2 pointer-events-none">
+                    <div class="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm">
+                        <span class="italic">t</span> <span id="hud-t" class="font-mono text-slate-900">0.00</span> s
+                    </div>
+                    <div class="bg-sky-50/95 border border-sky-200 rounded-xl px-2.5 py-1 text-[11px] font-bold text-sky-800 shadow-sm">
+                        <span class="italic">s</span> <span id="hud-s" class="font-mono">0.00</span> m
+                    </div>
+                    <div class="bg-emerald-50/95 border border-emerald-200 rounded-xl px-2.5 py-1 text-[11px] font-bold text-emerald-800 shadow-sm">
+                        <span class="italic">v</span> <span id="hud-v" class="font-mono">6.00</span> m/s
+                    </div>
+                    <div class="bg-rose-50/95 border border-rose-200 rounded-xl px-2.5 py-1 text-[11px] font-bold text-rose-700 shadow-sm">
+                        <span class="italic">a</span> <span id="hud-a" class="font-mono">0.00</span> m/s²
+                    </div>
+                    <div id="hud-type" class="bg-indigo-600 text-white rounded-xl px-2.5 py-1 text-[11px] font-black shadow-sm">勻速</div>
+                </div>
+                <p class="absolute bottom-1.5 right-2 text-[10px] text-white/80 font-bold drop-shadow" data-i18n="signHint">＋方向：向右</p>
+            </div>
+
+            <div class="flex-1 min-h-[22rem] grid grid-rows-3 gap-2" id="graphs">
+                <div class="graph-wrap bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <canvas id="graph-s"></canvas>
+                </div>
+                <div class="graph-wrap bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <canvas id="graph-v"></canvas>
+                </div>
+                <div class="graph-wrap bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <canvas id="graph-a"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">勻速與勻加速直線運動</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">s–t、v–t、a–t 的斜率與面積</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m1t">1. 位移、速度、加速度</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">向右為正。位移 s 是相對原點的位置；速度 v 是位置隨時間的變化率；加速度 a 是速度隨時間的變化率。</p>
+                    <div class="mj-box mt-2">\( v = \dfrac{\Delta s}{\Delta t},\quad a = \dfrac{\Delta v}{\Delta t} \)</div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 勻速與勻加速</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">勻速：a＝0，v 不變，s–t 是直線。勻加速：a 為常數，v–t 是斜線，s–t 是拋物線。</p>
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div class="calc-step">
+                            <div class="text-xs font-bold text-sky-800 mb-1" data-i18n="m2a">勻速</div>
+                            <div class="mj-calc">\( s = s_0 + vt \)</div>
+                        </div>
+                        <div class="calc-step">
+                            <div class="text-xs font-bold text-rose-800 mb-1" data-i18n="m2b">勻加速</div>
+                            <div class="mj-calc">\( v = v_0 + at \)</div>
+                            <div class="mj-calc">\( s = s_0 + v_0 t + \tfrac{1}{2}at^2 \)</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m3t">3. 圖線的斜率與面積</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m3d">s–t 的斜率等於瞬時速度；v–t 的斜率等於加速度；v–t 曲線與時間軸圍成的有號面積等於位移。</p>
+                    <div class="mj-box">\( v = \dfrac{ds}{dt},\quad a = \dfrac{dv}{dt},\quad \Delta s = \int v\,dt \)</div>
+                </div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m4t">4. 生活例子</h3>
+                    <p class="text-xs text-indigo-800" data-i18n="m4d">高速公路定速巡航接近勻速。由交通燈起動是勻加速；踩剎車減速停車是負加速度。若剎車夠強，車會停下來再向反方向倒退——看 v 穿過零線。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-sky-100" data-i18n="stepsSub">How to read the three graphs</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">選教學情境，或自行調 s₀、v₀、a。先看右側預測虛線，猜三個圖會是什麼形狀。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">按開始，對照車輛箭咀與圖線：勻速時 s–t 是直線、v–t 水平；勻加速時 s–t 彎曲、v–t 傾斜。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">把游標移到圖上，比較同一時刻的 s、v、a。開啟「顯示斜率」：s–t 斜率＝v，v–t 斜率＝a。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">開啟 v–t 面積，核對有號面積是否等於位移 Δs。暫停後可改 a，看圖線如何轉折。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const MAX_T = 16;
+const PX_PER_M = 22;
+const PRESETS = {
+    uniform: { s0: 0, v0: 6, a: 0 },
+    accel:   { s0: 0, v0: 0, a: 2 },
+    brake:   { s0: 0, v0: 12, a: -2 },
+    reverse: { s0: 50, v0: -6, a: 0 },
+    turn:    { s0: 0, v0: 10, a: -2.5 }
+};
+
+const i18n = {
+    zh: {
+        title: '直線運動', badge: '物理', subtitle: '勻速／勻加速：s–t、v–t、a–t 同步',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟',
+        controlTitle: '實驗控制', play: '開始', pause: '暫停', resume: '繼續', reset: '重置',
+        slowMo: '慢動作（0.4×）', presets: '教學情境',
+        preUniform: '① 勻速向右（a＝0）', preAccel: '② 由靜止勻加速',
+        preBrake: '③ 減速停車', preReverse: '④ 反向勻速', preTurn: '⑤ 減速後掉頭',
+        labelS0: '初位置 s₀', labelV0: '初速度 v₀（＋向右）', labelA: '加速度 a（＋向右）',
+        labelScrub: '時間軸檢視',
+        showVec: '顯示速度／加速度箭咀', showArea: '顯示 v–t 面積（＝位移）',
+        showPred: '顯示預測曲線', showSlope: '顯示斜率（導數）', showTrail: '顯示位置軌跡',
+        pauseHint: '暫停時可改加速度，分段觀察運動。',
+        liveTitle: '即時數據', statT: '時間 t', statS: '位置 s', statV: '速度 v',
+        statA: '加速度 a', statDs: '位移 Δs', statType: '運動類型', eqTitle: '代入公式',
+        signHint: '＋方向：向右',
+        typeRest: '靜止', typeUniform: '勻速', typeAccel: '加速', typeDecel: '減速', typeStart: '由靜止起動',
+        graphST: '位置–時間  s–t', graphVT: '速度–時間  v–t', graphAT: '加速度–時間  a–t',
+        slope: '斜率', pred: '預測', area: '面積＝Δs',
+        stepsTitle: '觀察步驟', stepsSub: '怎樣讀這三張圖',
+        s1: '選教學情境，或自行調 s₀、v₀、a。先看右側預測虛線，猜三個圖會是什麼形狀。',
+        s2: '按開始，對照車輛箭咀與圖線：勻速時 s–t 是直線、v–t 水平；勻加速時 s–t 彎曲、v–t 傾斜。',
+        s3: '把游標移到圖上，比較同一時刻的 s、v、a。開啟「顯示斜率」：s–t 斜率＝v，v–t 斜率＝a。',
+        s4: '開啟 v–t 面積，核對有號面積是否等於位移 Δs。暫停後可改 a，看圖線如何轉折。',
+        modalTitle: '勻速與勻加速直線運動', modalSub: 's–t、v–t、a–t 的斜率與面積', modalClose: '關閉',
+        m1t: '1. 位移、速度、加速度',
+        m1d: '向右為正。位移 s 是相對原點的位置；速度 v 是位置隨時間的變化率；加速度 a 是速度隨時間的變化率。',
+        m2t: '2. 勻速與勻加速',
+        m2d: '勻速：a＝0，v 不變，s–t 是直線。勻加速：a 為常數，v–t 是斜線，s–t 是拋物線。',
+        m2a: '勻速', m2b: '勻加速',
+        m3t: '3. 圖線的斜率與面積',
+        m3d: 's–t 的斜率等於瞬時速度；v–t 的斜率等於加速度；v–t 曲線與時間軸圍成的有號面積等於位移。',
+        m4t: '4. 生活例子',
+        m4d: '高速公路定速巡航接近勻速。由交通燈起動是勻加速；踩剎車減速停車是負加速度。若剎車夠強，車會停下來再向反方向倒退——看 v 穿過零線。'
+    },
+    en: {
+        title: 'Linear Motion', badge: 'Physics', subtitle: 'Uniform / uniformly accelerated: synced s–t, v–t, a–t',
+        btnPrinciple: 'Theory', btnSteps: 'Steps',
+        controlTitle: 'Controls', play: 'Start', pause: 'Pause', resume: 'Resume', reset: 'Reset',
+        slowMo: 'Slow motion (0.4×)', presets: 'Scenarios',
+        preUniform: '① Uniform to the right (a = 0)', preAccel: '② Accelerate from rest',
+        preBrake: '③ Brake to a stop', preReverse: '④ Uniform reverse', preTurn: '⑤ Slow down, then reverse',
+        labelS0: 'Initial position s₀', labelV0: 'Initial velocity v₀ (+ right)', labelA: 'Acceleration a (+ right)',
+        labelScrub: 'Time scrubber',
+        showVec: 'Show v / a arrows', showArea: 'Shade v–t area (= displacement)',
+        showPred: 'Show predicted curves', showSlope: 'Show slope (derivative)', showTrail: 'Show position trail',
+        pauseHint: 'While paused you can change a and watch piecewise motion.',
+        liveTitle: 'Live data', statT: 'Time t', statS: 'Position s', statV: 'Velocity v',
+        statA: 'Acceleration a', statDs: 'Displacement Δs', statType: 'Motion type', eqTitle: 'Substitute',
+        signHint: '+ direction: right',
+        typeRest: 'At rest', typeUniform: 'Uniform', typeAccel: 'Speeding up', typeDecel: 'Slowing down', typeStart: 'Starting from rest',
+        graphST: 'Position–time  s–t', graphVT: 'Velocity–time  v–t', graphAT: 'Acceleration–time  a–t',
+        slope: 'slope', pred: 'predict', area: 'area = Δs',
+        stepsTitle: 'Observation steps', stepsSub: 'How to read the three graphs',
+        s1: 'Pick a scenario, or set s₀, v₀ and a. Look at the dashed prediction and guess the graph shapes.',
+        s2: 'Press Start. Match the car arrows with the graphs: uniform motion gives a straight s–t and flat v–t; constant a bends s–t and tilts v–t.',
+        s3: 'Hover the graphs to compare s, v and a at the same t. Turn on slope: s–t slope = v, v–t slope = a.',
+        s4: 'Turn on the v–t area and check that the signed area equals Δs. Pause and change a to see a kink in the graphs.',
+        modalTitle: 'Uniform and uniformly accelerated motion', modalSub: 'Slope and area on s–t, v–t, a–t', modalClose: 'Close',
+        m1t: '1. Displacement, velocity, acceleration',
+        m1d: 'Right is positive. s is position from the origin; v is the rate of change of position; a is the rate of change of velocity.',
+        m2t: '2. Uniform vs uniformly accelerated',
+        m2d: 'Uniform: a = 0, v stays constant, s–t is a straight line. Uniformly accelerated: a is constant, v–t is a slanted line, s–t is a parabola.',
+        m2a: 'Uniform', m2b: 'Uniform acceleration',
+        m3t: '3. Slope and area',
+        m3d: 'The slope of s–t is instantaneous velocity; the slope of v–t is acceleration; the signed area under v–t equals displacement.',
+        m4t: '4. Everyday examples',
+        m4d: 'Highway cruise control is nearly uniform. Pulling away from a traffic light is uniform acceleration; braking is negative a. If braking is strong enough, v crosses zero and the car reverses.'
+    }
+};
+
+const els = {};
+['btn-play','btn-reset','btn-lang','btn-lang-mobile','btn-steps','btn-principle',
+ 'in-slow','in-s0','in-v0','in-a','in-scrub','in-vec','in-area','in-pred','in-slope','in-trail',
+ 'disp-s0','disp-v0','disp-a','disp-scrub','wrap-a',
+ 'live-math','stat-type',
+ 'hud-t','hud-s','hud-v','hud-a','hud-type',
+ 'scene','graph-s','graph-v','graph-a','graphs',
+ 'modal-principle','modal-steps','modal-close','modal-confirm','steps-close','steps-confirm'
+].forEach(id => { els[id] = document.getElementById(id); });
+
+let lang = 'zh';
+let playing = false;
+let lastTs = 0;
+let t = 0;
+let recordedT = 0;
+let hoverT = null;
+let facing = 1;
+let activePreset = 'uniform';
+let segments = [{ t0: 0, s0: 0, v0: 6, a: 0 }];
+let trail = [];
+let liveMathKey = '';
+
+function num(id) { return parseFloat(els[id].value); }
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function fmt(n, d) { return (Math.abs(n) < 5e-3 ? 0 : n).toFixed(d); }
+
+function hash(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+}
+
+function stateAt(time) {
+    let seg = segments[0];
+    for (let i = 0; i < segments.length; i++) {
+        if (segments[i].t0 <= time + 1e-9) seg = segments[i];
+    }
+    const dt = time - seg.t0;
+    return {
+        t: time,
+        s: seg.s0 + seg.v0 * dt + 0.5 * seg.a * dt * dt,
+        v: seg.v0 + seg.a * dt,
+        a: seg.a,
+        s0: seg.s0,
+        v0: seg.v0,
+        dt
+    };
+}
+
+function currentInputs() {
+    return { s0: num('in-s0'), v0: num('in-v0'), a: num('in-a') };
+}
+
+function resetSegmentsFromInputs() {
+    const p = currentInputs();
+    segments = [{ t0: 0, s0: p.s0, v0: p.v0, a: p.a }];
+}
+
+function motionType(st) {
+    const T = i18n[lang];
+    if (Math.abs(st.v) < 0.08 && Math.abs(st.a) < 0.08) return T.typeRest;
+    if (Math.abs(st.v) < 0.08 && Math.abs(st.a) >= 0.08) return T.typeStart;
+    if (Math.abs(st.a) < 0.08) return T.typeUniform;
+    if (st.a * st.v > 0) return T.typeAccel;
+    return T.typeDecel;
+}
+
+function syncSliders() {
+    els['disp-s0'].textContent = fmt(num('in-s0'), 0) + ' m';
+    els['disp-v0'].textContent = fmt(num('in-v0'), 1) + ' m/s';
+    els['disp-a'].textContent = fmt(num('in-a'), 1) + ' m/s²';
+    els['disp-scrub'].textContent = fmt(t, 2) + ' s';
+    els['in-scrub'].max = String(Math.round(MAX_T * 100));
+    els['in-scrub'].value = String(Math.round(t * 100));
+}
+
+function setPlayLabel() {
+    const T = i18n[lang];
+    els['btn-play'].textContent = playing ? T.pause : (recordedT > 0 ? T.resume : T.play);
+}
+
+function setInputLock() {
+    const started = recordedT > 0 || playing;
+    els['in-s0'].disabled = started;
+    els['in-v0'].disabled = started;
+    els['in-a'].disabled = playing;
+    els['wrap-a'].classList.toggle('a-live', !playing && recordedT > 0);
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    setPlayLabel();
+    syncSliders();
+    liveMathKey = '';
+    updateHud();
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+    }
+}
+
+function mjNum(n) {
+    const v = Math.abs(n) < 5e-3 ? 0 : n;
+    return v.toFixed(2);
+}
+
+function mjSigned(n) {
+    const v = Math.abs(n) < 5e-3 ? 0 : n;
+    if (Math.abs(v) < 1e-4) return '0';
+    return v > 0 ? mjNum(v) : `(${mjNum(v)})`;
+}
+
+function typesetLiveMath() {
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([els['live-math']]).catch(() => {});
+    }
+}
+
+function updateLiveMath(st) {
+    const T = i18n[lang];
+    const ds = st.s - st.s0;
+    const key = [st.t, st.s, st.v, st.a, ds, st.v0, st.s0, st.dt].map(n => mjNum(n)).join('|') + '|' + lang;
+    if (key === liveMathKey) return;
+    liveMathKey = key;
+
+    const v2 = st.v * st.v;
+    els['live-math'].innerHTML = `
+        <div class="calc-step"><span>${T.statT}</span>
+            <div class="calc-mj">\\( t = ${mjNum(st.t)}\\ \\text{s} \\)</div></div>
+        <div class="calc-step"><span>${T.statS}</span>
+            <div class="calc-mj">\\( s = ${mjNum(st.s)}\\ \\text{m} \\)</div></div>
+        <div class="calc-step"><span>${T.statV}</span>
+            <div class="calc-mj">\\( v = ${mjNum(st.v)}\\ \\text{m/s} \\)</div></div>
+        <div class="calc-step"><span>${T.statA}</span>
+            <div class="calc-mj">\\( a = ${mjNum(st.a)}\\ \\text{m/s}^2 \\)</div></div>
+        <div class="calc-step"><span>${T.statDs}</span>
+            <div class="calc-mj">\\( \\Delta s = ${mjSigned(ds)}\\ \\text{m} \\)</div></div>
+        <div class="text-[11px] font-bold text-slate-500 mt-3 mb-1.5">${T.eqTitle}</div>
+        <div class="calc-step">
+            <div class="calc-mj">\\( v = v_0 + at = ${mjSigned(st.v0)} + (${mjSigned(st.a)})(${mjNum(st.dt)}) = ${mjNum(st.v)}\\ \\text{m/s} \\)</div>
+        </div>
+        <div class="calc-step">
+            <div class="calc-mj">\\( s = s_0 + v_0 t + \\tfrac{1}{2}at^2 = ${mjSigned(st.s0)} + (${mjSigned(st.v0)})(${mjNum(st.dt)}) + \\tfrac{1}{2}(${mjSigned(st.a)})(${mjNum(st.dt)})^2 = ${mjNum(st.s)}\\ \\text{m} \\)</div>
+        </div>
+        <div class="calc-step">
+            <div class="calc-mj">\\( v^2 = v_0^2 + 2a\\Delta s = (${mjSigned(st.v0)})^2 + 2(${mjSigned(st.a)})(${mjSigned(ds)}) = ${mjNum(v2)}\\ \\text{(m/s)}^2 \\)</div>
+        </div>`;
+    typesetLiveMath();
+}
+
+function updateHud() {
+    const st = stateAt(t);
+    const typ = motionType(st);
+    els['stat-type'].textContent = typ;
+    els['hud-t'].textContent = fmt(st.t, 2);
+    els['hud-s'].textContent = fmt(st.s, 2);
+    els['hud-v'].textContent = fmt(st.v, 2);
+    els['hud-a'].textContent = fmt(st.a, 2);
+    els['hud-type'].textContent = typ;
+    updateLiveMath(st);
+    if (st.v !== 0) facing = st.v > 0 ? 1 : -1;
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function resetSim(keepPreset) {
+    playing = false;
+    lastTs = 0;
+    t = 0;
+    recordedT = 0;
+    hoverT = null;
+    trail = [];
+    liveMathKey = '';
+    resetSegmentsFromInputs();
+    const st = stateAt(0);
+    facing = st.v >= 0 ? 1 : -1;
+    setPlayLabel();
+    setInputLock();
+    syncSliders();
+    updateHud();
+    if (!keepPreset) {
+        document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    }
+}
+
+function applyPreset(name) {
+    const p = PRESETS[name];
+    activePreset = name;
+    els['in-s0'].value = p.s0;
+    els['in-v0'].value = p.v0;
+    els['in-a'].value = p.a;
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+    resetSim(true);
+}
+
+function startPlay() {
+    if (t >= MAX_T - 1e-4) return;
+    if (t < recordedT - 1e-4) {
+        recordedT = t;
+        trail = trail.filter(p => p.t <= t + 1e-6);
+        segments = segments.filter(s => s.t0 <= t + 1e-6);
+        const st = stateAt(t);
+        const last = segments[segments.length - 1];
+        last.a = num('in-a');
+        if (Math.abs(last.t0 - t) > 1e-6) {
+            segments.push({ t0: t, s0: st.s, v0: st.v, a: num('in-a') });
+        }
+    }
+    playing = true;
+    lastTs = 0;
+    setPlayLabel();
+    setInputLock();
+}
+
+function pausePlay() {
+    playing = false;
+    setPlayLabel();
+    setInputLock();
+}
+
+function togglePlay() {
+    if (playing) pausePlay();
+    else startPlay();
+}
+
+function onAccelChange() {
+    syncSliders();
+    if (recordedT === 0 && !playing) {
+        resetSegmentsFromInputs();
+        updateHud();
+        return;
+    }
+    if (playing) return;
+    const st = stateAt(t);
+    const a = num('in-a');
+    const last = segments[segments.length - 1];
+    if (Math.abs(last.t0 - t) < 1e-4) last.a = a;
+    else segments.push({ t0: t, s0: st.s, v0: st.v, a });
+    updateHud();
+}
+
+function seekTo(time) {
+    if (playing) pausePlay();
+    t = clamp(time, 0, Math.max(recordedT, 0));
+    syncSliders();
+    updateHud();
+}
+
+function step(dt) {
+    t = clamp(t + dt, 0, MAX_T);
+    recordedT = Math.max(recordedT, t);
+    const st = stateAt(t);
+    if (!trail.length || st.t - trail[trail.length - 1].t > 0.22) {
+        trail.push({ t: st.t, s: st.s });
+        if (trail.length > 80) trail.shift();
+    }
+    if (t >= MAX_T - 1e-4) pausePlay();
+    syncSliders();
+    updateHud();
+}
+
+function loop(ts) {
+    if (playing) {
+        if (!lastTs) lastTs = ts;
+        let dt = Math.min(0.033, (ts - lastTs) / 1000);
+        lastTs = ts;
+        if (els['in-slow'].checked) dt *= 0.4;
+        step(dt);
+    } else {
+        lastTs = 0;
+    }
+    drawAll();
+    requestAnimationFrame(loop);
+}
+
+function fitCanvas(cv) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = cv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(r.width * dpr));
+    const h = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== w || cv.height !== h) {
+        cv.width = w;
+        cv.height = h;
+    }
+    return { ctx: cv.getContext('2d'), w: r.width, h: r.height, dpr };
+}
+
+function drawHills(ctx, cam, w, h, groundY) {
+    const layers = [
+        { color: '#38bdf8', y: groundY - 92, amp: 18, k: 0.012, par: 0.12 },
+        { color: '#7dd3fc', y: groundY - 62, amp: 22, k: 0.018, par: 0.22 },
+        { color: '#86efac', y: groundY - 28, amp: 16, k: 0.028, par: 0.45 }
+    ];
+    layers.forEach(L => {
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        ctx.lineTo(0, L.y);
+        for (let x = 0; x <= w + 20; x += 12) {
+            const world = (cam + x) * L.par;
+            const y = L.y - Math.abs(Math.sin(world * L.k + 0.6)) * L.amp - Math.sin(world * L.k * 0.37) * 8;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(w, h);
+        ctx.closePath();
+        ctx.fillStyle = L.color;
+        ctx.fill();
+    });
+}
+
+function drawTree(ctx, x, groundY, scale) {
+    ctx.save();
+    ctx.translate(x, groundY);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#7c4a1e';
+    ctx.fillRect(-3.5, -22, 7, 22);
+    ctx.fillStyle = '#15803d';
+    ctx.beginPath(); ctx.arc(0, -34, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#16a34a';
+    ctx.beginPath(); ctx.arc(-9, -26, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(9, -26, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath(); ctx.arc(2, -38, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+function drawHouse(ctx, x, groundY, scale, tone) {
+    ctx.save();
+    ctx.translate(x, groundY);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(10, -36, 6, 12);
+    ctx.fillStyle = tone;
+    ctx.fillRect(-18, -28, 36, 28);
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.moveTo(-22, -28); ctx.lineTo(0, -46); ctx.lineTo(22, -28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(-4, -16, 8, 16);
+    ctx.fillStyle = '#93c5fd';
+    ctx.fillRect(-14, -22, 8, 7);
+    ctx.fillRect(6, -22, 8, 7);
+    ctx.strokeStyle = '#1d4ed8';
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(-14, -22, 8, 7);
+    ctx.strokeRect(6, -22, 8, 7);
+    ctx.restore();
+}
+
+function drawCloud(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.beginPath();
+    ctx.arc(0, 8, 14, 0, Math.PI * 2);
+    ctx.arc(16, 6, 16, 0, Math.PI * 2);
+    ctx.arc(32, 10, 12, 0, Math.PI * 2);
+    ctx.arc(14, 0, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawWheel(ctx, x, y, ang) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.beginPath(); ctx.arc(0, 0, 12.2, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 7.4, 0, Math.PI * 2);
+    const rg = ctx.createRadialGradient(-2, -2, 1, 0, 0, 8);
+    rg.addColorStop(0, '#f1f5f9');
+    rg.addColorStop(1, '#94a3b8');
+    ctx.fillStyle = rg; ctx.fill();
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 5; i++) {
+        ctx.rotate(Math.PI / 5);
+        ctx.beginPath(); ctx.moveTo(0, -6.6); ctx.lineTo(0, 6.6); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#334155'; ctx.fill();
+    ctx.restore();
+}
+
+function drawCar(ctx, x, groundY, face, wheelAng, st) {
+    const braking = st.a * st.v < -0.15;
+    const reverse = st.v < -0.15;
+    const movingFwd = st.v > 0.15;
+    ctx.save();
+    ctx.translate(x, groundY);
+    ctx.scale(face * 1.28, 1.28);
+
+    ctx.fillStyle = 'rgba(15,23,42,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(2, -4, 50, 6.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawWheel(ctx, -26, -13, wheelAng);
+    drawWheel(ctx, 28, -13, wheelAng);
+
+    const body = new Path2D();
+    body.moveTo(-48, -16);
+    body.bezierCurveTo(-50, -30, -36, -34, -20, -35);
+    body.lineTo(-10, -51);
+    body.bezierCurveTo(2, -58, 20, -56, 28, -36);
+    body.bezierCurveTo(46, -34, 56, -28, 55, -16);
+    body.lineTo(54, -12);
+    body.lineTo(-50, -12);
+    body.closePath();
+    const g = ctx.createLinearGradient(0, -56, 0, -12);
+    g.addColorStop(0, '#fb7185');
+    g.addColorStop(0.4, '#e11d48');
+    g.addColorStop(1, '#9f1239');
+    ctx.fillStyle = g;
+    ctx.fill(body);
+    ctx.strokeStyle = '#881337';
+    ctx.lineWidth = 1.15;
+    ctx.stroke(body);
+
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(-50, -16, 104, 4.5);
+
+    const glass = new Path2D();
+    glass.moveTo(-8, -36);
+    glass.lineTo(-2, -49);
+    glass.bezierCurveTo(8, -54, 18, -52, 24, -36);
+    glass.closePath();
+    const gg = ctx.createLinearGradient(0, -52, 8, -34);
+    gg.addColorStop(0, '#e0f2fe');
+    gg.addColorStop(1, '#38bdf8');
+    ctx.fillStyle = gg;
+    ctx.fill(glass);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(-4, -38); ctx.lineTo(2, -48); ctx.lineTo(8, -38);
+    ctx.closePath(); ctx.fill();
+
+    ctx.strokeStyle = 'rgba(127,29,29,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(8, -35); ctx.lineTo(8, -16); ctx.stroke();
+    ctx.strokeStyle = '#fda4af';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-2, -24); ctx.lineTo(5, -24); ctx.stroke();
+
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(26, -36); ctx.lineTo(34, -30); ctx.lineTo(26, -30);
+    ctx.closePath(); ctx.fill();
+
+    if (movingFwd) {
+        const glow = ctx.createRadialGradient(52, -24, 1, 52, -24, 16);
+        glow.addColorStop(0, 'rgba(254,240,138,0.85)');
+        glow.addColorStop(1, 'rgba(254,240,138,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(52, -24, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = movingFwd ? '#fde047' : '#facc15';
+    ctx.beginPath();
+    ctx.moveTo(49, -28); ctx.quadraticCurveTo(56, -26, 55, -20); ctx.lineTo(48, -20);
+    ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle = braking ? '#fecaca' : '#7f1d1d';
+    ctx.fillRect(-50, -26, 4, 7);
+    if (braking) {
+        ctx.fillStyle = 'rgba(248,113,113,0.45)';
+        ctx.beginPath(); ctx.arc(-48, -22, 10, 0, Math.PI * 2); ctx.fill();
+    }
+    if (reverse) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(-50, -18, 3.5, 3);
+    }
+
+    if (Math.abs(st.v) > 7) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 3; i++) {
+            const y = -18 - i * 8;
+            ctx.beginPath();
+            ctx.moveTo(-58 - i * 8, y);
+            ctx.lineTo(-72 - i * 14, y);
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+}
+
+function drawArrowVec(ctx, x, y, vx, color, label) {
+    const len = clamp(Math.abs(vx) * 8.5, 28, 110) * Math.sign(vx || 1);
+    if (Math.abs(vx) < 0.05) return;
+    const x2 = x + len;
+    const dir = Math.sign(len);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y); ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x2, y);
+    ctx.lineTo(x2 - 12 * dir, y - 6);
+    ctx.lineTo(x2 - 12 * dir, y + 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = '900 13px "Noto Sans TC", sans-serif';
+    ctx.textAlign = dir > 0 ? 'left' : 'right';
+    const tx = x2 + 10 * dir;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeText(label, tx, y - 8);
+    ctx.fillText(label, tx, y - 8);
+    ctx.restore();
+}
+
+function drawScene() {
+    const { ctx, w, h, dpr } = fitCanvas(els.scene);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const st = stateAt(t);
+    const groundY = h * 0.72;
+    const carScreen = w * 0.30;
+    const cam = st.s * PX_PER_M - carScreen;
+
+    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0, '#38bdf8');
+    sky.addColorStop(0.55, '#bae6fd');
+    sky.addColorStop(1, '#e0f2fe');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = '#fde68a';
+    ctx.beginPath(); ctx.arc(w * 0.82, 36, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(253,224,71,0.25)';
+    ctx.beginPath(); ctx.arc(w * 0.82, 36, 32, 0, Math.PI * 2); ctx.fill();
+
+    const cloudSpan = 240;
+    const cloudOff = (((-cam * 0.18) % cloudSpan) + cloudSpan) % cloudSpan;
+    for (let i = -1; i < 7; i++) {
+        drawCloud(ctx, cloudOff + i * cloudSpan, 26 + ((i + 3) % 3) * 12, 0.7 + (i % 2) * 0.22);
+    }
+
+    drawHills(ctx, cam, w, h, groundY);
+
+    const grass = ctx.createLinearGradient(0, groundY - 36, 0, h);
+    grass.addColorStop(0, '#4ade80');
+    grass.addColorStop(1, '#16a34a');
+    ctx.fillStyle = grass;
+    ctx.fillRect(0, groundY - 18, w, h - groundY + 18);
+
+    const startM = Math.floor((cam / PX_PER_M - 8) / 8) * 8;
+    for (let m = startM; m < startM + 80; m += 8) {
+        const x = m * PX_PER_M - cam;
+        const u = hash(m + 3);
+        if (u < 0.55) drawTree(ctx, x, groundY - 18, 0.85 + hash(m + 9) * 0.45);
+        else if (u < 0.78) drawHouse(ctx, x, groundY - 18, 0.9 + hash(m + 1) * 0.25, hash(m) > 0.5 ? '#fef3c7' : '#ffe4e6');
+    }
+
+    const roadTop = groundY - 8;
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(0, roadTop, w, 52);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, roadTop + 50, w, 8);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, roadTop + 3); ctx.lineTo(w, roadTop + 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, roadTop + 48); ctx.lineTo(w, roadTop + 48); ctx.stroke();
+    ctx.strokeStyle = '#f8fafc';
+    ctx.setLineDash([16, 14]);
+    ctx.beginPath(); ctx.moveTo(0, roadTop + 26); ctx.lineTo(w, roadTop + 26); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = '700 10px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    const m0 = Math.floor((cam / PX_PER_M - 4) / 10) * 10;
+    for (let m = m0; m <= m0 + 60; m += 10) {
+        const x = m * PX_PER_M - cam;
+        ctx.strokeStyle = m === 0 ? '#f59e0b' : '#94a3b8';
+        ctx.lineWidth = m === 0 ? 3 : 1.5;
+        ctx.beginPath(); ctx.moveTo(x, roadTop + 52); ctx.lineTo(x, roadTop + 64); ctx.stroke();
+        ctx.fillStyle = m === 0 ? '#b45309' : '#334155';
+        ctx.fillText(m + ' m', x, roadTop + 76);
+        if (m === 0) {
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(x - 2, groundY - 70, 4, 52);
+            ctx.beginPath();
+            ctx.moveTo(x + 2, groundY - 70);
+            ctx.lineTo(x + 22, groundY - 62);
+            ctx.lineTo(x + 2, groundY - 54);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+
+    if (els['in-trail'].checked) {
+        trail.forEach((p, i) => {
+            const x = p.s * PX_PER_M - cam;
+            ctx.fillStyle = `rgba(14,165,233,${0.15 + 0.55 * (i / Math.max(1, trail.length))})`;
+            ctx.beginPath(); ctx.arc(x, roadTop + 26, 3.2, 0, Math.PI * 2); ctx.fill();
+        });
+    }
+
+    const carX = st.s * PX_PER_M - cam;
+    const wheelAng = -(st.s / 0.42);
+    drawCar(ctx, carX, roadTop + 40, facing, wheelAng, st);
+
+    if (els['in-vec'].checked) {
+        drawArrowVec(ctx, carX, roadTop - 22, st.v, '#047857', 'v');
+        drawArrowVec(ctx, carX, roadTop - 44, st.a * 3.2, '#be123c', 'a');
+    }
+}
+
+function niceStep(range) {
+    const raw = range / 4;
+    const pow = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1e-6))));
+    const n = raw / pow;
+    const step = n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10;
+    return step * pow;
+}
+
+function axisRange(key) {
+    const samples = [];
+    const push = time => {
+        const st = stateAt(time);
+        samples.push(st[key]);
+    };
+    push(0);
+    push(t);
+    for (let u = 0; u <= Math.max(recordedT, 0.01); u += 0.25) push(u);
+    if (els['in-pred'].checked) {
+        for (let u = t; u <= MAX_T; u += 0.5) push(u);
+    }
+    let lo = Math.min(...samples);
+    let hi = Math.max(...samples);
+    if (key === 's') {
+        if (hi - lo < 20) { hi = lo + 20; }
+        lo = Math.min(lo, 0);
+    } else {
+        const m = Math.max(Math.abs(lo), Math.abs(hi), key === 'a' ? 4 : 6);
+        lo = -m; hi = m;
+    }
+    const pad = (hi - lo) * 0.12;
+    return { lo: lo - pad, hi: hi + pad };
+}
+
+function drawArrowHead(ctx, x, y, ang, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-9, -4.2);
+    ctx.lineTo(-9, 4.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawGraph(canvas, key, color, title) {
+    const { ctx, w, h, dpr } = fitCanvas(canvas);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const pad = { l: 46, r: 44, t: 26, b: 22 };
+    const pw = w - pad.l - pad.r;
+    const ph = h - pad.t - pad.b;
+    const { lo, hi } = axisRange(key);
+    const mapX = u => pad.l + (u / MAX_T) * pw;
+    const mapY = val => pad.t + ph - ((val - lo) / (hi - lo)) * ph;
+    const y0 = mapY(0);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    const xt = 2;
+    for (let u = 0; u <= MAX_T; u += xt) {
+        ctx.beginPath(); ctx.moveTo(mapX(u), pad.t); ctx.lineTo(mapX(u), pad.t + ph); ctx.stroke();
+    }
+    const ys = niceStep(hi - lo);
+    const yStart = Math.ceil(lo / ys) * ys;
+    for (let v = yStart; v <= hi + 1e-6; v += ys) {
+        const y = mapY(v);
+        ctx.strokeStyle = Math.abs(v) < 1e-6 ? '#94a3b8' : '#e2e8f0';
+        ctx.setLineDash(Math.abs(v) < 1e-6 ? [] : [4, 4]);
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(String(Math.round(v * 10) / 10), pad.l - 6, y + 3);
+    }
+
+    const axis = '#1e293b';
+    ctx.strokeStyle = axis;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t + ph + 0);
+    ctx.lineTo(pad.l, pad.t);
+    ctx.stroke();
+    drawArrowHead(ctx, pad.l, pad.t, -Math.PI / 2, axis);
+
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y0);
+    ctx.lineTo(pad.l + pw, y0);
+    ctx.stroke();
+    drawArrowHead(ctx, pad.l + pw, y0, 0, axis);
+
+    if (y0 < pad.t + ph - 8) {
+        ctx.beginPath();
+        ctx.moveTo(pad.l, y0);
+        ctx.lineTo(pad.l, pad.t + ph);
+        ctx.stroke();
+        drawArrowHead(ctx, pad.l, pad.t + ph, Math.PI / 2, axis);
+    }
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '800 12px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'left';
+    const yLab = key === 's' ? 's (m)' : key === 'v' ? 'v (m/s)' : 'a (m/s²)';
+    ctx.fillText(yLab, pad.l + 8, pad.t + 4);
+    ctx.textAlign = 'right';
+    ctx.fillText('t (s)', w - 8, y0 > pad.t + 14 && y0 < h - 8 ? y0 - 6 : h - 6);
+
+    ctx.textAlign = 'center';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillStyle = '#64748b';
+    for (let u = 0; u <= MAX_T; u += 2) {
+        ctx.fillText(String(u), mapX(u), Math.min(h - 4, y0 + 14));
+    }
+
+    ctx.fillStyle = color;
+    ctx.font = '800 11px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(title, w - 10, 16);
+
+    const sample = (t0, t1, fn) => {
+        const pts = [];
+        const n = Math.max(8, Math.ceil((t1 - t0) * 24));
+        for (let i = 0; i <= n; i++) {
+            const u = t0 + (t1 - t0) * (i / n);
+            const st = stateAt(u);
+            pts.push({ x: mapX(u), y: mapY(st[key]), t: u, val: st[key] });
+        }
+        return pts;
+    };
+
+    if (key === 'v' && els['in-area'].checked && recordedT > 0) {
+        const pts = sample(0, Math.max(t, 0.001));
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, y0);
+        pts.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(pts[pts.length - 1].x, y0);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(16,185,129,0.16)';
+        ctx.fill();
+        const st = stateAt(t);
+        ctx.fillStyle = '#047857';
+        ctx.font = '700 10px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${i18n[lang].area} ${fmt(st.s - segments[0].s0, 2)} m`, pad.l + 8, pad.t + ph - 6);
+    }
+
+    const strokePts = (pts, dash) => {
+        if (pts.length < 2) return;
+        ctx.beginPath();
+        ctx.setLineDash(dash || []);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = dash ? 1.6 : 2.4;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    };
+
+    if (recordedT > 0) strokePts(sample(0, Math.max(t, 1e-3)));
+    if (els['in-pred'].checked && t < MAX_T - 0.05) {
+        ctx.globalAlpha = 0.7;
+        strokePts(sample(t, MAX_T), [6, 5]);
+        ctx.globalAlpha = 1;
+    } else if (recordedT === 0) {
+        ctx.globalAlpha = 0.75;
+        strokePts(sample(0, MAX_T), [6, 5]);
+        ctx.globalAlpha = 1;
+    }
+
+    const markT = hoverT != null ? hoverT : t;
+    const mk = stateAt(clamp(markT, 0, MAX_T));
+    const mx = mapX(mk.t);
+    const my = mapY(mk[key]);
+
+    ctx.strokeStyle = 'rgba(244,63,94,0.75)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(mx, pad.t); ctx.lineTo(mx, pad.t + ph); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath(); ctx.arc(mx, my, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.stroke();
+
+    if (els['in-slope'].checked) {
+        const slope = key === 's' ? mk.v : key === 'v' ? mk.a : 0;
+        const dx = 28;
+        const dy = -(slope * (dx / MAX_T * pw) * (ph / (hi - lo)));
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mx - dx, my - dy);
+        ctx.lineTo(mx + dx, my + dy);
+        ctx.stroke();
+        ctx.fillStyle = '#92400e';
+        ctx.font = '700 10px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        const unit = key === 's' ? 'm/s' : key === 'v' ? 'm/s²' : 'm/s³';
+        ctx.fillText(`${i18n[lang].slope} = ${fmt(slope, 2)} ${unit}`, mx + 8, my - 10);
+    }
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '700 10px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    const unit = key === 's' ? 'm' : key === 'v' ? 'm/s' : 'm/s²';
+    ctx.fillText(`${key} = ${fmt(mk[key], 2)} ${unit}`, mx + 8, Math.max(pad.t + 12, my + 16));
+}
+
+function graphTimeFromEvent(canvas, ev) {
+    const r = canvas.getBoundingClientRect();
+    const padL = 46, padR = 44;
+    const x = ev.clientX - r.left;
+    const ratio = (x - padL) / Math.max(1, r.width - padL - padR);
+    return clamp(ratio * MAX_T, 0, MAX_T);
+}
+
+function drawAll() {
+    drawScene();
+    const T = i18n[lang];
+    drawGraph(els['graph-s'], 's', '#0284c7', T.graphST);
+    drawGraph(els['graph-v'], 'v', '#059669', T.graphVT);
+    drawGraph(els['graph-a'], 'a', '#e11d48', T.graphAT);
+}
+
+els['btn-play'].addEventListener('click', togglePlay);
+els['btn-reset'].addEventListener('click', () => {
+    if (activePreset && PRESETS[activePreset]) applyPreset(activePreset);
+    else resetSim(false);
+});
+els['in-s0'].addEventListener('input', () => {
+    if (recordedT > 0) return;
+    resetSegmentsFromInputs();
+    syncSliders();
+    updateHud();
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    activePreset = null;
+});
+els['in-v0'].addEventListener('input', () => {
+    if (recordedT > 0) return;
+    resetSegmentsFromInputs();
+    syncSliders();
+    updateHud();
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    activePreset = null;
+});
+els['in-a'].addEventListener('input', () => {
+    onAccelChange();
+    if (recordedT === 0) {
+        document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+        activePreset = null;
+    }
+});
+els['in-scrub'].addEventListener('input', () => seekTo(num('in-scrub') / 100));
+
+document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
+
+els['btn-principle'].addEventListener('click', () => {
+    openModal(els['modal-principle']);
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+});
+els['modal-close'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-confirm'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-principle'].addEventListener('click', ev => { if (ev.target === els['modal-principle']) closeModal(els['modal-principle']); });
+
+els['btn-steps'].addEventListener('click', () => openModal(els['modal-steps']));
+els['steps-close'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['steps-confirm'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['modal-steps'].addEventListener('click', ev => { if (ev.target === els['modal-steps']) closeModal(els['modal-steps']); });
+
+['graph-s','graph-v','graph-a'].forEach(id => {
+    const cv = els[id];
+    cv.addEventListener('mousemove', ev => { hoverT = graphTimeFromEvent(cv, ev); });
+    cv.addEventListener('mouseleave', () => { hoverT = null; });
+    cv.addEventListener('click', ev => seekTo(graphTimeFromEvent(cv, ev)));
+});
+
+document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') {
+        if (!els['modal-steps'].classList.contains('pointer-events-none')) { closeModal(els['modal-steps']); return; }
+        if (!els['modal-principle'].classList.contains('pointer-events-none')) closeModal(els['modal-principle']);
+        return;
+    }
+    if (ev.key === ' ' && !['INPUT', 'BUTTON'].includes(document.activeElement.tagName)) {
+        ev.preventDefault();
+        togglePlay();
+    }
+    if (ev.key === 'r' || ev.key === 'R') {
+        if (activePreset && PRESETS[activePreset]) applyPreset(activePreset);
+        else resetSim(false);
+    }
+});
+
+window.addEventListener('resize', drawAll);
+
+applyPreset('uniform');
+applyLang();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

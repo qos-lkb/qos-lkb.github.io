@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>碰撞衝力與時間關係實驗室 (Force-Time Collision Lab)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- MathJax for rendering physics formulas -->
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+      margin-top: -6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 6px;
+      cursor: pointer;
+      background: #e2e8f0;
+      border-radius: 999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans pb-10">
+
+  <!-- Header -->
+  <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">
+            碰撞衝力與時間關係模擬器
+          </h1>
+          <p class="text-xs text-slate-400">探索動量守恆、衝量與軟硬度（碰撞時間）對最大衝力的影響</p>
+        </div>
+      </div>
+
+      <!-- Quick Preset Selector -->
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <span class="text-slate-400">快速預設情境：</span>
+        <button onclick="applyPreset('soft_vs_hard')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition">
+          軟質 vs 硬質物體
+        </button>
+        <button onclick="applyPreset('car_crumple')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition">
+          汽車潰縮區原理
+        </button>
+        <button onclick="applyPreset('helmet')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition">
+          安全帽緩衝襯墊
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
+
+    <!-- Left Controls Panel (4 cols) -->
+    <div class="lg:col-span-4 space-y-5">
+      
+      <!-- Parameter Adjustment Card -->
+      <div class="bg-slate-800 rounded-xl p-5 border border-slate-700/80 shadow-lg space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+          <h2 class="font-bold text-slate-200 flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+            碰撞物體參數設定
+          </h2>
+          <span id="current-preset-tag" class="text-[10px] px-2 py-0.5 bg-blue-900/50 text-blue-300 border border-blue-700/50 rounded-full">自訂</span>
+        </div>
+
+        <!-- Run Name Label -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">本次實驗名稱標籤</label>
+          <input id="input-name" type="text" value="試驗 1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+        </div>
+
+        <!-- Parameter Sliders -->
+        <!-- 1. Hardness / Stiffness k -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">物體硬度 / 剛度 ($k$)</span>
+            <span id="val-k" class="font-mono text-blue-400 font-bold">5,000 N/m</span>
+          </div>
+          <input id="slider-k" type="range" min="100" max="50000" step="100" value="5000" oninput="updateSliders()">
+          <div class="flex justify-between text-[10px] text-slate-500">
+            <span>極軟 (海綿/橡皮)</span>
+            <span>中等</span>
+            <span>極硬 (剛體/鋼鐵)</span>
+          </div>
+        </div>
+
+        <!-- 2. Mass m -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">物體質量 ($m$)</span>
+            <span id="val-m" class="font-mono text-blue-400 font-bold">1.0 kg</span>
+          </div>
+          <input id="slider-m" type="range" min="0.1" max="10.0" step="0.1" value="1.0" oninput="updateSliders()">
+          <div class="flex justify-between text-[10px] text-slate-500">
+            <span>0.1 kg</span>
+            <span>5.0 kg</span>
+            <span>10.0 kg</span>
+          </div>
+        </div>
+
+        <!-- 3. Velocity v0 -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">碰撞前初速 ($v_0$)</span>
+            <span id="val-v" class="font-mono text-blue-400 font-bold">5.0 m/s</span>
+          </div>
+          <input id="slider-v" type="range" min="1.0" max="25.0" step="0.5" value="5.0" oninput="updateSliders()">
+          <div class="flex justify-between text-[10px] text-slate-500">
+            <span>1.0 m/s</span>
+            <span>12.5 m/s</span>
+            <span>25.0 m/s</span>
+          </div>
+        </div>
+
+        <!-- 4. Restitution Coefficient / Damping e -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">恢復係數 ($e$ / 彈性程度)</span>
+            <span id="val-e" class="font-mono text-blue-400 font-bold">0.80 (完全彈性: 1.0)</span>
+          </div>
+          <input id="slider-e" type="range" min="0.0" max="1.0" step="0.05" value="0.80" oninput="updateSliders()">
+          <div class="flex justify-between text-[10px] text-slate-500">
+            <span>完全非彈性 (0.0)</span>
+            <span>部分彈性</span>
+            <span>完全彈性 (1.0)</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="pt-2 flex gap-2">
+          <button id="btn-run" onclick="runCollisionSimulation()" class="flex-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            開始模擬與記錄曲線
+          </button>
+        </div>
+      </div>
+
+      <!-- Theory & Formula Reference Card -->
+      <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/80 text-xs text-slate-300 space-y-2">
+        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          物理核心觀念 (Impulse-Momentum Theorem)
+        </h3>
+        <p>1. <strong>動量定理 (Impulse)：</strong> 衝力對時間的積分（曲線下的面積）等於物體動量的變化量 $\Delta p$。</p>
+        <div class="p-2 bg-slate-900 rounded font-mono text-center text-blue-300 border border-slate-700">
+          $J = \int F(t) \, dt = F_{\text{avg}} \cdot \Delta t = m(v_f - v_i)$
+        </div>
+        <p>2. <strong>延長作用時間：</strong> 較軟的物體（剛度 $k$ 小）碰撞變形大、作用時間 $\Delta t$ 長，因此能顯著降低最大峰值衝力 $F_{\text{max}}$。</p>
+      </div>
+
+    </div>
+
+    <!-- Right Visualization & Graph Area (8 cols) -->
+    <div class="lg:col-span-8 space-y-5">
+
+      <!-- Physical Animation Canvas -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-lg relative">
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            物理碰撞動畫視覺化 (Collision Visualizer)
+          </h2>
+          <span id="anim-status" class="text-xs text-slate-400 font-mono">就緒</span>
+        </div>
+        
+        <div class="relative w-full h-40 bg-slate-900 rounded-lg overflow-hidden border border-slate-700/60 flex items-center">
+          <canvas id="simCanvas" class="w-full h-full block"></canvas>
+        </div>
+      </div>
+
+      <!-- Multi-Curve Comparison Chart Section -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-lg space-y-3">
+        <div class="flex flex-wrap justify-between items-center gap-2">
+          <div>
+            <h2 class="text-base font-bold text-slate-200 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+              碰撞衝力-時間關係線圖 ($F - t$ Graph)
+            </h2>
+            <p class="text-xs text-slate-400">畫面上可同時呈現並比較不同參數下的多條衝力歷程曲線</p>
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="clearChartRuns()" class="px-3 py-1.5 bg-slate-700 hover:bg-red-600/30 hover:border-red-500 border border-slate-600 rounded-lg text-xs text-slate-300 transition flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              清除所有線圖
+            </button>
+          </div>
+        </div>
+
+        <!-- Chart Canvas Container -->
+        <div class="relative h-72 w-full bg-slate-900/60 p-2 rounded-lg border border-slate-700/50">
+          <canvas id="forceTimeChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Run Data Comparison Table -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-lg space-y-3">
+        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          數據對比與定量分析表
+        </h3>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900/80 text-slate-400 font-semibold border-b border-slate-700">
+              <tr>
+                <th class="p-2.5">標記色</th>
+                <th class="p-2.5">實驗名稱</th>
+                <th class="p-2.5">剛度 $k$ (N/m)</th>
+                <th class="p-2.5">質量 $m$</th>
+                <th class="p-2.5">初速 $v_0$</th>
+                <th class="p-2.5">作用時間 $\Delta t$</th>
+                <th class="p-2.5">最大衝力 $F_{\text{max}}$</th>
+                <th class="p-2.5">總衝量 $J$ (面積)</th>
+                <th class="p-2.5 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="table-body" class="divide-y divide-slate-700/50">
+              <!-- Dynamic Rows inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // --- Global State & Variables ---
+    let runs = [];
+    const colorPalette = [
+      '#3b82f6', // blue
+      '#ef4444', // red
+      '#10b981', // green
+      '#f59e0b', // amber
+      '#8b5cf6', // purple
+      '#ec4899', // pink
+      '#06b6d4', // cyan
+      '#f97316'  // orange
+    ];
+    let colorIndex = 0;
+
+    let chartInstance = null;
+    let animId = null;
+
+    // Simulation Physics State
+    let isSimulating = false;
+    let simStartTime = 0;
+    let currentPhysicsRun = null;
+
+    // --- Physics Core Engine ---
+    // Single mass hitting a viscoelastic wall model: F(t) = k*x + c*v during compression/contact
+    function computeCollisionData(m, k, v0, e) {
+      // Calculate effective damping coefficient c from coefficient of restitution e
+      // e = exp(-zeta * pi / sqrt(1 - zeta^2))
+      let zeta = 0;
+      if (e < 0.9999) {
+        let lnE = Math.log(Math.max(e, 0.01));
+        zeta = Math.abs(lnE) / Math.sqrt(Math.PI * Math.PI + lnE * lnE);
+      }
+      
+      const omega0 = Math.sqrt(k / m);
+      const c = 2 * zeta * Math.sqrt(m * k);
+      
+      const dt = 0.00005; // time step for physics integration (seconds)
+      let x = 0; // deformation/compression
+      let v = v0; // initial velocity
+      let t = 0;
+
+      let timePoints = [];
+      let forcePoints = [];
+      let posPoints = [];
+      
+      let maxForce = 0;
+      let contactDuration = 0;
+      let impulseSum = 0;
+
+      // Contact starts at t = 0
+      let inContact = true;
+
+      while (inContact && t < 0.5) { // safety timeout 0.5s
+        // Spring + Damping force
+        let F = k * x + c * v;
+        if (F < 0) F = 0; // Spring cannot pull wall
+
+        if (F > maxForce) maxForce = F;
+
+        // Record high-resolution data points (sample every ~0.2ms)
+        timePoints.push(t * 1000); // ms
+        forcePoints.push(F); // N
+        posPoints.push(x); // m
+
+        impulseSum += F * dt;
+
+        // Integration (Verlet/Euler)
+        let a = -F / m;
+        v += a * dt;
+        x += v * dt;
+        t += dt;
+
+        // Contact ends when object moves backward and separation occurs (x <= 0)
+        if (x <= 0 && t > 0.0005) {
+          inContact = false;
+        }
+      }
+
+      contactDuration = t * 1000; // in ms
+
+      // Downsample data for smooth Chart display (~150 points max per run)
+      const step = Math.max(1, Math.floor(timePoints.length / 120));
+      let sampledTime = [];
+      let sampledForce = [];
+
+      // Add zero force padding before contact
+      sampledTime.push(0);
+      sampledForce.push(0);
+
+      for (let i = 0; i < timePoints.length; i += step) {
+        sampledTime.push(parseFloat(timePoints[i].toFixed(2)));
+        sampledForce.push(parseFloat(forcePoints[i].toFixed(1)));
+      }
+
+      // Add end zero padding
+      if (sampledTime[sampledTime.length - 1] < contactDuration) {
+        sampledTime.push(parseFloat(contactDuration.toFixed(2)));
+        sampledForce.push(0);
+      }
+      sampledTime.push(parseFloat((contactDuration * 1.2).toFixed(2)));
+      sampledForce.push(0);
+
+      return {
+        m, k, v0, e,
+        maxForce,
+        contactDuration,
+        impulse: impulseSum,
+        v_final: -v,
+        timePoints,
+        forcePoints,
+        posPoints,
+        sampledTime,
+        sampledForce
+      };
+    }
+
+    // --- Preset Handlers ---
+    function applyPreset(type) {
+      const sliderK = document.getElementById('slider-k');
+      const sliderM = document.getElementById('slider-m');
+      const sliderV = document.getElementById('slider-v');
+      const sliderE = document.getElementById('slider-e');
+      const inputName = document.getElementById('input-name');
+      const tag = document.getElementById('current-preset-tag');
+
+      if (type === 'soft_vs_hard') {
+        sliderK.value = 2000;
+        sliderM.value = 1.0;
+        sliderV.value = 6.0;
+        sliderE.value = 0.8;
+        inputName.value = "軟質彈性球 (k=2000)";
+        tag.innerText = "預設：軟質碰撞";
+      } else if (type === 'car_crumple') {
+        sliderK.value = 5000;
+        sliderM.value = 3.0;
+        sliderV.value = 10.0;
+        sliderE.value = 0.2; // crumple zone absorbs energy
+        inputName.value = "具潰縮區防撞 (k=5k, e=0.2)";
+        tag.innerText = "預設：汽車潰縮防撞";
+      } else if (type === 'helmet') {
+        sliderK.value = 3500;
+        sliderM.value = 1.5;
+        sliderV.value = 8.0;
+        sliderE.value = 0.4;
+        inputName.value = "加裝安全帽緩衝 (k=3.5k)";
+        tag.innerText = "預設：安全帽緩衝";
+      }
+      updateSliders();
+    }
+
+    function updateSliders() {
+      const k = parseFloat(document.getElementById('slider-k').value);
+      const m = parseFloat(document.getElementById('slider-m').value);
+      const v = parseFloat(document.getElementById('slider-v').value);
+      const e = parseFloat(document.getElementById('slider-e').value);
+
+      document.getElementById('val-k').innerText = `${k.toLocaleString()} N/m`;
+      document.getElementById('val-m').innerText = `${m.toFixed(1)} kg`;
+      document.getElementById('val-v').innerText = `${v.toFixed(1)} m/s`;
+      document.getElementById('val-e').innerText = `${e.toFixed(2)} (${e > 0.9 ? '彈性' : e < 0.3 ? '高吸能' : '部分彈性'})`;
+    }
+
+    // --- Run Simulation & Record Data ---
+    function runCollisionSimulation() {
+      const name = document.getElementById('input-name').value || `實驗 ${runs.length + 1}`;
+      const k = parseFloat(document.getElementById('slider-k').value);
+      const m = parseFloat(document.getElementById('slider-m').value);
+      const v0 = parseFloat(document.getElementById('slider-v').value);
+      const e = parseFloat(document.getElementById('slider-e').value);
+
+      // Compute physical collision data
+      const simData = computeCollisionData(m, k, v0, e);
+
+      // Assign color
+      const color = colorPalette[colorIndex % colorPalette.length];
+      colorIndex++;
+
+      const newRun = {
+        id: Date.now(),
+        name,
+        color,
+        ...simData
+      };
+
+      runs.push(newRun);
+
+      // Update UI Components
+      updateChart();
+      updateTable();
+      startAnimation(newRun);
+
+      // Increment run name counter for next test
+      document.getElementById('input-name').value = `試驗 ${runs.length + 1}`;
+    }
+
+    // --- Chart.js Rendering ---
+    function initChart() {
+      const ctx = document.getElementById('forceTimeChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: []
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 600 },
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              title: {
+                display: true,
+                text: '碰撞歷程時間 t (毫秒 ms)',
+                color: '#94a3b8',
+                font: { size: 12, weight: 'bold' }
+              },
+              grid: { color: '#334155' },
+              ticks: { color: '#cbd5e1' }
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '碰撞衝力 F (牛頓 N)',
+                color: '#94a3b8',
+                font: { size: 12, weight: 'bold' }
+              },
+              grid: { color: '#334155' },
+              ticks: { color: '#cbd5e1' }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#f8fafc', font: { size: 12 } }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#60a5fa',
+              bodyColor: '#f1f5f9',
+              borderColor: '#475569',
+              borderWidth: 1,
+              callbacks: {
+                label: function(context) {
+                  return `${context.dataset.label}: ${context.parsed.y} N @ ${context.parsed.x} ms`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateChart() {
+      if (!chartInstance) return;
+
+      chartInstance.data.datasets = runs.map(run => {
+        const points = run.sampledTime.map((t, i) => ({
+          x: t,
+          y: run.sampledForce[i]
+        }));
+
+        return {
+          label: run.name,
+          data: points,
+          borderColor: run.color,
+          backgroundColor: run.color + '22', // transparent fill
+          borderWidth: 2.5,
+          tension: 0.3, // smooth curves
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          fill: true
+        };
+      });
+
+      chartInstance.update();
+    }
+
+    function clearChartRuns() {
+      runs = [];
+      updateChart();
+      updateTable();
+      document.getElementById('anim-status').innerText = '數據已清空';
+    }
+
+    function deleteRun(id) {
+      runs = runs.filter(r => r.id !== id);
+      updateChart();
+      updateTable();
+    }
+
+    // --- Table UI Update ---
+    function updateTable() {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+
+      if (runs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center p-4 text-slate-500">尚無碰撞記錄，請點擊上方「開始模擬」按鈕。</td></tr>`;
+        return;
+      }
+
+      runs.forEach(run => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-700/30 transition border-b border-slate-700/40";
+        tr.innerHTML = `
+          <td class="p-2.5">
+            <span class="inline-block w-3.5 h-3.5 rounded-full shadow" style="background-color: ${run.color}"></span>
+          </td>
+          <td class="p-2.5 font-bold text-slate-100">${run.name}</td>
+          <td class="p-2.5 font-mono text-blue-300">${run.k.toLocaleString()}</td>
+          <td class="p-2.5 font-mono">${run.m} kg</td>
+          <td class="p-2.5 font-mono">${run.v0} m/s</td>
+          <td class="p-2.5 font-mono text-emerald-400 font-semibold">${run.contactDuration.toFixed(2)} ms</td>
+          <td class="p-2.5 font-mono text-rose-400 font-bold">${Math.round(run.maxForce).toLocaleString()} N</td>
+          <td class="p-2.5 font-mono text-amber-300 font-semibold">${run.impulse.toFixed(2)} N·s</td>
+          <td class="p-2.5 text-center">
+            <button onclick="deleteRun(${run.id})" class="text-slate-500 hover:text-red-400 transition" title="刪除這條記錄">
+              <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Trigger MathJax render for dynamically inserted latex if necessary
+      if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    // --- Canvas Animation Physics Visualization ---
+    function startAnimation(runData) {
+      currentPhysicsRun = runData;
+      isSimulating = true;
+      simStartTime = performance.now();
+      document.getElementById('anim-status').innerText = `動態演示中: ${runData.name}`;
+
+      if (animId) cancelAnimationFrame(animId);
+      requestAnimationFrame(animateFrame);
+    }
+
+    function animateFrame(now) {
+      const canvas = document.getElementById('simCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Adjust canvas resolution
+      if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+      }
+
+      const W = canvas.width;
+      const H = canvas.height;
+      const wallX = W * 0.75; // Rigid Wall position
+      const groundY = H - 20;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // Draw Ground & Rigid Wall
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, groundY, W, 20); // Ground
+
+      // Wall Pattern
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(wallX, 10, W - wallX, groundY - 10);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(wallX, 10);
+      ctx.lineTo(wallX, groundY);
+      ctx.stroke();
+
+      // Hatching lines on wall
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.5;
+      for (let y = 15; y < groundY; y += 15) {
+        ctx.beginPath();
+        ctx.moveTo(wallX, y);
+        ctx.lineTo(wallX + 25, y + 25);
+        ctx.stroke();
+      }
+
+      if (!currentPhysicsRun) return;
+
+      // Elapsed animation time
+      const elapsedMs = (now - simStartTime) * 0.5; // Slow-mo coefficient
+      const totalContactMs = currentPhysicsRun.contactDuration;
+      const approachDuration = 600; // ms to travel from left to wall
+
+      let ballRadius = Math.max(12, Math.min(26, currentPhysicsRun.m * 5 + 8));
+      let ballX = 0;
+      let compression = 0;
+      let currentForce = 0;
+
+      if (elapsedMs < approachDuration) {
+        // Phase 1: Approaching wall
+        const progress = elapsedMs / approachDuration;
+        ballX = 40 + progress * (wallX - ballRadius - 40);
+      } else if (elapsedMs < approachDuration + totalContactMs) {
+        // Phase 2: Contact & Collision Compression
+        const contactT = elapsedMs - approachDuration;
+        // Interpolate displacement & force from sim points
+        const points = currentPhysicsRun.timePoints;
+        let idx = points.findIndex(t => t >= contactT);
+        if (idx < 0) idx = points.length - 1;
+
+        compression = currentPhysicsRun.posPoints[idx] || 0;
+        currentForce = currentPhysicsRun.forcePoints[idx] || 0;
+
+        // Visual compression scaling
+        const visualSquish = Math.min(ballRadius * 0.6, compression * 80);
+        ballX = wallX - ballRadius + visualSquish * 0.5;
+      } else if (elapsedMs < approachDuration + totalContactMs + 600) {
+        // Phase 3: Rebound away from wall
+        const reboundT = elapsedMs - (approachDuration + totalContactMs);
+        const progress = reboundT / 600;
+        ballX = (wallX - ballRadius) - progress * (W * 0.5);
+      } else {
+        // Finished loop
+        ballX = (wallX - ballRadius) - (W * 0.5);
+        document.getElementById('anim-status').innerText = '演示完成';
+        isSimulating = false;
+      }
+
+      // Calculate squish aspect ratio for deformation visual
+      let squishX = 1;
+      let squishY = 1;
+      if (compression > 0) {
+        let maxComp = Math.max(...currentPhysicsRun.posPoints);
+        let factor = (compression / (maxComp || 1));
+        squishX = 1 - 0.35 * factor;
+        squishY = 1 + 0.3 * factor;
+      }
+
+      // Draw Ball Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(ballX, groundY - 2, ballRadius * squishX, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw Ball Object
+      ctx.save();
+      ctx.translate(ballX, groundY - ballRadius * squishY);
+      ctx.scale(squishX, squishY);
+
+      // Sphere Fill Gradient
+      const grad = ctx.createRadialGradient(-ballRadius*0.3, -ballRadius*0.3, ballRadius*0.1, 0, 0, ballRadius);
+      grad.addColorStop(0, '#93c5fd');
+      grad.addColorStop(0.7, currentPhysicsRun.color);
+      grad.addColorStop(1, '#1e3a8a');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      // Draw Force Vector Vector Arrow during contact
+      if (currentForce > 10) {
+        const arrowLength = Math.min(80, (currentForce / currentPhysicsRun.maxForce) * 70 + 10);
+        ctx.strokeStyle = '#ef4444';
+        ctx.fillStyle = '#ef4444';
+        ctx.lineWidth = 3;
+
+        ctx.beginPath();
+        ctx.moveTo(ballX, groundY - ballRadius);
+        ctx.lineTo(ballX - arrowLength, groundY - ballRadius);
+        ctx.stroke();
+
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(ballX - arrowLength, groundY - ballRadius);
+        ctx.lineTo(ballX - arrowLength + 8, groundY - ballRadius - 5);
+        ctx.lineTo(ballX - arrowLength + 8, groundY - ballRadius + 5);
+        ctx.closePath();
+        ctx.fill();
+
+        // Force text readout
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`F = ${Math.round(currentForce)} N`, ballX - arrowLength - 10, groundY - ballRadius - 10);
+      }
+
+      if (isSimulating) {
+        animId = requestAnimationFrame(animateFrame);
+      }
+    }
+
+    // --- Window Onload Initialization ---
+    window.onload = function() {
+      initChart();
+      updateSliders();
+      
+      // Run an initial default simulation
+      applyPreset('soft_vs_hard');
+      runCollisionSimulation();
+    };
+  </script>
+</body>
+</html>

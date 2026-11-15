@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2D Electromagnetic DC Motor Physics Lab</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for Torque vs Angle Plotting -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Font Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            north: '#2563eb',  // Blue for North Pole
+            south: '#dc2626',  // Red for South Pole
+            force: '#22c55e',  // Green for Force
+            field: '#06b6d4',  // Cyan for Field
+            current: '#eab308',// Gold for Current
+            copper: '#d97706'  // Copper
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; overflow: hidden; background-color: #030712; }
+    
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      background: rgba(255,255,255,0.12);
+      border-radius: 6px;
+      height: 6px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(59,130,246,0.6);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+      background: #60a5fa;
+    }
+  </style>
+</head>
+
+<body class="w-screen h-screen text-slate-100 flex flex-col select-none overflow-hidden">
+
+  <!-- Top Navigation Bar -->
+  <header class="h-14 bg-slate-900/90 border-b border-slate-800 px-4 flex items-center justify-between z-30 shrink-0 shadow-lg backdrop-blur-md">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-cyan-500 to-amber-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
+        <i class="fa-solid fa-bolt text-lg text-white"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-base tracking-wide flex items-center gap-2 text-white">
+          DC Electromagnetic Motor Physics Lab
+          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 tracking-wider uppercase">Interactive Teaching Engine</span>
+        </h1>
+        <p class="text-[11px] text-slate-400">Lorentz Force $F = BIL$, Radial Magnetic Fields & Split-Ring Commutator Dynamics</p>
+      </div>
+    </div>
+
+    <!-- Educational Modal Buttons -->
+    <div class="flex items-center gap-2">
+      <button id="btn-why-curved" class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition flex items-center gap-1.5 active:scale-95">
+        <i class="fa-solid fa-circle-question text-amber-400"></i> Why Are Magnets Curved?
+      </button>
+      <button id="btn-speed-guide" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition flex items-center gap-1.5 active:scale-95">
+        <i class="fa-solid fa-gauge-high text-emerald-400"></i> How To Speed Up Motor
+      </button>
+      <button id="btn-fleming" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-xs font-semibold transition flex items-center gap-1.5 active:scale-95">
+        <i class="fa-solid fa-hand-back-fist text-indigo-400"></i> Fleming's Left-Hand Rule
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="relative flex-1 w-full h-full overflow-hidden flex">
+
+    <!-- Left Motor Parameter Controls -->
+    <aside class="w-80 h-full p-3 z-20 shrink-0 pointer-events-auto overflow-y-auto">
+      <div class="glass-panel rounded-2xl p-3.5 flex flex-col gap-3 shadow-2xl">
+        
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h2 class="font-bold text-xs uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-blue-400"></i> Teaching Controls
+          </h2>
+          <button id="btn-reset-params" class="text-[11px] text-slate-400 hover:text-white transition flex items-center gap-1">
+            <i class="fa-solid fa-rotate-left"></i> Reset
+          </button>
+        </div>
+
+        <!-- Magnet Geometry Selector (Key Teaching Control) -->
+        <div class="flex flex-col gap-2 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-magnet text-red-400"></i> Stator Pole Shape
+            </span>
+            <span id="tag-magnet-shape" class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">CURVED ARC</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mt-0.5">
+            <button id="btn-shape-curved" class="py-2 px-2.5 rounded-lg text-xs font-semibold bg-blue-600 text-white border border-blue-400/40 flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/20">
+              <i class="fa-solid fa-circle-notch"></i> Curved Arc
+            </button>
+            <button id="btn-shape-flat" class="py-2 px-2.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center gap-1.5 transition hover:bg-slate-700">
+              <i class="fa-solid fa-square"></i> Flat Block
+            </button>
+          </div>
+
+          <!-- Pole Arc Angle Coverage Slider -->
+          <div id="arc-slider-box" class="mt-1 flex flex-col gap-1">
+            <div class="flex justify-between text-[11px]">
+              <span class="text-slate-400">Magnet Arc Angle ($\theta_{arc}$):</span>
+              <span id="val-arc" class="font-mono text-blue-400 font-bold">120°</span>
+            </div>
+            <input type="range" id="slider-arc" min="20" max="160" step="5" value="120">
+          </div>
+        </div>
+
+        <!-- Voltage / Current Slider -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-car-battery text-amber-400"></i> Voltage ($V$):
+            </span>
+            <span id="val-voltage" class="font-mono text-amber-400 font-bold">12.0 V</span>
+          </div>
+          <input type="range" id="slider-voltage" min="0" max="24" step="0.5" value="12.0">
+        </div>
+
+        <!-- Field Strength B Slider -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-wave-square text-cyan-400"></i> Magnetic Field ($B$):
+            </span>
+            <span id="val-bfield" class="font-mono text-cyan-400 font-bold">1.00 T</span>
+          </div>
+          <input type="range" id="slider-bfield" min="0.1" max="2.5" step="0.05" value="1.00">
+        </div>
+
+        <!-- Coil Turns N Slider -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-spin text-copper"></i> Coil Loops ($N$):
+            </span>
+            <span id="val-turns" class="font-mono text-copper font-bold">10 turns</span>
+          </div>
+          <input type="range" id="slider-turns" min="1" max="40" step="1" value="10">
+        </div>
+
+        <!-- Coil Radius / Arm Length Slider -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-ruler-combined text-emerald-400"></i> Rotor Radius ($R$):
+            </span>
+            <span id="val-radius" class="font-mono text-emerald-400 font-bold">10.0 cm</span>
+          </div>
+          <input type="range" id="slider-radius" min="5" max="20" step="0.5" value="10">
+        </div>
+
+        <!-- Mechanical Friction / Load Slider -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-weight-hanging text-purple-400"></i> Friction / Load:
+            </span>
+            <span id="val-load" class="font-mono text-purple-400 font-bold">Medium</span>
+          </div>
+          <input type="range" id="slider-load" min="0.05" max="0.8" step="0.05" value="0.25">
+        </div>
+
+        <!-- Vector Visibility Toggles -->
+        <div class="border-t border-slate-800 pt-2.5 flex flex-col gap-2">
+          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Physics Overlay Toggles</span>
+          <div class="grid grid-cols-2 gap-1.5">
+            <label class="flex items-center gap-2 bg-slate-900/60 p-2 rounded-lg border border-slate-800 text-xs cursor-pointer hover:bg-slate-900 transition">
+              <input type="checkbox" id="chk-force" checked class="rounded accent-emerald-500">
+              <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-arrow-up"></i> Force ($\vec{F}$)</span>
+            </label>
+            <label class="flex items-center gap-2 bg-slate-900/60 p-2 rounded-lg border border-slate-800 text-xs cursor-pointer hover:bg-slate-900 transition">
+              <input type="checkbox" id="chk-field" checked class="rounded accent-cyan-500">
+              <span class="text-cyan-400 font-semibold"><i class="fa-solid fa-bars text-xs"></i> Field ($\vec{B}$)</span>
+            </label>
+            <label class="flex items-center gap-2 bg-slate-900/60 p-2 rounded-lg border border-slate-800 text-xs cursor-pointer hover:bg-slate-900 transition">
+              <input type="checkbox" id="chk-current" checked class="rounded accent-amber-500">
+              <span class="text-amber-400 font-semibold"><i class="fa-solid fa-bolt"></i> Current ($\vec{I}$)</span>
+            </label>
+            <label class="flex items-center gap-2 bg-slate-900/60 p-2 rounded-lg border border-slate-800 text-xs cursor-pointer hover:bg-slate-900 transition">
+              <input type="checkbox" id="chk-particles" checked class="rounded accent-yellow-400">
+              <span class="text-yellow-300 font-semibold"><i class="fa-solid fa-ellipsis"></i> Electrons</span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Center Interactive Canvas Viewport -->
+    <main class="flex-1 h-full relative flex flex-col items-center justify-center p-3">
+      
+      <!-- Top View Mode Switcher -->
+      <div class="absolute top-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700 shadow-xl backdrop-blur-md">
+        <button id="view-perspective" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white transition flex items-center gap-1.5 shadow-md">
+          <i class="fa-solid fa-cube"></i> Perspective Schematic (IMG_0821)
+        </button>
+        <button id="view-axial" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-dot"></i> Axial Cross-Section
+        </button>
+        <button id="view-split" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-1.5">
+          <i class="fa-solid fa-columns"></i> Side-by-Side Split
+        </button>
+      </div>
+
+      <!-- Quick Angle Presets for Teaching -->
+      <div class="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-slate-950/80 px-3 py-1 rounded-full border border-slate-800 text-[11px] backdrop-blur-md">
+        <span class="text-slate-400 font-semibold mr-1">Angle Jump:</span>
+        <button class="btn-angle-jump text-cyan-400 hover:underline font-mono" data-deg="0">0°</button>
+        <span class="text-slate-700">•</span>
+        <button class="btn-angle-jump text-cyan-400 hover:underline font-mono" data-deg="45">45°</button>
+        <span class="text-slate-700">•</span>
+        <button class="btn-angle-jump text-cyan-400 hover:underline font-mono" data-deg="90">90° (Commutator Gap)</button>
+        <span class="text-slate-700">•</span>
+        <button class="btn-angle-jump text-cyan-400 hover:underline font-mono" data-deg="135">135°</button>
+        <span class="text-slate-700">•</span>
+        <button class="btn-angle-jump text-cyan-400 hover:underline font-mono" data-deg="180">180°</button>
+      </div>
+
+      <!-- Canvas Container -->
+      <div class="relative w-full h-full glass-panel rounded-2xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-2xl">
+        <canvas id="motorCanvas" class="w-full h-full cursor-pointer"></canvas>
+      </div>
+
+      <!-- Bottom Floating Playback & Control Bar -->
+      <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 glass-panel px-5 py-2.5 rounded-full shadow-2xl border border-slate-700/80">
+        
+        <!-- Power Toggle -->
+        <button id="btn-power" class="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center text-lg shadow-lg shadow-emerald-600/40 transition active:scale-95" title="Power ON / OFF">
+          <i class="fa-solid fa-power-off"></i>
+        </button>
+
+        <div class="h-6 w-px bg-slate-700"></div>
+
+        <!-- Reverse Polarity Switch -->
+        <button id="btn-reverse" class="px-3.5 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition active:scale-95">
+          <i class="fa-solid fa-right-left text-amber-400"></i> Swap Polarity (+ / -)
+        </button>
+
+        <div class="h-6 w-px bg-slate-700"></div>
+
+        <!-- Speed Scalers -->
+        <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-full border border-slate-800">
+          <button id="btn-speed-01" class="px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-400 hover:text-white transition">0.1x</button>
+          <button id="btn-speed-05" class="px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-400 hover:text-white transition">0.5x</button>
+          <button id="btn-speed-10" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-600 text-white transition">1.0x</button>
+          <button id="btn-speed-20" class="px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-400 hover:text-white transition">2.0x</button>
+        </div>
+
+        <div class="h-6 w-px bg-slate-700"></div>
+
+        <!-- Single Step Frame -->
+        <button id="btn-step" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs border border-slate-700 transition active:scale-95" title="Step Frame Forward">
+          <i class="fa-solid fa-forward-step"></i>
+        </button>
+      </div>
+
+    </main>
+
+    <!-- Right Telemetry & Torque Chart Sidebar -->
+    <aside class="w-88 md:w-96 h-full p-3 z-20 shrink-0 pointer-events-auto overflow-y-auto">
+      <div class="glass-panel rounded-2xl p-3.5 flex flex-col gap-3 shadow-2xl h-full">
+        
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h2 class="font-bold text-xs uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-gauge-high text-emerald-400"></i> Physics Telemetry
+          </h2>
+          <div class="flex items-center gap-1.5">
+            <span id="motor-status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            <span id="motor-status-text" class="text-[11px] font-bold text-emerald-400">RUNNING</span>
+          </div>
+        </div>
+
+        <!-- Telemetry Gauges -->
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex flex-col">
+            <span class="text-[11px] text-slate-400 font-medium">Rotation Speed</span>
+            <div class="flex items-baseline gap-1 mt-0.5">
+              <span id="stat-rpm" class="text-2xl font-extrabold font-mono text-emerald-400">680</span>
+              <span class="text-xs text-slate-400">RPM</span>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex flex-col">
+            <span class="text-[11px] text-slate-400 font-medium">Instant Torque ($\tau$)</span>
+            <div class="flex items-baseline gap-1 mt-[2px]">
+              <span id="stat-torque" class="text-2xl font-extrabold font-mono text-blue-400">0.240</span>
+              <span class="text-xs text-slate-400">N·m</span>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex flex-col">
+            <span class="text-[11px] text-slate-400 font-medium">Lorentz Force ($F$)</span>
+            <div class="flex items-baseline gap-1 mt-0.5">
+              <span id="stat-force" class="text-xl font-bold font-mono text-amber-400">2.40</span>
+              <span class="text-xs text-slate-400">N / arm</span>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex flex-col">
+            <span class="text-[11px] text-slate-400 font-medium">Coil Current ($I$)</span>
+            <div class="flex items-baseline gap-1 mt-0.5">
+              <span id="stat-current" class="text-xl font-bold font-mono text-cyan-400">6.00</span>
+              <span class="text-xs text-slate-400">A</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart.js Live Torque Graph -->
+        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-chart-line text-blue-400"></i> Torque vs Angle ($\theta$)
+            </span>
+            <span id="stat-angle-deg" class="font-mono text-xs text-cyan-400 font-bold">Angle: 0°</span>
+          </div>
+
+          <div class="relative w-full h-36">
+            <canvas id="torqueChart"></canvas>
+          </div>
+
+          <p id="note-torque" class="text-[11px] text-slate-300 bg-blue-950/40 p-2 rounded-lg border border-blue-800/40 leading-snug">
+            <strong class="text-blue-400">Curved Arc Magnets:</strong> Maintain perpendicular magnetic field lines ($\perp$) throughout the arc, producing a <strong class="text-emerald-400">constant torque plateau</strong> without dead spots!
+          </p>
+        </div>
+
+        <!-- Component Physics Inspector Card -->
+        <div id="inspector-card" class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 flex flex-col gap-1.5 flex-1 overflow-y-auto">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="font-bold text-xs uppercase text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-magnifying-glass text-amber-400"></i> Interactive Inspector
+            </span>
+            <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Click Diagram</span>
+          </div>
+          <div id="inspector-content" class="text-xs text-slate-300">
+            <span class="text-amber-400 font-semibold"><i class="fa-solid fa-hand-pointer mr-1"></i> Click Any Motor Component</span>
+            <p class="text-slate-400 text-[11px] mt-1 leading-relaxed">
+              Click on the Magnets, Copper Coil, Commutator, Brushes, or Battery in the canvas to inspect its exact physical function.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- MODAL 1: Why Are Magnets Curved? -->
+  <div id="modal-why-curved" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="glass-panel max-w-xl w-full rounded-2xl p-6 flex flex-col gap-4 border border-amber-500/40 shadow-2xl relative">
+      <button class="btn-close-modal absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 text-xl font-bold">
+          <i class="fa-solid fa-circle-notch"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg text-white">Why Are Motor Magnets Curved?</h3>
+          <p class="text-xs text-amber-300">Concave Arc Pole Shoes vs. Flat Block Magnets</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 rounded-xl p-4 border border-slate-800 flex flex-col gap-3 text-xs leading-relaxed">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-red-950/30 border border-red-500/30 p-3 rounded-lg">
+            <h4 class="font-bold text-red-400 mb-1"><i class="fa-solid fa-square mr-1"></i> Flat Block Magnets</h4>
+            <p class="text-slate-300 text-[11px]">
+              • Field lines ($\vec{B}$) are strictly parallel.<br>
+              • Torque follows: $\tau = N I A B \sin\theta$.<br>
+              • At vertical position ($\theta = 0^\circ$ or $180^\circ$), torque drops to <strong>ZERO</strong> (dead-zone!), stalling the motor!
+            </p>
+          </div>
+
+          <div class="bg-blue-950/30 border border-blue-500/30 p-3 rounded-lg">
+            <h4 class="font-bold text-blue-400 mb-1"><i class="fa-solid fa-circle-notch mr-1"></i> Curved Arc Magnets</h4>
+            <p class="text-slate-300 text-[11px]">
+              • Field lines are <strong>RADIAL</strong> (pointing to central rotor axis).<br>
+              • $\vec{B}$ stays <strong>perpendicular ($\perp$)</strong> to coil wire across the arc angle.<br>
+              • Delivers <strong>constant maximum torque</strong> ($\tau = N I A B$) with no dead spots!
+            </p>
+          </div>
+        </div>
+
+        <p class="text-slate-300 bg-slate-950/50 p-2.5 rounded-lg border border-slate-800">
+          <strong class="text-amber-400">Core Physics Principle:</strong> Cylindrical concave magnets ensure maximum magnetic flux linkage and smooth continuous motor rotation.
+        </p>
+      </div>
+
+      <div class="flex justify-end">
+        <button class="btn-close-modal px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition">Got It!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: How To Speed Up Motor -->
+  <div id="modal-speed-guide" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="glass-panel max-w-xl w-full rounded-2xl p-6 flex flex-col gap-4 border border-emerald-500/40 shadow-2xl relative">
+      <button class="btn-close-modal absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 text-xl font-bold">
+          <i class="fa-solid fa-gauge-high"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg text-white">How To Speed Up An Electric Motor</h3>
+          <p class="text-xs text-emerald-300">Increasing Lorentz Force ($F = N \cdot I \cdot L \cdot B$) & Torque</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col gap-1">
+          <span class="text-amber-400 font-bold text-xs"><i class="fa-solid fa-car-battery mr-1"></i> 1. Increase Voltage ($V$)</span>
+          <p class="text-[11px] text-slate-300">Drives higher current ($I = V/R$) through the coil loops, proportional to force.</p>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col gap-1">
+          <span class="text-cyan-400 font-bold text-xs"><i class="fa-solid fa-magnet mr-1"></i> 2. Stronger Magnets ($B$)</span>
+          <p class="text-[11px] text-slate-300">Higher magnetic flux density directly multiplies magnetic force on wires.</p>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col gap-1">
+          <span class="text-copper font-bold text-xs"><i class="fa-solid fa-arrows-spin mr-1"></i> 3. More Coil Loops ($N$)</span>
+          <p class="text-[11px] text-slate-300">Adding wire turns stacks individual electromagnetic forces together.</p>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col gap-1">
+          <span class="text-emerald-400 font-bold text-xs"><i class="fa-solid fa-ruler-combined mr-1"></i> 4. Larger Rotor Radius ($R$)</span>
+          <p class="text-[11px] text-slate-300">Increases the torque arm length ($\tau = F \times R$) turning the shaft.</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
+        <span>Click below to automatically apply maximum voltage, field, and coil turns!</span>
+        <button id="btn-apply-max-speed" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 ml-3 transition">Apply Max Speed Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Fleming's Left-Hand Rule -->
+  <div id="modal-fleming" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="glass-panel max-w-lg w-full rounded-2xl p-6 flex flex-col gap-4 border border-indigo-500/40 shadow-2xl relative">
+      <button class="btn-close-modal absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400 text-xl font-bold">
+          <i class="fa-solid fa-hand-back-fist"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg text-white">Fleming's Left-Hand Rule</h3>
+          <p class="text-xs text-indigo-300">Determining Magnetic Force Direction ($\vec{F} = I \vec{L} \times \vec{B}$)</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded-xl flex flex-col items-center text-center">
+          <span class="text-emerald-400 text-[11px] font-bold uppercase">Thumb</span>
+          <i class="fa-solid fa-hand-point-up text-emerald-400 text-3xl my-2"></i>
+          <span class="font-extrabold text-xs text-emerald-300">FORCE ($\vec{F}$)</span>
+          <span class="text-[10px] text-emerald-400/80 mt-1">Wire Motion</span>
+        </div>
+
+        <div class="bg-cyan-950/40 border border-cyan-500/40 p-3 rounded-xl flex flex-col items-center text-center">
+          <span class="text-cyan-400 text-[11px] font-bold uppercase">First Finger</span>
+          <i class="fa-solid fa-hand-point-right text-cyan-400 text-3xl my-2"></i>
+          <span class="font-extrabold text-xs text-cyan-300">FIELD ($\vec{B}$)</span>
+          <span class="text-[10px] text-cyan-400/80 mt-1">North $\rightarrow$ South</span>
+        </div>
+
+        <div class="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xl flex flex-col items-center text-center">
+          <span class="text-amber-400 text-[11px] font-bold uppercase">Second Finger</span>
+          <i class="fa-solid fa-hand text-amber-400 text-3xl my-2"></i>
+          <span class="font-extrabold text-xs text-amber-300">CURRENT ($\vec{I}$)</span>
+          <span class="text-[10px] text-amber-400/80 mt-1">+ to - Terminal</span>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button class="btn-close-modal px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition">Understood!</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ========================================================================
+       DC ELECTROMAGNETIC MOTOR SIMULATION ENGINE
+       ======================================================================== */
+
+    // Motor Physics State Variables
+    const state = {
+      running: true,
+      voltage: 12.0,          // Volts
+      resistance: 2.0,        // Resistance in Ohms
+      bField: 1.0,            // Field strength B in Tesla
+      turns: 10,              // Coil turns N
+      radius: 0.10,           // Rotor Radius in meters (10 cm default)
+      magnetShape: 'curved',  // 'curved' or 'flat'
+      magnetArc: 120,         // Magnet Arc Angle in degrees
+      loadFriction: 0.25,     // Mechanical Friction / Load
+      polarity: 1,            // +1 or -1
+      speedMultiplier: 1.0,   // Time scale
+      angle: 0.0,             // Rotor angle theta (radians)
+      omega: 0.0,             // Angular speed rad/s
+      current: 6.0,           // Current I
+      torque: 0.0,            // Torque N-m
+      rpm: 0,
+      forceMag: 0,
+      viewMode: 'perspective',// 'perspective', 'axial', 'split'
+      particles: [],
+      sparks: []
+    };
+
+    let canvas, ctx;
+    let torqueChart;
+
+    function init() {
+      canvas = document.getElementById('motorCanvas');
+      ctx = canvas.getContext('2d');
+
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      initParticles();
+      initChart();
+      setupEventListeners();
+
+      lastTime = performance.now();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = container.clientWidth * dpr;
+      canvas.height = container.clientHeight * dpr;
+      ctx.scale(dpr, dpr);
+    }
+
+    function initParticles() {
+      state.particles = [];
+      for (let i = 0; i < 40; i++) {
+        state.particles.push({ progress: i / 40 });
+      }
+    }
+
+    function createSparks(cx, cy) {
+      for (let i = 0; i < 8; i++) {
+        state.sparks.push({
+          x: cx,
+          y: cy,
+          vx: (Math.random() - 0.5) * 120,
+          vy: (Math.random() - 0.5) * 120,
+          life: 1.0
+        });
+      }
+    }
+
+    function updatePhysics(dt) {
+      if (!state.running || state.voltage === 0) {
+        state.rpm = 0;
+        state.torque = 0;
+        state.forceMag = 0;
+        return;
+      }
+
+      // Back-EMF calculation: E = K * N * B * Area * omega
+      const area = Math.PI * state.radius * state.radius;
+      const backEmf = 0.02 * state.turns * state.bField * area * state.omega;
+      
+      const effectiveVoltage = Math.max(0, state.voltage - backEmf);
+      state.current = effectiveVoltage / state.resistance;
+
+      // Normalize angle between 0 and 2*PI
+      const normAngle = (state.angle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+
+      let bEff = state.bField;
+
+      if (state.magnetShape === 'flat') {
+        // Flat Magnets: Field lines parallel to X-axis -> force depends on sin(theta)
+        bEff = state.bField * Math.abs(Math.sin(normAngle));
+      } else {
+        // Curved Arc Magnets: Uniform radial field across magnet arc coverage
+        const arcRad = (state.magnetArc * Math.PI) / 180;
+        const rel = Math.abs((normAngle % Math.PI) - Math.PI / 2);
+        
+        if (rel <= arcRad / 2) {
+          bEff = state.bField; // Full perpendicular radial field
+        } else {
+          const drop = rel - arcRad / 2;
+          bEff = state.bField * Math.max(0, Math.cos(drop * 2.5));
+        }
+      }
+
+      // Lorentz Force on coil wire arm: F = N * I * L * B_eff (Length L proportional to radius)
+      const wireLength = state.radius * 2;
+      state.forceMag = state.turns * state.current * wireLength * bEff * 0.15;
+
+      // Split-Ring Commutator current switching logic (switches polarity every 180 degrees)
+      const prevCommutatorSign = Math.sin(state.angle - 0.05) >= 0 ? 1 : -1;
+      const currentCommutatorSign = Math.sin(normAngle) >= 0 ? 1 : -1;
+
+      // Trigger spark effect when commutator switches polarity across vertical gap
+      if (prevCommutatorSign !== currentCommutatorSign) {
+        const w = canvas.parentElement.clientWidth;
+        const h = canvas.parentElement.clientHeight;
+        createSparks(w / 2, h / 2);
+      }
+
+      const totalPolarity = state.polarity * currentCommutatorSign;
+
+      // Net Torque: Tau = 2 * F * R (two sides of loop)
+      const rawTorque = state.forceMag * state.radius * 2.5;
+      state.torque = rawTorque * totalPolarity * (Math.sin(normAngle) >= 0 ? 1 : -1);
+
+      // Rotational Dynamics: Tau_net = Inertia * Alpha
+      const inertia = 0.08 + state.turns * 0.002;
+      const damping = state.loadFriction * 1.5;
+
+      const netTorque = Math.abs(state.torque) - (state.omega * damping);
+      const alpha = Math.max(-25, netTorque / inertia);
+
+      const effectiveDt = dt * state.speedMultiplier;
+      state.omega += alpha * effectiveDt;
+      if (state.omega < 0) state.omega = 0;
+
+      const direction = state.polarity > 0 ? 1 : -1;
+      state.angle += direction * state.omega * effectiveDt;
+
+      state.rpm = Math.round((state.omega * 60) / (2 * Math.PI));
+
+      // Update particle flow animation
+      const flowSpeed = (state.current * 0.4 + state.omega * 0.4) * state.polarity;
+      state.particles.forEach(p => {
+        p.progress = (p.progress + effectiveDt * flowSpeed * 0.18) % 1.0;
+        if (p.progress < 0) p.progress += 1.0;
+      });
+
+      // Update sparks
+      for (let i = state.sparks.length - 1; i >= 0; i--) {
+        const s = state.sparks[i];
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.life -= dt * 3.0;
+        if (s.life <= 0) state.sparks.splice(i, 1);
+      }
+    }
+
+    function renderCanvas() {
+      const w = canvas.parentElement.clientWidth;
+      const h = canvas.parentElement.clientHeight;
+
+      ctx.clearRect(0, 0, w, h);
+      drawGridBackground(w, h);
+
+      if (state.viewMode === 'perspective') {
+        drawPerspectiveView(w / 2, h / 2, w, h);
+      } else if (state.viewMode === 'axial') {
+        drawAxialView(w / 2, h / 2, Math.min(w, h) * 0.38);
+      } else {
+        // Split View (Side by Side)
+        drawPerspectiveView(w * 0.30, h / 2, w * 0.55, h, 0.75);
+        drawAxialView(w * 0.76, h / 2, Math.min(w * 0.4, h) * 0.35);
+
+        // Divider Line
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(w * 0.56, 20);
+        ctx.lineTo(w * 0.56, h - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      drawSparks();
+    }
+
+    function drawGridBackground(w, h) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+      ctx.lineWidth = 1;
+      const step = 40;
+      for (let x = 0; x < w; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+      for (let y = 0; y < h; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+    }
+
+    function drawPerspectiveView(cx, cy, viewW, viewH, scale = 1.0) {
+      ctx.save();
+      ctx.translate(cx, cy - 20 * scale);
+      ctx.scale(scale, scale);
+
+      const R = state.radius * 900; // Visual radius
+
+      // 1. External DC Circuit & Battery (Reference IMG_0821)
+      const batY = 190;
+      const leftWireX = -130;
+      const rightWireX = 130;
+
+      ctx.lineWidth = 4;
+
+      // Wire (+ / -)
+      ctx.strokeStyle = state.polarity > 0 ? '#eab308' : '#06b6d4';
+      ctx.beginPath();
+      ctx.moveTo(leftWireX, 60);
+      ctx.lineTo(leftWireX, batY);
+      ctx.lineTo(-45, batY);
+      ctx.stroke();
+
+      ctx.strokeStyle = state.polarity > 0 ? '#06b6d4' : '#eab308';
+      ctx.beginPath();
+      ctx.moveTo(rightWireX, 60);
+      ctx.lineTo(rightWireX, batY);
+      ctx.lineTo(45, batY);
+      ctx.stroke();
+
+      // Battery Cell (Red Cylinder matching IMG_0821)
+      ctx.fillStyle = '#dc2626';
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.fillRect(-55, batY - 18, 110, 36);
+      ctx.strokeRect(-55, batY - 18, 110, 36);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 13px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(state.polarity > 0 ? '+ Battery -' : '- Battery +', 0, batY + 5);
+
+      // Current Flow Arrows along wires
+      if (state.running && state.voltage > 0) {
+        drawWireCurrentArrows(leftWireX, rightWireX, batY);
+      }
+
+      // 2. Stator Magnets (N / S)
+      drawPerspectiveMagnets(R);
+
+      // 3. Magnetic Field Lines B
+      if (document.getElementById('chk-field').checked) {
+        drawPerspectiveFieldLines(R);
+      }
+
+      // 4. Split-Ring Commutator & Carbon Brushes
+      drawPerspectiveCommutatorAndBrushes(leftWireX, rightWireX);
+
+      // 5. Rotating Rectangular Armature Loop & Central Shaft
+      drawPerspectiveRotorAndCoil(R);
+
+      // 6. Force & Current Vector Overlays (IMG_0822)
+      drawPerspectiveVectors(R);
+
+      ctx.restore();
+    }
+
+    function drawWireCurrentArrows(leftX, rightX, batY) {
+      if (!document.getElementById('chk-current').checked) return;
+      const dir = state.polarity > 0 ? 1 : -1;
+      
+      drawArrowHead(ctx, leftX, 120, dir > 0 ? -Math.PI / 2 : Math.PI / 2, '#eab308');
+      drawArrowHead(ctx, rightX, 120, dir > 0 ? Math.PI / 2 : -Math.PI / 2, '#eab308');
+    }
+
+    function drawPerspectiveMagnets(R) {
+      const magnetOffset = R + 40;
+      const mWidth = 50;
+      const mHeight = 140;
+
+      if (state.magnetShape === 'curved') {
+        const arcRad = (state.magnetArc * Math.PI) / 180;
+
+        // North Pole Arc (Left - Blue)
+        ctx.fillStyle = '#2563eb';
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, magnetOffset + mWidth, Math.PI - arcRad / 2, Math.PI + arcRad / 2);
+        ctx.arc(0, 0, magnetOffset, Math.PI + arcRad / 2, Math.PI - arcRad / 2, true);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 22px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('N', -magnetOffset - mWidth / 2, 8);
+
+        // South Pole Arc (Right - Red)
+        ctx.fillStyle = '#dc2626';
+        ctx.strokeStyle = '#f87171';
+        ctx.beginPath();
+        ctx.arc(0, 0, magnetOffset + mWidth, -arcRad / 2, arcRad / 2);
+        ctx.arc(0, 0, magnetOffset, arcRad / 2, -arcRad / 2, true);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('S', magnetOffset + mWidth / 2, 8);
+
+      } else {
+        // Flat Block Magnets (IMG_0821)
+        ctx.fillStyle = '#2563eb';
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-magnetOffset - mWidth, -mHeight / 2, mWidth, mHeight);
+        ctx.strokeRect(-magnetOffset - mWidth, -mHeight / 2, mWidth, mHeight);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 22px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('N', -magnetOffset - mWidth / 2, 8);
+
+        ctx.fillStyle = '#dc2626';
+        ctx.strokeStyle = '#f87171';
+        ctx.fillRect(magnetOffset, -mHeight / 2, mWidth, mHeight);
+        ctx.strokeRect(magnetOffset, -mHeight / 2, mWidth, mHeight);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('S', magnetOffset + mWidth / 2, 8);
+      }
+    }
+
+    function drawPerspectiveFieldLines(R) {
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+      ctx.lineWidth = 1.5;
+      const lines = 7;
+      const magX = R + 40;
+
+      if (state.magnetShape === 'flat') {
+        for (let i = 0; i < lines; i++) {
+          const y = -50 + i * 16;
+          ctx.beginPath();
+          ctx.setLineDash([5, 4]);
+          ctx.moveTo(-magX, y);
+          ctx.lineTo(magX, y);
+          ctx.stroke();
+
+          drawArrowHead(ctx, 10, y, 0, '#06b6d4');
+        }
+      } else {
+        const arcRad = (state.magnetArc * Math.PI) / 180;
+        for (let i = 0; i < lines; i++) {
+          const angle = -arcRad / 2 + (i / (lines - 1)) * arcRad;
+          const x1 = -magX * Math.cos(angle);
+          const y1 = magX * Math.sin(angle);
+          const x2 = magX * Math.cos(angle);
+          const y2 = magX * Math.sin(angle);
+
+          ctx.beginPath();
+          ctx.setLineDash([5, 4]);
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+
+          drawArrowHead(ctx, 20 * Math.cos(angle), 20 * Math.sin(angle), angle, '#06b6d4');
+        }
+      }
+      ctx.setLineDash([]);
+    }
+
+    function drawPerspectiveCommutatorAndBrushes(leftX, rightX) {
+      // Carbon Brushes (Stationary)
+      ctx.fillStyle = '#334155';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+      ctx.fillRect(leftX - 5, 45, 25, 20);
+      ctx.strokeRect(leftX - 5, 45, 25, 20);
+
+      ctx.fillRect(rightX - 20, 45, 25, 20);
+      ctx.strokeRect(rightX - 20, 45, 25, 20);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('Brush', leftX + 7, 80);
+      ctx.fillText('Brush', rightX - 7, 80);
+
+      // Rotating Split Ring Commutator (Copper halves)
+      ctx.save();
+      ctx.rotate(state.angle);
+
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 9;
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 28, 0.18, Math.PI - 0.18);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 28, Math.PI + 0.18, Math.PI * 2 - 0.18);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawPerspectiveRotorAndCoil(R) {
+      ctx.save();
+
+      // Central Rotor Axle Shaft
+      ctx.fillStyle = '#475569';
+      ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+
+      ctx.rotate(state.angle);
+
+      // Rectangular Copper Armature Winding
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = Math.min(14, 3 + state.turns * 0.4);
+
+      ctx.beginPath();
+      ctx.rect(-14, -R, 28, R * 2);
+      ctx.stroke();
+
+      // Coil Loop End Dots
+      ctx.fillStyle = '#eab308';
+      ctx.beginPath(); ctx.arc(0, -R, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, R, 7, 0, Math.PI * 2); ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawPerspectiveVectors(R) {
+      if (!state.running || state.voltage === 0) return;
+
+      const angle = state.angle;
+      const x1 = -R * Math.sin(angle);
+      const y1 = R * Math.cos(angle);
+      const x2 = R * Math.sin(angle);
+      const y2 = -R * Math.cos(angle);
+
+      // Lorentz Force Arrows (Green)
+      if (document.getElementById('chk-force').checked) {
+        const forceLen = Math.min(80, Math.max(15, state.forceMag * 10));
+        const dir = state.polarity > 0 ? 1 : -1;
+
+        drawVectorArrow(ctx, x1, y1, -dir * forceLen, angle + Math.PI / 2, '#22c55e', 'F');
+        drawVectorArrow(ctx, x2, y2, dir * forceLen, angle + Math.PI / 2, '#22c55e', 'F');
+      }
+
+      // Current Arrows along Coil Loop Sides (Yellow)
+      if (document.getElementById('chk-current').checked) {
+        const cSign = Math.sin(angle) >= 0 ? 1 : -1;
+        const curDir = state.polarity * cSign;
+
+        drawArrowHead(ctx, x1 / 2, y1 / 2, angle + (curDir > 0 ? Math.PI : 0), '#eab308');
+        drawArrowHead(ctx, x2 / 2, y2 / 2, angle + (curDir > 0 ? 0 : Math.PI), '#eab308');
+      }
+    }
+
+    function drawAxialView(cx, cy, viewRadius) {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      const R = viewRadius * 0.65;
+
+      // Outer Stator Boundary Circle
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, viewRadius, 0, Math.PI * 2); ctx.stroke();
+
+      // Title Label
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 12px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('Axial End-On View', 0, -viewRadius - 10);
+
+      // Stator Magnets in Cross-Section
+      drawAxialMagnets(R, viewRadius);
+
+      // Magnetic Field Lines in Cross-Section
+      if (document.getElementById('chk-field').checked) {
+        drawAxialFieldLines(R, viewRadius);
+      }
+
+      // Rotor Circular Motion Path
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Central Axle
+      ctx.fillStyle = '#64748b';
+      ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill();
+
+      // Coil Side Cross-Sections (Dot ⊙ vs Cross ⊗)
+      const angle = state.angle;
+      const x1 = R * Math.cos(angle);
+      const y1 = R * Math.sin(angle);
+      const x2 = -R * Math.cos(angle);
+      const y2 = -R * Math.sin(angle);
+
+      // Connect Arm Line
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+      // Current direction logic for cross-sections
+      const cSign = Math.sin(angle) >= 0 ? 1 : -1;
+      const isOut1 = (state.polarity * cSign) > 0;
+
+      drawWireCrossSection(x1, y1, isOut1);
+      drawWireCrossSection(x2, y2, !isOut1);
+
+      // Force Vectors in Cross Section
+      if (document.getElementById('chk-force').checked && state.running && state.voltage > 0) {
+        const forceLen = Math.min(60, Math.max(15, state.forceMag * 8));
+        const dir = state.polarity > 0 ? 1 : -1;
+
+        drawVectorArrow(ctx, x1, y1, -dir * forceLen, angle + Math.PI / 2, '#22c55e', 'F');
+        drawVectorArrow(ctx, x2, y2, dir * forceLen, angle + Math.PI / 2, '#22c55e', 'F');
+      }
+
+      ctx.restore();
+    }
+
+    function drawAxialMagnets(R, viewRadius) {
+      const magOffset = R + 25;
+      const thick = 25;
+
+      if (state.magnetShape === 'curved') {
+        const arcRad = (state.magnetArc * Math.PI) / 180;
+
+        // North Arc
+        ctx.fillStyle = '#2563eb';
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, magOffset + thick, Math.PI - arcRad / 2, Math.PI + arcRad / 2);
+        ctx.arc(0, 0, magOffset, Math.PI + arcRad / 2, Math.PI - arcRad / 2, true);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('N', -magOffset - thick / 2, 6);
+
+        // South Arc
+        ctx.fillStyle = '#dc2626';
+        ctx.strokeStyle = '#f87171';
+        ctx.beginPath();
+        ctx.arc(0, 0, magOffset + thick, -arcRad / 2, arcRad / 2);
+        ctx.arc(0, 0, magOffset, arcRad / 2, -arcRad / 2, true);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('S', magOffset + thick / 2, 6);
+
+      } else {
+        // Flat Blocks
+        ctx.fillStyle = '#2563eb';
+        ctx.fillRect(-magOffset - thick, -viewRadius * 0.7, thick, viewRadius * 1.4);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('N', -magOffset - thick / 2, 6);
+
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(magOffset, -viewRadius * 0.7, thick, viewRadius * 1.4);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('S', magOffset + thick / 2, 6);
+      }
+    }
+
+    function drawAxialFieldLines(R, viewRadius) {
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+      ctx.lineWidth = 1.5;
+      const lines = 7;
+      const magOffset = R + 25;
+
+      if (state.magnetShape === 'flat') {
+        for (let i = 0; i < lines; i++) {
+          const y = -viewRadius * 0.5 + (i / (lines - 1)) * viewRadius;
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.moveTo(-magOffset, y);
+          ctx.lineTo(magOffset, y);
+          ctx.stroke();
+
+          drawArrowHead(ctx, 0, y, 0, '#06b6d4');
+        }
+      } else {
+        const arcRad = (state.magnetArc * Math.PI) / 180;
+        for (let i = 0; i < lines; i++) {
+          const angle = -arcRad / 2 + (i / (lines - 1)) * arcRad;
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.moveTo(-magOffset * Math.cos(angle), magOffset * Math.sin(angle));
+          ctx.lineTo(magOffset * Math.cos(angle), magOffset * Math.sin(angle));
+          ctx.stroke();
+
+          drawArrowHead(ctx, 0, 0, angle, '#06b6d4');
+        }
+      }
+      ctx.setLineDash([]);
+    }
+
+    function drawWireCrossSection(x, y, isOut) {
+      ctx.fillStyle = '#eab308';
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 11px Inter';
+      ctx.textAlign = 'center';
+      
+      if (isOut) {
+        // Dot ⊙ (Current OUT of page)
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Cross ⊗ (Current INTO page)
+        ctx.fillText('✕', x, y + 4);
+      }
+    }
+
+    function drawVectorArrow(ctx, x, y, magnitude, angle, color, label) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -magnitude);
+      ctx.stroke();
+
+      drawArrowHead(ctx, 0, -magnitude, -Math.PI / 2, color);
+
+      ctx.font = 'bold 12px Inter';
+      ctx.fillText(label, 8, -magnitude / 2);
+
+      ctx.restore();
+    }
+
+    function drawArrowHead(ctx, x, y, angle, color) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-7, -4);
+      ctx.lineTo(-7, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawSparks() {
+      state.sparks.forEach(s => {
+        ctx.fillStyle = `rgba(253, 224, 71, ${s.life})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, Math.random() * 2.5 + 1, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function initChart() {
+      const canvasChart = document.getElementById('torqueChart');
+      if (!canvasChart) return;
+
+      const ctxChart = canvasChart.getContext('2d');
+
+      const labels = [];
+      const curvedData = [];
+      const flatData = [];
+
+      for (let a = 0; a <= 360; a += 10) {
+        labels.push(a + '°');
+        const rad = (a * Math.PI) / 180;
+
+        flatData.push(Math.abs(Math.sin(rad)));
+
+        const arcRad = (120 * Math.PI) / 180;
+        const rel = Math.abs((rad % Math.PI) - Math.PI / 2);
+        if (rel <= arcRad / 2) {
+          curvedData.push(1.0);
+        } else {
+          curvedData.push(Math.max(0, Math.cos((rel - arcRad / 2) * 2.5)));
+        }
+      }
+
+      torqueChart = new Chart(ctxChart, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Curved Arc Magnets (Radial Field)',
+              data: curvedData,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.12)',
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0
+            },
+            {
+              label: 'Flat Block Magnets (Sinusoidal)',
+              data: flatData,
+              borderColor: '#ef4444',
+              borderWidth: 2,
+              borderDash: [4, 4],
+              fill: false,
+              tension: 0.3,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#94a3b8', font: { size: 9, family: 'Inter' }, boxWidth: 10 }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 8 }, maxTicksLimit: 7 } },
+            y: { min: 0, max: 1.2, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 8 } } }
+          }
+        }
+      });
+    }
+
+    function updateTelemetryUI() {
+      document.getElementById('stat-rpm').textContent = state.rpm;
+      document.getElementById('stat-torque').textContent = state.torque.toFixed(3);
+      document.getElementById('stat-force').textContent = state.forceMag.toFixed(2);
+      document.getElementById('stat-current').textContent = state.current.toFixed(2);
+
+      const deg = Math.round(((state.angle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)) * 180 / Math.PI);
+      document.getElementById('stat-angle-deg').textContent = `Angle: ${deg}°`;
+
+      const statusDot = document.getElementById('motor-status-dot');
+      const statusText = document.getElementById('motor-status-text');
+
+      if (state.running && state.voltage > 0) {
+        statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping";
+        statusText.className = "text-[11px] font-bold text-emerald-400";
+        statusText.textContent = "RUNNING";
+      } else {
+        statusDot.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+        statusText.className = "text-[11px] font-bold text-slate-400";
+        statusText.textContent = "PAUSED";
+      }
+    }
+
+    function setupEventListeners() {
+      // Voltage
+      document.getElementById('slider-voltage').addEventListener('input', (e) => {
+        state.voltage = parseFloat(e.target.value);
+        document.getElementById('val-voltage').textContent = state.voltage.toFixed(1) + ' V';
+      });
+
+      // Field Strength B
+      document.getElementById('slider-bfield').addEventListener('input', (e) => {
+        state.bField = parseFloat(e.target.value);
+        document.getElementById('val-bfield').textContent = state.bField.toFixed(2) + ' T';
+      });
+
+      // Coil Loops N
+      document.getElementById('slider-turns').addEventListener('input', (e) => {
+        state.turns = parseInt(e.target.value);
+        document.getElementById('val-turns').textContent = state.turns + ' turns';
+      });
+
+      // Radius R
+      document.getElementById('slider-radius').addEventListener('input', (e) => {
+        state.radius = parseFloat(e.target.value) / 100.0;
+        document.getElementById('val-radius').textContent = e.target.value + ' cm';
+      });
+
+      // Friction / Load
+      document.getElementById('slider-load').addEventListener('input', (e) => {
+        state.loadFriction = parseFloat(e.target.value);
+        const labels = ['Light', 'Medium', 'Heavy', 'Maximum'];
+        const idx = Math.min(3, Math.floor((state.loadFriction - 0.05) / 0.18));
+        document.getElementById('val-load').textContent = labels[idx];
+      });
+
+      // Magnet Arc Angle
+      document.getElementById('slider-arc').addEventListener('input', (e) => {
+        state.magnetArc = parseInt(e.target.value);
+        document.getElementById('val-arc').textContent = state.magnetArc + '°';
+      });
+
+      // View Mode Buttons
+      const btnPersp = document.getElementById('view-perspective');
+      const btnAxial = document.getElementById('view-axial');
+      const btnSplit = document.getElementById('view-split');
+
+      function updateViewButtons(activeBtn) {
+        [btnPersp, btnAxial, btnSplit].forEach(b => {
+          b.className = b === activeBtn
+            ? "px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white transition flex items-center gap-1.5 shadow-md"
+            : "px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-1.5";
+        });
+      }
+
+      btnPersp.addEventListener('click', () => { state.viewMode = 'perspective'; updateViewButtons(btnPersp); });
+      btnAxial.addEventListener('click', () => { state.viewMode = 'axial'; updateViewButtons(btnAxial); });
+      btnSplit.addEventListener('click', () => { state.viewMode = 'split'; updateViewButtons(btnSplit); });
+
+      // Magnet Shape Toggles
+      const btnCurved = document.getElementById('btn-shape-curved');
+      const btnFlat = document.getElementById('btn-shape-flat');
+      const arcBox = document.getElementById('arc-slider-box');
+      const tagShape = document.getElementById('tag-magnet-shape');
+      const noteTorque = document.getElementById('note-torque');
+
+      btnCurved.addEventListener('click', () => {
+        state.magnetShape = 'curved';
+        btnCurved.className = "py-2 px-2.5 rounded-lg text-xs font-semibold bg-blue-600 text-white border border-blue-400/40 flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/20";
+        btnFlat.className = "py-2 px-2.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center gap-1.5 transition hover:bg-slate-700";
+        arcBox.style.display = 'flex';
+        tagShape.textContent = "CURVED ARC";
+        tagShape.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30";
+        noteTorque.innerHTML = '<strong class="text-blue-400">Curved Arc Magnets:</strong> Maintain perpendicular magnetic field lines ($\perp$) throughout the arc, producing a <strong class="text-emerald-400">constant torque plateau</strong> without dead spots!';
+      });
+
+      btnFlat.addEventListener('click', () => {
+        state.magnetShape = 'flat';
+        btnFlat.className = "py-2 px-2.5 rounded-lg text-xs font-semibold bg-blue-600 text-white border border-blue-400/40 flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/20";
+        btnCurved.className = "py-2 px-2.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center gap-1.5 transition hover:bg-slate-700";
+        arcBox.style.display = 'none';
+        tagShape.textContent = "FLAT BLOCK";
+        tagShape.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30";
+        noteTorque.innerHTML = '<strong class="text-red-400">Flat Magnets:</strong> Produce parallel field lines. Torque drops to <strong class="text-red-400">ZERO</strong> at vertical positions ($\tau = N I A B \sin\theta = 0$), causing stalling!';
+      });
+
+      // Quick Angle Jump Buttons
+      document.querySelectorAll('.btn-angle-jump').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const deg = parseFloat(btn.dataset.deg);
+          state.angle = (deg * Math.PI) / 180;
+          state.omega = 0;
+        });
+      });
+
+      // Power Switch
+      const btnPower = document.getElementById('btn-power');
+      btnPower.addEventListener('click', () => {
+        state.running = !state.running;
+        btnPower.className = state.running
+          ? "w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center text-lg shadow-lg shadow-emerald-600/40 transition active:scale-95"
+          : "w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center text-lg shadow-lg shadow-red-600/40 transition active:scale-95";
+      });
+
+      // Swap Polarity
+      document.getElementById('btn-reverse').addEventListener('click', () => {
+        state.polarity *= -1;
+      });
+
+      // Speed Scalers
+      document.getElementById('btn-speed-01').addEventListener('click', () => setSpeedScale(0.1, 'btn-speed-01'));
+      document.getElementById('btn-speed-05').addEventListener('click', () => setSpeedScale(0.5, 'btn-speed-05'));
+      document.getElementById('btn-speed-10').addEventListener('click', () => setSpeedScale(1.0, 'btn-speed-10'));
+      document.getElementById('btn-speed-20').addEventListener('click', () => setSpeedScale(2.0, 'btn-speed-20'));
+
+      // Step frame
+      document.getElementById('btn-step').addEventListener('click', () => {
+        state.running = true;
+        updatePhysics(0.015);
+        state.running = false;
+      });
+
+      // Reset
+      document.getElementById('btn-reset-params').addEventListener('click', () => {
+        state.voltage = 12.0; state.bField = 1.0; state.turns = 10; state.radius = 0.10;
+        state.magnetShape = 'curved'; state.magnetArc = 120; state.loadFriction = 0.25;
+        state.polarity = 1;
+
+        document.getElementById('slider-voltage').value = 12; document.getElementById('val-voltage').textContent = "12.0 V";
+        document.getElementById('slider-bfield').value = 1.0; document.getElementById('val-bfield').textContent = "1.00 T";
+        document.getElementById('slider-turns').value = 10; document.getElementById('val-turns').textContent = "10 turns";
+        document.getElementById('slider-radius').value = 10; document.getElementById('val-radius').textContent = "10.0 cm";
+        document.getElementById('slider-arc').value = 120; document.getElementById('val-arc').textContent = "120°";
+      });
+
+      // Modals
+      setupModal('btn-why-curved', 'modal-why-curved');
+      setupModal('btn-speed-guide', 'modal-speed-guide');
+      setupModal('btn-fleming', 'modal-fleming');
+
+      document.getElementById('btn-apply-max-speed').addEventListener('click', () => {
+        state.voltage = 24.0; state.bField = 2.5; state.turns = 30; state.radius = 0.18;
+        document.getElementById('slider-voltage').value = 24; document.getElementById('val-voltage').textContent = "24.0 V";
+        document.getElementById('slider-bfield').value = 2.5; document.getElementById('val-bfield').textContent = "2.50 T";
+        document.getElementById('slider-turns').value = 30; document.getElementById('val-turns').textContent = "30 turns";
+        document.getElementById('slider-radius').value = 18; document.getElementById('val-radius').textContent = "18.0 cm";
+        document.getElementById('modal-speed-guide').classList.add('hidden');
+      });
+
+      // Interactive Canvas Inspector Click
+      canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const cx = rect.width / 2;
+        const cy = rect.height / 2 - 20;
+
+        const dist = Math.hypot(x - cx, y - cy);
+        const card = document.getElementById('inspector-content');
+
+        if (dist < 35) {
+          card.innerHTML = `<span class="font-bold text-amber-400 text-xs"><i class="fa-solid fa-circle-notch mr-1"></i> Split-Ring Commutator</span><p class="text-slate-300 text-[11px] mt-1">Rotates with the shaft. Reverses contact polarity every 180° so torque stays unidirectional.</p>`;
+        } else if (dist < 110) {
+          card.innerHTML = `<span class="font-bold text-copper text-xs"><i class="fa-solid fa-arrows-spin mr-1"></i> Copper Armature Coil Loop ($N = ${state.turns}$)</span><p class="text-slate-300 text-[11px] mt-1">Carries electric current $I$. Experiences Lorentz forces ($F = N I L B$) causing rotation.</p>`;
+        } else if (dist < 190) {
+          card.innerHTML = `<span class="font-bold text-blue-400 text-xs"><i class="fa-solid fa-magnet mr-1"></i> Stator Magnets (${state.magnetShape.toUpperCase()})</span><p class="text-slate-300 text-[11px] mt-1">Establishes magnetic field $B$ across the rotor core.</p>`;
+        } else {
+          card.innerHTML = `<span class="font-bold text-amber-400 text-xs"><i class="fa-solid fa-car-battery mr-1"></i> Power Circuit & Brushes</span><p class="text-slate-300 text-[11px] mt-1">Delivers DC current ($V = ${state.voltage}V$) into the rotating commutator rings.</p>`;
+        }
+      });
+    }
+
+    function setSpeedScale(scale, btnId) {
+      state.speedMultiplier = scale;
+      ['btn-speed-01', 'btn-speed-05', 'btn-speed-10', 'btn-speed-20'].forEach(id => {
+        document.getElementById(id).className = id === btnId
+          ? "px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-600 text-white transition"
+          : "px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-400 hover:text-white transition";
+      });
+    }
+
+    function setupModal(btnId, modalId) {
+      const btn = document.getElementById(btnId);
+      const modal = document.getElementById(modalId);
+      if (!btn || !modal) return;
+
+      btn.addEventListener('click', () => modal.classList.remove('hidden'));
+      modal.querySelectorAll('.btn-close-modal').forEach(b => {
+        b.addEventListener('click', () => modal.classList.add('hidden'));
+      });
+    }
+
+    let lastTime = 0;
+
+    function gameLoop(timestamp) {
+      const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
+      lastTime = timestamp;
+
+      updatePhysics(dt);
+      renderCanvas();
+      updateTelemetryUI();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    window.onload = function() {
+      init();
+    };
+  </script>
+</body>
+</html>

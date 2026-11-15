@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chladni Plate Simulator</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root { --bg-color: #1a1a1a; --panel-bg: #2a2a2a; --text-color: #f0f0f0; --accent: #4CAF50; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* Header Bar */
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background-color: #111; box-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 10; }
+        h1 { margin: 0; font-size: 1.2rem; }
+        .header-btns button { background-color: var(--accent); color: white; border: none; padding: 8px 12px; margin-left: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .header-btns button:hover { background-color: #45a049; }
+
+        /* Main Content */
+        .container { display: flex; flex: 1; position: relative; overflow: hidden; flex-wrap: wrap;}
+        .controls { width: 300px; padding: 20px; background-color: var(--panel-bg); display: flex; flex-direction: column; gap: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 5; overflow-y: auto;}
+        
+        /* Responsive Canvas Container */
+        .canvas-container { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; padding: 20px; min-width: 320px;}
+        canvas { background-color: #000; box-shadow: 0 0 20px rgba(255,255,255,0.1); max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; }
+
+        /* Control Elements */
+        label { font-weight: bold; margin-bottom: 5px; display: block; font-size: 0.95rem; color: #ddd; }
+        select, input[type="range"] { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; box-sizing: border-box; }
+        .status-box { background: #111; padding: 10px; border-radius: 4px; text-align: center; font-family: monospace; font-size: 1.1rem; color: #00ffcc;}
+        .status-box.chaos { color: #ff5555; }
+        .hints { font-size: 0.85rem; color: #999; line-height: 1.4; background: #222; padding: 10px; border-radius: 4px; border-left: 3px solid var(--accent); }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; }
+        .modal-content { background: #222; padding: 30px; border-radius: 8px; width: 90%; max-width: 700px; line-height: 1.6; position: relative; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .close-btn { position: absolute; top: 15px; right: 20px; font-size: 1.5rem; cursor: pointer; color: #aaa; transition: 0.2s;}
+        .close-btn:hover { color: white; transform: scale(1.1); }
+
+        h2 { color: var(--accent); margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        p { color: #ccc; }
+        
+        /* Switch Toggle UI */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;}
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 24px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);}
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.3);}
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .flex-row-between { display: flex; justify-content: space-between; align-items: center; }
+        .control-group { background: #222; padding: 12px; border-radius: 6px; border-left: 3px solid #ff9800; margin-bottom: 5px;}
+
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .controls { width: 100%; box-sizing: border-box; flex: none;}
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="app-title">克拉尼圖形振動模擬器 (Chladni Plate)</h1>
+        <div class="header-btns">
+            <button id="btn-explain" onclick="toggleModal()">原理解說</button>
+            <button id="btn-lang" onclick="toggleLanguage()">中 / EN</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            
+            <div class="control-group flex-row-between">
+                <label id="label-generator" for="gen-switch" style="margin: 0; color: #ff9800;">訊號產生器 (Generator)</label>
+                <label class="switch">
+                    <input type="checkbox" id="gen-switch" onchange="toggleGenerator()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div>
+                <label id="label-shape" for="shape-select">金屬板形狀 :</label>
+                <select id="shape-select" onchange="changeShape()">
+                    <option value="square">方形 (Square)</option>
+                    <option value="circle">圓形 (Circular)</option>
+                    <option value="triangle">等邊三角形 (Triangle)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label id="label-freq">目前頻率 (Hz) : <span id="freq-val">100</span></label>
+                <input type="range" id="freq-slider" min="50" max="1000" value="100" step="1" oninput="updateFrequency()">
+            </div>
+
+            <div>
+                <label id="label-power">振動強度 (Power) : <span id="power-val">100%</span></label>
+                <input type="range" id="power-slider" min="0" max="200" value="100" step="5" oninput="updateVariables()">
+            </div>
+
+            <div>
+                <label id="label-friction">阻力/黏滯度 (Friction) : <span id="friction-val">88%</span></label>
+                <input type="range" id="friction-slider" min="70" max="98" value="88" step="1" oninput="updateVariables()">
+            </div>
+
+            <div>
+                <label id="label-status">共振狀態 :</label>
+                <div class="status-box chaos" id="resonance-status">未共振 (Chaos)</div>
+            </div>
+
+            <div class="hints">
+                <strong id="hint-title">💡 尋找共振頻率:</strong><br>
+                <span id="hint-desc">打開訊號產生器，拖動滑桿尋找共振點。當達到特定頻率時，粒子會聚集在波節上形成圖案。<br><br>方形板提示: 120, 260, 380...<br>圓形板提示: 150, 300, 450...<br>三角形提示: 180, 320, 450...</span>
+            </div>
+
+            <button onclick="scatterParticles()" style="background: #333; color: white; border: 1px solid #555; padding: 10px; border-radius: 4px; cursor: pointer;" id="btn-scatter">
+                🔄 重新撒沙 (Scatter Sand)
+            </button>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="plateCanvas" width="600" height="600"></canvas>
+        </div>
+    </div>
+
+    <div id="explain-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="toggleModal()">&times;</span>
+            <h2 id="modal-title">克拉尼圖形 (Chladni Figures) 原理</h2>
+            
+            <div id="modal-body-zh" style="display: block;">
+                <p>克拉尼圖形是由德國物理學家 Ernst Chladni 發現的聲學現象。當金屬板受到特定頻率的振動時，波在板的邊界反射，形成<strong>駐波 (Standing Waves)</strong>。</p>
+                <p>駐波產生兩種區域：</p>
+                <ul>
+                    <li><strong>波腹 (Antinodes)</strong>：振動最劇烈的地方，沙粒會被彈開。</li>
+                    <li><strong>波節 (Nodes / Nodal Lines)</strong>：完全不振動的區域。</li>
+                </ul>
+                <p>沙粒最終會沉澱聚集在「波節」上，形成美麗的幾何圖案。其數學方程式可近似表示為：</p>
+                <p><strong>方形板方程式：</strong></p>
+                <p>$$ W(x,y) = \cos\left(\frac{n\pi x}{L}\right) \cos\left(\frac{m\pi y}{L}\right) - \cos\left(\frac{m\pi x}{L}\right) \cos\left(\frac{n\pi y}{L}\right) = 0 $$</p>
+                <p><strong>圓形板方程式：</strong></p>
+                <p>$$ W(r,\theta) = \sin(n\theta) \cdot J_n(k_m r) = 0 $$</p>
+                <p>其中 \(n, m\) 為模態階數，決定了節線的數量與形狀。頻率越高，圖案越複雜！</p>
+            </div>
+
+            <div id="modal-body-en" style="display: none;">
+                <p>Chladni figures are an acoustic phenomenon discovered by German physicist Ernst Chladni. When a metal plate is vibrated at specific frequencies, waves reflect at the boundaries to form <strong>Standing Waves</strong>.</p>
+                <p>Standing waves create two distinct regions:</p>
+                <ul>
+                    <li><strong>Antinodes</strong>: Areas of maximum vibration where sand gets bounced away.</li>
+                    <li><strong>Nodes (Nodal Lines)</strong>: Areas that remain completely stationary.</li>
+                </ul>
+                <p>The sand eventually settles on the "Nodes", forming beautiful geometric patterns. The mathematical equations can be approximated as:</p>
+                <p><strong>Square Plate Equation:</strong></p>
+                <p>$$ W(x,y) = \cos\left(\frac{n\pi x}{L}\right) \cos\left(\frac{m\pi y}{L}\right) - \cos\left(\frac{m\pi x}{L}\right) \cos\left(\frac{n\pi y}{L}\right) = 0 $$</p>
+                <p><strong>Circular Plate Equation:</strong></p>
+                <p>$$ W(r,\theta) = \sin(n\theta) \cdot J_n(k_m r) = 0 $$</p>
+                <p>Where \(n, m\) represent the mode integers, determining the number and shape of nodal lines. Higher frequencies result in more complex patterns!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data Structures and Configurations
+        const CONFIG = {
+            maxParticles: 8000,
+            resonanceThreshold: 8, // +/- Hz to trigger resonance
+            canvasSize: 600
+        };
+
+        // Resonance Modes Definitions
+        const RESONANCES = {
+            square: [
+                { freq: 120, n: 1, m: 2, name: "(1, 2) Mode" },
+                { freq: 260, n: 2, m: 3, name: "(2, 3) Mode" },
+                { freq: 380, n: 3, m: 3, name: "(3, 3) Mode" },
+                { freq: 520, n: 2, m: 4, name: "(2, 4) Mode" },
+                { freq: 700, n: 4, m: 4, name: "(4, 4) Mode" },
+                { freq: 850, n: 3, m: 5, name: "(3, 5) Mode" }
+            ],
+            circle: [
+                { freq: 150, n: 2, m: 1, name: "2 Angular, 1 Radial" },
+                { freq: 300, n: 3, m: 2, name: "3 Angular, 2 Radial" },
+                { freq: 450, n: 4, m: 2, name: "4 Angular, 2 Radial" },
+                { freq: 650, n: 5, m: 3, name: "5 Angular, 3 Radial" },
+                { freq: 800, n: 6, m: 3, name: "6 Angular, 3 Radial" }
+            ],
+            triangle: [
+                { freq: 180, n: 1, m: 2, name: "Triangle Mode 1" },
+                { freq: 320, n: 2, m: 3, name: "Triangle Mode 2" },
+                { freq: 450, n: 3, m: 3, name: "Triangle Mode 3" },
+                { freq: 610, n: 4, m: 2, name: "Triangle Mode 4" },
+                { freq: 780, n: 5, m: 4, name: "Triangle Mode 5" }
+            ]
+        };
+
+        let state = {
+            shape: 'square', // 'square', 'circle', 'triangle'
+            frequency: 100,
+            activeResonance: null,
+            particles: [],
+            lang: 'zh',
+            isGeneratorOn: false,
+            power: 1.0,
+            friction: 0.88,
+            numParticles: 4000
+        };
+
+        let audioCtx;
+        let oscillator;
+        let gainNode;
+
+        // DOM Elements
+        const canvas = document.getElementById('plateCanvas');
+        const ctx = canvas.getContext('2d');
+        const freqSlider = document.getElementById('freq-slider');
+        const freqVal = document.getElementById('freq-val');
+        const statusBox = document.getElementById('resonance-status');
+        const genSwitch = document.getElementById('gen-switch');
+        const powerSlider = document.getElementById('power-slider');
+        const frictionSlider = document.getElementById('friction-slider');
+
+        const i18n = {
+            zh: {
+                title: "克拉尼圖形振動模擬器",
+                explainBtn: "原理解說",
+                generatorLabel: "訊號產生器 (Generator)",
+                shapeLabel: "金屬板形狀 :",
+                freqLabel: "目前頻率 (Hz) : ",
+                powerLabel: "振動強度 (Power) : ",
+                frictionLabel: "沙粒阻力 (Friction) : ",
+                statusLabel: "共振狀態 :",
+                hintTitle: "💡 尋找共振頻率:",
+                hintDesc: "打開訊號產生器，拖動滑桿尋找共振點。當達到特定頻率時，粒子會聚集在波節上形成圖案。<br><br>方形板提示: 120, 260, 380...<br>圓形板提示: 150, 300, 450...<br>三角形提示: 180, 320, 450...",
+                scatterBtn: "🔄 重新撒沙",
+                modalTitle: "克拉尼圖形 (Chladni Figures) 原理",
+                chaos: "未共振 (雜亂)",
+                resonanceObj: " 共振!"
+            },
+            en: {
+                title: "Chladni Plate Simulator",
+                explainBtn: "Theory & Math",
+                generatorLabel: "Signal Generator",
+                shapeLabel: "Plate Shape :",
+                freqLabel: "Frequency (Hz) : ",
+                powerLabel: "Vibration Power : ",
+                frictionLabel: "Sand Friction : ",
+                statusLabel: "Resonance Status :",
+                hintTitle: "💡 Find Resonances:",
+                hintDesc: "Turn ON the generator and drag the slider. Particles gather at nodal lines at specific frequencies.<br><br>Square Hints: ~120, 260, 380...<br>Circle Hints: ~150, 300, 450...<br>Triangle Hints: ~180, 320, 450...",
+                scatterBtn: "🔄 Scatter Sand",
+                modalTitle: "Chladni Figures Principles",
+                chaos: "No Resonance (Chaos)",
+                resonanceObj: " Resonating!"
+            }
+        };
+
+        function toggleModal() {
+            const modal = document.getElementById('explain-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('explain-modal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function toggleLanguage() {
+            state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        }
+
+        function applyLanguage() {
+            const t = i18n[state.lang];
+            document.getElementById('app-title').innerText = t.title;
+            document.getElementById('btn-explain').innerText = t.explainBtn;
+            document.getElementById('label-generator').innerText = t.generatorLabel;
+            document.getElementById('label-shape').innerText = t.shapeLabel;
+            document.getElementById('label-freq').innerHTML = t.freqLabel + `<span id="freq-val">${state.frequency}</span>`;
+            document.getElementById('label-power').innerHTML = t.powerLabel + `<span id="power-val">${state.power * 100}%</span>`;
+            document.getElementById('label-friction').innerHTML = t.frictionLabel + `<span id="friction-val">${Math.round(state.friction * 100)}%</span>`;
+            document.getElementById('label-status').innerText = t.statusLabel;
+            document.getElementById('hint-title').innerText = t.hintTitle;
+            document.getElementById('hint-desc').innerHTML = t.hintDesc;
+            document.getElementById('btn-scatter').innerText = t.scatterBtn;
+            document.getElementById('modal-title').innerText = t.modalTitle;
+
+            document.getElementById('modal-body-zh').style.display = state.lang === 'zh' ? 'block' : 'none';
+            document.getElementById('modal-body-en').style.display = state.lang === 'en' ? 'block' : 'none';
+            
+            updateStatusUI();
+        }
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                gainNode = audioCtx.createGain();
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator = audioCtx.createOscillator();
+                oscillator.type = 'sine'; // 正弦波最適合模擬純音訊號
+                oscillator.frequency.value = state.frequency;
+                oscillator.connect(gainNode);
+                oscillator.start();
+                gainNode.gain.value = 0; // 初始靜音
+            }
+        }
+
+        function toggleGenerator() {
+            state.isGeneratorOn = genSwitch.checked;
+            
+            if (state.isGeneratorOn) {
+                initAudio();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume(); // 喚醒被瀏覽器暫停的 AudioContext
+                }
+                oscillator.frequency.setValueAtTime(state.frequency, audioCtx.currentTime);
+                // 根據 Power 調整音量 (限制在最大 0.15 左右，避免高頻音量過大刺耳)
+                gainNode.gain.setTargetAtTime(state.power * 0.15, audioCtx.currentTime, 0.05);
+            } else {
+                if (gainNode) {
+                    // 平滑靜音避免產生爆音 (Pop sound)
+                    gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+                }
+            }
+        }
+
+        function updateVariables() {
+            state.power = parseInt(powerSlider.value) / 100;
+            state.friction = parseInt(frictionSlider.value) / 100;
+            
+            document.getElementById('power-val').innerText = `${parseInt(powerSlider.value)}%`;
+            document.getElementById('friction-val').innerText = `${parseInt(frictionSlider.value)}%`;
+            
+            // 若產生器開啟，同步更新音量
+            if (state.isGeneratorOn && gainNode) {
+                gainNode.gain.setTargetAtTime(state.power * 0.15, audioCtx.currentTime, 0.05);
+            }
+        }
+
+        function changeShape() {
+            state.shape = document.getElementById('shape-select').value;
+            scatterParticles();
+            checkResonance();
+        }
+
+        function updateFrequency() {
+            state.frequency = parseInt(freqSlider.value);
+            document.getElementById('freq-val').innerText = state.frequency;
+            
+            // 即時更新播放頻率
+            if (oscillator && state.isGeneratorOn) {
+                oscillator.frequency.setValueAtTime(state.frequency, audioCtx.currentTime);
+            }
+            
+            checkResonance();
+        }
+
+        function checkResonance() {
+            const targetResonances = RESONANCES[state.shape];
+            state.activeResonance = null;
+
+            for (let res of targetResonances) {
+                if (Math.abs(state.frequency - res.freq) <= CONFIG.resonanceThreshold) {
+                    state.activeResonance = res;
+                    break;
+                }
+            }
+            updateStatusUI();
+        }
+
+        function updateStatusUI() {
+            const t = i18n[state.lang];
+            if (state.activeResonance) {
+                statusBox.innerText = `[ ${state.activeResonance.freq} Hz ] ` + state.activeResonance.name + t.resonanceObj;
+                statusBox.classList.remove('chaos');
+                statusBox.style.color = '#4CAF50';
+            } else {
+                statusBox.innerText = t.chaos;
+                statusBox.classList.add('chaos');
+                statusBox.style.color = '#ff5555';
+            }
+        }
+
+        // Mathematical Amplitude Functions
+        function getAmplitudeSquare(nx, ny, n, m) {
+            // nx, ny are mapped from -1 to 1
+            const term1 = Math.cos(n * Math.PI * nx) * Math.cos(m * Math.PI * ny);
+            const term2 = Math.cos(m * Math.PI * nx) * Math.cos(n * Math.PI * ny);
+            return term1 - term2;
+        }
+
+        function getAmplitudeCircle(nx, ny, angularN, radialM) {
+            const r = Math.sqrt(nx*nx + ny*ny);
+            if (r > 1) return 0; // Outside the circle plate
+            const theta = Math.atan2(ny, nx);
+            // Approximation using sine and cosine for Chladni circular modes
+            return Math.sin(angularN * theta) * Math.sin(radialM * Math.PI * r);
+        }
+
+        function getAmplitudeTriangle(nx, ny, n, m) {
+            // Approximation for visual interest on a triangular bounds
+            const term1 = Math.sin(n * Math.PI * nx) * Math.cos(m * Math.PI * ny);
+            const term2 = Math.cos(m * Math.PI * nx) * Math.sin(n * Math.PI * ny);
+            return term1 + term2; 
+        }
+
+        function initParticles() {
+            state.particles = [];
+            scatterParticles();
+            // Sync UI state with variables
+            genSwitch.checked = state.isGeneratorOn;
+        }
+
+        function scatterParticles() {
+            for (let i = 0; i < state.numParticles; i++) {
+                let px, py;
+                if (state.shape === 'square') {
+                    px = (Math.random() * 2) - 1; // -1 to 1
+                    py = (Math.random() * 2) - 1;
+                } else if (state.shape === 'circle') {
+                    let r = Math.sqrt(Math.random());
+                    let theta = Math.random() * 2 * Math.PI;
+                    px = r * Math.cos(theta);
+                    py = r * Math.sin(theta);
+                } else if (state.shape === 'triangle') {
+                    // Rejection sampling for a triangle pointing up
+                    let valid = false;
+                    while(!valid) {
+                        px = (Math.random() * 1.6) - 0.8; // -0.8 to 0.8
+                        py = (Math.random() * 1.6) - 0.8;
+                        // Triangle bounds check: Base y=0.8, Tip y=-0.8
+                        if (py <= 0.8 && 2*px + py + 0.8 >= 0 && -2*px + py + 0.8 >= 0) {
+                            valid = true;
+                        }
+                    }
+                }
+
+                if(!state.particles[i]) {
+                    state.particles[i] = { x: px, y: py, vx: 0, vy: 0 };
+                } else {
+                    state.particles[i].x = px;
+                    state.particles[i].y = py;
+                    state.particles[i].vx = 0;
+                    state.particles[i].vy = 0;
+                }
+            }
+        }
+
+        function drawPlateBackground() {
+            ctx.fillStyle = '#0f141e'; // Dark metallic blue
+            ctx.fillRect(0, 0, CONFIG.canvasSize, CONFIG.canvasSize);
+
+            ctx.fillStyle = '#1c2433'; // Plate color
+            if (state.shape === 'square') {
+                ctx.fillRect(10, 10, CONFIG.canvasSize - 20, CONFIG.canvasSize - 20);
+            } else if (state.shape === 'circle') {
+                ctx.beginPath();
+                ctx.arc(CONFIG.canvasSize/2, CONFIG.canvasSize/2, (CONFIG.canvasSize/2) - 10, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (state.shape === 'triangle') {
+                ctx.beginPath();
+                const s = (CONFIG.canvasSize / 2) - 10;
+                const cx = CONFIG.canvasSize / 2;
+                const cy = CONFIG.canvasSize / 2;
+                ctx.moveTo(cx, cy - 0.8 * s); // Tip (Top)
+                ctx.lineTo(cx - 0.8 * s, cy + 0.8 * s); // Bottom Left
+                ctx.lineTo(cx + 0.8 * s, cy + 0.8 * s); // Bottom Right
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw center node (fixed point)
+            ctx.fillStyle = '#888';
+            ctx.beginPath();
+            ctx.arc(CONFIG.canvasSize/2, CONFIG.canvasSize/2, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function updateAndDrawParticles() {
+            const halfSize = CONFIG.canvasSize / 2;
+            ctx.fillStyle = '#eab308'; // Sand color (golden yellow)
+
+            const res = state.activeResonance;
+
+            for (let i = 0; i < state.numParticles; i++) {
+                let p = state.particles[i];
+                let amp = 0;
+
+                // 1. Calculate Amplitude based on position, mode, and generator state
+                if (state.isGeneratorOn) {
+                    if (res) {
+                        if (state.shape === 'square') {
+                            amp = getAmplitudeSquare(p.x, p.y, res.n, res.m);
+                        } else if (state.shape === 'circle') {
+                            amp = getAmplitudeCircle(p.x, p.y, res.n, res.m);
+                        } else if (state.shape === 'triangle') {
+                            amp = getAmplitudeTriangle(p.x, p.y, res.n, res.m);
+                        }
+                    } else {
+                        // Chaos mode (No resonance) - particles bounce everywhere constantly
+                        amp = 1.0; 
+                    }
+                }
+
+                // 2. Physics / Movement (Kick particles proportional to amplitude & power)
+                const absAmp = Math.abs(amp);
+                if (absAmp > 0.05 && state.isGeneratorOn) {
+                    // Random vibration kick modified by Power
+                    const force = (res ? absAmp * 0.04 : 0.03) * state.power; 
+                    p.vx += (Math.random() - 0.5) * force;
+                    p.vy += (Math.random() - 0.5) * force;
+                }
+
+                // Apply velocity & friction dynamically
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vx *= state.friction;
+                p.vy *= state.friction;
+
+                // 3. Boundary Collisions
+                if (state.shape === 'square') {
+                    if (p.x < -0.96) { p.x = -0.96; p.vx *= -1; }
+                    if (p.x > 0.96) { p.x = 0.96; p.vx *= -1; }
+                    if (p.y < -0.96) { p.y = -0.96; p.vy *= -1; }
+                    if (p.y > 0.96) { p.y = 0.96; p.vy *= -1; }
+                } else if (state.shape === 'circle') {
+                    const rSq = p.x*p.x + p.y*p.y;
+                    if (rSq > 0.92) { // R^2 boundary
+                        const r = Math.sqrt(rSq);
+                        p.x = (p.x / r) * 0.96;
+                        p.y = (p.y / r) * 0.96;
+                        p.vx *= -0.5;
+                        p.vy *= -0.5;
+                    }
+                } else if (state.shape === 'triangle') {
+                    // Base boundary
+                    if (p.y > 0.8) { 
+                        p.y = 0.8; 
+                        p.vy *= -0.5; 
+                    }
+                    // Left edge check (2x + y + 0.8 = 0)
+                    if (2*p.x + p.y + 0.8 < 0) {
+                        p.x += 0.02; p.y += 0.02; 
+                        p.vx *= -0.5; p.vy *= -0.5;
+                    }
+                    // Right edge check (-2x + y + 0.8 = 0)
+                    if (-2*p.x + p.y + 0.8 < 0) {
+                        p.x -= 0.02; p.y += 0.02; 
+                        p.vx *= -0.5; p.vy *= -0.5;
+                    }
+                }
+
+                // 4. Rendering (Map -1..1 coordinates to canvas pixels)
+                const screenX = halfSize + p.x * (halfSize - 10);
+                const screenY = halfSize + p.y * (halfSize - 10);
+                
+                // Draw sand grains
+                ctx.fillRect(screenX, screenY, 2, 2);
+            }
+        }
+
+        function gameLoop() {
+            drawPlateBackground();
+            updateAndDrawParticles();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize Application
+        window.onload = function() {
+            applyLanguage();
+            initParticles();
+            checkResonance();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>

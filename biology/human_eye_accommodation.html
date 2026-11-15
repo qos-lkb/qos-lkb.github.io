@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human Eye Accommodation Simulation 人眼視覺調節模擬</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Microsoft JhengHei', sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 5px;
+            color: #1a252f;
+            text-align: center;
+        }
+        p.subtitle {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+        #container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 950px;
+            width: 100%;
+        }
+        canvas {
+            background-color: #ffffff;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            width: 90%;
+            gap: 15px;
+        }
+        .slider-container label {
+            font-weight: 600;
+            color: #334155;
+            width: 220px;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+            height: 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .info-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .info-card {
+            background: #ffffff;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-top: 4px solid #3b82f6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-left: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .info-card h4 {
+            margin: 0 0 5px 0;
+            color: #1e293b;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .info-card p {
+            margin: 0;
+            font-size: 1.05em;
+            color: #0f172a;
+            font-weight: 700;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+            font-size: 0.85em;
+            color: #475569;
+            font-weight: 600;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .color-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Human Eye Accommodation Simulation 人眼視覺調節模擬</h1>
+    <p class="subtitle">Adjust object distance to observe ciliary muscle, ligament tension, and lens shape changes<br>調整物件距離以觀察睫狀肌、懸韌帶張力及晶體形狀的變化</p>
+
+    <div id="container">
+        <div class="legend">
+            <div class="legend-item"><div class="color-box" style="background:#e8927c;"></div> Ciliary Muscle 睫狀肌</div>
+            <div class="legend-item"><div class="color-box" style="background:#a855f7;"></div> Suspensory Ligament 懸韌帶</div>
+            <div class="legend-item"><div class="color-box" style="background:#6bbfe8;"></div> Lens 晶體</div>
+            <div class="legend-item"><div class="color-box" style="background:#10b981;"></div> Focal Light Rays 光線</div>
+        </div>
+
+        <canvas id="simCanvas" width="900" height="480"></canvas>
+
+        <div class="controls">
+            <div class="slider-container">
+                <label for="distSlider">Object Distance 物件距離:</label>
+                <input type="range" id="distSlider" min="0" max="100" value="0">
+                <span id="distVal" style="font-weight: bold; width: 160px; color: #2563eb;">Near Object 近物</span>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-card">
+                    <h4>Ciliary Muscle<br>睫狀肌</h4>
+                    <p id="muscleStatus">Contract 收縮</p>
+                </div>
+                <div class="info-card">
+                    <h4>Tension of Suspensory Ligament<br>懸韌帶張力</h4>
+                    <p id="ligamentStatus">Slack 鬆弛</p>
+                </div>
+                <div class="info-card">
+                    <h4>Thickness of Lens<br>晶體厚度</h4>
+                    <p id="lensStatus">Thicker 較厚</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('distSlider');
+        const distValLabel = document.getElementById('distVal');
+
+        const muscleStatus = document.getElementById('muscleStatus');
+        const ligamentStatus = document.getElementById('ligamentStatus');
+        const lensStatus = document.getElementById('lensStatus');
+
+        // Eye Anchor Coordinates
+        const eyeX = 580;
+        const eyeY = 240;
+        const eyeR = 150;
+        
+        const corneaX = eyeX - eyeR; 
+        const lensX = eyeX - 100;     
+        const retinaX = eyeX + eyeR - 5; 
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // factor = 0 (Near / Left) to 1 (Far / Farther Left)
+            const factor = slider.value / 100;
+
+            // --- OBJECT POSITION (Restricted: Cannot go behind Cornea) ---
+            const minObjX = 40;                     
+            const maxObjX = corneaX - 50;           
+            const objectX = maxObjX - (factor * (maxObjX - minObjX));
+            const objectY = eyeY;
+
+            // Dynamic Structural Variables
+            const muscleInward = 14 * (1 - factor);    
+            const muscleThickness = 22 - (factor * 10); 
+
+            const lensThickness = 32 - (factor * 20);   
+            const lensHeight = 70 + (factor * 10);      
+
+            const topMuscleY = eyeY - 110 + muscleInward;
+            const bottomMuscleY = eyeY + 110 - muscleInward;
+
+            // --- 1. OPTIC NERVE & EYELID FLAPS ---
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#2b3a8c';
+            ctx.fillStyle = '#0284c7';
+
+            ctx.beginPath();
+            ctx.moveTo(eyeX + 110, eyeY + 95);
+            ctx.lineTo(eyeX + 180, eyeY + 150);
+            ctx.lineTo(eyeX + 210, eyeY + 130);
+            ctx.lineTo(eyeX + 130, eyeY + 70);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(eyeX - 80, eyeY - 130);
+            ctx.lineTo(eyeX - 40, eyeY - 170);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(eyeX - 80, eyeY + 130);
+            ctx.lineTo(eyeX - 40, eyeY + 170);
+            ctx.stroke();
+
+            // --- 2. MAIN EYE OUTLINE & RETINA ---
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeR, Math.PI * 0.72, Math.PI * 1.28, true);
+            ctx.strokeStyle = '#2b3a8c';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeR - 8, Math.PI * 0.7, Math.PI * 1.3, true);
+            ctx.strokeStyle = '#f97316';
+            ctx.lineWidth = 7;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(corneaX + 60, eyeY, 110, Math.PI * 0.72, Math.PI * 1.28, false);
+            ctx.strokeStyle = '#2b3a8c';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // --- 3. LIGHT RAYS ---
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.85)';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.moveTo(objectX, objectY - 20);
+            ctx.lineTo(lensX, eyeY - (lensHeight * 0.7));
+            ctx.lineTo(retinaX, eyeY);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(objectX, objectY);
+            ctx.lineTo(retinaX, eyeY);
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.moveTo(objectX, objectY + 20);
+            ctx.lineTo(lensX, eyeY + (lensHeight * 0.7));
+            ctx.lineTo(retinaX, eyeY);
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.85)';
+            ctx.stroke();
+
+            // --- 4. SUSPENSORY LIGAMENTS (Smooth Interpolation) ---
+            ctx.strokeStyle = '#a855f7'; 
+            ctx.lineWidth = 1.2 + (factor * 1.3); 
+
+            const curveOffset = (1 - factor) * 9; 
+
+            for (let i = -2; i <= 2; i++) {
+                let offset = i * 4;
+                
+                // Top Ligaments
+                ctx.beginPath();
+                ctx.moveTo(lensX + offset, topMuscleY + (muscleThickness / 2));
+                ctx.quadraticCurveTo(
+                    lensX + offset + curveOffset, 
+                    (topMuscleY + eyeY - lensHeight) / 2, 
+                    lensX + offset, 
+                    eyeY - lensHeight
+                );
+                ctx.stroke();
+
+                // Bottom Ligaments
+                ctx.beginPath();
+                ctx.moveTo(lensX + offset, bottomMuscleY - (muscleThickness / 2));
+                ctx.quadraticCurveTo(
+                    lensX + offset + curveOffset, 
+                    (bottomMuscleY + eyeY + lensHeight) / 2, 
+                    lensX + offset, 
+                    eyeY + lensHeight
+                );
+                ctx.stroke();
+            }
+
+            // --- 5. CILIARY MUSCLES & IRIS ---
+            ctx.fillStyle = '#e8927c'; 
+            ctx.strokeStyle = '#2b3a8c';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.ellipse(lensX, topMuscleY, 18, muscleThickness, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.ellipse(lensX, bottomMuscleY, 18, muscleThickness, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(lensX - 10, topMuscleY + 5);
+            ctx.lineTo(lensX - 25, eyeY - 45);
+            ctx.lineTo(lensX - 18, eyeY - 45);
+            ctx.lineTo(lensX - 5, topMuscleY + 5);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(lensX - 10, bottomMuscleY - 5);
+            ctx.lineTo(lensX - 25, eyeY + 45);
+            ctx.lineTo(lensX - 18, eyeY + 45);
+            ctx.lineTo(lensX - 5, bottomMuscleY - 5);
+            ctx.fill();
+            ctx.stroke();
+
+            // --- 6. CRYSTALLINE LENS ---
+            ctx.beginPath();
+            ctx.ellipse(lensX, eyeY, lensThickness, lensHeight, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(107, 191, 232, 0.75)'; 
+            ctx.fill();
+            ctx.strokeStyle = '#2b3a8c';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(lensX - (lensThickness * 0.4), eyeY, lensHeight * 0.6, -Math.PI * 0.3, Math.PI * 0.3);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // --- 7. OBJECT ---
+            ctx.beginPath();
+            ctx.arc(objectX, objectY, 18, 0, Math.PI * 2);
+            let grad = ctx.createRadialGradient(objectX - 5, objectY - 5, 2, objectX, objectY, 18);
+            grad.addColorStop(0, '#ff7675');
+            grad.addColorStop(1, '#d63031');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.strokeStyle = '#a71d2a';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#334155';
+            ctx.font = 'bold 13px Segoe UI, Microsoft JhengHei, Arial';
+            ctx.fillText('Object 物件', objectX - 32, objectY + 38);
+
+            // --- 8. UPDATE INTERFACE TEXT ---
+            updateUI(factor);
+        }
+
+        function updateUI(factor) {
+            if (factor < 0.5) {
+                distValLabel.innerText = "Near Object 近物";
+                
+                muscleStatus.innerText = "Contract 收縮";
+                muscleStatus.style.color = "#dc2626";
+
+                ligamentStatus.innerText = "Slack 鬆弛";
+                ligamentStatus.style.color = "#16a34a";
+
+                lensStatus.innerText = "Thicker 較厚";
+                lensStatus.style.color = "#2563eb";
+            } else {
+                distValLabel.innerText = "Distant Object 遠物";
+                
+                muscleStatus.innerText = "Relax 鬆弛";
+                muscleStatus.style.color = "#16a34a";
+
+                ligamentStatus.innerText = "Tight 拉緊";
+                ligamentStatus.style.color = "#dc2626";
+
+                lensStatus.innerText = "Thinner 較薄";
+                lensStatus.style.color = "#2563eb";
+            }
+        }
+
+        slider.addEventListener('input', draw);
+        draw();
+    </script>
+</body>
+</html>

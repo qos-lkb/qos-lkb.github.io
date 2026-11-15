@@ -9,7 +9,7 @@ php update_data_dictionary.php
 
 > **注意**：本專案不使用 FOREIGN KEY；關聯由 PHP 應用層維護。
 
-**最後更新**：2026-07-24 13:50 HKT
+**最後更新**：2026-11-15 13:29 HKT
 
 ## 目錄 | Table of contents
 
@@ -27,6 +27,7 @@ php update_data_dictionary.php
   - [`simulation_tags`](#simulation-tags)
 - [API / auth helpers](#api-auth-helpers)
   - [`api_rate_limits`](#api-rate-limits)
+  - [`admin_audit_log`](#admin-audit-log)
 - [Learning tools & science articles](#learning-tools-science-articles)
   - [`learning_tools`](#learning-tools)
   - [`quiz_questions`](#quiz-questions)
@@ -41,7 +42,12 @@ php update_data_dictionary.php
   - [`learning_videos`](#learning-videos)
   - [`topic_learning_items`](#topic-learning-items)
 - [Question banks](#question-banks)
+  - [`legacy_learning_tool_map`](#legacy-learning-tool-map)
   - [`question_banks`](#question-banks)
+- [Flashcard sets](#flashcard-sets)
+  - [`flashcard_sets`](#flashcard-sets)
+  - [`flashcard_cards`](#flashcard-cards)
+  - [`flashcard_card_reviews`](#flashcard-card-reviews)
   - [`qb_questions`](#qb-questions)
   - [`qb_mcq_options`](#qb-mcq-options)
   - [`qb_question_parts`](#qb-question-parts)
@@ -57,6 +63,10 @@ php update_data_dictionary.php
   - [`topic_mastery`](#topic-mastery)
   - [`learning_goals`](#learning-goals)
   - [`content_bookmarks`](#content-bookmarks)
+- [Course discussions (self-study courses): threads per class/topic + posts](#course-discussions-self-study-courses-threads-per-classtopic-posts)
+  - [`course_discussion_threads`](#course-discussion-threads)
+  - [`course_discussion_posts`](#course-discussion-posts)
+  - [`course_discussion_reactions`](#course-discussion-reactions)
 - [Worksheet assignments](#worksheet-assignments)
   - [`worksheet_assignments`](#worksheet-assignments)
   - [`worksheet_assignment_students`](#worksheet-assignment-students)
@@ -64,12 +74,16 @@ php update_data_dictionary.php
 - [Summer homework (S1 / S2): passage or video + MC / fill-blank, 80% pass](#summer-homework-s1-s2-passage-or-video-mc-fill-blank-80-pass)
   - [`summer_homework_items`](#summer-homework-items)
   - [`summer_homework_questions`](#summer-homework-questions)
+  - [`summer_homework_media`](#summer-homework-media)
   - [`summer_homework_mcq_options`](#summer-homework-mcq-options)
   - [`summer_homework_fill_blanks`](#summer-homework-fill-blanks)
   - [`summer_homework_short_answers`](#summer-homework-short-answers)
   - [`summer_homework_attempts`](#summer-homework-attempts)
 - [SPA top-nav visibility by audience (guest / student / teacher / admin)](#spa-top-nav-visibility-by-audience-guest-student-teacher-admin)
   - [`spa_nav_visibility`](#spa-nav-visibility)
+  - [`spa_nav_order`](#spa-nav-order)
+- [Applied schema_*.sql upgrades (scripts/apply_schema.php)](#applied-schema-sql-upgrades-scriptsapply-schemaphp)
+  - [`schema_migrations`](#schema-migrations)
 
 ## 概覽 | Overview
 
@@ -86,6 +100,7 @@ php update_data_dictionary.php
 | `tags` | 模擬標籤 | InnoDB |
 | `simulation_tags` | 模擬與標籤的多對多關聯 | InnoDB |
 | `api_rate_limits` | API 速率限制（如登入嘗試） | InnoDB |
+| `admin_audit_log` |  | InnoDB |
 | `learning_tools` | 互動學習工具（四選一 MCQ 集） | InnoDB |
 | `quiz_questions` | 學習工具題目 | InnoDB |
 | `quiz_options` | 學習工具 MCQ 選項 | InnoDB |
@@ -96,7 +111,11 @@ php update_data_dictionary.php
 | `worksheets` | 工作紙（Markdown，可嵌入模擬／試題） | InnoDB |
 | `learning_videos` | 自學課程嵌入影片（雙語 embed URL） | InnoDB |
 | `topic_learning_items` | 課題混合編排（筆記、模擬、工作紙等排序） | InnoDB |
+| `legacy_learning_tool_map` |  | InnoDB |
 | `question_banks` | 試題庫 | InnoDB |
+| `flashcard_sets` | 閃卡組（Anki／Quizizz 風格） | InnoDB |
+| `flashcard_cards` | 閃卡（正／背面、提示） | InnoDB |
+| `flashcard_card_reviews` | 登入者閃卡間隔重複進度 | InnoDB |
 | `qb_questions` | 試題庫題目（多題型） | InnoDB |
 | `qb_mcq_options` | 試題庫 MCQ 選項 | InnoDB |
 | `qb_question_parts` | 長答子題 | InnoDB |
@@ -111,16 +130,22 @@ php update_data_dictionary.php
 | `topic_mastery` | 課題掌握度分數 | InnoDB |
 | `learning_goals` | 每週學習目標 | InnoDB |
 | `content_bookmarks` | 使用者書籤 | InnoDB |
+| `course_discussion_threads` |  | InnoDB |
+| `course_discussion_posts` |  | InnoDB |
+| `course_discussion_reactions` |  | InnoDB |
 | `worksheet_assignments` | 工作紙派發（班級、截止、滿分） | InnoDB |
 | `worksheet_assignment_students` | 派發對象（全班或指定學生） | InnoDB |
 | `worksheet_submissions` | 學生提交、評分、自動計分 JSON | InnoDB |
 | `summer_homework_items` | 暑期功課習作（中一／中二；篇章或影片；含 due_at／allow_late_submit） | InnoDB |
 | `summer_homework_questions` | 暑期功課題目（mcq／fill_blank／true_false／short_answer／long_answer） | InnoDB |
+| `summer_homework_media` |  | InnoDB |
 | `summer_homework_mcq_options` | 暑期功課選擇題選項 | InnoDB |
 | `summer_homework_fill_blanks` | 暑期功課填充題可接受答案（同 blank_index 可多列） | InnoDB |
 | `summer_homework_short_answers` | 暑期功課短答題可接受答案（可多列） | InnoDB |
 | `summer_homework_attempts` | 暑期功課每次呈交（responses_json；grading_json；teacher_marks_json 長答教師評分） | InnoDB |
 | `spa_nav_visibility` | 前台 SPA 上方選單依對象（訪客／學生／教師／管理員）的可見性 | InnoDB |
+| `spa_nav_order` |  | InnoDB |
+| `schema_migrations` |  | InnoDB |
 
 ## Core: users, roles, permissions
 
@@ -267,7 +292,7 @@ php update_data_dictionary.php
 
 互動模擬程式目錄與 HTML 路徑
 
-**引擎**：`InnoDB` · **欄位數**：14
+**引擎**：`InnoDB` · **欄位數**：20
 
 | 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
 |------|------|:----:|------|:---:|------|
@@ -276,12 +301,18 @@ php update_data_dictionary.php
 | `slug` | `VARCHAR(200)` | NO | — | — | URL 識別碼（唯一） |
 | `title_zh` | `VARCHAR(512)` | NO | `''` | — | — |
 | `title_en` | `VARCHAR(512)` | NO | `''` | — | — |
-| `html` | `LONGTEXT` | NO | — | — | — |
+| `summary_zh` | `VARCHAR(500)` | NO | `''` | — | — |
+| `summary_en` | `VARCHAR(500)` | NO | `''` | — | — |
+| `html_path` | `VARCHAR(512)` | YES | — | — | — |
 | `screenshot_path` | `VARCHAR(512)` | YES | — | — | — |
 | `subject_id` | `SMALLINT UNSIGNED` | YES | — | — | subjects.id |
 | `topic_id` | `INT UNSIGNED` | YES | — | — | topics.id |
 | `list_sort_order` | `INT` | NO | `0` | — | — |
-| `status` | `ENUM('draft', 'published')` | NO | `'draft'` | — | 狀態（見 ENUM 值） |
+| `status` | `ENUM('draft', 'pending_review', 'published')` | NO | `'draft'` | — | 狀態（見 ENUM 值） |
+| `submitter_name` | `VARCHAR(120)` | YES | — | — | — |
+| `submitter_email` | `VARCHAR(190)` | YES | — | — | — |
+| `submitter_note` | `TEXT` | YES | — | — | — |
+| `submission_source` | `ENUM('editor', 'guest_form')` | NO | `'editor'` | — | — |
 | `last_updated` | `DATE` | YES | — | — | — |
 | `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
 | `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
@@ -353,6 +384,26 @@ API 速率限制（如登入嘗試）
 | 名稱 | 類型 | 欄位 |
 |------|------|------|
 | `uq_api_rate_limits_key` | UNIQUE | `rate_key` |
+
+### `admin_audit_log`
+
+**引擎**：`InnoDB` · **欄位數**：6
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `BIGINT UNSIGNED` | NO | — | PK, AI | — |
+| `actor_user_id` | `INT UNSIGNED` | YES | — | — | — |
+| `action` | `VARCHAR(64)` | NO | — | — | — |
+| `detail_json` | `TEXT` | YES | — | — | — |
+| `ip` | `VARCHAR(45)` | YES | — | — | — |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_admin_audit_action_created` | KEY | `action,created_at` |
+| `idx_admin_audit_actor_created` | KEY | `actor_user_id,created_at` |
 
 ## Learning tools & science articles
 
@@ -626,7 +677,7 @@ API 速率限制（如登入嘗試）
 |------|------|:----:|------|:---:|------|
 | `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
 | `topic_id` | `INT UNSIGNED` | NO | — | — | topics.id |
-| `content_type` | `ENUM('note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video')` | NO | — | — | — |
+| `content_type` | `ENUM('note', 'simulation', 'worksheet', 'article', 'learning_tool', 'video', 'question_bank', 'flashcard_set')` | NO | — | — | — |
 | `content_id` | `INT UNSIGNED` | NO | — | — | — |
 | `sort_order` | `INT` | NO | `0` | — | — |
 | `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
@@ -640,6 +691,25 @@ API 速率限制（如登入嘗試）
 | `idx_topic_learning_items_sort` | KEY | `topic_id,sort_order` |
 
 ## Question banks
+
+### `legacy_learning_tool_map`
+
+**引擎**：`InnoDB` · **欄位數**：4
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `old_tool_id` | `INT UNSIGNED` | NO | — | — | — |
+| `old_slug` | `VARCHAR(190)` | NO | — | — | — |
+| `bank_id` | `INT UNSIGNED` | NO | — | — | question_banks.id |
+| `migrated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `PRIMARY` | PRIMARY | `old_tool_id` |
+| `uq_legacy_lt_map_slug` | UNIQUE | `old_slug` |
+| `idx_legacy_lt_map_bank` | KEY | `bank_id` |
 
 ### `question_banks`
 
@@ -672,6 +742,90 @@ API 速率限制（如登入嘗試）
 | `idx_question_banks_owner` | KEY | `owner_user_id` |
 | `idx_question_banks_subject` | KEY | `subject_id` |
 | `idx_question_banks_topic` | KEY | `topic_id` |
+
+## Flashcard sets
+
+### `flashcard_sets`
+
+閃卡組（Anki／Quizizz 風格）
+
+**引擎**：`InnoDB` · **欄位數**：13
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `slug` | `VARCHAR(190)` | NO | — | — | URL 識別碼（唯一） |
+| `title_zh` | `VARCHAR(255)` | NO | `''` | — | — |
+| `title_en` | `VARCHAR(255)` | NO | `''` | — | — |
+| `description_zh` | `TEXT` | YES | — | — | — |
+| `description_en` | `TEXT` | YES | — | — | — |
+| `subject_id` | `INT UNSIGNED` | YES | — | — | subjects.id |
+| `topic_id` | `INT UNSIGNED` | YES | — | — | topics.id |
+| `owner_user_id` | `INT UNSIGNED` | YES | — | — | 內容擁有者 users.id |
+| `list_sort_order` | `INT` | NO | `0` | — | — |
+| `status` | `ENUM('draft', 'pending_review', 'published')` | NO | `'draft'` | — | 狀態（見 ENUM 值） |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `uq_flashcard_sets_slug` | UNIQUE | `slug` |
+| `idx_flashcard_sets_status` | KEY | `status` |
+| `idx_flashcard_sets_owner` | KEY | `owner_user_id` |
+| `idx_flashcard_sets_subject` | KEY | `subject_id` |
+| `idx_flashcard_sets_topic` | KEY | `topic_id` |
+
+### `flashcard_cards`
+
+閃卡（正／背面、提示）
+
+**引擎**：`InnoDB` · **欄位數**：9
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `set_id` | `INT UNSIGNED` | NO | — | — | flashcard_sets.id |
+| `front_zh` | `MEDIUMTEXT` | NO | — | — | — |
+| `front_en` | `MEDIUMTEXT` | NO | — | — | — |
+| `back_zh` | `MEDIUMTEXT` | NO | — | — | — |
+| `back_en` | `MEDIUMTEXT` | NO | — | — | — |
+| `hint_zh` | `TEXT` | YES | — | — | — |
+| `hint_en` | `TEXT` | YES | — | — | — |
+| `sort_order` | `INT` | NO | `0` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_flashcard_cards_set` | KEY | `set_id` |
+| `idx_flashcard_cards_sort` | KEY | `set_id,sort_order` |
+
+### `flashcard_card_reviews`
+
+登入者閃卡間隔重複進度
+
+**引擎**：`InnoDB` · **欄位數**：8
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `user_id` | `INT UNSIGNED` | NO | — | — | users.id |
+| `card_id` | `INT UNSIGNED` | NO | — | — | — |
+| `ease_factor` | `DECIMAL(4,2)` | NO | `2.50` | — | — |
+| `interval_days` | `INT UNSIGNED` | NO | `0` | — | — |
+| `repetitions` | `INT UNSIGNED` | NO | `0` | — | — |
+| `due_at` | `DATETIME` | NO | — | — | 呈交／截止時間（HK 時區語意） |
+| `last_rating` | `ENUM('again', 'good', 'easy') DEFAULT` | YES | `NULL` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `PRIMARY` | PRIMARY | `user_id,card_id` |
+| `idx_fc_reviews_user_due` | KEY | `user_id,due_at` |
+| `idx_fc_reviews_card` | KEY | `card_id` |
 
 ### `qb_questions`
 
@@ -917,7 +1071,7 @@ SDL 學習行為事件（頁面瀏覽、時數）
 |------|------|:----:|------|:---:|------|
 | `id` | `BIGINT UNSIGNED` | NO | — | PK, AI | — |
 | `user_id` | `INT UNSIGNED` | NO | — | — | users.id |
-| `source_type` | `ENUM('learning_tool', 'article', 'question_bank')` | NO | — | — | — |
+| `source_type` | `ENUM('learning_tool', 'article', 'question_bank', 'flashcard_set')` | NO | — | — | — |
 | `source_id` | `INT UNSIGNED` | NO | — | — | — |
 | `subject_id` | `INT UNSIGNED` | YES | — | — | subjects.id |
 | `topic_id` | `INT UNSIGNED` | YES | — | — | topics.id |
@@ -1022,6 +1176,83 @@ SDL 學習行為事件（頁面瀏覽、時數）
 | `uq_bookmark` | UNIQUE | `user_id,content_type,content_slug` |
 | `idx_bookmarks_user` | KEY | `user_id` |
 
+## Course discussions (self-study courses): threads per class/topic + posts
+
+### `course_discussion_threads`
+
+**引擎**：`InnoDB` · **欄位數**：7
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `class_id` | `INT UNSIGNED` | NO | — | — | classes.id |
+| `topic_id` | `INT UNSIGNED` | NO | — | — | topics.id |
+| `created_by_user_id` | `INT UNSIGNED` | YES | — | — | — |
+| `status` | `ENUM('published', 'closed')` | NO | `'published'` | — | 狀態（見 ENUM 值） |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `uq_course_discussion_thread` | UNIQUE | `class_id,topic_id` |
+| `idx_cd_threads_class` | KEY | `class_id` |
+| `idx_cd_threads_topic` | KEY | `topic_id` |
+| `idx_cd_threads_status` | KEY | `status` |
+
+### `course_discussion_posts`
+
+**引擎**：`InnoDB` · **欄位數**：13
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `thread_id` | `INT UNSIGNED` | NO | — | — | — |
+| `class_id` | `INT UNSIGNED` | NO | — | — | classes.id |
+| `topic_id` | `INT UNSIGNED` | NO | — | — | topics.id |
+| `author_user_id` | `INT UNSIGNED` | NO | — | — | — |
+| `parent_post_id` | `INT UNSIGNED` | YES | — | — | — |
+| `message_zh` | `MEDIUMTEXT` | YES | — | — | — |
+| `message_en` | `MEDIUMTEXT` | YES | — | — | — |
+| `status` | `ENUM('pending', 'published', 'rejected')` | NO | `'pending'` | — | 狀態（見 ENUM 值） |
+| `moderated_by_user_id` | `INT UNSIGNED` | YES | — | — | — |
+| `moderated_at` | `TIMESTAMP` | YES | — | — | — |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_cd_posts_thread` | KEY | `thread_id` |
+| `idx_cd_posts_class` | KEY | `class_id` |
+| `idx_cd_posts_topic` | KEY | `topic_id` |
+| `idx_cd_posts_status` | KEY | `status` |
+| `idx_cd_posts_author` | KEY | `author_user_id` |
+| `idx_cd_posts_parent` | KEY | `parent_post_id` |
+| `idx_cd_posts_created` | KEY | `created_at` |
+
+### `course_discussion_reactions`
+
+**引擎**：`InnoDB` · **欄位數**：5
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `post_id` | `INT UNSIGNED` | NO | — | — | — |
+| `user_id` | `INT UNSIGNED` | NO | — | — | users.id |
+| `reaction` | `ENUM('up')` | NO | `'up'` | — | — |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `uq_cd_reaction` | UNIQUE | `post_id,user_id,reaction` |
+| `idx_cd_react_post` | KEY | `post_id` |
+| `idx_cd_react_user` | KEY | `user_id` |
+
 ## Worksheet assignments
 
 ### `worksheet_assignments`
@@ -1112,7 +1343,7 @@ SDL 學習行為事件（頁面瀏覽、時數）
 
 暑期功課習作（中一／中二；篇章或影片；含 due_at／allow_late_submit）
 
-**引擎**：`InnoDB` · **欄位數**：18
+**引擎**：`InnoDB` · **欄位數**：19
 
 | 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
 |------|------|:----:|------|:---:|------|
@@ -1124,6 +1355,7 @@ SDL 學習行為事件（頁面瀏覽、時數）
 | `content_type` | `ENUM('passage', 'video')` | NO | `'passage'` | — | — |
 | `body_zh` | `MEDIUMTEXT` | YES | — | — | — |
 | `body_en` | `MEDIUMTEXT` | YES | — | — | — |
+| `content_refs_json` | `JSON` | YES | — | — | — |
 | `video_embed_url` | `VARCHAR(512) DEFAULT` | YES | `NULL` | — | — |
 | `video_provider` | `VARCHAR(32)` | YES | `'youtube'` | — | — |
 | `pass_percent` | `DECIMAL(5,2)` | NO | `80.00` | — | 及格百分比門檻 |
@@ -1149,18 +1381,19 @@ SDL 學習行為事件（頁面瀏覽、時數）
 
 暑期功課題目（mcq／fill_blank／true_false／short_answer／long_answer）
 
-**引擎**：`InnoDB` · **欄位數**：12
+**引擎**：`InnoDB` · **欄位數**：13
 
 | 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
 |------|------|:----:|------|:---:|------|
 | `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
 | `item_id` | `INT UNSIGNED` | NO | — | — | — |
-| `question_type` | `ENUM('mcq', 'fill_blank', 'true_false', 'short_answer', 'long_answer')` | NO | — | — | — |
+| `question_type` | `ENUM('mcq', 'multi_select', 'fill_blank', 'true_false', 'short_answer', 'long_answer')` | NO | — | — | — |
 | `sort_order` | `INT` | NO | `0` | — | — |
 | `stem_zh` | `TEXT` | NO | — | — | — |
 | `stem_en` | `TEXT` | NO | — | — | — |
 | `explanation_zh` | `TEXT` | YES | — | — | — |
 | `explanation_en` | `TEXT` | YES | — | — | — |
+| `match_mode` | `VARCHAR(16)` | NO | `'exact'` | — | — |
 | `correct_bool` | `TINYINT(1) DEFAULT` | YES | `NULL` | — | 是非題正解（1=是／true） |
 | `max_score` | `DECIMAL(6,2)` | NO | `1.00` | — | 題目滿分（長答可調；自動題多為 1） |
 | `rubric_zh` | `TEXT` | YES | — | — | 長答評分指引（中） |
@@ -1172,6 +1405,29 @@ SDL 學習行為事件（頁面瀏覽、時數）
 |------|------|------|
 | `idx_sh_questions_item` | KEY | `item_id` |
 | `idx_sh_questions_type` | KEY | `question_type` |
+
+### `summer_homework_media`
+
+**引擎**：`InnoDB` · **欄位數**：10
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `item_id` | `INT UNSIGNED` | NO | — | — | — |
+| `file_path` | `VARCHAR(512)` | NO | — | — | — |
+| `original_name` | `VARCHAR(255)` | NO | `''` | — | — |
+| `mime_type` | `VARCHAR(128)` | NO | `'image/jpeg'` | — | — |
+| `file_size` | `INT UNSIGNED` | NO | `0` | — | — |
+| `alt_zh` | `VARCHAR(255) DEFAULT` | YES | `NULL` | — | — |
+| `alt_en` | `VARCHAR(255) DEFAULT` | YES | `NULL` | — | — |
+| `sort_order` | `INT` | NO | `0` | — | — |
+| `created_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `idx_sh_media_item` | KEY | `item_id` |
 
 ### `summer_homework_mcq_options`
 
@@ -1285,6 +1541,41 @@ SDL 學習行為事件（頁面瀏覽、時數）
 |------|------|------|
 | `PRIMARY` | PRIMARY | `item_key,audience` |
 | `idx_spa_nav_audience` | KEY | `audience` |
+
+### `spa_nav_order`
+
+**引擎**：`InnoDB` · **欄位數**：3
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `item_key` | `VARCHAR(64)` | NO | — | — | — |
+| `sort_order` | `INT` | NO | `0` | — | — |
+| `updated_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `PRIMARY` | PRIMARY | `item_key` |
+| `idx_spa_nav_order_sort` | KEY | `sort_order` |
+
+## Applied schema_*.sql upgrades (scripts/apply_schema.php)
+
+### `schema_migrations`
+
+**引擎**：`InnoDB` · **欄位數**：3
+
+| 欄位 | 型別 | NULL | 預設 | 鍵 | 備註 |
+|------|------|:----:|------|:---:|------|
+| `id` | `INT UNSIGNED` | NO | — | PK, AI | — |
+| `filename` | `VARCHAR(255)` | NO | — | — | — |
+| `applied_at` | `TIMESTAMP` | NO | `CURRENT_TIMESTAMP` | — | — |
+
+#### 索引 | Indexes
+
+| 名稱 | 類型 | 欄位 |
+|------|------|------|
+| `uq_schema_migrations_filename` | UNIQUE | `filename` |
 
 ---
 

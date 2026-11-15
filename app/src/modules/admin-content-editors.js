@@ -678,6 +678,7 @@ const global = window;
                         </div>
                     </div>
                     <p class="text-xs text-slate-500">${escapeHtml(t('按「沙盒預覽」於全螢幕視窗中檢視（與前台模擬相同方式）。', 'Use “Sandbox preview” to open a full-screen preview like the public simulation viewer.'))}</p>
+                    <p id="html-path-note" class="text-xs text-slate-500"></p>
                     <textarea name="html" id="field-html" rows="16" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></textarea>
                 </section>
                 <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
@@ -750,6 +751,13 @@ const global = window;
             form.submitter_note.value = row.submitter_note || '';
         } else if (canAny) {
             form.status.value = 'published';
+        }
+
+        const pathNote = document.getElementById('html-path-note');
+        if (pathNote) {
+            pathNote.textContent = row && row.html_path
+                ? (t('檔案', 'File') + '：' + row.html_path)
+                : t('儲存時寫入科目資料夾的 HTML 檔。標題、狀態與標籤仍留在資料庫。', 'Saving writes an HTML file in the subject folder. Title, status, and tags stay in the database.');
         }
 
         document.getElementById('btn-preview-html').onclick = () => openSandboxPreview();

@@ -1,501 +1,791 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>原子結構視覺化 (Atomic Structure Visualizer)</title>
-    
-    <!-- Tailwind CSS -->
+    <title>原子及軌態 | Atoms & Orbitals</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden; /* Prevent scrollbars */
+        html, body { height: 100%; margin: 0; }
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        #canvas-wrap { touch-action: none; background: radial-gradient(ellipse at 50% 40%, #1e293b 0%, #0f172a 55%, #020617 100%); }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #7c3aed; border: 2px solid #fff; margin-top: -5px; cursor: pointer;
         }
-        /* Custom Scrollbar for sidebar */
-        ::-webkit-scrollbar {
-            width: 8px;
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .quick-btn.active { background: #7c3aed; color: #fff; border-color: #6d28d9; box-shadow: 0 0 0 2px rgba(124,58,237,.25); }
+        .toggle-btn.active { background: #7c3aed; color: #fff; border-color: #6d28d9; }
+        .mj-box { background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: .75rem; padding: .75rem 1rem; }
+        .orb-tag-s { background: rgba(74,222,128,.15); border-color: rgba(74,222,128,.4); color: #166534; }
+        .orb-tag-p { background: rgba(250,204,21,.15); border-color: rgba(250,204,21,.45); color: #854d0e; }
+        .orb-tag-d { background: rgba(244,63,94,.15); border-color: rgba(244,63,94,.4); color: #9f1239; }
+        .orb-tag-valence { box-shadow: 0 0 0 2px rgba(255,255,255,.6); }
+        .orb-box {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 1.35rem; height: 1.35rem; border: 1.5px solid #cbd5e1;
+            border-radius: .25rem; background: #fff; font-size: .65rem; font-weight: 800; line-height: 1;
         }
-        ::-webkit-scrollbar-track {
-            background: #1f2937; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #374151; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4b5563; 
-        }
+        .orb-box .spin-up { color: #0284c7; }
+        .orb-box .spin-down { color: #ea580c; }
     </style>
 </head>
-<body class="bg-gray-900 text-white font-sans antialiased">
+<body class="bg-slate-100 text-slate-800 h-full min-h-0 flex flex-col overflow-hidden">
 
-    <div class="flex flex-col md:flex-row h-screen overflow-hidden">
-        
-        <!-- LEFT PANEL: Controls & Info -->
-        <div class="w-full md:w-96 bg-gray-800/90 backdrop-blur-md p-6 flex flex-col gap-6 border-r border-gray-700 z-10 shadow-2xl overflow-y-auto shrink-0">
-            
-            <header class="mb-2">
-                <div class="flex items-center gap-2 text-blue-400 mb-1">
-                    <!-- Atom Icon SVG -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
-                        <circle cx="12" cy="12" r="1"></circle>
-                        <path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"></path>
-                        <path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"></path>
-                    </svg>
-                    <h1 class="text-xl font-bold tracking-wider">CHEM VISUALIZER</h1>
-                </div>
-                <p class="text-gray-400 text-sm">大學化學入門：原子結構</p>
-            </header>
-
-            <!-- Element Display Card -->
-            <div class="bg-gray-700/50 p-6 rounded-2xl border border-gray-600 text-center relative overflow-hidden group transition-all hover:border-blue-500">
-                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
-                
-                <div id="display-symbol" class="text-6xl font-bold text-white mb-2 font-mono">H</div>
-                <div id="display-name" class="text-xl text-blue-300 font-medium">氫 (Hydrogen)</div>
-                <div class="text-sm text-gray-400 mt-1">原子序 (Z): <span id="display-z-val">1</span></div>
-                
-                <div class="mt-4 bg-black/30 p-3 rounded-lg">
-                    <div class="text-xs text-gray-500 uppercase tracking-widest mb-1">電子組態 (Electron Config)</div>
-                    <code id="display-config" class="text-green-400 font-mono text-lg">1s1</code>
+    <header class="shrink-0 bg-white shadow-sm py-3 px-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-3 z-30 border-b border-slate-200">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 text-white flex items-center justify-center text-lg font-black shadow-md">⚛</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">原子及軌態</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold" data-i18n="badge">化學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 hidden sm:block" data-i18n="subtitle">s／p／d 軌域 3D 視覺化 · 電子組態 · 遞建原理</p>
                 </div>
             </div>
-
-            <!-- Controls -->
-            <div class="space-y-4">
-                <label class="flex justify-between text-sm font-medium text-gray-300">
-                    <span>調整元素 (Z = 1 ~ 36)</span>
-                    <span id="control-z-val" class="text-blue-400">1</span>
-                </label>
-                <input 
-                    type="range" 
-                    id="z-slider"
-                    min="1" 
-                    max="36" 
-                    step="1" 
-                    value="1" 
-                    class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
-                >
-                <div class="flex justify-between text-xs text-gray-500 font-mono">
-                    <span>H (1)</span>
-                    <span>Kr (36)</span>
-                </div>
-            </div>
-
-            <!-- Orbital Legend -->
-            <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
-                <h3 class="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
-                    <!-- Layers Icon SVG -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                        <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path>
-                        <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path>
-                        <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path>
-                    </svg>
-                    軌域圖例 (Orbital Types)
-                </h3>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]"></div>
-                        <span>s 軌域 (球形)</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
-                        <span>p 軌域 (啞鈴形)</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"></div>
-                        <span>d 軌域 (花瓣形)</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                        <span>原子核 (質子)</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Teacher's Note -->
-            <div class="mt-auto bg-blue-900/20 p-4 rounded-lg border border-blue-800/50">
-                <div class="flex items-start gap-3">
-                    <!-- Info Icon SVG -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-blue-400 shrink-0 mt-0.5">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M12 16v-4"></path>
-                        <path d="M12 8h.01"></path>
-                    </svg>
-                    <div>
-                        <h4 class="text-sm font-bold text-blue-300 mb-1">老師的筆記：</h4>
-                        <p class="text-xs text-blue-200/80 leading-relaxed">
-                            請注意觀察，隨著原子序增加，電子會依照 <strong>Aufbau Principle (遞建原理)</strong> 由低能階往高能階填入。
-                            <br/><br/>
-                            例如，雖然 4s 的主量子數 (n=4) 比 3d (n=3) 大，但 4s 的能量較低，所以鉀 (K) 的電子會先填入 4s。
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
         </div>
+        <div class="flex flex-wrap gap-2 justify-end w-full md:w-auto">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-slate-50 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h12"/><path d="M9 12h12"/><path d="M9 19h12"/><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="19" r="1" fill="currentColor"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
 
-        <!-- RIGHT PANEL: 3D Visualization -->
-        <div class="flex-1 relative bg-gradient-to-b from-gray-900 via-gray-900 to-black overflow-hidden" id="canvas-container">
-            
-            <!-- Overlay Controls -->
-            <div class="absolute top-4 right-4 z-10 flex gap-2 pointer-events-none">
-                <div class="bg-black/40 backdrop-blur text-xs px-3 py-1.5 rounded-full text-gray-300 border border-white/10 flex items-center gap-2 pointer-events-auto select-none">
-                    <!-- Rotate Icon SVG -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3">
-                        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
-                    </svg>
-                    拖曳旋轉視角
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+        <aside class="w-full lg:w-80 xl:w-96 bg-white border-r border-slate-200 flex flex-col overflow-y-auto p-4 gap-3 shadow-lg z-10 shrink-0 max-h-[48vh] lg:max-h-none">
+
+            <div class="bg-gradient-to-br from-violet-50 to-fuchsia-50 p-4 rounded-2xl border border-violet-100 text-center relative overflow-hidden">
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500"></div>
+                <div id="display-symbol" class="text-5xl font-black text-slate-800 font-mono leading-none">H</div>
+                <div id="display-name" class="text-base font-bold text-violet-800 mt-1">氫</div>
+                <div class="text-xs text-slate-500 mt-1"><span data-i18n="labelZ">原子序</span> <span id="display-z" class="font-mono font-bold text-violet-700">1</span></div>
+                <div class="mt-3 bg-white/70 p-2.5 rounded-xl border border-violet-100">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1" data-i18n="labelConfig">電子組態</div>
+                    <code id="display-config" class="text-emerald-700 font-mono text-sm font-bold">1s¹</code>
                 </div>
             </div>
 
-            <!-- Active Orbitals List (Overlay) -->
-            <div class="absolute bottom-6 left-6 max-w-md pointer-events-none">
-                <h3 class="text-xs font-bold text-gray-500 uppercase mb-2">Active Orbitals</h3>
-                <div id="active-orbitals-list" class="flex flex-wrap gap-1">
-                    <!-- JS will populate this -->
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div class="flex justify-between text-xs font-bold text-slate-600 mb-2">
+                    <span data-i18n="sliderLabel">調整元素 (Z = 1–36)</span>
+                    <span id="slider-z" class="text-violet-700 font-mono">1</span>
+                </div>
+                <input type="range" id="z-slider" min="1" max="36" step="1" value="1">
+                <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-1"><span>H</span><span>Kr</span></div>
+                <div class="flex flex-wrap gap-1.5 mt-3">
+                    <button type="button" class="quick-btn active px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="1">H</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="6">C</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="10">Ne</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="19">K</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="24">Cr</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="26">Fe</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="29">Cu</button>
+                    <button type="button" class="quick-btn px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-z="36">Kr</button>
                 </div>
             </div>
 
+            <div class="bg-white p-3 rounded-xl border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-500 uppercase mb-2" data-i18n="viewTitle">顯示選項</h3>
+                <div class="flex flex-wrap gap-1.5">
+                    <button type="button" id="toggle-rotate" class="toggle-btn active px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-i18n="toggleRotate">自動旋轉</button>
+                    <button type="button" id="toggle-s" class="toggle-btn active px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-i18n="toggleS">s 軌域</button>
+                    <button type="button" id="toggle-p" class="toggle-btn active px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-i18n="toggleP">p 軌域</button>
+                    <button type="button" id="toggle-d" class="toggle-btn active px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-i18n="toggleD">d 軌域</button>
+                    <button type="button" id="toggle-electrons" class="toggle-btn active px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-slate-300 bg-white" data-i18n="toggleElectrons">電子運動</button>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-500 uppercase mb-2" data-i18n="legendTitle">軌域圖例</h3>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-400/50 shadow-sm"></span><span data-i18n="legS">s（球形）</span></div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-400/50 shadow-sm"></span><span data-i18n="legP">p（啞鈴形）</span></div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-rose-500/50 shadow-sm"></span><span data-i18n="legD">d（花瓣形）</span></div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 shadow-sm"></span><span data-i18n="legN">原子核</span></div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-sky-500 shadow-sm"></span><span data-i18n="legSpinUp">e⁻ ↑（自旋向上）</span></div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-orange-500 shadow-sm"></span><span data-i18n="legSpinDown">e⁻ ↓（自旋向下）</span></div>
+                </div>
+            </div>
+
+            <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                <h3 class="text-xs font-bold text-emerald-800 uppercase mb-2" data-i18n="diagramTitle">軌域方框圖（洪特／包立）</h3>
+                <div id="orbital-diagram" class="space-y-1.5 text-[11px]"></div>
+                <p class="text-[10px] text-emerald-700/80 mt-2" data-i18n="diagramHint">先單占同自旋（洪特）→ 再配對相反自旋（包立）</p>
+            </div>
+
+            <div class="bg-violet-50 p-3 rounded-xl border border-violet-100">
+                <h3 class="text-xs font-bold text-violet-700 uppercase mb-2" data-i18n="activeTitle">已填電子軌域</h3>
+                <div id="active-orbitals" class="flex flex-wrap gap-1.5"></div>
+                <p class="text-[10px] text-violet-600/80 mt-2" data-i18n="valenceHint">白框＝價層（最高主量子數）軌域</p>
+            </div>
+
+            <button type="button" id="btn-reset" class="w-full py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="btnReset">重置</button>
+        </aside>
+
+        <section class="flex-1 relative min-h-[240px] lg:min-h-0 flex flex-col">
+            <div id="canvas-wrap" class="flex-1 relative overflow-hidden">
+                <div class="absolute top-3 right-3 z-10 pointer-events-none">
+                    <span class="inline-flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full bg-black/35 text-slate-200 border border-white/10 backdrop-blur-sm" data-i18n="dragHint">拖曳旋轉 · 滾輪縮放</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-violet-600 to-fuchsia-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">原子軌域與電子組態</h2>
+                    <p class="text-xs text-violet-100" data-i18n="modalSub">Orbitals & Aufbau principle</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m1t">1. 原子軌域</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m1d">電子在原子核外以<strong>機率雲</strong>形式分布。本模擬以半透明 3D 形狀示意：<strong>s</strong> 為球形、<strong>p</strong> 為沿 x／y／z 軸的啞鈴形、<strong>d</strong> 為花瓣形。顏色深淺反映該軌域所填電子數。</p>
+                </div>
+                <div class="bg-fuchsia-50 p-4 rounded-2xl border border-fuchsia-100">
+                    <h3 class="font-bold text-fuchsia-900 mb-1" data-i18n="m2t">2. 遞建原理（Aufbau）</h3>
+                    <p class="text-xs leading-relaxed mb-2" data-i18n="m2d">電子由低能階往高能階填入。填序大致為：</p>
+                    <div class="mj-box text-center text-sm">\(1s \rightarrow 2s \rightarrow 2p \rightarrow 3s \rightarrow 3p \rightarrow 4s \rightarrow 3d \rightarrow 4p\)</div>
+                    <p class="text-xs mt-2 leading-relaxed" data-i18n="m2ex">因此鉀 (K) 先填 4s 再填 3d；鉻 (Cr)、銅 (Cu) 有例外（半滿／全滿 d 殼較穩定）。</p>
+                </div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m5t">3. 洪特規則與包立不相容原理</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m5d"><strong>洪特規則</strong>：同一副殼層內，電子先<strong>單占</strong>各軌域且自旋平行（↑↑↑）。<strong>包立不相容原理</strong>：同一軌域最多 2 個電子，且自旋必須<strong>相反</strong>（↑↓）。3D 中藍色 e⁻ = ↑，橙色 e⁻ = ↓。</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                        <h4 class="font-bold text-emerald-800 mb-1" data-i18n="m3t">容量</h4>
+                        <p data-i18n="m3d">s 最多 2 e⁻；p 最多 6；d 最多 10。同一軌域內先單占、再配對（洪特規則）。</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 mb-1" data-i18n="m4t">生活例子</h4>
+                        <p data-i18n="m4d">鐵 (Fe) 的 3d 電子參與磁性；銅 (Cu) 的 4s¹3d¹⁰ 解釋其良好導電性；霓虹 (Ne) 價層 2p⁶ 滿殼，故極不活潑。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 rounded-xl bg-violet-600 text-white font-bold text-sm" data-i18n="btnClose">了解</button>
+            </div>
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC -->
-    <script>
-        // -----------------------------------------------------------------------------
-        // 1. DATA
-        // -----------------------------------------------------------------------------
-        const ELEMENTS = [
-            { z: 1, symbol: 'H', name: '氫 (Hydrogen)', config: '1s1' },
-            { z: 2, symbol: 'He', name: '氦 (Helium)', config: '1s2' },
-            { z: 3, symbol: 'Li', name: '鋰 (Lithium)', config: '[He] 2s1' },
-            { z: 4, symbol: 'Be', name: '鈹 (Beryllium)', config: '[He] 2s2' },
-            { z: 5, symbol: 'B', name: '硼 (Boron)', config: '[He] 2s2 2p1' },
-            { z: 6, symbol: 'C', name: '碳 (Carbon)', config: '[He] 2s2 2p2' },
-            { z: 7, symbol: 'N', name: '氮 (Nitrogen)', config: '[He] 2s2 2p3' },
-            { z: 8, symbol: 'O', name: '氧 (Oxygen)', config: '[He] 2s2 2p4' },
-            { z: 9, symbol: 'F', name: '氟 (Fluorine)', config: '[He] 2s2 2p5' },
-            { z: 10, symbol: 'Ne', name: '氖 (Neon)', config: '[He] 2s2 2p6' },
-            { z: 11, symbol: 'Na', name: '鈉 (Sodium)', config: '[Ne] 3s1' },
-            { z: 12, symbol: 'Mg', name: '鎂 (Magnesium)', config: '[Ne] 3s2' },
-            { z: 13, symbol: 'Al', name: '鋁 (Aluminium)', config: '[Ne] 3s2 3p1' },
-            { z: 14, symbol: 'Si', name: '矽 (Silicon)', config: '[Ne] 3s2 3p2' },
-            { z: 15, symbol: 'P', name: '磷 (Phosphorus)', config: '[Ne] 3s2 3p3' },
-            { z: 16, symbol: 'S', name: '硫 (Sulfur)', config: '[Ne] 3s2 3p4' },
-            { z: 17, symbol: 'Cl', name: '氯 (Chlorine)', config: '[Ne] 3s2 3p5' },
-            { z: 18, symbol: 'Ar', name: '氬 (Argon)', config: '[Ne] 3s2 3p6' },
-            { z: 19, symbol: 'K', name: '鉀 (Potassium)', config: '[Ar] 4s1' },
-            { z: 20, symbol: 'Ca', name: '鈣 (Calcium)', config: '[Ar] 4s2' },
-            { z: 21, symbol: 'Sc', name: '鈧 (Scandium)', config: '[Ar] 3d1 4s2' },
-            { z: 22, symbol: 'Ti', name: '鈦 (Titanium)', config: '[Ar] 3d2 4s2' },
-            { z: 23, symbol: 'V', name: '釩 (Vanadium)', config: '[Ar] 3d3 4s2' },
-            { z: 24, symbol: 'Cr', name: '鉻 (Chromium)', config: '[Ar] 3d5 4s1' },
-            { z: 25, symbol: 'Mn', name: '錳 (Manganese)', config: '[Ar] 3d5 4s2' },
-            { z: 26, symbol: 'Fe', name: '鐵 (Iron)', config: '[Ar] 3d6 4s2' },
-            { z: 27, symbol: 'Co', name: '鈷 (Cobalt)', config: '[Ar] 3d7 4s2' },
-            { z: 28, symbol: 'Ni', name: '鎳 (Nickel)', config: '[Ar] 3d8 4s2' },
-            { z: 29, symbol: 'Cu', name: '銅 (Copper)', config: '[Ar] 3d10 4s1' },
-            { z: 30, symbol: 'Zn', name: '鋅 (Zinc)', config: '[Ar] 3d10 4s2' },
-            { z: 31, symbol: 'Ga', name: '鎵 (Gallium)', config: '[Ar] 3d10 4s2 4p1' },
-            { z: 32, symbol: 'Ge', name: '鍺 (Germanium)', config: '[Ar] 3d10 4s2 4p2' },
-            { z: 33, symbol: 'As', name: '砷 (Arsenic)', config: '[Ar] 3d10 4s2 4p3' },
-            { z: 34, symbol: 'Se', name: '硒 (Selenium)', config: '[Ar] 3d10 4s2 4p4' },
-            { z: 35, symbol: 'Br', name: '溴 (Bromine)', config: '[Ar] 3d10 4s2 4p5' },
-            { z: 36, symbol: 'Kr', name: '氪 (Krypton)', config: '[Ar] 3d10 4s2 4p6' },
-        ];
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 space-y-3 text-sm text-slate-700">
+                <p data-i18n="s1">1. 拖曳滑桿或點選 H、K、Fe 等快捷鈕，切換 Z = 1–36 的元素。</p>
+                <p data-i18n="s2">2. 觀察左側<strong>電子組態</strong>與下方<strong>已填軌域</strong>標籤是否同步；白框標示價層軌域。</p>
+                <p data-i18n="s3">3. 比較 Ne (Z=10) 與 Na (Z=11)：新電子進入哪一軌域？再試 K (Z=19) 與 Ca (Z=20)。</p>
+                <p data-i18n="s4">4. 切換 s／p／d 顯示，拖曳 3D 畫面旋轉；比較 C 的 2p 與 Fe 的 3d 形狀。</p>
+                <p data-i18n="s5">5. 觀察<strong>軌域方框圖</strong>：N (2p³) 三個 ↑ 並列；O (2p⁴) 開始出現 ↑↓ 配對。對照 3D 電子運動。</p>
+                <p data-i18n="s6">6. 查看 Cr、Cu 的例外組態，對照 3d 與 4s 電子數。</p>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 rounded-xl bg-slate-800 text-white font-bold text-sm" data-i18n="btnClose">開始觀察</button>
+            </div>
+        </div>
+    </div>
 
-        function getOrbitalsForZ(z) {
-            const orbitals = [];
-            if (z >= 1) orbitals.push({ type: 's', n: 1, electrons: Math.min(z, 2) });
-            if (z >= 3) orbitals.push({ type: 's', n: 2, electrons: Math.min(z - 2, 2) });
-            if (z >= 5) orbitals.push({ type: 'p', n: 2, electrons: Math.min(z - 4, 6) });
-            if (z >= 11) orbitals.push({ type: 's', n: 3, electrons: Math.min(z - 10, 2) });
-            if (z >= 13) orbitals.push({ type: 'p', n: 3, electrons: Math.min(z - 12, 6) });
-            if (z >= 19) orbitals.push({ type: 's', n: 4, electrons: 2 });
-            if (z >= 21) orbitals.push({ type: 'd', n: 3, electrons: Math.min(z - 20, 10) });
-            if (z >= 31) orbitals.push({ type: 'p', n: 4, electrons: Math.min(z - 30, 6) });
-            return orbitals;
+<script>
+const FILL_ORDER = [
+    { n: 1, type: 's', max: 2 }, { n: 2, type: 's', max: 2 }, { n: 2, type: 'p', max: 6 },
+    { n: 3, type: 's', max: 2 }, { n: 3, type: 'p', max: 6 }, { n: 4, type: 's', max: 2 },
+    { n: 3, type: 'd', max: 10 }, { n: 4, type: 'p', max: 6 }
+];
+const TYPE_ORDER = { s: 0, p: 1, d: 2, f: 3 };
+
+const ELEMENTS = [
+    { z: 1, symbol: 'H', nameZh: '氫', nameEn: 'Hydrogen', config: '1s¹' },
+    { z: 2, symbol: 'He', nameZh: '氦', nameEn: 'Helium', config: '1s²' },
+    { z: 3, symbol: 'Li', nameZh: '鋰', nameEn: 'Lithium', config: '[He] 2s¹' },
+    { z: 4, symbol: 'Be', nameZh: '鈹', nameEn: 'Beryllium', config: '[He] 2s²' },
+    { z: 5, symbol: 'B', nameZh: '硼', nameEn: 'Boron', config: '[He] 2s² 2p¹' },
+    { z: 6, symbol: 'C', nameZh: '碳', nameEn: 'Carbon', config: '[He] 2s² 2p²' },
+    { z: 7, symbol: 'N', nameZh: '氮', nameEn: 'Nitrogen', config: '[He] 2s² 2p³' },
+    { z: 8, symbol: 'O', nameZh: '氧', nameEn: 'Oxygen', config: '[He] 2s² 2p⁴' },
+    { z: 9, symbol: 'F', nameZh: '氟', nameEn: 'Fluorine', config: '[He] 2s² 2p⁵' },
+    { z: 10, symbol: 'Ne', nameZh: '氖', nameEn: 'Neon', config: '[He] 2s² 2p⁶' },
+    { z: 11, symbol: 'Na', nameZh: '鈉', nameEn: 'Sodium', config: '[Ne] 3s¹' },
+    { z: 12, symbol: 'Mg', nameZh: '鎂', nameEn: 'Magnesium', config: '[Ne] 3s²' },
+    { z: 13, symbol: 'Al', nameZh: '鋁', nameEn: 'Aluminium', config: '[Ne] 3s² 3p¹' },
+    { z: 14, symbol: 'Si', nameZh: '矽', nameEn: 'Silicon', config: '[Ne] 3s² 3p²' },
+    { z: 15, symbol: 'P', nameZh: '磷', nameEn: 'Phosphorus', config: '[Ne] 3s² 3p³' },
+    { z: 16, symbol: 'S', nameZh: '硫', nameEn: 'Sulfur', config: '[Ne] 3s² 3p⁴' },
+    { z: 17, symbol: 'Cl', nameZh: '氯', nameEn: 'Chlorine', config: '[Ne] 3s² 3p⁵' },
+    { z: 18, symbol: 'Ar', nameZh: '氬', nameEn: 'Argon', config: '[Ne] 3s² 3p⁶' },
+    { z: 19, symbol: 'K', nameZh: '鉀', nameEn: 'Potassium', config: '[Ar] 4s¹' },
+    { z: 20, symbol: 'Ca', nameZh: '鈣', nameEn: 'Calcium', config: '[Ar] 4s²' },
+    { z: 21, symbol: 'Sc', nameZh: '鈧', nameEn: 'Scandium', config: '[Ar] 3d¹ 4s²' },
+    { z: 22, symbol: 'Ti', nameZh: '鈦', nameEn: 'Titanium', config: '[Ar] 3d² 4s²' },
+    { z: 23, symbol: 'V', nameZh: '釩', nameEn: 'Vanadium', config: '[Ar] 3d³ 4s²' },
+    { z: 24, symbol: 'Cr', nameZh: '鉻', nameEn: 'Chromium', config: '[Ar] 3d⁵ 4s¹' },
+    { z: 25, symbol: 'Mn', nameZh: '錳', nameEn: 'Manganese', config: '[Ar] 3d⁵ 4s²' },
+    { z: 26, symbol: 'Fe', nameZh: '鐵', nameEn: 'Iron', config: '[Ar] 3d⁶ 4s²' },
+    { z: 27, symbol: 'Co', nameZh: '鈷', nameEn: 'Cobalt', config: '[Ar] 3d⁷ 4s²' },
+    { z: 28, symbol: 'Ni', nameZh: '鎳', nameEn: 'Nickel', config: '[Ar] 3d⁸ 4s²' },
+    { z: 29, symbol: 'Cu', nameZh: '銅', nameEn: 'Copper', config: '[Ar] 3d¹⁰ 4s¹' },
+    { z: 30, symbol: 'Zn', nameZh: '鋅', nameEn: 'Zinc', config: '[Ar] 3d¹⁰ 4s²' },
+    { z: 31, symbol: 'Ga', nameZh: '鎵', nameEn: 'Gallium', config: '[Ar] 3d¹⁰ 4s² 4p¹' },
+    { z: 32, symbol: 'Ge', nameZh: '鍺', nameEn: 'Germanium', config: '[Ar] 3d¹⁰ 4s² 4p²' },
+    { z: 33, symbol: 'As', nameZh: '砷', nameEn: 'Arsenic', config: '[Ar] 3d¹⁰ 4s² 4p³' },
+    { z: 34, symbol: 'Se', nameZh: '硒', nameEn: 'Selenium', config: '[Ar] 3d¹⁰ 4s² 4p⁴' },
+    { z: 35, symbol: 'Br', nameZh: '溴', nameEn: 'Bromine', config: '[Ar] 3d¹⁰ 4s² 4p⁵' },
+    { z: 36, symbol: 'Kr', nameZh: '氪', nameEn: 'Krypton', config: '[Ar] 3d¹⁰ 4s² 4p⁶' }
+];
+
+const COLORS = { s: 0x4ade80, p: 0xfacc15, d: 0xf43f5e, proton: 0xef4444, neutron: 0x94a3b8, spinUp: 0x38bdf8, spinDown: 0xfb923c };
+const SPIN_GLYPH = { 1: '↑', '-1': '↓' };
+
+const i18n = {
+    zh: {
+        title: '原子及軌態', badge: '化學', subtitle: 's／p／d 軌域 3D 視覺化 · 電子組態 · 遞建原理',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', btnClose: '了解', btnReset: '重置',
+        labelZ: '原子序', labelConfig: '電子組態', sliderLabel: '調整元素 (Z = 1–36)',
+        viewTitle: '顯示選項', toggleRotate: '自動旋轉', toggleS: 's 軌域', toggleP: 'p 軌域', toggleD: 'd 軌域', toggleElectrons: '電子運動',
+        legendTitle: '軌域圖例', legS: 's（球形）', legP: 'p（啞鈴形）', legD: 'd（花瓣形）', legN: '原子核',
+        legSpinUp: 'e⁻ ↑（自旋向上）', legSpinDown: 'e⁻ ↓（自旋向下）',
+        diagramTitle: '軌域方框圖（洪特／包立）', diagramHint: '先單占同自旋（洪特）→ 再配對相反自旋（包立）',
+        activeTitle: '已填電子軌域', valenceHint: '白框＝價層（最高主量子數）軌域',
+        dragHint: '拖曳旋轉 · 滾輪縮放',
+        modalTitle: '原子軌域與電子組態', modalSub: 'Orbitals & Aufbau principle',
+        m1t: '1. 原子軌域', m1d: '電子在原子核外以<strong>機率雲</strong>形式分布。本模擬以<strong>高透明度</strong> 3D 形狀示意 s／p／d 軌域；亮點為依洪特／包立原理排列的 e⁻，在軌域內運動。',
+        m2t: '2. 遞建原理（Aufbau）', m2d: '電子由低能階往高能階填入。填序大致為：',
+        m2ex: '因此鉀 (K) 先填 4s 再填 3d；鉻 (Cr)、銅 (Cu) 有例外（半滿／全滿 d 殼較穩定）。',
+        m5t: '3. 洪特規則與包立不相容原理',
+        m5d: '<strong>洪特規則</strong>：同一副殼層內，電子先<strong>單占</strong>各軌域且自旋平行（↑↑↑）。<strong>包立不相容原理</strong>：同一軌域最多 2 個電子，且自旋必須<strong>相反</strong>（↑↓）。3D 中藍色 e⁻ = ↑，橙色 e⁻ = ↓。',
+        m3t: '容量', m3d: 's 最多 2 e⁻；p 最多 6；d 最多 10。同一軌域內先單占、再配對（洪特規則）。',
+        m4t: '生活例子', m4d: '鐵 (Fe) 的 3d 電子參與磁性；銅 (Cu) 的 4s¹3d¹⁰ 解釋其良好導電性；霓虹 (Ne) 價層 2p⁶ 滿殼，故極不活潑。',
+        stepsTitle: '觀察步驟',
+        s1: '1. 拖曳滑桿或點選 H、K、Fe 等快捷鈕，切換 Z = 1–36 的元素。',
+        s2: '2. 觀察左側<strong>電子組態</strong>與下方<strong>已填軌域</strong>標籤是否同步；白框標示價層軌域。',
+        s3: '3. 比較 Ne (Z=10) 與 Na (Z=11)：新電子進入哪一軌域？再試 K (Z=19) 與 Ca (Z=20)。',
+        s4: '4. 切換 s／p／d 顯示，拖曳 3D 畫面旋轉；比較 C 的 2p 與 Fe 的 3d 形狀。',
+        s5: '5. 觀察<strong>軌域方框圖</strong>：N (2p³) 三個 ↑ 並列；O (2p⁴) 開始出現 ↑↓ 配對。對照 3D 電子運動。',
+        s6: '6. 查看 Cr、Cu 的例外組態，對照 3d 與 4s 電子數。',
+        stepsClose: '開始觀察'
+    },
+    en: {
+        title: 'Atoms & Orbitals', badge: 'Chemistry', subtitle: '3D s / p / d orbitals · electron configuration · Aufbau',
+        btnPrinciple: 'Concept', btnSteps: 'Steps', btnClose: 'Got it', btnReset: 'Reset',
+        labelZ: 'Atomic no.', labelConfig: 'Electron configuration', sliderLabel: 'Element (Z = 1–36)',
+        viewTitle: 'Display', toggleRotate: 'Auto-rotate', toggleS: 's orbitals', toggleP: 'p orbitals', toggleD: 'd orbitals', toggleElectrons: 'Electron motion',
+        legendTitle: 'Legend', legS: 's (spherical)', legP: 'p (dumbbell)', legD: 'd (lobes)', legN: 'Nucleus',
+        legSpinUp: 'e⁻ ↑ (spin up)', legSpinDown: 'e⁻ ↓ (spin down)',
+        diagramTitle: 'Orbital boxes (Hund / Pauli)', diagramHint: 'Singly occupy with parallel spins (Hund) → then pair with opposite spins (Pauli)',
+        activeTitle: 'Occupied orbitals', valenceHint: 'White ring = valence (highest n) subshell',
+        dragHint: 'Drag to rotate · scroll to zoom',
+        modalTitle: 'Atomic orbitals & configuration', modalSub: 'Orbitals & Aufbau principle',
+        m1t: '1. Atomic orbitals', m1d: 'Electrons occupy <strong>probability clouds</strong>. This sim uses <strong>highly transparent</strong> s/p/d shapes; bright dots are e⁻ placed by Hund/Pauli rules, moving inside each orbital.',
+        m2t: '2. Aufbau principle', m2d: 'Electrons fill from lower to higher energy. Typical order:',
+        m2ex: 'So K fills 4s before 3d; Cr and Cu are common exceptions (half-filled / filled d subshell).',
+        m5t: '3. Hund\'s rule & Pauli exclusion',
+        m5d: '<strong>Hund\'s rule</strong>: in a subshell, electrons <strong>singly occupy</strong> orbitals with parallel spins (↑↑↑). <strong>Pauli exclusion</strong>: max 2 e⁻ per orbital with <strong>opposite</strong> spins (↑↓). Blue = ↑, orange = ↓ in 3D.',
+        m3t: 'Capacity', m3d: 's: max 2 e⁻; p: 6; d: 10. Hund\'s rule: singly occupy before pairing.',
+        m4t: 'Everyday link', m4d: 'Fe\'s 3d electrons relate to magnetism; Cu\'s 4s¹3d¹⁰ helps conductivity; Ne\'s full 2p⁶ shell makes it inert.',
+        stepsTitle: 'Observation steps',
+        s1: '1. Use the slider or quick buttons (H, K, Fe…) to explore Z = 1–36.',
+        s2: '2. Check that the <strong>configuration</strong> and <strong>orbital tags</strong> match; white ring = valence subshell.',
+        s3: '3. Compare Ne (10) vs Na (11): which subshell gets the new electron? Try K (19) vs Ca (20).',
+        s4: '4. Toggle s/p/d layers and drag the 3D view; compare C 2p vs Fe 3d shapes.',
+        s5: '5. Study the <strong>orbital box diagram</strong>: N (2p³) shows three ↑; O (2p⁴) starts ↑↓ pairing. Match 3D motion.',
+        s6: '6. Inspect Cr and Cu exceptions — 3d vs 4s electron counts.',
+        stepsClose: 'Start'
+    }
+};
+
+const state = {
+    lang: 'zh',
+    z: 1,
+    autoRotate: true,
+    showElectrons: true,
+    show: { s: true, p: true, d: true },
+    drag: false,
+    camDist: 12,
+    camTheta: 0.6,
+    camPhi: 0.8
+};
+
+let scene, camera, renderer, atomGroup, container, animId, clock;
+let electronStates = [];
+const sharedGeo = {};
+const sharedMat = {};
+
+function t(k) { return i18n[state.lang][k] || k; }
+
+function getOrbitalsForZ(z) {
+    const map = new Map();
+    let rem = z;
+    for (const slot of FILL_ORDER) {
+        if (rem <= 0) break;
+        const fill = Math.min(rem, slot.max);
+        if (fill > 0) map.set(`${slot.n}${slot.type}`, { type: slot.type, n: slot.n, electrons: fill, max: slot.max });
+        rem -= fill;
+    }
+    if (z === 24) {
+        map.set('4s', { type: 's', n: 4, electrons: 1, max: 2 });
+        map.set('3d', { type: 'd', n: 3, electrons: 5, max: 10 });
+    } else if (z === 29) {
+        map.set('4s', { type: 's', n: 4, electrons: 1, max: 2 });
+        map.set('3d', { type: 'd', n: 3, electrons: 10, max: 10 });
+    }
+    return Array.from(map.values()).sort((a, b) => a.n !== b.n ? a.n - b.n : TYPE_ORDER[a.type] - TYPE_ORDER[b.type]);
+}
+
+function valenceN(orbitals) {
+    return orbitals.length ? Math.max(...orbitals.map(o => o.n)) : 1;
+}
+
+function seededRandom(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return () => { s = s * 16807 % 2147483647; return (s - 1) / 2147483646; };
+}
+
+function geo(key, factory) {
+    if (!sharedGeo[key]) sharedGeo[key] = factory();
+    return sharedGeo[key];
+}
+
+function orbitalMaterial(type, occupancy, max) {
+    const color = COLORS[type];
+    const alpha = 0.035 + 0.055 * (occupancy / max);
+    return new THREE.MeshPhongMaterial({
+        color, emissive: color, emissiveIntensity: 0.04 + 0.06 * (occupancy / max),
+        transparent: true, opacity: alpha, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+}
+
+function boxCount(type) {
+    return type === 's' ? 1 : type === 'p' ? 3 : 5;
+}
+
+/** 洪特規則 + 包立：先單占 ↑，再配對 ↓ */
+function fillSubshell(type, n, count) {
+    const slots = [];
+    const boxes = boxCount(type);
+    for (let i = 0; i < count; i++) {
+        if (i < boxes) {
+            slots.push({ type, n, sub: i, spin: 1, paired: false, phase: i * 1.7 + n * 0.3, speed: 0.85 + (i % 3) * 0.12 });
+        } else {
+            const sub = i - boxes;
+            slots.push({ type, n, sub, spin: -1, paired: true, phase: sub * 2.1 + n * 0.5, speed: 0.75 + (sub % 3) * 0.1 });
         }
+    }
+    return slots;
+}
 
-        // -----------------------------------------------------------------------------
-        // 2. THREE.JS SETUP & LOGIC
-        // -----------------------------------------------------------------------------
-        let scene, camera, renderer, atomGroup;
-        let currentZ = 1;
-        let animationId;
+function getElectronStates(z) {
+    const all = [];
+    getOrbitalsForZ(z).forEach(orb => {
+        all.push(...fillSubshell(orb.type, orb.n, orb.electrons));
+    });
+    return all;
+}
 
-        const container = document.getElementById('canvas-container');
+function orbitalParams(type, n) {
+    if (type === 's') return { radius: 0.75 + n * 0.65 };
+    if (type === 'p') return { distance: 1.0 + n * 0.55, lobe: 0.55 + n * 0.18 };
+    return { scale: 1.2 + n * 0.45 };
+}
 
-        // Colors
-        const COLORS = {
-            proton: 0xff4444,
-            neutron: 0xaaaaaa, // Lighter grey for better visibility
-            sOrbital: 0x4ade80,
-            pOrbital: 0xfacc15,
-            dOrbital: 0xf43f5e,
-            fOrbital: 0x60a5fa,
-        };
+function electronPosition(e, t) {
+    const p = orbitalParams(e.type, e.n);
+    const w = e.speed;
+    if (e.type === 's') {
+        const r = p.radius * (0.52 + 0.18 * Math.sin(e.phase));
+        const th = e.phase + w * t;
+        const ph = e.phase * 0.7 + w * 0.65 * t;
+        return new THREE.Vector3(
+            r * Math.sin(ph) * Math.cos(th),
+            r * Math.sin(ph) * Math.sin(th) * 0.85,
+            r * Math.cos(ph)
+        );
+    }
+    if (e.type === 'p') {
+        const d = p.distance;
+        const wobble = 0.14 * Math.sin(w * t * 1.4 + e.phase);
+        const along = d * (0.72 + 0.22 * Math.sin(w * t + e.phase));
+        const v = new THREE.Vector3();
+        if (e.sub === 0) v.set(along, wobble, wobble * 0.6);
+        else if (e.sub === 1) v.set(wobble * 0.6, along, wobble);
+        else v.set(wobble, wobble * 0.6, along);
+        return v;
+    }
+    const sc = p.scale;
+    const angle = (e.sub / 5) * Math.PI * 2 + 0.3;
+    const rad = 0.82 * sc * (0.9 + 0.08 * Math.sin(w * t + e.phase));
+    const wobble = 0.12 * sc * Math.sin(w * 1.2 * t + e.phase * 1.3);
+    return new THREE.Vector3(
+        Math.cos(angle) * rad + wobble,
+        Math.sin(angle) * rad + wobble * 0.5,
+        0.15 * sc * Math.sin(w * 0.9 * t + e.phase)
+    );
+}
 
-        function initThree() {
-            // Scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111827); // Tailwind gray-900
-            scene.fog = new THREE.FogExp2(0x111827, 0.02); // Less fog density
-
-            // Camera
-            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-            camera.position.set(5, 5, 10);
-            camera.lookAt(0, 0, 0);
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            // Correct output encoding for brighter colors
-            renderer.outputColorSpace = THREE.SRGBColorSpace; 
-            container.appendChild(renderer.domElement);
-
-            // Lights - SIGNIFICANTLY INCREASED BRIGHTNESS
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Increased from 0.5
-            scene.add(ambientLight);
-            
-            const pointLight = new THREE.PointLight(0xffffff, 3); // Increased from 1
-            pointLight.position.set(10, 10, 10);
-            scene.add(pointLight);
-
-            const backLight = new THREE.PointLight(0xffffff, 1.5); // Add back light
-            backLight.position.set(-10, -5, -10);
-            scene.add(backLight);
-
-            // Interaction
-            setupInteraction();
-            
-            // Start Loop
-            animate();
-            
-            // Initial Draw
-            updateAtom(currentZ);
-        }
-
-        function updateAtom(z) {
-            // Remove old group
-            const oldGroup = scene.getObjectByName('atomGroup');
-            if (oldGroup) scene.remove(oldGroup);
-
-            atomGroup = new THREE.Group();
-            atomGroup.name = 'atomGroup';
-
-            // 1. Nucleus
-            const nucleusGroup = new THREE.Group();
-            const nucleonRadius = 0.15;
-            const n = z < 20 ? z : Math.ceil(z * 1.2);
-            
-            const nucleonGeometry = new THREE.SphereGeometry(nucleonRadius, 16, 16);
-            
-            // UPDATED MATERIALS: Use MeshPhongMaterial with emissive (self-illuminated) properties
-            const protonMaterial = new THREE.MeshPhongMaterial({ 
-                color: COLORS.proton, 
-                emissive: COLORS.proton,
-                emissiveIntensity: 0.3, // Make them glow slightly
-                shininess: 50
-            });
-            const neutronMaterial = new THREE.MeshPhongMaterial({ 
-                color: COLORS.neutron, 
-                emissive: COLORS.neutron,
-                emissiveIntensity: 0.1,
-                shininess: 50
-            });
-
-            for (let i = 0; i < z + n; i++) {
-                const isProton = i < z;
-                const mesh = new THREE.Mesh(nucleonGeometry, isProton ? protonMaterial : neutronMaterial);
-                
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.acos(2 * Math.random() - 1);
-                const r = Math.cbrt(Math.random()) * (z * 0.08);
-                
-                mesh.position.x = r * Math.sin(phi) * Math.cos(theta);
-                mesh.position.y = r * Math.sin(phi) * Math.sin(theta);
-                mesh.position.z = r * Math.cos(phi);
-                
-                nucleusGroup.add(mesh);
-            }
-            atomGroup.add(nucleusGroup);
-
-            // 2. Orbitals
-            const orbitals = getOrbitalsForZ(z);
-
-            orbitals.forEach(orb => {
-                let color;
-                if (orb.type === 's') color = COLORS.sOrbital;
-                else if (orb.type === 'p') color = COLORS.pOrbital;
-                else if (orb.type === 'd') color = COLORS.dOrbital;
-                else color = COLORS.fOrbital;
-
-                // UPDATED MATERIAL: Brighter, more opacity, emissive glow
-                const material = new THREE.MeshPhongMaterial({ 
-                    color: color,
-                    emissive: color,
-                    emissiveIntensity: 0.2, // Glow effect
-                    transparent: true, 
-                    opacity: 0.25, // Increased opacity from 0.15
-                    side: THREE.DoubleSide,
-                    depthWrite: false,
-                    blending: THREE.AdditiveBlending,
-                    shininess: 60
-                });
-
-                if (orb.type === 's') {
-                    const radius = 0.8 + (orb.n * 0.7);
-                    const geo = new THREE.SphereGeometry(radius, 32, 32);
-                    const mesh = new THREE.Mesh(geo, material);
-                    atomGroup.add(mesh);
-                } else if (orb.type === 'p') {
-                    const distance = 1.2 + (orb.n * 0.6);
-                    const lobeSize = 0.6 + (orb.n * 0.2);
-                    const lobeGeo = new THREE.SphereGeometry(lobeSize, 32, 32);
-                    
-                    const rotations = [[0,0,0], [0,0, Math.PI/2], [0, Math.PI/2, 0]];
-                    rotations.forEach(rot => {
-                        const pGroup = new THREE.Group();
-                        const lobe1 = new THREE.Mesh(lobeGeo, material);
-                        const lobe2 = new THREE.Mesh(lobeGeo, material);
-                        lobe1.scale.set(1.1, 0.9, 0.9);
-                        lobe2.scale.set(1.1, 0.9, 0.9);
-                        lobe1.position.x = distance;
-                        lobe2.position.x = -distance;
-                        pGroup.add(lobe1);
-                        pGroup.add(lobe2);
-                        pGroup.rotation.set(...rot);
-                        atomGroup.add(pGroup);
-                    });
-                } else if (orb.type === 'd') {
-                    const scale = 1.5 + (orb.n * 0.5);
-                    const lobeGeo = new THREE.SphereGeometry(1, 24, 24);
-                    const dGroup = new THREE.Group();
-                    
-                    for(let i=0; i<4; i++) {
-                        const lobe = new THREE.Mesh(lobeGeo, material);
-                        lobe.scale.set(0.4 * scale, 1 * scale, 0.4 * scale);
-                        const angle = i * Math.PI/2;
-                        const radius = 0.8 * scale;
-                        lobe.position.x = Math.cos(angle) * radius;
-                        lobe.position.y = Math.sin(angle) * radius;
-                        lobe.rotation.z = angle;
-                        dGroup.add(lobe);
-                    }
-                    dGroup.rotation.x = Math.random() * Math.PI;
-                    dGroup.rotation.y = Math.random() * Math.PI;
-                    atomGroup.add(dGroup);
-                }
-            });
-
-            scene.add(atomGroup);
-        }
-
-        function animate() {
-            animationId = requestAnimationFrame(animate);
-            if (atomGroup) {
-                atomGroup.rotation.y += 0.002;
-                atomGroup.rotation.z += 0.001;
-            }
-            renderer.render(scene, camera);
-        }
-
-        function setupInteraction() {
-            let isDragging = false;
-            let previousMousePosition = { x: 0, y: 0 };
-
-            const onMouseDown = (e) => isDragging = true;
-            const onMouseUp = () => isDragging = false;
-            const onMouseMove = (e) => {
-                if (isDragging) {
-                    const deltaMove = {
-                        x: e.offsetX - previousMousePosition.x,
-                        y: e.offsetY - previousMousePosition.y
-                    };
-                    if (atomGroup) {
-                        atomGroup.rotation.y += deltaMove.x * 0.01;
-                        atomGroup.rotation.x += deltaMove.y * 0.01;
-                    }
-                }
-                previousMousePosition = { x: e.offsetX, y: e.offsetY };
-            };
-
-            container.addEventListener('mousedown', onMouseDown);
-            window.addEventListener('mouseup', onMouseUp);
-            container.addEventListener('mousemove', onMouseMove);
-            container.addEventListener('touchstart', () => isDragging = true);
-            window.addEventListener('touchend', () => isDragging = false);
-
-            // Resize
-            window.addEventListener('resize', () => {
-                if (!camera || !renderer) return;
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
-            });
-        }
-
-
-        // -----------------------------------------------------------------------------
-        // 3. UI UPDATE LOGIC
-        // -----------------------------------------------------------------------------
-        
-        const slider = document.getElementById('z-slider');
-        
-        // Update function
-        function updateUI(z) {
-            const element = ELEMENTS.find(e => e.z === parseInt(z)) || ELEMENTS[0];
-            
-            // Text updates
-            document.getElementById('display-symbol').innerText = element.symbol;
-            document.getElementById('display-name').innerText = element.name;
-            document.getElementById('display-z-val').innerText = element.z;
-            document.getElementById('display-config').innerText = element.config;
-            document.getElementById('control-z-val').innerText = element.z;
-            
-            // Active Orbitals List update
-            const listContainer = document.getElementById('active-orbitals-list');
-            listContainer.innerHTML = '';
-            const activeOrbitals = getOrbitalsForZ(parseInt(z));
-            
-            activeOrbitals.forEach(orb => {
-                const span = document.createElement('span');
-                // Styling based on orbital type
-                let colorClass = '';
-                if (orb.type === 's') colorClass = 'bg-green-500/20 border-green-500/40 text-green-200';
-                else if (orb.type === 'p') colorClass = 'bg-yellow-500/20 border-yellow-500/40 text-yellow-200';
-                else if (orb.type === 'd') colorClass = 'bg-rose-500/20 border-rose-500/40 text-rose-200';
-                else colorClass = 'bg-blue-500/20 border-blue-500/40 text-blue-200';
-
-                span.className = `px-2 py-1 rounded text-xs font-mono border backdrop-blur-sm ${colorClass}`;
-                span.innerHTML = `${orb.n}${orb.type}<sup>${orb.electrons}</sup>`;
-                listContainer.appendChild(span);
-            });
-        }
-
-        // Listener
-        slider.addEventListener('input', (e) => {
-            const z = e.target.value;
-            currentZ = parseInt(z);
-            updateUI(currentZ);
-            updateAtom(currentZ);
+function spinMaterial(spin) {
+    const key = spin === 1 ? 'up' : 'down';
+    if (!sharedMat[key]) {
+        const color = spin === 1 ? COLORS.spinUp : COLORS.spinDown;
+        sharedMat[key] = new THREE.MeshPhongMaterial({
+            color, emissive: color, emissiveIntensity: 0.55, shininess: 80
         });
+    }
+    return sharedMat[key];
+}
 
-        // -----------------------------------------------------------------------------
-        // 4. BOOTSTRAP
-        // -----------------------------------------------------------------------------
-        // Wait for DOM ready
-        window.addEventListener('DOMContentLoaded', () => {
-            updateUI(currentZ); // Init UI
-            initThree(); // Init 3D
+function buildElectrons(z, group) {
+    electronStates = getElectronStates(z);
+    if (!state.showElectrons) return;
+    const eGeo = geo('electron', () => new THREE.SphereGeometry(0.09, 12, 12));
+    electronStates.forEach(e => {
+        const mesh = new THREE.Mesh(eGeo, spinMaterial(e.spin));
+        mesh.userData.spin = e.spin;
+        e.mesh = mesh;
+        group.add(mesh);
+    });
+}
+
+function renderOrbitalDiagram(z) {
+    const host = document.getElementById('orbital-diagram');
+    host.innerHTML = '';
+    const orbitals = getOrbitalsForZ(z);
+    if (!orbitals.length) return;
+    const vN = valenceN(orbitals);
+    orbitals.forEach(orb => {
+        const row = document.createElement('div');
+        row.className = 'flex flex-wrap items-center gap-1';
+        const label = document.createElement('span');
+        label.className = `font-mono font-bold mr-1 ${orb.n === vN ? 'text-violet-700' : 'text-slate-600'}`;
+        label.textContent = `${orb.n}${orb.type}:`;
+        row.appendChild(label);
+        const boxes = Array.from({ length: boxCount(orb.type) }, () => []);
+        fillSubshell(orb.type, orb.n, orb.electrons).forEach(es => boxes[es.sub].push(es.spin));
+        boxes.forEach(spins => {
+            const box = document.createElement('span');
+            box.className = 'orb-box';
+            box.innerHTML = spins.map(s => `<span class="${s === 1 ? 'spin-up' : 'spin-down'}">${SPIN_GLYPH[s]}</span>`).join('') || '·';
+            row.appendChild(box);
         });
+        host.appendChild(row);
+    });
+}
 
-    </script>
+function buildNucleus(z, group) {
+    const nucleonR = 0.14;
+    const meshGeo = geo('nucleon', () => new THREE.SphereGeometry(nucleonR, 12, 12));
+    const protonMat = new THREE.MeshPhongMaterial({ color: COLORS.proton, emissive: COLORS.proton, emissiveIntensity: 0.25 });
+    const neutronMat = new THREE.MeshPhongMaterial({ color: COLORS.neutron, emissive: COLORS.neutron, emissiveIntensity: 0.08 });
+    const nCount = z < 20 ? z : Math.round(z * 1.15);
+    const total = z + nCount;
+    const showCount = Math.min(total, 80);
+    const rand = seededRandom(z * 9973);
+    const coreR = 0.08 + Math.min(z, 30) * 0.025;
+    for (let i = 0; i < showCount; i++) {
+        const isProton = i < Math.round(showCount * (z / total));
+        const mesh = new THREE.Mesh(meshGeo, isProton ? protonMat : neutronMat);
+        const theta = rand() * Math.PI * 2;
+        const phi = Math.acos(2 * rand() - 1);
+        const r = Math.cbrt(rand()) * coreR;
+        mesh.position.set(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+        group.add(mesh);
+    }
+}
+
+function buildSOrbital(orb, group) {
+    if (!state.show.s) return;
+    const radius = 0.75 + orb.n * 0.65;
+    const mesh = new THREE.Mesh(
+        geo(`s-${radius}`, () => new THREE.SphereGeometry(radius, 28, 28)),
+        orbitalMaterial('s', orb.electrons, orb.max)
+    );
+    group.add(mesh);
+}
+
+function buildPOrbital(orb, group) {
+    if (!state.show.p) return;
+    const distance = 1.0 + orb.n * 0.55;
+    const lobeSize = 0.55 + orb.n * 0.18;
+    const lobeGeo = geo(`p-${lobeSize}`, () => new THREE.SphereGeometry(lobeSize, 24, 24));
+    const mat = orbitalMaterial('p', orb.electrons, orb.max);
+    [[0, 0, 0], [0, 0, Math.PI / 2], [0, Math.PI / 2, 0]].forEach(rot => {
+        const pg = new THREE.Group();
+        const l1 = new THREE.Mesh(lobeGeo, mat);
+        const l2 = new THREE.Mesh(lobeGeo, mat);
+        l1.scale.set(1.15, 0.85, 0.85);
+        l2.scale.set(1.15, 0.85, 0.85);
+        l1.position.x = distance;
+        l2.position.x = -distance;
+        pg.add(l1, l2);
+        pg.rotation.set(rot[0], rot[1], rot[2]);
+        group.add(pg);
+    });
+}
+
+function buildDOrbital(orb, group) {
+    if (!state.show.d) return;
+    const scale = 1.2 + orb.n * 0.45;
+    const lobeGeo = geo('d-lobe', () => new THREE.SphereGeometry(1, 20, 20));
+    const mat = orbitalMaterial('d', orb.electrons, orb.max);
+    const dg = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+        const lobe = new THREE.Mesh(lobeGeo, mat);
+        lobe.scale.set(0.38 * scale, 1.05 * scale, 0.38 * scale);
+        const angle = i * Math.PI / 2;
+        lobe.position.set(Math.cos(angle) * 0.85 * scale, Math.sin(angle) * 0.85 * scale, 0);
+        lobe.rotation.z = angle;
+        dg.add(lobe);
+    }
+    dg.rotation.x = Math.PI / 6;
+    dg.rotation.y = Math.PI / 8;
+    group.add(dg);
+}
+
+function updateAtom(z) {
+    const old = scene.getObjectByName('atomGroup');
+    if (old) scene.remove(old);
+    atomGroup = new THREE.Group();
+    atomGroup.name = 'atomGroup';
+    buildNucleus(z, atomGroup);
+    getOrbitalsForZ(z).forEach(orb => {
+        if (orb.type === 's') buildSOrbital(orb, atomGroup);
+        else if (orb.type === 'p') buildPOrbital(orb, atomGroup);
+        else if (orb.type === 'd') buildDOrbital(orb, atomGroup);
+    });
+    buildElectrons(z, atomGroup);
+    scene.add(atomGroup);
+}
+
+function updateCamera() {
+    const { camDist, camTheta, camPhi } = state;
+    camera.position.set(
+        camDist * Math.sin(camPhi) * Math.sin(camTheta),
+        camDist * Math.cos(camPhi),
+        camDist * Math.sin(camPhi) * Math.cos(camTheta)
+    );
+    camera.lookAt(0, 0, 0);
+}
+
+function initThree() {
+    container = document.getElementById('canvas-wrap');
+    clock = new THREE.Clock();
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
+    updateCamera();
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const key = new THREE.PointLight(0xffffff, 1.4);
+    key.position.set(8, 10, 6);
+    scene.add(key);
+    const fill = new THREE.PointLight(0x8888ff, 0.6);
+    fill.position.set(-6, -4, -8);
+    scene.add(fill);
+    setupInteraction();
+    resize();
+    updateAtom(state.z);
+    animate();
+}
+
+function animate() {
+    animId = requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    if (atomGroup && state.autoRotate && !state.drag) {
+        atomGroup.rotation.y += 0.003;
+    }
+    if (state.showElectrons && electronStates.length) {
+        electronStates.forEach(e => {
+            if (!e.mesh) return;
+            e.mesh.position.copy(electronPosition(e, t));
+            e.mesh.visible = state.show[e.type];
+        });
+    }
+    renderer.render(scene, camera);
+}
+
+function resize() {
+    if (!container || !camera || !renderer) return;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w < 1 || h < 1) return;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+}
+
+function setupInteraction() {
+    let last = { x: 0, y: 0 };
+    const el = () => renderer.domElement;
+
+    function pointerDown(x, y) {
+        state.drag = true;
+        last = { x, y };
+    }
+    function pointerMove(x, y) {
+        if (!state.drag || !atomGroup) return;
+        atomGroup.rotation.y += (x - last.x) * 0.008;
+        atomGroup.rotation.x += (y - last.y) * 0.008;
+        last = { x, y };
+    }
+    function pointerUp() { state.drag = false; }
+
+    el().addEventListener('mousedown', e => pointerDown(e.clientX, e.clientY));
+    window.addEventListener('mouseup', pointerUp);
+    el().addEventListener('mousemove', e => { if (state.drag) pointerMove(e.clientX, e.clientY); });
+    el().addEventListener('wheel', e => {
+        e.preventDefault();
+        state.camDist = Math.max(6, Math.min(22, state.camDist + e.deltaY * 0.01));
+        updateCamera();
+    }, { passive: false });
+
+    el().addEventListener('touchstart', e => {
+        if (e.touches.length === 1) pointerDown(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    el().addEventListener('touchmove', e => {
+        if (e.touches.length === 1) { e.preventDefault(); pointerMove(e.touches[0].clientX, e.touches[0].clientY); }
+    }, { passive: false });
+    el().addEventListener('touchend', pointerUp);
+
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(container);
+    else window.addEventListener('resize', resize);
+}
+
+function updateUI() {
+    const el = ELEMENTS[state.z - 1];
+    const orbitals = getOrbitalsForZ(state.z);
+    const vN = valenceN(orbitals);
+    document.getElementById('display-symbol').textContent = el.symbol;
+    document.getElementById('display-name').textContent = state.lang === 'zh' ? el.nameZh : el.nameEn;
+    document.getElementById('display-z').textContent = el.z;
+    document.getElementById('display-config').textContent = el.config;
+    document.getElementById('slider-z').textContent = el.z;
+    document.getElementById('z-slider').value = state.z;
+
+    document.querySelectorAll('.quick-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.z, 10) === state.z);
+    });
+
+    const box = document.getElementById('active-orbitals');
+    box.innerHTML = '';
+    orbitals.forEach(orb => {
+        const tag = document.createElement('span');
+        const sup = '⁰¹²³⁴⁵⁶⁷⁸⁹'[orb.electrons] || orb.electrons;
+        tag.className = `px-2 py-1 rounded-lg text-[11px] font-mono font-bold border orb-tag-${orb.type}${orb.n === vN ? ' orb-tag-valence' : ''}`;
+        tag.textContent = `${orb.n}${orb.type}${sup}`;
+        box.appendChild(tag);
+    });
+    renderOrbitalDiagram(state.z);
+}
+
+function setZ(z) {
+    state.z = Math.max(1, Math.min(36, parseInt(z, 10)));
+    updateUI();
+    updateAtom(state.z);
+}
+
+function applyI18n() {
+    document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const v = i18n[state.lang][el.dataset.i18n];
+        if (v) el.innerHTML = v;
+    });
+    document.getElementById('modal-confirm').textContent = t('btnClose');
+    document.getElementById('steps-confirm').textContent = t('stepsClose');
+    updateUI();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+}
+
+function setModal(id, open) {
+    const wrap = document.getElementById(id);
+    const box = wrap.querySelector('.modal-content');
+    wrap.classList.toggle('opacity-0', !open);
+    wrap.classList.toggle('pointer-events-none', !open);
+    box.classList.toggle('opacity-0', !open);
+    box.classList.toggle('scale-95', !open);
+}
+function closeAllModals() { setModal('modal-principle', false); setModal('modal-steps', false); }
+function openModal(id) { closeAllModals(); setModal(id, true); }
+
+function bindToggle(id, key) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('click', () => {
+        if (key === 'rotate') state.autoRotate = !state.autoRotate;
+        else if (key === 'electrons') state.showElectrons = !state.showElectrons;
+        else state.show[key] = !state.show[key];
+        const on = key === 'rotate' ? state.autoRotate : key === 'electrons' ? state.showElectrons : state.show[key];
+        btn.classList.toggle('active', on);
+        updateAtom(state.z);
+    });
+}
+
+function resetSim() {
+    state.z = 1;
+    state.autoRotate = true;
+    state.showElectrons = true;
+    state.show = { s: true, p: true, d: true };
+    state.camDist = 12;
+    state.camTheta = 0.6;
+    state.camPhi = 0.8;
+    updateCamera();
+    if (atomGroup) { atomGroup.rotation.set(0, 0, 0); }
+    ['toggle-rotate', 'toggle-s', 'toggle-p', 'toggle-d', 'toggle-electrons'].forEach(id => document.getElementById(id).classList.add('active'));
+    setZ(1);
+}
+
+function init() {
+    document.getElementById('z-slider').addEventListener('input', e => setZ(e.target.value));
+    document.querySelectorAll('.quick-btn').forEach(btn => btn.addEventListener('click', () => setZ(btn.dataset.z)));
+    bindToggle('toggle-rotate', 'rotate');
+    bindToggle('toggle-s', 's');
+    bindToggle('toggle-p', 'p');
+    bindToggle('toggle-d', 'd');
+    bindToggle('toggle-electrons', 'electrons');
+    document.getElementById('btn-reset').onclick = resetSim;
+    document.getElementById('btn-lang').onclick = document.getElementById('btn-lang-mobile').onclick = () => {
+        state.lang = state.lang === 'zh' ? 'en' : 'zh';
+        applyI18n();
+    };
+    document.getElementById('btn-principle').onclick = () => openModal('modal-principle');
+    document.getElementById('btn-steps').onclick = () => openModal('modal-steps');
+    document.getElementById('modal-close').onclick = document.getElementById('modal-confirm').onclick = () => setModal('modal-principle', false);
+    document.getElementById('steps-close').onclick = document.getElementById('steps-confirm').onclick = () => setModal('modal-steps', false);
+    document.getElementById('modal-principle').addEventListener('click', e => { if (e.target.id === 'modal-principle') setModal('modal-principle', false); });
+    document.getElementById('modal-steps').addEventListener('click', e => { if (e.target.id === 'modal-steps') setModal('modal-steps', false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
+    applyI18n();
+    initThree();
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
 </body>
 </html>

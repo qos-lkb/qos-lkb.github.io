@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecological Succession Interactive Game</title>
+    <style>
+        :root {
+            --sky-color: #87CEEB;
+            --rock-color: #708090;
+            --soil-color: #5D4037;
+            --ui-bg: #f4f4f4;
+            --primary-btn: #2E7D32;
+            --text-color: #333;
+            --error-color: #c62828;
+            --error-bg: #ffebee;
+            --success-color: #4caf50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #e0e0e0;
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #game-container {
+            width: 900px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Bar */
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button#lang-toggle {
+            background: #fff;
+            color: #333;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Visual Scene Area */
+        #scene {
+            height: 350px;
+            position: relative;
+            background: var(--sky-color);
+            overflow: hidden;
+            border-bottom: 5px solid #444;
+            transition: background 1s;
+        }
+
+        /* Environment Elements */
+        #sun {
+            width: 60px;
+            height: 60px;
+            background: yellow;
+            border-radius: 50%;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            box-shadow: 0 0 20px orange;
+        }
+
+        #ground-layer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 40px; /* Initial rock height */
+            background-color: var(--rock-color);
+            /* Rock Texture Pattern */
+            background-image: radial-gradient(circle at 20% 20%, #8899a6 4px, transparent 4.5px), 
+                              radial-gradient(circle at 50% 50%, #8899a6 3px, transparent 3.5px),
+                              radial-gradient(circle at 80% 30%, #5a6b78 5px, transparent 5.5px);
+            background-size: 50px 50px;
+            transition: background-color 1s, height 1s;
+            z-index: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        #soil-layer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 0px; /* Soil grows */
+            background-color: var(--soil-color);
+            transition: height 1.5s ease-in-out;
+            z-index: 2;
+            overflow: hidden; /* Keep seeds inside */
+        }
+
+        /* Seeds Visual */
+        .seed {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background-color: #D2B48C; /* Tan color */
+            border-radius: 50%;
+            opacity: 0.8;
+            box-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+        }
+
+        /* Organisms Container */
+        #ecosystem {
+            position: absolute;
+            bottom: 0; /* Aligned with bottom, adjusted by JS */
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            pointer-events: none; /* Let clicks pass through */
+        }
+
+        .organism {
+            position: absolute;
+            bottom: 0;
+            transition: opacity 1s, transform 1s;
+            font-size: 0; /* Emoji size set inline */
+            transform-origin: bottom center; /* Grow from bottom */
+        }
+
+        /* Animal Animation - Full Screen Patrol */
+        @keyframes wander {
+            0% { transform: translateX(0px) scaleX(-1); } /* Start facing Right */
+            49% { transform: translateX(850px) scaleX(-1); } /* Walk Right */
+            50% { transform: translateX(850px) scaleX(1); } /* Turn to Face Left */
+            99% { transform: translateX(0px) scaleX(1); } /* Walk Left */
+            100% { transform: translateX(0px) scaleX(-1); } /* Turn to Face Right */
+        }
+
+        .anim-walk {
+            animation-name: wander;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+        }
+
+        /* Eating Animation for Rabbits */
+        @keyframes eat {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(-10deg) scale(1.05); } /* Dip head (assuming facing left) */
+            50% { transform: rotate(0deg) scale(1); }
+            75% { transform: rotate(-5deg) scale(1.05); }
+            100% { transform: rotate(0deg) scale(1); }
+        }
+
+        .anim-eat {
+            animation: eat 2s infinite ease-in-out;
+        }
+
+        /* Fire Effect */
+        #fire-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 69, 0, 0.4);
+            z-index: 10;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 100px;
+            animation: flicker 0.2s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.8; }
+            50% { opacity: 0.4; }
+            100% { opacity: 0.8; }
+        }
+
+        /* Control Panel */
+        #controls {
+            padding: 20px;
+            background-color: var(--ui-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        #narrative-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 5px solid var(--primary-btn);
+            min-height: 80px;
+        }
+
+        #narrative-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            color: #2E7D32;
+        }
+
+        #narrative-text {
+            line-height: 1.5;
+        }
+
+        #choices-area {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .choice-btn {
+            background-color: white;
+            border: 2px solid var(--primary-btn);
+            color: var(--primary-btn);
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+        }
+
+        .choice-btn:hover {
+            background-color: var(--primary-btn);
+            color: white;
+        }
+
+        .choice-btn:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+            background: white;
+        }
+        
+        .choice-btn.correct-selected {
+            background-color: var(--success-color);
+            color: white;
+            border-color: var(--success-color);
+            opacity: 0.7;
+        }
+
+        /* Feedback Error Styles */
+        #feedback-msg {
+            display: none;
+            padding: 10px;
+            margin-top: 10px;
+            background-color: var(--error-bg);
+            color: var(--error-color);
+            border: 1px solid #ef9a9a;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .btn-shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            border-color: var(--error-color) !important;
+            color: var(--error-color) !important;
+            background-color: var(--error-bg) !important;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* Meters */
+        #stats-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .meter-container {
+            width: 150px;
+            height: 10px;
+            background: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+
+        .meter-fill {
+            height: 100%;
+            background: #8D6E63;
+            width: 0%;
+            transition: width 1s;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <header>
+        <div>
+            🌱 <strong>Eco-Succession Master</strong>
+        </div>
+        <button id="lang-toggle" onclick="toggleLanguage()">Switch to English</button>
+    </header>
+
+    <!-- Game Scene -->
+    <div id="scene">
+        <div id="sun"></div>
+        <div id="fire-overlay">🔥🔥🔥</div>
+        <div id="ecosystem">
+            <!-- Dynamic organisms go here -->
+        </div>
+        <div id="soil-layer"></div>
+        <div id="ground-layer"></div>
+    </div>
+
+    <!-- UI Controls -->
+    <div id="controls">
+        <div id="stats-bar">
+            <div>
+                <span id="soil-label">Soil Depth</span>: 
+                <div class="meter-container"><div id="soil-meter" class="meter-fill"></div></div>
+            </div>
+            <div>
+                <span id="stage-label">Succession Type</span>: <strong id="stage-type-display">Primary</strong>
+            </div>
+        </div>
+
+        <div id="narrative-box">
+            <div id="narrative-title">Start</div>
+            <div id="narrative-text">Welcome to the barren rocks. No life exists here yet.</div>
+        </div>
+
+        <div id="choices-area">
+            <!-- Buttons injected by JS -->
+            <button class="choice-btn" onclick="startGame()">Start Game</button>
+        </div>
+
+        <!-- Feedback Message Area -->
+        <div id="feedback-msg"></div>
+    </div>
+</div>
+
+<script>
+    // --- Data: Biology Content (Bilingual) ---
+    const content = {
+        en: {
+            title: "Eco-Succession Master",
+            soilLabel: "Soil Depth",
+            typeLabel: "Succession Type",
+            types: ["Primary Succession", "Secondary Succession"],
+            startGame: "Start Primary Succession",
+            restart: "Play Again",
+            stages: [
+                // 0. Pioneer
+                {
+                    title: "The Barren Beginning",
+                    text: "Primary succession starts in barren areas (e.g., lava rocks). No soil exists.",
+                    prompt: "What is the first pioneer species to arrive?",
+                    options: ["Trees", "Lichens & Mosses", "Grass"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Trees need deep soil.", null, "Incorrect. Grass needs soil."],
+                    soil: 0,
+                    type: "plant"
+                },
+                // 1. Herbaceous
+                {
+                    title: "Soil Development",
+                    text: "Lichens break down rocks to form soil. Now small plants can grow.",
+                    prompt: "The soil is thin. What grows next?",
+                    options: ["Large Oak Trees", "Ferns and Grasses", "Nothing"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Soil is too thin.", null, "Incorrect. Nature doesn't wait!"],
+                    soil: 10,
+                    type: "plant"
+                },
+                // 2. Primary Consumers
+                {
+                    title: "Primary Consumers Arrive",
+                    text: "Grasses and ferns are now abundant.",
+                    prompt: "Who eats the grass? (Primary Consumer)",
+                    options: ["Tiger", "Insects", "Wolf"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Tigers are carnivores.", null, "Incorrect. Wolves are carnivores."],
+                    soil: 25,
+                    type: "animal"
+                },
+                // 3. Shrub
+                {
+                    title: "Shrub Community",
+                    text: "The soil thickens. Larger plants begin to outcompete the grass.",
+                    prompt: "What plant stage comes after grass?",
+                    options: ["Shrubs/Bushes", "Lichens", "Algae"],
+                    correctIndex: 0,
+                    feedbacks: [null, "Incorrect. Lichens are pioneers.", "Incorrect. Algae needs water."],
+                    soil: 40,
+                    type: "plant"
+                },
+                // 4. Secondary Consumers (MULTI-SELECT)
+                {
+                    title: "Increase in Biodiversity",
+                    text: "Shrubs provide shelter for more diverse animals.",
+                    prompt: "With shrubs present, what animals are attracted to inhabit? (Select ALL that apply)",
+                    isMultiSelect: true,
+                    options: ["Rabbits", "Small Birds", "Lizards", "Lion"], // 0,1,2 correct
+                    correctIndices: [0, 1, 2],
+                    feedbacks: [null, null, null, "Incorrect. Lions are too big for a shrubland ecosystem."],
+                    soil: 55,
+                    type: "animal"
+                },
+                // 5. Climax
+                {
+                    title: "Climax Vegetation",
+                    text: "The soil is now deep and rich in humus.",
+                    prompt: "What is the final plant stage?",
+                    options: ["Moss", "Hardwood Trees", "Corn"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Moss is a pioneer.", null, "Incorrect. Corn is agricultural."],
+                    soil: 70,
+                    type: "plant"
+                },
+                // 6. Tertiary Consumers
+                {
+                    title: "Tertiary Consumers",
+                    text: "The forest is a complex ecosystem.",
+                    prompt: "Who is at the top of the food chain?",
+                    options: ["Deer", "Leopard/Tiger", "Bacteria"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Deer are herbivores.", null, "Incorrect. Bacteria are decomposers."],
+                    soil: 100,
+                    type: "animal"
+                },
+                // 7. Fire
+                {
+                    title: "Climax Community Reached",
+                    text: "The ecosystem is stable... until a disturbance occurs!",
+                    prompt: "A fire starts! Click to simulate disturbance.",
+                    options: ["Simulate Fire!"],
+                    correctIndex: 0,
+                    feedbacks: [null],
+                    soil: 100,
+                    type: "event"
+                },
+                // 8. Secondary Intro (Soil modified to 60)
+                {
+                    title: "Disturbance!",
+                    text: "Fire destroyed the plants, but the SOIL remains.",
+                    prompt: "What is the key difference now?",
+                    options: ["We start from rock", "Soil & seeds exist", "No life can ever return"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Fire doesn't remove soil.", null, "Incorrect. Life returns."],
+                    soil: 60, 
+                    type: "info"
+                },
+                // 9. Sec Plant
+                {
+                    title: "Secondary Succession Begins",
+                    text: "Since soil is present, we skip lichens.",
+                    prompt: "What grows first?",
+                    options: ["Lichens", "Grasses/Weeds", "Large Trees"],
+                    correctIndex: 1,
+                    feedbacks: ["Incorrect. Too slow.", null, "Incorrect. Too slow."],
+                    soil: 60,
+                    type: "plant"
+                },
+                // 10. Sec Prim Cons (Updated: Whale -> Polar Bear)
+                {
+                    title: "Life Returns Quickly",
+                    text: "The grass grows rapidly.",
+                    prompt: "Who returns to eat the grass?",
+                    options: ["Insects", "Wolves", "Polar Bears"],
+                    correctIndex: 0,
+                    feedbacks: [null, "Incorrect. Wolves need prey.", "Incorrect. Polar Bears live in the ice/snow."],
+                    soil: 70,
+                    type: "animal"
+                },
+                // 11. Sec Shrub
+                {
+                    title: "Shrubs Return",
+                    text: "Shrubs grow back faster.",
+                    prompt: "What happens next?",
+                    options: ["Shrubs dominate", "Back to Rocks", "Moss takes over"],
+                    correctIndex: 0,
+                    feedbacks: [null, "Incorrect. Soil is there.", "Incorrect. Moss is pioneer."],
+                    soil: 80,
+                    type: "plant"
+                },
+                // 12. Sec Sec Cons (MULTI-SELECT)
+                {
+                    title: "Secondary Consumers Return",
+                    text: "Shrubs provide hiding spots.",
+                    prompt: "With shrubs present, what animals are attracted to inhabit? (Select ALL that apply)",
+                    isMultiSelect: true,
+                    options: ["Rabbits", "Small Birds", "Lizards", "Lion"], // 0,1,2 correct
+                    correctIndices: [0, 1, 2],
+                    feedbacks: [null, null, null, "Incorrect. Lions are too big."],
+                    soil: 85,
+                    type: "animal"
+                },
+                // 13. Sec Tree
+                {
+                    title: "Forest Recovery",
+                    text: "The forest canopy returns.",
+                    prompt: "What grows now?",
+                    options: ["Hardwood Trees", "Algae", "Grass Only"],
+                    correctIndex: 0,
+                    feedbacks: [null, "Incorrect. Needs water.", "Incorrect. Trees dominate."],
+                    soil: 90,
+                    type: "plant"
+                },
+                // 14. Sec Top Cons
+                {
+                    title: "Top Predators Return",
+                    text: "The forest is complete.",
+                    prompt: "Who is at the top?",
+                    options: ["Leopard/Tiger", "Rabbits", "Mice"],
+                    correctIndex: 0,
+                    feedbacks: [null, "Incorrect. Prey.", "Incorrect. Prey."],
+                    soil: 100,
+                    type: "animal"
+                },
+                // 15. End
+                {
+                    title: "Restoration Complete",
+                    text: "The ecosystem is fully restored!",
+                    prompt: "Play Again?",
+                    options: ["Reset Game"],
+                    correctIndex: 0,
+                    feedbacks: [null],
+                    soil: 100,
+                    type: "end"
+                }
+            ]
+        },
+        zh: {
+            title: "生態演替大師",
+            soilLabel: "土壤深度",
+            typeLabel: "演替類別",
+            types: ["原生演替", "次生演替"],
+            startGame: "開始原生演替",
+            restart: "重新開始",
+            stages: [
+                // 0
+                {
+                    title: "荒蕪的開端",
+                    text: "原生演替開始於沒有土壤的光禿岩石。",
+                    prompt: "誰是第一個到達的先鋒物種？",
+                    options: ["喬木", "地衣和蘚", "草"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。喬木需要土壤。", null, "錯了。草需要土壤。"],
+                    soil: 0,
+                    type: "plant"
+                },
+                // 1
+                {
+                    title: "土壤形成",
+                    text: "地衣分解岩石形成土壤。現在小型植物可以生長了。",
+                    prompt: "土壤很薄。接下來長什麼？",
+                    options: ["大橡樹", "蕨和草", "什麼都沒有"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。土壤層還太薄。", null, "錯了。大自然不會停下腳步！"],
+                    soil: 10,
+                    type: "plant"
+                },
+                // 2
+                {
+                    title: "初級消費者出現",
+                    text: "蕨和草現在很茂盛，吸引了第一批動物。",
+                    prompt: "誰來吃這些草？(初級消費者)",
+                    options: ["老虎", "昆蟲", "狼"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。老虎是肉食性。", null, "錯了。狼是肉食性。"],
+                    soil: 25,
+                    type: "animal"
+                },
+                // 3
+                {
+                    title: "灌木群落",
+                    text: "土壤變厚了。較大的植物開始取代草類。",
+                    prompt: "草本階段之後是什麼植物？",
+                    options: ["灌木/矮樹叢", "地衣", "藻類"],
+                    correctIndex: 0,
+                    feedbacks: [null, "錯了。地衣是先鋒物種。", "錯了。藻類需要水。"],
+                    soil: 40,
+                    type: "plant"
+                },
+                // 4 (MULTI-SELECT)
+                {
+                    title: "生物多樣性增加",
+                    text: "灌木提供遮蔽，而且這裡有很多昆蟲可以吃。",
+                    prompt: "有了灌木後能吸引甚麼動物來棲息？（可選多於一個答案）",
+                    isMultiSelect: true,
+                    options: ["兔子", "小型鳥類", "蜥蜴", "獅子"],
+                    correctIndices: [0, 1, 2],
+                    feedbacks: [null, null, null, "錯了。獅子是頂級掠食者，這個階段的環境還無法支持牠們。"],
+                    soil: 55,
+                    type: "animal"
+                },
+                // 5
+                {
+                    title: "頂級植被",
+                    text: "土壤現在深厚且富含腐殖質。",
+                    prompt: "最後的植物階段是什麼？",
+                    options: ["苔蘚", "闊葉喬木", "玉米"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。苔蘚是早期物種。", null, "錯了。玉米是農作物。"],
+                    soil: 70,
+                    type: "plant"
+                },
+                // 6
+                {
+                    title: "三級消費者",
+                    text: "森林是一個複雜的生態系統。",
+                    prompt: "誰位於食物鏈頂層？(三級消費者)",
+                    options: ["鹿", "花豹/老虎", "細菌"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。鹿是草食性。", null, "錯了。細菌是分解者。"],
+                    soil: 100,
+                    type: "animal"
+                },
+                // 7
+                {
+                    title: "達到頂級群落",
+                    text: "生態系統穩定了...直到干擾發生！",
+                    prompt: "山火發生了！點擊模擬干擾。",
+                    options: ["模擬山火！"],
+                    correctIndex: 0,
+                    feedbacks: [null],
+                    soil: 100,
+                    type: "event"
+                },
+                // 8
+                {
+                    title: "干擾發生！",
+                    text: "火災燒毀了植物，但「土壤」還在。",
+                    prompt: "現在最大的不同是什麼？",
+                    options: ["從岩石開始", "有土壤和種子", "生命永遠消失"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。火不會燒掉土壤。", null, "錯了。生命力很強韌！"],
+                    soil: 80,
+                    type: "info"
+                },
+                // 9
+                {
+                    title: "次生演替開始",
+                    text: "因為土壤已經存在，跳過地衣。",
+                    prompt: "什麼東西會最先從土壤長出來？",
+                    options: ["地衣", "草本植物/雜草", "大樹"],
+                    correctIndex: 1,
+                    feedbacks: ["錯了。太慢了。", null, "錯了。大樹需要時間。"],
+                    soil: 80,
+                    type: "plant"
+                },
+                // 10
+                {
+                    title: "生命迅速回歸",
+                    text: "草長得很快。",
+                    prompt: "誰回來吃這些草？",
+                    options: ["昆蟲", "狼", "北極熊"],
+                    correctIndex: 0,
+                    feedbacks: [null, "錯了。狼是掠食者。", "錯了。北極熊生活在冰雪環境。"],
+                    soil: 85,
+                    type: "animal"
+                },
+                // 11
+                {
+                    title: "灌木回歸",
+                    text: "灌木重新生長。",
+                    prompt: "接下來發生什麼？",
+                    options: ["灌木群落", "變回岩石", "苔蘚佔領"],
+                    correctIndex: 0,
+                    feedbacks: [null, "錯了。土壤還在。", "錯了。苔蘚是先鋒。"],
+                    soil: 90,
+                    type: "plant"
+                },
+                // 12 (MULTI-SELECT)
+                {
+                    title: "二級消費者回歸",
+                    text: "灌木提供了躲藏的地方。",
+                    prompt: "有了灌木後能吸引甚麼動物來棲息？（可選多於一個答案）",
+                    isMultiSelect: true,
+                    options: ["兔子", "小型鳥類", "蜥蜴", "獅子"],
+                    correctIndices: [0, 1, 2],
+                    feedbacks: [null, null, null, "錯了。獅子太大了。"],
+                    soil: 95,
+                    type: "animal"
+                },
+                // 13
+                {
+                    title: "喬木回歸",
+                    text: "森林的樹冠層即將恢復。",
+                    prompt: "現在長什麼？",
+                    options: ["闊葉喬木", "藻類", "只有更多草"],
+                    correctIndex: 0,
+                    feedbacks: [null, "錯了。藻類要水。", "錯了。演替傾向木本植物。"],
+                    soil: 100,
+                    type: "plant"
+                },
+                // 14
+                {
+                    title: "頂級掠食者回歸",
+                    text: "森林完整了。",
+                    prompt: "誰位於食物鏈頂層？",
+                    options: ["花豹/老虎", "兔子", "老鼠"],
+                    correctIndex: 0,
+                    feedbacks: [null, "錯了。兔子是獵物。", "錯了。老鼠是獵物。"],
+                    soil: 100,
+                    type: "animal"
+                },
+                // 15
+                {
+                    title: "消費者回歸",
+                    text: "生態系統已完全修復！",
+                    prompt: "再玩一次？",
+                    options: ["完成修復"],
+                    correctIndex: 0,
+                    feedbacks: [null],
+                    soil: 100,
+                    type: "end"
+                }
+            ]
+        }
+    };
+
+    // --- Game State ---
+    let currentLang = 'zh';
+    let currentStageIndex = -1; 
+    let isSecondary = false;
+    let selectedIndices = []; // For Multi-select
+    let predationInterval = null; // For infinite eating loop
+
+    // --- DOM Elements ---
+    const dom = {
+        title: document.querySelector('header div strong'),
+        langBtn: document.getElementById('lang-toggle'),
+        soilLabel: document.getElementById('soil-label'),
+        stageLabelText: document.getElementById('stage-label'),
+        stageTypeLabel: document.getElementById('stage-type-display'),
+        soilMeter: document.getElementById('soil-meter'),
+        narrativeTitle: document.getElementById('narrative-title'),
+        narrativeText: document.getElementById('narrative-text'),
+        choicesArea: document.getElementById('choices-area'),
+        soilLayer: document.getElementById('soil-layer'),
+        groundLayer: document.getElementById('ground-layer'),
+        ecosystem: document.getElementById('ecosystem'),
+        fireOverlay: document.getElementById('fire-overlay'),
+        feedbackMsg: document.getElementById('feedback-msg')
+    };
+
+    // --- Logic Functions ---
+
+    function toggleLanguage() {
+        currentLang = currentLang === 'zh' ? 'en' : 'zh';
+        dom.langBtn.innerText = currentLang === 'zh' ? 'Switch to English' : '切換至中文';
+        updateUI();
+    }
+
+    function startGame() {
+        currentStageIndex = 0;
+        isSecondary = false;
+        clearInterval(predationInterval);
+        resetVisuals();
+        updateUI();
+    }
+
+    function resetVisuals() {
+        dom.ecosystem.innerHTML = '';
+        dom.soilLayer.style.height = '0px';
+        dom.soilLayer.innerHTML = ''; // Clear seeds
+        dom.fireOverlay.style.display = 'none';
+        dom.soilMeter.style.width = '0%';
+        dom.feedbackMsg.style.display = 'none';
+        // Reset ground texture to rock
+        dom.groundLayer.style.backgroundImage = "radial-gradient(circle at 20% 20%, #8899a6 4px, transparent 4.5px), radial-gradient(circle at 50% 50%, #8899a6 3px, transparent 3.5px), radial-gradient(circle at 80% 30%, #5a6b78 5px, transparent 5.5px)";
+        dom.groundLayer.style.backgroundColor = "#708090";
+    }
+
+    function handleChoice(optionIndex, btnElement) {
+        const stageData = content[currentLang].stages[currentStageIndex];
+        
+        // Multi-select Logic
+        if (stageData.isMultiSelect) {
+            if (stageData.correctIndices.includes(optionIndex)) {
+                // Correct Selection
+                if (!selectedIndices.includes(optionIndex)) {
+                    selectedIndices.push(optionIndex);
+                    btnElement.classList.add('correct-selected');
+                    btnElement.disabled = true; // Disable clicked correct button
+                    
+                    // Add specific animal visually immediately
+                    if (optionIndex === 0) addOrganisms('🐇', 3, 40, true, false, true); // Some eating, some walking
+                    if (optionIndex === 1) addOrganisms('🐦', 3, 40, true);
+                    if (optionIndex === 2) addOrganisms('🦎', 3, 30, true);
+
+                    // Check if all correct answers found
+                    if (selectedIndices.length === stageData.correctIndices.length) {
+                        dom.feedbackMsg.style.display = 'none';
+                        setTimeout(nextStage, 1000);
+                    }
+                }
+            } else {
+                // Wrong Selection (Lion)
+                showFeedback(stageData.feedbacks[optionIndex], btnElement);
+            }
+            return;
+        }
+
+        // Single Choice Logic
+        if (optionIndex === stageData.correctIndex) {
+            dom.feedbackMsg.style.display = 'none';
+            visualizeStage(currentStageIndex);
+            nextStage();
+        } else {
+            showFeedback(stageData.feedbacks[optionIndex], btnElement);
+        }
+    }
+
+    function showFeedback(text, btnElement) {
+        dom.feedbackMsg.innerText = "❌ " + text;
+        dom.feedbackMsg.style.display = 'block';
+        if (btnElement) {
+            btnElement.classList.add('btn-shake');
+            setTimeout(() => { btnElement.classList.remove('btn-shake'); }, 400);
+        }
+    }
+
+    function nextStage() {
+        if (currentStageIndex < content[currentLang].stages.length - 1) {
+            currentStageIndex++;
+            selectedIndices = []; // Reset for potential next multi-select
+            
+            // Fire Trigger Logic (Stage 7 -> 8)
+            if (currentStageIndex === 8) { 
+                triggerFireAnimation();
+            } else {
+                updateUI();
+            }
+        } else {
+            // End
+            startGame();
+        }
+    }
+
+    function triggerFireAnimation() {
+        clearInterval(predationInterval); // Stop eating
+        dom.fireOverlay.style.display = 'flex';
+        dom.ecosystem.innerHTML = ''; 
+        dom.soilLayer.style.backgroundColor = '#333'; // Burnt soil look
+        isSecondary = true;
+
+        setTimeout(() => {
+            dom.fireOverlay.style.display = 'none';
+            dom.soilLayer.style.backgroundColor = '#5D4037'; 
+            // Soil level drops slightly after fire (erosion/compaction) but remains
+            dom.soilLayer.style.height = '60px'; 
+            dom.soilMeter.style.width = '60%';
+            showSeeds(); // Add seeds to visual
+            updateUI();
+        }, 2000);
+    }
+
+    function showSeeds() {
+        for(let i=0; i<15; i++) {
+            const seed = document.createElement('div');
+            seed.className = 'seed';
+            seed.style.left = (Math.random() * 95) + '%';
+            seed.style.top = (Math.random() * 70 + 10) + '%'; 
+            dom.soilLayer.appendChild(seed);
+        }
+    }
+
+    function visualizeStage(completedIndex) {
+        const stageData = content[currentLang].stages[completedIndex];
+        const soilHeight = stageData.soil;
+        dom.soilLayer.style.height = soilHeight + 'px';
+        dom.soilMeter.style.width = soilHeight + '%';
+
+        switch(completedIndex) {
+            case 0: addOrganisms('🍄', 8, 15); break; // Pioneer
+            case 1: 
+                addOrganisms('🌿', 20, 30); // Ferns
+                addOrganisms('🌾', 20, 25); // Grass (Added)
+                break; 
+            case 2: addInsects(12, 20); break; // Insects only
+            case 3: 
+                addOrganisms('🌳', 15, 80, false, true); // Shrubs
+                break;
+            // Case 4 is Multi-select, visuals handled in handleChoice
+            case 5: addOrganisms('🌲', 18, 220, false, true); break; // Trees
+            case 6: // Tertiary
+                addOrganisms('🐆', 2, 70, true); 
+                addOrganisms('🐅', 2, 70, true); 
+                startPredationLoop(); // CONSTANT EATING
+                break;
+            
+            // Secondary
+            case 9: 
+                addOrganisms('🌿', 25, 30); 
+                addOrganisms('🌾', 25, 25); // Grass (Added)
+                break;
+            case 10: addInsects(12, 20); break;
+            case 11: addOrganisms('🌳', 15, 80, false, true); break;
+            // Case 12 is Multi-select
+            case 13: addOrganisms('🌲', 18, 220, false, true); break;
+            case 14: // Tertiary
+                addOrganisms('🐆', 2, 70, true);
+                addOrganisms('🐅', 2, 70, true);
+                startPredationLoop(); // CONSTANT EATING
+                break;
+        }
+    }
+
+    function startPredationLoop() {
+        clearInterval(predationInterval); // Clear any existing
+        // Trigger immediately
+        triggerPredationEvent();
+        // Loop every 5 seconds
+        predationInterval = setInterval(triggerPredationEvent, 5000);
+    }
+
+    function triggerPredationEvent() {
+        const soilH = parseInt(dom.soilLayer.style.height) || 0;
+        const bottomPos = soilH - 10; // Unified level
+
+        // 1. Create the Prey (Rabbit) - Wandering from RIGHT
+        const rabbit = document.createElement('div');
+        rabbit.innerText = '🐇';
+        rabbit.className = 'organism';
+        rabbit.style.fontSize = '40px';
+        rabbit.style.left = '110%'; // Start off-screen Right
+        rabbit.style.bottom = bottomPos + 'px';
+        rabbit.style.zIndex = 6;
+        // Rabbit walks to middle in 2.5s
+        rabbit.style.transition = 'left 2.5s linear, opacity 0.5s'; 
+        dom.ecosystem.appendChild(rabbit);
+
+        // 2. Create the Predator (Tiger) - Hunting from LEFT
+        const tiger = document.createElement('div');
+        tiger.innerText = '🐅';
+        tiger.className = 'organism';
+        tiger.style.fontSize = '70px';
+        tiger.style.left = '-20%'; // Start off-screen Left
+        tiger.style.bottom = bottomPos + 'px';
+        tiger.style.zIndex = 7;
+        // Tiger walks to middle in 2.5s
+        tiger.style.transition = 'left 2.5s linear'; 
+        tiger.style.transform = 'scaleX(-1)'; // Face right
+        dom.ecosystem.appendChild(tiger);
+
+        // 3. Start Movement (Next Tick)
+        setTimeout(() => {
+            // Meet in middle
+            rabbit.style.left = '50%'; 
+            tiger.style.left = '45%'; 
+        }, 100);
+
+        // 4. Collision & Eating (At 2.5s + 100ms)
+        setTimeout(() => {
+            // Eat!
+            rabbit.style.transition = 'none'; // Stop movement
+            rabbit.innerText = '🍖'; // Turn to meat
+            rabbit.style.transform = 'scale(0.8)';
+            rabbit.style.zIndex = 8; // Make visible
+        }, 2600); 
+
+        // 5. Cleanup
+        setTimeout(() => {
+            rabbit.style.opacity = '0';
+        }, 3600);
+        
+        // 6. Tiger moves on
+        setTimeout(() => {
+            tiger.style.transition = 'left 2s linear';
+            tiger.style.left = '120%'; // Walk off screen
+        }, 4000);
+
+        setTimeout(() => {
+            if(rabbit.parentNode) rabbit.remove();
+            if(tiger.parentNode) tiger.remove();
+        }, 6500);
+    }
+
+    function addInsects(count, sizePx) {
+        const bugs = ['🦗', '🐜', '🐞', '🪲'];
+        for (let i = 0; i < count; i++) {
+            const randomBug = bugs[Math.floor(Math.random() * bugs.length)];
+            addOrganisms(randomBug, 1, sizePx, true);
+        }
+    }
+
+    function addOrganisms(emoji, count, sizePx, isAnimal = false, isTree = false, allowEating = false) {
+        for (let i = 0; i < count; i++) {
+            const el = document.createElement('div');
+            el.classList.add('organism');
+            
+            // Randomly decide if this specific rabbit is eating or walking
+            // Only if allowEating is true (for rabbits)
+            let isEating = false;
+            if (allowEating && emoji === '🐇' && Math.random() > 0.5) {
+                isEating = true;
+            }
+
+            if (isAnimal && !isEating) {
+                el.classList.add('anim-walk'); 
+                const duration = 15 + Math.random() * 15;
+                el.style.animationDuration = duration + 's';
+                const delay = -(Math.random() * duration * 2); 
+                el.style.animationDelay = delay + 's';
+                el.style.left = '0px';
+            } else if (isEating) {
+                el.classList.add('anim-eat');
+                el.style.left = (Math.random() * 90) + '%'; // Static random pos
+            } else {
+                el.style.left = (Math.random() * 90) + '%';
+            }
+            
+            el.innerText = emoji;
+            el.style.fontSize = sizePx + 'px';
+            
+            let soilH = parseInt(dom.soilLayer.style.height) || 0;
+            let bottomPos = 0;
+
+            if (isTree) {
+                 bottomPos = soilH - 20;
+            } else if (isAnimal && (emoji === '🐦' || emoji === '🦉')) {
+                 bottomPos = soilH + 40 + Math.random() * 100;
+            } else if (isAnimal) {
+                 // UNIFIED BOTTOM for animals walking on ground
+                 // Soil height is the top of the brown box.
+                 // We want feet to touch soilH.
+                 // Emoji baseline is roughly bottom of box.
+                 bottomPos = soilH - 10; 
+            } else {
+                 bottomPos = soilH - 5 + Math.random() * 10;
+            }
+            
+            el.style.bottom = bottomPos + 'px';
+            el.style.zIndex = isTree ? 4 : 5; 
+
+            el.style.opacity = '0';
+            
+            if (!isAnimal) {
+                el.style.transform = 'scale(0) translateX(-50%)';
+            } else if (!isEating) {
+                 // Walking animals handle transform via animation
+                 el.style.opacity = '0';
+            } else {
+                 // Eating animals need initial scale set or just opacity
+                 el.style.transform = 'scale(0) translateX(-50%)';
+            }
+
+            dom.ecosystem.appendChild(el);
+
+            setTimeout(() => {
+                el.style.opacity = '1';
+                if(!isAnimal && !isEating) {
+                    el.style.transform = 'scale(1) translateX(-50%)';
+                }
+                if(isEating) {
+                    // Reset transform to allow anim-eat to work, but keep position
+                    // Actually anim-eat overrides transform, so we just remove the initial scale(0)
+                    el.style.transform = 'none'; 
+                }
+            }, 50 + (i * 100));
+        }
+    }
+
+    function updateUI() {
+        dom.feedbackMsg.style.display = 'none';
+
+        const langData = content[currentLang];
+        
+        dom.title.innerText = langData.title;
+        dom.langBtn.innerText = currentLang === 'zh' ? 'Switch to English' : '切換至中文';
+        dom.soilLabel.innerText = langData.soilLabel;
+        dom.stageLabelText.innerText = langData.typeLabel; 
+        
+        if (currentStageIndex >= 8) {
+            isSecondary = true;
+        }
+        dom.stageTypeLabel.innerText = isSecondary ? langData.types[1] : langData.types[0];
+
+        if (currentStageIndex === -1) {
+            dom.narrativeTitle.innerText = langData.title;
+            dom.narrativeText.innerText = "Click Start / 點擊開始";
+            dom.choicesArea.innerHTML = `<button class="choice-btn" onclick="startGame()">${langData.startGame}</button>`;
+        } else {
+            const stageData = langData.stages[currentStageIndex];
+            dom.narrativeTitle.innerText = stageData.title;
+            dom.narrativeText.innerText = stageData.text;
+            
+            let buttonsHtml = `<p style="width:100%; margin:0 0 10px 0; color:#2E7D32;"><strong>${stageData.prompt}</strong></p>`;
+            stageData.options.forEach((opt, idx) => {
+                // In multi-select, check if already clicked
+                let isDisabled = false;
+                let isSelectedClass = '';
+                if(stageData.isMultiSelect && selectedIndices.includes(idx)) {
+                    isDisabled = true;
+                    isSelectedClass = ' correct-selected';
+                }
+                
+                buttonsHtml += `<button class="choice-btn${isSelectedClass}" ${isDisabled?'disabled':''} onclick="handleChoice(${idx}, this)">${opt}</button>`;
+            });
+            dom.choicesArea.innerHTML = buttonsHtml;
+        }
+    }
+
+    updateUI();
+
+</script>
+
+</body>
+</html>

@@ -3,914 +3,951 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>顯微鏡模擬器教學</title>
+    <title>顯微鏡模擬器 | Microscope Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- MathJax for rendering formulas -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = { tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]], displayMath: [["\\[", "\\]"], ["$$", "$$"]] } };
+    </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            touch-action: manipulation;
+        html, body { height: 100%; margin: 0; }
+        body { font-family: "Noto Sans TC", sans-serif; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        /* Tall hit target + touch-action:none — iPad Safari otherwise steals gestures for aside scroll. */
+        .range-hit { touch-action: none; overscroll-behavior: contain; padding: 10px 0; }
+        input[type=range] {
+            -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px;
+            margin: 0; background: transparent; touch-action: none;
+            -webkit-tap-highlight-color: transparent; cursor: pointer;
         }
-        .microscope-body {
-            background: linear-gradient(135deg, #e0e0e0 0%, #c0c0c0 100%);
-            border-radius: 8px;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; height: 28px; width: 28px; border-radius: 50%;
+            background: #059669; cursor: pointer; margin-top: -11px; border: 2px solid #fff;
+            box-shadow: 0 1px 4px rgba(5, 150, 105, .35); position: relative; z-index: 1;
         }
-        .eyepiece {
-            background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
-            border-radius: 50%;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        input[type=range]::-moz-range-thumb {
+            height: 28px; width: 28px; border-radius: 50%; background: #059669;
+            border: 2px solid #fff; box-shadow: 0 1px 4px rgba(5, 150, 105, .35);
         }
-        .objective-lens {
-            background: linear-gradient(180deg, #4a5568 0%, #2d3748 100%);
-            border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            transition: transform 0.3s ease;
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px; background: #cbd5e1; border-radius: 3px; margin-top: 19px;
         }
-        .objective-lens.active {
-            transform: scale(1.1);
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-        }
-        .stage {
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            border: 2px solid #cbd5e0;
-            border-radius: 4px;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .light-source {
-            background: radial-gradient(circle, #fef3c7 0%, #fde68a 50%, #f59e0b 100%);
-            border-radius: 50%;
-            box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
-            animation: pulse 2s ease-in-out infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.8; }
-            50% { opacity: 1; }
-        }
-        .specimen-cell {
-            transition: all 0.3s ease;
-        }
-        .focus-control {
-            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-            border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            cursor: pointer;
-            user-select: none;
-            border: none;
-            transition: all 0.2s;
-        }
-        .focus-control:active {
-            transform: scale(0.95);
-        }
-        .focus-control:hover {
-            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-        }
-        .view-area {
-            background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(240,240,240,0.9) 100%);
-            border: 3px solid #2d3748;
-            border-radius: 50%;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
-            aspect-ratio: 1 / 1;
-            width: 100%;
-            max-width: 100%;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .view-area svg {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        .cell-wall {
-            stroke: #4a5568;
-            stroke-width: 2;
-            fill: none;
-        }
-        .cell-membrane {
-            stroke: #718096;
-            stroke-width: 1;
-            fill: none;
-        }
-        .nucleus {
-            fill: #4299e1;
-            stroke: #2b6cb0;
-            stroke-width: 2;
-        }
-        .cytoplasm {
-            fill: #f0f4f8;
-        }
-        .vacuole {
-            fill: #cbd5e0;
-            opacity: 0.6;
-        }
-        .chromatin {
-            fill: #2d3748;
-        }
-        .onion-cell {
-            fill: #fef3c7;
-        }
-        .cheek-cell {
-            fill: #fed7d7;
-        }
-        .plant-cell {
-            fill: #c6f6d5;
-        }
-        /* Style adjustments for MathJax */
-        mjx-container {
-            font-size: 1em !important;
-            color: inherit !important;
-        }
+        input[type=range]::-moz-range-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        .spec-btn.active { outline: 2px solid #059669; outline-offset: 1px; box-shadow: 0 0 0 3px rgba(5, 150, 105, .2); }
+        .opt-btn.active { background: #047857; color: #fff; border-color: #047857; }
+        #viewCanvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+        #viewCanvas.dragging { cursor: grabbing; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen flex flex-col">
+<body class="bg-slate-100 text-slate-800 h-full min-h-0 p-3 sm:p-4 flex flex-col overflow-hidden">
 
-    <!-- Header Bar -->
-    <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-            <div>
-                <h1 class="text-xl md:text-2xl font-bold text-slate-800" id="header-title">🔬 複式顯微鏡模擬器</h1>
-                <p class="text-sm text-slate-600 hidden md:block" id="header-subtitle">探索微觀世界的教學工具</p>
+    <header class="w-full bg-white/90 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-sm mb-3 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 shrink-0 z-20">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-700 to-teal-400 text-white flex items-center justify-center shadow-md shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v2"/><path d="M12 19v2"/><path d="M5 12H3"/><path d="M21 12h-2"/><circle cx="12" cy="12" r="9"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex flex-wrap items-center gap-2">
+                        <span data-i18n="title">顯微鏡模擬器</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 truncate" data-i18n="subtitle">正式顯微照片 · 對焦 · 總放大倍率</p>
+                </div>
             </div>
-            <button onclick="toggleLanguage()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition border border-slate-600" id="lang-btn">
-                中 / EN
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-center">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-slate-50 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h12"/><path d="M9 12h12"/><path d="M9 19h12"/><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="19" r="1" fill="currentColor"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
             </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <div class="flex-1 flex flex-col items-center p-4">
-
-    <!-- Main Interface -->
-    <main class="w-full max-w-6xl bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200">
-        
-        <!-- Controls Area -->
-        <div class="bg-slate-100 p-4 border-b border-slate-200">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                
-                <!-- Eyepiece Lens Selection -->
-                <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2" id="label-eyepiece">接目鏡倍率</h2>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="changeEyepiece(5)" id="eye-5x" class="p-2 bg-white hover:bg-purple-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            5×
-                        </button>
-                        <button onclick="changeEyepiece(10)" id="eye-10x" class="p-2 bg-white hover:bg-purple-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            10×
-                        </button>
-                        <button onclick="changeEyepiece(15)" id="eye-15x" class="p-2 bg-white hover:bg-purple-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            15×
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objective Lens Selection -->
-                <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2" id="label-objective">接物鏡倍率</h2>
-                    <div class="grid grid-cols-4 gap-2">
-                        <button onclick="changeObjective(4)" id="obj-4x" class="p-2 bg-white hover:bg-blue-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            4×
-                        </button>
-                        <button onclick="changeObjective(10)" id="obj-10x" class="p-2 bg-white hover:bg-blue-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            10×
-                        </button>
-                        <button onclick="changeObjective(40)" id="obj-40x" class="p-2 bg-white hover:bg-blue-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            40×
-                        </button>
-                        <button onclick="changeObjective(100)" id="obj-100x" class="p-2 bg-white hover:bg-blue-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700">
-                            100×
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Specimen Selection -->
-                <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2" id="label-specimen">樣本選擇</h2>
-                    <div class="grid grid-cols-4 gap-2">
-                        <button onclick="changeSpecimen('onion')" id="spec-onion" class="p-2 bg-white hover:bg-green-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700 text-sm" data-i18n-onion="onion">
-                            洋蔥表皮
-                        </button>
-                        <button onclick="changeSpecimen('cheek')" id="spec-cheek" class="p-2 bg-white hover:bg-green-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700 text-sm" data-i18n-cheek="cheek">
-                            口腔上皮
-                        </button>
-                        <button onclick="changeSpecimen('plant')" id="spec-plant" class="p-2 bg-white hover:bg-green-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700 text-sm" data-i18n-plant="plant">
-                            植物細胞
-                        </button>
-                        <button onclick="changeSpecimen('text')" id="spec-text" class="p-2 bg-white hover:bg-green-50 border-2 border-slate-300 rounded-lg transition-all hover:shadow-md active:scale-95 font-medium text-slate-700 text-sm" data-i18n-text="text">
-                            文字
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Light Control -->
-                <div>
-                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2" id="label-light">光源亮度</h2>
-                    <input type="range" min="0" max="100" value="70" oninput="changeLightBrightness(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
-                    <div class="flex justify-between text-xs text-slate-500 mt-1">
-                        <span id="light-dark">暗</span>
-                        <span id="light-value">70%</span>
-                        <span id="light-bright">亮</span>
-                    </div>
-                </div>
-
+    <main class="flex-1 min-h-0 flex flex-col lg:flex-row gap-3">
+        <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 flex flex-col gap-3 overflow-y-auto order-2 lg:order-1 max-h-[46vh] lg:max-h-none">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-[11px] font-bold text-slate-500 mb-2" data-i18n="specTitle">樣本（正式顯微照片）</p>
+                <div id="specGrid" class="grid grid-cols-4 gap-1.5 max-h-60 overflow-y-auto pr-0.5"></div>
             </div>
-        </div>
 
-        <!-- Microscope and View Area -->
-        <div class="p-6">
-            <div class="flex flex-col md:flex-row gap-6">
-                
-                <!-- Microscope Body -->
-                <div class="w-full md:w-2/3 flex flex-col items-center">
-                    <div class="microscope-body w-full max-w-md p-6 space-y-4">
-                        
-                        <!-- Eyepiece -->
-                        <div class="flex justify-center">
-                            <div class="eyepiece w-20 h-20 flex items-center justify-center">
-                                <div class="w-12 h-12 bg-black rounded-full"></div>
-                            </div>
-                        </div>
-
-                        <!-- Body Tube -->
-                        <div class="h-8 bg-gradient-to-b from-slate-600 to-slate-700 rounded-t-lg"></div>
-
-                        <!-- Revolving Nosepiece with Objectives -->
-                        <div class="flex justify-center space-x-2">
-                            <div class="objective-lens w-12 h-12 flex items-center justify-center active" id="obj-lens-4x" onclick="changeObjective(4)">
-                                <span class="text-white text-xs font-bold">4×</span>
-                            </div>
-                            <div class="objective-lens w-12 h-12 flex items-center justify-center" id="obj-lens-10x" onclick="changeObjective(10)">
-                                <span class="text-white text-xs font-bold">10×</span>
-                            </div>
-                            <div class="objective-lens w-12 h-12 flex items-center justify-center" id="obj-lens-40x" onclick="changeObjective(40)">
-                                <span class="text-white text-xs font-bold">40×</span>
-                            </div>
-                            <div class="objective-lens w-12 h-12 flex items-center justify-center" id="obj-lens-100x" onclick="changeObjective(100)">
-                                <span class="text-white text-xs font-bold">100×</span>
-                            </div>
-                        </div>
-
-                        <!-- Stage -->
-                        <div class="stage p-4 relative">
-                            <div class="view-area overflow-hidden mx-auto" id="view-area">
-                                <svg id="specimen-svg" viewBox="0 0 400 400">
-                                    <defs>
-                                        <clipPath id="circular-clip">
-                                            <circle cx="200" cy="200" r="200"/>
-                                        </clipPath>
-                                    </defs>
-                                    <g clip-path="url(#circular-clip)">
-                                        <!-- Specimen will be drawn here -->
-                                    </g>
-                                </svg>
-                            </div>
-                            <div class="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs" id="label-stage">
-                                載物台
-                            </div>
-                        </div>
-
-                        <!-- Focus Controls -->
-                        <div class="flex justify-center space-x-4">
-                            <div class="text-center">
-                                <div class="flex flex-col items-center space-x-1">
-                                    <button class="focus-control w-12 h-12 flex items-center justify-center mb-1" onmousedown="startCoarseFocus('up')" onmouseup="stopFocus()" ontouchstart="startCoarseFocus('up')" ontouchend="stopFocus()">
-                                        <span class="text-white text-xs">↑</span>
-                                    </button>
-                                    <div class="text-white text-xs font-bold mb-1" id="label-coarse">粗調</div>
-                                    <button class="focus-control w-12 h-12 flex items-center justify-center" onmousedown="startCoarseFocus('down')" onmouseup="stopFocus()" ontouchstart="startCoarseFocus('down')" ontouchend="stopFocus()">
-                                        <span class="text-white text-xs">↓</span>
-                                    </button>
-                                </div>
-                                <div class="text-xs text-slate-600 mt-1" id="label-coarse-wheel">粗調節器</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="flex flex-col items-center space-x-1">
-                                    <button class="focus-control w-10 h-10 flex items-center justify-center mb-1" onmousedown="startFineFocus('up')" onmouseup="stopFocus()" ontouchstart="startFineFocus('up')" ontouchend="stopFocus()">
-                                        <span class="text-white text-[10px]">↑</span>
-                                    </button>
-                                    <div class="text-white text-[10px] mb-1" id="label-fine">細調</div>
-                                    <button class="focus-control w-10 h-10 flex items-center justify-center" onmousedown="startFineFocus('down')" onmouseup="stopFocus()" ontouchstart="startFineFocus('down')" ontouchend="stopFocus()">
-                                        <span class="text-white text-[10px]">↓</span>
-                                    </button>
-                                </div>
-                                <div class="text-xs text-slate-600 mt-1" id="label-fine-wheel">微調節器</div>
-                            </div>
-                        </div>
-
-                        <!-- Light Source -->
-                        <div class="flex justify-center">
-                            <div class="light-source w-16 h-16" id="light-source"></div>
-                        </div>
-
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                <div>
+                    <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="labelEyepiece">接目鏡</p>
+                    <div class="grid grid-cols-3 gap-1.5" id="eyeBtns"></div>
+                </div>
+                <div>
+                    <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="labelObjective">接物鏡</p>
+                    <div class="grid grid-cols-4 gap-1.5" id="objBtns"></div>
+                    <p class="text-[11px] text-amber-700 mt-1.5 hidden" id="oilHint" data-i18n="oilHint">100× 物鏡通常需油鏡；本模擬只示範高倍視野。</p>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-emerald-800 mb-1">
+                        <span data-i18n="labelLight">光源亮度</span>
+                        <span id="lightVal">72%</span>
+                    </div>
+                    <div class="range-hit">
+                        <input type="range" id="lightSlider" min="8" max="100" step="1" value="72" aria-label="光源亮度">
                     </div>
                 </div>
-
-                <!-- Information Panel -->
-                <div class="w-full md:w-1/3 bg-slate-50 rounded-lg p-6 space-y-4">
-                    <h2 class="text-xl font-bold text-slate-800 mb-4" id="info-title">顯微鏡資訊</h2>
-                    
-                    <div class="space-y-3">
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
-                            <div class="text-sm text-slate-500 mb-1" id="label-total-mag">總放大倍率</div>
-                            <div class="text-2xl font-bold text-blue-600" id="total-magnification">20×</div>
-                            <div class="text-xs text-slate-400 mt-1">
-                                公式：\(M_{總} = M_{目鏡} \times M_{物鏡}\)
-                            </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelFocus">對焦（粗／微）</span>
+                        <span id="focusVal" class="text-emerald-700">0 μm</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="flex flex-col gap-1">
+                            <button type="button" class="focus-btn w-9 h-8 rounded-lg bg-slate-700 text-white text-xs font-bold" data-focus="coarse" data-dir="1">↑</button>
+                            <span class="text-[10px] text-center text-slate-500" data-i18n="coarse">粗調</span>
+                            <button type="button" class="focus-btn w-9 h-8 rounded-lg bg-slate-700 text-white text-xs font-bold" data-focus="coarse" data-dir="-1">↓</button>
                         </div>
-
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
-                            <div class="text-sm text-slate-500 mb-1" id="label-current-specimen">當前樣本</div>
-                            <div class="text-lg font-semibold text-slate-700" id="current-specimen">洋蔥表皮細胞</div>
+                        <div class="range-hit flex-1 min-w-0">
+                            <input type="range" id="focusSlider" min="-80" max="80" step="1" value="22" aria-label="對焦">
                         </div>
-
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
-                            <div class="text-sm text-slate-500 mb-1" id="label-focus-status">焦距狀態</div>
-                            <div class="text-lg font-semibold text-slate-700" id="focus-status">已對焦</div>
-                            <div class="text-xs text-slate-400 mt-1">
-                                <span id="label-focus-value">焦距</span>：<span id="focus-value">0</span> μm
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
-                            <div class="text-sm text-slate-500 mb-1" id="label-resolution">解析度</div>
-                            <div class="text-lg font-semibold text-slate-700" id="resolution">3.36 μm</div>
-                            <div class="text-xs text-slate-400 mt-1">
-                                公式：\(R = \frac{0.61\lambda}{NA}\)
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-lg shadow-sm">
-                            <h3 class="text-sm font-bold text-slate-700 mb-2" id="label-structure">顯微鏡結構說明</h3>
-                            <ul class="text-xs text-slate-600 space-y-1" id="structure-list">
-                                <li>• <strong>目鏡</strong>：通常為 10× 或 15×</li>
-                                <li>• <strong>物鏡</strong>：4×, 10×, 40×, 100×</li>
-                                <li>• <strong>載物台</strong>：放置樣本</li>
-                                <li>• <strong>粗調焦輪</strong>：快速調整焦距</li>
-                                <li>• <strong>細調焦輪</strong>：精細調整焦距</li>
-                                <li>• <strong>光源</strong>：提供照明</li>
-                            </ul>
+                        <div class="flex flex-col gap-1">
+                            <button type="button" class="focus-btn w-8 h-7 rounded-lg bg-slate-500 text-white text-[10px] font-bold" data-focus="fine" data-dir="1">↑</button>
+                            <span class="text-[10px] text-center text-slate-500" data-i18n="fine">微調</span>
+                            <button type="button" class="focus-btn w-8 h-7 rounded-lg bg-slate-500 text-white text-[10px] font-bold" data-focus="fine" data-dir="-1">↓</button>
                         </div>
                     </div>
                 </div>
-
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 rounded-xl px-2.5 py-2 border border-slate-100 cursor-pointer">
+                    <input type="checkbox" id="chkInvert" class="accent-emerald-600">
+                    <span data-i18n="chkInvert">倒像（複式顯微鏡）</span>
+                </label>
+                <button type="button" id="resetBtn" class="w-full py-2 rounded-xl font-extrabold text-sm text-white bg-emerald-700 hover:bg-emerald-800" data-i18n="btnReset">重置</button>
             </div>
-        </div>
 
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+                <p class="text-[11px] font-bold text-slate-500" data-i18n="infoTitle">觀察資料</p>
+                <div class="grid grid-cols-2 gap-2 text-center">
+                    <div class="bg-emerald-50 rounded-xl p-2 border border-emerald-100">
+                        <div class="text-[10px] text-emerald-700 font-bold" data-i18n="labelTotalMag">總放大倍率</div>
+                        <div id="totalMag" class="text-xl font-black text-emerald-800">40×</div>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                        <div class="text-[10px] text-slate-500 font-bold" data-i18n="labelFocusStatus">焦距狀態</div>
+                        <div id="focusStatus" class="text-sm font-black text-red-600">未對焦</div>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed mj-inline" data-i18n="magFormula">\(M_{\text{總}} = M_{\text{目鏡}} \times M_{\text{物鏡}}\)</p>
+                <p class="text-xs font-bold text-slate-700" id="specFull">洋蔥鱗葉表皮細胞</p>
+                <p class="text-[11px] text-slate-600 leading-relaxed" id="specLook"></p>
+                <p class="text-[10px] text-slate-400 leading-snug" id="specCredit"></p>
+            </div>
+        </aside>
+
+        <section id="view-wrap" class="flex-1 min-h-[300px] order-1 lg:order-2 bg-slate-900 rounded-3xl shadow-sm border border-slate-800 overflow-hidden relative">
+            <canvas id="viewCanvas"></canvas>
+            <div class="absolute top-3 left-3 pointer-events-none bg-black/50 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg" data-i18n="labelStage">載物台視野</div>
+            <div id="hintDrag" class="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none bg-white/85 text-[11px] font-bold text-slate-700 px-3 py-1 rounded-full border border-slate-200" data-i18n="hintDrag">拖曳玻片移動視野</div>
+        </section>
     </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s1">1. 先選「洋蔥表皮」，用 10× 目鏡＋4× 物鏡。轉動粗調至影像清晰，再改用微調修細。</div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s2">2. 換成 10×、40× 物鏡：視野變窄、細胞變大。高倍時景深較淺，要重新對焦。可拖曳玻片找細胞核。</div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-xs" data-i18n="s3">3. 比較多種葉片氣孔（紫錦草、萬年青、伽藍菜、變葉木等）：找保衛細胞與氣孔縫。再對照水蘊草葉綠體、澱粉粒，以及口腔上皮、血液等。</div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-xs" data-i18n="s4">4. 開啟「倒像」：複式顯微鏡所見是上下左右顛倒的。調亮度，太暗或過亮都會看不清結構。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // State variables
-        let eyepieceMagnification = 5; // 當前目鏡倍率
-        let objectiveMagnification = 4; // 當前物鏡倍率
-        let currentSpecimen = 'onion';
-        let lightBrightness = 70;
-        let focusPosition = 0; // 焦距位置 (μm)
-        let focusInterval = null;
-        let isFocusing = false;
-        let currentLang = 'zh'; // 當前語言
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-emerald-800 to-teal-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="principle-title" class="text-lg font-bold" data-i18n="prinTitle">複式顯微鏡原理</h2>
+                    <p class="text-xs text-emerald-100" data-i18n="prinSub">目鏡 × 物鏡 · 對焦 · 細胞類型</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m1t">1. 總放大倍率</h3>
+                    <p class="text-xs" data-i18n="m1d">複式顯微鏡用兩組透鏡。總放大倍率 = 目鏡倍率 × 物鏡倍率。例如 10× 目鏡與 40× 物鏡合共 400×。</p>
+                    <div class="mj-box text-center mt-2">\(M_{\text{總}} = M_{\text{目鏡}} \times M_{\text{物鏡}}\)</div>
+                </div>
+                <div class="bg-teal-50 p-4 rounded-2xl border border-teal-100">
+                    <h3 class="font-bold text-teal-900 mb-1" data-i18n="m2t">2. 對焦與景深</h3>
+                    <p class="text-xs" data-i18n="m2d">粗調節器大幅升降載物台，微調節器作精細對焦。高倍物鏡景深較淺，稍一偏離就模糊，必須重新對焦。本模擬以模糊程度代表失焦。</p>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m3t">3. 植物與動物細胞</h3>
+                    <p class="text-xs" data-i18n="m3d">植物細胞多呈長方形，有細胞壁；洋蔥表皮通常看不到葉綠體。水蘊草葉細胞內有綠色葉綠體。動物細胞（口腔上皮）輪廓不規則，只有細胞膜，亞甲藍染色後細胞核明顯。</p>
+                </div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m4t">4. 其他常見玻片</h3>
+                    <p class="text-xs" data-i18n="m4d">葉片氣孔由半月形保衛細胞圍成孔隙；可比較不同植物（紫錦草、萬年青、伽藍菜、變葉木）與 SEM 立體觀。澱粉粒可見同心輪紋。血液有無核紅血球；水綿／團藻屬藻類；酵母出芽；草履蟲有纖毛、變形蟲有偽足；骨骼肌可見橫紋。</p>
+                </div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m5t">5. 倒像與光源</h3>
+                    <p class="text-xs" data-i18n="m5d">複式顯微鏡的像是上下左右顛倒的。光源太暗看不清，過亮則對比下降。學校實驗通常由低倍開始，對好焦再轉高倍。</p>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-relaxed" data-i18n="creditsNote">照片由瀏覽器向 Wikimedia Commons 載入，本模擬不把圖檔存於伺服器。授權見各樣本說明。</p>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-emerald-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        // Translations
-        const translations = {
-            zh: {
-                title: '🔬 複式顯微鏡模擬器',
-                subtitle: '探索微觀世界的教學工具',
-                labelEyepiece: '接目鏡倍率',
-                labelObjective: '接物鏡倍率',
-                labelSpecimen: '樣本選擇',
-                labelLight: '光源亮度',
-                lightDark: '暗',
-                lightBright: '亮',
-                labelTotalMag: '總放大倍率',
-                labelCurrentSpecimen: '當前樣本',
-                labelFocusStatus: '焦距狀態',
-                labelFocusValue: '焦距',
-                labelResolution: '解析度',
-                labelStructure: '顯微鏡結構說明',
-                labelStage: '載物台',
-                labelCoarse: '粗調',
-                labelFine: '細調',
-                labelCoarseWheel: '粗調節器',
-                labelFineWheel: '微調節器',
-                infoTitle: '顯微鏡資訊',
-                focusIn: '已對焦',
-                focusOut: '未對焦',
-                specimens: {
-                    onion: '洋蔥表皮細胞',
-                    cheek: '口腔上皮細胞',
-                    plant: '植物葉片細胞',
-                    text: '文字樣本'
-                },
-                specimenButtons: {
-                    onion: '洋蔥表皮',
-                    cheek: '口腔上皮',
-                    plant: '植物細胞',
-                    text: '文字'
-                },
-                structureList: [
-                    '• <strong>目鏡</strong>：通常為 5×, 10× 或 15×',
-                    '• <strong>物鏡</strong>：4×, 10×, 40×, 100×',
-                    '• <strong>載物台</strong>：放置樣本',
-                    '• <strong>粗調節器</strong>：快速調整焦距',
-                    '• <strong>微調節器</strong>：精細調整焦距',
-                    '• <strong>光源</strong>：提供照明'
-                ]
-            },
-            en: {
-                title: '🔬 Compound Microscope Simulator',
-                subtitle: 'Teaching tool for exploring the microscopic world',
-                labelEyepiece: 'Eyepiece Magnification',
-                labelObjective: 'Objective Magnification',
-                labelSpecimen: 'Specimen Selection',
-                labelLight: 'Light Brightness',
-                lightDark: 'Dark',
-                lightBright: 'Bright',
-                labelTotalMag: 'Total Magnification',
-                labelCurrentSpecimen: 'Current Specimen',
-                labelFocusStatus: 'Focus Status',
-                labelFocusValue: 'Focus',
-                labelResolution: 'Resolution',
-                labelStructure: 'Microscope Structure',
-                labelStage: 'Stage',
-                labelCoarse: 'Coarse',
-                labelFine: 'Fine',
-                labelCoarseWheel: 'Coarse Adjuster',
-                labelFineWheel: 'Fine Adjuster',
-                infoTitle: 'Microscope Information',
-                focusIn: 'In Focus',
-                focusOut: 'Out of Focus',
-                specimens: {
-                    onion: 'Onion Epidermal Cell',
-                    cheek: 'Cheek Epithelial Cell',
-                    plant: 'Plant Leaf Cell',
-                    text: 'Text Specimen'
-                },
-                specimenButtons: {
-                    onion: 'Onion',
-                    cheek: 'Cheek',
-                    plant: 'Plant',
-                    text: 'Text'
-                },
-                structureList: [
-                    '• <strong>Eyepiece</strong>: Usually 5×, 10× or 15×',
-                    '• <strong>Objective</strong>: 4×, 10×, 40×, 100×',
-                    '• <strong>Stage</strong>: Place specimen',
-                    '• <strong>Coarse Adjuster</strong>: Quick focus adjustment',
-                    '• <strong>Fine Adjuster</strong>: Precise focus adjustment',
-                    '• <strong>Light Source</strong>: Provides illumination'
-                ]
+<script>
+const COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/";
+const SPEC_IMG = {
+    onion:     COMMONS + "Onion_Epidermis_Cells_W.M._40x_-_085.jpg?width=960",
+    cheek:     COMMONS + "Human_Cheek_Cells.jpg?width=960",
+    elodea:    COMMONS + "Chloroplasts_-_Microscopic_view_of_Elodea_canadensis.jpg?width=960",
+    stomata:   COMMONS + "Stomata_of_Tradescantia_spathacea_leaves.jpg?width=960",
+    zebrina:   COMMONS + "Zebrina_stomata.jpeg?width=960",
+    kalanchoe: COMMONS + "Kalanchoe_leaf.jpg?width=960",
+    stomaClose: COMMONS + "Stoma_under_optical_microscope.jpg?width=960",
+    cuticle:   COMMONS + "Cuticle_of_leaf_under_microscope.JPG?width=960",
+    croton:    COMMONS + "A_stoma_on_croton_leaf.jpg?width=960",
+    tomatoSem: COMMONS + "Tomato_leaf_stomate_1-color.jpg?width=960",
+    starch:    COMMONS + "Potato_starch_microscope-20240525.jpg?width=960",
+    blood:     COMMONS + "Peripheral_blood_smear.jpg?width=960",
+    muscle:    COMMONS + "Skeletal_muscle_400x.jpg?width=960",
+    spirogyra: COMMONS + "The_freshwater_alga_Spirogyra.jpg?width=960",
+    volvox:    COMMONS + "Volvox_Aureus_400x.jpg?width=960",
+    yeast:     COMMONS + "Saccharomyces_cerevisiae_100x_phase-contrast_microscopy.jpg?width=960",
+    pollen:    COMMONS + "Flower_pollen_02.jpg?width=960",
+    amoeba:    COMMONS + "Amoeba_proteus.jpg?width=960",
+    paramecium: COMMONS + "Paramecium.jpg?width=960"
+};
+
+const SPEC_ORDER = [
+    "onion", "cheek", "elodea",
+    "stomata", "zebrina", "kalanchoe", "stomaClose", "cuticle", "croton", "tomatoSem",
+    "starch", "blood", "muscle", "spirogyra", "volvox", "yeast", "pollen",
+    "amoeba", "paramecium"
+];
+const SPEC_META = {
+    onion:      { suggestObj: 10, group: "plant", lookX: 0, lookY: 0 },
+    cheek:      { suggestObj: 10, group: "animal", lookX: 0.08, lookY: -0.06 },
+    elodea:     { suggestObj: 10, group: "plant", lookX: 0, lookY: 0 },
+    stomata:    { suggestObj: 10, group: "plant", lookX: 0, lookY: -0.34, crop: 0.12 },
+    zebrina:    { suggestObj: 10, group: "plant", lookX: 0, lookY: 0.05 },
+    kalanchoe:  { suggestObj: 40, group: "plant", lookX: 0.18, lookY: 0 },
+    stomaClose: { suggestObj: 40, group: "plant", lookX: 0, lookY: 0, crop: 0.1 },
+    cuticle:    { suggestObj: 10, group: "plant", lookX: 0, lookY: 0, crop: 0.1 },
+    croton:     { suggestObj: 40, group: "plant", lookX: 0, lookY: 0, crop: 0.06 },
+    tomatoSem:  { suggestObj: 40, group: "plant", lookX: 0.12, lookY: 0 },
+    starch:     { suggestObj: 40, group: "plant", lookX: 0, lookY: 0, crop: 0.08 },
+    blood:      { suggestObj: 40, group: "animal", lookX: 0.16, lookY: -0.12 },
+    muscle:     { suggestObj: 40, group: "animal", lookX: 0, lookY: 0 },
+    spirogyra:  { suggestObj: 10, group: "algae", lookX: 0, lookY: 0.08 },
+    volvox:     { suggestObj: 10, group: "algae", lookX: 0, lookY: 0 },
+    yeast:      { suggestObj: 40, group: "fungi", lookX: -0.12, lookY: 0.1, crop: 0.12 },
+    pollen:     { suggestObj: 40, group: "plant", lookX: 0.05, lookY: 0.08, crop: 0.1 },
+    amoeba:     { suggestObj: 10, group: "protist", lookX: -0.12, lookY: -0.08 },
+    paramecium: { suggestObj: 40, group: "protist", lookX: 0, lookY: 0 }
+};
+
+const i18n = {
+    zh: {
+        title: "顯微鏡模擬器", badge: "中一科學", subtitle: "正式顯微照片 · 對焦 · 總放大倍率",
+        btnSteps: "觀察步驟", btnPrinciple: "原理解說", btnReset: "重置", modalClose: "關閉",
+        specTitle: "樣本（正式顯微照片）", labelEyepiece: "接目鏡", labelObjective: "接物鏡",
+        labelLight: "光源亮度", labelFocus: "對焦（粗／微）", coarse: "粗調", fine: "微調",
+        chkInvert: "倒像（複式顯微鏡）", infoTitle: "觀察資料", labelTotalMag: "總放大倍率",
+        labelFocusStatus: "焦距狀態", magFormula: "\\(M_{\\text{總}} = M_{\\text{目鏡}} \\times M_{\\text{物鏡}}\\)",
+        labelStage: "載物台視野", hintDrag: "拖曳玻片移動視野",
+        oilHint: "100× 物鏡通常需油鏡；本模擬只示範高倍視野。",
+        focusIn: "已對焦", focusOut: "未對焦",
+        stepsTitle: "觀察步驟",
+        s1: "1. 先選「洋蔥表皮」，用 10× 目鏡＋4× 物鏡。轉動粗調至影像清晰，再改用微調修細。",
+        s2: "2. 換成 10×、40× 物鏡：視野變窄、細胞變大。高倍時景深較淺，要重新對焦。可拖曳玻片找細胞核。",
+        s3: "3. 比較多種葉片氣孔（紫錦草、萬年青、伽藍菜、變葉木等）：找保衛細胞與氣孔縫。再對照水蘊草葉綠體、澱粉粒，以及口腔上皮、血液等。",
+        s4: "4. 開啟「倒像」：複式顯微鏡所見是上下左右顛倒的。調亮度，太暗或過亮都會看不清結構。",
+        prinTitle: "複式顯微鏡原理", prinSub: "目鏡 × 物鏡 · 對焦 · 細胞類型",
+        m1t: "1. 總放大倍率",
+        m1d: "複式顯微鏡用兩組透鏡。總放大倍率 = 目鏡倍率 × 物鏡倍率。例如 10× 目鏡與 40× 物鏡合共 400×。",
+        m2t: "2. 對焦與景深",
+        m2d: "粗調節器大幅升降載物台，微調節器作精細對焦。高倍物鏡景深較淺，稍一偏離就模糊，必須重新對焦。本模擬以模糊程度代表失焦。",
+        m3t: "3. 植物與動物細胞",
+        m3d: "植物細胞多呈長方形，有細胞壁；洋蔥表皮通常看不到葉綠體。水蘊草葉細胞內有綠色葉綠體。動物細胞（口腔上皮）輪廓不規則，只有細胞膜，亞甲藍染色後細胞核明顯。",
+        m4t: "4. 其他常見玻片",
+        m4d: "葉片氣孔由半月形保衛細胞圍成孔隙；可比較不同植物（紫錦草、萬年青、伽藍菜、變葉木）與 SEM 立體觀。澱粉粒可見同心輪紋。血液有無核紅血球；水綿／團藻屬藻類；酵母出芽；草履蟲有纖毛、變形蟲有偽足；骨骼肌可見橫紋。",
+        m5t: "5. 倒像與光源",
+        m5d: "複式顯微鏡的像是上下左右顛倒的。光源太暗看不清，過亮則對比下降。學校實驗通常由低倍開始，對好焦再轉高倍。",
+        creditsNote: "照片由瀏覽器向 Wikimedia Commons 載入，本模擬不把圖檔存於伺服器。授權見各樣本說明。",
+        imgLoading: "正在載入照片…",
+        imgError: "無法載入照片（需連接 Wikimedia Commons）",
+        spec_onion: "洋蔥表皮", specFull_onion: "洋蔥鱗葉表皮細胞", type_onion: "植物",
+        look_onion: "長方形細胞緊密排列，細胞壁清楚；深色圓點是細胞核。此標本通常沒有葉綠體。",
+        credit_onion: "照片：loganrickert · CC BY 2.0 · Onion epidermis 40×",
+        spec_cheek: "口腔上皮", specFull_cheek: "人頰黏膜上皮細胞（亞甲藍）", type_cheek: "動物",
+        look_cheek: "細胞不規則、邊緣薄；只有細胞膜。染色後中央細胞核呈深藍。",
+        credit_cheek: "照片：Joseph Elsbernd · CC BY-SA 2.0 · Human cheek cells",
+        spec_elodea: "水蘊草葉", specFull_elodea: "加拿大水蘊草葉細胞", type_elodea: "植物",
+        look_elodea: "長方形細胞內有許多綠色橢圓葉綠體。可對照洋蔥：同樣有細胞壁，但這裡看得見葉綠體。",
+        credit_elodea: "照片：Juan Carlos Fonseca Mata · CC BY-SA 4.0 · Elodea canadensis",
+        spec_stomata: "紫錦草氣孔", specFull_stomata: "紫錦草葉下表皮氣孔", type_stomata: "植物",
+        look_stomata: "多角形表皮細胞之間有氣孔：兩個月亮形保衛細胞圍成孔隙，保衛細胞內有葉綠體。",
+        credit_stomata: "照片：Trương Minh Khải · CC BY 4.0 · Tradescantia stomata 400×",
+        spec_zebrina: "萬年青氣孔", specFull_zebrina: "紫背萬年青葉下表皮氣孔", type_zebrina: "植物",
+        look_zebrina: "多個氣孔散佈在表皮上。綠色半月形保衛細胞對比清楚，可數出氣孔數目並比較開合。",
+        credit_zebrina: "照片：AioftheStorm · CC0 · Zebrina stomata",
+        spec_kalanchoe: "伽藍菜氣孔", specFull_kalanchoe: "伽藍菜葉表皮氣孔", type_kalanchoe: "植物",
+        look_kalanchoe: "保衛細胞內葉綠體特別清楚（綠色小點）。周圍表皮細胞呈拼圖狀，幾乎沒有葉綠體。",
+        credit_kalanchoe: "照片：Colamc · CC BY-SA 4.0 · Kalanchoe leaf",
+        spec_stomaClose: "氣孔特寫", specFull_stomaClose: "單個氣孔光學顯微特寫", type_stomaClose: "植物",
+        look_stomaClose: "高倍下一個氣孔：半月形保衛細胞夾着氣孔縫，保衛細胞內可見葉綠體。",
+        credit_stomaClose: "照片：Paulssanta02 · CC0 · Stoma under optical microscope",
+        spec_cuticle: "染色葉表皮", specFull_cuticle: "葉下表皮（染色）多個氣孔", type_cuticle: "植物",
+        look_cuticle: "拼圖狀表皮細胞之間散佈多個氣孔。染色後保衛細胞與細胞壁對比鮮明。",
+        credit_cuticle: "照片：Tyanna · CC BY-SA 4.0 · Leaf cuticle / epidermis",
+        spec_croton: "變葉木氣孔", specFull_croton: "變葉木葉表皮氣孔", type_croton: "植物",
+        look_croton: "紫紅色背景中央一個氣孔。可用來練習在彩色表皮上辨認保衛細胞與氣孔縫。",
+        credit_croton: "照片：Sharadch · CC BY 4.0 · Croton leaf stoma",
+        spec_tomatoSem: "番茄氣孔 SEM", specFull_tomatoSem: "番茄葉氣孔（掃描電子顯微）", type_tomatoSem: "植物",
+        look_tomatoSem: "立體表面觀：開口的氣孔與起伏的表皮。與光學顯微照片對照，了解氣孔的立體形狀。",
+        credit_tomatoSem: "照片：Photohound · Public domain · Tomato leaf stomate SEM",
+        spec_starch: "澱粉粒", specFull_starch: "馬鈴薯澱粉粒", type_starch: "植物",
+        look_starch: "橢圓／卵形顆粒，常見偏心的同心輪紋（層紋）。可與細胞壁結構對照。",
+        credit_starch: "照片：Makergreen · CC BY 4.0 · Potato starch",
+        spec_blood: "血液塗片", specFull_blood: "周邊血液塗片", type_blood: "動物",
+        look_blood: "大量粉紅色無核紅血球（雙凹圓盤）。少數紫色有核細胞是白血球。",
+        credit_blood: "照片：Microrao · CC BY-SA 4.0 · Peripheral blood smear",
+        spec_muscle: "骨骼肌", specFull_muscle: "骨骼肌縱切面（橫紋）", type_muscle: "動物",
+        look_muscle: "長條肌纖維並排；可見明暗相間的橫紋。宜用較高倍觀察條紋細節。",
+        credit_muscle: "照片：Cheroske · CC BY-SA 4.0 · Skeletal muscle 400×",
+        spec_spirogyra: "水綿", specFull_spirogyra: "水綿絲狀體", type_spirogyra: "藻類",
+        look_spirogyra: "單列細胞連成絲狀。每細胞內有螺旋帶狀葉綠體，是辨認水綿的關鍵。",
+        credit_spirogyra: "照片：Wiedehopf20 · CC BY-SA 4.0 · Spirogyra",
+        spec_volvox: "團藻", specFull_volvox: "金球藻 Volvox aureus 群體", type_volvox: "藻類",
+        look_volvox: "球形群體；表面許多小細胞，內部可見子群體（子球）。對照水綿的絲狀結構。",
+        credit_volvox: "照片：Massimo Brizzi · CC BY 4.0 · Volvox aureus 400×",
+        spec_yeast: "酵母菌", specFull_yeast: "釀酒酵母（相差顯微）", type_yeast: "真菌",
+        look_yeast: "卵形單細胞，有的正出芽生殖。比口腔細胞小得多，宜用較高倍觀察。",
+        credit_yeast: "照片：Pilarbini · CC BY 4.0 · S. cerevisiae 100× phase",
+        spec_pollen: "花粉粒", specFull_pollen: "植物花粉粒", type_pollen: "植物",
+        look_pollen: "球形顆粒，表面紋理明顯。不同植物花粉形態差異大，宜用高倍觀察。",
+        credit_pollen: "照片：Elatadi · CC BY-SA 4.0 · Flower pollen",
+        spec_amoeba: "變形蟲", specFull_amoeba: "大變形蟲 Amoeba proteus", type_amoeba: "原生生物",
+        look_amoeba: "細胞無固定形狀，偽足伸出。可見伸縮泡（圓形較亮）與細胞核。",
+        credit_amoeba: "照片：Cymothoa exigua · CC BY-SA 3.0 · Amoeba proteus",
+        spec_paramecium: "草履蟲", specFull_paramecium: "草履蟲 Paramecium", type_paramecium: "原生生物",
+        look_paramecium: "拖鞋形單細胞，周緣有纖毛。可與變形蟲比較運動構造（纖毛 vs 偽足）。",
+        credit_paramecium: "照片：Barfooz · CC BY-SA 3.0 · Paramecium"
+    },
+    en: {
+        title: "Microscope Simulator", badge: "S1 Science", subtitle: "Real photomicrographs · focus · total magnification",
+        btnSteps: "Steps", btnPrinciple: "Theory", btnReset: "Reset", modalClose: "Close",
+        specTitle: "Specimens (photomicrographs)", labelEyepiece: "Eyepiece", labelObjective: "Objective",
+        labelLight: "Illumination", labelFocus: "Focus (coarse / fine)", coarse: "Coarse", fine: "Fine",
+        chkInvert: "Inverted image (compound scope)", infoTitle: "Observation notes", labelTotalMag: "Total magnification",
+        labelFocusStatus: "Focus", magFormula: "\\(M_{\\mathrm{total}} = M_{\\mathrm{eye}} \\times M_{\\mathrm{obj}}\\)",
+        labelStage: "Stage field", hintDrag: "Drag the slide to pan",
+        oilHint: "A 100× objective is usually oil-immersion; here it only shows a high-power field.",
+        focusIn: "In focus", focusOut: "Out of focus",
+        stepsTitle: "Observation steps",
+        s1: "1. Start with onion epidermis, 10× eyepiece and 4× objective. Use coarse focus until sharp, then fine focus.",
+        s2: "2. Switch to 10× and 40×: the field shrinks and cells look larger. High power has a shallow depth of field — refocus. Drag to find nuclei.",
+        s3: "3. Compare several leaf-stomata slides (Tradescantia, Zebrina, Kalanchoe, croton…): find guard cells and the pore. Then contrast Elodea chloroplasts, starch grains, cheek and blood.",
+        s4: "4. Turn on inversion: a compound microscope flips the image. Adjust the lamp — too dim or too bright hides structure.",
+        prinTitle: "How a compound microscope works", prinSub: "Eyepiece × objective · focus · cell types",
+        m1t: "1. Total magnification",
+        m1d: "A compound microscope uses two lens systems. Total magnification = eyepiece × objective. Example: 10× × 40× = 400×.",
+        m2t: "2. Focus and depth of field",
+        m2d: "The coarse knob moves the stage a long way; the fine knob makes small adjustments. High-power objectives have a shallow depth of field, so a small error blurs the image. Blur in this sim stands for defocus.",
+        m3t: "3. Plant vs animal cells",
+        m3d: "Plant cells are often rectangular with a cell wall. Onion epidermis usually lacks chloroplasts. Elodea leaf cells are packed with green chloroplasts. Cheek cells are irregular, have only a membrane, and show a dark nucleus after methylene-blue staining.",
+        m4t: "4. Other common slides",
+        m4d: "Stomata are pores between crescent guard cells — compare species (Tradescantia, Zebrina, Kalanchoe, croton) and the SEM surface view. Starch grains show concentric rings. Blood has anucleate RBCs; Spirogyra / Volvox are algae; yeast buds; Paramecium has cilia, amoebae have pseudopodia; skeletal muscle shows striations.",
+        m5t: "5. Inversion and light",
+        m5d: "The image is inverted (rotated 180°). Too little light hides detail; too much washes out contrast. In class, start at low power, focus, then move up.",
+        creditsNote: "Photos load from Wikimedia Commons in the browser; they are not stored on this server. Licences are listed with each specimen.",
+        imgLoading: "Loading photograph…",
+        imgError: "Could not load photo (needs Wikimedia Commons)",
+        spec_onion: "Onion", specFull_onion: "Onion scale epidermis", type_onion: "Plant",
+        look_onion: "Rectangular cells packed together with clear walls; dark dots are nuclei. Chloroplasts are usually absent.",
+        credit_onion: "Photo: loganrickert · CC BY 2.0 · Onion epidermis 40×",
+        spec_cheek: "Cheek", specFull_cheek: "Human cheek epithelium (methylene blue)", type_cheek: "Animal",
+        look_cheek: "Irregular, thin-edged cells with only a membrane. The central nucleus stains deep blue.",
+        credit_cheek: "Photo: Joseph Elsbernd · CC BY-SA 2.0 · Human cheek cells",
+        spec_elodea: "Elodea", specFull_elodea: "Elodea canadensis leaf cells", type_elodea: "Plant",
+        look_elodea: "Rectangular cells filled with green oval chloroplasts. Compare with onion: both have walls, but only Elodea shows chloroplasts.",
+        credit_elodea: "Photo: Juan Carlos Fonseca Mata · CC BY-SA 4.0 · Elodea canadensis",
+        spec_stomata: "Tradescantia", specFull_stomata: "Tradescantia lower-epidermis stomata", type_stomata: "Plant",
+        look_stomata: "Polygonal epidermal cells with stomata: two crescent guard cells form a pore and contain chloroplasts.",
+        credit_stomata: "Photo: Truong Minh Khai · CC BY 4.0 · Tradescantia stomata 400×",
+        spec_zebrina: "Zebrina", specFull_zebrina: "Zebrina (Tradescantia) leaf stomata", type_zebrina: "Plant",
+        look_zebrina: "Many stomata scattered on the epidermis. Bright green crescent guard cells stand out — count them and compare open vs closed pores.",
+        credit_zebrina: "Photo: AioftheStorm · CC0 · Zebrina stomata",
+        spec_kalanchoe: "Kalanchoe", specFull_kalanchoe: "Kalanchoe leaf epidermis stomata", type_kalanchoe: "Plant",
+        look_kalanchoe: "Chloroplasts in the guard cells are very clear (green dots). Surrounding pavement cells form a jigsaw and lack chloroplasts.",
+        credit_kalanchoe: "Photo: Colamc · CC BY-SA 4.0 · Kalanchoe leaf",
+        spec_stomaClose: "Stoma close-up", specFull_stomaClose: "Single stoma (optical microscope)", type_stomaClose: "Plant",
+        look_stomaClose: "One stoma at high power: crescent guard cells around the pore; chloroplasts visible inside the guard cells.",
+        credit_stomaClose: "Photo: Paulssanta02 · CC0 · Stoma under optical microscope",
+        spec_cuticle: "Stained epidermis", specFull_cuticle: "Lower epidermis (stained) with many stomata", type_cuticle: "Plant",
+        look_cuticle: "Many stomata among jigsaw epidermal cells. Staining makes guard cells and walls stand out.",
+        credit_cuticle: "Photo: Tyanna · CC BY-SA 4.0 · Leaf cuticle / epidermis",
+        spec_croton: "Croton", specFull_croton: "Croton leaf epidermis stoma", type_croton: "Plant",
+        look_croton: "A single stoma on a magenta epidermis. Practise spotting guard cells and the pore against coloured tissue.",
+        credit_croton: "Photo: Sharadch · CC BY 4.0 · Croton leaf stoma",
+        spec_tomatoSem: "Tomato SEM", specFull_tomatoSem: "Tomato leaf stomate (SEM)", type_tomatoSem: "Plant",
+        look_tomatoSem: "3-D surface view of an open stoma on a wrinkled epidermis. Compare with light-microscope peels to see stomatal shape.",
+        credit_tomatoSem: "Photo: Photohound · Public domain · Tomato leaf stomate SEM",
+        spec_starch: "Starch", specFull_starch: "Potato starch grains", type_starch: "Plant",
+        look_starch: "Oval grains with eccentric concentric growth rings (lamellae). Contrast with cell-wall patterns.",
+        credit_starch: "Photo: Makergreen · CC BY 4.0 · Potato starch",
+        spec_blood: "Blood", specFull_blood: "Peripheral blood smear", type_blood: "Animal",
+        look_blood: "Many pink anucleate red cells (biconcave discs). A few purple nucleated cells are leukocytes.",
+        credit_blood: "Photo: Microrao · CC BY-SA 4.0 · Peripheral blood smear",
+        spec_muscle: "Muscle", specFull_muscle: "Skeletal muscle (longitudinal, striated)", type_muscle: "Animal",
+        look_muscle: "Parallel fibre bundles with light–dark cross-striations. Use higher power for the banding detail.",
+        credit_muscle: "Photo: Cheroske · CC BY-SA 4.0 · Skeletal muscle 400×",
+        spec_spirogyra: "Spirogyra", specFull_spirogyra: "Spirogyra filaments", type_spirogyra: "Alga",
+        look_spirogyra: "A single file of cells in a filament. Each cell has a spiral ribbon chloroplast — the key ID feature.",
+        credit_spirogyra: "Photo: Wiedehopf20 · CC BY-SA 4.0 · Spirogyra",
+        spec_volvox: "Volvox", specFull_volvox: "Volvox aureus colony", type_volvox: "Alga",
+        look_volvox: "A spherical colony; many tiny cells on the surface and daughter colonies inside. Contrast with filamentous Spirogyra.",
+        credit_volvox: "Photo: Massimo Brizzi · CC BY 4.0 · Volvox aureus 400×",
+        spec_yeast: "Yeast", specFull_yeast: "Baker's yeast (phase contrast)", type_yeast: "Fungus",
+        look_yeast: "Oval unicells; some are budding. Much smaller than cheek cells — use higher power.",
+        credit_yeast: "Photo: Pilarbini · CC BY 4.0 · S. cerevisiae 100× phase",
+        spec_pollen: "Pollen", specFull_pollen: "Flower pollen grains", type_pollen: "Plant",
+        look_pollen: "Spherical grains with clear surface texture. Pollen morphology varies widely — use high power.",
+        credit_pollen: "Photo: Elatadi · CC BY-SA 4.0 · Flower pollen",
+        spec_amoeba: "Amoeba", specFull_amoeba: "Amoeba proteus", type_amoeba: "Protist",
+        look_amoeba: "No fixed shape; pseudopodia extend. Look for the contractile vacuole (bright circle) and the nucleus.",
+        credit_amoeba: "Photo: Cymothoa exigua · CC BY-SA 3.0 · Amoeba proteus",
+        spec_paramecium: "Paramecium", specFull_paramecium: "Paramecium", type_paramecium: "Protist",
+        look_paramecium: "Slipper-shaped unicell fringed with cilia. Compare locomotion with the amoeba (cilia vs pseudopodia).",
+        credit_paramecium: "Photo: Barfooz · CC BY-SA 3.0 · Paramecium"
+    }
+};
+
+const EYES = [5, 10, 15];
+const OBJS = [4, 10, 40, 100];
+
+let lang = "zh";
+let specId = "onion";
+let eye = 10;
+let obj = 4;
+let light = 72;
+let focus = 22;
+let invert = false;
+let panX = 0, panY = 0;
+let drag = null;
+let focusTimer = null;
+let drawRaf = 0;
+let canvasCssW = 0, canvasCssH = 0, canvasDpr = 0;
+let scrubbing = false;
+const images = {};
+const softCanvas = document.createElement("canvas");
+const softCtx = softCanvas.getContext("2d", { alpha: false });
+
+const canvas = document.getElementById("viewCanvas");
+const ctx = canvas.getContext("2d", { alpha: false });
+const controlsAside = document.querySelector("aside");
+
+function t() { return i18n[lang]; }
+
+/** Coalesce redraws to one paint per frame — critical for iPad range dragging. */
+function scheduleDraw() {
+    if (drawRaf) return;
+    drawRaf = requestAnimationFrame(() => {
+        drawRaf = 0;
+        drawNow();
+    });
+}
+
+function ensureCanvasSize(wrap) {
+    // While scrubbing on iPad, cap DPR harder so each frame stays interactive.
+    const dprCap = scrubbing ? 1.25 : 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    if (w < 20 || h < 20) return null;
+    if (w !== canvasCssW || h !== canvasCssH || dpr !== canvasDpr) {
+        canvasCssW = w;
+        canvasCssH = h;
+        canvasDpr = dpr;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h, dpr };
+}
+
+function setScrubbing(on) {
+    scrubbing = on;
+    if (controlsAside) {
+        controlsAside.style.overflowY = on ? "hidden" : "";
+        controlsAside.style.touchAction = on ? "none" : "";
+    }
+    if (!on) {
+        canvasCssW = 0;
+        canvasCssH = 0;
+        scheduleDraw();
+    }
+}
+
+/**
+ * iPad Safari often fails to fire live `input` on styled range controls, and parent
+ * overflow scroll steals the gesture. Drive value from pointer X ourselves.
+ */
+function bindLiveRange(el, apply) {
+    const clampApply = (raw) => {
+        const lo = +el.min, hi = +el.max;
+        let st = +el.step;
+        if (!Number.isFinite(st) || st <= 0) st = 1;
+        let v = Math.max(lo, Math.min(hi, +raw));
+        v = Math.round((v - lo) / st) * st + lo;
+        v = Math.max(lo, Math.min(hi, v));
+        el.value = String(v);
+        apply(el);
+    };
+    const fromClientX = (clientX) => {
+        const rect = el.getBoundingClientRect();
+        const t = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+        const lo = +el.min, hi = +el.max;
+        clampApply(lo + Math.max(0, Math.min(1, t)) * (hi - lo));
+    };
+    let active = false;
+    el.addEventListener("pointerdown", e => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        active = true;
+        setScrubbing(true);
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        fromClientX(e.clientX);
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    el.addEventListener("pointermove", e => {
+        if (!active) return;
+        fromClientX(e.clientX);
+        e.preventDefault();
+    });
+    const end = e => {
+        if (!active) return;
+        active = false;
+        if (e && typeof e.clientX === "number") fromClientX(e.clientX);
+        setScrubbing(false);
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    el.addEventListener("lostpointercapture", () => {
+        if (!active) return;
+        active = false;
+        setScrubbing(false);
+    });
+    // Keyboard / accessibility / desktop fallback
+    el.addEventListener("input", () => clampApply(el.value));
+    el.addEventListener("change", () => clampApply(el.value));
+}
+
+function applyI18n() {
+    document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+        const k = el.getAttribute("data-i18n");
+        if (t()[k] != null) el.textContent = t()[k];
+    });
+    document.querySelectorAll("[data-spec-label]").forEach(el => {
+        el.textContent = t()["spec_" + el.getAttribute("data-spec-label")];
+    });
+    document.querySelectorAll("[data-spec-type]").forEach(el => {
+        el.textContent = t()["type_" + el.getAttribute("data-spec-type")];
+    });
+    updateInfo();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+}
+
+function totalMag() { return eye * obj; }
+
+function inFocus() {
+    const tol = Math.max(3.5, 14 / Math.sqrt(obj / 4));
+    return Math.abs(focus) <= tol;
+}
+
+function blurPx(viewR) {
+    const err = Math.abs(focus);
+    if (err < 1.2) return 0;
+    return Math.min(viewR * 0.085, err * (0.18 + obj / 90));
+}
+
+function srcBox(img) {
+    const crop = (SPEC_META[specId] && SPEC_META[specId].crop) || 0;
+    const w = img.naturalWidth, h = img.naturalHeight;
+    return { sx: w * crop, sy: h * crop, sw: w * (1 - 2 * crop), sh: h * (1 - 2 * crop) };
+}
+
+function zoomFor(img, viewR) {
+    const b = srcBox(img);
+    const fit = Math.max((viewR * 2.02) / b.sw, (viewR * 2.02) / b.sh);
+    const k = Math.min(4, Math.max(1, Math.pow(totalMag() / 28, 0.48)));
+    return fit * k;
+}
+
+function lookShift(img, z) {
+    const m = SPEC_META[specId];
+    const b = srcBox(img);
+    return {
+        x: (m.lookX || 0) * b.sw * z * 0.5,
+        y: (m.lookY || 0) * b.sh * z * 0.5
+    };
+}
+
+function updateInfo() {
+    const tr = t();
+    document.getElementById("totalMag").textContent = totalMag() + "×";
+    document.getElementById("lightVal").textContent = light + "%";
+    document.getElementById("focusVal").textContent = Math.round(focus) + " μm";
+    const st = document.getElementById("focusStatus");
+    const ok = inFocus();
+    st.textContent = ok ? tr.focusIn : tr.focusOut;
+    st.className = "text-sm font-black " + (ok ? "text-emerald-600" : "text-red-600");
+    document.getElementById("specFull").textContent = tr["specFull_" + specId];
+    document.getElementById("specLook").textContent = tr["look_" + specId];
+    document.getElementById("specCredit").textContent = tr["credit_" + specId];
+    document.getElementById("oilHint").classList.toggle("hidden", obj !== 100);
+}
+
+function setActive(sel, attr, val) {
+    document.querySelectorAll(sel).forEach(b => {
+        b.classList.toggle("active", b.getAttribute(attr) === String(val));
+    });
+}
+
+function draw() { scheduleDraw(); }
+
+function drawNow() {
+    const wrap = document.getElementById("view-wrap");
+    const size = ensureCanvasSize(wrap);
+    if (!size) return;
+    const { w, h, dpr } = size;
+
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const r = Math.min(w, h) * 0.46;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 10, 0, Math.PI * 2);
+    const ring = ctx.createRadialGradient(cx, cy, r, cx, cy, r + 10);
+    ring.addColorStop(0, "#334155");
+    ring.addColorStop(1, "#0f172a");
+    ctx.fillStyle = ring;
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    const img = images[specId];
+    if (img && img.complete && img.naturalWidth) {
+        // Never use ctx.filter on iPad — blur/brightness filters stall the main thread
+        // so range drags appear to do nothing until the finger lifts.
+        const wash = light > 88 ? 1 + (light - 88) / 40 : 1;
+        const br = (0.28 + (light / 100) * 0.95) * wash;
+        const blur = blurPx(r);
+        const b = srcBox(img);
+        const z = zoomFor(img, r);
+        const look = lookShift(img, z);
+        const iw = b.sw * z, ih = b.sh * z;
+
+        ctx.save();
+        ctx.translate(cx + panX + look.x, cy + panY + look.y);
+        if (invert) ctx.rotate(Math.PI);
+        ctx.imageSmoothingEnabled = true;
+        if (blur > 0.5) {
+            const factor = Math.min(scrubbing ? 7 : 9, 1 + blur * (scrubbing ? 0.6 : 0.42));
+            const tw = Math.max(2, Math.round(iw / factor));
+            const th = Math.max(2, Math.round(ih / factor));
+            if (softCanvas.width !== tw || softCanvas.height !== th) {
+                softCanvas.width = tw;
+                softCanvas.height = th;
             }
+            softCtx.imageSmoothingEnabled = true;
+            softCtx.drawImage(img, b.sx, b.sy, b.sw, b.sh, 0, 0, tw, th);
+            ctx.imageSmoothingQuality = scrubbing ? "low" : "medium";
+            ctx.drawImage(softCanvas, -iw / 2, -ih / 2, iw, ih);
+        } else {
+            ctx.drawImage(img, b.sx, b.sy, b.sw, b.sh, -iw / 2, -ih / 2, iw, ih);
+        }
+        ctx.restore();
+
+        if (br < 0.98) {
+            ctx.fillStyle = `rgba(0,0,0,${Math.min(0.82, 1 - br)})`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (br > 1.02) {
+            ctx.fillStyle = `rgba(255,255,255,${Math.min(0.5, (br - 1) * 0.7)})`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        if (light > 90) {
+            ctx.fillStyle = `rgba(255,255,255,${Math.min(0.18, (light - 90) / 80)})`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    } else {
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "13px 'Noto Sans TC', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const failed = img && img.dataset && img.dataset.err;
+        ctx.fillText(failed ? t().imgError : t().imgLoading, cx, cy);
+    }
+
+    const vig = ctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.45)");
+    ctx.fillStyle = vig;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(148,163,184,0.55)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const bar = Math.min(88, r * 0.28);
+    const fovUm = (18000 / obj) * (10 / eye);
+    const um = fovUm * (bar / (2 * r));
+    ctx.fillStyle = "rgba(15,23,42,0.65)";
+    ctx.fillRect(cx + r - bar - 28, cy + r - 36, bar + 16, 22);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillRect(cx + r - bar - 20, cy + r - 24, bar, 3);
+    ctx.font = "11px 'Noto Sans TC', sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText((um >= 100 ? Math.round(um) : um.toFixed(0)) + " μm", cx + r - 20, cy + r - 28);
+}
+
+function clampPan() {
+    const wrap = document.getElementById("view-wrap");
+    const r = Math.min(wrap.clientWidth, wrap.clientHeight) * 0.46;
+    const img = images[specId];
+    if (!img || !img.naturalWidth) return;
+    const z = zoomFor(img, r);
+    const b = srcBox(img);
+    const maxX = Math.max(20, b.sw * z / 2 - r * 0.2);
+    const maxY = Math.max(20, b.sh * z / 2 - r * 0.2);
+    panX = Math.max(-maxX, Math.min(maxX, panX));
+    panY = Math.max(-maxY, Math.min(maxY, panY));
+}
+
+function setFocus(v, fromSlider) {
+    focus = Math.max(-80, Math.min(80, v));
+    if (!fromSlider) {
+        document.getElementById("focusSlider").value = String(Math.round(focus));
+    }
+    updateInfo();
+    scheduleDraw();
+}
+
+function setLight(v, fromSlider) {
+    light = Math.max(8, Math.min(100, +v));
+    if (!fromSlider) {
+        document.getElementById("lightSlider").value = String(Math.round(light));
+    }
+    updateInfo();
+    scheduleDraw();
+}
+
+function changeSpec(id) {
+    specId = id;
+    obj = SPEC_META[id].suggestObj;
+    panX = 0;
+    panY = 0;
+    setActive(".spec-btn", "data-spec", id);
+    setActive(".obj-btn", "data-obj", obj);
+    setFocus(18 + (id.length % 7));
+}
+
+function buildButtons() {
+    const grid = document.getElementById("specGrid");
+    grid.innerHTML = "";
+    SPEC_ORDER.forEach(id => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "spec-btn bg-slate-50 rounded-xl border border-slate-200 overflow-hidden text-left hover:bg-slate-100";
+        btn.setAttribute("data-spec", id);
+        btn.innerHTML = `<img src="${SPEC_IMG[id]}" alt="" referrerpolicy="no-referrer" loading="lazy" class="w-full h-10 object-cover bg-slate-200"><span class="block px-1 py-0.5 text-[10px] font-extrabold leading-tight" data-spec-label="${id}"></span><span class="block px-1 pb-1 text-[9px] text-emerald-700 font-bold" data-spec-type="${id}"></span>`;
+        btn.onclick = () => changeSpec(id);
+        grid.appendChild(btn);
+    });
+    const eyeBox = document.getElementById("eyeBtns");
+    eyeBox.innerHTML = "";
+    EYES.forEach(m => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "opt-btn eye-btn py-1.5 rounded-xl border border-slate-300 text-xs font-extrabold bg-white";
+        b.setAttribute("data-eye", String(m));
+        b.textContent = m + "×";
+        b.onclick = () => { eye = m; setActive(".eye-btn", "data-eye", m); updateInfo(); draw(); };
+        eyeBox.appendChild(b);
+    });
+    const objBox = document.getElementById("objBtns");
+    objBox.innerHTML = "";
+    OBJS.forEach(m => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "opt-btn obj-btn py-1.5 rounded-xl border border-slate-300 text-xs font-extrabold bg-white";
+        b.setAttribute("data-obj", String(m));
+        b.textContent = m + "×";
+        b.onclick = () => {
+            const prev = obj;
+            obj = m;
+            if (m > prev) focus += 8 + (m >= 40 ? 10 : 0);
+            else if (m < prev) focus -= 4;
+            setFocus(focus);
+            setActive(".obj-btn", "data-obj", m);
         };
+        objBox.appendChild(b);
+    });
+}
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            // Set initial button states
-            document.getElementById('eye-5x').classList.add('bg-purple-500', 'text-white', 'border-purple-600');
-            document.getElementById('eye-5x').classList.remove('bg-white', 'text-slate-700', 'border-slate-300');
-            document.getElementById('obj-4x').classList.add('bg-blue-500', 'text-white', 'border-blue-600');
-            document.getElementById('obj-4x').classList.remove('bg-white', 'text-slate-700', 'border-slate-300');
-            document.getElementById('spec-onion').classList.add('bg-green-500', 'text-white', 'border-green-600');
-            document.getElementById('spec-onion').classList.remove('bg-white', 'text-slate-700', 'border-slate-300');
-            
-            updateMagnification();
-            updateResolution();
-            drawSpecimen();
-            updateFocusStatus();
-            changeLightBrightness(70);
-            updateTexts();
+function resetAll() {
+    specId = "onion";
+    eye = 10;
+    obj = 4;
+    light = 72;
+    invert = false;
+    panX = 0;
+    panY = 0;
+    document.getElementById("lightSlider").value = "72";
+    document.getElementById("chkInvert").checked = false;
+    setActive(".spec-btn", "data-spec", "onion");
+    setActive(".eye-btn", "data-eye", 10);
+    setActive(".obj-btn", "data-obj", 4);
+    setFocus(22);
+}
+
+function setModal(id, open) {
+    const wrap = document.getElementById(id);
+    const box = wrap.querySelector(".modal-content");
+    wrap.classList.toggle("opacity-0", !open);
+    wrap.classList.toggle("pointer-events-none", !open);
+    box.classList.toggle("opacity-0", !open);
+    box.classList.toggle("scale-95", !open);
+}
+function closeAllModals() {
+    setModal("modal-principle", false);
+    setModal("modal-steps", false);
+}
+
+function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+}
+
+function init() {
+    SPEC_ORDER.forEach(id => {
+        const im = new Image();
+        im.referrerPolicy = "no-referrer";
+        im.onload = () => draw();
+        im.onerror = () => { im.dataset.err = "1"; draw(); };
+        im.src = SPEC_IMG[id];
+        images[id] = im;
+    });
+    buildButtons();
+    resetAll();
+    applyI18n();
+
+    bindLiveRange(document.getElementById("lightSlider"), el => setLight(el.value, true));
+    bindLiveRange(document.getElementById("focusSlider"), el => setFocus(+el.value, true));
+    document.getElementById("chkInvert").onchange = e => { invert = e.target.checked; scheduleDraw(); };
+    document.getElementById("resetBtn").onclick = resetAll;
+
+    document.querySelectorAll(".focus-btn").forEach(btn => {
+        const step = btn.getAttribute("data-focus") === "coarse" ? 4 : 0.7;
+        const dir = +btn.getAttribute("data-dir");
+        const go = () => setFocus(focus + dir * step);
+        btn.addEventListener("pointerdown", ev => {
+            ev.preventDefault();
+            try { btn.setPointerCapture(ev.pointerId); } catch (_) {}
+            go();
+            if (focusTimer) clearInterval(focusTimer);
+            focusTimer = setInterval(go, 45);
         });
+    });
+    const stopF = () => { if (focusTimer) { clearInterval(focusTimer); focusTimer = null; } };
+    window.addEventListener("pointerup", stopF);
+    window.addEventListener("pointercancel", stopF);
+    window.addEventListener("touchend", stopF);
 
-        // Toggle language
-        function toggleLanguage() {
-            currentLang = currentLang === 'zh' ? 'en' : 'zh';
-            updateTexts();
-        }
+    canvas.addEventListener("pointerdown", e => {
+        canvas.setPointerCapture(e.pointerId);
+        const p = pointerPos(e);
+        drag = { x: p.x, y: p.y, px: panX, py: panY };
+        canvas.classList.add("dragging");
+    });
+    canvas.addEventListener("pointermove", e => {
+        if (!drag) return;
+        const p = pointerPos(e);
+        const s = invert ? -1 : 1;
+        panX = drag.px + s * (p.x - drag.x);
+        panY = drag.py + s * (p.y - drag.y);
+        clampPan();
+        scheduleDraw();
+    });
+    const endDrag = () => { drag = null; canvas.classList.remove("dragging"); };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
 
-        // Update all texts based on current language
-        function updateTexts() {
-            const t = translations[currentLang];
-            
-            // Header
-            document.getElementById('header-title').textContent = t.title;
-            document.getElementById('header-subtitle').textContent = t.subtitle;
-            
-            // Labels
-            document.getElementById('label-eyepiece').textContent = t.labelEyepiece;
-            document.getElementById('label-objective').textContent = t.labelObjective;
-            document.getElementById('label-specimen').textContent = t.labelSpecimen;
-            document.getElementById('label-light').textContent = t.labelLight;
-            document.getElementById('light-dark').textContent = t.lightDark;
-            document.getElementById('light-bright').textContent = t.lightBright;
-            document.getElementById('label-total-mag').textContent = t.labelTotalMag;
-            document.getElementById('label-current-specimen').textContent = t.labelCurrentSpecimen;
-            document.getElementById('label-focus-status').textContent = t.labelFocusStatus;
-            document.getElementById('label-focus-value').textContent = t.labelFocusValue;
-            document.getElementById('label-resolution').textContent = t.labelResolution;
-            document.getElementById('label-structure').textContent = t.labelStructure;
-            document.getElementById('label-stage').textContent = t.labelStage;
-            document.getElementById('label-coarse').textContent = t.labelCoarse;
-            document.getElementById('label-fine').textContent = t.labelFine;
-            document.getElementById('label-coarse-wheel').textContent = t.labelCoarseWheel;
-            document.getElementById('label-fine-wheel').textContent = t.labelFineWheel;
-            document.getElementById('info-title').textContent = t.infoTitle;
-            
-            // Structure list
-            const structureList = document.getElementById('structure-list');
-            structureList.innerHTML = t.structureList.map(item => `<li>${item}</li>`).join('');
-            
-            // Update specimen name
-            document.getElementById('current-specimen').textContent = t.specimens[currentSpecimen];
-            
-            // Update specimen button texts
-            document.getElementById('spec-onion').textContent = t.specimenButtons.onion;
-            document.getElementById('spec-cheek').textContent = t.specimenButtons.cheek;
-            document.getElementById('spec-plant').textContent = t.specimenButtons.plant;
-            if (document.getElementById('spec-text')) {
-                document.getElementById('spec-text').textContent = t.specimenButtons.text;
-            }
-            
-            // Update focus status text
-            updateFocusStatus();
-            
-            // Re-render MathJax
-            if (window.MathJax) {
-                MathJax.typesetPromise();
-            }
-        }
+    document.getElementById("btn-lang").onclick = document.getElementById("btn-lang-mobile").onclick = () => {
+        lang = lang === "zh" ? "en" : "zh";
+        applyI18n();
+        scheduleDraw();
+    };
+    document.getElementById("btn-principle").onclick = () => { closeAllModals(); setModal("modal-principle", true); };
+    document.getElementById("btn-steps").onclick = () => { closeAllModals(); setModal("modal-steps", true); };
+    document.getElementById("modal-close").onclick = document.getElementById("modal-confirm").onclick = () => setModal("modal-principle", false);
+    document.getElementById("steps-close").onclick = document.getElementById("steps-confirm").onclick = () => setModal("modal-steps", false);
+    document.getElementById("modal-principle").addEventListener("click", e => { if (e.target.id === "modal-principle") setModal("modal-principle", false); });
+    document.getElementById("modal-steps").addEventListener("click", e => { if (e.target.id === "modal-steps") setModal("modal-steps", false); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllModals(); });
+    window.addEventListener("resize", () => {
+        canvasCssW = 0;
+        canvasCssH = 0;
+        scheduleDraw();
+    });
+    if (window.ResizeObserver) {
+        new ResizeObserver(() => {
+            canvasCssW = 0;
+            canvasCssH = 0;
+            scheduleDraw();
+        }).observe(document.getElementById("view-wrap"));
+    }
+}
 
-        // Change eyepiece lens
-        function changeEyepiece(magnification) {
-            eyepieceMagnification = magnification;
-            
-            // Update button states
-            document.querySelectorAll('[id^="eye-"]').forEach(btn => {
-                btn.classList.remove('bg-purple-500', 'text-white', 'border-purple-600');
-                btn.classList.add('bg-white', 'text-slate-700', 'border-slate-300');
-            });
-            const btn = document.getElementById(`eye-${magnification}x`);
-            if (btn) {
-                btn.classList.add('bg-purple-500', 'text-white', 'border-purple-600');
-                btn.classList.remove('bg-white', 'text-slate-700', 'border-slate-300');
-            }
-
-            updateMagnification();
-            drawSpecimen();
-        }
-
-        // Change objective lens
-        function changeObjective(magnification) {
-            objectiveMagnification = magnification;
-            
-            // Update button states
-            document.querySelectorAll('[id^="obj-"]').forEach(btn => {
-                btn.classList.remove('bg-blue-500', 'text-white', 'border-blue-600');
-                btn.classList.add('bg-white', 'text-slate-700', 'border-slate-300');
-            });
-            document.getElementById(`obj-${magnification}x`).classList.add('bg-blue-500', 'text-white', 'border-blue-600');
-            document.getElementById(`obj-${magnification}x`).classList.remove('bg-white', 'text-slate-700', 'border-slate-300');
-
-            // Update lens visual states
-            document.querySelectorAll('[id^="obj-lens-"]').forEach(lens => {
-                lens.classList.remove('active');
-            });
-            document.getElementById(`obj-lens-${magnification}x`).classList.add('active');
-
-            updateMagnification();
-            updateResolution();
-            drawSpecimen();
-        }
-
-        // Change specimen
-        function changeSpecimen(specimen) {
-            currentSpecimen = specimen;
-            
-            // Update button states
-            document.querySelectorAll('[id^="spec-"]').forEach(btn => {
-                btn.classList.remove('bg-green-500', 'text-white', 'border-green-600');
-                btn.classList.add('bg-white', 'text-slate-700', 'border-slate-300');
-            });
-            document.getElementById(`spec-${specimen}`).classList.add('bg-green-500', 'text-white', 'border-green-600');
-            document.getElementById(`spec-${specimen}`).classList.remove('bg-white', 'text-slate-700', 'border-slate-300');
-
-            // Update specimen name
-            const t = translations[currentLang];
-            document.getElementById('current-specimen').textContent = t.specimens[specimen];
-
-            drawSpecimen();
-        }
-
-        // Change light brightness
-        function changeLightBrightness(value) {
-            lightBrightness = parseInt(value);
-            document.getElementById('light-value').textContent = value + '%';
-            
-            const lightSource = document.getElementById('light-source');
-            const opacity = 0.3 + (lightBrightness / 100) * 0.7;
-            lightSource.style.opacity = opacity;
-            
-            // Update view area brightness
-            const viewArea = document.getElementById('view-area');
-            const brightness = 0.5 + (lightBrightness / 100) * 0.5;
-            viewArea.style.filter = `brightness(${brightness})`;
-        }
-
-        // Update total magnification
-        function updateMagnification() {
-            const totalMag = eyepieceMagnification * objectiveMagnification;
-            document.getElementById('total-magnification').textContent = totalMag + '×';
-        }
-
-        // Update resolution
-        function updateResolution() {
-            // Simplified resolution calculation
-            // R = 0.61 * lambda / NA
-            // For visible light (lambda ≈ 550 nm) and typical NA values
-            const naValues = {
-                4: 0.1,
-                10: 0.25,
-                40: 0.65,
-                100: 1.25
-            };
-            const lambda = 0.55; // μm
-            const na = naValues[objectiveMagnification] || 0.65;
-            const resolution = (0.61 * lambda / na).toFixed(2);
-            document.getElementById('resolution').textContent = resolution + ' μm';
-        }
-
-        // Start coarse focus
-        function startCoarseFocus(direction) {
-            if (isFocusing) {
-                stopFocus();
-            }
-            isFocusing = true;
-            const step = direction === 'up' ? 5 : -5;
-            focusInterval = setInterval(() => {
-                focusPosition += step;
-                // Limit focus range
-                focusPosition = Math.max(-100, Math.min(100, focusPosition));
-                updateFocusStatus();
-                drawSpecimen();
-            }, 50);
-        }
-
-        // Start fine focus
-        function startFineFocus(direction) {
-            if (isFocusing) {
-                stopFocus();
-            }
-            isFocusing = true;
-            const step = direction === 'up' ? 1 : -1;
-            focusInterval = setInterval(() => {
-                focusPosition += step;
-                // Limit focus range
-                focusPosition = Math.max(-100, Math.min(100, focusPosition));
-                updateFocusStatus();
-                drawSpecimen();
-            }, 50);
-        }
-
-        // Stop focus
-        function stopFocus() {
-            if (focusInterval) {
-                clearInterval(focusInterval);
-                focusInterval = null;
-            }
-            isFocusing = false;
-        }
-
-        // Update focus status
-        function updateFocusStatus() {
-            const focusValue = document.getElementById('focus-value');
-            focusValue.textContent = focusPosition.toFixed(0);
-            
-            const focusStatus = document.getElementById('focus-status');
-            const t = translations[currentLang];
-            // Consider in focus if within ±10 μm
-            if (Math.abs(focusPosition) < 10) {
-                focusStatus.textContent = t.focusIn;
-                focusStatus.classList.remove('text-red-600');
-                focusStatus.classList.add('text-green-600');
-            } else {
-                focusStatus.textContent = t.focusOut;
-                focusStatus.classList.remove('text-green-600');
-                focusStatus.classList.add('text-red-600');
-            }
-        }
-
-        // Draw specimen
-        function drawSpecimen() {
-            const svg = document.getElementById('specimen-svg');
-            
-            // Get or create the clip group
-            let clipGroup = svg.querySelector('g[clip-path]');
-            if (!clipGroup) {
-                // Ensure defs exists
-                let defs = svg.querySelector('defs');
-                if (!defs) {
-                    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                    const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                    clipPath.setAttribute('id', 'circular-clip');
-                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                    circle.setAttribute('cx', '200');
-                    circle.setAttribute('cy', '200');
-                    circle.setAttribute('r', '200');
-                    clipPath.appendChild(circle);
-                    defs.appendChild(clipPath);
-                    svg.insertBefore(defs, svg.firstChild);
-                }
-                clipGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                clipGroup.setAttribute('clip-path', 'url(#circular-clip)');
-                svg.appendChild(clipGroup);
-            } else {
-                // Clear existing content in clip group
-                clipGroup.innerHTML = '';
-            }
-
-            // Calculate cell size based on total magnification
-            // Higher magnification = cells appear larger (proportional relationship)
-            // Base cell size increases as magnification increases
-            const totalMag = eyepieceMagnification * objectiveMagnification;
-            const baseCellSize = 50; // Base size at 40× total magnification
-            const cellSize = baseCellSize * (totalMag / 40); // Direct proportional relationship
-            const cellCount = Math.max(1, Math.floor(400 / cellSize));
-            const offset = (400 - cellCount * cellSize) / 2;
-
-            // Calculate blur based on focus
-            const blurAmount = Math.abs(focusPosition) / 5;
-            const blur = blurAmount > 0 ? `blur(${Math.min(blurAmount, 10)}px)` : 'none';
-            clipGroup.style.filter = blur;
-
-            if (currentSpecimen === 'text') {
-                // Draw text specimen (inverted)
-                drawTextSpecimen(clipGroup, totalMag);
-            } else {
-                // Draw cell specimens
-                for (let i = 0; i < cellCount; i++) {
-                    for (let j = 0; j < cellCount; j++) {
-                        const x = offset + i * cellSize;
-                        const y = offset + j * cellSize;
-                        drawCell(clipGroup, x, y, cellSize);
-                    }
-                }
-            }
-        }
-
-        // Draw text specimen (inverted as in real microscope)
-        function drawTextSpecimen(container, totalMag) {
-            // Microscope produces inverted image (upside down and left-right reversed)
-            const textGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            // Invert: scale(-1, -1) to flip both horizontally and vertically
-            // Translate to center, scale, then translate back
-            textGroup.setAttribute('transform', 'translate(200, 200) scale(-1, -1) translate(-200, -200)');
-            
-            // Calculate text size based on magnification
-            const baseFontSize = 60;
-            const fontSize = baseFontSize * (totalMag / 40);
-            
-            // Draw text in center - this will appear inverted due to the transform
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', '200');
-            text.setAttribute('y', '200');
-            text.setAttribute('font-size', fontSize);
-            text.setAttribute('font-family', 'Arial, sans-serif');
-            text.setAttribute('font-weight', 'bold');
-            text.setAttribute('fill', '#1e293b');
-            text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('dominant-baseline', 'middle');
-            text.textContent = 'ABC';
-            
-            textGroup.appendChild(text);
-            container.appendChild(textGroup);
-        }
-
-        // Draw a single cell
-        function drawCell(svg, x, y, size) {
-            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            g.setAttribute('class', 'specimen-cell');
-            g.setAttribute('transform', `translate(${x}, ${y})`);
-
-            if (currentSpecimen === 'onion') {
-                // Onion epidermal cell
-                const cellRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                cellRect.setAttribute('x', size * 0.1);
-                cellRect.setAttribute('y', size * 0.1);
-                cellRect.setAttribute('width', size * 0.8);
-                cellRect.setAttribute('height', size * 0.8);
-                cellRect.setAttribute('class', 'cell-wall');
-                g.appendChild(cellRect);
-
-                const nucleus = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                nucleus.setAttribute('cx', size * 0.5);
-                nucleus.setAttribute('cy', size * 0.5);
-                nucleus.setAttribute('r', size * 0.15);
-                nucleus.setAttribute('class', 'nucleus');
-                g.appendChild(nucleus);
-
-                const cytoplasm = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                cytoplasm.setAttribute('x', size * 0.15);
-                cytoplasm.setAttribute('y', size * 0.15);
-                cytoplasm.setAttribute('width', size * 0.7);
-                cytoplasm.setAttribute('height', size * 0.7);
-                cytoplasm.setAttribute('class', 'cytoplasm onion-cell');
-                g.appendChild(cytoplasm);
-
-            } else if (currentSpecimen === 'cheek') {
-                // Cheek cell (animal cell)
-                const cellCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                cellCircle.setAttribute('cx', size * 0.5);
-                cellCircle.setAttribute('cy', size * 0.5);
-                cellCircle.setAttribute('r', size * 0.4);
-                cellCircle.setAttribute('class', 'cell-membrane');
-                g.appendChild(cellCircle);
-
-                const cytoplasm = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                cytoplasm.setAttribute('cx', size * 0.5);
-                cytoplasm.setAttribute('cy', size * 0.5);
-                cytoplasm.setAttribute('r', size * 0.38);
-                cytoplasm.setAttribute('class', 'cytoplasm cheek-cell');
-                g.appendChild(cytoplasm);
-
-                const nucleus = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                nucleus.setAttribute('cx', size * 0.5);
-                nucleus.setAttribute('cy', size * 0.5);
-                nucleus.setAttribute('r', size * 0.2);
-                nucleus.setAttribute('class', 'nucleus');
-                g.appendChild(nucleus);
-
-                // Chromatin dots
-                for (let i = 0; i < 5; i++) {
-                    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                    const angle = (i * 2 * Math.PI) / 5;
-                    dot.setAttribute('cx', size * 0.5 + Math.cos(angle) * size * 0.15);
-                    dot.setAttribute('cy', size * 0.5 + Math.sin(angle) * size * 0.15);
-                    dot.setAttribute('r', size * 0.03);
-                    dot.setAttribute('class', 'chromatin');
-                    g.appendChild(dot);
-                }
-
-            } else if (currentSpecimen === 'plant') {
-                // Plant cell
-                const cellRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                cellRect.setAttribute('x', size * 0.1);
-                cellRect.setAttribute('y', size * 0.1);
-                cellRect.setAttribute('width', size * 0.8);
-                cellRect.setAttribute('height', size * 0.8);
-                cellRect.setAttribute('class', 'cell-wall');
-                g.appendChild(cellRect);
-
-                const cytoplasm = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                cytoplasm.setAttribute('x', size * 0.15);
-                cytoplasm.setAttribute('y', size * 0.15);
-                cytoplasm.setAttribute('width', size * 0.7);
-                cytoplasm.setAttribute('height', size * 0.7);
-                cytoplasm.setAttribute('class', 'cytoplasm plant-cell');
-                g.appendChild(cytoplasm);
-
-                const nucleus = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                nucleus.setAttribute('cx', size * 0.5);
-                nucleus.setAttribute('cy', size * 0.5);
-                nucleus.setAttribute('r', size * 0.12);
-                nucleus.setAttribute('class', 'nucleus');
-                g.appendChild(nucleus);
-
-                // Vacuole
-                const vacuole = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-                vacuole.setAttribute('cx', size * 0.6);
-                vacuole.setAttribute('cy', size * 0.6);
-                vacuole.setAttribute('rx', size * 0.2);
-                vacuole.setAttribute('ry', size * 0.15);
-                vacuole.setAttribute('class', 'vacuole');
-                g.appendChild(vacuole);
-
-                // Chloroplasts
-                for (let i = 0; i < 3; i++) {
-                    const chloroplast = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-                    const angle = (i * 2 * Math.PI) / 3;
-                    chloroplast.setAttribute('cx', size * 0.5 + Math.cos(angle) * size * 0.2);
-                    chloroplast.setAttribute('cy', size * 0.5 + Math.sin(angle) * size * 0.2);
-                    chloroplast.setAttribute('rx', size * 0.08);
-                    chloroplast.setAttribute('ry', size * 0.12);
-                    chloroplast.setAttribute('fill', '#22c55e');
-                    chloroplast.setAttribute('stroke', '#16a34a');
-                    chloroplast.setAttribute('stroke-width', '1');
-                    g.appendChild(chloroplast);
-                }
-            }
-
-            svg.appendChild(g);
-        }
-
-        // Initialize MathJax after page load
-        window.addEventListener('load', function() {
-            if (window.MathJax) {
-                MathJax.typesetPromise();
-            }
-        });
-    </script>
-
+init();
+</script>
 </body>
 </html>
-

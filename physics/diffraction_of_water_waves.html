@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水波的衍射現象 | Water Wave Diffraction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] }, svg: { fontCache: 'global' } };</script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; touch-action: none; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #7c3aed; margin-top: -6px; box-shadow: 0 2px 6px rgba(15,23,42,.25); cursor: pointer; }
+        .preset-btn { padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover { background: #ede9fe; border-color: #c4b5fd; }
+        .preset-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .mode-tab { padding: 8px 10px; border-radius: 10px; font-weight: 800; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
+        .mode-tab:hover { background: #ede9fe; border-color: #c4b5fd; }
+        .mode-tab.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; margin-top: 2px; accent-color: #7c3aed; flex-shrink: 0; }
+        .view-tab { padding: 6px 12px; border-radius: 10px; font-weight: 800; font-size: 11px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; }
+        .view-tab.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .modal-backdrop { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .25s ease, visibility .25s ease; }
+        .modal-backdrop.open { opacity: 1; pointer-events: auto; visibility: visible; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; opacity: 0; transform: scale(.95); }
+        .modal-backdrop.open .modal-content { transform: none; opacity: 1; }
+        .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; text-align: center; }
+        .layout-split #view-3d { height: 52%; } .layout-split #view-2d-wrap { height: 48%; }
+        .layout-3d #view-3d { height: 100%; } .layout-3d #view-2d-wrap { display: none; }
+        .layout-2d #view-3d { display: none; } .layout-2d #view-2d-wrap { height: 100%; }
+        #view-3d, #view-2d-wrap { min-height: 220px; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-purple-500 text-white flex items-center justify-center shadow-md text-lg">⌇</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">水波的衍射現象</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">直線水波、縫隙／障礙物衍射與 a／λ 判斷</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-violet-50 text-violet-700 rounded-xl font-bold text-sm shadow-sm border border-violet-200"><span data-i18n="btnSteps">觀察步驟</span></button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-xl font-bold text-sm shadow-sm"><span data-i18n="btnPrinciple">原理解說</span></button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="modeTitle">衍射方式</p>
+                <div class="grid grid-cols-2 gap-1.5 mb-3">
+                    <button type="button" class="mode-tab active" data-mode="slit" data-i18n="modeSlit">縫隙</button>
+                    <button type="button" class="mode-tab" data-mode="obstacle" data-i18n="modeObstacle">障礙物</button>
+                </div>
+                <p class="text-[10px] text-violet-700 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2 mb-3" data-i18n="incidentNote">入射為直線水波（水波槽振盪條），不是圓形波源。</p>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="slitStrong" data-i18n="preSlitStrong">① 縫隙明顯衍射（a ≈ λ）</button>
+                    <button type="button" class="preset-btn" data-preset="slitWeak" data-i18n="preSlitWeak">② 縫隙弱衍射（a ≫ λ）</button>
+                    <button type="button" class="preset-btn" data-preset="obsStrong" data-i18n="preObsStrong">③ 障礙物明顯衍射（w ≈ λ）</button>
+                    <button type="button" class="preset-btn" data-preset="obsWide" data-i18n="preObsWide">④ 寬障礙物（w ≫ λ）</button>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 text-white" data-i18n="pause">暫停</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 text-white" data-i18n="reset">重置</button>
+                </div>
+                <label class="block mb-3"><span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1"><span data-i18n="labelTime">時間 t</span><span id="disp-t" class="text-violet-700">0.00 s</span></span><input type="range" id="in-time" min="0" max="10" step="0.02" value="0"></label>
+                <label class="block mb-3"><span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1"><span data-i18n="labelLambda">波長 \(\lambda\)</span><span id="disp-lambda" class="text-violet-700">1.5 cm</span></span><input type="range" id="in-lambda" min="0.5" max="3" step="0.1" value="1.5"></label>
+                <label class="block mb-3"><span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1"><span data-i18n="labelFreq">頻率 \(f\)</span><span id="disp-f" class="text-violet-700">1.0 Hz</span></span><input type="range" id="in-freq" min="0.5" max="3" step="0.1" value="1"></label>
+                <label id="row-gap" class="block mb-3"><span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1"><span data-i18n="labelGap">縫寬 \(a\)</span><span id="disp-gap" class="text-violet-700">1.5 cm</span></span><input type="range" id="in-gap" min="0.4" max="6" step="0.1" value="1.5"></label>
+                <label id="row-obs" class="block mb-3 hidden"><span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1"><span data-i18n="labelObs">障礙物寬度 \(w\)</span><span id="disp-obs" class="text-violet-700">1.5 cm</span></span><input type="range" id="in-obs" min="0.4" max="8" step="0.1" value="1.5"></label>
+                <label class="block mb-3"><span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1"><span data-i18n="labelBarX">障礙位置</span><span id="disp-barX" class="text-violet-700">0.0 cm</span></span><input type="range" id="in-barX" min="-4" max="6" step="0.5" value="0"></label>
+                <div class="space-y-1.5">
+                    <label class="check-row"><input type="checkbox" id="in-rings" checked><span data-i18n="showRings">顯示波前</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-shadow" checked><span data-i18n="showShadow">標示幾何陰影區</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-spread" checked><span data-i18n="showSpread">顯示法線與衍射角 θ</span></label>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-violet-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="stat-card"><span>\(v=f\lambda\)</span><span id="val-v" class="block mt-1 font-bold">—</span></div>
+                    <div class="stat-card"><span id="ratio-label">a / λ</span><span id="val-ratio" class="block mt-1 font-bold text-violet-700">—</span></div>
+                </div>
+                <div class="flex justify-between py-1 border-b border-dashed"><span data-i18n="statTheta">估算衍射角 \(\theta\)</span><b id="val-theta">—</b></div>
+                <div id="diff-badge" class="mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-violet-50 text-violet-700 border border-violet-200">—</div>
+                <div id="eq-slit" class="mj-eq mt-3 text-xs bg-slate-900 text-emerald-300 border border-slate-700 rounded-xl p-2">\( a \sim \lambda \Rightarrow \) 衍射顯著；\( \sin\theta \approx \lambda/a \)</div>
+                <div id="eq-obs" class="mj-eq mt-3 text-xs bg-slate-900 text-emerald-300 border border-slate-700 rounded-xl p-2 hidden">\( w \sim \lambda \Rightarrow \) 衍射顯著；\( \sin\theta \approx \lambda/w \)</div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-2 flex flex-col gap-2 min-h-[480px]">
+            <div class="flex flex-wrap gap-2 items-center justify-between px-1">
+                <div class="flex gap-1.5">
+                    <button type="button" class="view-tab active" data-view="split" data-i18n="viewSplit">上下對照</button>
+                    <button type="button" class="view-tab" data-view="3d" data-i18n="view3d">3D 水波</button>
+                    <button type="button" class="view-tab" data-view="2d" data-i18n="view2d">俯視圖</button>
+                </div>
+                <p class="text-[10px] text-slate-400" data-i18n="drag3d">3D 視窗可拖曳旋轉視角</p>
+            </div>
+            <div id="stage" class="relative bg-slate-950 rounded-3xl shadow-xl overflow-hidden border border-slate-700 flex-1 min-h-[420px] flex flex-col layout-split">
+                <div id="view-3d" class="relative w-full"><div class="absolute top-3 left-3 z-10 bg-slate-900/75 text-slate-200 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-600" data-i18n="label3d">3D 模型</div></div>
+                <div id="view-2d-wrap" class="relative w-full border-t border-slate-700">
+                    <div id="label-2d" class="absolute top-3 left-3 z-10 bg-slate-900/75 text-slate-200 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-600" data-i18n="label2dSlit">俯視圖（縫隙衍射）</div>
+                    <canvas id="canvas-2d" class="w-full h-full"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-violet-500 to-purple-600 p-5 text-white flex justify-between"><h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">水波衍射原理</h2><button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15">✕</button></div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <p class="text-xs" data-i18n="m1d">水波槽以<strong>振盪條</strong>產生直線波前。波遇到縫隙或有限寬障礙物時，不再只沿直線前進，而會向兩側<strong>擴散</strong>，稱為衍射。孔徑與波長相若時最明顯。</p>
+                <div class="mj-box bg-slate-900 text-emerald-300 rounded-xl p-4">$$ \sin\theta \approx \frac{\lambda}{a}\ \text{（縫隙）}\qquad \sin\theta \approx \frac{\lambda}{w}\ \text{（障礙物）} $$</div>
+                <p class="text-xs" data-i18n="m2d">依惠更斯原理，縫上（或障礙物邊緣的開口）各點可視為新的子波源。a ≫ λ 或 w ≫ λ 時幾何陰影清晰，衍射不明顯；孔徑愈接近 λ，波愈會彎入陰影區。</p>
+            </div>
+            <div class="p-4 border-t flex justify-end"><button type="button" id="modal-confirm" class="px-5 py-2 bg-violet-600 text-white font-bold rounded-xl text-sm" data-i18n="btnOk">明白了</button></div>
+        </div>
+    </div>
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-violet-500 to-purple-600 p-5 text-white flex justify-between"><h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2><button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15">✕</button></div>
+            <div class="p-6 space-y-3 text-sm text-slate-700">
+                <p data-i18n="s1">1. 播放動畫，確認入射是直線波前，再觀察它們穿過縫隙後如何向兩側擴散。</p>
+                <p data-i18n="s2">2. 切換到「障礙物」，對照波繞過邊緣、填入幾何陰影的情形。</p>
+                <p data-i18n="s3">3. 改變縫寬 a 或障礙物寬度 w，並與波長 λ 比較：愈接近 λ，衍射愈明顯。</p>
+                <p data-i18n="s4">4. 開啟／關閉「顯示衍射角 θ」，讀取估算角並對照波前擴散程度。</p>
+            </div>
+            <div class="p-4 border-t flex justify-end"><button type="button" id="steps-confirm" class="px-5 py-2 bg-violet-600 text-white font-bold rounded-xl text-sm" data-i18n="btnOk">開始實驗</button></div>
+        </div>
+    </div>
+
+<script>
+const PI = Math.PI;
+const GEN_X = -12;
+const PRESETS = {
+    slitStrong: { mode: 'slit', lambda: 1.5, freq: 1, gap: 1.5, obsW: 1.5, barX: 0 },
+    slitWeak: { mode: 'slit', lambda: 1.0, freq: 1, gap: 4.8, obsW: 1.5, barX: 0 },
+    obsStrong: { mode: 'obstacle', lambda: 1.5, freq: 1, gap: 1.5, obsW: 1.5, barX: 0 },
+    obsWide: { mode: 'obstacle', lambda: 1.0, freq: 1, gap: 1.5, obsW: 6.0, barX: 0 }
+};
+const i18n = {
+    zh: {
+        title: '水波的衍射現象', badge: '物理', subtitle: '直線水波、縫隙／障礙物衍射與 a／λ 判斷',
+        btnSteps: '觀察步驟', btnPrinciple: '原理解說', btnOk: '明白了',
+        controlTitle: '實驗控制', modeTitle: '衍射方式', modeSlit: '縫隙', modeObstacle: '障礙物',
+        incidentNote: '入射為直線水波（水波槽振盪條），不是圓形波源。',
+        presets: '教學情境',
+        preSlitStrong: '① 縫隙明顯衍射（a ≈ λ）', preSlitWeak: '② 縫隙弱衍射（a ≫ λ）',
+        preObsStrong: '③ 障礙物明顯衍射（w ≈ λ）', preObsWide: '④ 寬障礙物（w ≫ λ）',
+        pause: '暫停', play: '播放', reset: '重置',
+        labelTime: '時間 t', labelLambda: '波長 \\(\\lambda\\)', labelFreq: '頻率 \\(f\\)',
+        labelGap: '縫寬 \\(a\\)', labelObs: '障礙物寬度 \\(w\\)', labelBarX: '障礙位置',
+        labelGen: '直線波源',
+        showRings: '顯示波前', showShadow: '標示幾何陰影區', showSpread: '顯示法線與衍射角 θ', normalLbl: 'N',
+        liveTitle: '即時數據', statTheta: '估算衍射角 \\(\\theta\\)',
+        badgeStrong: '顯著衍射（孔徑 ≈ λ）', badgeWeak: '弱衍射（孔徑 ≫ λ）', badgeMid: '中等衍射',
+        viewSplit: '上下對照', view3d: '3D 水波', view2d: '俯視圖', drag3d: '3D 視窗可拖曳旋轉視角',
+        label3d: '3D 模型', label2dSlit: '俯視圖（縫隙衍射）', label2dObs: '俯視圖（障礙物衍射）',
+        modalTitle: '水波衍射原理',
+        m1d: '水波槽以<strong>振盪條</strong>產生直線波前。波遇到縫隙或有限寬障礙物時，不再只沿直線前進，而會向兩側<strong>擴散</strong>，稱為衍射。孔徑與波長相若時最明顯。',
+        m2d: '依惠更斯原理，縫上（或障礙物邊緣的開口）各點可視為新的子波源。a ≫ λ 或 w ≫ λ 時幾何陰影清晰，衍射不明顯；孔徑愈接近 λ，波愈會彎入陰影區。',
+        stepsTitle: '觀察步驟',
+        s1: '1. 播放動畫，確認入射是直線波前，再觀察它們穿過縫隙後如何向兩側擴散。',
+        s2: '2. 切換到「障礙物」，對照波繞過邊緣、填入幾何陰影的情形。',
+        s3: '3. 改變縫寬 a 或障礙物寬度 w，並與波長 λ 比較：愈接近 λ，衍射愈明顯。',
+        s4: '4. 開啟／關閉「顯示衍射角 θ」，讀取估算角並對照波前擴散程度。'
+    },
+    en: {
+        title: 'Water Wave Diffraction', badge: 'Physics', subtitle: 'Plane waves, slit / obstacle diffraction & a/λ',
+        btnSteps: 'Steps', btnPrinciple: 'Theory', btnOk: 'Got it',
+        controlTitle: 'Controls', modeTitle: 'Diffraction setup', modeSlit: 'Slit', modeObstacle: 'Obstacle',
+        incidentNote: 'Incident waves are plane (straight) wavefronts from a vibrating bar, not a circular source.',
+        presets: 'Teaching presets',
+        preSlitStrong: '① Strong slit diffraction (a ≈ λ)', preSlitWeak: '② Weak slit diffraction (a ≫ λ)',
+        preObsStrong: '③ Strong obstacle diffraction (w ≈ λ)', preObsWide: '④ Wide obstacle (w ≫ λ)',
+        pause: 'Pause', play: 'Play', reset: 'Reset',
+        labelTime: 'Time t', labelLambda: 'Wavelength λ', labelFreq: 'Frequency f',
+        labelGap: 'Slit width a', labelObs: 'Obstacle width w', labelBarX: 'Barrier position',
+        labelGen: 'Plane source',
+        showRings: 'Show wavefronts', showShadow: 'Mark geometric shadow', showSpread: 'Show normal & diffraction angle θ', normalLbl: 'N',
+        liveTitle: 'Live data', statTheta: 'Estimated diffraction angle θ',
+        badgeStrong: 'Strong diffraction (size ≈ λ)', badgeWeak: 'Weak diffraction (size ≫ λ)', badgeMid: 'Moderate diffraction',
+        viewSplit: 'Split view', view3d: '3D ripples', view2d: 'Top-down', drag3d: 'Drag in 3D panel to orbit',
+        label3d: '3D model', label2dSlit: 'Top-down (slit)', label2dObs: 'Top-down (obstacle)',
+        modalTitle: 'Diffraction principle',
+        m1d: 'A vibrating bar launches <strong>plane</strong> wavefronts. Waves spread after a slit or around a finite obstacle — diffraction. Strongest when the aperture is comparable to <strong>λ</strong>.',
+        m2d: 'By Huygens, points in the slit (or along the openings beside an obstacle) act as secondary sources. When a ≫ λ or w ≫ λ the geometric shadow is sharp; as the size approaches λ, waves bend into the shadow.',
+        stepsTitle: 'Observation steps',
+        s1: '1. Play the animation: confirm incident plane wavefronts, then watch them spread after the slit.',
+        s2: '2. Switch to Obstacle and compare waves bending around the edges into the geometric shadow.',
+        s3: '3. Change slit width a or obstacle width w and compare with λ — closer to λ means stronger diffraction.',
+        s4: '4. Toggle “Show diffraction angle θ” and compare the estimate with the spreading wavefronts.'
+    }
+};
+let lang = 'zh';
+const state = {
+    playing: true, time: 0, lambda: 1.5, freq: 1, gap: 1.5, obsW: 1.5, barX: 0,
+    mode: 'slit', showRings: true, showShadow: true, showSpread: true
+};
+const canvas2d = document.getElementById('canvas-2d');
+const ctx2d = canvas2d.getContext('2d');
+const stage = document.getElementById('stage');
+const btnPlay = document.getElementById('btn-play');
+const inTime = document.getElementById('in-time');
+const CAM_HOME = { camTheta: 0, camPhi: 0.02, camR: 46, targetY: 0 };
+const three = { ...CAM_HOME };
+
+function omega() { return 2 * PI * state.freq; }
+function waveSpeed() { return state.freq * state.lambda; }
+function currentSize() { return state.mode === 'slit' ? state.gap : state.obsW; }
+function halfAperture() { return currentSize() / 2; }
+function thetaRad() { return Math.asin(Math.min(1, state.lambda / Math.max(0.05, currentSize()))); }
+
+function layout(w, h) {
+    const scale = Math.min(w / 34, h / 20);
+    const cx = w / 2, cy = h / 2;
+    return { scale, cx, cy, toPx: (x, y) => ({ x: cx + x * scale, y: cy - y * scale }) };
+}
+
+function syncModeUI() {
+    const slit = state.mode === 'slit';
+    document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === state.mode));
+    document.getElementById('row-gap').classList.toggle('hidden', !slit);
+    document.getElementById('row-obs').classList.toggle('hidden', slit);
+    document.getElementById('eq-slit').classList.toggle('hidden', !slit);
+    document.getElementById('eq-obs').classList.toggle('hidden', slit);
+    const tr = i18n[lang];
+    const lab = document.getElementById('label-2d');
+    lab.textContent = slit ? tr.label2dSlit : tr.label2dObs;
+    document.getElementById('ratio-label').textContent = slit ? 'a / λ' : 'w / λ';
+}
+
+function init3D() {
+    const mount = document.getElementById('view-3d');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020617);
+    const camera = new THREE.PerspectiveCamera(45, mount.clientWidth / mount.clientHeight, 0.1, 200);
+    three.camera = camera;
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    mount.appendChild(renderer.domElement);
+    three.renderer = renderer;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.95);
+    dir.position.set(8, 18, 28);
+    scene.add(dir);
+
+    const vs = `
+        uniform float uTime, uLambda, uOmega, uSize, uBarX, uMode, uTheta;
+        varying float vEl;
+        const float PI = 3.14159265359;
+        float angFalloff(float ang, float theta){
+            float a = abs(ang);
+            float inner = theta * 0.5;
+            float outer = max(theta * 1.28, theta + 0.07);
+            return 1.0 - smoothstep(inner, outer, a);
+        }
+        void main(){
+            vec2 q = vec2(position.x, position.y);
+            float k = 2.0 * PI / uLambda;
+            float gh = uSize * 0.5;
+            float inc = sin(k * q.x - uTime * uOmega);
+            float v = 0.0;
+            float theta = uTheta;
+            if (q.x < uBarX) {
+                v = inc;
+            } else if (uMode < 0.5) {
+                for (int i = 0; i <= 16; i++) {
+                    float gy = -gh + (2.0 * gh * float(i)) / 16.0;
+                    float r = length(q - vec2(uBarX, gy));
+                    v += sin(k * r + k * uBarX - uTime * uOmega) / (1.0 + r * 0.08);
+                }
+                v *= 1.25 / 17.0;
+                float ang = atan(q.y, max(0.001, q.x - uBarX));
+                float geom = 1.0 - smoothstep(gh, gh + 0.4, abs(q.y));
+                v *= max(geom, angFalloff(ang, theta));
+            } else {
+                float mask = smoothstep(-0.28, 0.28, abs(q.y) - gh);
+                v = inc * mask;
+                float ph = k * uBarX - uTime * uOmega;
+                float r1 = length(q - vec2(uBarX, gh));
+                float r2 = length(q - vec2(uBarX, -gh));
+                float into1 = atan(gh - q.y, max(0.001, q.x - uBarX));
+                float into2 = atan(q.y + gh, max(0.001, q.x - uBarX));
+                float env1 = into1 < -0.04 ? 0.0 : angFalloff(max(into1, 0.0), theta);
+                float env2 = into2 < -0.04 ? 0.0 : angFalloff(max(into2, 0.0), theta);
+                v += 0.5 * sin(k * r1 + ph) / (1.0 + r1 * 0.1) * env1;
+                v += 0.5 * sin(k * r2 + ph) / (1.0 + r2 * 0.1) * env2;
+            }
+            vec3 pos = position; pos.z = v * 0.7; vEl = v;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }`;
+    const fs = `varying float vEl; void main(){ vec3 c=mix(vec3(0.04,0.18,0.38),vec3(0.25,0.65,1.0),smoothstep(-0.55,0.55,vEl)); gl_FragColor=vec4(c,1.0); }`;
+    const mat = new THREE.ShaderMaterial({
+        vertexShader: vs, fragmentShader: fs, side: THREE.DoubleSide,
+        uniforms: {
+            uTime: { value: 0 }, uLambda: { value: state.lambda }, uOmega: { value: omega() },
+            uSize: { value: currentSize() }, uBarX: { value: state.barX }, uMode: { value: 0 },
+            uTheta: { value: thetaRad() }
+        }
+    });
+    three.material = mat;
+    scene.add(new THREE.Mesh(new THREE.PlaneGeometry(60, 60, 220, 220), mat));
+
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0xcbd5e1 });
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    three.barTop = new THREE.Mesh(unit, wallMat);
+    three.barBot = new THREE.Mesh(unit, wallMat);
+    three.barObs = new THREE.Mesh(unit, wallMat);
+    scene.add(three.barTop, three.barBot, three.barObs);
+    const genMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+    three.genBar = new THREE.Mesh(unit, genMat);
+    three.genBar.scale.set(0.45, 28, 1.1);
+    three.genBar.position.set(GEN_X, 0, 0.55);
+    scene.add(three.genBar);
+
+    const loop = () => {
+        requestAnimationFrame(loop);
+        mat.uniforms.uTime.value = state.time;
+        mat.uniforms.uLambda.value = state.lambda;
+        mat.uniforms.uOmega.value = omega();
+        mat.uniforms.uSize.value = currentSize();
+        mat.uniforms.uBarX.value = state.barX;
+        mat.uniforms.uMode.value = state.mode === 'obstacle' ? 1 : 0;
+        mat.uniforms.uTheta.value = thetaRad();
+        updateBarriers();
+        updateCamera();
+        if (mount.clientWidth >= 10 && mount.clientHeight >= 10) renderer.render(scene, camera);
+    };
+    loop();
+    renderer.domElement.addEventListener('pointerdown', e => {
+        three.dragging = true; three.lastX = e.clientX; three.lastY = e.clientY;
+        renderer.domElement.setPointerCapture(e.pointerId);
+    });
+    renderer.domElement.addEventListener('pointermove', e => {
+        if (!three.dragging) return;
+        three.camTheta += (e.clientX - three.lastX) * 0.008;
+        three.camPhi = Math.max(0.0, Math.min(1.2, three.camPhi + (e.clientY - three.lastY) * 0.008));
+        three.lastX = e.clientX; three.lastY = e.clientY;
+    });
+    renderer.domElement.addEventListener('pointerup', () => { three.dragging = false; });
+}
+
+function updateBarriers() {
+    if (!three.barTop) return;
+    const bx = state.barX, tank = 30, zH = 2.5, zMid = 1.25, thick = 0.55;
+    if (state.mode === 'slit') {
+        const gh = state.gap / 2;
+        const len = Math.max(0.25, tank - gh);
+        const mid = (tank + gh) / 2;
+        three.barTop.visible = true;
+        three.barBot.visible = true;
+        three.barObs.visible = false;
+        three.barTop.position.set(bx, mid, zMid);
+        three.barTop.scale.set(thick, len, zH);
+        three.barBot.position.set(bx, -mid, zMid);
+        three.barBot.scale.set(thick, len, zH);
+    } else {
+        three.barTop.visible = false;
+        three.barBot.visible = false;
+        three.barObs.visible = true;
+        three.barObs.position.set(bx, 0, zMid);
+        three.barObs.scale.set(thick, Math.max(0.25, state.obsW), zH);
+    }
+}
+
+function updateCamera() {
+    const { camR, camTheta, camPhi, camera, targetY = 0 } = three;
+    const sinP = Math.sin(camPhi), cosP = Math.cos(camPhi);
+    camera.position.set(camR * sinP * Math.sin(camTheta), targetY + camR * sinP * Math.cos(camTheta), camR * cosP);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(0, targetY, 0);
+}
+
+function resize3D() {
+    const m = document.getElementById('view-3d');
+    if (!three.renderer || m.clientWidth < 10) return;
+    three.camera.aspect = m.clientWidth / m.clientHeight;
+    three.camera.updateProjectionMatrix();
+    three.renderer.setSize(m.clientWidth, m.clientHeight);
+}
+function resize2D() {
+    const p = document.getElementById('view-2d-wrap');
+    canvas2d.width = p.clientWidth;
+    canvas2d.height = p.clientHeight;
+}
+
+function crestPositions() {
+    const vt = state.time * waveSpeed();
+    const xs = [];
+    for (let n = -6; n < 28; n++) xs.push(vt + state.lambda * 0.25 - n * state.lambda);
+    return xs;
+}
+
+function draw2D() {
+    const w = canvas2d.width, h = canvas2d.height;
+    if (w < 2) { updateStats(); return; }
+    const { scale, cy, toPx } = layout(w, h);
+    const bx = toPx(state.barX, 0).x;
+    const gh = halfAperture() * scale;
+    const midY = cy;
+    const tr = i18n[lang];
+
+    ctx2d.fillStyle = '#020617';
+    ctx2d.fillRect(0, 0, w, h);
+
+    if (state.showShadow) {
+        ctx2d.fillStyle = 'rgba(15, 23, 42, 0.55)';
+        if (state.mode === 'slit') {
+            ctx2d.fillRect(bx, 0, w - bx, Math.max(0, midY - gh));
+            ctx2d.fillRect(bx, midY + gh, w - bx, Math.max(0, h - (midY + gh)));
+        } else {
+            ctx2d.fillRect(bx, midY - gh, w - bx, 2 * gh);
+        }
+    }
+
+    if (state.showRings) {
+        const crests = crestPositions();
+        ctx2d.save();
+        ctx2d.beginPath();
+        ctx2d.rect(0, 0, bx, h);
+        ctx2d.clip();
+        crests.forEach(xCm => {
+            if (xCm < GEN_X || xCm > state.barX) return;
+            const xPx = toPx(xCm, 0).x;
+            ctx2d.strokeStyle = 'rgba(56,189,248,0.85)';
+            ctx2d.lineWidth = 2;
+            ctx2d.beginPath();
+            ctx2d.moveTo(xPx, 8);
+            ctx2d.lineTo(xPx, h - 8);
+            ctx2d.stroke();
+        });
+        ctx2d.restore();
+
+        const spread = thetaRad();
+        ctx2d.save();
+        ctx2d.beginPath();
+        ctx2d.rect(bx, 0, Math.max(0, w - bx), h);
+        ctx2d.clip();
+        crests.forEach(xCm => {
+            const r = xCm - state.barX;
+            if (r <= 0.05) return;
+            const rPx = r * scale;
+            const fade = Math.max(0, 0.78 - r / 18);
+            ctx2d.lineWidth = 1.8;
+            if (state.mode === 'slit') {
+                ctx2d.strokeStyle = `rgba(125,211,252,${fade})`;
+                ctx2d.beginPath();
+                ctx2d.moveTo(bx + rPx, midY - gh);
+                ctx2d.lineTo(bx + rPx, midY + gh);
+                ctx2d.stroke();
+                if (spread > 0.03) {
+                    ctx2d.strokeStyle = `rgba(167,139,250,${fade})`;
+                    ctx2d.beginPath();
+                    ctx2d.arc(bx, midY - gh, rPx, -spread, 0, false);
+                    ctx2d.stroke();
+                    ctx2d.beginPath();
+                    ctx2d.arc(bx, midY + gh, rPx, 0, spread, false);
+                    ctx2d.stroke();
+                }
+            } else {
+                ctx2d.strokeStyle = `rgba(125,211,252,${Math.min(0.9, fade + 0.15)})`;
+                ctx2d.lineWidth = 2;
+                ctx2d.beginPath();
+                ctx2d.moveTo(bx + rPx, 8);
+                ctx2d.lineTo(bx + rPx, midY - gh);
+                ctx2d.stroke();
+                ctx2d.beginPath();
+                ctx2d.moveTo(bx + rPx, midY + gh);
+                ctx2d.lineTo(bx + rPx, h - 8);
+                ctx2d.stroke();
+                if (spread > 0.03) {
+                    ctx2d.strokeStyle = `rgba(167,139,250,${fade})`;
+                    ctx2d.lineWidth = 1.8;
+                    ctx2d.save();
+                    ctx2d.beginPath();
+                    ctx2d.rect(bx, midY - gh, Math.max(0, w - bx), 2 * gh);
+                    ctx2d.clip();
+                    ctx2d.beginPath();
+                    ctx2d.arc(bx, midY - gh, rPx, 0, spread, false);
+                    ctx2d.stroke();
+                    ctx2d.beginPath();
+                    ctx2d.arc(bx, midY + gh, rPx, -spread, 0, false);
+                    ctx2d.stroke();
+                    ctx2d.restore();
+                }
+            }
+        });
+        ctx2d.restore();
+    }
+
+    ctx2d.strokeStyle = '#94a3b8';
+    ctx2d.fillStyle = '#cbd5e1';
+    ctx2d.lineWidth = 1;
+    if (state.mode === 'slit') {
+        ctx2d.fillRect(bx - 5, 0, 10, Math.max(0, midY - gh));
+        ctx2d.fillRect(bx - 5, midY + gh, 10, Math.max(0, h - (midY + gh)));
+        ctx2d.strokeStyle = '#a78bfa';
+        ctx2d.lineWidth = 2;
+        ctx2d.strokeRect(bx - 5, midY - gh, 10, 2 * gh);
+    } else {
+        ctx2d.fillRect(bx - 5, midY - gh, 10, 2 * gh);
+        ctx2d.strokeStyle = '#a78bfa';
+        ctx2d.lineWidth = 2;
+        ctx2d.strokeRect(bx - 5, midY - gh, 10, 2 * gh);
+    }
+
+    if (state.showSpread) drawSpreadAngle(bx, midY, scale, gh);
+
+    const genPx = toPx(GEN_X, 0);
+    const gx = Math.max(14, genPx.x);
+    ctx2d.fillStyle = '#facc15';
+    roundRect(ctx2d, gx - 6, 16, 12, h - 32, 4);
+    ctx2d.fill();
+    ctx2d.save();
+    ctx2d.fillStyle = '#fde68a';
+    ctx2d.font = 'bold 11px "Noto Sans TC", sans-serif';
+    ctx2d.translate(gx - 18, h / 2);
+    ctx2d.rotate(-PI / 2);
+    ctx2d.textAlign = 'center';
+    ctx2d.fillText(tr.labelGen, 0, 0);
+    ctx2d.restore();
+
+    updateStats();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+function drawEdgeNormalAngle(bx, ey, spreadSign, len, theta, arcR, tr, deg) {
+    ctx2d.setLineDash([]);
+    ctx2d.strokeStyle = 'rgba(148, 163, 184, 0.95)';
+    ctx2d.lineWidth = 1.6;
+    ctx2d.beginPath();
+    ctx2d.moveTo(bx, ey);
+    ctx2d.lineTo(bx + len, ey);
+    ctx2d.stroke();
+
+    ctx2d.setLineDash([5, 4]);
+    ctx2d.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+    ctx2d.beginPath();
+    ctx2d.moveTo(bx, ey);
+    ctx2d.lineTo(bx + Math.cos(theta) * len, ey + spreadSign * Math.sin(theta) * len);
+    ctx2d.stroke();
+
+    ctx2d.setLineDash([]);
+    ctx2d.beginPath();
+    for (let a = 0; a <= theta; a += 0.04) {
+        const px = bx + arcR * Math.cos(a);
+        const py = ey + spreadSign * arcR * Math.sin(a);
+        if (a === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
+    }
+    ctx2d.stroke();
+
+    ctx2d.fillStyle = 'rgba(148, 163, 184, 0.95)';
+    ctx2d.fillText(tr.normalLbl, bx + len * 0.58, ey - 5 * spreadSign);
+    ctx2d.fillStyle = 'rgba(253, 224, 71, 0.95)';
+    const la = theta * 0.45;
+    ctx2d.fillText('θ = ' + deg, bx + (arcR + 12) * Math.cos(la), ey + spreadSign * (arcR + 12) * Math.sin(la));
+}
+
+function drawSpreadAngle(bx, midY, scale, gh) {
+    const theta = thetaRad();
+    const len = Math.max(70, 6.5 * scale);
+    const arcR = Math.min(42, len * 0.62);
+    const deg = (theta * 180 / PI).toFixed(0) + '°';
+    const tr = i18n[lang];
+    const topY = midY - gh;
+    const botY = midY + gh;
+    ctx2d.save();
+    ctx2d.lineWidth = 1.7;
+    ctx2d.font = 'bold 12px "Noto Sans TC", sans-serif';
+    // 縫隙：上緣波彎入上方陰影（−y），下緣彎入下方陰影（+y）；障礙物相反
+    if (state.mode === 'slit') {
+        drawEdgeNormalAngle(bx, topY, -1, len, theta, arcR, tr, deg);
+        drawEdgeNormalAngle(bx, botY, 1, len, theta, arcR, tr, deg);
+    } else {
+        drawEdgeNormalAngle(bx, topY, 1, len, theta, arcR, tr, deg);
+        drawEdgeNormalAngle(bx, botY, -1, len, theta, arcR, tr, deg);
+    }
+    ctx2d.restore();
+}
+
+function updateStats() {
+    document.getElementById('disp-t').textContent = state.time.toFixed(2) + ' s';
+    document.getElementById('disp-lambda').textContent = state.lambda.toFixed(1) + ' cm';
+    document.getElementById('disp-f').textContent = state.freq.toFixed(1) + ' Hz';
+    document.getElementById('disp-gap').textContent = state.gap.toFixed(1) + ' cm';
+    document.getElementById('disp-obs').textContent = state.obsW.toFixed(1) + ' cm';
+    document.getElementById('disp-barX').textContent = state.barX.toFixed(1) + ' cm';
+    document.getElementById('val-v').textContent = waveSpeed().toFixed(2) + ' cm/s';
+    const ratio = currentSize() / state.lambda;
+    document.getElementById('val-ratio').textContent = ratio.toFixed(2);
+    document.getElementById('val-theta').textContent = (thetaRad() * 180 / PI).toFixed(1) + '°';
+    const badge = document.getElementById('diff-badge');
+    const tr = i18n[lang];
+    if (ratio < 1.3) {
+        badge.textContent = tr.badgeStrong;
+        badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300';
+    } else if (ratio > 2.5) {
+        badge.textContent = tr.badgeWeak;
+        badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200';
+    } else {
+        badge.textContent = tr.badgeMid;
+        badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200';
+    }
+}
+
+function applyPreset(n) {
+    const p = PRESETS[n]; if (!p) return;
+    Object.assign(state, p);
+    document.getElementById('in-lambda').value = state.lambda;
+    document.getElementById('in-freq').value = state.freq;
+    document.getElementById('in-gap').value = state.gap;
+    document.getElementById('in-obs').value = state.obsW;
+    document.getElementById('in-barX').value = state.barX;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === n));
+    syncModeUI();
+}
+
+function setMode(mode) {
+    state.mode = mode;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    syncModeUI();
+    draw2D();
+}
+
+function resetAll() {
+    applyPreset('slitStrong');
+    state.time = 0;
+    state.playing = true;
+    inTime.value = '0';
+    three.camTheta = CAM_HOME.camTheta;
+    three.camPhi = CAM_HOME.camPhi;
+    three.camR = CAM_HOME.camR;
+    btnPlay.textContent = i18n[lang].pause;
+}
+
+function setViewLayout(mode) {
+    stage.className = `relative bg-slate-950 rounded-3xl shadow-xl overflow-hidden border border-slate-700 flex-1 min-h-[420px] flex flex-col layout-${mode}`;
+    document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === mode));
+    const fit = () => { resize3D(); resize2D(); draw2D(); };
+    requestAnimationFrame(() => { fit(); requestAnimationFrame(fit); });
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.innerHTML = i18n[lang][k];
+    });
+    btnPlay.textContent = state.playing ? i18n[lang].pause : i18n[lang].play;
+    syncModeUI();
+    updateStats();
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise();
+}
+function openModal(el) { el.classList.add('open'); if (window.MathJax?.typesetPromise) MathJax.typesetPromise([el]); }
+function closeModal(el) { el.classList.remove('open'); }
+
+document.querySelectorAll('.mode-tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+document.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => { applyPreset(b.dataset.preset); draw2D(); }));
+document.querySelectorAll('.view-tab').forEach(t => t.addEventListener('click', () => setViewLayout(t.dataset.view)));
+btnPlay.addEventListener('click', () => { state.playing = !state.playing; btnPlay.textContent = state.playing ? i18n[lang].pause : i18n[lang].play; });
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+inTime.addEventListener('input', e => { state.time = +e.target.value; state.playing = false; btnPlay.textContent = i18n[lang].play; draw2D(); });
+const sliderKeys = { 'in-lambda': 'lambda', 'in-freq': 'freq', 'in-gap': 'gap', 'in-obs': 'obsW', 'in-barX': 'barX' };
+Object.keys(sliderKeys).forEach(id => document.getElementById(id).addEventListener('input', e => {
+    state[sliderKeys[id]] = +e.target.value;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    draw2D();
+}));
+document.getElementById('in-rings').addEventListener('change', e => { state.showRings = e.target.checked; draw2D(); });
+document.getElementById('in-shadow').addEventListener('change', e => { state.showShadow = e.target.checked; draw2D(); });
+document.getElementById('in-spread').addEventListener('change', e => { state.showSpread = e.target.checked; draw2D(); });
+document.getElementById('btn-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); });
+document.getElementById('btn-lang-mobile').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); });
+const mp = document.getElementById('modal-principle'), ms = document.getElementById('modal-steps');
+document.getElementById('btn-principle').addEventListener('click', () => openModal(mp));
+document.getElementById('btn-steps').addEventListener('click', () => openModal(ms));
+['modal-close', 'modal-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(mp)));
+['steps-close', 'steps-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(ms)));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(mp); closeModal(ms); } });
+
+function loop() {
+    if (state.playing) {
+        state.time += 1 / 60;
+        if (state.time > 10) state.time %= 10;
+        inTime.value = state.time.toFixed(2);
+    }
+    draw2D();
+    requestAnimationFrame(loop);
+}
+window.addEventListener('resize', () => { resize3D(); resize2D(); draw2D(); });
+if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => { resize3D(); resize2D(); });
+    ro.observe(document.getElementById('view-3d'));
+    ro.observe(document.getElementById('view-2d-wrap'));
+}
+init3D(); resize2D(); applyLang(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>

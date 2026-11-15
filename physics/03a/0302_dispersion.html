@@ -3,681 +3,1021 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>三稜鏡光線色散實驗</title>
+    <title>色散和可見光譜 | Dispersion and Visible Spectrum</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
     <style>
-        body {
-            background-color: #0f172a; /* slate-900 */
-            color: #e2e8f0; /* slate-200 */
-            font-family: 'Noto Sans TC', sans-serif;
-            overflow: hidden;
-            touch-action: none;
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; touch-action: none; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #7c3aed; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
         }
-        canvas {
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
-        }
-        .checkbox-wrapper {
-            transition: all 0.2s;
-            border: 1px solid transparent;
-        }
-        .checkbox-wrapper:hover {
-            background-color: rgba(51, 65, 85, 0.5);
-        }
-        .checkbox-wrapper.active {
-            background-color: rgba(51, 65, 85, 0.8);
-            border-color: rgba(99, 102, 241, 0.3);
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-        }
-        .checkbox-wrapper input:checked + div {
-            opacity: 1;
-            transform: scale(1.1);
-            box-shadow: 0 0 8px currentColor;
-        }
-        .glow-text {
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-        }
-        .cursor-grab { cursor: grab; }
-        .cursor-grabbing { cursor: grabbing; }
-        
-        /* 語言切換按鈕樣式 */
-        .lang-btn {
-            @apply px-3 py-1 rounded text-sm font-medium transition-colors;
-        }
-        .lang-btn.active {
-            @apply bg-indigo-600 text-white;
-        }
-        .lang-btn.inactive {
-            @apply text-slate-400 hover:text-white hover:bg-slate-700;
-        }
+        .preset-btn { padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover { background: #f5f3ff; border-color: #c4b5fd; }
+        .preset-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .color-chip { transition: all .2s; border: 1px solid transparent; }
+        .color-chip:hover { background: #f8fafc; }
+        .color-chip.active { background: #f5f3ff; border-color: #c4b5fd; }
+        .color-chip input:checked + .chip-dot { transform: scale(1.15); box-shadow: 0 0 8px currentColor; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #c4b5fd; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #c4b5fd !important; }
+        .mj-calc { overflow-x: auto; font-size: 13px; line-height: 1.85; color: #334155; text-align: center; }
+        .calc-step { padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 8px; text-align: center; }
+        .calc-step:last-child { margin-bottom: 0; }
+        .white-badge { animation: pulse-white 1.8s ease-in-out infinite; }
+        @keyframes pulse-white { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+        .calc-chevron { transition: transform .2s ease; }
+        .calc-open .calc-chevron { transform: rotate(180deg); }
     </style>
 </head>
-<body class="flex flex-col h-screen w-screen bg-slate-950">
+<body class="h-full flex flex-col text-slate-800">
 
-    <!-- Header Bar -->
-    <header class="h-16 flex-shrink-0 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-6 z-20 shadow-lg">
-        <div class="flex items-center gap-4">
-            <h1 class="text-xl font-bold text-white glow-text flex items-center gap-2">
-                <span class="text-2xl">🌈</span> 
-                <span id="app-title">色散和可見光譜</span>
-            </h1>
-            <span class="text-slate-500 hidden md:inline">|</span>
-            <p id="app-subtitle" class="text-slate-400 text-sm hidden md:block">三稜鏡色散模擬器 v3.6</p>
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-md text-lg">🌈</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">色散和可見光譜</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">三稜鏡色散：波長愈短，折射率愈大</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
         </div>
-
-        <div class="flex items-center gap-4">
-            <!-- 實驗原理按鈕 -->
-            <button onclick="toggleModal(true)" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 font-medium shadow-lg shadow-indigo-500/20 text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                <span id="btn-theory">實驗原理</span>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-violet-50 text-violet-800 rounded-xl font-bold text-sm shadow-sm border border-violet-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
             </button>
-
-            <!-- 語言切換 -->
-            <button onclick="toggleLanguage()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors border border-slate-600 text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                <span id="lang-text">中 / EN</span>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
             </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
 
-    <!-- 主內容區：側邊欄 + 畫布 -->
-    <main class="flex flex-1 overflow-hidden">
-        
-        <!-- 左側控制面板 -->
-        <aside class="w-72 flex-shrink-0 bg-slate-900/50 border-r border-slate-700 p-6 flex flex-col z-10 backdrop-blur-sm">
-            <div class="space-y-4 mb-8">
-                <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-                    <p id="label-spectrum" class="text-sm font-semibold text-slate-300">光譜控制</p>
-                    <button id="btn-reset" onclick="resetColors()" class="text-xs text-slate-500 hover:text-white transition-colors bg-slate-800 px-2 py-1 rounded">重置</button>
+    <main class="flex-1 min-h-0 w-full max-w-[90rem] mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 overflow-auto lg:overflow-hidden">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="white" data-i18n="preWhite">① 白光：七色全開</button>
+                    <button type="button" class="preset-btn" data-preset="compare" data-i18n="preCompare">② 紅紫對比：色散最明顯</button>
+                    <button type="button" class="preset-btn" data-preset="mono" data-i18n="preMono">③ 單色綠光：無色散</button>
+                    <button type="button" class="preset-btn" data-preset="steep" data-i18n="preSteep">④ 較陡入射：偏折加大</button>
+                    <button type="button" class="preset-btn" data-preset="tir" data-i18n="preTir">⑤ 大角度：可能全內反射</button>
                 </div>
-                
-                <div id="controls-container" class="space-y-2"></div>
+
+                <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
+                    <p class="text-[11px] font-bold text-slate-600" data-i18n="labelSpectrum">光譜控制</p>
+                    <button type="button" id="btn-reset-colors" class="text-[10px] text-slate-500 hover:text-violet-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200" data-i18n="btnResetColors">全選</button>
+                </div>
+                <div id="controls-container" class="space-y-1 mb-4"></div>
+
+                <label class="block">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelAngle">光線方向</span>
+                        <span id="disp-angle" class="text-violet-700 font-mono">−15.0°</span>
+                    </span>
+                    <input type="range" id="in-angle" min="-90" max="90" step="0.5" value="-15">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>−90°</span>
+                        <span data-i18n="angleHint">拖曳光線可轉動方向</span>
+                        <span>+90°</span>
+                    </div>
+                </label>
+
+                <button type="button" id="btn-reset" class="w-full mt-3 py-2 rounded-xl font-bold text-sm bg-violet-600 hover:bg-violet-700 text-white" data-i18n="btnReset">重置場景</button>
             </div>
 
-            <div class="mt-auto">
-                <div id="white-light-status" class="mb-4 p-3 rounded bg-indigo-900/40 text-xs text-center hidden text-indigo-200 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
-                    <span id="txt-white-light">✨ 完美白光合成</span>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs space-y-2">
+                <div class="font-black text-violet-800 mb-1" data-i18n="liveTitle">即時數據</div>
+                <div id="white-light-status" class="hidden mb-2 p-2.5 rounded-xl bg-violet-50 text-violet-800 text-center font-bold border border-violet-200 white-badge">
+                    <span data-i18n="txtWhiteLight">✨ 七色合成白光</span>
                 </div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statI">入射角 i</span><b id="val-i">−15.0°</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statSpread">色散角 Δθ</span><b id="val-spread" class="text-fuchsia-700">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statRed">紅光出射角</span><b id="val-red-exit" class="text-red-600">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statViolet">紫光出射角</span><b id="val-violet-exit" class="text-purple-600">—</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statActive">啟用色光</span><b id="val-active">7 / 7</b></div>
+                <p class="text-[10px] text-slate-400 mt-2 leading-relaxed" data-i18n="spreadHint">Δθ = 紫光出射角 − 紅光出射角；波長愈短，n 愈大，偏折愈大。</p>
             </div>
         </aside>
 
-        <!-- 中央畫布區域 -->
-        <div class="flex-1 relative bg-slate-950 flex items-center justify-center overflow-hidden" id="canvas-container">
-            <div class="absolute top-4 left-4 text-slate-500 text-xs select-none z-10 pointer-events-none">
-                <ul class="space-y-1">
-                    <li class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-slate-400"></span> <span id="hint-prism">稜鏡已恢復正立狀態</span></li>
-                    <li class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-slate-400"></span> <span id="hint-light">光源從左下方射入</span></li>
-                </ul>
-            </div>
-            <canvas id="simulationCanvas" class="cursor-default"></canvas>
-        </div>
-    </main>
-
-    <!-- 實驗原理 Modal -->
-    <div id="principle-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
-        <div class="bg-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-600 shadow-2xl transform scale-95 transition-transform duration-300" id="modal-content">
-            <div class="p-6 border-b border-slate-700 flex justify-between items-center sticky top-0 bg-slate-800 z-10">
-                <h2 id="modal-title" class="text-xl font-bold text-white">真實玻璃的折射率</h2>
-                <button onclick="toggleModal(false)" class="text-slate-400 hover:text-white transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-            <div class="p-6 space-y-6 text-slate-300 leading-relaxed">
-                <div class="flex flex-col gap-4">
-                    <p id="modal-intro">
-                        本模擬採用光學實驗常見的<b>火石玻璃 (Flint Glass, F2)</b> 作為材質。不同波長的光對應的真實折射率 ($n$) 如下：
-                    </p>
-                    <div class="bg-slate-700/50 p-4 rounded border border-slate-600">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <ul class="space-y-2">
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-red" class="text-red-400 font-bold">紅光 (Red)</span> <span>n ≈ 1.613</span></li>
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-orange" class="text-orange-400 font-bold">橙光 (Orange)</span> <span>n ≈ 1.617</span></li>
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-yellow" class="text-yellow-400 font-bold">黃光 (Yellow)</span> <span>n ≈ 1.621</span></li>
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-green" class="text-green-400 font-bold">綠光 (Green)</span> <span>n ≈ 1.626</span></li>
-                            </ul>
-                            <ul class="space-y-2">
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-blue" class="text-blue-400 font-bold">藍光 (Blue)</span> <span>n ≈ 1.633</span></li>
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-indigo" class="text-indigo-400 font-bold">靛光 (Indigo)</span> <span>n ≈ 1.638</span></li>
-                                <li class="flex justify-between border-b border-slate-600/50 pb-1"><span id="lbl-violet" class="text-purple-400 font-bold">紫光 (Violet)</span> <span>n ≈ 1.643</span></li>
-                            </ul>
-                        </div>
-                        <p id="modal-note" class="mt-4 text-xs text-slate-400">
-                            * 註：我們將光源設定在較低的位置並略微向上射入正立的稜鏡，這樣可以產生良好的折射效果並避免全內反射。
-                        </p>
-                    </div>
+        <section class="order-1 lg:order-2 flex flex-col gap-3 min-h-0 lg:h-full">
+            <div id="canvas-wrap" class="relative bg-slate-950 rounded-3xl shadow-xl overflow-hidden border border-slate-800 flex-1 min-h-[560px] h-[min(74vh,820px)]">
+                <canvas id="simCanvas" class="absolute inset-0 w-full h-full bg-slate-950 cursor-crosshair"></canvas>
+                <div class="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 pointer-events-none space-y-0.5">
+                    <div data-i18n="hintPrism">拖曳稜鏡本體可移動；拖曳頂點可轉動</div>
+                    <div data-i18n="hintLight">拖曳光源可移動；拖曳光線可改變方向</div>
+                </div>
+                <div class="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200 p-2.5 text-[10px] space-y-1 pointer-events-none">
+                    <div class="flex items-center gap-2"><span class="w-5 h-1.5 rounded bg-white"></span><span data-i18n="legInc">入射白光</span></div>
+                    <div class="flex items-center gap-2"><span class="w-5 h-1 rounded bg-gradient-to-r from-red-500 via-green-400 to-violet-500"></span><span data-i18n="legDisp">色散後各色光</span></div>
                 </div>
             </div>
-            <div class="p-6 border-t border-slate-700 bg-slate-800/50 text-right">
-                <button id="btn-close" onclick="toggleModal(false)" class="px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors">
-                    關閉
+            <div id="calc-panel" class="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0">
+                <button type="button" id="btn-toggle-calc" class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded="false" aria-controls="calc-body">
+                    <h3 class="font-black text-violet-800 text-sm" data-i18n="calcTitle">斯涅耳定律與色散</h3>
+                    <span class="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                        <span id="calc-toggle-label" data-i18n="calcShow">顯示計算</span>
+                        <svg class="calc-chevron w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+                    </span>
                 </button>
+                <div id="calc-body" class="hidden px-4 pb-4 border-t border-slate-100 pt-3">
+                    <div id="calc-steps" class="mj-calc"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-violet-500 to-fuchsia-500 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">色散與可見光譜</h2>
+                    <p class="text-xs text-violet-100" data-i18n="modalSub">Dispersion in a triangular prism</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m1t">1. 甚麼是色散？</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">同一介質對不同波長的光折射率 n 並不相同：波長愈短（偏藍／紫），n 通常愈大。白光通過三稜鏡時，各色光偏折程度不同，因而分開成光譜。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 斯涅耳定律</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">光線在介面折射時，入射角 i 與折射角 r 滿足 n₁ sin i = n₂ sin r。本模擬採用光學實驗常見的火石玻璃 (F2)，各色光對應不同 n。</p>
+                    <div class="mj-box">\( n_1\sin i = n_2\sin r \)</div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                    <p class="text-xs font-bold text-slate-600 mb-2" data-i18n="mNtitle">火石玻璃 F2 折射率（示意）</p>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <div class="flex justify-between"><span class="text-red-500 font-bold" data-i18n="cRed">紅光</span><span>n ≈ 1.613</span></div>
+                        <div class="flex justify-between"><span class="text-orange-500 font-bold" data-i18n="cOrange">橙光</span><span>n ≈ 1.617</span></div>
+                        <div class="flex justify-between"><span class="text-yellow-600 font-bold" data-i18n="cYellow">黃光</span><span>n ≈ 1.621</span></div>
+                        <div class="flex justify-between"><span class="text-green-600 font-bold" data-i18n="cGreen">綠光</span><span>n ≈ 1.626</span></div>
+                        <div class="flex justify-between"><span class="text-blue-600 font-bold" data-i18n="cBlue">藍光</span><span>n ≈ 1.633</span></div>
+                        <div class="flex justify-between"><span class="text-indigo-600 font-bold" data-i18n="cIndigo">靛光</span><span>n ≈ 1.638</span></div>
+                        <div class="flex justify-between col-span-2"><span class="text-purple-600 font-bold" data-i18n="cViolet">紫光</span><span>n ≈ 1.643</span></div>
+                    </div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-fuchsia-50 p-3 rounded-xl border border-fuchsia-100">
+                        <h4 class="font-bold text-fuchsia-800 mb-1" data-i18n="m3t">為甚麼紫光偏折較大？</h4>
+                        <p data-i18n="m3d">紫光波長較短，玻璃對其折射率較高，依斯涅耳定律算出的折射角較小（偏折較大），因此光譜中紫光偏離原方向較多。</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 mb-1" data-i18n="m4t">白光如何合成？</h4>
+                        <p data-i18n="m4d">七色光加在一起可合成近似白光。若只開一種顏色，便觀察不到「分光」現象；開啟全部七色可對照完整光譜。</p>
+                    </div>
+                </div>
+                <div class="bg-cyan-50 p-4 rounded-2xl border border-cyan-100">
+                    <h3 class="font-bold text-cyan-900 mb-1" data-i18n="m5t">3. 生活例子</h3>
+                    <p class="text-xs text-cyan-800" data-i18n="m5d">三稜鏡分光、彩虹（水滴折射與反射）、CD／DVD 表面彩色條紋、寶石閃爍中的色散。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <script>
-        // --- 國際化 (i18n) 設定 ---
-        const i18n = {
-            zh: {
-                appTitle: "色散和可見光譜",
-                appSubtitle: "三稜鏡色散模擬器 v3.6",
-                btnTheory: "實驗原理",
-                labelSpectrum: "光譜控制",
-                btnReset: "重置",
-                txtWhiteLight: "✨ 完美白光合成",
-                hintPrism: "稜鏡已恢復正立狀態",
-                hintLight: "光源從左下方射入",
-                modalTitle: "真實玻璃的折射率",
-                modalIntro: "本模擬採用光學實驗常見的<b>火石玻璃 (Flint Glass, F2)</b> 作為材質。不同波長的光對應的真實折射率 (<i>n</i>) 如下：",
-                modalNote: "* 註：我們將光源設定在較低的位置並略微向上射入正立的稜鏡，這樣可以產生良好的折射效果並避免全內反射。",
-                btnClose: "關閉",
-                colors: {
-                    red: "紅光 (Red)", orange: "橙光 (Orange)", yellow: "黃光 (Yellow)", 
-                    green: "綠光 (Green)", blue: "藍光 (Blue)", indigo: "靛光 (Indigo)", violet: "紫光 (Violet)"
-                }
-            },
-            en: {
-                appTitle: "Dispersion and Visible Spectrum",
-                appSubtitle: "Prism Dispersion Simulator v3.6",
-                btnTheory: "Theory",
-                labelSpectrum: "Spectrum Control",
-                btnReset: "Reset",
-                txtWhiteLight: "✨ Perfect White Light",
-                hintPrism: "Prism in upright position",
-                hintLight: "Light source from bottom-left",
-                modalTitle: "Refractive Indices of Real Glass",
-                modalIntro: "This simulation uses <b>Flint Glass (F2)</b>, a common material in optical experiments. The real refractive indices (<i>n</i>) for different wavelengths are:",
-                modalNote: "* Note: The light source is positioned lower and angled upwards into the upright prism to produce good refraction and avoid total internal reflection.",
-                btnClose: "Close",
-                colors: {
-                    red: "Red", orange: "Orange", yellow: "Yellow", 
-                    green: "Green", blue: "Blue", indigo: "Indigo", violet: "Violet"
-                }
-            }
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-800 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="step1">選「白光：七色全開」，觀察入射白光進入三稜鏡後分成七條色光。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-800 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="step2">改選「紅紫對比」，讀取即時數據中的色散角 Δθ，確認紫光偏折大於紅光。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-800 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="step3">拖曳稜鏡本體可移動、拖曳頂點可轉動；拖曳光源可移動、拖曳光線可改變方向。觀察 Δθ 如何變化。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-800 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="step4">只開一種顏色（或選「單色綠光」），對比是否不再出現分光；再試「大角度」觀察全內反射。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const COLORS = [
+    { id: 'red', labelKey: 'cRed', hex: '#FF3333', rgb: [255, 51, 51], ior: 1.613 },
+    { id: 'orange', labelKey: 'cOrange', hex: '#FF9933', rgb: [255, 153, 51], ior: 1.617 },
+    { id: 'yellow', labelKey: 'cYellow', hex: '#FFFF33', rgb: [255, 255, 51], ior: 1.621 },
+    { id: 'green', labelKey: 'cGreen', hex: '#33FF33', rgb: [51, 255, 51], ior: 1.626 },
+    { id: 'blue', labelKey: 'cBlue', hex: '#3333FF', rgb: [51, 51, 255], ior: 1.633 },
+    { id: 'indigo', labelKey: 'cIndigo', hex: '#8A2BE2', rgb: [138, 43, 226], ior: 1.638 },
+    { id: 'violet', labelKey: 'cViolet', hex: '#FF33FF', rgb: [255, 51, 255], ior: 1.643 }
+];
+
+const PRESETS = {
+    white:   { colors: COLORS.map(c => c.id), angle: -15 },
+    compare: { colors: ['red', 'violet'], angle: -15 },
+    mono:    { colors: ['green'], angle: -15 },
+    steep:   { colors: COLORS.map(c => c.id), angle: -30 },
+    tir:     { colors: COLORS.map(c => c.id), angle: 35 }
+};
+
+const i18n = {
+    zh: {
+        title: '色散和可見光譜', badge: '物理', subtitle: '三稜鏡色散：波長愈短，折射率愈大',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制', presets: '教學情境',
+        preWhite: '① 白光：七色全開', preCompare: '② 紅紫對比：色散最明顯', preMono: '③ 單色綠光：無色散',
+        preSteep: '④ 較陡入射：偏折加大', preTir: '⑤ 大角度：可能全內反射',
+        labelSpectrum: '光譜控制', btnResetColors: '全選', labelAngle: '光線方向', angleHint: '拖曳光線可轉動方向',
+        btnReset: '重置場景', liveTitle: '即時數據', txtWhiteLight: '✨ 七色合成白光',
+        statI: '入射角 i', statSpread: '色散角 Δθ', statRed: '紅光出射角', statViolet: '紫光出射角', statActive: '啟用色光',
+        spreadHint: 'Δθ = 紫光出射角 − 紅光出射角；波長愈短，n 愈大，偏折愈大。',
+        hintPrism: '拖曳稜鏡本體可移動；拖曳頂點可轉動', hintLight: '拖曳光源可移動；拖曳光線可改變方向',
+        legInc: '入射白光', legDisp: '色散後各色光', calcTitle: '斯涅耳定律與色散',
+        calcShow: '顯示計算', calcHide: '隱藏計算', canvasI: '入射角',
+        cRed: '紅光', cOrange: '橙光', cYellow: '黃光', cGreen: '綠光', cBlue: '藍光', cIndigo: '靛光', cViolet: '紫光',
+        stepsTitle: '觀察步驟',
+        step1: '選「白光：七色全開」，觀察入射白光進入三稜鏡後分成七條色光。',
+        step2: '改選「紅紫對比」，讀取即時數據中的色散角 Δθ，確認紫光偏折大於紅光。',
+        step3: '拖曳稜鏡本體可移動、拖曳頂點可轉動；拖曳光源可移動、拖曳光線可改變方向。觀察 Δθ 如何變化。',
+        step4: '只開一種顏色（或選「單色綠光」），對比是否不再出現分光；再試「大角度」觀察全內反射。',
+        modalTitle: '色散與可見光譜', modalSub: '三稜鏡分光', modalClose: '關閉',
+        m1t: '1. 甚麼是色散？',
+        m1d: '同一介質對不同波長的光折射率 n 並不相同：波長愈短（偏藍／紫），n 通常愈大。白光通過三稜鏡時，各色光偏折程度不同，因而分開成光譜。',
+        m2t: '2. 斯涅耳定律',
+        m2d: '光線在介面折射時，入射角 i 與折射角 r 滿足 n₁ sin i = n₂ sin r。本模擬採用光學實驗常見的火石玻璃 (F2)，各色光對應不同 n。',
+        mNtitle: '火石玻璃 F2 折射率（示意）',
+        m3t: '為甚麼紫光偏折較大？',
+        m3d: '紫光波長較短，玻璃對其折射率較高，依斯涅耳定律算出的折射角較小（偏折較大），因此光譜中紫光偏離原方向較多。',
+        m4t: '白光如何合成？',
+        m4d: '七色光加在一起可合成近似白光。若只開一種顏色，便觀察不到「分光」現象；開啟全部七色可對照完整光譜。',
+        m5t: '3. 生活例子',
+        m5d: '三稜鏡分光、彩虹（水滴折射與反射）、CD／DVD 表面彩色條紋、寶石閃爍中的色散。',
+        calcNeedRay: '調整入射角使光線射入稜鏡左側面。',
+        calcSingle: '只啟用一種顏色時無法比較色散角。',
+        calcS1: '① 紅光（n ≈ 1.613）', calcS2: '② 紫光（n ≈ 1.643 · Δn ≈ 0.030）', calcS3: '③ 色散角 Δθ = θ<sub>紫</sub> − θ<sub>紅</sub>'
+    },
+    en: {
+        title: 'Dispersion & Visible Spectrum', badge: 'Physics', subtitle: 'Prism dispersion: shorter λ → higher n',
+        btnPrinciple: 'Theory', btnSteps: 'What to watch', controlTitle: 'Controls', presets: 'Scenarios',
+        preWhite: '① White light: all seven colours', preCompare: '② Red vs violet: max dispersion', preMono: '③ Green only: no spread',
+        preSteep: '④ Steeper incidence: larger bend', preTir: '⑤ Large angle: possible TIR',
+        labelSpectrum: 'Spectrum', btnResetColors: 'Select all', labelAngle: 'Beam direction', angleHint: 'Drag the ray to rotate it',
+        btnReset: 'Reset scene', liveTitle: 'Live data', txtWhiteLight: '✨ All seven → white light',
+        statI: 'Incidence i', statSpread: 'Spread Δθ', statRed: 'Red exit angle', statViolet: 'Violet exit angle', statActive: 'Active colours',
+        spreadHint: 'Δθ = violet exit − red exit; shorter λ has higher n and bends more.',
+        hintPrism: 'Drag prism body to move; drag a vertex to rotate', hintLight: 'Drag the source to move; drag the ray to aim',
+        legInc: 'Incident white beam', legDisp: 'Dispersed colours', calcTitle: "Snell's law & dispersion",
+        calcShow: 'Show calculation', calcHide: 'Hide calculation', canvasI: 'Incidence',
+        cRed: 'Red', cOrange: 'Orange', cYellow: 'Yellow', cGreen: 'Green', cBlue: 'Blue', cIndigo: 'Indigo', cViolet: 'Violet',
+        stepsTitle: 'What to watch',
+        step1: 'Pick White light (all seven) and watch the beam split inside the prism.',
+        step2: 'Switch to Red vs violet and read Δθ — violet should bend more than red.',
+        step3: 'Drag the prism body to move, a vertex to rotate; drag the source to move, the ray to aim. Watch Δθ.',
+        step4: 'Enable one colour only (or Green preset): no spectrum. Try Large angle for TIR.',
+        modalTitle: 'Dispersion & Visible Spectrum', modalSub: 'Triangular prism', modalClose: 'Close',
+        m1t: '1. What is dispersion?',
+        m1d: 'Refractive index n depends on wavelength: shorter (bluer/violet) light usually has higher n. White light splits into a spectrum in a prism.',
+        m2t: "2. Snell's law",
+        m2d: 'At an interface, n₁ sin i = n₂ sin r. This sim uses flint glass (F2) with wavelength-dependent n values.',
+        mNtitle: 'Flint glass F2 indices (illustrative)',
+        m3t: 'Why does violet bend more?',
+        m3d: 'Violet has shorter λ and higher n, so it refracts more and leaves the prism at a larger angle from the original direction.',
+        m4t: 'How is white light formed?',
+        m4d: 'Adding the seven colours approximates white. With one colour only there is no visible splitting.',
+        m5t: '3. Everyday examples',
+        m5d: 'Prism spectroscopy, rainbows, CD/DVD colours, gemstone fire.',
+        calcNeedRay: 'Adjust incidence so the beam hits the left face.',
+        calcSingle: 'Enable at least red and violet to compare dispersion.',
+        calcS1: '① Red (n ≈ 1.613)', calcS2: '② Violet (n ≈ 1.643 · Δn ≈ 0.030)', calcS3: '③ Spread Δθ = θ<sub>violet</sub> − θ<sub>red</sub>'
+    }
+};
+
+let lang = 'zh';
+let activeColors = new Set(COLORS.map(c => c.id));
+let beamAngleDeg = -15;
+let prismNx = 0.56, prismNy = 0.52, prismRot = 0;
+let sourceNx = 0.24, sourceNy = 0.62;
+let drag = null;
+let cachedGeometry = null;
+let lastRayResult = null;
+let calcOpen = false;
+
+const DEFAULT_LAYOUT = { prismNx: 0.56, prismNy: 0.52, prismRot: 0, sourceNx: 0.24, sourceNy: 0.62, beamAngleDeg: -15 };
+const FACE_PAIRS = [[0, 1], [1, 2], [2, 0]];
+
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+let cssW = 0, cssH = 0;
+
+const Vec2 = {
+    add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y }),
+    sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y }),
+    mul: (v, s) => ({ x: v.x * s, y: v.y * s }),
+    dot: (a, b) => a.x * b.x + a.y * b.y,
+    mag: (v) => Math.hypot(v.x, v.y),
+    norm: (v) => { const m = Math.hypot(v.x, v.y); return m ? { x: v.x / m, y: v.y / m } : { x: 0, y: 0 }; },
+    rotate: (v, a) => ({ x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) })
+};
+
+function getIntersection(p1, p2, p3, p4) {
+    const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+    const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+    const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+    if (Math.abs(denom) < 1e-9) return null;
+    const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+    const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) return { x: x1 + ua * (x2 - x1), y: y1 + ua * (y2 - y1) };
+    return null;
+}
+
+function clipRay(origin, dir, w, h, pad = 4) {
+    const targets = [
+        { p1: { x: pad, y: pad }, p2: { x: w - pad, y: pad } },
+        { p1: { x: w - pad, y: pad }, p2: { x: w - pad, y: h - pad } },
+        { p1: { x: w - pad, y: h - pad }, p2: { x: pad, y: h - pad } },
+        { p1: { x: pad, y: h - pad }, p2: { x: pad, y: pad } }
+    ];
+    let best = null, bestT = Infinity;
+    const far = Vec2.add(origin, Vec2.mul(dir, Math.max(w, h) * 4));
+    for (const edge of targets) {
+        const hit = getIntersection(origin, far, edge.p1, edge.p2);
+        if (!hit) continue;
+        const t = Vec2.mag(Vec2.sub(hit, origin));
+        if (t > 1 && t < bestT) { bestT = t; best = hit; }
+    }
+    return best || Vec2.add(origin, Vec2.mul(dir, Math.max(w, h)));
+}
+
+function getRefractedRay(incidentVec, surfaceNormal, n1, n2) {
+    const I = Vec2.norm(incidentVec);
+    let N = Vec2.norm(surfaceNormal);
+    if (Vec2.dot(I, N) > 0) N = Vec2.mul(N, -1);
+    const r = n1 / n2;
+    const c = -Vec2.dot(I, N);
+    const disc = 1 - r * r * (1 - c * c);
+    if (disc < 0) return null;
+    return Vec2.add(Vec2.mul(I, r), Vec2.mul(N, r * c - Math.sqrt(disc)));
+}
+
+function getReflectedRay(incidentVec, surfaceNormal) {
+    const I = Vec2.norm(incidentVec);
+    let N = Vec2.norm(surfaceNormal);
+    if (Vec2.dot(I, N) > 0) N = Vec2.mul(N, -1);
+    return Vec2.sub(I, Vec2.mul(N, 2 * Vec2.dot(I, N)));
+}
+
+function getMixedColor(activeSet) {
+    let r = 0, g = 0, b = 0, count = 0;
+    COLORS.forEach(c => {
+        if (activeSet.has(c.id)) { r += c.rgb[0]; g += c.rgb[1]; b += c.rgb[2]; count++; }
+    });
+    if (!count) return 'rgba(0,0,0,0)';
+    return `rgb(${Math.min(255, r)}, ${Math.min(255, g)}, ${Math.min(255, b)})`;
+}
+
+function prismSide() {
+    return Math.min(cssW, cssH) * 0.48;
+}
+
+function prismCenter() {
+    return { x: prismNx * cssW, y: prismNy * cssH };
+}
+
+function sourcePos() {
+    return { x: sourceNx * cssW, y: sourceNy * cssH };
+}
+
+function getPrismVertices(cx, cy, side, rot) {
+    const r = side / Math.sqrt(3);
+    const base = [-Math.PI / 2, 5 * Math.PI / 6, Math.PI / 6];
+    return base.map(a => ({
+        x: cx + r * Math.cos(a + rot),
+        y: cy + r * Math.sin(a + rot)
+    }));
+}
+
+function centroidOf(verts) {
+    return {
+        x: (verts[0].x + verts[1].x + verts[2].x) / 3,
+        y: (verts[0].y + verts[1].y + verts[2].y) / 3
+    };
+}
+
+function outwardNormal(a, b, centroid) {
+    const edge = Vec2.sub(b, a);
+    let n = Vec2.norm(Vec2.rotate(edge, -Math.PI / 2));
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (Vec2.dot(n, Vec2.sub(centroid, mid)) > 0) n = Vec2.mul(n, -1);
+    return n;
+}
+
+function raySegmentHit(origin, dir, a, b, minDist = 0.9) {
+    const far = Vec2.add(origin, Vec2.mul(dir, Math.max(cssW, cssH) * 8));
+    const hit = getIntersection(origin, far, a, b);
+    if (!hit) return null;
+    const dist = Vec2.mag(Vec2.sub(hit, origin));
+    if (dist < minDist) return null;
+    return { hit, dist };
+}
+
+function closestFace(origin, dir, verts, centroid, minDist, skipIdx, entering) {
+    let best = null;
+    FACE_PAIRS.forEach((pair, idx) => {
+        if (idx === skipIdx) return;
+        const a = verts[pair[0]], b = verts[pair[1]];
+        const n = outwardNormal(a, b, centroid);
+        const side = Vec2.dot(dir, n);
+        if (entering && side >= -1e-6) return;
+        if (!entering && side <= 1e-6) return;
+        const h = raySegmentHit(origin, dir, a, b, minDist);
+        if (!h) return;
+        if (!best || h.dist < best.dist) best = { ...h, faceIdx: idx, a, b, n };
+    });
+    return best;
+}
+
+function pointInTriangle(p, a, b, c) {
+    const s = (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+    const t = (p.x - b.x) * (c.y - b.y) - (p.y - b.y) * (c.x - b.x);
+    const u = (p.x - c.x) * (a.y - c.y) - (p.y - c.y) * (a.x - c.x);
+    return (s >= 0 && t >= 0 && u >= 0) || (s <= 0 && t <= 0 && u <= 0);
+}
+
+function traceColorRay(origin, dir, verts, centroid, ior) {
+    const entry = closestFace(origin, dir, verts, centroid, 0.8, -1, true);
+    if (!entry) {
+        return {
+            entry: null,
+            segments: [{ from: origin, to: clipRay(origin, dir, cssW, cssH), alpha: 1, outside: true }],
+            exitDir: null,
+            exitAngleDeg: null
         };
+    }
 
-        // --- 配置與數據 ---
-        const COLORS = [
-            { id: 'red', labelKey: 'red', hex: '#FF3333', rgb: [255, 51, 51], ior: 1.613 },
-            { id: 'orange', labelKey: 'orange', hex: '#FF9933', rgb: [255, 153, 51], ior: 1.617 },
-            { id: 'yellow', labelKey: 'yellow', hex: '#FFFF33', rgb: [255, 255, 51], ior: 1.621 },
-            { id: 'green', labelKey: 'green', hex: '#33FF33', rgb: [51, 255, 51], ior: 1.626 },
-            { id: 'blue', labelKey: 'blue', hex: '#3333FF', rgb: [51, 51, 255], ior: 1.633 },
-            { id: 'indigo', labelKey: 'indigo', hex: '#8A2BE2', rgb: [138, 43, 226], ior: 1.638 },
-            { id: 'violet', labelKey: 'violet', hex: '#FF33FF', rgb: [255, 51, 255], ior: 1.643 }
-        ];
+    const segments = [{ from: origin, to: entry.hit, alpha: 1, outside: true }];
+    const inDir = getRefractedRay(dir, entry.n, 1, ior);
+    if (!inDir) return { entry, segments, exitDir: null, exitAngleDeg: null };
 
-        // 狀態管理
-        const state = {
-            lang: 'zh', // 當前語言
-            activeColors: new Set(COLORS.map(c => c.id)),
-            incidentAngle: -Math.PI / 12, 
-            isDragging: false,
-            handlePos: { x: 0, y: 0 }
-        };
-
-        // --- 語言切換邏輯 ---
-        function toggleLanguage() {
-            state.lang = state.lang === 'zh' ? 'en' : 'zh';
-            updateTexts();
-            renderControls(); // 重新渲染 checkbox 文字
-        }
-
-        function updateTexts() {
-            const t = i18n[state.lang];
-            
-            // 更新介面文字
-            document.getElementById('app-title').innerText = t.appTitle;
-            document.getElementById('app-subtitle').innerText = t.appSubtitle;
-            document.getElementById('btn-theory').innerText = t.btnTheory;
-            document.getElementById('label-spectrum').innerText = t.labelSpectrum;
-            document.getElementById('btn-reset').innerText = t.btnReset;
-            document.getElementById('txt-white-light').innerText = t.txtWhiteLight;
-            document.getElementById('hint-prism').innerText = t.hintPrism;
-            document.getElementById('hint-light').innerText = t.hintLight;
-            
-            // 更新 Modal 文字
-            document.getElementById('modal-title').innerText = t.modalTitle;
-            document.getElementById('modal-intro').innerHTML = t.modalIntro;
-            document.getElementById('modal-note').innerText = t.modalNote;
-            document.getElementById('btn-close').innerText = t.btnClose;
-
-            // 更新 Modal 內的顏色標籤
-            COLORS.forEach(c => {
-                const el = document.getElementById(`lbl-${c.id}`);
-                if (el) el.innerText = t.colors[c.labelKey];
-            });
-
-            // 更新按鈕狀態顯示
-            const langBtnText = document.getElementById('lang-text');
-            langBtnText.innerText = state.lang === 'zh' ? '中 / EN' : 'ZH / EN';
-        }
-
-        // --- 初始化 UI ---
-        const controlsContainer = document.getElementById('controls-container');
-        
-        function renderControls() {
-            controlsContainer.innerHTML = '';
-            const t = i18n[state.lang];
-
-            COLORS.forEach(color => {
-                const isActive = state.activeColors.has(color.id);
-                const wrapper = document.createElement('label');
-                wrapper.className = `checkbox-wrapper flex items-center gap-3 cursor-pointer p-2 rounded select-none ${isActive ? 'active' : ''}`;
-                
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                input.className = 'hidden';
-                input.checked = isActive;
-                input.onchange = (e) => toggleColor(color.id, e.target.checked);
-                
-                const customCheck = document.createElement('div');
-                customCheck.className = `w-5 h-5 rounded border border-slate-500 flex items-center justify-center transition-all duration-200 opacity-40 bg-slate-700`;
-                customCheck.style.color = color.hex;
-                
-                if (isActive) {
-                    customCheck.style.backgroundColor = color.hex;
-                    customCheck.style.borderColor = color.hex;
-                }
-
-                const labelText = document.createElement('span');
-                labelText.className = `text-sm font-medium transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`;
-                // 使用翻譯後的標籤
-                labelText.innerText = t.colors[color.labelKey];
-
-                wrapper.appendChild(input);
-                wrapper.appendChild(customCheck);
-                wrapper.appendChild(labelText);
-                controlsContainer.appendChild(wrapper);
-            });
-        }
-
-        function toggleColor(id, isActive) {
-            if (isActive) state.activeColors.add(id);
-            else state.activeColors.delete(id);
-            renderControls();
-            draw();
-            checkWhiteLight();
-        }
-        
-        function resetColors() {
-            state.activeColors = new Set(COLORS.map(c => c.id));
-            state.incidentAngle = -Math.PI / 12; 
-            renderControls();
-            draw();
-            checkWhiteLight();
-        }
-
-        function checkWhiteLight() {
-            const isWhite = COLORS.every(c => state.activeColors.has(c.id));
-            const statusDiv = document.getElementById('white-light-status');
-            if (isWhite) {
-                statusDiv.classList.remove('hidden');
-                statusDiv.classList.add('block', 'animate-pulse');
-            } else {
-                statusDiv.classList.add('hidden');
-                statusDiv.classList.remove('block', 'animate-pulse');
-            }
-        }
-
-        // --- Modal 控制 ---
-        const modal = document.getElementById('principle-modal');
-        const modalContent = document.getElementById('modal-content');
-
-        function toggleModal(show) {
-            if (show) {
-                modal.classList.remove('hidden');
-                setTimeout(() => {
-                    modal.classList.remove('opacity-0');
-                    modalContent.classList.remove('scale-95');
-                    modalContent.classList.add('scale-100');
-                }, 10);
-            } else {
-                modal.classList.add('opacity-0');
-                modalContent.classList.remove('scale-100');
-                modalContent.classList.add('scale-95');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                }, 300);
-            }
-        }
-
-        // --- 畫布與物理邏輯 ---
-        const canvas = document.getElementById('simulationCanvas');
-        const ctx = canvas.getContext('2d');
-        let width, height;
-        const PRISM_SIDE = 280;
-        let cachedGeometry = null;
-
-        function resize() {
-            const container = document.getElementById('canvas-container');
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-            draw();
-        }
-        window.addEventListener('resize', resize);
-
-        const Vec2 = {
-            add: (v1, v2) => ({ x: v1.x + v2.x, y: v1.y + v2.y }),
-            sub: (v1, v2) => ({ x: v1.x - v2.x, y: v1.y - v2.y }),
-            mul: (v, s) => ({ x: v.x * s, y: v.y * s }),
-            dot: (v1, v2) => v1.x * v2.x + v1.y * v2.y,
-            mag: (v) => Math.sqrt(v.x * v.x + v.y * v.y),
-            norm: (v) => { const m = Math.sqrt(v.x * v.x + v.y * v.y); return m === 0 ? {x:0, y:0} : { x: v.x / m, y: v.y / m }; },
-            rotate: (v, angle) => ({
-                x: v.x * Math.cos(angle) - v.y * Math.sin(angle),
-                y: v.x * Math.sin(angle) + v.y * Math.cos(angle)
-            })
-        };
-
-        function getIntersection(p1, p2, p3, p4) {
-            const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
-            const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
-            const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
-            if (denom === 0) return null;
-            
-            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
-            const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
-
-            if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
-                return { x: x1 + ua * (x2 - x1), y: y1 + ua * (y2 - y1) };
-            }
-            return null;
-        }
-
-        function getRefractedRay(incidentVec, surfaceNormal, n1, n2) {
-            const r = n1 / n2;
-            const I = Vec2.norm(incidentVec);
-            let N = Vec2.norm(surfaceNormal);
-            if (Vec2.dot(I, N) > 0) N = Vec2.mul(N, -1);
-            
-            const c = -Vec2.dot(I, N);
-            const discriminant = 1.0 - r * r * (1.0 - c * c);
-
-            if (discriminant < 0) return null; 
-
-            const term1 = Vec2.mul(I, r);
-            const term2 = Vec2.mul(N, (r * c - Math.sqrt(discriminant)));
-            return Vec2.add(term1, term2);
-        }
-
-        function getReflectedRay(incidentVec, surfaceNormal) {
-            const I = Vec2.norm(incidentVec);
-            const N = Vec2.norm(surfaceNormal);
-            const dot = Vec2.dot(I, N);
-            return Vec2.sub(I, Vec2.mul(N, 2 * dot));
-        }
-
-        function getMixedColor(activeSet) {
-            let r = 0, g = 0, b = 0;
-            let count = 0;
-            COLORS.forEach(c => {
-                if (activeSet.has(c.id)) {
-                    r += c.rgb[0];
-                    g += c.rgb[1];
-                    b += c.rgb[2];
-                    count++;
-                }
-            });
-            if (count === 0) return 'rgba(0,0,0,0)';
-            r = Math.min(255, r);
-            g = Math.min(255, g);
-            b = Math.min(255, b);
-            return `rgb(${r}, ${g}, ${b})`;
-        }
-
-        function drawArrow(ctx, p1, p2, color, size = 8) {
-            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-            const midX = (p1.x + p2.x) / 2;
-            const midY = (p1.y + p2.y) / 2;
-            ctx.save();
-            ctx.translate(midX, midY);
-            ctx.rotate(angle);
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(-size, -size * 0.5);
-            ctx.lineTo(-size, size * 0.5);
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function getPrismVertices(cx, cy) {
-            const r = PRISM_SIDE / Math.sqrt(3);
-            const angleOffset = 0; 
-            const v1 = { x: cx + r * Math.cos(-Math.PI/2 + angleOffset), y: cy + r * Math.sin(-Math.PI/2 + angleOffset) };
-            const v2 = { x: cx + r * Math.cos(Math.PI/6 + angleOffset), y: cy + r * Math.sin(Math.PI/6 + angleOffset) };
-            const v3 = { x: cx + r * Math.cos(5*Math.PI/6 + angleOffset), y: cy + r * Math.sin(5*Math.PI/6 + angleOffset) };
-            return [v1, v3, v2]; 
-        }
-
-        // --- 互動事件處理 ---
-        canvas.addEventListener('mousedown', handleInputStart);
-        canvas.addEventListener('mousemove', handleInputMove);
-        canvas.addEventListener('mouseup', handleInputEnd);
-        canvas.addEventListener('mouseleave', handleInputEnd);
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInputStart(e.touches[0]); });
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleInputMove(e.touches[0]); });
-        canvas.addEventListener('touchend', handleInputEnd);
-
-        function handleInputStart(e) {
-            if (!cachedGeometry) return;
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            const dist = Math.sqrt(Math.pow(mouseX - state.handlePos.x, 2) + Math.pow(mouseY - state.handlePos.y, 2));
-            if (dist < 20) { 
-                state.isDragging = true;
-                canvas.classList.add('cursor-grabbing');
-                canvas.classList.remove('cursor-grab');
-            }
-        }
-
-        function handleInputMove(e) {
-            if (!cachedGeometry) {
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const dist = Math.sqrt(Math.pow(mouseX - state.handlePos.x, 2) + Math.pow(mouseY - state.handlePos.y, 2));
-                canvas.style.cursor = dist < 20 ? 'grab' : 'default';
-                return;
-            }
-
-            if (state.isDragging) {
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const { face1Mid } = cachedGeometry;
-                const dx = face1Mid.x - mouseX;
-                const dy = face1Mid.y - mouseY;
-                let angle = Math.atan2(dy, dx);
-                const limit = Math.PI / 2.2; 
-                if (angle > limit) angle = limit;
-                if (angle < -limit) angle = -limit;
-                state.incidentAngle = angle;
-                draw();
-            }
-        }
-
-        function handleInputEnd() {
-            state.isDragging = false;
-            canvas.classList.remove('cursor-grabbing');
-        }
-
-        // --- 繪圖函數 ---
-        function draw() {
-            ctx.clearRect(0, 0, width, height);
-            
-            const cx = width / 2 + 50; 
-            const cy = height / 2;
-            
-            const vertices = getPrismVertices(cx, cy);
-            const top = vertices[0];
-            const leftBot = vertices[1];
-            const rightBot = vertices[2];
-
-            const face1Mid = { x: (top.x + leftBot.x) / 2, y: (top.y + leftBot.y) / 2 };
-            cachedGeometry = { face1Mid, top, leftBot, rightBot };
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-            ctx.strokeStyle = 'rgba(200, 200, 255, 0.4)';
-            ctx.lineWidth = 2;
-            ctx.lineJoin = 'round';
-
-            ctx.beginPath();
-            ctx.moveTo(top.x, top.y);
-            ctx.lineTo(leftBot.x, leftBot.y);
-            ctx.lineTo(rightBot.x, rightBot.y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            if (state.activeColors.size === 0) return;
-
-            const face1Vec = Vec2.sub(leftBot, top);
-            const normal1 = Vec2.norm(Vec2.rotate(face1Vec, -Math.PI/2)); 
-
-            const beamDir = { x: Math.cos(state.incidentAngle), y: Math.sin(state.incidentAngle) };
-            const handleRadius = 250;
-            const beamStart = {
-                x: face1Mid.x - Math.cos(state.incidentAngle) * handleRadius,
-                y: face1Mid.y - Math.sin(state.incidentAngle) * handleRadius
+    let pos = entry.hit;
+    let d = inDir;
+    let skip = entry.faceIdx;
+    for (let bounce = 0; bounce < 8; bounce++) {
+        const next = closestFace(pos, d, verts, centroid, 1.2, skip, false);
+        if (!next) break;
+        segments.push({ from: pos, to: next.hit, alpha: bounce === 0 ? 0.85 : 0.55 });
+        const outDir = getRefractedRay(d, next.n, ior, 1);
+        if (outDir) {
+            segments.push({ from: next.hit, to: clipRay(next.hit, outDir, cssW, cssH), alpha: 1, glow: true });
+            return {
+                entry,
+                segments,
+                exitDir: outDir,
+                exitAngleDeg: Math.atan2(outDir.y, outDir.x) * 180 / Math.PI
             };
-            state.handlePos = beamStart;
-
-            const beamEndTest = { x: width, y: beamStart.y + width * Math.tan(state.incidentAngle) }; 
-            const intersect1 = getIntersection(beamStart, beamEndTest, top, leftBot);
-
-            if (intersect1) {
-                const mixedColor = getMixedColor(state.activeColors);
-                
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = mixedColor;
-                ctx.strokeStyle = mixedColor;
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.moveTo(beamStart.x, beamStart.y);
-                ctx.lineTo(intersect1.x, intersect1.y);
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.arc(beamStart.x, beamStart.y, 8, 0, Math.PI * 2);
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fill();
-                ctx.strokeStyle = state.isDragging ? '#6366f1' : 'rgba(255,255,255,0.5)';
-                ctx.lineWidth = 3;
-                ctx.stroke();
-                
-                if (!state.isDragging) {
-                    ctx.beginPath();
-                    ctx.arc(beamStart.x, beamStart.y, 14, 0, Math.PI * 2);
-                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-
-                const arrowPos = { x: (beamStart.x + intersect1.x) / 2, y: (beamStart.y + intersect1.y) / 2 };
-                drawArrow(ctx, beamStart, arrowPos, mixedColor, 10);
-                
-                ctx.shadowBlur = 0; 
-                ctx.lineWidth = 2;
-
-                COLORS.forEach(color => {
-                    if (!state.activeColors.has(color.id)) return;
-
-                    const refractDir1 = getRefractedRay(beamDir, normal1, 1.0, color.ior);
-                    
-                    if (refractDir1) {
-                        const farPoint = Vec2.add(intersect1, Vec2.mul(refractDir1, 2000));
-                        const intersect2 = getIntersection(intersect1, farPoint, top, rightBot);
-
-                        if (intersect2) {
-                            ctx.strokeStyle = color.hex;
-                            ctx.globalAlpha = 0.8;
-                            ctx.beginPath();
-                            ctx.moveTo(intersect1.x, intersect1.y);
-                            ctx.lineTo(intersect2.x, intersect2.y);
-                            ctx.stroke();
-                            ctx.globalAlpha = 1.0;
-
-                            const face2Vec = Vec2.sub(rightBot, top);
-                            const normal2 = Vec2.norm(Vec2.rotate(face2Vec, -Math.PI/2)); 
-                            const exitDir = getRefractedRay(refractDir1, normal2, color.ior, 1.0);
-
-                            if (exitDir) {
-                                const exitEnd = Vec2.add(intersect2, Vec2.mul(exitDir, 3000));
-                                
-                                ctx.strokeStyle = color.hex;
-                                ctx.shadowBlur = 8;
-                                ctx.shadowColor = color.hex;
-                                ctx.beginPath();
-                                ctx.moveTo(intersect2.x, intersect2.y);
-                                ctx.lineTo(exitEnd.x, exitEnd.y);
-                                ctx.stroke();
-                                ctx.shadowBlur = 0;
-
-                                const arrowPos2 = Vec2.add(intersect2, Vec2.mul(exitDir, 120)); 
-                                drawArrow(ctx, intersect2, arrowPos2, color.hex, 8);
-                            } else {
-                                const reflectDir = getReflectedRay(refractDir1, normal2);
-                                
-                                const baseCheck = getIntersection(intersect2, Vec2.add(intersect2, Vec2.mul(reflectDir, 2000)), leftBot, rightBot);
-                                const face1Check = getIntersection(intersect2, Vec2.add(intersect2, Vec2.mul(reflectDir, 2000)), top, leftBot);
-
-                                let intersect3 = null;
-                                let normal3 = null;
-
-                                if (baseCheck && (!face1Check || Vec2.mag(Vec2.sub(baseCheck, intersect2)) < Vec2.mag(Vec2.sub(face1Check, intersect2)))) {
-                                    intersect3 = baseCheck;
-                                    const baseVec = Vec2.sub(rightBot, leftBot);
-                                    normal3 = Vec2.norm(Vec2.rotate(baseVec, -Math.PI/2)); 
-                                } else if (face1Check) {
-                                    intersect3 = face1Check;
-                                    const f1Vec = Vec2.sub(leftBot, top);
-                                    normal3 = Vec2.norm(Vec2.rotate(f1Vec, -Math.PI/2));
-                                }
-
-                                if (intersect3) {
-                                    ctx.strokeStyle = color.hex;
-                                    ctx.globalAlpha = 0.6;
-                                    ctx.beginPath();
-                                    ctx.moveTo(intersect2.x, intersect2.y);
-                                    ctx.lineTo(intersect3.x, intersect3.y);
-                                    ctx.stroke();
-                                    ctx.globalAlpha = 1.0;
-
-                                    const arrowPosRef = Vec2.add(intersect2, Vec2.mul(reflectDir, 50));
-                                    drawArrow(ctx, intersect2, arrowPosRef, color.hex, 6);
-
-                                    const exitDir2 = getRefractedRay(reflectDir, normal3, color.ior, 1.0);
-                                    if (exitDir2) {
-                                        const exitEnd2 = Vec2.add(intersect3, Vec2.mul(exitDir2, 2000));
-                                        ctx.strokeStyle = color.hex;
-                                        ctx.shadowBlur = 5;
-                                        ctx.shadowColor = color.hex;
-                                        ctx.beginPath();
-                                        ctx.moveTo(intersect3.x, intersect3.y);
-                                        ctx.lineTo(exitEnd2.x, exitEnd2.y);
-                                        ctx.stroke();
-                                        ctx.shadowBlur = 0;
-                                        
-                                        const arrowPos3 = Vec2.add(intersect3, Vec2.mul(exitDir2, 60));
-                                        drawArrow(ctx, intersect3, arrowPos3, color.hex, 6);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
         }
+        const refl = getReflectedRay(d, next.n);
+        pos = next.hit;
+        d = refl;
+        skip = next.faceIdx;
+    }
+    return { entry, segments, exitDir: null, exitAngleDeg: null };
+}
 
+function drawArrow(p1, p2, color, size = 8) {
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
+    ctx.save();
+    ctx.translate(midX, midY);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-size, -size * 0.5);
+    ctx.lineTo(-size, size * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function canvasPoint(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = rect.width ? cssW / rect.width : 1;
+    const sy = rect.height ? cssH / rect.height : 1;
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+}
+
+function distToSegment(p, a, b) {
+    const ab = Vec2.sub(b, a);
+    const len2 = Vec2.dot(ab, ab) || 1;
+    const t = Math.max(0, Math.min(1, Vec2.dot(Vec2.sub(p, a), ab) / len2));
+    return Vec2.mag(Vec2.sub(p, Vec2.add(a, Vec2.mul(ab, t))));
+}
+
+function opticalIncidenceDeg(beamDir, surfaceNormal) {
+    const I = Vec2.norm(beamDir);
+    let N = Vec2.norm(surfaceNormal);
+    if (Vec2.dot(I, N) > 0) N = Vec2.mul(N, -1);
+    const c = Math.min(1, Math.max(-1, -Vec2.dot(I, N)));
+    return Math.acos(c) * 180 / Math.PI;
+}
+
+function drawIncidentAngleMark(hit, beamDir, surfaceNormal, mixedColor) {
+    const I = Vec2.norm(beamDir);
+    let N = Vec2.norm(surfaceNormal);
+    if (Vec2.dot(I, N) > 0) N = Vec2.mul(N, -1);
+    const iDeg = opticalIncidenceDeg(beamDir, surfaceNormal);
+    const nLen = Math.min(90, Math.min(cssW, cssH) * 0.12);
+    const nOut = Vec2.add(hit, Vec2.mul(N, nLen));
+    const nIn = Vec2.add(hit, Vec2.mul(N, -nLen));
+
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = 'rgba(226,232,240,0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(nOut.x, nOut.y);
+    ctx.lineTo(nIn.x, nIn.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const aN = Math.atan2(N.y, N.x);
+    const aInc = Math.atan2(-I.y, -I.x);
+    let delta = aInc - aN;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    const radius = Math.min(52, nLen * 0.62);
+    ctx.strokeStyle = mixedColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hit.x, hit.y, radius, aN, aN + delta, delta < 0);
+    ctx.stroke();
+
+    const mid = aN + delta / 2;
+    const labelR = radius + 18;
+    const lx = hit.x + Math.cos(mid) * labelR;
+    const ly = hit.y + Math.sin(mid) * labelR;
+    const label = `${i18n[lang].canvasI} i = ${iDeg.toFixed(1)}°`;
+    ctx.font = '700 13px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(15,23,42,0.78)';
+    const bx = lx - tw / 2 - 8, by = ly - 11, bw = tw + 16, bh = 22;
+    if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw, bh, 8);
+        ctx.fill();
+    } else {
+        ctx.fillRect(bx, by, bw, bh);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, lx, ly);
+    ctx.restore();
+    return iDeg;
+}
+
+function computeAndDraw() {
+    ctx.clearRect(0, 0, cssW, cssH);
+    const bg = ctx.createLinearGradient(0, 0, cssW, cssH);
+    bg.addColorStop(0, '#020617');
+    bg.addColorStop(1, '#0f172a');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    const center = prismCenter();
+    const side = prismSide();
+    const verts = getPrismVertices(center.x, center.y, side, prismRot);
+    const centroid = centroidOf(verts);
+    const src = sourcePos();
+    const beamDir = { x: Math.cos(beamAngleDeg * Math.PI / 180), y: Math.sin(beamAngleDeg * Math.PI / 180) };
+
+    const glass = ctx.createLinearGradient(verts[1].x, verts[0].y, verts[2].x, verts[1].y);
+    glass.addColorStop(0, 'rgba(165,180,252,0.10)');
+    glass.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+    glass.addColorStop(1, 'rgba(196,181,253,0.12)');
+    ctx.fillStyle = glass;
+    ctx.strokeStyle = drag && (drag.mode === 'movePrism' || drag.mode === 'rotatePrism') ? 'rgba(196,181,253,0.95)' : 'rgba(199,210,254,0.55)';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    ctx.lineTo(verts[1].x, verts[1].y);
+    ctx.lineTo(verts[2].x, verts[2].y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    verts.forEach(v => {
+        ctx.beginPath();
+        ctx.arc(v.x, v.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = drag && drag.mode === 'rotatePrism' ? '#c4b5fd' : 'rgba(226,232,240,0.9)';
+        ctx.fill();
+        ctx.strokeStyle = '#a78bfa';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+    });
+
+    const preview = closestFace(src, beamDir, verts, centroid, 0.8, -1, true);
+    const incidentTo = preview ? preview.hit : clipRay(src, beamDir, cssW, cssH);
+    cachedGeometry = { verts, centroid, src, incidentFrom: src, incidentTo };
+
+    lastRayResult = { redExit: null, violetExit: null, hit: !!preview, opticalI: null };
+
+    const mixedColor = activeColors.size ? getMixedColor(activeColors) : '#94a3b8';
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = mixedColor;
+    ctx.strokeStyle = mixedColor;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(src.x, src.y);
+    ctx.lineTo(incidentTo.x, incidentTo.y);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    drawArrow(src, incidentTo, mixedColor, 12);
+    drawSourceHandle(src, mixedColor);
+
+    if (preview && activeColors.size) {
+        lastRayResult.opticalI = drawIncidentAngleMark(preview.hit, beamDir, preview.n, mixedColor);
+        COLORS.forEach(color => {
+            if (!activeColors.has(color.id)) return;
+            const traced = traceColorRay(src, beamDir, verts, centroid, color.ior);
+            if (!traced || !traced.entry) return;
+            if (color.id === 'red') lastRayResult.redExit = traced.exitAngleDeg;
+            if (color.id === 'violet') lastRayResult.violetExit = traced.exitAngleDeg;
+            traced.segments.forEach((seg, idx) => {
+                if (seg.outside) return;
+                ctx.strokeStyle = color.hex;
+                ctx.globalAlpha = seg.alpha;
+                ctx.lineWidth = idx === 1 ? 2.4 : 3;
+                if (seg.glow) { ctx.shadowBlur = 10; ctx.shadowColor = color.hex; }
+                ctx.beginPath();
+                ctx.moveTo(seg.from.x, seg.from.y);
+                ctx.lineTo(seg.to.x, seg.to.y);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+            });
+            const tip = traced.segments[traced.segments.length - 1];
+            if (tip && !tip.outside) drawArrow(tip.from, tip.to, color.hex, 8);
+        });
+    } else if (!preview) {
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 2;
+        const far = clipRay(src, beamDir, cssW, cssH);
+        ctx.beginPath();
+        ctx.moveTo(incidentTo.x, incidentTo.y);
+        ctx.lineTo(far.x, far.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    updateLivePanel();
+    updateCalcSteps();
+}
+
+function drawSourceHandle(p, color) {
+    const active = drag && (drag.mode === 'moveSource' || drag.mode === 'rotateBeam');
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, active ? 16 : 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 16;
+    ctx.shadowColor = color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = active ? '#a78bfa' : 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function updateLivePanel() {
+    const t = i18n[lang];
+    document.getElementById('disp-angle').textContent = `${beamAngleDeg.toFixed(1)}°`;
+    const iVal = lastRayResult && lastRayResult.opticalI != null ? lastRayResult.opticalI : Math.abs(beamAngleDeg);
+    document.getElementById('val-i').textContent = `${iVal.toFixed(1)}°`;
+    document.getElementById('val-active').textContent = `${activeColors.size} / ${COLORS.length}`;
+
+    const whiteDiv = document.getElementById('white-light-status');
+    if (activeColors.size === COLORS.length) whiteDiv.classList.remove('hidden');
+    else whiteDiv.classList.add('hidden');
+
+    const spreadEl = document.getElementById('val-spread');
+    const redEl = document.getElementById('val-red-exit');
+    const violetEl = document.getElementById('val-violet-exit');
+
+    if (lastRayResult && lastRayResult.redExit != null && lastRayResult.violetExit != null) {
+        const spread = lastRayResult.violetExit - lastRayResult.redExit;
+        spreadEl.textContent = `${spread.toFixed(2)}°`;
+        redEl.textContent = `${lastRayResult.redExit.toFixed(1)}°`;
+        violetEl.textContent = `${lastRayResult.violetExit.toFixed(1)}°`;
+    } else {
+        spreadEl.textContent = '—';
+        redEl.textContent = '—';
+        violetEl.textContent = '—';
+    }
+}
+
+function updateCalcSteps() {
+    const box = document.getElementById('calc-steps');
+    if (!calcOpen) return;
+    const t = i18n[lang];
+    if (!lastRayResult || !lastRayResult.hit) {
+        box.innerHTML = `<div class="calc-step text-slate-500">${t.calcNeedRay}</div>`;
+        return;
+    }
+    if (lastRayResult.redExit == null || lastRayResult.violetExit == null) {
+        box.innerHTML = `<div class="calc-step text-slate-500">${t.calcSingle}</div>`;
+        return;
+    }
+    const spread = lastRayResult.violetExit - lastRayResult.redExit;
+    box.innerHTML = `
+        <div class="calc-step">${t.calcS1}</div>
+        <div class="calc-step">${t.calcS2}</div>
+        <div class="calc-step">${t.calcS3} = ${spread.toFixed(2)}°</div>
+        <div class="mj-box mt-2">\\( n_1\\sin i = n_2\\sin r \\)</div>
+    `;
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([box]).catch(() => {});
+}
+
+function renderControls() {
+    const container = document.getElementById('controls-container');
+    container.innerHTML = '';
+    COLORS.forEach(color => {
+        const active = activeColors.has(color.id);
+        const label = document.createElement('label');
+        label.className = `color-chip flex items-center gap-2.5 cursor-pointer p-2 rounded-lg select-none ${active ? 'active' : ''}`;
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'hidden';
+        input.checked = active;
+        input.addEventListener('change', e => {
+            if (e.target.checked) activeColors.add(color.id);
+            else activeColors.delete(color.id);
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            renderControls();
+            computeAndDraw();
+        });
+        const dot = document.createElement('span');
+        dot.className = 'chip-dot w-4 h-4 rounded-full border border-slate-300 transition-transform';
+        dot.style.backgroundColor = active ? color.hex : '#e2e8f0';
+        dot.style.color = color.hex;
+        const text = document.createElement('span');
+        text.className = `text-xs font-bold ${active ? 'text-slate-800' : 'text-slate-400'}`;
+        text.setAttribute('data-color-label', color.id);
+        text.textContent = i18n[lang][color.labelKey];
+        label.appendChild(input);
+        label.appendChild(dot);
+        label.appendChild(text);
+        container.appendChild(label);
+    });
+}
+
+function resetLayout() {
+    prismNx = DEFAULT_LAYOUT.prismNx;
+    prismNy = DEFAULT_LAYOUT.prismNy;
+    prismRot = DEFAULT_LAYOUT.prismRot;
+    sourceNx = DEFAULT_LAYOUT.sourceNx;
+    sourceNy = DEFAULT_LAYOUT.sourceNy;
+    beamAngleDeg = DEFAULT_LAYOUT.beamAngleDeg;
+    document.getElementById('in-angle').value = beamAngleDeg;
+}
+
+function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    activeColors = new Set(p.colors);
+    resetLayout();
+    beamAngleDeg = p.angle;
+    document.getElementById('in-angle').value = beamAngleDeg;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+    renderControls();
+    computeAndDraw();
+}
+
+function hitVertex(p, verts) {
+    for (let i = 0; i < verts.length; i++) {
+        if (Math.hypot(p.x - verts[i].x, p.y - verts[i].y) < 16) return i;
+    }
+    return -1;
+}
+
+function pointerTarget(p) {
+    if (!cachedGeometry) return null;
+    const { verts, src, incidentFrom, incidentTo } = cachedGeometry;
+    if (Math.hypot(p.x - src.x, p.y - src.y) < 28) return { mode: 'moveSource' };
+    const v = hitVertex(p, verts);
+    if (v >= 0) return { mode: 'rotatePrism' };
+    if (distToSegment(p, incidentFrom, incidentTo) < 14) return { mode: 'rotateBeam' };
+    if (pointInTriangle(p, verts[0], verts[1], verts[2])) return { mode: 'movePrism' };
+    return null;
+}
+
+function cursorForMode(mode) {
+    if (mode === 'rotatePrism' || mode === 'rotateBeam') return 'alias';
+    if (mode === 'moveSource' || mode === 'movePrism') return 'grab';
+    return 'crosshair';
+}
+
+function clampNorm(nx, ny) {
+    return {
+        nx: Math.min(0.92, Math.max(0.08, nx)),
+        ny: Math.min(0.92, Math.max(0.08, ny))
+    };
+}
+
+function applyDrag(p) {
+    if (!drag) return;
+    if (drag.mode === 'moveSource') {
+        const n = clampNorm(p.x / cssW, p.y / cssH);
+        sourceNx = n.nx;
+        sourceNy = n.ny;
+    } else if (drag.mode === 'rotateBeam') {
+        const src = sourcePos();
+        let ang = Math.atan2(p.y - src.y, p.x - src.x) * 180 / Math.PI;
+        ang = Math.max(-90, Math.min(90, ang));
+        beamAngleDeg = ang;
+        document.getElementById('in-angle').value = beamAngleDeg;
+    } else if (drag.mode === 'movePrism') {
+        const dx = (p.x - drag.last.x) / cssW;
+        const dy = (p.y - drag.last.y) / cssH;
+        const n = clampNorm(prismNx + dx, prismNy + dy);
+        prismNx = n.nx;
+        prismNy = n.ny;
+        drag.last = p;
+    } else if (drag.mode === 'rotatePrism') {
+        const c = prismCenter();
+        const ang = Math.atan2(p.y - c.y, p.x - c.x);
+        prismRot += ang - drag.lastAng;
+        drag.lastAng = ang;
+    }
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    computeAndDraw();
+}
+
+function resizeCanvas() {
+    const wrap = document.getElementById('canvas-wrap');
+    const rect = wrap.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    cssW = Math.max(360, rect.width);
+    cssH = Math.max(480, rect.height);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    computeAndDraw();
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    document.querySelectorAll('[data-color-label]').forEach(el => {
+        const id = el.getAttribute('data-color-label');
+        const color = COLORS.find(c => c.id === id);
+        if (color) el.textContent = i18n[lang][color.labelKey];
+    });
+    document.getElementById('btn-lang').textContent = lang === 'zh' ? '中 / EN' : 'ZH / EN';
+    document.getElementById('btn-lang-mobile').textContent = lang === 'zh' ? '中 / EN' : 'ZH / EN';
+    document.getElementById('calc-toggle-label').textContent = calcOpen ? i18n[lang].calcHide : i18n[lang].calcShow;
+    updateLivePanel();
+    updateCalcSteps();
+    const calcTargets = [document.getElementById('modal-principle')];
+    if (calcOpen) calcTargets.push(document.getElementById('calc-steps'));
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise(calcTargets).catch(() => {});
+    }
+}
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+
+function bindEvents() {
+    window.addEventListener('resize', resizeCanvas);
+
+    document.getElementById('in-angle').addEventListener('input', e => {
+        beamAngleDeg = Number(e.target.value);
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        computeAndDraw();
+    });
+
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
+
+    document.getElementById('btn-reset-colors').addEventListener('click', () => {
+        activeColors = new Set(COLORS.map(c => c.id));
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
         renderControls();
-        resize();
-        checkWhiteLight();
-        updateTexts(); // Initial text update
+        computeAndDraw();
+    });
 
-    </script>
+    document.getElementById('btn-reset').addEventListener('click', () => applyPreset('white'));
+
+    canvas.addEventListener('pointerdown', e => {
+        const p = canvasPoint(e.clientX, e.clientY);
+        const t = pointerTarget(p);
+        if (!t) return;
+        const c = prismCenter();
+        drag = {
+            mode: t.mode,
+            last: p,
+            lastAng: Math.atan2(p.y - c.y, p.x - c.x)
+        };
+        canvas.setPointerCapture(e.pointerId);
+        canvas.style.cursor = t.mode === 'rotatePrism' || t.mode === 'rotateBeam' ? 'alias' : 'grabbing';
+        applyDrag(p);
+    });
+    canvas.addEventListener('pointermove', e => {
+        const p = canvasPoint(e.clientX, e.clientY);
+        if (drag) applyDrag(p);
+        else {
+            const t = pointerTarget(p);
+            canvas.style.cursor = t ? cursorForMode(t.mode) : 'crosshair';
+        }
+    });
+    canvas.addEventListener('pointerup', e => {
+        drag = null;
+        canvas.style.cursor = 'crosshair';
+        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+        computeAndDraw();
+    });
+    canvas.addEventListener('pointercancel', () => { drag = null; computeAndDraw(); });
+
+    document.getElementById('btn-toggle-calc').addEventListener('click', () => {
+        calcOpen = !calcOpen;
+        const panel = document.getElementById('calc-panel');
+        const body = document.getElementById('calc-body');
+        const btn = document.getElementById('btn-toggle-calc');
+        const label = document.getElementById('calc-toggle-label');
+        body.classList.toggle('hidden', !calcOpen);
+        panel.classList.toggle('calc-open', calcOpen);
+        btn.setAttribute('aria-expanded', calcOpen ? 'true' : 'false');
+        label.textContent = calcOpen ? i18n[lang].calcHide : i18n[lang].calcShow;
+        if (calcOpen) updateCalcSteps();
+    });
+
+    const mp = document.getElementById('modal-principle');
+    const ms = document.getElementById('modal-steps');
+    document.getElementById('btn-principle').addEventListener('click', () => openModal(mp));
+    document.getElementById('btn-steps').addEventListener('click', () => openModal(ms));
+    ['modal-close', 'modal-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(mp)));
+    ['steps-close', 'steps-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(ms)));
+    mp.addEventListener('click', e => { if (e.target === mp) closeModal(mp); });
+    ms.addEventListener('click', e => { if (e.target === ms) closeModal(ms); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(mp); closeModal(ms); } });
+
+    document.getElementById('btn-lang').addEventListener('click', toggleLang);
+    document.getElementById('btn-lang-mobile').addEventListener('click', toggleLang);
+}
+
+bindEvents();
+renderControls();
+applyLang();
+resizeCanvas();
+if (window.ResizeObserver) {
+    new ResizeObserver(() => resizeCanvas()).observe(document.getElementById('canvas-wrap'));
+}
+</script>
 </body>
 </html>

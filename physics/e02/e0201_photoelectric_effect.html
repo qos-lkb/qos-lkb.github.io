@@ -3,640 +3,1486 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>愛因斯坦光電效應模擬</title>
+    <title>光電效應 | Photoelectric Effect</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
     <style>
-        /* 自定義滑桿樣式 */
-        input[type=range] {
-            -webkit-appearance: none; 
-            background: transparent; 
-        }
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 16px;
-            width: 16px;
-            border-radius: 50%;
-            background: #3b82f6;
-            cursor: pointer;
-            margin-top: -6px; 
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #7c3aed; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
         }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            cursor: pointer;
-            background: #cbd5e1;
-            border-radius: 2px;
+        input[type=range]:disabled { opacity: .45; }
+        .preset-btn { padding: 7px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover { background: #ede9fe; border-color: #c4b5fd; }
+        .preset-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .chip-btn { padding: 4px 8px; border-radius: 8px; font-weight: 800; font-size: 11px; border: 1px solid #e2e8f0; background: #fff; color: #475569; }
+        .chip-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+        .tab-btn { padding: 6px 10px; border-radius: 8px; font-weight: 800; font-size: 11px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; }
+        .tab-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #7c3aed; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #c4b5fd; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+        .mj-box mjx-container { color: #c4b5fd !important; }
+        .mj-calc { overflow-x: auto; font-size: 13px; line-height: 1.85; color: #334155; }
+        .calc-step { padding: 10px 12px; border-radius: 10px; background: #f5f3ff; border: 1px solid #ddd6fe; margin-bottom: 8px; }
+        .calc-step:last-child { margin-bottom: 0; }
+        #live-math .calc-step { text-align: left; font-size: 11px; font-weight: 700; color: #334155; }
+        .freq-track {
+            background: linear-gradient(to right,
+                #3f1a1a 0%, #7f1d1d 8%, #ef4444 18%, #f97316 28%, #eab308 38%,
+                #22c55e 50%, #06b6d4 60%, #3b82f6 72%, #8b5cf6 84%, #312e81 94%, #1e1b4b 100%);
         }
-        canvas {
-            display: block;
-        }
-    </style>
+        #scene { width: 100%; height: 100%; background: #000; }
+        #energy { width: 100%; height: 100%; background: #0f172a; }
+        #graph { width: 100%; height: 100%; cursor: crosshair; }
+        .graph-wrap { position: relative; min-height: 200px; }
+        select { accent-color: #7c3aed; }
+</style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+<body class="h-full flex flex-col text-slate-800">
 
-    <!-- 標題列 -->
-    <header class="bg-blue-900 text-white p-4 shadow-md shrink-0 flex justify-between items-center">
-        <div>
-            <h1 class="text-xl font-bold tracking-wider">物理實驗室：愛因斯坦光電效應</h1>
-            <div class="text-sm text-blue-200">Photoelectric Effect Simulator v1.2</div>
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-500 to-amber-400 text-white flex items-center justify-center shadow-md shadow-violet-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">光電效應</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">愛因斯坦方程式、底限頻率與截止電壓</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-violet-50 text-violet-800 rounded-xl font-bold text-sm shadow-sm border border-violet-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
 
-    <!-- 主內容區 -->
-    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        
-        <!-- 左側：模擬與控制 -->
-        <div class="w-full lg:w-7/12 flex flex-col p-4 overflow-y-auto border-r border-slate-200 scrollbar-hide">
-            
-            <!-- 模擬畫布 -->
-            <div class="mb-4 relative shadow-lg border-4 border-slate-700 rounded-lg bg-slate-900 shrink-0">
-                <canvas id="simCanvas" width="800" height="380" class="w-full h-auto"></canvas>
-                <!-- 儀表讀數覆蓋層 -->
-                <div class="absolute top-4 right-4 bg-black/80 text-green-400 font-mono p-2 rounded border border-green-600 text-sm shadow-lg">
-                    <div class="flex justify-between gap-4"><span>電流 (I):</span> <span id="ammeterValue">0.00</span> A</div>
-                    <div class="flex justify-between gap-4"><span>電壓 (V):</span> <span id="voltmeterValue">0.00</span> V</div>
+    <main class="flex-1 min-h-0 w-full max-w-[92rem] mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:col-span-4 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="pause">暫停</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
                 </div>
-            </div>
+                <label class="check-row mb-3"><input type="checkbox" id="in-slow"><span data-i18n="slowMo">慢動作（0.35×）</span></label>
 
-            <!-- 控制面板 -->
-            <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200 space-y-5">
-                
-                <!-- 金屬選擇 -->
-                <div class="flex items-center space-x-4 bg-slate-50 p-2 rounded border border-slate-200">
-                    <label class="font-bold w-24 text-slate-700">金屬靶材:</label>
-                    <select id="metalSelect" class="flex-1 p-1 bg-transparent font-medium text-slate-800 outline-none cursor-pointer">
-                        <option value="2.0">鉀 (Potassium) - Φ = 2.0 eV</option>
-                        <option value="2.3" selected>鈉 (Sodium) - Φ = 2.3 eV</option>
-                        <option value="4.3">鋅 (Zinc) - Φ = 4.3 eV</option>
-                        <option value="4.7">銅 (Copper) - Φ = 4.7 eV</option>
-                        <option value="6.35">鉑 (Platinum) - Φ = 6.35 eV</option>
-                    </select>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn" data-preset="below" data-i18n="preBelow">① 低於底限：紅光打鈉</button>
+                    <button type="button" class="preset-btn active" data-preset="emit" data-i18n="preEmit">② 藍光發射光電子</button>
+                    <button type="button" class="preset-btn" data-preset="uvzn" data-i18n="preUvzn">③ 鋅板需紫外線</button>
+                    <button type="button" class="preset-btn" data-preset="intense" data-i18n="preIntense">④ 強光：電流↑、K<sub>max</sub>不變</button>
+                    <button type="button" class="preset-btn" data-preset="stop" data-i18n="preStop">⑤ 截止電壓剛好遏止</button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- 光強度 -->
-                    <div class="relative">
-                        <div class="flex justify-between mb-1">
-                            <label class="font-bold text-slate-700 text-sm">光強度 (Intensity)</label>
-                            <span id="intensityDisplay" class="text-blue-600 font-mono text-sm">50%</span>
-                        </div>
-                        <input type="range" id="intensitySlider" min="0" max="100" value="50" class="w-full">
-                    </div>
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelMetal">金屬靶（陰極）</span>
+                        <span id="disp-metal" class="text-violet-700">Na</span>
+                    </span>
+                    <select id="in-metal" class="w-full text-sm font-bold rounded-xl border border-slate-200 bg-slate-50 px-2 py-2"></select>
+                </label>
 
-                    <!-- 電壓 -->
-                    <div class="relative">
-                        <div class="flex justify-between mb-1">
-                            <label class="font-bold text-slate-700 text-sm">電壓 (Voltage)</label>
-                            <span id="voltageDisplay" class="text-blue-600 font-mono text-sm">0.0 V</span>
-                        </div>
-                        <input type="range" id="voltageSlider" min="-5" max="5" step="0.1" value="0" class="w-full">
-                        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
-                            <span>-5V (遏止)</span>
-                            <span>+5V (加速)</span>
-                        </div>
-                    </div>
-                </div>
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelPhi">功函數 Φ</span>
+                        <span id="disp-phi" class="text-amber-700">2.36 eV</span>
+                    </span>
+                    <input type="range" id="in-phi" min="1.50" max="6.50" step="0.01" value="2.36">
+                </label>
 
-                <!-- 頻率/波長 -->
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="font-bold text-slate-700 text-sm">光的頻率 / 顏色 (Frequency)</label>
-                        <div class="text-right">
-                            <span id="freqDisplay" class="text-blue-600 font-mono text-sm font-bold">650 THz</span>
-                            <span id="wavelengthDisplay" class="text-slate-400 text-xs">462 nm</span>
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelInt">光強度 I</span>
+                        <span id="disp-int" class="text-sky-700">50%</span>
+                    </span>
+                    <input type="range" id="in-int" min="0" max="100" step="1" value="50">
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelV">外加電壓 V（＋加速／－遏止）</span>
+                        <span id="disp-v" class="text-emerald-700">0.00 V</span>
+                    </span>
+                    <input type="range" id="in-v" min="-6" max="6" step="0.01" value="0">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span data-i18n="vNeg">−6 V 遏止</span>
+                        <span data-i18n="vPos">＋6 V 加速</span>
+                    </div>
+                </label>
+
+                <div class="mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelF">頻率 f ／ 波長 λ</span>
+                        <span id="disp-f" class="text-violet-700">700 THz · 428 nm</span>
+                    </span>
+                    <div class="relative h-8 rounded-lg overflow-hidden shadow-inner freq-track mb-1">
+                        <input type="range" id="in-f" min="250" max="1500" step="1" value="700" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20">
+                        <div id="freq-thumb" class="absolute top-0 h-full w-1 bg-white shadow z-10" style="left: 36%"></div>
+                        <div id="f0-mark" class="absolute top-0 h-full border-l-2 border-white/80 z-0" style="left: 20%">
+                            <span class="absolute -top-0.5 left-1 text-[9px] font-black text-white drop-shadow">f₀</span>
                         </div>
                     </div>
-                    <!-- 顏色漸層背景條 -->
-                    <div class="relative h-8 w-full rounded-md mb-1 shadow-inner overflow-hidden" style="background: linear-gradient(to right, #300 0%, #500 10%, #f00 20%, #ff0 35%, #0f0 50%, #00f 65%, #80f 80%, #306 90%, #103 100%);">
-                        <input type="range" id="freqSlider" min="300" max="1200" value="650" class="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer z-20">
-                        <!-- 指示器 -->
-                        <div id="freqThumb" class="absolute top-0 h-full w-1 bg-white border-x border-black/30 shadow z-10 transition-all duration-75" style="left: 38%;"></div>
-                        <!-- 閾值標記 (將由 JS 動態更新) -->
-                        <div id="thresholdMarker" class="absolute top-0 h-full border-l-2 border-white/50 z-0" style="left: 0%;">
-                            <span class="absolute -top-1 left-1 text-[10px] text-white/80 drop-shadow-md font-bold">f₀</span>
-                        </div>
+                    <div class="flex justify-between text-[10px] text-slate-500 px-0.5">
+                        <span>IR</span><span>Vis</span><span>UV</span>
                     </div>
-                    <div class="flex justify-between text-[10px] text-slate-500 px-1">
-                        <span>IR</span>
-                        <span>Visible</span>
-                        <span>UV</span>
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <button type="button" class="chip-btn" data-band="ir" data-i18n="bandIr">紅外</button>
+                        <button type="button" class="chip-btn" data-band="red" data-i18n="bandRed">紅</button>
+                        <button type="button" class="chip-btn" data-band="green" data-i18n="bandGreen">綠</button>
+                        <button type="button" class="chip-btn" data-band="blue" data-i18n="bandBlue">藍</button>
+                        <button type="button" class="chip-btn" data-band="uv" data-i18n="bandUv">紫外</button>
                     </div>
                 </div>
 
-                <!-- 能量計算資訊 -->
-                <div class="bg-indigo-50 p-3 rounded text-sm text-indigo-900 flex justify-between items-center border border-indigo-100 shadow-sm">
-                    <span>光子能量 (E = hf): <strong id="photonEnergy" class="font-mono text-indigo-700">2.69 eV</strong></span>
-                    <span class="text-slate-300">|</span>
-                    <span>最大動能 (Kₘₐₓ): <strong id="kineticEnergy" class="font-mono text-indigo-700">0.39 eV</strong></span>
+                <div class="space-y-2">
+                    <label class="check-row"><input type="checkbox" id="in-labels" checked><span data-i18n="showLabels">顯示標籤</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-well" checked><span data-i18n="showWell">顯示能量井</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-dist" checked><span data-i18n="showDist">電子動能分佈（≤ K<sub>max</sub>）</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-class"><span data-i18n="showClass">對照經典波動理論</span></label>
                 </div>
             </div>
-        </div>
 
-        <!-- 右側：圖表分析 -->
-        <div class="w-full lg:w-5/12 bg-slate-50 p-4 overflow-y-auto flex flex-col gap-4 border-l border-slate-200">
-            <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wide border-b pb-1">Real-time Data Analysis</h2>
-            
-            <!-- 圖表 1: 電流 vs 光度 -->
-            <div class="bg-white p-3 rounded shadow-sm border border-slate-200 relative group">
-                <h3 class="text-sm font-semibold text-center mb-2 text-slate-700">電流 (I) - 光度 (Intensity)</h3>
-                <canvas id="graphIntensity" width="400" height="180" class="w-full border border-slate-100 rounded bg-slate-50/50"></canvas>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <div class="font-black text-violet-800 mb-2" data-i18n="liveTitle">即時計算</div>
+                <div id="live-math" class="mj-calc"></div>
+                <div class="flex justify-between py-1 mt-1 border-t border-dashed border-slate-100">
+                    <span class="text-[11px] font-bold text-slate-500" data-i18n="statState">狀態</span>
+                    <b id="stat-state" class="text-[11px] text-violet-700">—</b>
+                </div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-8 flex flex-col gap-3 min-h-[40rem]">
+            <div class="bg-black rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative h-[280px] sm:h-[340px]">
+                <canvas id="scene"></canvas>
+                <div class="absolute top-2 left-2 right-2 flex flex-wrap gap-2 pointer-events-none">
+                    <div class="bg-black/70 border border-emerald-500/40 rounded-xl px-2.5 py-1 text-[11px] font-bold text-emerald-300 shadow-sm">
+                        I <span id="hud-i" class="font-mono text-emerald-100">0.00</span> μA
+                    </div>
+                    <div class="bg-black/70 border border-sky-500/40 rounded-xl px-2.5 py-1 text-[11px] font-bold text-sky-300 shadow-sm">
+                        V <span id="hud-v" class="font-mono text-sky-100">0.00</span> V
+                    </div>
+                    <div class="bg-black/70 border border-amber-400/40 rounded-xl px-2.5 py-1 text-[11px] font-bold text-amber-200 shadow-sm">
+                        hf <span id="hud-e" class="font-mono text-amber-100">2.90</span> eV
+                    </div>
+                    <div class="bg-black/70 border border-violet-400/40 rounded-xl px-2.5 py-1 text-[11px] font-bold text-violet-200 shadow-sm">
+                        K<sub>max</sub> <span id="hud-k" class="font-mono text-violet-100">0.54</span> eV
+                    </div>
+                    <div id="hud-state" class="bg-violet-600 text-white rounded-xl px-2.5 py-1 text-[11px] font-black shadow-sm">發射中</div>
+                </div>
             </div>
 
-            <!-- 圖表 2: 電流 vs 電壓 -->
-            <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                <h3 class="text-sm font-semibold text-center mb-2 text-slate-700">電流 (I) - 電壓 (V) <span class="text-xs font-normal text-slate-400 block">顯示截止電壓 Vs</span></h3>
-                <canvas id="graphVoltage" width="400" height="180" class="w-full border border-slate-100 rounded bg-slate-50/50"></canvas>
+            <div id="energy-wrap" class="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative h-[132px] sm:h-[148px]">
+                <canvas id="energy"></canvas>
             </div>
 
-            <!-- 圖表 3: 電流 vs 頻率 -->
-            <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                <h3 class="text-sm font-semibold text-center mb-2 text-slate-700">電流 (I) - 頻率 (f) <span class="text-xs font-normal text-slate-400 block">顯示底限頻率 f₀</span></h3>
-                <canvas id="graphFrequency" width="400" height="180" class="w-full border border-slate-100 rounded bg-slate-50/50"></canvas>
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[240px]">
+                <div class="flex flex-wrap items-center gap-2 px-3 pt-3">
+                    <button type="button" class="tab-btn active" data-graph="iv" data-i18n="gIV">I–V</button>
+                    <button type="button" class="tab-btn" data-graph="ii" data-i18n="gII">I–光度</button>
+                    <button type="button" class="tab-btn" data-graph="if" data-i18n="gIF">I–f</button>
+                    <button type="button" class="tab-btn" data-graph="kf" data-i18n="gKF">K<sub>max</sub>–f</button>
+                    <div class="ml-auto flex gap-2">
+                        <button type="button" id="btn-record" class="px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-violet-600 hover:bg-violet-700 text-white" data-i18n="btnRecord">記錄此點</button>
+                        <button type="button" id="btn-clear" class="px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200" data-i18n="btnClear">清除記錄</button>
+                    </div>
+                </div>
+                <p id="graph-hint" class="px-3 pt-1 text-[10px] text-slate-500 font-bold"></p>
+                <div class="graph-wrap flex-1 min-h-[200px]">
+                    <canvas id="graph"></canvas>
+                </div>
             </div>
-        </div>
+        </section>
     </main>
 
-    <script>
-    (function() {
-        // --- 物理常數 ---
-        // Planck's constant in eV*s
-        // 1 THz = 10^12 Hz
-        // h = 4.1357e-15 eV*s
-        // h * 1THz = 4.1357e-3 eV
-        const H_THZ = 0.0041357; 
-        const C_LIGHT = 300000; // nm * THz approximate constant for display
-        
-        // 模擬狀態
-        const state = {
-            frequency: 650, // THz
-            intensity: 50,  // %
-            voltage: 0.0,   // Volts
-            workFunction: 2.3, // eV (Sodium)
-            photons: [],
-            electrons: []
-        };
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-violet-500 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">光電效應</h2>
+                    <p class="text-xs text-violet-100" data-i18n="modalSub">Einstein equation, threshold and stopping potential</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m1t">1. 現象與經典困難</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">單色光照射金屬表面，若頻率夠高，電子會即時射出。經典波動理論預期「光度愈強、動能愈大；低頻強光只要照射夠久也會發射」，但實驗兩者都不成立。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 愛因斯坦光電方程式</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">光以光子傳遞能量。一個光子把能量 hf 交給一個電子；電子克服功函數 Φ 後，剩餘成為最大動能。</p>
+                    <div class="mj-box">\( hf = \Phi + K_{\max} = \Phi + eV_s \)</div>
+                    <div class="grid sm:grid-cols-2 gap-3 mt-3">
+                        <div class="calc-step">
+                            <div class="text-xs font-bold text-violet-800 mb-1" data-i18n="m2a">光子能量</div>
+                            <div class="mj-calc">\( E = hf = \dfrac{hc}{\lambda} \)</div>
+                        </div>
+                        <div class="calc-step">
+                            <div class="text-xs font-bold text-amber-800 mb-1" data-i18n="m2b">截止電壓</div>
+                            <div class="mj-calc">\( eV_s = K_{\max} \)</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m3t">3. 底限頻率與 K–f 圖</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m3d">只有 \(f &gt; f_0\) 才發射。K<sub>max</sub>–f 是直線，斜率等於普朗克常數 h，橫截距是 f₀，縱截距是 −Φ。</p>
+                    <div class="mj-box">\( f_0 = \dfrac{\Phi}{h},\quad K_{\max} = h(f - f_0) \)</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-sky-50 p-3 rounded-xl border border-sky-100">
+                        <h4 class="font-bold text-sky-800 mb-1" data-i18n="m4t">光度只改電流</h4>
+                        <p data-i18n="m4d">光子數目 ∝ 光度，故飽和電流 I<sub>s</sub> 隨光度上升；每個光子能量不變，所以 K<sub>max</sub> 與 V<sub>s</sub> 不變。</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 mb-1" data-i18n="m5t">生活例子</h4>
+                        <p data-i18n="m5d">光電管、自動門感光器、舊式曝光計。光伏板是半導體 PN 接面，機制相近但不是同一套金屬功函數模型。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        // DOM 緩存
-        const els = {
-            canvas: document.getElementById('simCanvas'),
-            ctx: document.getElementById('simCanvas').getContext('2d'),
-            metalSelect: document.getElementById('metalSelect'),
-            intensitySlider: document.getElementById('intensitySlider'),
-            voltageSlider: document.getElementById('voltageSlider'),
-            freqSlider: document.getElementById('freqSlider'),
-            freqThumb: document.getElementById('freqThumb'),
-            thresholdMarker: document.getElementById('thresholdMarker'),
-            
-            display: {
-                intensity: document.getElementById('intensityDisplay'),
-                voltage: document.getElementById('voltageDisplay'),
-                freq: document.getElementById('freqDisplay'),
-                wavelength: document.getElementById('wavelengthDisplay'),
-                photonEnergy: document.getElementById('photonEnergy'),
-                kineticEnergy: document.getElementById('kineticEnergy'),
-                ammeter: document.getElementById('ammeterValue'),
-                voltmeter: document.getElementById('voltmeterValue')
-            },
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-violet-500 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-violet-100" data-i18n="stepsSub">Threshold, intensity, then Vs</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-700 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">選「低於底限」：紅光打鈉。能量井中 hf 矮過 Φ，沒有電子飛出，電流為 0。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-700 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">改「藍光發射」或把頻率滑過 f₀。核對即時計算：K<sub>max</sub> = hf − Φ。鋅板要用紫外，可見光不夠。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-700 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">只加大光度：I–光度成正比，但 K<sub>max</sub> 與 V<sub>s</sub> 不變。這否定「波動能量愈大、電子愈快」。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-violet-100 text-violet-700 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">加反向電壓至 V<sub>s</sub>，電流降至 0。到 K<sub>max</sub>–f 圖記錄數點，斜率應接近 h。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-            graphs: {
-                intensity: document.getElementById('graphIntensity').getContext('2d'),
-                voltage: document.getElementById('graphVoltage').getContext('2d'),
-                frequency: document.getElementById('graphFrequency').getContext('2d')
-            }
-        };
+<script>
+const H_EV_THZ = 0.004135667696;
+const C_NM_THZ = 299792.458;
+const F_MIN = 250, F_MAX = 1500;
+const V_MIN = -6, V_MAX = 6;
 
-        function frequencyToColor(freqTHz) {
-            // 根據頻率返回 CSS 顏色 (近似光譜)
-            const nm = 300000 / freqTHz;
-            let r, g, b, alpha = 1;
+const METALS = [
+    { id: 'cs', sym: 'Cs', phi: 2.14, fill: '#c4b5fd' },
+    { id: 'k',  sym: 'K',  phi: 2.29, fill: '#e2e8f0' },
+    { id: 'na', sym: 'Na', phi: 2.36, fill: '#fde68a' },
+    { id: 'li', sym: 'Li', phi: 2.90, fill: '#cbd5e1' },
+    { id: 'ca', sym: 'Ca', phi: 2.87, fill: '#94a3b8' },
+    { id: 'zn', sym: 'Zn', phi: 4.33, fill: '#a1a1aa' },
+    { id: 'cu', sym: 'Cu', phi: 4.70, fill: '#d97706' },
+    { id: 'pt', sym: 'Pt', phi: 5.65, fill: '#a8a29e' },
+    { id: 'custom', sym: 'Φ', phi: 3.00, fill: '#818cf8' }
+];
 
-            if (freqTHz < 380) { r=50; g=0; b=0; alpha=0.3; } // IR
-            else if (freqTHz >= 380 && freqTHz < 440) { r=255; g=0; b=0; } // Red
-            else if (freqTHz >= 440 && freqTHz < 490) { r=255; g=165; b=0; } // Orange
-            else if (freqTHz >= 490 && freqTHz < 510) { r=255; g=255; b=0; } // Yellow
-            else if (freqTHz >= 510 && freqTHz < 580) { r=0; g=255; b=0; } // Green
-            else if (freqTHz >= 580 && freqTHz < 640) { r=0; g=255; b=255; } // Cyan
-            else if (freqTHz >= 640 && freqTHz < 750) { r=0; g=0; b=255; } // Blue
-            else if (freqTHz >= 750 && freqTHz < 850) { r=138; g=43; b=226; } // Violet
-            else { r=75; g=0; b=130; alpha=0.5; } // UV
+const BANDS = { ir: 300, red: 430, green: 550, blue: 700, uv: 1200 };
 
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+const PRESETS = {
+    below:   { metal: 'na', phi: 2.36, intensity: 70, voltage: 0, freq: 430 },
+    emit:    { metal: 'na', phi: 2.36, intensity: 50, voltage: 0, freq: 700 },
+    uvzn:    { metal: 'zn', phi: 4.33, intensity: 55, voltage: 0, freq: 1250 },
+    intense: { metal: 'na', phi: 2.36, intensity: 95, voltage: 0, freq: 700 },
+    stop:    { metal: 'na', phi: 2.36, intensity: 60, voltage: 'vs', freq: 750 }
+};
+
+const i18n = {
+    zh: {
+        title: '光電效應', badge: '物理', subtitle: '愛因斯坦方程式、底限頻率與截止電壓',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟',
+        controlTitle: '實驗控制', play: '開始', pause: '暫停', resume: '繼續', reset: '重置',
+        slowMo: '慢動作（0.35×）', presets: '教學情境',
+        preBelow: '① 低於底限：紅光打鈉', preEmit: '② 藍光發射光電子',
+        preUvzn: '③ 鋅板需紫外線', preIntense: '④ 強光：電流↑、Kmax 不變',
+        preStop: '⑤ 截止電壓剛好遏止',
+        labelMetal: '金屬靶（陰極）', labelPhi: '功函數 Φ', labelInt: '光強度 I',
+        labelV: '外加電壓 V（＋加速／－遏止）', labelF: '頻率 f ／ 波長 λ',
+        vNeg: '−6 V 遏止', vPos: '＋6 V 加速',
+        bandIr: '紅外', bandRed: '紅', bandGreen: '綠', bandBlue: '藍', bandUv: '紫外',
+        showLabels: '顯示標籤', showWell: '顯示能量井', showDist: '電子動能分佈（≤ Kmax）',
+        showClass: '對照經典波動理論',
+        liveTitle: '即時計算', statState: '狀態',
+        gIV: 'I–V', gII: 'I–光度', gIF: 'I–f', gKF: 'Kmax–f',
+        btnRecord: '記錄此點', btnClear: '清除記錄',
+        hintIV: '飽和電流由光度決定；反向電壓到 Vs 時電流為 0。',
+        hintII: 'f > f₀ 且 V > −Vs 時，電流與光度成正比。',
+        hintIF: '低於 f₀ 完全沒有電流；經典理論會預期任何頻率都有電流。',
+        hintKF: '直線斜率 = h，橫截距 = f₀。按「記錄此點」做密立根式測定。',
+        metal_cs: '銫', metal_k: '鉀', metal_na: '鈉', metal_li: '鋰',
+        metal_ca: '鈣', metal_zn: '鋅', metal_cu: '銅', metal_pt: '鉑', metal_custom: '自訂',
+        stNone: '無光照', stBelow: '低於底限，不發射', stEmit: '發射中', stStop: '已被截止電壓遏止',
+        lamp: '入射光', cathode: '陰極（靶）', anode: '陽極（收集極）', vac: '真空光電管',
+        legBattery: '可變電源', legRheo: '可變電阻',
+        wellVac: '真空能階', wellPhi: '功函數井', wellK: '最大動能', wellHf: '光子',
+        fitH: '斜率測得 h', fitPhi: '截距測得 Φ', needPts: '至少記錄 2 點才可擬合',
+        classNote: '經典：任何 f 都可發射，K 應隨光度增加。',
+        stepsTitle: '觀察步驟', stepsSub: '先底限，再光度，最後 Vs',
+        s1: '選「低於底限」：紅光打鈉。能量井中 hf 矮過 Φ，沒有電子飛出，電流為 0。',
+        s2: '改「藍光發射」或把頻率滑過 f₀。核對即時計算：Kmax = hf − Φ。鋅板要用紫外，可見光不夠。',
+        s3: '只加大光度：I–光度成正比，但 Kmax 與 Vs 不變。這否定「波動能量愈大、電子愈快」。',
+        s4: '加反向電壓至 Vs，電流降至 0。到 Kmax–f 圖記錄數點，斜率應接近 h。',
+        modalTitle: '光電效應', modalSub: '愛因斯坦方程式、底限與截止電壓', modalClose: '關閉',
+        m1t: '1. 現象與經典困難',
+        m1d: '單色光照射金屬表面，若頻率夠高，電子會即時射出。經典波動理論預期「光度愈強、動能愈大；低頻強光只要照射夠久也會發射」，但實驗兩者都不成立。',
+        m2t: '2. 愛因斯坦光電方程式',
+        m2d: '光以光子傳遞能量。一個光子把能量 hf 交給一個電子；電子克服功函數 Φ 後，剩餘成為最大動能。',
+        m2a: '光子能量', m2b: '截止電壓',
+        m3t: '3. 底限頻率與 K–f 圖',
+        m3d: '只有 f > f₀ 才發射。Kmax–f 是直線，斜率等於普朗克常數 h，橫截距是 f₀，縱截距是 −Φ。',
+        m4t: '光度只改電流',
+        m4d: '光子數目 ∝ 光度，故飽和電流 Is 隨光度上升；每個光子能量不變，所以 Kmax 與 Vs 不變。',
+        m5t: '生活例子',
+        m5d: '光電管、自動門感光器、舊式曝光計。光伏板是半導體 PN 接面，機制相近但不是同一套金屬功函數模型。'
+    },
+    en: {
+        title: 'Photoelectric Effect', badge: 'Physics', subtitle: 'Einstein equation, threshold frequency and stopping potential',
+        btnPrinciple: 'Theory', btnSteps: 'Steps',
+        controlTitle: 'Controls', play: 'Start', pause: 'Pause', resume: 'Resume', reset: 'Reset',
+        slowMo: 'Slow motion (0.35×)', presets: 'Scenarios',
+        preBelow: '① Below threshold: red on sodium', preEmit: '② Blue light ejects electrons',
+        preUvzn: '③ Zinc needs UV', preIntense: '④ Bright light: I rises, Kmax fixed',
+        preStop: '⑤ Stopping potential just cuts off',
+        labelMetal: 'Target metal (cathode)', labelPhi: 'Work function Φ', labelInt: 'Intensity I',
+        labelV: 'Bias V (+ accelerate / − retard)', labelF: 'Frequency f / wavelength λ',
+        vNeg: '−6 V stopping', vPos: '+6 V accelerating',
+        bandIr: 'IR', bandRed: 'Red', bandGreen: 'Green', bandBlue: 'Blue', bandUv: 'UV',
+        showLabels: 'Show labels', showWell: 'Show energy well', showDist: 'KE spread (≤ Kmax)',
+        showClass: 'Compare with classical wave theory',
+        liveTitle: 'Live calculation', statState: 'Status',
+        gIV: 'I–V', gII: 'I–intensity', gIF: 'I–f', gKF: 'Kmax–f',
+        btnRecord: 'Log point', btnClear: 'Clear log',
+        hintIV: 'Saturation current follows intensity; I = 0 once the reverse voltage reaches Vs.',
+        hintII: 'When f > f₀ and V > −Vs, current is proportional to intensity.',
+        hintIF: 'No current below f₀. A classical wave would predict current at every frequency.',
+        hintKF: 'Slope = h, intercept = f₀. Log points for a Millikan-style measurement.',
+        metal_cs: 'Caesium', metal_k: 'Potassium', metal_na: 'Sodium', metal_li: 'Lithium',
+        metal_ca: 'Calcium', metal_zn: 'Zinc', metal_cu: 'Copper', metal_pt: 'Platinum', metal_custom: 'Custom',
+        stNone: 'No light', stBelow: 'Below threshold — no emission', stEmit: 'Emitting', stStop: 'Cut off by Vs',
+        lamp: 'Incident light', cathode: 'Cathode (target)', anode: 'Anode (collector)', vac: 'Vacuum photocell',
+        legBattery: 'Variable supply', legRheo: 'Rheostat',
+        wellVac: 'Vacuum level', wellPhi: 'Work-function well', wellK: 'Max KE', wellHf: 'Photon',
+        fitH: 'h from slope', fitPhi: 'Φ from intercept', needPts: 'Log at least 2 points to fit',
+        classNote: 'Classical: any f can emit; K should rise with intensity.',
+        stepsTitle: 'Observation steps', stepsSub: 'Threshold, then intensity, then Vs',
+        s1: 'Pick “below threshold”: red light on sodium. In the energy well, hf is shorter than Φ — no electrons, I = 0.',
+        s2: 'Switch to “blue light” or slide f past f₀. Check Kmax = hf − Φ. Zinc needs UV; visible light is not enough.',
+        s3: 'Increase intensity only: I rises in proportion, but Kmax and Vs stay the same. That rules out “brighter wave → faster electrons”.',
+        s4: 'Apply reverse voltage up to Vs so I falls to 0. On the Kmax–f graph, log several points; the slope should be close to h.',
+        modalTitle: 'Photoelectric effect', modalSub: 'Einstein equation, threshold and stopping potential', modalClose: 'Close',
+        m1t: '1. The puzzle for classical waves',
+        m1d: 'Monochromatic light ejects electrons at once if the frequency is high enough. A classical wave predicts “brighter light → larger KE” and “dim low-frequency light will emit if you wait long enough”. Neither is true.',
+        m2t: '2. Einstein’s photoelectric equation',
+        m2d: 'Light arrives as photons. One photon gives energy hf to one electron; after paying the work function Φ, the leftover is the maximum kinetic energy.',
+        m2a: 'Photon energy', m2b: 'Stopping potential',
+        m3t: '3. Threshold frequency and the K–f graph',
+        m3d: 'Emission occurs only for f > f₀. Kmax versus f is a straight line whose slope is Planck’s constant h, x-intercept f₀ and y-intercept −Φ.',
+        m4t: 'Intensity changes current only',
+        m4d: 'Photon rate ∝ intensity, so the saturation current Is rises with brightness. Each photon’s energy is unchanged, so Kmax and Vs stay fixed.',
+        m5t: 'Everyday examples',
+        m5d: 'Phototubes, automatic-door sensors, old exposure meters. A solar cell uses a semiconductor PN junction — related, but not the metal work-function model.'
+    }
+};
+
+const els = {};
+[
+    'btn-play','btn-reset','btn-lang','btn-lang-mobile','btn-steps','btn-principle',
+    'in-slow','in-metal','in-phi','in-int','in-v','in-f','in-labels','in-well','in-dist','in-class',
+    'disp-metal','disp-phi','disp-int','disp-v','disp-f','freq-thumb','f0-mark',
+    'live-math','stat-state','hud-i','hud-v','hud-e','hud-k','hud-state',
+    'scene','energy','energy-wrap','graph','graph-hint','btn-record','btn-clear',
+    'modal-principle','modal-steps','modal-close','modal-confirm','steps-close','steps-confirm'
+].forEach(id => { els[id] = document.getElementById(id); });
+
+let lang = 'zh';
+let playing = true;
+let lastTs = 0;
+let activePreset = 'emit';
+let graphTab = 'iv';
+let liveMathKey = '';
+let hoverGraph = null;
+let photons = [];
+let electrons = [];
+let logPts = [];
+let mjTimer = 0;
+let tubeMetalId = 'na';
+
+function num(id) { return parseFloat(els[id].value); }
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function fmt(n, d) { return (Math.abs(n) < 5e-4 ? 0 : n).toFixed(d); }
+function metalById(id) { return METALS.find(m => m.id === id) || METALS[2]; }
+function currentMetal() { return metalById(els['in-metal'].value); }
+
+function wavelength(f) { return C_NM_THZ / f; }
+function photonEnergy(f) { return H_EV_THZ * f; }
+function f0Of(phi) { return phi / H_EV_THZ; }
+
+function phys() {
+    const f = num('in-f');
+    const phi = num('in-phi');
+    const V = num('in-v');
+    const Ipct = num('in-int');
+    const hf = photonEnergy(f);
+    const f0 = f0Of(phi);
+    const kmax = hf - phi;
+    const has = kmax > 1e-6 && Ipct > 0;
+    const vs = has ? kmax : 0;
+    let iSat = has ? Ipct * 0.48 : 0;
+    let I = 0;
+    const stopped = has && V <= -vs + 0.008;
+    if (has && !stopped) {
+        if (V >= 0) I = iSat;
+        else I = iSat * Math.sqrt(Math.max(0, (V + vs) / vs));
+    }
+    let state = 'stBelow';
+    if (Ipct <= 0) state = 'stNone';
+    else if (!has) state = 'stBelow';
+    else if (stopped) state = 'stStop';
+    else state = 'stEmit';
+    return { f, phi, V, Ipct, hf, f0, kmax: Math.max(0, kmax), has, vs, iSat, I, state, stopped, lam: wavelength(f) };
+}
+
+function rgbOfNm(nm) {
+    let r = 0, g = 0, b = 0, a = 1;
+    if (nm >= 1100) { r = 80; g = 20; b = 20; a = 0.35; }
+    else if (nm > 750) { r = 160; g = 30; b = 30; a = 0.45; }
+    else if (nm >= 645) { r = 255; g = 20; b = 20; }
+    else if (nm >= 580) { r = 255; g = 170; b = 0; }
+    else if (nm >= 510) { r = 40; g = 220; b = 40; }
+    else if (nm >= 490) { r = 0; g = 230; b = 230; }
+    else if (nm >= 440) { r = 40; g = 80; b = 255; }
+    else if (nm >= 380) { r = 140; g = 40; b = 230; }
+    else { r = 90; g = 40; b = 180; a = 0.55; }
+    return { r, g, b, a, css: `rgba(${r},${g},${b},${a})` };
+}
+
+function fitCanvas(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const r = cv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(r.width * dpr));
+    const h = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: r.width, h: r.height, dpr };
+}
+
+function fillMetalSelect() {
+    const T = i18n[lang];
+    const cur = els['in-metal'].value || 'na';
+    els['in-metal'].innerHTML = METALS.map(m =>
+        `<option value="${m.id}">${T['metal_' + m.id]} (${m.sym}) — Φ = ${m.phi.toFixed(2)} eV</option>`
+    ).join('');
+    els['in-metal'].value = cur;
+}
+
+function syncSliders() {
+    const p = phys();
+    const m = currentMetal();
+    els['disp-metal'].textContent = m.sym;
+    els['disp-phi'].textContent = fmt(p.phi, 2) + ' eV';
+    els['disp-int'].textContent = Math.round(p.Ipct) + '%';
+    els['disp-v'].textContent = fmt(p.V, 2) + ' V';
+    els['disp-f'].textContent = Math.round(p.f) + ' THz · ' + Math.round(p.lam) + ' nm';
+    const pct = (p.f - F_MIN) / (F_MAX - F_MIN) * 100;
+    els['freq-thumb'].style.left = pct + '%';
+    els['freq-thumb'].style.background = rgbOfNm(p.lam).css;
+    const f0pct = clamp((p.f0 - F_MIN) / (F_MAX - F_MIN) * 100, 0, 100);
+    els['f0-mark'].style.left = f0pct + '%';
+    const hints = { iv: 'hintIV', ii: 'hintII', if: 'hintIF', kf: 'hintKF' };
+    els['graph-hint'].textContent = i18n[lang][hints[graphTab]];
+}
+
+function setPlayLabel() {
+    const T = i18n[lang];
+    els['btn-play'].textContent = playing ? T.pause : T.play;
+}
+
+function stateLabel(key) { return i18n[lang][key]; }
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    fillMetalSelect();
+    setPlayLabel();
+    syncSliders();
+    liveMathKey = '';
+    updateHud();
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+    }
+}
+
+function mjNum(n, d) {
+    const v = Math.abs(n) < 5e-4 ? 0 : n;
+    return v.toFixed(d == null ? 2 : d);
+}
+
+function typesetLiveMath() {
+    clearTimeout(mjTimer);
+    mjTimer = setTimeout(() => {
+        if (window.MathJax && MathJax.typesetPromise) {
+            MathJax.typesetPromise([els['live-math']]).catch(() => {});
         }
+    }, 160);
+}
 
-        // 核心物理計算
-        function getPhysics(freq, voltage, workFunc) {
-            const photonEnergy = H_THZ * freq;
-            
-            // 只有當光子能量大於功函數時，才會有光電子
-            // Max Kinetic Energy Kmax = hf - Phi
-            let maxKinetic = photonEnergy - workFunc;
-            let hasEmission = true;
+function updateLiveMath(p) {
+    const T = i18n[lang];
+    const key = [p.f, p.phi, p.V, p.Ipct, p.I, p.state, lang].map(n => String(n)).join('|');
+    if (key === liveMathKey) return;
+    liveMathKey = key;
+    const emit = p.has && p.kmax > 0;
+    els['live-math'].innerHTML = `
+        <div class="calc-step">
+            <div class="text-[10px] font-black text-violet-700 mb-1">${T.m2a}</div>
+            <div class="mj-calc">\\( E = hf = (${mjNum(H_EV_THZ, 5)})(${mjNum(p.f, 0)}) = ${mjNum(p.hf, 2)}\\ \\mathrm{eV} \\)</div>
+            <div class="mj-calc">\\( \\lambda = c/f = ${Math.round(p.lam)}\\ \\mathrm{nm} \\)</div>
+        </div>
+        <div class="calc-step">
+            <div class="mj-calc">\\( f_0 = \\Phi/h = ${mjNum(p.f0, 0)}\\ \\mathrm{THz},\\ \\lambda_0 = ${Math.round(C_NM_THZ / p.f0)}\\ \\mathrm{nm} \\)</div>
+        </div>
+        <div class="calc-step">
+            ${emit
+                ? `<div class="mj-calc">\\( K_{\\max} = hf - \\Phi = ${mjNum(p.hf, 2)} - ${mjNum(p.phi, 2)} = ${mjNum(p.kmax, 2)}\\ \\mathrm{eV} \\)</div>
+                   <div class="mj-calc">\\( V_s = K_{\\max}/e = ${mjNum(p.vs, 2)}\\ \\mathrm{V} \\)</div>
+                   <div class="mj-calc">\\( I = ${mjNum(p.I, 2)}\\ \\mu\\mathrm{A} \\)</div>`
+                : `<div class="mj-calc">\\( hf < \\Phi \\Rightarrow K_{\\max} = 0,\\ I = 0 \\)</div>`}
+        </div>`;
+    typesetLiveMath();
+}
 
-            if (maxKinetic < 0) {
-                maxKinetic = 0;
-                hasEmission = false;
-            }
+function updateHud() {
+    const p = phys();
+    const T = i18n[lang];
+    els['hud-i'].textContent = fmt(p.I, 2);
+    els['hud-v'].textContent = fmt(p.V, 2);
+    els['hud-e'].textContent = fmt(p.hf, 2);
+    els['hud-k'].textContent = fmt(p.kmax, 2);
+    const label = T[p.state];
+    els['hud-state'].textContent = label;
+    els['stat-state'].textContent = label;
+    const colors = { stNone: '#475569', stBelow: '#b45309', stEmit: '#7c3aed', stStop: '#dc2626' };
+    els['hud-state'].style.background = colors[p.state] || '#7c3aed';
+    updateLiveMath(p);
+}
 
-            // 截止電壓 (Stopping Potential) Vs = Kmax / e
-            // 在電路圖中，這是反向電壓的大小。
-            // 如果外加電壓 V < -Vs，則電流為 0。
-            const stoppingPotential = -maxKinetic;
+function resetTubeParticles() {
+    photons = [];
+    electrons = [];
+    drawScene._carry = 0;
+}
 
-            return {
-                photonEnergy,
-                maxKinetic,
-                stoppingPotential, // 負值，例如 -1.5V
-                hasEmission
-            };
+function onCathodeChanged(force) {
+    const id = currentMetal().id;
+    if (force || id !== tubeMetalId) {
+        tubeMetalId = id;
+        resetTubeParticles();
+        drawScene(0);
+        drawEnergy();
+    }
+}
+
+function tubeLayout(w, h) {
+    const tubeW = Math.min(w * 0.56, 500);
+    const tubeH = Math.min(h * 0.30, 100);
+    const tubeX = (w - tubeW) * 0.46;
+    const tubeY = Math.max(44, h * 0.24);
+    const cx = tubeX + tubeW / 2;
+    const cy = tubeY + tubeH / 2;
+    const plateH = tubeH * 0.62;
+    const cathR = plateH * 0.52;
+    const cathCx = tubeX + 26 + cathR;
+    const cathX = cathCx - cathR;
+    const anodeX = tubeX + tubeW - 28;
+    const photonSpeed = 96;
+    const beamAng = Math.PI * 0.75;
+    const ux = Math.cos(beamAng), uy = Math.sin(beamAng);
+    const targetX = cathCx - cathR * 0.42;
+    const targetY = cy - cathR * 0.18;
+    const beamLen = Math.min(tubeW * 0.42, 92);
+    const spawnX = targetX - ux * beamLen;
+    const spawnY = targetY - uy * beamLen;
+    return {
+        tubeX, tubeY, tubeW, tubeH, cx, cy,
+        plateH, cathR, cathCx, cathX, anodeX,
+        beam: {
+            spawnX, spawnY, targetX, targetY,
+            vx: ux * photonSpeed,
+            vy: uy * photonSpeed,
+            ang: beamAng
         }
+    };
+}
 
-        function updateUI() {
-            const phys = getPhysics(state.frequency, state.voltage, state.workFunction);
-            
-            // 數值顯示
-            els.display.intensity.innerText = state.intensity + "%";
-            els.display.voltage.innerText = state.voltage.toFixed(1) + " V";
-            els.display.voltmeter.innerText = state.voltage.toFixed(2);
-            els.display.freq.innerText = state.frequency + " THz";
-            els.display.wavelength.innerText = (300000 / state.frequency).toFixed(0) + " nm";
-            els.display.photonEnergy.innerText = phys.photonEnergy.toFixed(2) + " eV";
-            els.display.kineticEnergy.innerText = phys.maxKinetic.toFixed(2) + " eV";
+function spawnPhoton(beam, col) {
+    const spd = 86 + Math.random() * 16;
+    const ang = beam.ang + (Math.random() - 0.5) * 0.08;
+    return {
+        x: beam.spawnX + (Math.random() - 0.5) * 8,
+        y: beam.spawnY + (Math.random() - 0.5) * 8,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        col: col.css,
+        metalId: tubeMetalId
+    };
+}
 
-            // 滑桿位置更新
-            const fMin = 300, fMax = 1200;
-            const pct = (state.frequency - fMin) / (fMax - fMin) * 100;
-            els.freqThumb.style.left = `${pct}%`;
-            els.freqThumb.style.backgroundColor = frequencyToColor(state.frequency);
+function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+}
 
-            // 更新閾值標記位置 f0 = Phi / h
-            const f0 = state.workFunction / H_THZ;
-            const f0Pct = Math.max(0, Math.min(100, (f0 - fMin) / (fMax - fMin) * 100));
-            els.thresholdMarker.style.left = `${f0Pct}%`;
-            els.thresholdMarker.title = `Threshold: ${f0.toFixed(0)} THz`;
+function drawMeter(ctx, x, y, r, label) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 ${Math.max(12, r * 0.95)}px ui-sans-serif, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y + 0.5);
+}
+
+function drawVariableBattery(ctx, x, y, positiveLeft) {
+    const longH = 22, shortH = 12, gap = 10;
+    const leftH = positiveLeft ? longH : shortH;
+    const rightH = positiveLeft ? shortH : longH;
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = '#fff';
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(x, y - leftH / 2);
+    ctx.lineTo(x, y + leftH / 2);
+    ctx.stroke();
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x + gap, y - rightH / 2);
+    ctx.lineTo(x + gap, y + rightH / 2);
+    ctx.stroke();
+
+    const x0 = x - 18, y0 = y + 16;
+    const x1 = x + gap + 16, y1 = y - 18;
+    const ang = Math.atan2(y1 - y0, x1 - x0);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    const hs = 11;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - hs * Math.cos(ang - 0.42), y1 - hs * Math.sin(ang - 0.42));
+    ctx.lineTo(x1 - hs * Math.cos(ang + 0.42), y1 - hs * Math.sin(ang + 0.42));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    return { leftX: x, rightX: x + gap };
+}
+
+function drawWavyBeam(ctx, x0, y0, x1, y1, col, waves) {
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const ux = dx / len, uy = dy / len;
+    const px = -uy, py = ux;
+    ctx.save();
+    ctx.strokeStyle = col.css;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (let k = 0; k < waves; k++) {
+        const off = (k - (waves - 1) / 2) * 7;
+        ctx.beginPath();
+        const steps = 28;
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const s = t * len;
+            const amp = 5.5 * Math.sin(t * Math.PI * 3.2 + k);
+            const x = x0 + ux * s + px * (off + amp);
+            const y = y0 + uy * s + py * (off + amp);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
+        ctx.stroke();
+    }
+    ctx.restore();
+}
 
-        // --- 模擬動畫 ---
+function drawExternalCircuit(ctx, w, h, layout, p, T) {
+    const { tubeX, tubeY, tubeW, tubeH, cy, cathCx, anodeX } = layout;
+    const wireL = Math.max(18, tubeX - 48);
+    const wireR = Math.min(w - 18, tubeX + tubeW + 52);
+    const vY = tubeY + tubeH + 28;
+    const botY = h - 26;
+    const meterR = 16;
+    const aY = (vY + botY) / 2 + 8;
+    const batX = wireL + (wireR - wireL) * 0.28;
 
-        function drawSimulation() {
-            const ctx = els.ctx;
-            const w = els.canvas.width;
-            const h = els.canvas.height;
-            ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-            // 繪製電路背景
-            const cx = w / 2;
-            const cy = h / 2 - 20;
-            
-            // 真空管
-            ctx.beginPath();
-            ctx.strokeStyle = "rgba(255,255,255,0.1)";
-            ctx.lineWidth = 2;
-            ctx.arc(cx, cy, 90, 0, Math.PI*2);
-            ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cathCx - layout.cathR, cy);
+    ctx.lineTo(wireL, cy);
+    ctx.lineTo(wireL, botY);
+    ctx.stroke();
 
-            // 極板位置
-            const cathodeX = cx - 60;
-            const anodeX = cx + 60;
-            
-            // 陰極 (Target Metal)
-            ctx.fillStyle = state.workFunction < 2.5 ? "#e2e8f0" : (state.workFunction > 4.5 ? "#d97706" : "#94a3b8");
-            ctx.beginPath();
-            ctx.arc(cathodeX - 10, cy, 50, -0.6, 0.6);
-            ctx.lineWidth = 6;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(anodeX + 3, cy);
+    ctx.lineTo(wireR, cy);
+    ctx.lineTo(wireR, aY - meterR);
+    ctx.stroke();
+    drawMeter(ctx, wireR, aY, meterR, 'A');
+    ctx.beginPath();
+    ctx.moveTo(wireR, aY + meterR);
+    ctx.lineTo(wireR, botY);
+    ctx.stroke();
 
-            // 陽極 (Collector)
-            ctx.fillStyle = "#ef4444";
-            ctx.fillRect(anodeX, cy - 25, 4, 50);
+    ctx.beginPath();
+    ctx.moveTo(wireL, vY);
+    ctx.lineTo((wireL + wireR) / 2 - meterR, vY);
+    ctx.stroke();
+    drawMeter(ctx, (wireL + wireR) / 2, vY, meterR, 'V');
+    ctx.beginPath();
+    ctx.moveTo((wireL + wireR) / 2 + meterR, vY);
+    ctx.lineTo(wireR, vY);
+    ctx.stroke();
 
-            // 導線
-            ctx.beginPath();
-            ctx.strokeStyle = "#475569";
-            ctx.lineWidth = 3;
-            // Cathode path
-            ctx.moveTo(cathodeX - 10, cy);
-            ctx.lineTo(cathodeX - 80, cy);
-            ctx.lineTo(cathodeX - 80, h - 40);
-            ctx.lineTo(cx - 30, h - 40); // Battery Left
-            // Anode path
-            ctx.moveTo(anodeX + 2, cy);
-            ctx.lineTo(anodeX + 80, cy);
-            ctx.lineTo(anodeX + 80, h - 40);
-            ctx.lineTo(cx + 30, h - 40); // Battery Right (Ammeter)
-            ctx.stroke();
+    const bat = drawVariableBattery(ctx, batX, botY, p.V >= 0);
+    ctx.beginPath();
+    ctx.moveTo(wireL, botY);
+    ctx.lineTo(bat.leftX, botY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bat.rightX, botY);
+    ctx.lineTo(wireR, botY);
+    ctx.stroke();
 
-            // 電池符號
-            ctx.strokeStyle = state.voltage >= 0 ? "#22c55e" : "#ef4444";
-            ctx.lineWidth = 2;
-            const bx = cx - 15;
-            const by = h - 40;
-            // 簡單的電池極性顯示
-            ctx.font = "14px monospace";
-            ctx.fillStyle = ctx.strokeStyle;
-            ctx.textAlign = "center";
-            ctx.fillText(state.voltage >= 0 ? "+  -" : "-  +", bx, by - 10);
-            ctx.strokeRect(bx - 15, by - 5, 30, 10); // Battery box representation
+    if (els['in-labels'].checked) {
+        ctx.fillStyle = 'rgba(226,232,240,0.9)';
+        ctx.font = '700 10px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(T.legBattery, batX + 4, botY - 20);
+    }
+}
 
-            // 安培計
-            const ax = cx + 45;
-            const ay = h - 40;
-            ctx.fillStyle = "#1e293b";
-            ctx.beginPath(); ctx.arc(ax, ay, 15, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = "#94a3b8"; ctx.stroke();
-            ctx.fillStyle = "#fff"; ctx.font = "10px Arial"; ctx.fillText("A", ax, ay + 3);
+function drawPhotocell(ctx, w, h, layout, m, p, T, col) {
+    const { tubeX, tubeY, tubeW, tubeH, cy, plateH, cathR, cathCx, cathX, anodeX, beam } = layout;
 
-            // 光源
-            const lx = cathodeX - 100;
-            const ly = cy - 80;
-            ctx.save();
-            ctx.translate(lx, ly);
-            ctx.rotate(0.4);
-            ctx.fillStyle = "#334155";
-            ctx.fillRect(0, -10, 30, 20);
-            ctx.fillStyle = frequencyToColor(state.frequency);
-            ctx.beginPath();
-            ctx.moveTo(30, -10); ctx.lineTo(40, -20); ctx.lineTo(40, 20); ctx.lineTo(30, 10);
-            ctx.fill();
-            ctx.restore();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
 
-            return { cathodeX, anodeX, cy, lx: lx+20, ly: ly+20 };
+    ctx.save();
+    roundRectPath(ctx, tubeX, tubeY, tubeW, tubeH, 14);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = m.fill;
+    ctx.fillStyle = m.fill;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cathCx, cy, cathR, Math.PI - 0.95, Math.PI + 0.95);
+    ctx.stroke();
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(cathCx, cy, cathR * 0.70, Math.PI - 0.85, Math.PI + 0.85);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(anodeX, cy - plateH * 0.38, 4, plateH * 0.76);
+
+    drawExternalCircuit(ctx, w, h, layout, p, T);
+
+    if (p.Ipct > 0) {
+        drawWavyBeam(ctx, beam.spawnX, beam.spawnY - 8, beam.targetX, beam.targetY, col, 3);
+    }
+
+    if (els['in-labels'].checked) {
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '700 11px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(T.lamp, beam.spawnX - 8, Math.max(16, beam.spawnY - 16));
+        ctx.fillText(T.cathode + ' ' + m.sym, cathX - 4, tubeY + tubeH + 16);
+        ctx.textAlign = 'right';
+        ctx.fillText(T.anode, anodeX + 18, tubeY - 8);
+    }
+
+    return layout;
+}
+
+function rgbaAlpha(css, a) {
+    const m = css.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    return m ? `rgba(${m[1]},${m[2]},${m[3]},${a})` : css;
+}
+
+function shadeColor(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = clamp(((n >> 16) & 255) + amt, 0, 255);
+    const g = clamp(((n >> 8) & 255) + amt, 0, 255);
+    const b = clamp((n & 255) + amt, 0, 255);
+    return `rgb(${r},${g},${b})`;
+}
+
+function applyPreset(id) {
+    const pre = PRESETS[id];
+    if (!pre) return;
+    activePreset = id;
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === id));
+    els['in-metal'].value = pre.metal;
+    els['in-phi'].value = String(pre.phi);
+    els['in-int'].value = String(pre.intensity);
+    els['in-f'].value = String(pre.freq);
+    const vs = Math.max(0, photonEnergy(pre.freq) - pre.phi);
+    els['in-v'].value = pre.voltage === 'vs'
+        ? (-(Math.ceil(vs * 100) / 100)).toFixed(2)
+        : String(pre.voltage);
+    onCathodeChanged(true);
+    syncSliders();
+    updateHud();
+}
+
+function resetSim() {
+    if (activePreset && PRESETS[activePreset]) applyPreset(activePreset);
+    else applyPreset('emit');
+    playing = true;
+    setPlayLabel();
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function drawScene(dt) {
+    const { ctx, w, h } = fitCanvas(els.scene);
+    const p = phys();
+    const m = currentMetal();
+    const T = i18n[lang];
+    const col = rgbOfNm(p.lam);
+    const layout = tubeLayout(w, h);
+    drawPhotocell(ctx, w, h, layout, m, p, T, col);
+    const { tubeX, tubeY, tubeW, tubeH, cathCx, cathR, anodeX, plateH, cy, beam } = layout;
+    const hitR = cathR * 0.85;
+
+    const speed = (els['in-slow'].checked ? 0.35 : 1);
+    if (playing) {
+        const spawn = (p.Ipct / 100) * 12 * dt * speed;
+        let acc = spawn + (drawScene._carry || 0);
+        while (acc >= 1) {
+            acc -= 1;
+            photons.push(spawnPhoton(beam, col));
         }
+        drawScene._carry = acc;
+    }
 
-        function updateParticles(positions) {
-            const phys = getPhysics(state.frequency, state.voltage, state.workFunction);
-            const ctx = els.ctx;
-
-            // 1. 生成光子
-            if (Math.random() * 100 < state.intensity) {
-                state.photons.push({
-                    x: positions.lx,
-                    y: positions.ly,
-                    vx: 6,
-                    vy: 2.5,
-                    color: frequencyToColor(state.frequency)
+    for (let i = photons.length - 1; i >= 0; i--) {
+        const ph = photons[i];
+        if (ph.metalId !== tubeMetalId) { photons.splice(i, 1); continue; }
+        if (playing) { ph.x += ph.vx * dt * speed; ph.y += ph.vy * dt * speed; }
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(ph.x, ph.y, 3.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = ph.col;
+        ctx.beginPath(); ctx.arc(ph.x, ph.y, 2.2, 0, Math.PI * 2); ctx.fill();
+        const dx = ph.x - (cathCx - cathR * 0.35), dy = ph.y - cy;
+        if (dx * dx + dy * dy < hitR * hitR && ph.x < anodeX - 8) {
+            photons.splice(i, 1);
+            if (p.has) {
+                const frac = els['in-dist'].checked ? (0.22 + 0.78 * Math.random() * Math.random()) : 1;
+                const k = p.kmax * frac;
+                const spd = 48 + Math.sqrt(k) * 62;
+                electrons.push({
+                    x: cathCx - cathR * 0.25,
+                    y: cy + (Math.random() - 0.5) * plateH * 0.45,
+                    vx: spd * (0.85 + Math.random() * 0.25),
+                    vy: (Math.random() - 0.5) * 18,
+                    k, metalId: tubeMetalId
                 });
             }
-
-            // 2. 更新光子
-            for (let i = state.photons.length - 1; i >= 0; i--) {
-                const p = state.photons[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                
-                ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI*2); ctx.fill();
-
-                // 撞擊判定
-                const dx = p.x - (positions.cathodeX);
-                const dy = p.y - positions.cy;
-                if (dx*dx + dy*dy < 1500) { // Hit cathode area
-                    state.photons.splice(i, 1);
-                    // 根據物理條件生成電子
-                    if (phys.hasEmission) {
-                        // 速度與 Kmax 有關
-                        const speed = Math.sqrt(phys.maxKinetic) * 3;
-                        state.electrons.push({
-                            x: p.x, 
-                            y: p.y,
-                            vx: speed * (0.5 + Math.random()), 
-                            vy: (Math.random() - 0.5) * speed,
-                            dead: false
-                        });
-                    }
-                } else if (p.x > 800 || p.y > 400) {
-                    state.photons.splice(i, 1);
-                }
-            }
-
-            // 3. 更新電子
-            let currentCount = 0;
-            for (let i = state.electrons.length - 1; i >= 0; i--) {
-                const e = state.electrons[i];
-                
-                // 電場效應 F = qE
-                // 簡化：ax 正比於 Voltage
-                e.vx += state.voltage * 0.15; 
-                
-                e.x += e.vx;
-                e.y += e.vy;
-
-                ctx.fillStyle = "#60a5fa";
-                ctx.beginPath(); ctx.arc(e.x, e.y, 2, 0, Math.PI*2); ctx.fill();
-
-                // 邊界判定
-                if (e.x > positions.anodeX && Math.abs(e.y - positions.cy) < 40) {
-                    // Reached anode
-                    currentCount++;
-                    state.electrons.splice(i, 1);
-                } else if (e.x < positions.cathodeX - 50 || e.x > 800 || e.y < 0 || e.y > 400) {
-                    // Missed or pushed back
-                    state.electrons.splice(i, 1);
-                }
-            }
-            
-            // 計算顯示電流 (模擬平滑值)
-            // 1. 理論電流計算 (用於圖表和儀表顯示，較為穩定)
-            let iCalc = 0;
-            if (phys.hasEmission) {
-                if (state.voltage >= 0) {
-                    iCalc = state.intensity;
-                } else if (state.voltage < phys.stoppingPotential) {
-                    iCalc = 0;
-                } else {
-                    // 遏止區間曲線
-                    const range = 0 - phys.stoppingPotential;
-                    const dist = state.voltage - phys.stoppingPotential;
-                    iCalc = state.intensity * Math.sqrt(dist / range);
-                }
-            }
-            
-            // 儀表顯示 (模擬值)
-            els.display.ammeter.innerText = (iCalc / 10).toFixed(2);
-            return iCalc;
+        } else if (ph.y > tubeY + tubeH || ph.x > anodeX || ph.x < 0) {
+            photons.splice(i, 1);
         }
+    }
 
-        function loop() {
-            const positions = drawSimulation();
-            updateParticles(positions);
-            updateUI();
-            requestAnimationFrame(loop);
+    ctx.save();
+    roundRectPath(ctx, tubeX + 2, tubeY + 2, tubeW - 4, tubeH - 4, 12);
+    ctx.clip();
+
+    const eSpawnX = cathCx - cathR * 0.25;
+    const tubeLen = Math.max(40, anodeX - eSpawnX);
+    const vMax = 48 + Math.sqrt(Math.max(0, p.kmax)) * 62;
+    const decelFactor = (p.vs > 0.01 && tubeLen > 0)
+        ? (vMax * vMax) / (2 * p.vs * tubeLen)
+        : 0;
+
+    for (let i = electrons.length - 1; i >= 0; i--) {
+        const e = electrons[i];
+        if (e.metalId !== tubeMetalId) { electrons.splice(i, 1); continue; }
+        if (playing && !e.collected) {
+            e.vx += p.V * decelFactor * dt * speed;
+            e.x += e.vx * dt * speed;
+            e.y += e.vy * dt * speed;
+            if (e.vx <= 0 && e.x < anodeX - 2) {
+                electrons.splice(i, 1);
+                continue;
+            }
+            const hitAnode = e.x > anodeX - 2 && Math.abs(e.y - cy) < plateH * 0.42;
+            if (hitAnode) {
+                e.collected = true;
+                e.x = anodeX - 1;
+                e.vx = 0;
+                e.vy = 0;
+                e.collectedT = 0;
+            }
+        } else if (playing && e.collected) {
+            e.collectedT += dt * speed;
+            if (e.collectedT > 0.22) {
+                electrons.splice(i, 1);
+                continue;
+            }
         }
-
-        // --- 圖表繪製 ---
-        
-        function drawGrid(ctx, w, h, labelX, labelY) {
-            ctx.clearRect(0, 0, w, h);
-            ctx.strokeStyle = "#cbd5e1";
-            ctx.lineWidth = 1;
-            
-            // Axes
+        if (!e.collected && (e.x < cathCx - 8 || e.x > tubeX + tubeW || e.y < tubeY || e.y > tubeY + tubeH)) {
+            electrons.splice(i, 1);
+            continue;
+        }
+        ctx.fillStyle = e.collected ? '#fde047' : '#7dd3fc';
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.collected ? 4.6 : 4, 0, Math.PI * 2); ctx.fill();
+        if (!e.collected) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
-            ctx.moveTo(40, 10); ctx.lineTo(40, h-25); ctx.lineTo(w-10, h-25);
+            ctx.moveTo(e.x + 6, e.y);
+            ctx.lineTo(e.x + 16, e.y);
             ctx.stroke();
-            
-            // Labels
-            ctx.fillStyle = "#64748b";
-            ctx.font = "11px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText(labelX, w/2 + 20, h-5);
-            
-            ctx.save();
-            ctx.translate(15, h/2);
-            ctx.rotate(-Math.PI/2);
-            ctx.fillText(labelY, 0, 0);
-            ctx.restore();
-
-            return { x0: 40, y0: h-25, gw: w-50, gh: h-35 };
+            ctx.beginPath();
+            ctx.moveTo(e.x + 16, e.y);
+            ctx.lineTo(e.x + 11, e.y - 3.2);
+            ctx.moveTo(e.x + 16, e.y);
+            ctx.lineTo(e.x + 11, e.y + 3.2);
+            ctx.stroke();
         }
+    }
+    ctx.restore();
 
-        function drawPoint(ctx, x, y, color="#ef4444") {
-            ctx.fillStyle = color;
-            ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+    if (photons.length > 90) photons.splice(0, photons.length - 90);
+    if (electrons.length > 80) electrons.splice(0, electrons.length - 80);
+}
+
+function drawEnergy() {
+    const wrap = els['energy-wrap'];
+    wrap.style.display = els['in-well'].checked ? '' : 'none';
+    if (!els['in-well'].checked) return;
+    const { ctx, w, h } = fitCanvas(els.energy);
+    const p = phys();
+    const T = i18n[lang];
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, w, h);
+
+    const pad = { l: 56, r: 24, t: 22, b: 28 };
+    const maxE = Math.max(6.8, p.hf + 0.4, p.phi + 0.4);
+    const yOf = E => pad.t + (1 - E / maxE) * (h - pad.t - pad.b);
+    const wellL = w * 0.16, wellR = w * 0.55, vacY = yOf(p.phi);
+    const bottomY = yOf(0);
+
+    ctx.strokeStyle = '#64748b';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, vacY); ctx.lineTo(w - pad.r, vacY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '700 10px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(T.wellVac, w * 0.58, vacY - 6);
+
+    ctx.fillStyle = 'rgba(124,58,237,0.22)';
+    ctx.fillRect(wellL, vacY, wellR - wellL, bottomY - vacY);
+    ctx.strokeStyle = '#a78bfa';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wellL, vacY);
+    ctx.lineTo(wellL, bottomY);
+    ctx.lineTo(wellR, bottomY);
+    ctx.lineTo(wellR, vacY);
+    ctx.stroke();
+
+    const hfTop = yOf(p.hf);
+    const col = rgbOfNm(p.lam);
+    ctx.strokeStyle = col.css;
+    ctx.fillStyle = col.css;
+    ctx.lineWidth = 4;
+    const ax = (wellL + wellR) / 2;
+    ctx.beginPath(); ctx.moveTo(ax, bottomY - 4); ctx.lineTo(ax, hfTop + 4); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ax, hfTop); ctx.lineTo(ax - 6, hfTop + 10); ctx.lineTo(ax + 6, hfTop + 10);
+    ctx.closePath(); ctx.fill();
+
+    if (p.has) {
+        ctx.fillStyle = 'rgba(52,211,153,0.35)';
+        ctx.fillRect(wellR + 10, yOf(p.phi + p.kmax), 28, vacY - yOf(p.phi + p.kmax));
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = '700 10px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(T.wellK + ' ' + fmt(p.kmax, 2) + ' eV', wellR + 44, yOf(p.phi + p.kmax * 0.5));
+    }
+
+    ctx.fillStyle = '#c4b5fd';
+    ctx.font = '700 10px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(T.wellPhi + ' ' + fmt(p.phi, 2) + ' eV', wellL - 8, (vacY + bottomY) / 2);
+    ctx.fillStyle = col.css;
+    ctx.textAlign = 'center';
+    ctx.fillText(T.wellHf + '  hf = ' + fmt(p.hf, 2) + ' eV', ax, Math.min(hfTop, vacY) - 8);
+
+    if (els['in-class'].checked) {
+        ctx.fillStyle = 'rgba(251,191,36,0.12)';
+        ctx.fillRect(w * 0.72, 10, w * 0.26, h - 20);
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '700 10px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        wrapText(ctx, T.classNote, w * 0.74, 28, w * 0.22, 14);
+    }
+}
+
+function wrapText(ctx, text, x, y, maxW, lh) {
+    let line = '', yy = y;
+    for (const ch of text) {
+        const test = line + ch;
+        if (ctx.measureText(test).width > maxW && line) {
+            ctx.fillText(line, x, yy);
+            line = ch;
+            yy += lh;
+        } else line = test;
+    }
+    if (line) ctx.fillText(line, x, yy);
+}
+
+function currentOf(f, Ipct, V, phi) {
+    const hf = photonEnergy(f);
+    const kmax = hf - phi;
+    if (kmax <= 0 || Ipct <= 0) return 0;
+    const vs = kmax;
+    const iSat = Ipct * 0.48;
+    if (V <= -vs + 0.008) return 0;
+    if (V >= 0) return iSat;
+    return iSat * Math.sqrt(Math.max(0, (V + vs) / vs));
+}
+
+function fitLogged(phi) {
+    const pts = logPts.filter(pt => Math.abs(pt.phi - phi) < 1e-6);
+    if (pts.length < 2) return null;
+    const n = pts.length;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    pts.forEach(pt => { sx += pt.f; sy += pt.k; sxx += pt.f * pt.f; sxy += pt.f * pt.k; });
+    const den = n * sxx - sx * sx;
+    if (Math.abs(den) < 1e-9) return null;
+    const slope = (n * sxy - sx * sy) / den;
+    const intercept = (sy - slope * sx) / n;
+    return { slope, intercept, n, f0: -intercept / slope, phi: -intercept };
+}
+
+function drawAxes(ctx, w, h, labelX, labelY) {
+    const pad = { l: 48, r: 16, t: 16, b: 28 };
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, h - pad.b);
+    ctx.lineTo(w - pad.r, h - pad.b);
+    ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '700 11px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(labelX, (pad.l + w - pad.r) / 2, h - 8);
+    ctx.save();
+    ctx.translate(14, h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(labelY, 0, 0);
+    ctx.restore();
+    return { pad, gw: w - pad.l - pad.r, gh: h - pad.t - pad.b };
+}
+
+function plotLine(ctx, xs, ys, color, dash) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    xs.forEach((x, i) => { if (i === 0) ctx.moveTo(x, ys[i]); else ctx.lineTo(x, ys[i]); });
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawPoint(ctx, x, y, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+function drawGraph() {
+    const { ctx, w, h } = fitCanvas(els.graph);
+    const p = phys();
+    const T = i18n[lang];
+    const showClass = els['in-class'].checked;
+
+    if (graphTab === 'iv') {
+        const { pad, gw, gh } = drawAxes(ctx, w, h, 'V / V', 'I / μA');
+        const iMax = Math.max(50, p.iSat * 1.15, 8);
+        const xOf = V => pad.l + ((V - V_MIN) / (V_MAX - V_MIN)) * gw;
+        const yOf = I => pad.t + gh - (I / iMax) * gh;
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.beginPath(); ctx.moveTo(xOf(0), pad.t); ctx.lineTo(xOf(0), pad.t + gh); ctx.stroke();
+        const xs = [], ys = [], cxs = [], cys = [];
+        for (let i = 0; i <= gw; i++) {
+            const V = V_MIN + (i / gw) * (V_MAX - V_MIN);
+            xs.push(pad.l + i); ys.push(yOf(currentOf(p.f, p.Ipct, V, p.phi)));
+            if (showClass) { cxs.push(pad.l + i); cys.push(yOf(p.Ipct * 0.48 * (V < -2 ? 0 : 1))); }
         }
-
-        function updateGraphs() {
-            const currentPhys = getPhysics(state.frequency, state.voltage, state.workFunction);
-            const currentI = parseFloat(els.display.ammeter.innerText) * 10; // Back to 0-100 scale
-
-            // 1. Intensity vs Current
-            {
-                const ctx = els.graphs.intensity;
-                const {x0, y0, gw, gh} = drawGrid(ctx, 400, 180, "Intensity (%)", "Current (I)");
-                
-                // 理論線
-                ctx.strokeStyle = "#3b82f6";
-                ctx.beginPath();
-                // 如果當前電壓足以讓電流通過 (V > -Vs) 且 頻率 > f0
-                const isConducting = currentPhys.hasEmission && (state.voltage > currentPhys.stoppingPotential);
-                
-                if (isConducting) {
-                    // Linear relation
-                    ctx.moveTo(x0, y0);
-                    ctx.lineTo(x0 + gw, y0 - gh); 
-                } else {
-                    // Zero current
-                    ctx.moveTo(x0, y0);
-                    ctx.lineTo(x0 + gw, y0);
-                }
-                ctx.stroke();
-
-                // Current Point
-                const px = x0 + (state.intensity / 100) * gw;
-                const py = y0 - (currentI / 100) * gh;
-                drawPoint(ctx, px, py);
-            }
-
-            // 2. Voltage vs Current (I-V Curve)
-            {
-                const ctx = els.graphs.voltage;
-                const {x0, y0, gw, gh} = drawGrid(ctx, 400, 180, "Voltage (V)", "Current (I)");
-                
-                // X-axis range: -5V to +5V
-                // Zero V is at x0 + gw/2
-                const zeroX = x0 + gw/2;
-                
-                ctx.strokeStyle = "#3b82f6";
-                ctx.beginPath();
-
-                const Vs = currentPhys.stoppingPotential; // negative value, e.g. -1.2
-                
-                // Plot curve
-                for (let i = 0; i <= gw; i++) {
-                    const vVal = ((i / gw) * 10) - 5; // Map pixel to -5..+5 V
-                    let iVal = 0;
-
-                    if (currentPhys.hasEmission) {
-                        if (vVal > 0) {
-                            iVal = state.intensity; // Saturation
-                        } else if (vVal < Vs) {
-                            iVal = 0; // Cutoff
-                        } else {
-                            // Transition: sqrt((V - Vs) / -Vs)
-                            // V goes from Vs to 0
-                            const ratio = (vVal - Vs) / (0 - Vs);
-                            iVal = state.intensity * Math.sqrt(ratio);
-                        }
-                    }
-
-                    const py = y0 - (iVal / 100) * gh;
-                    if (i===0) ctx.moveTo(x0+i, py); else ctx.lineTo(x0+i, py);
-                }
-                ctx.stroke();
-
-                // Draw Vs marker if visible
-                if (currentPhys.hasEmission && Vs > -5) {
-                    const vsPx = x0 + ((Vs + 5) / 10) * gw;
-                    ctx.fillStyle = "#059669";
-                    ctx.fillRect(vsPx, y0 - 5, 2, 5);
-                    ctx.fillText("Vs", vsPx, y0 - 8);
-                }
-
-                // Current Point
-                const currVPx = x0 + ((state.voltage + 5) / 10) * gw;
-                const currIPy = y0 - (currentI / 100) * gh;
-                drawPoint(ctx, currVPx, currIPy);
-            }
-
-            // 3. Frequency vs Current
-            {
-                const ctx = els.graphs.frequency;
-                const {x0, y0, gw, gh} = drawGrid(ctx, 400, 180, "Frequency (THz)", "Current (I)");
-                
-                const fMin = 300, fMax = 1200;
-                const f0 = state.workFunction / H_THZ;
-
-                ctx.strokeStyle = "#3b82f6";
-                ctx.beginPath();
-
-                for (let i = 0; i <= gw; i++) {
-                    const fVal = fMin + (i/gw) * (fMax - fMin);
-                    let iVal = 0;
-                    
-                    // Condition: f > f0 AND V > -Vs(f)
-                    // Vs(f) = -(hf - Phi)
-                    if (fVal > f0) {
-                        const kMaxLocal = (H_THZ * fVal) - state.workFunction;
-                        const vsLocal = -kMaxLocal;
-                        
-                        // If applied voltage is greater than stopping potential for this freq
-                        if (state.voltage >= vsLocal) {
-                            iVal = state.intensity; // Constant current model
-                        }
-                    }
-
-                    const py = y0 - (iVal / 100) * gh;
-                    if (i===0) ctx.moveTo(x0+i, py); else ctx.lineTo(x0+i, py);
-                }
-                ctx.stroke();
-
-                // Mark f0
-                if (f0 > fMin && f0 < fMax) {
-                    const f0Px = x0 + ((f0 - fMin)/(fMax - fMin)) * gw;
-                    ctx.fillStyle = "#059669";
-                    ctx.fillRect(f0Px, y0, 2, -gh); // Vertical line
-                    ctx.fillText("f₀", f0Px + 8, y0 - gh + 10);
-                }
-
-                // Current Point
-                const currFPx = x0 + ((state.frequency - fMin) / (fMax - fMin)) * gw;
-                const currIPy = y0 - (currentI / 100) * gh;
-                drawPoint(ctx, currFPx, currIPy);
-            }
-
-            requestAnimationFrame(updateGraphs);
+        plotLine(ctx, xs, ys, '#7c3aed');
+        if (showClass) plotLine(ctx, cxs, cys, '#f59e0b', [5, 4]);
+        if (p.has) {
+            const vsx = xOf(-p.vs);
+            ctx.fillStyle = '#059669';
+            ctx.fillRect(vsx - 1, pad.t + gh - 6, 2, 6);
+            ctx.font = '700 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Vs', vsx, pad.t + gh - 10);
         }
+        drawPoint(ctx, xOf(p.V), yOf(p.I), '#ef4444');
+    } else if (graphTab === 'ii') {
+        const { pad, gw, gh } = drawAxes(ctx, w, h, T.gII.indexOf('I–') === 0 ? 'I / %' : 'Intensity / %', 'I / μA');
+        const iMax = 55;
+        const xOf = pct => pad.l + (pct / 100) * gw;
+        const yOf = I => pad.t + gh - (I / iMax) * gh;
+        const conducting = p.has && !p.stopped;
+        ctx.strokeStyle = '#7c3aed';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pad.l, yOf(0));
+        ctx.lineTo(pad.l + gw, yOf(conducting ? 48 : 0));
+        ctx.stroke();
+        if (showClass) {
+            ctx.setLineDash([5, 4]);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.moveTo(pad.l, yOf(0));
+            ctx.lineTo(pad.l + gw, yOf(48));
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        drawPoint(ctx, xOf(p.Ipct), yOf(p.I), '#ef4444');
+    } else if (graphTab === 'if') {
+        const { pad, gw, gh } = drawAxes(ctx, w, h, 'f / THz', 'I / μA');
+        const iMax = 55;
+        const xOf = f => pad.l + ((f - F_MIN) / (F_MAX - F_MIN)) * gw;
+        const yOf = I => pad.t + gh - (I / iMax) * gh;
+        const xs = [], ys = [];
+        for (let i = 0; i <= gw; i++) {
+            const f = F_MIN + (i / gw) * (F_MAX - F_MIN);
+            xs.push(pad.l + i);
+            ys.push(yOf(currentOf(f, p.Ipct, p.V, p.phi)));
+        }
+        plotLine(ctx, xs, ys, '#7c3aed');
+        if (showClass) {
+            const cxs = [], cys = [];
+            for (let i = 0; i <= gw; i++) { cxs.push(pad.l + i); cys.push(yOf(p.Ipct * 0.48)); }
+            plotLine(ctx, cxs, cys, '#f59e0b', [5, 4]);
+        }
+        if (p.f0 > F_MIN && p.f0 < F_MAX) {
+            ctx.strokeStyle = '#059669';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.moveTo(xOf(p.f0), pad.t); ctx.lineTo(xOf(p.f0), pad.t + gh); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#059669';
+            ctx.font = '700 10px sans-serif';
+            ctx.fillText('f₀', xOf(p.f0) + 6, pad.t + 12);
+        }
+        drawPoint(ctx, xOf(p.f), yOf(p.I), '#ef4444');
+    } else {
+        const { pad, gw, gh } = drawAxes(ctx, w, h, 'f / THz', 'Kmax / eV');
+        const kMaxAxis = 6;
+        const xOf = f => pad.l + ((f - F_MIN) / (F_MAX - F_MIN)) * gw;
+        const yOf = k => pad.t + gh - (k / kMaxAxis) * gh;
+        const xs = [], ys = [];
+        for (let i = 0; i <= gw; i++) {
+            const f = F_MIN + (i / gw) * (F_MAX - F_MIN);
+            xs.push(pad.l + i);
+            ys.push(yOf(Math.max(0, photonEnergy(f) - p.phi)));
+        }
+        plotLine(ctx, xs, ys, '#7c3aed');
+        if (showClass) {
+            const ck = Math.min(5.2, 0.8 + p.Ipct / 28);
+            ctx.setLineDash([5, 4]);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.moveTo(pad.l, yOf(ck));
+            ctx.lineTo(pad.l + gw, yOf(ck));
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        if (p.f0 > F_MIN && p.f0 < F_MAX) {
+            ctx.fillStyle = '#059669';
+            ctx.font = '700 10px sans-serif';
+            ctx.fillText('f₀', xOf(p.f0) + 6, yOf(0) - 8);
+        }
+        logPts.forEach(pt => drawPoint(ctx, xOf(pt.f), yOf(pt.k), Math.abs(pt.phi - p.phi) < 1e-6 ? '#f43f5e' : '#94a3b8'));
+        const fit = fitLogged(p.phi);
+        ctx.fillStyle = '#334155';
+        ctx.font = '700 11px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        if (fit) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#e11d48';
+            ctx.setLineDash([4, 3]);
+            ctx.moveTo(xOf(F_MIN), yOf(fit.slope * F_MIN + fit.intercept));
+            ctx.lineTo(xOf(F_MAX), yOf(fit.slope * F_MAX + fit.intercept));
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillText(`${T.fitH} = ${fit.slope.toFixed(5)} eV/THz`, pad.l + 8, pad.t + 14);
+            ctx.fillText(`${T.fitPhi} = ${fit.phi.toFixed(2)} eV`, pad.l + 8, pad.t + 30);
+        } else {
+            ctx.fillText(T.needPts, pad.l + 8, pad.t + 14);
+        }
+        drawPoint(ctx, xOf(p.f), yOf(p.kmax), '#7c3aed');
+    }
 
-        // --- 交互 ---
-        els.metalSelect.addEventListener('change', e => state.workFunction = parseFloat(e.target.value));
-        els.intensitySlider.addEventListener('input', e => state.intensity = parseInt(e.target.value));
-        els.voltageSlider.addEventListener('input', e => state.voltage = parseFloat(e.target.value));
-        els.freqSlider.addEventListener('input', e => state.frequency = parseInt(e.target.value));
+    if (hoverGraph) {
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        ctx.fillRect(hoverGraph.x + 10, hoverGraph.y - 18, 120, 22);
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 10px ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(hoverGraph.text, hoverGraph.x + 16, hoverGraph.y - 4);
+    }
+}
 
-        // Start
-        loop();
-        updateGraphs();
-    })();
-    </script>
+function graphHover(ev) {
+    const r = els.graph.getBoundingClientRect();
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    const p = phys();
+    const padL = 48, padR = 16, padT = 16, padB = 28;
+    const gw = r.width - padL - padR, gh = r.height - padT - padB;
+    if (x < padL || x > padL + gw) { hoverGraph = null; return; }
+    const t = (x - padL) / gw;
+    if (graphTab === 'iv') {
+        const V = V_MIN + t * (V_MAX - V_MIN);
+        hoverGraph = { x, y, text: `V=${V.toFixed(2)} V  I=${currentOf(p.f, p.Ipct, V, p.phi).toFixed(2)} μA` };
+    } else if (graphTab === 'ii') {
+        const pct = t * 100;
+        const I = (p.has && !p.stopped) ? pct * 0.48 : 0;
+        hoverGraph = { x, y, text: `${pct.toFixed(0)}%  I=${I.toFixed(2)} μA` };
+    } else if (graphTab === 'if') {
+        const f = F_MIN + t * (F_MAX - F_MIN);
+        hoverGraph = { x, y, text: `f=${f.toFixed(0)} THz  I=${currentOf(f, p.Ipct, p.V, p.phi).toFixed(2)} μA` };
+    } else {
+        const f = F_MIN + t * (F_MAX - F_MIN);
+        hoverGraph = { x, y, text: `f=${f.toFixed(0)}  K=${Math.max(0, photonEnergy(f) - p.phi).toFixed(2)} eV` };
+    }
+}
+
+function recordPoint() {
+    const p = phys();
+    if (!p.has) return;
+    logPts.push({ f: p.f, k: p.kmax, vs: p.vs, phi: p.phi, metal: currentMetal().id });
+    graphTab = 'kf';
+    document.querySelectorAll('[data-graph]').forEach(b => b.classList.toggle('active', b.dataset.graph === 'kf'));
+    syncSliders();
+}
+
+function loop(ts) {
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    drawScene(dt);
+    drawEnergy();
+    drawGraph();
+    updateHud();
+    requestAnimationFrame(loop);
+}
+
+els['btn-play'].addEventListener('click', () => { playing = !playing; setPlayLabel(); });
+els['btn-reset'].addEventListener('click', resetSim);
+
+els['in-metal'].addEventListener('change', () => {
+    const m = currentMetal();
+    if (m.id !== 'custom') els['in-phi'].value = String(m.phi);
+    activePreset = null;
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    onCathodeChanged();
+    syncSliders();
+    updateHud();
+});
+els['in-phi'].addEventListener('input', () => {
+    const phi = num('in-phi');
+    const hit = METALS.find(m => m.id !== 'custom' && Math.abs(m.phi - phi) < 0.015);
+    const prevMetal = tubeMetalId;
+    els['in-metal'].value = hit ? hit.id : 'custom';
+    if (!hit) METALS.find(m => m.id === 'custom').phi = phi;
+    activePreset = null;
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    onCathodeChanged(prevMetal !== (hit ? hit.id : 'custom'));
+    syncSliders();
+    updateHud();
+});
+['in-int', 'in-v', 'in-f'].forEach(id => {
+    els[id].addEventListener('input', () => {
+        activePreset = null;
+        document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+        syncSliders();
+    });
+});
+els['in-well'].addEventListener('change', drawEnergy);
+
+document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+document.querySelectorAll('[data-band]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        els['in-f'].value = String(BANDS[btn.dataset.band]);
+        document.querySelectorAll('[data-band]').forEach(b => b.classList.toggle('active', b === btn));
+        activePreset = null;
+        document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+        syncSliders();
+    });
+});
+document.querySelectorAll('[data-graph]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        graphTab = btn.dataset.graph;
+        document.querySelectorAll('[data-graph]').forEach(b => b.classList.toggle('active', b === btn));
+        syncSliders();
+    });
+});
+
+els['btn-record'].addEventListener('click', recordPoint);
+els['btn-clear'].addEventListener('click', () => { logPts = []; });
+els.graph.addEventListener('mousemove', graphHover);
+els.graph.addEventListener('mouseleave', () => { hoverGraph = null; });
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
+
+els['btn-principle'].addEventListener('click', () => {
+    openModal(els['modal-principle']);
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+});
+els['modal-close'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-confirm'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-principle'].addEventListener('click', ev => { if (ev.target === els['modal-principle']) closeModal(els['modal-principle']); });
+
+els['btn-steps'].addEventListener('click', () => openModal(els['modal-steps']));
+els['steps-close'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['steps-confirm'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['modal-steps'].addEventListener('click', ev => { if (ev.target === els['modal-steps']) closeModal(els['modal-steps']); });
+
+document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') {
+        if (!els['modal-steps'].classList.contains('pointer-events-none')) { closeModal(els['modal-steps']); return; }
+        if (!els['modal-principle'].classList.contains('pointer-events-none')) closeModal(els['modal-principle']);
+        return;
+    }
+    if (ev.key === ' ' && !['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        ev.preventDefault();
+        playing = !playing;
+        setPlayLabel();
+    }
+});
+
+window.addEventListener('resize', () => { drawScene(0); drawEnergy(); drawGraph(); });
+
+function onMathJaxReady(cb) {
+    if (window.MathJax && MathJax.typesetPromise) { cb(); return; }
+    let n = 0;
+    const id = setInterval(() => {
+        if (window.MathJax && MathJax.typesetPromise) { clearInterval(id); cb(); }
+        else if (++n > 60) clearInterval(id);
+    }, 80);
+}
+
+fillMetalSelect();
+tubeMetalId = els['in-metal'].value || 'na';
+applyPreset('emit');
+applyLang();
+onMathJaxReady(() => {
+    liveMathKey = '';
+    updateHud();
+    MathJax.typesetPromise([els['modal-principle'], els['live-math']]).catch(() => {});
+});
+requestAnimationFrame(loop);
+</script>
 </body>
 </html>

@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>弦的駐波與諧音合成 | String Harmonic Synthesizer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    }
+  };
+</script>
+<script async id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<link href="../css/sim-mathjax.css" rel="stylesheet"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
+  body { font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; color: #0f172a; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+    background: #06b6d4; cursor: pointer; margin-top: -7px;
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.45);
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px; background: #334155; border-radius: 2px;
+  }
+  .modal-backdrop { transition: opacity 0.3s ease, visibility 0.3s ease; }
+  .modal-content { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+  .mj-box, .mj-eq { color: #e2e8f0; }
+  .mj-box mjx-container, .mj-eq mjx-container { color: #e2e8f0 !important; }
+  .preset-btn.active {
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.45);
+    border-color: #06b6d4;
+    background-color: rgba(6, 182, 212, 0.12);
+  }
+</style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-8">
+<header class="w-full max-w-7xl mx-auto bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 z-20 sticky top-2 shrink-0">
+  <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-md shrink-0">
+        <svg fill="none" height="22" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="22"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-800 flex items-center gap-2 flex-wrap">
+          <span data-i18n="title">弦的駐波與諧音合成</span>
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-bold border border-slate-200" data-i18n="badge">物理</span>
+        </h1>
+        <p class="text-xs text-slate-500 truncate" data-i18n="subtitle">疊加駐波、諧音振幅與音色</p>
+      </div>
+    </div>
+    <button class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+  </div>
+  <div class="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+    <button class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border border-slate-300" id="btn-steps" type="button"><span data-i18n="btnSteps">觀察步驟</span></button>
+    <button class="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-bold text-sm shadow-sm" id="btn-principle" type="button"><span data-i18n="btnPrinciple">原理解說</span></button>
+    <button class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300" id="btn-lang" type="button">中 / EN</button>
+  </div>
+</header>
+
+<main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto lg:overflow-hidden">
+<aside class="lg:col-span-4 order-2 lg:order-1 flex flex-col gap-3 min-h-0 lg:overflow-y-auto">
+  <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+    <h3 class="text-sm font-bold text-slate-700 mb-2" data-i18n="presetTitle">音色預設</h3>
+    <p class="text-[11px] text-slate-500 mb-3 leading-relaxed" data-i18n="presetHint">載入各諧音振幅比例，比較波形與聽感。</p>
+    <div class="flex flex-col gap-2" id="preset-row"></div>
+  </div>
+  <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+    <h3 class="text-sm font-bold text-slate-700" data-i18n="paramTitle">實驗參數</h3>
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <label class="text-slate-500" data-i18n="f1Label">基頻 $f_1$ (A3)</label>
+        <span class="font-mono text-cyan-700" id="val-f1">220 Hz</span>
+      </div>
+      <input id="slider-f1" max="440" min="110" step="1" type="range" value="220"/>
+    </div>
+    <p class="text-[11px] text-slate-500 leading-relaxed" data-i18n="freqNote">第 n 諧音頻率 $f_n = n f_1$（兩端固定）。</p>
+    <div class="flex gap-2">
+      <button class="flex-1 text-xs font-bold py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white" id="btn-mute" type="button" data-i18n="btnMute">靜音</button>
+      <button class="flex-1 text-xs font-bold py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white" id="stop-all-btn" type="button" data-i18n="btnStop">全部停止</button>
+      <button class="flex-1 text-xs font-bold py-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-300" data-native-reset="1" id="btn-reset-sim" type="button"><span data-i18n="btnReset">重置</span></button>
+    </div>
+  </div>
+  <div class="bg-slate-900 p-4 rounded-2xl border border-slate-700 shadow-sm text-sm space-y-2">
+    <div class="flex justify-between border-b border-slate-800 pb-1">
+      <span class="text-slate-400" data-i18n="lblF1">基頻 $f_1$</span>
+      <span class="font-mono text-cyan-300"><span id="out-f1">220</span> Hz</span>
+    </div>
+    <div class="flex justify-between">
+      <span class="text-slate-400" data-i18n="lblActive">啟用諧音</span>
+      <span class="font-mono text-emerald-300" id="out-active">—</span>
+    </div>
+    <div class="mj-eq text-[11px] pt-1 overflow-x-auto">$$y=\sum A_n\sin(n\pi x/L)\cos(n\omega t)$$</div>
+  </div>
+</aside>
+
+<section class="lg:col-span-8 order-1 lg:order-2 flex flex-col gap-4 min-w-0 min-h-0">
+  <div class="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl p-3 relative overflow-hidden flex flex-col min-h-[220px] h-[32vh] lg:h-[38%]">
+    <div class="absolute top-3 left-4 z-10 flex items-center gap-2 pointer-events-none">
+      <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+      <span class="text-xs font-bold text-slate-300" data-i18n="waveTitle">合成駐波</span>
+    </div>
+    <div class="absolute bottom-3 left-4 z-10 text-[10px] text-slate-500 font-mono pointer-events-none" data-i18n="waveEnds">兩端固定＝波節</div>
+    <div id="start-overlay" class="absolute inset-0 bg-slate-900/80 z-20 flex items-center justify-center backdrop-blur-sm cursor-pointer hover:bg-slate-900/60">
+      <div class="flex flex-col items-center gap-3 px-4 text-center">
+        <div class="w-14 h-14 rounded-full bg-cyan-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.55)]">
+          <svg fill="white" height="28" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24" width="28"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        </div>
+        <span class="text-base font-bold text-white" data-i18n="startAudio">點擊以啟動音訊引擎</span>
+      </div>
+    </div>
+    <canvas class="w-full h-full block" id="combined-canvas"></canvas>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 min-h-0 overflow-y-auto p-3">
+    <div class="flex justify-between items-end px-1 pb-2 mb-2 border-b border-slate-200">
+      <span class="text-sm font-bold text-slate-600" data-i18n="hTitle">各階諧音（n = 1～8）</span>
+      <span class="text-[11px] text-slate-400" data-i18n="hHint">獨立振幅與播放</span>
+    </div>
+    <div class="flex flex-col gap-2" id="harmonics-container"></div>
+  </div>
+</section>
+</main>
+
+<div aria-labelledby="modal-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-principle" role="dialog">
+  <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+    <div class="bg-gradient-to-r from-cyan-500 to-blue-600 p-5 text-white flex justify-between items-center shrink-0">
+      <div>
+        <h2 class="text-lg font-bold" data-i18n="modalTitle" id="modal-title">原理解說</h2>
+        <p class="text-xs opacity-80" data-i18n="modalSub">概念、機制與應用</p>
+      </div>
+      <button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" id="modal-close" type="button">✕</button>
+    </div>
+    <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <h3 class="font-bold text-slate-900 mb-1" data-i18n="m1t">1. 兩端固定的駐波疊加</h3>
+        <p class="text-xs" data-i18n="m1d">吉他弦兩端是波節。每個諧音 n 都是獨立駐波：$A_n\sin(n\pi x/L)\cos(n\omega t)$。實際弦形是各諧音位移的代數和（疊加原理）。</p>
+        <p class="mj-box text-xs mt-2">$$y(x,t)=\sum A_n\sin(n\pi x/L)\cos(n\omega t)$$</p>
+      </div>
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <h3 class="font-bold text-slate-900 mb-1" data-i18n="m2t">2. 音色來自諧音比例</h3>
+        <p class="text-xs" data-i18n="m2d">同一基頻 $f_1$ 下，振幅隨 n 衰減的快慢決定音色。音叉幾乎只有基音；撥弦約 $1/n^2$；擦弦較接近鋸齒波 $1/n$；方波只有奇次諧音，聽起來較「空」。 </p>
+      </div>
+      <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+        <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m3t">3. 聽覺與波形對照</h3>
+        <p class="text-xs text-emerald-800" data-i18n="m3d">上方白色曲線是合成駐波；淡色是各成分。關閉基音後，仍聽到較高諧音，波形卻不再像單一正弦——這就是「音色」有別於「音高」。</p>
+      </div>
+    </div>
+    <div class="bg-slate-50 p-4 border-t text-right shrink-0">
+      <button class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="modal-confirm" type="button">關閉</button>
+    </div>
+  </div>
+</div>
+<div aria-labelledby="steps-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-steps" role="dialog">
+  <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+    <div class="bg-gradient-to-r from-cyan-500 to-blue-600 p-5 text-white flex justify-between items-center shrink-0">
+      <h2 class="text-lg font-bold" data-i18n="stepsTitle" id="steps-title">觀察步驟</h2>
+      <button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15" id="steps-close" type="button">✕</button>
+    </div>
+    <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+      <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s1">1. 點擊畫布啟動音訊，聽純音（僅基頻）。合成波應是單一波腹。</div>
+      <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s2">2. 改選吉他（$1/n^2$）與小提琴（$1/n$）。比較高頻含量與聽感明暗。</div>
+      <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s3">3. 選方波：只有奇次諧音。看合成波較方、聽起來較空。</div>
+      <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s4">4. 把 n＝1 振幅拉到 0，只留泛音。音高感覺改變，波形不再是正弦。</div>
+      <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s5">5. 調基頻 $f_1$，核對各列頻率仍是 $n f_1$。</div>
+    </div>
+    <div class="bg-slate-50 p-4 border-t text-right shrink-0">
+      <button class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="steps-confirm" type="button">關閉</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const NUM_HARMONICS = 8;
+const COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e', '#f97316', '#eab308', '#10b981'];
+const PRESETS = {
+  sine:   [1, 0, 0, 0, 0, 0, 0, 0],
+  guitar: [1.0, 0.25, 0.11, 0.06, 0.04, 0.03, 0.02, 0.015],
+  violin: [1.0, 0.5, 0.33, 0.25, 0.2, 0.16, 0.14, 0.12],
+  piano:  [1.0, 0.6, 0.4, 0.15, 0.25, 0.05, 0.02, 0.08],
+  square: [1.0, 0, 0.33, 0, 0.2, 0, 0.14, 0]
+};
+const PRESET_META = [
+  { key: 'sine', zh: '純音（音叉）', en: 'Pure tone (fork)', zhSub: '僅基頻', enSub: 'Fundamental only' },
+  { key: 'guitar', zh: '撥弦（吉他）', en: 'Plucked (guitar)', zhSub: '振幅約 1/n²', enSub: 'Amplitudes ~ 1/n²' },
+  { key: 'violin', zh: '擦弦（小提琴）', en: 'Bowed (violin)', zhSub: '振幅約 1/n（鋸齒波）', enSub: 'Amplitudes ~ 1/n (saw)' },
+  { key: 'piano', zh: '擊弦（鋼琴近似）', en: 'Struck (piano-like)', zhSub: '不規則泛音', enSub: 'Irregular partials' },
+  { key: 'square', zh: '奇次諧波（方波）', en: 'Odd harmonics (square)', zhSub: '僅 1, 3, 5, 7', enSub: 'n = 1, 3, 5, 7 only' }
+];
+const DEF = { f1: 220, preset: 'sine' };
+
+let baseFreq = DEF.f1;
+let isAudioInitialized = false;
+let audioCtx = null;
+let masterGain = null;
+let isMasterMuted = false;
+let harmonicsData = [];
+let visualTime = 0;
+const animationSpeed = 0.03;
+let applyingPreset = false;
+
+const combinedCanvas = document.getElementById('combined-canvas');
+const ctxCombined = combinedCanvas.getContext('2d');
+const harmonicsContainer = document.getElementById('harmonics-container');
+const startOverlay = document.getElementById('start-overlay');
+
+function lang() { return (window.currentLang === 'en') ? 'en' : 'zh'; }
+function t(zh, en) { return lang() === 'en' ? en : zh; }
+
+function setCanvasSize(canvas) {
+  const parent = canvas.parentElement;
+  const rect = parent.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.floor(rect.width));
+  const h = Math.max(1, Math.floor(rect.height));
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  canvas.logicalWidth = w;
+  canvas.logicalHeight = h;
+}
+
+function resizeCanvases() {
+  setCanvasSize(combinedCanvas);
+  for (let i = 1; i <= NUM_HARMONICS; i++) {
+    const canvas = document.getElementById('canvas-h' + i);
+    if (canvas) setCanvasSize(canvas);
+  }
+}
+
+function applyAmpToAudio(hData) {
+  if (!isAudioInitialized) return;
+  const vol = (hData.isPlaying && !isMasterMuted) ? hData.targetAmp : 0;
+  hData.gainNode.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.05);
+}
+
+function updateFreqs() {
+  for (let i = 0; i < NUM_HARMONICS; i++) {
+    const f = baseFreq * (i + 1);
+    if (harmonicsData[i]) {
+      harmonicsData[i].freq = f;
+      if (harmonicsData[i].osc) harmonicsData[i].osc.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.02);
+    }
+    const el = document.getElementById('freq-' + (i + 1));
+    if (el) el.textContent = f.toFixed(0) + ' Hz';
+  }
+  document.getElementById('val-f1').textContent = baseFreq + ' Hz';
+  document.getElementById('out-f1').textContent = String(baseFreq);
+}
+
+function updateActiveLabel() {
+  if (!isAudioInitialized) {
+    document.getElementById('out-active').textContent = '—';
+    return;
+  }
+  const ns = harmonicsData.filter(function(h) { return h.isPlaying && h.targetAmp > 0.01; }).map(function(h) { return h.index; });
+  document.getElementById('out-active').textContent = ns.length ? ns.join(', ') : t('無', 'none');
+}
+
+function updateRowUI(index) {
+  const hData = harmonicsData[index - 1];
+  const playBtn = document.getElementById('btn-play-' + index);
+  if (!playBtn || !hData) return;
+  const btnText = playBtn.querySelector('.btn-text');
+  const playIcon = playBtn.querySelector('.play-icon');
+  const on = hData.isPlaying && hData.targetAmp > 0;
+  if (on) {
+    playBtn.className = 'w-full md:w-auto px-3 py-2 rounded-lg font-bold text-white text-xs flex items-center justify-center gap-1 shrink-0';
+    playBtn.style.backgroundColor = hData.color;
+    btnText.textContent = t('播放中', 'On');
+    playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+    playIcon.setAttribute('fill', 'none');
+  } else {
+    playBtn.className = 'w-full md:w-auto px-3 py-2 rounded-lg font-bold text-white text-xs bg-slate-600 hover:bg-slate-500 flex items-center justify-center gap-1 shrink-0';
+    playBtn.style.backgroundColor = '';
+    btnText.textContent = t('已靜音', 'Muted');
+    playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+    playIcon.setAttribute('fill', 'currentColor');
+  }
+  updateActiveLabel();
+}
+
+function updateHarmonic(index, targetAmp) {
+  if (!isAudioInitialized) return;
+  const hData = harmonicsData[index - 1];
+  hData.targetAmp = targetAmp;
+  const slider = document.getElementById('slider-' + index);
+  const val = document.getElementById('val-' + index);
+  if (slider) slider.value = String(targetAmp);
+  if (val) val.textContent = targetAmp.toFixed(2);
+  applyAmpToAudio(hData);
+  updateRowUI(index);
+}
+
+function toggleHarmonicPlay(index, isPlaying) {
+  if (!isAudioInitialized) return;
+  harmonicsData[index - 1].isPlaying = isPlaying;
+  applyAmpToAudio(harmonicsData[index - 1]);
+  updateRowUI(index);
+}
+
+function loadPreset(key, skipAudio) {
+  applyingPreset = true;
+  document.querySelectorAll('.preset-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.preset === key);
+  });
+  const amps = PRESETS[key];
+  if (!skipAudio && !isAudioInitialized) initAudio();
+  if (!isAudioInitialized) {
+    applyingPreset = false;
+    return;
+  }
+  for (let i = 1; i <= NUM_HARMONICS; i++) {
+    updateHarmonic(i, amps[i - 1]);
+    toggleHarmonicPlay(i, amps[i - 1] > 0);
+  }
+  applyingPreset = false;
+}
+
+function initAudio() {
+  if (isAudioInitialized) {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    startOverlay.style.display = 'none';
+    return;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  audioCtx = new AC();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = isMasterMuted ? 0 : 0.25;
+  masterGain.connect(audioCtx.destination);
+  harmonicsData = [];
+  for (let i = 1; i <= NUM_HARMONICS; i++) {
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = baseFreq * i;
+    gainNode.gain.value = 0;
+    osc.connect(gainNode);
+    gainNode.connect(masterGain);
+    osc.start();
+    harmonicsData.push({
+      index: i, osc: osc, gainNode: gainNode,
+      targetAmp: 0, currentAmp: 0, isPlaying: false,
+      color: COLORS[i - 1], freq: baseFreq * i
+    });
+  }
+  isAudioInitialized = true;
+  startOverlay.style.display = 'none';
+}
+
+function stopAll() {
+  document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+  if (!isAudioInitialized) return;
+  for (let i = 1; i <= NUM_HARMONICS; i++) {
+    updateHarmonic(i, 0);
+    toggleHarmonicPlay(i, false);
+  }
+}
+
+function resetSim() {
+  baseFreq = DEF.f1;
+  isMasterMuted = false;
+  document.getElementById('slider-f1').value = String(DEF.f1);
+  document.getElementById('btn-mute').textContent = t('靜音', 'Mute');
+  document.getElementById('btn-mute').classList.remove('bg-rose-700');
+  if (isAudioInitialized) {
+    masterGain.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+    updateFreqs();
+    loadPreset(DEF.preset);
+  } else {
+    loadPreset(DEF.preset, true);
+    updateFreqs();
+    updateActiveLabel();
+  }
+}
+
+function buildPresets() {
+  const row = document.getElementById('preset-row');
+  row.innerHTML = '';
+  PRESET_META.forEach(function(p) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'preset-btn glow-btn w-full p-3 rounded-xl border-2 border-slate-200 text-left hover:bg-slate-50 transition-all flex flex-col';
+    btn.dataset.preset = p.key;
+    btn.innerHTML = '<span class="font-bold text-slate-800 text-sm">' + t(p.zh, p.en) + '</span>' +
+      '<span class="text-[10px] text-cyan-700">' + t(p.zhSub, p.enSub) + '</span>';
+    btn.addEventListener('click', function() { loadPreset(p.key); });
+    row.appendChild(btn);
+  });
+}
+
+function buildHarmonicsUI() {
+  harmonicsContainer.innerHTML = '';
+  for (let i = 1; i <= NUM_HARMONICS; i++) {
+    const color = COLORS[i - 1];
+    const freq = baseFreq * i;
+    const row = document.createElement('div');
+    row.className = 'flex flex-col md:flex-row items-center gap-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200';
+    const name = i === 1 ? t('基音', 'Fundamental') : t('第 ' + i + ' 諧音', 'Harmonic ' + i);
+    row.innerHTML =
+      '<div class="flex items-center gap-2 w-full md:w-40 shrink-0">' +
+        '<div class="w-8 h-8 rounded bg-slate-800 flex items-center justify-center font-bold text-xs border-b-2" style="border-color:' + color + ';color:' + color + '">n=' + i + '</div>' +
+        '<div class="flex flex-col min-w-0">' +
+          '<span class="text-xs font-bold text-slate-700">' + name + '</span>' +
+          '<span class="text-[10px] text-slate-400 font-mono" id="freq-' + i + '">' + freq + ' Hz</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="w-full md:w-28 h-10 bg-slate-900 rounded border border-slate-700 relative overflow-hidden shrink-0">' +
+        '<canvas id="canvas-h' + i + '" class="w-full h-full block"></canvas>' +
+      '</div>' +
+      '<button type="button" id="btn-play-' + i + '" class="w-full md:w-auto px-3 py-2 rounded-lg font-bold text-white text-xs bg-slate-600 hover:bg-slate-500 flex items-center justify-center gap-1 shrink-0">' +
+        '<svg class="play-icon" fill="currentColor" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>' +
+        '<span class="btn-text">' + t('已靜音', 'Muted') + '</span>' +
+      '</button>' +
+      '<div class="flex-1 w-full flex items-center gap-2 px-1">' +
+        '<input type="range" id="slider-' + i + '" min="0" max="1" step="0.01" value="0" class="flex-1"/>' +
+        '<span id="val-' + i + '" class="text-xs font-mono w-9 text-right text-slate-500">0.00</span>' +
+      '</div>';
+    harmonicsContainer.appendChild(row);
+    (function(n) {
+      document.getElementById('slider-' + n).addEventListener('input', function(e) {
+        if (!isAudioInitialized) initAudio();
+        const val = parseFloat(e.target.value);
+        updateHarmonic(n, val);
+        if (val > 0 && harmonicsData[n - 1] && !harmonicsData[n - 1].isPlaying) toggleHarmonicPlay(n, true);
+      });
+      document.getElementById('btn-play-' + n).addEventListener('click', function() {
+        if (!isAudioInitialized) initAudio();
+        const hData = harmonicsData[n - 1];
+        const next = !hData.isPlaying;
+        toggleHarmonicPlay(n, next);
+        const slider = document.getElementById('slider-' + n);
+        if (next && parseFloat(slider.value) === 0) {
+          slider.value = '0.5';
+          updateHarmonic(n, 0.5);
+        }
+      });
+    })(i);
+  }
+}
+
+function drawCombinedWave() {
+  const w = combinedCanvas.logicalWidth;
+  const h = combinedCanvas.logicalHeight;
+  if (!w || !h) return;
+  ctxCombined.clearRect(0, 0, w, h);
+  ctxCombined.beginPath();
+  ctxCombined.moveTo(0, h / 2);
+  ctxCombined.lineTo(w, h / 2);
+  ctxCombined.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctxCombined.lineWidth = 1;
+  ctxCombined.stroke();
+  if (!isAudioInitialized) return;
+  const segments = 220;
+  const scaleY = (h / 2) * 0.78;
+  harmonicsData.forEach(function(hData) {
+    const actualTarget = (hData.isPlaying && !isMasterMuted) ? hData.targetAmp : 0;
+    hData.currentAmp += (actualTarget - hData.currentAmp) * 0.12;
+    if (hData.currentAmp <= 0.01) return;
+    ctxCombined.beginPath();
+    for (let i = 0; i <= segments; i++) {
+      const xRatio = i / segments;
+      const y = h / 2 - hData.currentAmp * Math.sin(hData.index * Math.PI * xRatio) * Math.cos(hData.index * visualTime) * scaleY * 0.5;
+      if (i === 0) ctxCombined.moveTo(xRatio * w, y);
+      else ctxCombined.lineTo(xRatio * w, y);
+    }
+    ctxCombined.strokeStyle = hData.color + '40';
+    ctxCombined.lineWidth = 1.4;
+    ctxCombined.stroke();
+  });
+  ctxCombined.beginPath();
+  for (let i = 0; i <= segments; i++) {
+    const xRatio = i / segments;
+    let totalY = 0;
+    harmonicsData.forEach(function(hData) {
+      totalY += hData.currentAmp * Math.sin(hData.index * Math.PI * xRatio) * Math.cos(hData.index * visualTime);
+    });
+    totalY = Math.max(-1.2, Math.min(1.2, totalY));
+    const y = h / 2 - totalY * scaleY;
+    if (i === 0) ctxCombined.moveTo(xRatio * w, y);
+    else ctxCombined.lineTo(xRatio * w, y);
+  }
+  ctxCombined.shadowBlur = 8;
+  ctxCombined.shadowColor = '#06b6d4';
+  ctxCombined.strokeStyle = '#fff';
+  ctxCombined.lineWidth = 2.5;
+  ctxCombined.stroke();
+  ctxCombined.shadowBlur = 0;
+  ctxCombined.fillStyle = '#fff';
+  ctxCombined.beginPath(); ctxCombined.arc(3, h / 2, 4, 0, Math.PI * 2); ctxCombined.fill();
+  ctxCombined.beginPath(); ctxCombined.arc(w - 3, h / 2, 4, 0, Math.PI * 2); ctxCombined.fill();
+}
+
+function drawSmallWave(index) {
+  const canvas = document.getElementById('canvas-h' + index);
+  if (!canvas || !canvas.logicalWidth) return;
+  const w = canvas.logicalWidth;
+  const h = canvas.logicalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.stroke();
+  const hData = harmonicsData[index - 1] || { index: index, targetAmp: 0, currentAmp: 0, color: COLORS[index - 1] };
+  const segments = 48;
+  const scaleY = (h / 2) * 0.88;
+  const amp = isAudioInitialized ? hData.targetAmp : 0;
+  ctx.beginPath();
+  for (let i = 0; i <= segments; i++) {
+    const xRatio = i / segments;
+    const y = h / 2 - amp * Math.sin(index * Math.PI * xRatio) * scaleY;
+    if (i === 0) ctx.moveTo(xRatio * w, y); else ctx.lineTo(xRatio * w, y);
+  }
+  for (let i = segments; i >= 0; i--) {
+    const xRatio = i / segments;
+    const y = h / 2 + amp * Math.sin(index * Math.PI * xRatio) * scaleY;
+    ctx.lineTo(xRatio * w, y);
+  }
+  ctx.strokeStyle = hData.color + '55';
+  ctx.setLineDash([2, 2]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (isAudioInitialized && hData.currentAmp > 0.01) {
+    ctx.beginPath();
+    for (let i = 0; i <= segments; i++) {
+      const xRatio = i / segments;
+      const y = h / 2 - hData.currentAmp * Math.sin(index * Math.PI * xRatio) * Math.cos(index * visualTime) * scaleY;
+      if (i === 0) ctx.moveTo(xRatio * w, y); else ctx.lineTo(xRatio * w, y);
+    }
+    ctx.strokeStyle = hData.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function animate() {
+  visualTime += animationSpeed;
+  drawCombinedWave();
+  for (let i = 1; i <= NUM_HARMONICS; i++) drawSmallWave(i);
+  requestAnimationFrame(animate);
+}
+
+window.refreshSimLang = function() {
+  buildPresets();
+  const active = document.querySelector('.preset-btn.active');
+  const key = active ? active.dataset.preset : null;
+  buildHarmonicsUI();
+  resizeCanvases();
+  if (isAudioInitialized) {
+    for (let i = 1; i <= NUM_HARMONICS; i++) {
+      updateHarmonic(i, harmonicsData[i - 1].targetAmp);
+      updateRowUI(i);
+    }
+    if (key) document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.preset === key); });
+  }
+  document.getElementById('btn-mute').textContent = isMasterMuted ? t('已靜音', 'Muted') : t('靜音', 'Mute');
+  updateFreqs();
+  if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise().catch(function(){});
+};
+
+startOverlay.addEventListener('click', function() {
+  initAudio();
+  loadPreset('sine');
+});
+document.getElementById('stop-all-btn').addEventListener('click', stopAll);
+document.getElementById('btn-reset-sim').addEventListener('click', resetSim);
+document.getElementById('slider-f1').addEventListener('input', function(e) {
+  baseFreq = parseFloat(e.target.value);
+  updateFreqs();
+});
+document.getElementById('btn-mute').addEventListener('click', function() {
+  if (!isAudioInitialized) initAudio();
+  isMasterMuted = !isMasterMuted;
+  masterGain.gain.setTargetAtTime(isMasterMuted ? 0 : 0.25, audioCtx.currentTime, 0.05);
+  this.textContent = isMasterMuted ? t('已靜音', 'Muted') : t('靜音', 'Mute');
+  this.classList.toggle('bg-rose-700', isMasterMuted);
+});
+window.addEventListener('resize', resizeCanvases);
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden && audioCtx && audioCtx.state === 'running') audioCtx.suspend();
+  else if (!document.hidden && audioCtx && audioCtx.state === 'suspended' && isAudioInitialized && !isMasterMuted) audioCtx.resume();
+});
+
+buildPresets();
+buildHarmonicsUI();
+resizeCanvases();
+updateFreqs();
+animate();
+</script>
+<script>
+(function() {
+  const platformI18n = {
+    zh: {
+      title: "弦的駐波與諧音合成", subtitle: "疊加駐波、諧音振幅與音色", badge: "物理",
+      btnSteps: "觀察步驟", btnPrinciple: "原理解說", btnReset: "重置",
+      presetTitle: "音色預設", presetHint: "載入各諧音振幅比例，比較波形與聽感。",
+      paramTitle: "實驗參數", f1Label: "基頻 f₁ (A3)", freqNote: "第 n 諧音頻率 fₙ = n f₁（兩端固定）。",
+      btnMute: "靜音", btnStop: "全部停止",
+      lblF1: "基頻 f₁", lblActive: "啟用諧音",
+      waveTitle: "合成駐波", waveEnds: "兩端固定＝波節", startAudio: "點擊以啟動音訊引擎",
+      hTitle: "各階諧音（n = 1～8）", hHint: "獨立振幅與播放",
+      stepsTitle: "觀察步驟", modalTitle: "原理解說", modalSub: "概念、機制與應用", modalClose: "關閉",
+      m1t: "1. 兩端固定的駐波疊加",
+      m1d: "吉他弦兩端是波節。每個諧音 n 都是獨立駐波：Aₙ sin(nπx/L) cos(nωt)。實際弦形是各諧音位移的代數和（疊加原理）。",
+      m2t: "2. 音色來自諧音比例",
+      m2d: "同一基頻 f₁ 下，振幅隨 n 衰減的快慢決定音色。音叉幾乎只有基音；撥弦約 1/n²；擦弦較接近鋸齒波 1/n；方波只有奇次諧音，聽起來較「空」。",
+      m3t: "3. 聽覺與波形對照",
+      m3d: "上方白色曲線是合成駐波；淡色是各成分。關閉基音後，仍聽到較高諧音，波形卻不再像單一正弦——這就是「音色」有別於「音高」。",
+      s1: "1. 點擊畫布啟動音訊，聽純音（僅基頻）。合成波應是單一波腹。",
+      s2: "2. 改選吉他（1/n²）與小提琴（1/n）。比較高頻含量與聽感明暗。",
+      s3: "3. 選方波：只有奇次諧音。看合成波較方、聽起來較空。",
+      s4: "4. 把 n＝1 振幅拉到 0，只留泛音。音高感覺改變，波形不再是正弦。",
+      s5: "5. 調基頻 f₁，核對各列頻率仍是 n f₁。"
+    },
+    en: {
+      title: "String standing waves & harmonic synthesis", subtitle: "Superposition, harmonic amplitudes and timbre", badge: "Physics",
+      btnSteps: "Steps", btnPrinciple: "Principle", btnReset: "Reset",
+      presetTitle: "Timbre presets", presetHint: "Load harmonic amplitude ratios, then compare waveform and sound.",
+      paramTitle: "Parameters", f1Label: "Fundamental f₁ (A3)", freqNote: "Harmonic n has frequency fₙ = n f₁ (both ends fixed).",
+      btnMute: "Mute", btnStop: "Stop all",
+      lblF1: "Fundamental f₁", lblActive: "Active n",
+      waveTitle: "Combined standing wave", waveEnds: "Fixed ends = nodes", startAudio: "Click to start audio",
+      hTitle: "Harmonics n = 1–8", hHint: "Amplitude and mute per partial",
+      stepsTitle: "Observation steps", modalTitle: "Principle", modalSub: "Concepts, mechanism & uses", modalClose: "Close",
+      m1t: "1. Superposition of fixed-end standing waves",
+      m1d: "A guitar string has nodes at both ends. Each harmonic n is its own standing wave. The visible shape is the algebraic sum of those displacements (superposition).",
+      m2t: "2. Timbre is the mix of amplitudes",
+      m2d: "At a given f₁, how fast amplitudes fall with n sets the colour of the sound. A tuning fork is almost pure; plucked strings ~ 1/n²; bowed strings ~ 1/n (saw-like); a square wave keeps only odd harmonics and sounds hollow.",
+      m3t: "3. Match what you hear to the waveform",
+      m3d: "The bright white curve is the sum; pale traces are partials. Mute the fundamental and you still hear overtones, but the shape is no longer a sine — that is timbre versus pitch.",
+      s1: "1. Click the canvas to start audio and hear a pure tone. The sum should show a single antinode.",
+      s2: "2. Switch guitar (1/n²) and violin (1/n). Compare brightness and high-frequency content.",
+      s3: "3. Choose the square preset: odd harmonics only. The sum looks squarer and sounds hollower.",
+      s4: "4. Drag n = 1 to zero and keep overtones. Pitch sensation changes; the waveform is not a sine.",
+      s5: "5. Move f₁ and check that each row still shows n f₁."
+    }
+  };
+  function getLang() { return window.currentLang || 'zh'; }
+  function setLangVar(lang) { window.currentLang = lang; }
+  function applyPlatformI18n() {
+    const lang = getLang();
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+    const pack = platformI18n[lang];
+    document.querySelectorAll('[data-i18n]').forEach(function(el) {
+      const key = el.getAttribute('data-i18n');
+      if (pack[key] != null) el.textContent = pack[key];
+    });
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise().catch(function(){});
+    if (typeof window.refreshSimLang === 'function') window.refreshSimLang();
+  }
+  function platformToggleLang() {
+    setLangVar(getLang() === 'zh' ? 'en' : 'zh');
+    applyPlatformI18n();
+  }
+  function openModal(id) {
+    const mp = document.getElementById(id);
+    const mc = mp && mp.querySelector('.modal-content');
+    if (!mp || !mc) return;
+    mp.classList.remove('opacity-0', 'pointer-events-none');
+    mc.classList.remove('scale-95', 'opacity-0');
+    mc.classList.add('scale-100', 'opacity-100');
+  }
+  function closeModal(id) {
+    const mp = document.getElementById(id);
+    const mc = mp && mp.querySelector('.modal-content');
+    if (!mp || !mc) return;
+    mc.classList.add('scale-95', 'opacity-0');
+    mc.classList.remove('scale-100', 'opacity-100');
+    mp.classList.add('opacity-0', 'pointer-events-none');
+  }
+  function bind() {
+    document.getElementById('btn-steps').onclick = function(){ closeModal('modal-principle'); openModal('modal-steps'); };
+    document.getElementById('btn-principle').onclick = function(){ closeModal('modal-steps'); openModal('modal-principle'); };
+    document.getElementById('btn-lang').onclick = platformToggleLang;
+    document.getElementById('btn-lang-mobile').onclick = platformToggleLang;
+    ['modal-close','modal-confirm'].forEach(function(id){ document.getElementById(id).onclick = function(){ closeModal('modal-principle'); }; });
+    ['steps-close','steps-confirm'].forEach(function(id){ document.getElementById(id).onclick = function(){ closeModal('modal-steps'); }; });
+    document.getElementById('modal-principle').addEventListener('click', function(e){ if (e.target.id === 'modal-principle') closeModal('modal-principle'); });
+    document.getElementById('modal-steps').addEventListener('click', function(e){ if (e.target.id === 'modal-steps') closeModal('modal-steps'); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { closeModal('modal-principle'); closeModal('modal-steps'); } });
+    applyPlatformI18n();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火箭登月軌道切換 | Lunar Orbit Transfer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .btn-disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
+        .modal-backdrop { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease, opacity 0.3s ease; }
+        .mj-box { background: #0f172a; color: #e2e8f0; border-radius: 0.75rem; padding: 0.75rem 0.5rem; }
+    </style>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['\\(', '\\)']], displayMath: [['$$', '$$']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen flex flex-col p-2 md:p-4 overflow-hidden">
+
+    <header class="bg-slate-800 p-4 rounded-xl shadow-lg mb-4 flex justify-between items-center shrink-0 border border-slate-700 z-10">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold flex items-center gap-3 text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 0 1 0 20"/><path d="M12 6a6 6 0 0 1 0 12"/></svg>
+                <span data-i18n="title">火箭登月軌道切換</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold" data-i18n="badge">物理</span>
+            </h1>
+            <p class="text-xs text-slate-400 mt-1 ml-10" data-i18n="subtitle">平面圖：只把航向略為外傾並加速，沿螺旋爬上更大的圓軌道</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm font-bold hover:bg-slate-600"><span data-i18n="btnSteps">觀察步驟</span></button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 rounded-lg bg-blue-600 text-sm font-bold hover:bg-blue-500"><span data-i18n="btnPrinciple">原理解說</span></button>
+            <button type="button" id="btn-lang" onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm font-bold hover:bg-slate-600">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex flex-col lg:flex-row flex-1 gap-4 overflow-hidden min-h-0">
+        <section class="flex-1 order-1 lg:order-2 bg-black rounded-xl shadow-inner border border-slate-700 relative overflow-hidden flex flex-col min-w-0 min-h-[280px]">
+            <div class="absolute top-3 left-3 z-10 bg-slate-900/85 backdrop-blur-sm px-3 py-2 rounded-xl border border-slate-600 text-sm max-w-[280px]">
+                <div class="font-bold text-sky-300 mb-1 flex items-center gap-2">
+                    <div id="status-dot" class="w-2 h-2 rounded-full bg-slate-500"></div>
+                    <span id="current-phase-name">發射台待命</span>
+                </div>
+                <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 mt-1 text-xs">
+                    <span class="text-slate-400" data-i18n="lblCenter">軌道中心</span>
+                    <span class="font-mono text-white" id="val-center">—</span>
+                    <span class="text-slate-400" data-i18n="lblVel">速率 v</span>
+                    <span class="font-mono text-white"><span id="val-vel">0.00</span> km/s</span>
+                    <span class="text-slate-400" data-i18n="lblDist">半徑 r</span>
+                    <span class="font-mono text-white"><span id="val-dist">6,371</span> km</span>
+                    <span class="text-slate-400" data-i18n="lblGamma">航向偏角 γ</span>
+                    <span class="font-mono text-white"><span id="val-gamma">0</span>°</span>
+                </div>
+            </div>
+            <canvas id="space-canvas" class="w-full h-full block"></canvas>
+        </section>
+
+        <aside class="w-full lg:w-[300px] xl:w-[320px] order-2 lg:order-1 flex flex-col gap-4 shrink-0 min-h-0 overflow-hidden">
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col gap-2 shrink-0">
+                <h3 class="text-sm font-bold text-slate-300 mb-1" data-i18n="ctrlTitle">任務階段</h3>
+                <button id="btn-phase1" onclick="triggerPhase(1)" class="w-full py-2.5 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold text-left text-sm"><span data-i18n="btnP1">1. 進入近地圓軌道</span></button>
+                <button id="btn-phase2" onclick="triggerPhase(2)" class="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-left text-sm btn-disabled" disabled><span data-i18n="btnP2">2. 略為外傾並抬高軌道</span></button>
+                <button id="btn-phase3" onclick="triggerPhase(3)" class="w-full py-2.5 px-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold text-left text-sm btn-disabled" disabled><span data-i18n="btnP3">3. 螺旋外移並接入繞月圓</span></button>
+                <button id="btn-phase4" onclick="triggerPhase(4)" class="w-full py-2.5 px-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-bold text-left text-sm btn-disabled" disabled><span data-i18n="btnP4">4. 略為內傾並返回地球</span></button>
+                <button id="btn-reset" onclick="resetSimulation()" class="w-full mt-1 py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-500 rounded-lg font-bold text-sm"><span data-i18n="btnReset">⟲ 重置</span></button>
+            </div>
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4 flex-1 overflow-y-auto">
+                <h3 class="text-sm font-bold text-slate-300 mb-3 border-b border-slate-700 pb-2" data-i18n="expTitle">軌道解讀</h3>
+                <div id="explanation-content" class="text-sm text-slate-300 leading-relaxed"></div>
+            </div>
+        </aside>
+    </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-slate-800 text-slate-100 w-full max-w-lg rounded-2xl border border-slate-600 scale-95 opacity-0">
+            <div class="p-4 flex justify-between items-center border-b border-slate-700">
+                <h2 id="steps-title" class="font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="px-2 py-1 rounded bg-slate-700">✕</button>
+            </div>
+            <ol class="p-5 space-y-2 text-sm list-decimal pl-8">
+                <li data-i18n="s1">按 1，看火箭轉入最小的圓，之後整圈都貼在這條圓上。</li>
+                <li data-i18n="s2">按 2，看它用半圈轉移先接到中間圓、繞完，再接到外面的高軌圓。兩端都與圓相切。</li>
+                <li data-i18n="s3">按 3，等月球走到對面，再看半圈轉移接到繞月小圓。</li>
+                <li data-i18n="s4">按 4，機頭略向內偏，沿螺旋落回地球。留意 γ 與速率讀數。</li>
+            </ol>
+        </div>
+    </div>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-slate-800 text-slate-100 w-full max-w-lg rounded-2xl border border-slate-600 scale-95 opacity-0 max-h-[88vh] overflow-y-auto">
+            <div class="p-4 flex justify-between items-center border-b border-slate-700">
+                <h2 id="principle-title" class="font-bold" data-i18n="principleTitle">原理解說</h2>
+                <button type="button" id="modal-close" class="px-2 py-1 rounded bg-slate-700">✕</button>
+            </div>
+            <div class="p-5 space-y-3 text-sm">
+                <p data-i18n="pConcept">概念：俯視時，圓軌道的速度沿切線。要去更高的圓，只需把航向略為偏向外側並加速，太空船會沿螺旋爬升，再把航向收回切線，停在新的圓上。</p>
+                <div class="mj-box">$$\displaystyle \frac{\mathrm{d}r}{\mathrm{d}\theta}=r\tan\gamma,\qquad v=\sqrt{\frac{GM}{r}}$$</div>
+                <p data-i18n="pMech">機制：γ 是速度與切線的夾角。γ = 0 時半徑不變，就是圓。γ 只有幾度時，每轉一圈半徑只增加一點。圓愈大，圓軌道速率愈低。接到月球時，改以月球為圓心，沿一段彎弧進入繞月小圓，位置連續、沒有跳動。</p>
+                <p data-i18n="pLife">生活例子：衛星從低軌抬到較高的圓軌道，也是先沿切線加速、航向略為抬高，而不是沿著半徑「跳」上去。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const I18N = {
+            zh: {
+                title: "火箭登月軌道切換", badge: "物理",
+                subtitle: "平面圖：只把航向略為外傾並加速，沿螺旋爬上更大的圓軌道",
+                btnSteps: "觀察步驟", btnPrinciple: "原理解說", stepsTitle: "觀察步驟", principleTitle: "原理解說",
+                s1: "按 1，看火箭轉入最小的圓，之後整圈都貼在這條圓上。",
+                s2: "按 2，看它用半圈轉移先接到中間圓、繞完，再接到外面的高軌圓。兩端都與圓相切。",
+                s3: "按 3，等月球走到對面，再看半圈轉移接到繞月小圓。",
+                s4: "按 4，機頭略向內偏，沿螺旋落回地球。留意 γ 與速率讀數。",
+                pConcept: "概念：俯視時，圓軌道的速度沿切線。要去更高的圓，只在切點順向加速，沿半圈橢圓爬升，兩端都與圓相切，再把速率改成新圓的圓軌道速率。",
+                pMech: "機制：γ 是速度與切線的夾角。γ = 0 時半徑不變，就是圓。γ 只有幾度時，每轉一圈半徑只增加一點。圓愈大，圓軌道速率愈低。接到月球時，改以月球為圓心，沿一段彎弧進入繞月小圓，位置連續、沒有跳動。",
+                pLife: "生活例子：衛星從低軌抬到較高的圓軌道，也是先沿切線加速、航向略為抬高，而不是沿著半徑「跳」上去。",
+                ctrlTitle: "任務階段", expTitle: "軌道解讀", btnReset: "⟲ 重置",
+                btnP1: "1. 進入近地圓軌道", btnP2: "2. 略為外傾並抬高軌道", btnP3: "3. 螺旋外移並接入繞月圓", btnP4: "4. 略為內傾並返回地球",
+                lblCenter: "軌道中心", lblVel: "速率 v", lblDist: "半徑 r", lblGamma: "航向偏角 γ",
+                centerNone: "—", centerEarth: "地球", centerMoon: "月球",
+                phases: ["發射台待命", "重力轉彎入軌", "近地圓軌道", "螺旋抬高中", "高地球圓軌道", "螺旋前往月球", "繞月圓軌道", "螺旋返回中", "已返回地面"],
+                exp: {
+                    0: "<p>俯視平面圖。虛線是幾條參考圓。火箭要換到更大的圓時，只把航向相對切線偏一個小角度 γ，並加速，半徑會跟著 \\(\\mathrm{d}r=r\\tan\\gamma\\,\\mathrm{d}\\theta\\) 慢慢變大。</p>",
+                    1: "<p><strong>1. 近地圓</strong></p><p>離地時航向由向外逐漸轉成切線，到達近地圓時 γ = 0，之後整圈都貼在這條圓上。速率 \\(v=\\sqrt{GM_E/r}\\approx 7.7\\ \\mathrm{km/s}\\)。</p>",
+                    2: "<p><strong>2. 逐級抬高</strong></p><p>每次只在圓的一點順向加速。轉移軌道是半圈橢圓，起點與較低的圓相切，半圈後與較高的圓相切，γ 在中途只有十幾度，兩端為 0。先接到中間圓並繞完一圈，再接到高地球圓。</p>",
+                    3: "<p><strong>3. 接入繞月圓</strong></p><p>太空船留在高軌圓上，直到月球走到對面。再沿半圈轉移到月球外側，與繞月小圓相切，然後改以月球為圓心飛行。位置和航向都連續。</p>",
+                    4: "<p><strong>返回</strong></p><p>航向改為略向圓心內側（γ 為負），螺旋逐漸縮小，最後落回地球。</p>"
+                }
+            },
+            en: {
+                title: "Lunar orbit transfer", badge: "Physics",
+                subtitle: "Plan view: a few degrees of pitch and a burn spiral the craft up to a larger circle",
+                btnSteps: "Steps", btnPrinciple: "Principle", stepsTitle: "Steps", principleTitle: "Principle",
+                s1: "Press 1 and watch the craft settle onto the inner circle and stay on it.",
+                s2: "Press 2. A half-ellipse meets the middle circle, completes a lap, then meets the high circle. Both ends are tangent.",
+                s3: "Press 3. After the Moon moves opposite, a half-ellipse joins the small lunar circle.",
+                s4: "Press 4. A small inward pitch spirals the craft back to Earth. Watch γ and speed.",
+                pConcept: "In plan view, circular speed is tangential. A prograde burn at one point raises a half-ellipse that meets the next circle tangentially; a second burn settles the new circular speed.",
+                pMech: "γ is the angle between velocity and the tangent. γ = 0 keeps r constant. A few degrees of γ raise r only a little per revolution. Larger circles are slower. Lunar capture keeps the position continuous.",
+                pLife: "Raising a satellite from a low circle uses a tangential burn and a small pitch, not a radial jump.",
+                ctrlTitle: "Stages", expTitle: "Reading the orbit", btnReset: "⟲ Reset",
+                btnP1: "1. Enter low Earth circle", btnP2: "2. Pitch out and raise the circle", btnP3: "3. Spiral out and join a lunar circle", btnP4: "4. Pitch in and return",
+                lblCenter: "Centre", lblVel: "Speed v", lblDist: "Radius r", lblGamma: "Pitch γ",
+                centerNone: "—", centerEarth: "Earth", centerMoon: "Moon",
+                phases: ["Standby", "Gravity turn", "Low Earth circle", "Raising spiral", "High Earth circle", "Spiral to the Moon", "Lunar circle", "Return spiral", "Back on Earth"],
+                exp: {
+                    0: "<p>Top-down plan view. Dashed curves are guide circles. A transfer only pitches the nose by a small angle γ so \\(\\mathrm{d}r=r\\tan\\gamma\\,\\mathrm{d}\\theta\\).</p>",
+                    1: "<p><strong>1. Low circle</strong></p><p>The heading bends from outward to tangential. On arrival γ = 0 and the craft stays on that circle, about 7.7 km/s.</p>",
+                    2: "<p><strong>2. Raise in steps</strong></p><p>Each burn is tangential. A half-ellipse leaves the lower circle and meets the next circle, also tangentially. It circularises, flies one revolution, then repeats up to the high Earth circle.</p>",
+                    3: "<p><strong>3. Lunar circle</strong></p><p>The craft waits on the high circle until the Moon is opposite, then a half-ellipse meets a small circle just outside the Moon. The centre switches with no jump in position or heading.</p>",
+                    4: "<p><strong>Return</strong></p><p>A small inward pitch (negative γ) spirals the radius back down to Earth.</p>"
+                }
+            }
+        };
+
+        const GM_E = 3.986e5, GM_M = 4902.8;
+        const KNOT_V = [0, 0.18, 0.42, 0.68, 1];
+        const KNOT_KM = [6371, 6671, 16000, 42000, 384400];
+        const GAMMA_RAISE = 6 * Math.PI / 180;
+
+        let lang = 'zh';
+        let mode = 'pad';
+        let knot = 0;
+        let v = 0, theta = -Math.PI / 2, gamma = 0, gammaTarget = 0;
+        let center = 'earth', mScale = 2.8, moonTheta = 1.1;
+        let shownKey = '', lastTs = 0, burning = false;
+        let launchU = 0, launchTh0 = -Math.PI / 2;
+        let hoh = null, coastLeft = 0, nextPlan = '';
+        let trail = [];
+        const MOON_W = 0.16, LEO_W = 0.82;
+
+        const canvas = document.getElementById('space-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function sample(xs, ys, x) {
+            if (x <= xs[0]) return ys[0];
+            for (let i = 1; i < xs.length; i++) {
+                if (x <= xs[i]) {
+                    const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
+                    return ys[i - 1] + t * (ys[i] - ys[i - 1]);
+                }
+            }
+            return ys[ys.length - 1];
+        }
+        function invert(xs, ys, y) {
+            if (y <= ys[0]) return xs[0];
+            for (let i = 1; i < ys.length; i++) {
+                if (y <= ys[i]) {
+                    const t = (y - ys[i - 1]) / (ys[i] - ys[i - 1] || 1);
+                    return xs[i - 1] + t * (xs[i] - xs[i - 1]);
+                }
+            }
+            return xs[xs.length - 1];
+        }
+        function layout() {
+            const w = canvas.width, h = canvas.height;
+            const moonPx = Math.min(w, h) * 0.38;
+            const earthPx = Math.max(16, Math.min(w, h) * 0.042);
+            return { w: w, h: h, cx: w * 0.5, cy: h * 0.52, moonPx: moonPx, earthPx: earthPx, moonBody: Math.max(8, earthPx * 0.62) };
+        }
+        function radii(L) {
+            return [L.earthPx * 0.96, L.earthPx * 2.2, L.earthPx * 3.6, L.moonPx * 0.52, L.moonPx];
+        }
+        function rPx(L) {
+            const rs = radii(L);
+            if (v <= 1) return sample(KNOT_V, rs, Math.max(0, v));
+            return rs[4] + (v - 1) * L.moonBody * 2.8;
+        }
+        function angRate(L, r) {
+            return LEO_W * Math.sqrt(radii(L)[1] / Math.max(r, 8));
+        }
+        function kmNow() { return sample(KNOT_V, KNOT_KM, Math.max(0, Math.min(1, v))); }
+        function moonPos(L) {
+            return { x: L.cx + Math.cos(moonTheta) * L.moonPx, y: L.cy + Math.sin(moonTheta) * L.moonPx };
+        }
+        function worldPos(L) {
+            if (center === 'moon') {
+                const m = moonPos(L);
+                const rad = L.moonBody * mScale;
+                return { x: m.x + Math.cos(theta) * rad, y: m.y + Math.sin(theta) * rad };
+            }
+            const rad = rPx(L);
+            return { x: L.cx + Math.cos(theta) * rad, y: L.cy + Math.sin(theta) * rad };
+        }
+        function angDiff(a, b) {
+            let d = a - b;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            return d;
+        }
+        function adoptMoon(L) {
+            const p = worldPos(L), m = moonPos(L);
+            theta = Math.atan2(p.y - m.y, p.x - m.x);
+            mScale = Math.max(1.2, Math.hypot(p.x - m.x, p.y - m.y) / L.moonBody);
+            center = 'moon';
+        }
+        function adoptEarth(L) {
+            const p = worldPos(L);
+            const rad = Math.max(L.earthPx, Math.hypot(p.x - L.cx, p.y - L.cy));
+            theta = Math.atan2(p.y - L.cy, p.x - L.cx);
+            v = invert(KNOT_V, radii(L), rad);
+            center = 'earth';
+        }
+
+        function startHohmann(target) {
+            hoh = {
+                from: knot,
+                target: target,
+                nu: 0,
+                theta0: theta,
+                km1: KNOT_KM[Math.max(0, Math.min(4, knot))],
+                km2: target === 'lunar' ? 384400 : KNOT_KM[target]
+            };
+            mode = 'hohmann';
+            burning = true;
+        }
+        function hohGeom(L) {
+            const rs = radii(L);
+            const r1 = rs[hoh.from];
+            const r2 = hoh.target === 'lunar' ? rs[4] + L.moonBody * 2.8 : rs[hoh.target];
+            const a = (r1 + r2) / 2;
+            const e = Math.abs(r2 - r1) / (r1 + r2);
+            return { r1: r1, r2: r2, a: a, e: e };
+        }
+        function finishHohmann() {
+            gamma = 0;
+            gammaTarget = 0;
+            if (hoh.target === 'lunar') {
+                const ang = hoh.theta0 + Math.PI;
+                theta = ang;
+                moonTheta = ang;
+                center = 'moon';
+                mScale = 2.8;
+                mode = 'lunar';
+                hoh = null;
+                setButtonState('btn-phase4', true);
+                return;
+            }
+            knot = hoh.target;
+            v = KNOT_V[knot];
+            theta = hoh.theta0 + Math.PI;
+            hoh = null;
+            mode = 'coast';
+            if (knot === 2) { coastLeft = Math.PI * 2; nextPlan = 'to3'; }
+            else if (knot === 3) { coastLeft = Math.PI * 1.15; nextPlan = 'ready3'; }
+        }
+        function stepLaunch(dt, L) {
+            const rs = radii(L);
+            const turn = Math.PI;
+            const duration = turn / LEO_W;
+            launchU = Math.min(1, launchU + dt / duration);
+            const r = rs[0] + (rs[1] - rs[0]) * Math.sin(launchU * Math.PI / 2);
+            v = invert(KNOT_V, rs, r);
+            theta = launchTh0 + launchU * turn;
+            const drdu = (rs[1] - rs[0]) * Math.cos(launchU * Math.PI / 2) * (Math.PI / 2);
+            gamma = Math.atan2(drdu / turn, Math.max(r, 1));
+            burning = launchU < 0.96;
+            moonTheta += MOON_W * dt;
+            if (launchU >= 1) {
+                v = KNOT_V[1];
+                knot = 1;
+                gamma = 0;
+                mode = 'coast';
+                setButtonState('btn-phase2', true);
+            }
+        }
+        function stepCoast(dt, L) {
+            const rs = radii(L);
+            v = KNOT_V[knot];
+            gamma = 0;
+            gammaTarget = 0;
+            const w = angRate(L, rs[knot]);
+            theta += w * dt;
+            if (mode === 'seek') {
+                const r2 = rs[4] + L.moonBody * 2.8;
+                const T = Math.PI / angRate(L, (rs[knot] + r2) / 2);
+                const aim = theta + Math.PI;
+                moonTheta += MOON_W * dt;
+                if (Math.abs(angDiff(moonTheta + MOON_W * T, aim)) < 0.12) startHohmann('lunar');
+            } else {
+                moonTheta += MOON_W * dt;
+                if (coastLeft > 0) {
+                    coastLeft -= w * dt;
+                    if (coastLeft <= 0) {
+                        coastLeft = 0;
+                        const plan = nextPlan;
+                        nextPlan = '';
+                        if (plan === 'to3') startHohmann(3);
+                        else if (plan === 'ready3') setButtonState('btn-phase3', true);
+                    }
+                }
+            }
+        }
+        function stepHoh(dt, L) {
+            const g = hohGeom(L);
+            const nuPrev = hoh.nu;
+            const rNow = g.a * (1 - g.e * g.e) / (1 + g.e * Math.cos(Math.min(hoh.nu, Math.PI)));
+            hoh.nu = Math.min(Math.PI, hoh.nu + angRate(L, rNow) * dt);
+            const nu = hoh.nu;
+            const r = g.a * (1 - g.e * g.e) / (1 + g.e * Math.cos(nu));
+            theta = hoh.theta0 + nu;
+            gamma = Math.atan2(g.e * Math.sin(nu), 1 + g.e * Math.cos(nu));
+            const rs = radii(L);
+            if (r <= rs[4]) v = invert(KNOT_V, rs, Math.min(r, rs[4]));
+            else v = 1 + (r - rs[4]) / (L.moonBody * 2.8);
+            burning = nu < 0.45 || nu > Math.PI - 0.5;
+            if (hoh.target === 'lunar') {
+                const timeLeft = Math.max(0.04, (Math.PI - nu) / Math.max(0.2, angRate(L, r)));
+                const err = angDiff(hoh.theta0 + Math.PI, moonTheta);
+                moonTheta += Math.max(-1.15, Math.min(1.15, err / timeLeft)) * dt;
+            } else moonTheta += MOON_W * dt;
+            if (nuPrev < Math.PI && hoh.nu >= Math.PI - 1e-6) finishHohmann();
+        }
+        function stepMoon(dt, L) {
+            const w = 1.45;
+            theta += w * dt;
+            moonTheta += MOON_W * dt;
+            gamma += (gammaTarget - gamma) * Math.min(1, dt * 2.2);
+            if (Math.abs(gamma) > 0.004) mScale *= Math.exp(w * dt * Math.tan(gamma));
+            if (mode === 'lunar') {
+                gammaTarget = Math.abs(mScale - 2.8) > 0.2 ? (mScale > 2.8 ? -0.08 : 0.08) : 0;
+            }
+            if (mode === 'depart') {
+                gammaTarget = 0.1;
+                burning = true;
+                if (mScale > 5.5) {
+                    adoptEarth(L);
+                    gammaTarget = -GAMMA_RAISE;
+                    mode = 'return';
+                }
+            }
+        }
+        function stepReturn(dt, L) {
+            gamma += (gammaTarget - gamma) * Math.min(1, dt * 2.2);
+            const rs = radii(L);
+            const r = Math.max(8, rPx(L));
+            const w = angRate(L, r);
+            theta += w * dt;
+            moonTheta += MOON_W * dt;
+            if (Math.abs(gamma) > 0.004) {
+                const dv = 0.004;
+                const drdv = (sample(KNOT_V, rs, Math.min(1.05, Math.max(0, v) + dv)) - r) / dv;
+                if (Math.abs(drdv) > 0.5) v += (r * Math.tan(gamma) * w * dt) / drdv;
+                v = Math.max(0, Math.min(1.2, v));
+            }
+            burning = true;
+            gammaTarget = v > 0.05 ? -GAMMA_RAISE : -0.7;
+            if (v <= 0.02) { v = 0; gamma = 0; gammaTarget = 0; burning = false; mode = 'landed'; }
+        }
+        function step(dt) {
+            const L = layout();
+            burning = false;
+            if (mode === 'pad' || mode === 'landed') { moonTheta += MOON_W * dt; return; }
+            if (mode === 'launch') stepLaunch(dt, L);
+            else if (mode === 'coast' || mode === 'seek') stepCoast(dt, L);
+            else if (mode === 'hohmann') stepHoh(dt, L);
+            else if (mode === 'lunar' || mode === 'depart') stepMoon(dt, L);
+            else if (mode === 'return') stepReturn(dt, L);
+            const p = worldPos(L);
+            if (trail.length === 0 || Math.hypot(trail[trail.length - 1].x - p.x, trail[trail.length - 1].y - p.y) > 1.4) {
+                trail.push(p);
+                if (trail.length > 2400) trail.shift();
+            }
+        }
+
+        function stageIndex() {
+            if (mode === 'pad') return 0;
+            if (mode === 'launch') return 1;
+            if (mode === 'coast' && knot <= 1) return 2;
+            if (mode === 'hohmann' && hoh && hoh.target !== 'lunar' && hoh.target <= 3 && hoh.from < 3) return 3;
+            if (mode === 'coast' && knot === 2) return 3;
+            if (mode === 'coast' && knot >= 3) return 4;
+            if (mode === 'seek' || (mode === 'hohmann' && hoh && hoh.target === 'lunar')) return 5;
+            if (mode === 'lunar' || mode === 'depart') return 6;
+            if (mode === 'return') return 7;
+            return 8;
+        }
+        function expKey() {
+            const s = stageIndex();
+            if (s <= 0) return 0;
+            if (s <= 2) return 1;
+            if (s <= 4) return 2;
+            if (s <= 6) return 3;
+            return 4;
+        }
+        function physics() {
+            if (mode === 'pad') return { c: 'none', r: 6371, vv: 0 };
+            if (mode === 'landed') return { c: 'earth', r: 6371, vv: 0 };
+            if (center === 'moon') {
+                const r = 1800 * (mScale / 2.8);
+                return { c: 'moon', r: r, vv: Math.sqrt(GM_M / Math.max(r, 1)) };
+            }
+            if (mode === 'hohmann' && hoh) {
+                const L = layout();
+                const g = hohGeom(L);
+                const nu = Math.min(hoh.nu, Math.PI);
+                const rp = g.a * (1 - g.e * g.e) / (1 + g.e * Math.cos(nu));
+                const frac = (rp - g.r1) / (g.r2 - g.r1 || 1);
+                const rKm = hoh.km1 + (hoh.km2 - hoh.km1) * Math.max(0, Math.min(1, frac));
+                const aKm = (hoh.km1 + hoh.km2) / 2;
+                return { c: 'earth', r: rKm, vv: Math.sqrt(Math.max(0.01, GM_E * (2 / rKm - 1 / aKm))) };
+            }
+            const r = kmNow();
+            return { c: 'earth', r: r, vv: Math.sqrt(GM_E / Math.max(r, 1)) };
+        }
+
+        function openM(id) {
+            const m = document.getElementById(id), c = m.querySelector('.modal-content');
+            m.classList.remove('opacity-0', 'pointer-events-none');
+            c.classList.remove('scale-95', 'opacity-0');
+            if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([m]);
+        }
+        function closeM(id) {
+            const m = document.getElementById(id), c = m.querySelector('.modal-content');
+            m.classList.add('opacity-0', 'pointer-events-none');
+            c.classList.add('scale-95', 'opacity-0');
+        }
+        function setButtonState(id, on) {
+            const b = document.getElementById(id);
+            b.disabled = !on;
+            b.classList.toggle('btn-disabled', !on);
+        }
+        function updateUI() {
+            const dict = I18N[lang];
+            document.querySelectorAll('[data-i18n]').forEach(function (el) {
+                const key = el.dataset.i18n;
+                if (typeof dict[key] === 'string') el.innerHTML = dict[key];
+            });
+            const s = stageIndex();
+            document.getElementById('current-phase-name').textContent = dict.phases[s];
+            const key = lang + expKey();
+            if (key !== shownKey) {
+                shownKey = key;
+                document.getElementById('explanation-content').innerHTML = dict.exp[expKey()];
+                if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([document.getElementById('explanation-content')]).catch(function () {});
+            }
+            const ph = physics();
+            document.getElementById('val-center').textContent = ph.c === 'earth' ? dict.centerEarth : ph.c === 'moon' ? dict.centerMoon : dict.centerNone;
+            document.getElementById('val-vel').textContent = ph.vv.toFixed(2);
+            document.getElementById('val-dist').textContent = Math.round(ph.r).toLocaleString();
+            document.getElementById('val-gamma').textContent = (gamma * 180 / Math.PI).toFixed(1);
+            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full ' + (Math.abs(gamma) > 0.04 ? 'bg-amber-400' : 'bg-sky-400');
+        }
+        function toggleLanguage() {
+            lang = lang === 'zh' ? 'en' : 'zh';
+            document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+            shownKey = '';
+            updateUI();
+        }
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            if (rect.width < 2 || rect.height < 2) return;
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        function resetSimulation() {
+            mode = 'pad'; knot = 0; v = 0; theta = -Math.PI / 2; gamma = 0; gammaTarget = 0;
+            center = 'earth'; mScale = 2.8; moonTheta = 1.1; trail = []; shownKey = '';
+            launchU = 0; launchTh0 = -Math.PI / 2; hoh = null; coastLeft = 0; nextPlan = ''; burning = false;
+            setButtonState('btn-phase1', true);
+            setButtonState('btn-phase2', false);
+            setButtonState('btn-phase3', false);
+            setButtonState('btn-phase4', false);
+            updateUI();
+        }
+        function triggerPhase(n) {
+            if (n === 1 && mode === 'pad') {
+                mode = 'launch'; launchU = 0; launchTh0 = theta; knot = 0; center = 'earth';
+                setButtonState('btn-phase1', false);
+            } else if (n === 2 && mode === 'coast' && knot === 1) {
+                startHohmann(2);
+                setButtonState('btn-phase2', false);
+            } else if (n === 3 && mode === 'coast' && knot === 3) {
+                mode = 'seek';
+                setButtonState('btn-phase3', false);
+            } else if (n === 4 && mode === 'lunar') {
+                mode = 'depart'; gammaTarget = 0.1;
+                setButtonState('btn-phase4', false);
+            }
+            updateUI();
+        }
+
+        function draw() {
+            const L = layout();
+            if (L.w < 2) return;
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, L.w, L.h);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            for (let i = 0; i < 60; i++) ctx.fillRect((i * 89) % L.w, (i * 47) % L.h, 1.2, 1.2);
+
+            const rs = radii(L);
+            ctx.setLineDash([4, 6]);
+            ctx.lineWidth = 1;
+            for (let i = 1; i < rs.length; i++) {
+                ctx.beginPath();
+                ctx.arc(L.cx, L.cy, rs[i], 0, Math.PI * 2);
+                ctx.strokeStyle = i === rs.length - 1 ? 'rgba(148,163,184,0.55)' : 'rgba(125,211,252,0.35)';
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+
+            if (trail.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(trail[0].x, trail[0].y);
+                for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x, trail[i].y);
+                ctx.strokeStyle = 'rgba(250,204,21,0.85)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            const eg = ctx.createRadialGradient(L.cx - 8, L.cy - 8, 2, L.cx, L.cy, L.earthPx);
+            eg.addColorStop(0, '#7dd3fc');
+            eg.addColorStop(1, '#1d4ed8');
+            ctx.fillStyle = eg;
+            ctx.beginPath();
+            ctx.arc(L.cx, L.cy, L.earthPx, 0, Math.PI * 2);
+            ctx.fill();
+
+            const m = moonPos(L);
+            if (center === 'moon' || mode === 'lunar' || mode === 'depart' || mode === 'seek' || (hoh && hoh.target === 'lunar')) {
+                ctx.beginPath();
+                ctx.arc(m.x, m.y, L.moonBody * 2.8, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(192,132,252,0.9)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+            const mg = ctx.createRadialGradient(m.x - 3, m.y - 3, 1, m.x, m.y, L.moonBody);
+            mg.addColorStop(0, '#f1f5f9');
+            mg.addColorStop(1, '#64748b');
+            ctx.fillStyle = mg;
+            ctx.beginPath();
+            ctx.arc(m.x, m.y, L.moonBody, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(lang === 'zh' ? '地球' : 'Earth', L.cx, L.cy + L.earthPx + 16);
+            ctx.fillText(lang === 'zh' ? '月球' : 'Moon', m.x, m.y + L.moonBody + 14);
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '11px sans-serif';
+            ctx.fillText(lang === 'zh' ? '俯視平面圖' : 'Plan view', 16, L.h - 16);
+
+            if (mode !== 'pad' && mode !== 'landed') {
+                const p = worldPos(L);
+                let hx, hy;
+                if (center === 'moon') {
+                    hx = Math.cos(theta + Math.PI / 2 - gamma);
+                    hy = Math.sin(theta + Math.PI / 2 - gamma);
+                } else {
+                    hx = Math.cos(theta + Math.PI / 2 - gamma);
+                    hy = Math.sin(theta + Math.PI / 2 - gamma);
+                }
+                const ang = Math.atan2(hy, hx);
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(ang);
+                if (burning) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#fb923c' : '#fde68a';
+                    ctx.beginPath();
+                    ctx.moveTo(-8, -3);
+                    ctx.lineTo(-16, 0);
+                    ctx.lineTo(-8, 3);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.moveTo(12, 0);
+                ctx.lineTo(-7, 5);
+                ctx.lineTo(-4, 0);
+                ctx.lineTo(-7, -5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+                ctx.strokeStyle = 'rgba(125,211,252,0.7)';
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x + hx * 28, p.y + hy * 28);
+                ctx.stroke();
+            } else if (mode === 'landed') {
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.arc(L.cx + L.earthPx * 0.2, L.cy + L.earthPx * 0.85, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function loop(now) {
+            if (!lastTs) lastTs = now;
+            const dt = Math.min(0.033, (now - lastTs) / 1000);
+            lastTs = now;
+            const before = mode;
+            step(dt);
+            if (mode !== before) updateUI();
+            else if (mode !== 'pad') {
+                const ph = physics();
+                document.getElementById('val-vel').textContent = ph.vv.toFixed(2);
+                document.getElementById('val-dist').textContent = Math.round(ph.r).toLocaleString();
+                document.getElementById('val-gamma').textContent = (gamma * 180 / Math.PI).toFixed(1);
+                document.getElementById('status-dot').className = 'w-2 h-2 rounded-full ' + (Math.abs(gamma) > 0.04 ? 'bg-amber-400' : 'bg-sky-400');
+                const dict = I18N[lang];
+                document.getElementById('current-phase-name').textContent = dict.phases[stageIndex()];
+                const key = lang + expKey();
+                if (key !== shownKey) updateUI();
+            }
+            draw();
+            requestAnimationFrame(loop);
+        }
+        function init() {
+            window.addEventListener('resize', resizeCanvas);
+            document.documentElement.lang = 'zh-Hant';
+            document.getElementById('btn-steps').onclick = function () { closeM('modal-principle'); openM('modal-steps'); };
+            document.getElementById('btn-principle').onclick = function () { closeM('modal-steps'); openM('modal-principle'); };
+            document.getElementById('steps-close').onclick = function () { closeM('modal-steps'); };
+            document.getElementById('modal-close').onclick = function () { closeM('modal-principle'); };
+            ['modal-steps', 'modal-principle'].forEach(function (id) {
+                document.getElementById(id).addEventListener('click', function (e) { if (e.target.id === id) closeM(id); });
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') { closeM('modal-steps'); closeM('modal-principle'); }
+            });
+            resizeCanvas();
+            resetSimulation();
+            requestAnimationFrame(loop);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>

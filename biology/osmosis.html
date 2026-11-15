@@ -1,327 +1,886 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>生物科：滲透作用模擬器 (Osmosis Simulator)</title>
+    <title>滲透作用 | Osmosis</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        canvas {
-            border: 1px solid #ccc;
-            background-color: #f0f9ff; /* 淺藍色背景代表水環境 */
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        html, body { height: 100%; margin: 0; }
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #0284c7; cursor: pointer; margin-top: -5px; border: 2px solid #fff;
+            box-shadow: 0 1px 4px rgba(2, 132, 199, .35);
         }
-        .arrow-box {
-            transition: all 0.3s ease;
-        }
-        /* 模擬膜的虛線樣式由 Canvas 繪製，這裡處理 UI */
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        .preset-btn.active { background: #0369a1; color: #fff; border-color: #0369a1; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans p-4 md:p-8">
+<body class="bg-slate-100 text-slate-800 h-full min-h-0 p-3 sm:p-4 flex flex-col overflow-hidden">
 
-    <div class="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-lg">
-        <!-- Header -->
-        <header class="mb-6 text-center border-b pb-4">
-            <h1 class="text-2xl md:text-3xl font-bold text-blue-600 mb-2">滲透作用模擬器 (Osmosis Simulator)</h1>
-            <p class="text-gray-600">觀察水分子如何穿過差異透性膜 (Differentially Permeable Membrane)</p>
-        </header>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <!-- Controls -->
-            <div class="md:col-span-1 space-y-6 bg-gray-50 p-4 rounded-lg border border-gray-200 h-fit">
-                <h2 class="font-bold text-lg text-gray-700 border-b pb-2">實驗設定</h2>
-                
-                <!-- Left Side Control -->
-                <div>
-                    <label class="block text-sm font-bold mb-1 text-blue-800">左側溶液</label>
-                    <div class="flex justify-between text-xs mb-1">
-                        <span>純水</span>
-                        <span>高濃度</span>
-                    </div>
-                    <label for="leftSolute" class="text-xs text-gray-500">溶質濃度 (Solute Conc.)</label>
-                    <input type="range" id="leftSolute" min="0" max="60" value="10" class="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer accent-red-500">
-                    <div class="mt-1 text-xs font-semibold text-blue-600">
-                        水勢: <span id="leftPotText">高</span>
-                    </div>
+    <header class="w-full bg-white/90 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-sm mb-3 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 shrink-0 z-20">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-400 text-white flex items-center justify-center shadow-md shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><path d="M11 12h2"/></svg>
                 </div>
-
-                <hr class="border-gray-300">
-
-                <!-- Right Side Control -->
-                <div>
-                    <label class="block text-sm font-bold mb-1 text-blue-800">右側溶液</label>
-                    <div class="flex justify-between text-xs mb-1">
-                        <span>純水</span>
-                        <span>高濃度</span>
-                    </div>
-                    <label for="rightSolute" class="text-xs text-gray-500">溶質濃度 (Solute Conc.)</label>
-                    <input type="range" id="rightSolute" min="0" max="60" value="50" class="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer accent-red-500">
-                    <div class="mt-1 text-xs font-semibold text-blue-600">
-                        水勢: <span id="rightPotText">低</span>
-                    </div>
+                <div class="min-w-0">
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex flex-wrap items-center gap-2">
+                        <span data-i18n="title">滲透作用</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 truncate" data-i18n="subtitle">差異透性膜 · 水勢 · 水分子淨移動</p>
                 </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-center">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-slate-50 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h12"/><path d="M9 12h12"/><path d="M9 19h12"/><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="19" r="1" fill="currentColor"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-cyan-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
 
-                <div class="pt-2">
-                    <button id="resetBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition">
-                        重置實驗
-                    </button>
-                </div>
-
-                <!-- Legend -->
-                <div class="bg-white p-3 rounded border text-sm">
-                    <h3 class="font-bold mb-2 text-gray-700">圖例 (Legend)</h3>
-                    <div class="flex items-center mb-2">
-                        <span class="w-3 h-3 rounded-full bg-blue-400 inline-block mr-2"></span>
-                        <span>水分子 (可穿過膜)</span>
-                    </div>
-                    <div class="flex items-center mb-2">
-                        <span class="w-4 h-4 rounded-full bg-red-500 inline-block mr-2 border border-red-700"></span>
-                        <span>溶質分子 (被膜阻擋)</span>
-                    </div>
-                    <div class="flex items-center">
-                        <span class="w-1 h-4 border-l-2 border-dashed border-gray-600 inline-block mr-3 ml-1"></span>
-                        <span>差異透性膜</span>
-                    </div>
+    <main class="flex-1 min-h-0 flex flex-col lg:flex-row gap-3">
+        <aside class="w-full lg:w-80 shrink-0 flex flex-col gap-3 overflow-y-auto order-2 lg:order-1 max-h-[42vh] lg:max-h-none">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-[11px] font-bold text-slate-500 mb-2" data-i18n="presetTitle">前設</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" id="preset-classic" class="preset-btn active py-2 rounded-xl border border-slate-300 text-[11px] font-extrabold" data-i18n="presetClassic">純水→蔗糖</button>
+                    <button type="button" id="preset-iso" class="preset-btn py-2 rounded-xl border border-slate-300 text-[11px] font-extrabold bg-white" data-i18n="presetIso">等滲</button>
+                    <button type="button" id="preset-rev" class="preset-btn py-2 rounded-xl border border-slate-300 text-[11px] font-extrabold bg-white" data-i18n="presetRev">反向</button>
                 </div>
             </div>
 
-            <!-- Simulation Canvas Area -->
-            <div class="md:col-span-2 flex flex-col items-center relative">
-                <!-- Dynamic Flow Indicator -->
-                <div id="flowIndicator" class="absolute top-4 bg-white/90 px-4 py-2 rounded-full shadow-md border border-blue-200 font-bold text-blue-800 text-center z-10 pointer-events-none transition-opacity duration-500 opacity-0">
-                    淨移動方向: <span id="flowArrow">↔</span>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <p class="text-[11px] font-bold text-slate-500" data-i18n="controlTitle">溶液濃度</p>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-sky-800 mb-1">
+                        <span data-i18n="leftSol">左側溶質</span>
+                        <span id="leftVal" class="text-sky-600">10%</span>
+                    </div>
+                    <input type="range" id="leftSolute" min="0" max="40" value="4">
+                    <p class="text-[11px] mt-1 text-slate-500"><span data-i18n="psi">水勢 ψ</span>：<span id="leftPotText" class="font-bold text-sky-700">高</span></p>
                 </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-amber-800 mb-1">
+                        <span data-i18n="rightSol">右側溶質</span>
+                        <span id="rightVal" class="text-amber-600">50%</span>
+                    </div>
+                    <input type="range" id="rightSolute" min="0" max="40" value="28">
+                    <p class="text-[11px] mt-1 text-slate-500"><span data-i18n="psi">水勢 ψ</span>：<span id="rightPotText" class="font-bold text-amber-700">低</span></p>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelSpeed">分子運動</span>
+                        <span id="speedVal" class="text-sky-600">1.0×</span>
+                    </div>
+                    <input type="range" id="speedSlider" min="4" max="22" value="10">
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-600">
+                    <label class="flex items-center gap-2 bg-slate-50 rounded-xl px-2.5 py-2 border border-slate-100 cursor-pointer">
+                        <input type="checkbox" id="chkLabels" checked class="accent-sky-600">
+                        <span data-i18n="chkLabels">標籤</span>
+                    </label>
+                    <label class="flex items-center gap-2 bg-slate-50 rounded-xl px-2.5 py-2 border border-slate-100 cursor-pointer">
+                        <input type="checkbox" id="chkPlant" checked class="accent-sky-600">
+                        <span data-i18n="chkPlant">植物細胞</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="pauseBtn" class="py-2 rounded-xl font-extrabold text-sm bg-slate-100 hover:bg-slate-200 border border-slate-200" data-i18n="btnPause">暫停</button>
+                    <button type="button" id="resetBtn" class="py-2 rounded-xl font-extrabold text-sm text-white bg-sky-700 hover:bg-sky-800" data-i18n="btnReset">重置</button>
+                </div>
+            </div>
 
-                <canvas id="simCanvas" width="600" height="400" class="w-full max-w-[600px] bg-white"></canvas>
-                
-                <div class="mt-4 text-sm text-gray-600 bg-yellow-50 p-3 rounded border border-yellow-200 w-full">
-                    <strong>觀察重點：</strong> 
-                    <ul class="list-disc list-inside mt-1 space-y-1">
-                        <li>中間的虛線代表<strong>差異透性膜</strong>。</li>
-                        <li>紅色的溶質太大，無法穿過膜上的孔隙。</li>
-                        <li>藍色的水分子很小，可以自由穿梭。</li>
-                        <li>水會從<strong>高水勢</strong>（溶質少）流向<strong>低水勢</strong>（溶質多）。</li>
-                    </ul>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-[11px] font-bold text-slate-500 mb-2" data-i18n="legendTitle">圖例</p>
+                <ul class="space-y-1.5 text-xs">
+                    <li class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-full bg-sky-400 border border-sky-600"></span><span data-i18n="legWater">水分子 H₂O（可過膜）</span></li>
+                    <li class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm bg-amber-400 border border-amber-600"></span><span data-i18n="legSolute">蔗糖分子（被阻擋）</span></li>
+                    <li class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-teal-200 border border-teal-500"></span><span data-i18n="legMem">磷脂雙層＋水通道</span></li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-3 gap-2 text-center">
+                <div class="bg-sky-50 rounded-xl p-2 border border-sky-100">
+                    <div class="text-[10px] text-sky-700 font-bold" data-i18n="statL">左側 H₂O</div>
+                    <div id="stat-l" class="text-lg font-black text-sky-800">0</div>
                 </div>
+                <div class="bg-amber-50 rounded-xl p-2 border border-amber-100">
+                    <div class="text-[10px] text-amber-700 font-bold" data-i18n="statR">右側 H₂O</div>
+                    <div id="stat-r" class="text-lg font-black text-amber-800">0</div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statNet">淨流向</div>
+                    <div id="stat-net" class="text-sm font-black text-slate-700">—</div>
+                </div>
+            </div>
+        </aside>
+
+        <section id="canvas-container" class="flex-1 min-h-[280px] order-1 lg:order-2 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
+            <canvas id="simCanvas"></canvas>
+            <div id="flowBadge" class="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-sky-200 text-xs font-black text-sky-800"></div>
+            <div class="absolute bottom-3 right-3 pointer-events-none text-[10px] font-bold text-slate-500 bg-white/80 px-2 py-1 rounded-lg border border-slate-200" data-i18n="scaleNote">示意模型 · 分子大小並非按比例</div>
+        </section>
+    </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s1">1. 用前設「純水→蔗糖」，比較左右溶質數量與水勢標籤。留意中間磷脂雙層上的水通道（紫色桶狀蛋白）。</div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-xs" data-i18n="s2">2. 觀察水分子（彎折的 H₂O）可穿過水通道，蔗糖分子較大而被擋住。淨移動由高水勢（溶質少）指向低水勢（溶質多）。</div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s3">3. 留意液面：獲得水分的一側液面上升。再開啟「植物細胞」，比較脹壓細胞與質壁分離。</div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-xs" data-i18n="s4">4. 切換「等滲」：兩側水勢相近時，水分子仍在穿梭，但淨流量接近零（動態平衡）。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Configuration
-        const PARTICLE_RADIUS_WATER = 3;
-        const PARTICLE_RADIUS_SOLUTE = 8; // Solute is much bigger
-        const MAX_PARTICLES_PER_SIDE = 150; 
-        const SPEED = 1.5;
-        
-        let particles = [];
-        let animationId;
-        
-        // DOM Elements
-        const leftInput = document.getElementById('leftSolute');
-        const rightInput = document.getElementById('rightSolute');
-        const leftPotText = document.getElementById('leftPotText');
-        const rightPotText = document.getElementById('rightPotText');
-        const flowIndicator = document.getElementById('flowIndicator');
-        const flowArrow = document.getElementById('flowArrow');
-        const resetBtn = document.getElementById('resetBtn');
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-700 to-cyan-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="principle-title" class="text-lg font-bold" data-i18n="prinTitle">滲透作用原理</h2>
+                    <p class="text-xs text-sky-100" data-i18n="prinSub">水沿水勢梯度穿過差異透性膜</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m1t">1. 甚麼是滲透？</h3>
+                    <p class="text-xs" data-i18n="m1d">滲透是水分子通過差異透性膜（只准某些物質通過），由高水勢區域淨移動到低水勢區域。溶質分子通常太大或帶電，不能自由過膜。</p>
+                </div>
+                <div class="bg-teal-50 p-4 rounded-2xl border border-teal-100">
+                    <h3 class="font-bold text-teal-900 mb-1" data-i18n="m2t">2. 水勢 ψ</h3>
+                    <p class="text-xs" data-i18n="m2d">純水的水勢最高（定為 0）。加入溶質會降低水勢（溶質勢 ψₛ 為負值）。水總是由 ψ 較高處流向較低處，直到兩側水勢相等（動態平衡）。</p>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m3t">3. 膜與水通道</h3>
+                    <p class="text-xs" data-i18n="m3d">細胞膜是磷脂雙層。水主要經水通道蛋白（aquaporin）快速通過。本模擬以蔗糖代表不能過膜的溶質，對應維斯金膠管（Visking tubing）實驗。</p>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m4t">4. 植物細胞</h3>
+                    <p class="text-xs" data-i18n="m4d">置於高水勢溶液：水進入液泡 → 脹壓，細胞膜緊貼細胞壁。置於低水勢（濃溶液）：水離開細胞 → 原生質體收縮，出現質壁分離。</p>
+                </div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m5t">5. 生活例子</h3>
+                    <p class="text-xs" data-i18n="m5d">根毛從土壤吸水、用鹽醃菜令細胞失水、淡水魚的滲透調節，都是滲透作用。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        class Particle {
-            constructor(x, y, type) {
-                this.x = x;
-                this.y = y;
-                this.type = type; // 'water' or 'solute'
-                this.radius = type === 'water' ? PARTICLE_RADIUS_WATER : PARTICLE_RADIUS_SOLUTE;
-                this.color = type === 'water' ? '#60a5fa' : '#ef4444'; // Tailwind blue-400 / red-500
-                
-                // Random velocity
-                const angle = Math.random() * Math.PI * 2;
-                this.vx = Math.cos(angle) * SPEED;
-                this.vy = Math.sin(angle) * SPEED;
-            }
+<script>
+const i18n = {
+    zh: {
+        title: "滲透作用", badge: "中一科學", subtitle: "差異透性膜 · 水勢 · 水分子淨移動",
+        btnSteps: "觀察步驟", btnPrinciple: "原理解說",
+        presetTitle: "前設", presetClassic: "純水→蔗糖", presetIso: "等滲", presetRev: "反向",
+        controlTitle: "溶液濃度", leftSol: "左側溶質", rightSol: "右側溶質", psi: "水勢 ψ",
+        labelSpeed: "分子運動", chkLabels: "標籤", chkPlant: "植物細胞",
+        btnPause: "暫停", btnPlay: "繼續", btnReset: "重置",
+        legendTitle: "圖例", legWater: "水分子 H₂O（可過膜）", legSolute: "蔗糖分子（被阻擋）", legMem: "磷脂雙層＋水通道",
+        statL: "左側 H₂O", statR: "右側 H₂O", statNet: "淨流向",
+        scaleNote: "示意模型 · 分子大小並非按比例",
+        stepsTitle: "觀察步驟", modalClose: "關閉",
+        s1: "1. 用前設「純水→蔗糖」，比較左右溶質數量與水勢標籤。留意中間磷脂雙層上的水通道（紫色桶狀蛋白）。",
+        s2: "2. 觀察水分子（彎折的 H₂O）可穿過水通道，蔗糖分子較大而被擋住。淨移動由高水勢（溶質少）指向低水勢（溶質多）。",
+        s3: "3. 留意液面：獲得水分的一側液面上升。再開啟「植物細胞」，比較脹壓細胞與質壁分離。",
+        s4: "4. 切換「等滲」：兩側水勢相近時，水分子仍在穿梭，但淨流量接近零（動態平衡）。",
+        prinTitle: "滲透作用原理", prinSub: "水沿水勢梯度穿過差異透性膜",
+        m1t: "1. 甚麼是滲透？", m1d: "滲透是水分子通過差異透性膜（只准某些物質通過），由高水勢區域淨移動到低水勢區域。溶質分子通常太大或帶電，不能自由過膜。",
+        m2t: "2. 水勢 ψ", m2d: "純水的水勢最高（定為 0）。加入溶質會降低水勢（溶質勢 ψₛ 為負值）。水總是由 ψ 較高處流向較低處，直到兩側水勢相等（動態平衡）。",
+        m3t: "3. 膜與水通道", m3d: "細胞膜是磷脂雙層。水主要經水通道蛋白（aquaporin）快速通過。本模擬以蔗糖代表不能過膜的溶質，對應維斯金膠管（Visking tubing）實驗。",
+        m4t: "4. 植物細胞", m4d: "置於高水勢溶液：水進入液泡 → 脹壓，細胞膜緊貼細胞壁。置於低水勢（濃溶液）：水離開細胞 → 原生質體收縮，出現質壁分離。",
+        m5t: "5. 生活例子", m5d: "根毛從土壤吸水、用鹽醃菜令細胞失水、淡水魚的滲透調節，都是滲透作用。",
+        potHigh: "高", potMid: "中", potLow: "低",
+        flowEq: "動態平衡  淨流量 ≈ 0", flowR: "淨移動 →  高 ψ → 低 ψ", flowL: "← 淨移動  高 ψ → 低 ψ",
+        labLeft: "左側溶液", labRight: "右側溶液", labMem: "差異透性膜",
+        labPore: "水通道", labPsi: "ψ",
+        plantL: "細胞在左側溶液", plantR: "細胞在右側溶液",
+        turgid: "脹壓", flaccid: "鬆弛", plasmo: "質壁分離",
+        wall: "細胞壁", vac: "液泡", proto: "原生質體",
+        netRight: "→", netLeft: "←", netZero: "≈0"
+    },
+    en: {
+        title: "Osmosis", badge: "S1 Science", subtitle: "Differentially permeable membrane · water potential · net water flow",
+        btnSteps: "Steps", btnPrinciple: "Theory",
+        presetTitle: "Presets", presetClassic: "Water→sucrose", presetIso: "Isotonic", presetRev: "Reversed",
+        controlTitle: "Solute concentration", leftSol: "Left solute", rightSol: "Right solute", psi: "Water potential ψ",
+        labelSpeed: "Molecular motion", chkLabels: "Labels", chkPlant: "Plant cells",
+        btnPause: "Pause", btnPlay: "Resume", btnReset: "Reset",
+        legendTitle: "Legend", legWater: "Water H₂O (can cross)", legSolute: "Sucrose (blocked)", legMem: "Bilayer + aquaporins",
+        statL: "Left H₂O", statR: "Right H₂O", statNet: "Net flow",
+        scaleNote: "Schematic · molecules not to scale",
+        stepsTitle: "Observation steps", modalClose: "Close",
+        s1: "1. Use the Water→sucrose preset. Compare solute numbers and ψ labels. Note aquaporins (purple barrels) in the bilayer.",
+        s2: "2. Bent H₂O molecules pass the channels; larger sucrose is blocked. Net flow is from high ψ (few solutes) to low ψ (many solutes).",
+        s3: "3. Watch the meniscus: the side that gains water rises. Turn on plant cells to compare turgid vs plasmolysed states.",
+        s4: "4. Switch to isotonic: water still crosses, but net flow is about zero (dynamic equilibrium).",
+        prinTitle: "How osmosis works", prinSub: "Water crosses a DPM down the ψ gradient",
+        m1t: "1. What is osmosis?", m1d: "Osmosis is the net movement of water through a differentially permeable membrane from a region of higher water potential to a region of lower water potential. Solutes are usually too large or charged to cross freely.",
+        m2t: "2. Water potential ψ", m2d: "Pure water has the highest ψ (defined as 0). Adding solute lowers ψ (solute potential ψₛ is negative). Water flows until ψ is equal on both sides (dynamic equilibrium).",
+        m3t: "3. Membrane and aquaporins", m3d: "The cell membrane is a phospholipid bilayer. Water mainly crosses via aquaporin channels. Sucrose here stands for an impermeant solute, as in a Visking tubing experiment.",
+        m4t: "4. Plant cells", m4d: "In high-ψ solution, water enters the vacuole → turgid, membrane pressed to the wall. In low-ψ (concentrated) solution, water leaves → protoplast shrinks (plasmolysis).",
+        m5t: "5. Everyday examples", m5d: "Root hairs taking up soil water, salting vegetables, and osmoregulation in freshwater fish are all osmosis.",
+        potHigh: "high", potMid: "medium", potLow: "low",
+        flowEq: "Dynamic equilibrium  net ≈ 0", flowR: "Net flow →  high ψ → low ψ", flowL: "← Net flow  high ψ → low ψ",
+        labLeft: "Left solution", labRight: "Right solution", labMem: "DPM",
+        labPore: "aquaporin", labPsi: "ψ",
+        plantL: "Cell in left solution", plantR: "Cell in right solution",
+        turgid: "turgid", flaccid: "flaccid", plasmo: "plasmolysed",
+        wall: "cell wall", vac: "vacuole", proto: "protoplast",
+        netRight: "→", netLeft: "←", netZero: "≈0"
+    }
+};
 
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
+const canvas = document.getElementById("simCanvas");
+const ctx = canvas.getContext("2d");
+const leftInput = document.getElementById("leftSolute");
+const rightInput = document.getElementById("rightSolute");
 
-                // Bounce off outer walls
-                if (this.x - this.radius < 0) {
-                    this.x = this.radius;
-                    this.vx *= -1;
-                }
-                if (this.x + this.radius > canvas.width) {
-                    this.x = canvas.width - this.radius;
-                    this.vx *= -1;
-                }
-                if (this.y - this.radius < 0) {
-                    this.y = this.radius;
-                    this.vy *= -1;
-                }
-                if (this.y + this.radius > canvas.height) {
-                    this.y = canvas.height - this.radius;
-                    this.vy *= -1;
-                }
+const WATER_R = 6.2;
+const SOLUTE_R = 12.5;
+const BASE_WATER = 70;
 
-                // Membrane Interaction (The Core Logic)
-                const membraneX = canvas.width / 2;
-                
-                if (this.type === 'solute') {
-                    // Solute bounces off the membrane (cannot pass)
-                    // Check if hitting membrane from left
-                    if (this.x + this.radius > membraneX && this.x < membraneX) {
-                        this.x = membraneX - this.radius;
-                        this.vx *= -1;
-                    }
-                    // Check if hitting membrane from right
-                    else if (this.x - this.radius < membraneX && this.x > membraneX) {
-                        this.x = membraneX + this.radius;
-                        this.vx *= -1;
-                    }
-                } else {
-                    // Water passes through membrane
-                    // No collision logic with membrane needed
-                }
-            }
+let lang = "zh";
+let paused = false;
+let speed = 1;
+let showLabels = true;
+let showPlant = true;
+let particles = [];
+let pores = [];
+let layout = null;
+let fillL = 0.72, fillR = 0.72;
+let netTrail = 0;
+let tClock = 0;
 
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                // Add stroke to solute to make it look "solid"
-                if (this.type === 'solute') {
-                    ctx.strokeStyle = '#b91c1c';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-            }
-        }
+function t() { return i18n[lang]; }
 
-        function init() {
-            particles = [];
-            
-            const leftSoluteCount = parseInt(leftInput.value);
-            const rightSoluteCount = parseInt(rightInput.value);
-            
-            // Key Concept: High Solute = Low Water Potential.
-            // In a fixed volume, if we add solute, we simulate displacement by reducing water slightly,
-            // or simply crowding. To emphasize the gradient, let's scale water count inversely to solute.
-            // Base water count is high.
-            
-            const leftWaterCount = MAX_PARTICLES_PER_SIDE - leftSoluteCount;
-            const rightWaterCount = MAX_PARTICLES_PER_SIDE - rightSoluteCount;
+function applyI18n() {
+    document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+        const k = el.getAttribute("data-i18n");
+        if (t()[k] != null) el.textContent = t()[k];
+    });
+    document.getElementById("pauseBtn").textContent = paused ? t().btnPlay : t().btnPause;
+    updateHud();
+}
 
-            // Spawn Left Side Particles
-            spawnParticles(0, canvas.width/2, leftSoluteCount, 'solute');
-            spawnParticles(0, canvas.width/2, leftWaterCount, 'water');
+function potWord(c) {
+    if (c < 12) return t().potHigh;
+    if (c < 26) return t().potMid;
+    return t().potLow;
+}
 
-            // Spawn Right Side Particles
-            spawnParticles(canvas.width/2, canvas.width, rightSoluteCount, 'solute');
-            spawnParticles(canvas.width/2, canvas.width, rightWaterCount, 'water');
+function psiValue(c) {
+    return -(c / 40) * 2.4;
+}
 
-            updateLabels();
-        }
+function updateHud() {
+    const l = +leftInput.value, r = +rightInput.value;
+    document.getElementById("leftVal").textContent = Math.round(l / 40 * 100) + "%";
+    document.getElementById("rightVal").textContent = Math.round(r / 40 * 100) + "%";
+    document.getElementById("leftPotText").textContent = potWord(l) + "  (" + psiValue(l).toFixed(2) + ")";
+    document.getElementById("rightPotText").textContent = potWord(r) + "  (" + psiValue(r).toFixed(2) + ")";
+    const badge = document.getElementById("flowBadge");
+    if (Math.abs(l - r) < 5) badge.textContent = t().flowEq;
+    else if (l < r) badge.textContent = t().flowR;
+    else badge.textContent = t().flowL;
+}
 
-        function spawnParticles(minX, maxX, count, type) {
-            for (let i = 0; i < count; i++) {
-                const radius = type === 'water' ? PARTICLE_RADIUS_WATER : PARTICLE_RADIUS_SOLUTE;
-                const x = Math.random() * (maxX - minX - 2*radius) + minX + radius;
-                const y = Math.random() * (canvas.height - 2*radius) + radius;
-                particles.push(new Particle(x, y, type));
-            }
-        }
+function setPreset(name, lv, rv) {
+    document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById(name).classList.add("active");
+    leftInput.value = lv;
+    rightInput.value = rv;
+    initParticles();
+}
 
-        function updateLabels() {
-            const lVal = parseInt(leftInput.value);
-            const rVal = parseInt(rightInput.value);
+function cssSize() {
+    const box = document.getElementById("canvas-container");
+    return { w: Math.max(320, box.clientWidth), h: Math.max(240, box.clientHeight) };
+}
 
-            // Update Water Potential Text
-            // Less Solute = Higher Potential
-            if (lVal < 20) leftPotText.innerText = "極高";
-            else if (lVal < 40) leftPotText.innerText = "中等";
-            else leftPotText.innerText = "低";
+function chamberRect() {
+    const { w, h } = canvas._css || cssSize();
+    const plantH = showPlant ? Math.min(210, Math.max(150, h * 0.32)) : 18;
+    const pad = 18;
+    return {
+        x: pad + 8,
+        y: 42,
+        w: w - pad * 2 - 16,
+        h: h - 42 - plantH - 12,
+        plantY: h - plantH + 4,
+        plantH: plantH - 10,
+        wCanvas: w,
+        hCanvas: h
+    };
+}
 
-            if (rVal < 20) rightPotText.innerText = "極高";
-            else if (rVal < 40) rightPotText.innerText = "中等";
-            else rightPotText.innerText = "低";
+function buildPores(ch) {
+    pores = [];
+    const top = ch.y + 28;
+    const bot = ch.y + ch.h - 22;
+    for (let y = top + 28; y < bot - 16; y += 70) {
+        pores.push({ y, r: 13 });
+    }
+}
 
-            // Update Flow Indicator
-            flowIndicator.style.opacity = "1";
-            if (Math.abs(lVal - rVal) < 10) {
-                flowArrow.innerHTML = "動態平衡 (Net flow ≈ 0)";
-                flowIndicator.className = "absolute top-4 bg-gray-100 px-4 py-2 rounded-full shadow-md border border-gray-300 text-gray-600 font-bold text-center z-10 pointer-events-none transition-all";
-            } else if (lVal < rVal) {
-                // Left has less solute (Higher potential) -> Flows to Right
-                flowArrow.innerHTML = "淨移動向右 ➡";
-                flowIndicator.className = "absolute top-4 bg-blue-100 px-4 py-2 rounded-full shadow-md border border-blue-300 text-blue-800 font-bold text-center z-10 pointer-events-none transition-all";
+function spawnIn(side, type, n, ch) {
+    const mx = ch.x + ch.w / 2;
+    const glass = 10;
+    const minX = side === "L" ? ch.x + glass + 8 : mx + 16;
+    const maxX = side === "L" ? mx - 16 : ch.x + ch.w - glass - 8;
+    const r = type === "water" ? WATER_R : SOLUTE_R;
+    const liquidTop = ch.y + ch.h * (1 - 0.72) + 8;
+    for (let i = 0; i < n; i++) {
+        particles.push({
+            x: minX + r + Math.random() * Math.max(4, maxX - minX - 2 * r),
+            y: liquidTop + r + Math.random() * Math.max(4, ch.y + ch.h - 14 - liquidTop - 2 * r),
+            vx: (Math.random() - 0.5) * 1.6,
+            vy: (Math.random() - 0.5) * 1.6,
+            type,
+            ang: Math.random() * Math.PI * 2,
+            spin: (Math.random() - 0.5) * 0.06,
+            side
+        });
+    }
+}
+
+function initParticles() {
+    layout = chamberRect();
+    buildPores(layout);
+    particles = [];
+    const lS = +leftInput.value, rS = +rightInput.value;
+    spawnIn("L", "solute", lS, layout);
+    spawnIn("R", "solute", rS, layout);
+    spawnIn("L", "water", BASE_WATER - Math.round(lS * 0.55), layout);
+    spawnIn("R", "water", BASE_WATER - Math.round(rS * 0.55), layout);
+    fillL = 0.72; fillR = 0.72;
+    netTrail = 0;
+    updateHud();
+}
+
+function inPore(y, r) {
+    return pores.some(p => Math.abs(y - p.y) < p.r - r * 0.15);
+}
+
+function liquidBounds(ch) {
+    const mx = ch.x + ch.w / 2;
+    const glass = 10;
+    const topL = ch.y + ch.h * (1 - fillL);
+    const topR = ch.y + ch.h * (1 - fillR);
+    return {
+        mx, glass,
+        left: { x0: ch.x + glass, x1: mx - 7, y0: topL, y1: ch.y + ch.h - 8 },
+        right: { x0: mx + 7, x1: ch.x + ch.w - glass, y0: topR, y1: ch.y + ch.h - 8 }
+    };
+}
+
+function bounceBox(p, box, r) {
+    if (p.x - r < box.x0) { p.x = box.x0 + r; p.vx = Math.abs(p.vx); }
+    if (p.x + r > box.x1) { p.x = box.x1 - r; p.vx = -Math.abs(p.vx); }
+    if (p.y - r < box.y0) { p.y = box.y0 + r; p.vy = Math.abs(p.vy); }
+    if (p.y + r > box.y1) { p.y = box.y1 - r; p.vy = -Math.abs(p.vy); }
+}
+
+function updateParticles(ch) {
+    const b = liquidBounds(ch);
+    const sp = 0.95 * speed;
+    particles.forEach(p => {
+        p.x += p.vx * sp;
+        p.y += p.vy * sp;
+        p.ang += p.spin;
+        p.vx += (Math.random() - 0.5) * 0.08;
+        p.vy += (Math.random() - 0.5) * 0.08;
+        const v = Math.hypot(p.vx, p.vy);
+        const maxV = p.type === "water" ? 1.55 : 0.85;
+        if (v > maxV) { p.vx *= maxV / v; p.vy *= maxV / v; }
+
+        const r = p.type === "water" ? WATER_R : SOLUTE_R;
+        const crossing = p.type === "water" && inPore(p.y, r) && p.y > Math.min(b.left.y0, b.right.y0) + 6;
+
+        if (crossing) {
+            const yLo = Math.max(b.left.y0, b.right.y0) + r;
+            const yHi = b.left.y1 - r;
+            if (p.y < yLo) { p.y = yLo; p.vy = Math.abs(p.vy); }
+            if (p.y > yHi) { p.y = yHi; p.vy = -Math.abs(p.vy); }
+            if (p.x < b.left.x0 + r) { p.x = b.left.x0 + r; p.vx = Math.abs(p.vx); }
+            if (p.x > b.right.x1 - r) { p.x = b.right.x1 - r; p.vx = -Math.abs(p.vx); }
+            const prev = p.side;
+            p.side = p.x < b.mx ? "L" : "R";
+            if (prev !== p.side) netTrail += p.side === "R" ? 1 : -1;
+        } else {
+            const box = p.side === "L" ? b.left : b.right;
+            if (p.type === "solute") {
+                if (p.side === "L" && p.x + r > b.mx - 14) { p.x = b.mx - 14 - r; p.vx = -Math.abs(p.vx); }
+                if (p.side === "R" && p.x - r < b.mx + 14) { p.x = b.mx + 14 + r; p.vx = Math.abs(p.vx); }
             } else {
-                // Right has less solute -> Flows to Left
-                flowArrow.innerHTML = "⬅ 淨移動向左";
-                flowIndicator.className = "absolute top-4 bg-blue-100 px-4 py-2 rounded-full shadow-md border border-blue-300 text-blue-800 font-bold text-center z-10 pointer-events-none transition-all";
+                if (p.side === "L" && p.x + r > b.mx - 12) { p.x = b.mx - 12 - r; p.vx = -Math.abs(p.vx); }
+                if (p.side === "R" && p.x - r < b.mx + 12) { p.x = b.mx + 12 + r; p.vx = Math.abs(p.vx); }
             }
+            bounceBox(p, box, r);
         }
+    });
 
-        function animate() {
-            animationId = requestAnimationFrame(animate);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const wL = particles.filter(p => p.type === "water" && p.side === "L").length;
+    const wR = particles.filter(p => p.type === "water" && p.side === "R").length;
+    const targetL = 0.58 + (wL / (BASE_WATER * 2)) * 0.42;
+    const targetR = 0.58 + (wR / (BASE_WATER * 2)) * 0.42;
+    fillL += (Math.min(0.88, Math.max(0.52, targetL)) - fillL) * 0.04;
+    fillR += (Math.min(0.88, Math.max(0.52, targetR)) - fillR) * 0.04;
+    document.getElementById("stat-l").textContent = wL;
+    document.getElementById("stat-r").textContent = wR;
+    const l = +leftInput.value, rgt = +rightInput.value;
+    document.getElementById("stat-net").textContent = Math.abs(l - rgt) < 5 ? t().netZero : (l < rgt ? t().netRight : t().netLeft);
+}
 
-            // Draw Membrane
-            ctx.beginPath();
-            ctx.setLineDash([5, 5]); // Dashed line
-            ctx.moveTo(canvas.width / 2, 0);
-            ctx.lineTo(canvas.width / 2, canvas.height);
-            ctx.strokeStyle = '#475569'; // Slate-600
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.setLineDash([]); // Reset dash
+function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
 
-            // Draw Membrane Pores (Visual effect only)
-            // Draw little circles along the line to symbolize pores
-            ctx.fillStyle = '#fff';
-            for(let y=10; y<canvas.height; y+=20) {
-                ctx.beginPath();
-                ctx.arc(canvas.width/2, y, 2, 0, Math.PI*2);
-                ctx.fill();
-            }
+function drawBench(w, h) {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "#eef6fb");
+    g.addColorStop(0.55, "#e8f1f6");
+    g.addColorStop(1, "#d7c4a8");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
 
-            // Draw "Side" labels on canvas background
-            ctx.font = "20px Arial";
-            ctx.fillStyle = "rgba(0,0,0,0.1)";
-            ctx.textAlign = "center";
-            ctx.fillText("左側", canvas.width * 0.25, canvas.height / 2);
-            ctx.fillText("右側", canvas.width * 0.75, canvas.height / 2);
+function drawMeniscus(x0, x1, y) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y + 3);
+    ctx.quadraticCurveTo((x0 + x1) / 2, y - 7, x1, y + 3);
+    ctx.strokeStyle = "rgba(125, 211, 252, 0.95)";
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+}
 
-            // Update and Draw Particles
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
+function drawWaterFill(x, y, w, h, tint) {
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, "rgba(186, 230, 253, 0.28)");
+    g.addColorStop(0.35, tint);
+    g.addColorStop(1, "rgba(14, 116, 144, 0.22)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+}
+
+function drawH2O(x, y, ang) {
+    const bond = 0.91;
+    const d = 5.6;
+    const hx1 = x + Math.cos(ang + bond) * d;
+    const hy1 = y + Math.sin(ang + bond) * d;
+    const hx2 = x + Math.cos(ang - bond) * d;
+    const hy2 = y + Math.sin(ang - bond) * d;
+    ctx.strokeStyle = "rgba(71, 85, 105, 0.55)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(hx1, hy1); ctx.lineTo(x, y); ctx.lineTo(hx2, hy2);
+    ctx.stroke();
+    function atom(ax, ay, r, c0, c1) {
+        const g = ctx.createRadialGradient(ax - r * 0.35, ay - r * 0.4, r * 0.15, ax, ay, r);
+        g.addColorStop(0, c0); g.addColorStop(1, c1);
+        ctx.beginPath(); ctx.arc(ax, ay, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.18)"; ctx.lineWidth = 0.7; ctx.stroke();
+    }
+    atom(hx1, hy1, 2.35, "#ffffff", "#94a3b8");
+    atom(hx2, hy2, 2.35, "#ffffff", "#94a3b8");
+    atom(x, y, 4.15, "#bae6fd", "#0284c7");
+}
+
+function drawSucrose(x, y, ang) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    function hex(ox, oy, r, fill, stroke) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = Math.PI / 6 + i * Math.PI / 3;
+            const px = ox + Math.cos(a) * r, py = oy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         }
+        ctx.closePath();
+        const g = ctx.createRadialGradient(ox - 2, oy - 2, 1, ox, oy, r);
+        g.addColorStop(0, fill); g.addColorStop(1, stroke);
+        ctx.fillStyle = g; ctx.fill();
+        ctx.strokeStyle = "#b45309"; ctx.lineWidth = 1.1; ctx.stroke();
+    }
+    hex(-4.2, 0.6, 6.4, "#fde68a", "#d97706");
+    hex(4.4, -0.8, 5.6, "#fbbf24", "#b45309");
+    ctx.restore();
+}
 
-        // Event Listeners
-        leftInput.addEventListener('input', () => {
-            // Debounce simple logic: re-init on change to prevent chaos, 
-            // or allows dynamic adding. For education, reset is cleaner to show initial state vs outcome.
-            // But let's try to just update labels first, then reset on mouse up?
-            // Let's just re-init for clarity of "Starting Conditions".
-            init();
-        });
+function nearPore(y) {
+    return pores.some(p => Math.abs(y - p.y) < p.r + 3);
+}
 
-        rightInput.addEventListener('input', () => {
-            init();
-        });
+function drawBilayer(ch) {
+    const mx = ch.x + ch.w / 2;
+    const top = ch.y + 10;
+    const bot = ch.y + ch.h - 8;
+    ctx.save();
+    ctx.beginPath();
+    roundRect(ch.x + 8, ch.y + 6, ch.w - 16, ch.h - 10, 16);
+    ctx.clip();
 
-        resetBtn.addEventListener('click', init);
+    ctx.fillStyle = "rgba(204, 251, 241, 0.55)";
+    ctx.fillRect(mx - 15, top, 30, bot - top);
+    ctx.strokeStyle = "rgba(13, 148, 136, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(mx, top); ctx.lineTo(mx, bot); ctx.stroke();
 
-        // Start
-        init();
-        animate();
+    const spacing = 10;
+    for (let y = top + 8; y < bot; y += spacing) {
+        if (nearPore(y)) continue;
+        const wob = Math.sin(y * 0.2 + tClock * 0.03) * 1.4;
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(15, 118, 110, 0.55)";
+        ctx.lineWidth = 1.15;
+        ctx.moveTo(mx - 3.5 + wob, y);
+        ctx.quadraticCurveTo(mx - 8, y + 5, mx - 3.5 - wob, y + 9);
+        ctx.moveTo(mx + 3.5 - wob, y);
+        ctx.quadraticCurveTo(mx + 8, y + 5, mx + 3.5 + wob, y + 9);
+        ctx.stroke();
+        function head(hx) {
+            const g = ctx.createRadialGradient(hx - 1.2, y - 1.2, 0.4, hx, y, 4.6);
+            g.addColorStop(0, "#ccfbf1"); g.addColorStop(1, "#0f766e");
+            ctx.beginPath(); ctx.arc(hx, y, 4.4, 0, Math.PI * 2);
+            ctx.fillStyle = g; ctx.fill();
+            ctx.strokeStyle = "rgba(19, 78, 74, 0.5)"; ctx.lineWidth = 0.8; ctx.stroke();
+        }
+        head(mx - 12.5);
+        head(mx + 12.5);
+    }
 
-    </script>
+    pores.forEach(p => {
+        ctx.beginPath();
+        roundRect(mx - 14, p.y - p.r, 28, p.r * 2, 9);
+        const g = ctx.createLinearGradient(mx - 14, p.y, mx + 14, p.y);
+        g.addColorStop(0, "#ddd6fe"); g.addColorStop(0.45, "#7c3aed"); g.addColorStop(1, "#ddd6fe");
+        ctx.fillStyle = g; ctx.fill();
+        ctx.strokeStyle = "#5b21b6"; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.beginPath();
+        roundRect(mx - 5, p.y - p.r + 4, 10, p.r * 2 - 8, 5);
+        ctx.fillStyle = "rgba(240, 249, 255, 0.95)";
+        ctx.fill();
+        const pulse = 0.3 + 0.25 * Math.sin(tClock * 0.08 + p.y);
+        ctx.fillStyle = `rgba(56, 189, 248, ${pulse})`;
+        ctx.beginPath();
+        ctx.ellipse(mx, p.y, 2.6, p.r - 5.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.restore();
+}
+
+function drawGlass(ch) {
+    const x = ch.x, y = ch.y, w = ch.w, h = ch.h;
+    ctx.save();
+    ctx.shadowColor = "rgba(15, 23, 42, 0.12)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 8;
+    roundRect(x, y, w, h, 20);
+    ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+
+    ctx.save();
+    ctx.beginPath();
+    roundRect(x + 7, y + 7, w - 14, h - 14, 16);
+    ctx.clip();
+    const air = ctx.createLinearGradient(x, y, x, y + h * 0.35);
+    air.addColorStop(0, "#f8fafc");
+    air.addColorStop(1, "#e0f2fe");
+    ctx.fillStyle = air;
+    ctx.fillRect(x, y, w, h);
+
+    const mx = x + w / 2;
+    const topL = y + h * (1 - fillL);
+    const topR = y + h * (1 - fillR);
+    const tintL = `rgba(56, 189, 248, ${0.16 + (+leftInput.value) / 260})`;
+    const tintR = `rgba(245, 158, 11, ${0.10 + (+rightInput.value) / 180})`;
+    drawWaterFill(x + 8, topL, mx - x - 15, y + h - 10 - topL, tintL);
+    drawWaterFill(mx + 7, topR, x + w - 8 - (mx + 7), y + h - 10 - topR, tintR);
+    drawMeniscus(x + 10, mx - 9, topL);
+    drawMeniscus(mx + 9, x + w - 10, topR);
+    ctx.restore();
+
+    roundRect(x, y, w, h, 20);
+    ctx.strokeStyle = "rgba(100, 116, 139, 0.75)";
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    roundRect(x + 5, y + 5, w - 10, h - 10, 16);
+    ctx.strokeStyle = "rgba(186, 230, 253, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    for (let i = 1; i <= 5; i++) {
+        const ty = y + 22 + i * (h - 44) / 6;
+        ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + 14, ty); ctx.lineTo(x + 26, ty); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + w - 14, ty); ctx.lineTo(x + w - 26, ty); ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(x + 18, y + 26);
+    ctx.quadraticCurveTo(x + 10, y + h * 0.42, x + 20, y + h - 28);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawNetArrow(ch) {
+    const l = +leftInput.value, r = +rightInput.value;
+    if (Math.abs(l - r) < 5) return;
+    const dir = l < r ? 1 : -1;
+    const mx = ch.x + ch.w / 2;
+    const cy = ch.y + 58;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#0369a1";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (dir > 0) {
+        ctx.moveTo(mx - 34, cy - 8); ctx.lineTo(mx + 10, cy - 8); ctx.lineTo(mx + 10, cy - 16);
+        ctx.lineTo(mx + 36, cy); ctx.lineTo(mx + 10, cy + 16); ctx.lineTo(mx + 10, cy + 8); ctx.lineTo(mx - 34, cy + 8);
+    } else {
+        ctx.moveTo(mx + 34, cy - 8); ctx.lineTo(mx - 10, cy - 8); ctx.lineTo(mx - 10, cy - 16);
+        ctx.lineTo(mx - 36, cy); ctx.lineTo(mx - 10, cy + 16); ctx.lineTo(mx - 10, cy + 8); ctx.lineTo(mx + 34, cy + 8);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+}
+
+function drawLabels(ch) {
+    if (!showLabels) return;
+    const mx = ch.x + ch.w / 2;
+    ctx.font = "700 12px 'Noto Sans TC', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#0f172a";
+    ctx.fillText(t().labLeft, ch.x + ch.w * 0.25, ch.y + 22);
+    ctx.fillText(t().labRight, ch.x + ch.w * 0.75, ch.y + 22);
+    ctx.font = "600 11px 'Noto Sans TC', sans-serif";
+    ctx.fillStyle = "#0369a1";
+    ctx.fillText(t().labPsi + " = " + psiValue(+leftInput.value).toFixed(2), ch.x + ch.w * 0.25, ch.y + 38);
+    ctx.fillStyle = "#b45309";
+    ctx.fillText(t().labPsi + " = " + psiValue(+rightInput.value).toFixed(2), ch.x + ch.w * 0.75, ch.y + 38);
+    ctx.save();
+    ctx.fillStyle = "rgba(15, 118, 110, 0.92)";
+    roundRect(mx - 52, ch.y + ch.h - 28, 104, 18, 8);
+    ctx.fill();
+    ctx.fillStyle = "#ecfdf5";
+    ctx.font = "700 10px 'Noto Sans TC', sans-serif";
+    ctx.fillText(t().labMem, mx, ch.y + ch.h - 15);
+    ctx.restore();
+}
+
+function plantState(conc) {
+    if (conc < 12) return "turgid";
+    if (conc < 24) return "flaccid";
+    return "plasmo";
+}
+
+function drawPlantCell(cx, cy, size, conc, title) {
+    const st = plantState(conc);
+    const shrink = st === "turgid" ? 0.97 : st === "flaccid" ? 0.86 : 0.58;
+    const ox = st === "plasmo" ? -size * 0.12 : 0;
+    const oy = st === "plasmo" ? size * 0.07 : 0;
+    const wallW = size * 1.18, wallH = size * 0.86;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    roundRect(-size * 0.92, -size * 0.72, size * 1.84, size * 1.48, 16);
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(148,163,184,0.55)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    ctx.font = "700 12px 'Noto Sans TC', sans-serif";
+    ctx.fillStyle = "#0f172a";
+    ctx.textAlign = "center";
+    ctx.fillText(title, 0, -size * 0.58);
+
+    roundRect(-wallW / 2, -wallH / 2 + 6, wallW, wallH, 8);
+    ctx.fillStyle = st === "plasmo" ? "#fff7ed" : "#ecfccb";
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#a16207";
+    ctx.stroke();
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = "#854d0e";
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    const pw = wallW * shrink, ph = wallH * shrink;
+    roundRect(-pw / 2, -ph / 2 + 6, pw, ph, st === "turgid" ? 7 : 16);
+    ctx.fillStyle = st === "plasmo" ? "rgba(167, 243, 208, 0.9)" : "rgba(74, 222, 128, 0.88)";
+    ctx.fill();
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = "#047857";
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(0, 8, pw * 0.28, ph * 0.28, 0, 0, Math.PI * 2);
+    const vg = ctx.createRadialGradient(-6, 2, 3, 0, 8, pw * 0.3);
+    vg.addColorStop(0, "#bbf7d0"); vg.addColorStop(1, "#059669");
+    ctx.fillStyle = vg; ctx.fill();
+    ctx.strokeStyle = "#047857"; ctx.lineWidth = 1.2; ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(pw * 0.22, -ph * 0.08, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#334155"; ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(pw * 0.22 - 1.5, -ph * 0.08 - 1.5, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    ctx.font = "700 12px 'Noto Sans TC', sans-serif";
+    ctx.fillStyle = st === "plasmo" ? "#c2410c" : st === "turgid" ? "#047857" : "#475569";
+    ctx.fillText(t()[st], 0, size * 0.68);
+    if (showLabels) {
+        ctx.font = "600 10px 'Noto Sans TC', sans-serif";
+        ctx.fillStyle = "#78716c";
+        ctx.fillText(t().wall, wallW / 2 + 2, -wallH / 2 + 2);
+        ctx.fillStyle = "#047857";
+        ctx.fillText(t().vac, 0, 10);
+    }
+    ctx.restore();
+}
+
+function drawPlantRow(ch) {
+    if (!showPlant || ch.plantH < 40) return;
+    const y = ch.plantY + ch.plantH * 0.52;
+    const s = Math.min(78, ch.plantH * 0.48);
+    drawPlantCell(ch.x + ch.w * 0.27, y, s, +leftInput.value, t().plantL);
+    drawPlantCell(ch.x + ch.w * 0.73, y, s, +rightInput.value, t().plantR);
+}
+
+function resize() {
+    const logical = cssSize();
+    canvas._css = logical;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = logical.w * dpr;
+    canvas.height = logical.h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.style.width = logical.w + "px";
+    canvas.style.height = logical.h + "px";
+    layout = chamberRect();
+    buildPores(layout);
+}
+
+function frame() {
+    requestAnimationFrame(frame);
+    if (!layout) return;
+    tClock++;
+    const w = canvas._css.w, h = canvas._css.h;
+    drawBench(w, h);
+    if (!paused) updateParticles(layout);
+    else {
+        const wL = particles.filter(p => p.type === "water" && p.side === "L").length;
+        const wR = particles.filter(p => p.type === "water" && p.side === "R").length;
+        document.getElementById("stat-l").textContent = wL;
+        document.getElementById("stat-r").textContent = wR;
+    }
+    drawGlass(layout);
+    drawBilayer(layout);
+    particles.forEach(p => {
+        if (p.type === "water") drawH2O(p.x, p.y, p.ang);
+        else drawSucrose(p.x, p.y, p.ang);
+    });
+    drawNetArrow(layout);
+    drawLabels(layout);
+    drawPlantRow(layout);
+}
+
+function setModal(id, open) {
+    const wrap = document.getElementById(id);
+    const box = wrap.querySelector(".modal-content");
+    wrap.classList.toggle("opacity-0", !open);
+    wrap.classList.toggle("pointer-events-none", !open);
+    box.classList.toggle("opacity-0", !open);
+    box.classList.toggle("scale-95", !open);
+}
+function closeAllModals() {
+    setModal("modal-principle", false);
+    setModal("modal-steps", false);
+}
+
+function init() {
+    document.getElementById("preset-classic").onclick = () => setPreset("preset-classic", 4, 28);
+    document.getElementById("preset-iso").onclick = () => setPreset("preset-iso", 18, 18);
+    document.getElementById("preset-rev").onclick = () => setPreset("preset-rev", 30, 6);
+    leftInput.oninput = rightInput.oninput = () => {
+        document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+        initParticles();
+    };
+    document.getElementById("speedSlider").oninput = e => {
+        speed = (+e.target.value) / 10;
+        document.getElementById("speedVal").textContent = speed.toFixed(1) + "×";
+    };
+    document.getElementById("chkLabels").onchange = e => { showLabels = e.target.checked; };
+    document.getElementById("chkPlant").onchange = e => { showPlant = e.target.checked; resize(); };
+    document.getElementById("pauseBtn").onclick = () => {
+        paused = !paused;
+        document.getElementById("pauseBtn").textContent = paused ? t().btnPlay : t().btnPause;
+    };
+    document.getElementById("resetBtn").onclick = initParticles;
+    document.getElementById("btn-lang").onclick = document.getElementById("btn-lang-mobile").onclick = () => {
+        lang = lang === "zh" ? "en" : "zh";
+        applyI18n();
+    };
+    document.getElementById("btn-principle").onclick = () => { closeAllModals(); setModal("modal-principle", true); };
+    document.getElementById("btn-steps").onclick = () => { closeAllModals(); setModal("modal-steps", true); };
+    document.getElementById("modal-close").onclick = document.getElementById("modal-confirm").onclick = () => setModal("modal-principle", false);
+    document.getElementById("steps-close").onclick = document.getElementById("steps-confirm").onclick = () => setModal("modal-steps", false);
+    document.getElementById("modal-principle").addEventListener("click", e => { if (e.target.id === "modal-principle") setModal("modal-principle", false); });
+    document.getElementById("modal-steps").addEventListener("click", e => { if (e.target.id === "modal-steps") setModal("modal-steps", false); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllModals(); });
+    window.addEventListener("resize", () => { resize(); });
+    if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(document.getElementById("canvas-container"));
+    applyI18n();
+    resize();
+    initParticles();
+    requestAnimationFrame(frame);
+}
+init();
+</script>
 </body>
 </html>

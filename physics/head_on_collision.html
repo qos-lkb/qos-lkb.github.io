@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正向碰撞 | Head-on Collision</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #4f46e5; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        input[type=range]:disabled { opacity: .45; }
+        .mode-btn { flex: 1; padding: 7px 8px; border-radius: 8px; font-weight: 800; font-size: 0.75rem; border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+        .mode-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+        .preset-btn { padding: 7px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
+        .preset-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
+        .preset-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #4f46e5; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .chart-card { cursor: pointer; }
+        .chart-card:hover { outline: 2px solid #c7d2fe; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #a5b4fc; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #a5b4fc !important; }
+</style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="8" width="8" height="8" rx="1.5"/><rect x="14" y="8" width="8" height="8" rx="1.5"/><path d="M10 12h4"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">正向碰撞</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">氣墊導軌：動量守恆與彈性／非彈性</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl font-bold text-sm shadow-sm border border-indigo-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="play">開始</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                </div>
+                <label class="check-row mb-3"><input type="checkbox" id="in-slow"><span data-i18n="slowMo">慢動作（0.4×）</span></label>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="elastic" data-i18n="preElastic">彈性碰撞</button>
+                    <button type="button" class="preset-btn" data-preset="inelastic" data-i18n="preInelastic">非彈性碰撞</button>
+                    <button type="button" class="preset-btn" data-preset="perfect" data-i18n="prePerfect">完全非彈性碰撞</button>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="border-l-4 border-red-500 pl-3">
+                        <div class="text-xs font-black text-red-600 mb-1" data-i18n="redCar">紅小車 A</div>
+                        <label class="block mb-2">
+                            <span class="flex justify-between text-[11px] font-bold text-slate-600"><span data-i18n="mass">質量 m</span><span id="disp-m1" class="text-red-600">1.0 kg</span></span>
+                            <input type="range" id="in-m1" min="0.5" max="5" step="0.1" value="1">
+                        </label>
+                        <label class="block">
+                            <span class="flex justify-between text-[11px] font-bold text-slate-600"><span data-i18n="vel0">初速 u（+ 向右）</span><span id="disp-v1" class="text-red-600">2.0 m/s</span></span>
+                            <input type="range" id="in-v1" min="-5" max="5" step="0.1" value="2">
+                        </label>
+                    </div>
+                    <div class="border-l-4 border-blue-500 pl-3">
+                        <div class="text-xs font-black text-blue-600 mb-1" data-i18n="blueCar">藍小車 B</div>
+                        <label class="block mb-2">
+                            <span class="flex justify-between text-[11px] font-bold text-slate-600"><span data-i18n="mass">質量 m</span><span id="disp-m2" class="text-blue-600">1.0 kg</span></span>
+                            <input type="range" id="in-m2" min="0.5" max="5" step="0.1" value="1">
+                        </label>
+                        <label class="block">
+                            <span class="flex justify-between text-[11px] font-bold text-slate-600"><span data-i18n="vel0">初速 u（+ 向右）</span><span id="disp-v2" class="text-blue-600">-2.0 m/s</span></span>
+                            <input type="range" id="in-v2" min="-5" max="5" step="0.1" value="-2">
+                        </label>
+                    </div>
+                    <label class="block">
+                        <span class="flex justify-between text-[11px] font-bold text-slate-600"><span data-i18n="restitution">恢復係數 e</span><span id="disp-e" class="text-indigo-600">1.00 彈性</span></span>
+                        <input type="range" id="in-e" min="0" max="1" step="0.05" value="1">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-medium mt-0.5">
+                            <span data-i18n="e0">完全非彈性</span>
+                            <span data-i18n="e1">彈性</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="mt-3 space-y-1.5">
+                    <label class="check-row"><input type="checkbox" id="in-vectors" checked><span data-i18n="showVec">顯示速度箭咀</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-cm" checked><span data-i18n="showCm">顯示質心</span></label>
+                    <label class="check-row"><input type="checkbox" id="in-bumpers" checked><span data-i18n="showBumper">兩端彈性擋板</span></label>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-indigo-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div id="iso-badge" class="mb-2 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100"></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statP">總動量 P</span><b id="stat-p">0.00</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statK">總動能 K</span><b id="stat-k">0.00 J</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="keLoss">動能損失</span><b id="stat-kloss">—</b></div>
+                <div class="mt-2 font-bold text-slate-500" data-i18n="predictTitle">若現在碰撞，公式預測</div>
+                <div class="flex justify-between py-0.5"><span class="text-red-600" data-i18n="predV1">預測 vₐ</span><b id="pred-v1">—</b></div>
+                <div class="flex justify-between py-0.5"><span class="text-blue-600" data-i18n="predV2">預測 vᵦ</span><b id="pred-v2">—</b></div>
+                <p id="pred-note" class="mt-1 text-[11px] text-slate-500"></p>
+            </div>
+
+            <p class="text-[10px] text-slate-400 text-center" data-i18n="dragHint">暫停時可拖曳小車改位置</p>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-2 flex flex-col gap-3 min-h-0">
+            <div class="relative bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[260px] h-[320px] sm:h-[360px]">
+                <canvas id="trackCanvas" class="absolute inset-0 w-full h-full"></canvas>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button type="button" class="chart-card bg-white rounded-2xl border border-slate-200 p-3 text-left shadow-sm" data-chart="vt">
+                    <div class="text-[11px] font-bold text-slate-600 mb-1" data-i18n="vtGraph">速度–時間 v–t</div>
+                    <canvas id="chart-vt" class="w-full h-[132px]"></canvas>
+                </button>
+                <button type="button" class="chart-card bg-white rounded-2xl border border-slate-200 p-3 text-left shadow-sm" data-chart="pt">
+                    <div class="text-[11px] font-bold text-slate-600 mb-1" data-i18n="ptGraph">動量–時間 p–t</div>
+                    <canvas id="chart-pt" class="w-full h-[132px]"></canvas>
+                </button>
+                <button type="button" class="chart-card bg-white rounded-2xl border border-slate-200 p-3 text-left shadow-sm" data-chart="kt">
+                    <div class="text-[11px] font-bold text-slate-600 mb-1" data-i18n="ktGraph">動能–時間 K–t</div>
+                    <canvas id="chart-kt" class="w-full h-[132px]"></canvas>
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <h3 class="font-black text-slate-800 text-sm" data-i18n="keTitle">碰撞前後動能</h3>
+                    <span id="ke-note" class="text-[11px] font-bold text-slate-500" data-i18n="keNone">尚未發生兩車碰撞</span>
+                </div>
+                <div class="grid sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                        <div class="flex justify-between mb-1"><span data-i18n="keBefore">碰撞前 K</span><b id="ke-before">—</b></div>
+                        <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div id="ke-bar-before" class="h-full bg-indigo-300 rounded-full" style="width:0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-1"><span data-i18n="keAfter">碰撞後 K</span><b id="ke-after">—</b></div>
+                        <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div id="ke-bar-after" class="h-full bg-emerald-500 rounded-full" style="width:0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-1"><span data-i18n="keLoss">動能損失</span><b id="ke-loss" class="text-rose-600">—</b></div>
+                        <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div id="ke-bar-loss" class="h-full bg-rose-400 rounded-full" style="width:0%"></div></div>
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <div class="flex justify-between"><span data-i18n="keLossPct">損失百分比</span><b id="ke-loss-pct">—</b></div>
+                        <div class="flex justify-between text-[11px] text-slate-500 mt-1"><span data-i18n="keA">紅車</span><span id="ke-ab">—</span></div>
+                        <div class="flex justify-between text-[11px] text-slate-500"><span data-i18n="keB">藍車</span><span id="ke-bb">—</span></div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="flex h-3 rounded-full overflow-hidden bg-slate-100 border border-slate-200">
+                        <div id="ke-stack-remain" class="h-full bg-emerald-500" style="width:0%"></div>
+                        <div id="ke-stack-lost" class="h-full bg-rose-400" style="width:0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-bold text-slate-500 mt-1">
+                        <span><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1 align-middle"></span><span data-i18n="keRemain">剩餘動能</span> <span id="ke-remain-lab"></span></span>
+                        <span><span class="inline-block w-2 h-2 rounded-full bg-rose-400 mr-1 align-middle"></span><span data-i18n="keLossBar">動能損失</span> <span id="ke-lost-lab"></span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-xs">
+                <div class="bg-red-50 border border-red-100 rounded-xl p-3">
+                    <div class="font-black text-red-700 mb-1" data-i18n="redData">紅小車</div>
+                    <div class="flex justify-between"><span>v</span><b id="d-v1">0</b></div>
+                    <div class="flex justify-between"><span>p</span><b id="d-p1">0</b></div>
+                    <div class="flex justify-between"><span>K</span><b id="d-k1">0</b></div>
+                </div>
+                <div class="bg-slate-800 text-white rounded-xl p-3">
+                    <div class="font-black text-slate-200 mb-1 text-center" data-i18n="sysData">系統</div>
+                    <div class="flex justify-between"><span data-i18n="statP">總動量 P</span><b id="d-pT" class="text-amber-300">0</b></div>
+                    <div class="flex justify-between"><span data-i18n="statK">總動能 K</span><b id="d-kT" class="text-emerald-300">0</b></div>
+                    <div class="flex justify-between"><span data-i18n="keLoss">動能損失</span><b id="d-kLoss" class="text-rose-300">—</b></div>
+                </div>
+                <div class="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                    <div class="font-black text-blue-700 mb-1" data-i18n="blueData">藍小車</div>
+                    <div class="flex justify-between"><span>v</span><b id="d-v2">0</b></div>
+                    <div class="flex justify-between"><span>p</span><b id="d-p2">0</b></div>
+                    <div class="flex justify-between"><span>K</span><b id="d-k2">0</b></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">正向碰撞與動量守恆</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="modalSub">Momentum, restitution, elastic vs inelastic</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m1t">1. 動量是什麼？</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">動量描述「質量乘以速度」，是有方向的物理量。向右為正、向左為負。氣墊導軌幾乎沒有摩擦，兩小車可看成孤立系統。</p>
+                    <div class="mj-box mt-2">\( p = mv \)</div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 動量守恆</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">水平方向沒有外力（或合外力為零）時，碰撞前後總動量不變。擋板會施外力，撞到擋板後總動量就會改變。</p>
+                    <div class="mj-box">\( m_A u_A + m_B u_B = m_A v_A + m_B v_B \)</div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m3t">3. 恢復係數 e</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m3d">e 是分開速率與接近速率之比。e＝1 為彈性碰撞，動能也守恆；e＝0 為完全非彈性，兩小車黏在一起，動能明顯減少。</p>
+                    <div class="mj-box">\( e = \dfrac{v_B - v_A}{u_A - u_B} \)</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                        <h4 class="font-bold text-emerald-800 text-xs mb-1" data-i18n="m4t">彈性（e＝1）</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m4d">總動量與總動能都守恆。等質量對撞時，兩小車交換速度——像桌球正碰。</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 text-xs mb-1" data-i18n="m5t">非彈性（e＜1）</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m5d">動量仍守恆，部分動能變成熱、形變或聲音。車禍、黏土相撞都接近完全非彈性。</p>
+                    </div>
+                </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m6t">4. 生活例子</h3>
+                    <p class="text-xs text-violet-800" data-i18n="m6d">牛頓擺：幾乎彈性，能量在球之間傳遞。火車掛鉤相撞：接近非彈性，連成一體後以共同速度前進。質心在無外力時以等速移動，可在軌道上看到紫色標記。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="stepsSub">How to use this collision lab</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="step1">選教學情境：彈性、非彈性或完全非彈性，或自行調質量、初速與 e。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="step2">按開始，看碰撞前後速度箭咀與質心。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="step3">比較碰撞前、後總動能：彈性幾乎不變；非彈性會減少；完全非彈性減少最多並黏在一起。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="step4">等質量彈性對撞時，兩小車會交換速度。動量在沒有擋板外力時守恆。</span></li>
+                </ol>
+                <p class="text-xs text-slate-500 bg-slate-50 rounded-xl p-3" data-i18n="dragHint">暫停時可拖曳小車改位置</p>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-chart" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="chart-title">
+        <div class="modal-content bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 id="chart-title" class="font-bold text-lg">v–t</h2>
+                <button type="button" id="chart-close" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200">✕</button>
+            </div>
+            <div class="p-4 min-h-0 flex-1">
+                <canvas id="chart-big" class="w-full h-[420px]"></canvas>
+            </div>
+        </div>
+    </div>
+
+<script>
+const TRACK_LEN = 8;
+const PRESETS = {
+    elastic:   { m1: 1, v1: 2, m2: 1, v2: -2, e: 1 },
+    inelastic: { m1: 1, v1: 2, m2: 1, v2: -2, e: 0.5 },
+    perfect:   { m1: 1, v1: 2, m2: 1, v2: -2, e: 0 }
+};
+
+const i18n = {
+    zh: {
+        title: '正向碰撞', badge: '物理', subtitle: '氣墊導軌：動量守恆與彈性／非彈性',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制', play: '開始', pause: '暫停', reset: '重置',
+        slowMo: '慢動作（0.4×）', presets: '教學情境',
+        preElastic: '彈性碰撞', preInelastic: '非彈性碰撞', prePerfect: '完全非彈性碰撞',
+        redCar: '紅小車 A', blueCar: '藍小車 B', mass: '質量 m', vel0: '初速 u（+ 向右）',
+        restitution: '恢復係數 e', e0: '完全非彈性', e1: '彈性',
+        showVec: '顯示速度箭咀', showCm: '顯示質心', showBumper: '兩端彈性擋板',
+        liveTitle: '即時數據', statP: '總動量 P', statK: '總動能 K',
+        predictTitle: '若現在碰撞，公式預測', predV1: '預測 vₐ', predV2: '預測 vᵦ',
+        predApproach: '兩小車正在接近，碰撞後應接近預測值。',
+        predApart: '目前沒有互相接近，不會立刻碰撞。',
+        isoOk: '系統孤立：擋板未施力，總動量應守恆',
+        isoWall: '擋板已施外力，總動量改變（這不是兩小車之間的碰撞）',
+        stepsTitle: '觀察步驟', stepsSub: '怎樣用這個碰撞實驗',
+        step1: '選教學情境：彈性、非彈性或完全非彈性，或自行調質量、初速與 e。',
+        step2: '按開始，看碰撞前後速度箭咀與質心。',
+        step3: '比較碰撞前、後總動能：彈性幾乎不變；非彈性會減少；完全非彈性減少最多並黏在一起。',
+        step4: '等質量彈性對撞時，兩小車會交換速度。動量在沒有擋板外力時守恆。',
+        dragHint: '暫停時可拖曳小車改位置',
+        keTitle: '碰撞前後動能', keBefore: '碰撞前 K', keAfter: '碰撞後 K',
+        keLoss: '動能損失', keLossPct: '損失百分比', keRemain: '剩餘動能', keLossBar: '動能損失',
+        keNone: '尚未發生兩車碰撞', keSame: '動能守恆，損失約 0', keLost: '部分動能轉為熱／形變',
+        keA: '紅車', keB: '藍車',
+        vtGraph: '速度–時間 v–t', ptGraph: '動量–時間 p–t', ktGraph: '動能–時間 K–t',
+        redData: '紅小車', blueData: '藍小車', sysData: '系統',
+        modalTitle: '正向碰撞與動量守恆', modalSub: '動量、恢復係數、彈性與非彈性', modalClose: '關閉',
+        m1t: '1. 動量是什麼？',
+        m1d: '動量描述「質量乘以速度」，是有方向的物理量。向右為正、向左為負。氣墊導軌幾乎沒有摩擦，兩小車可看成孤立系統。',
+        m2t: '2. 動量守恆',
+        m2d: '水平方向沒有外力（或合外力為零）時，碰撞前後總動量不變。擋板會施外力，撞到擋板後總動量就會改變。',
+        m3t: '3. 恢復係數 e',
+        m3d: 'e 是分開速率與接近速率之比。e＝1 為彈性碰撞，動能也守恆；e＝0 為完全非彈性，兩小車黏在一起，動能明顯減少。',
+        m4t: '彈性（e＝1）', m4d: '總動量與總動能都守恆。等質量對撞時，兩小車交換速度——像桌球正碰。',
+        m5t: '非彈性（e＜1）', m5d: '動量仍守恆，部分動能變成熱、形變或聲音。車禍、黏土相撞都接近完全非彈性。',
+        m6t: '4. 生活例子',
+        m6d: '牛頓擺：幾乎彈性，能量在球之間傳遞。火車掛鉤相撞：接近非彈性，連成一體後以共同速度前進。質心在無外力時以等速移動，可在軌道上看到紫色標記。',
+        eElastic: '彈性', eInelastic: '非彈性', eSticky: '完全非彈性',
+        posView: '氣墊導軌（單位：m）'
+    },
+    en: {
+        title: 'Head-on Collision', badge: 'Physics', subtitle: 'Air track: momentum & elastic / inelastic',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls', play: 'Play', pause: 'Pause', reset: 'Reset',
+        slowMo: 'Slow motion (0.4×)', presets: 'Scenarios',
+        preElastic: 'Elastic collision', preInelastic: 'Inelastic collision', prePerfect: 'Perfectly inelastic',
+        redCar: 'Red cart A', blueCar: 'Blue cart B', mass: 'Mass m', vel0: 'Initial u (+ right)',
+        restitution: 'Restitution e', e0: 'Perfectly inelastic', e1: 'Elastic',
+        showVec: 'Velocity arrows', showCm: 'Centre of mass', showBumper: 'End bumpers',
+        liveTitle: 'Live data', statP: 'Total P', statK: 'Total K',
+        predictTitle: 'If they collide now', predV1: 'Predicted vₐ', predV2: 'Predicted vᵦ',
+        predApproach: 'Approaching — after impact they should match the prediction.',
+        predApart: 'Not approaching, so they will not collide yet.',
+        isoOk: 'Isolated: no bumper force, total momentum should stay constant',
+        isoWall: 'A bumper applied an external force, so total P changed',
+        stepsTitle: 'What to watch', stepsSub: 'How to use this collision lab',
+        step1: 'Pick elastic, inelastic or perfectly inelastic, or set mass, u and e yourself.',
+        step2: 'Press Play and watch the velocity arrows and centre of mass.',
+        step3: 'Compare total KE before and after: elastic stays almost the same; inelastic falls; perfectly inelastic falls most and they stick.',
+        step4: 'Equal-mass elastic collisions swap velocities. Momentum is conserved unless a bumper acts.',
+        dragHint: 'When paused, drag a cart to move it',
+        keTitle: 'KE before and after', keBefore: 'Before K', keAfter: 'After K',
+        keLoss: 'KE lost', keLossPct: 'Fraction lost', keRemain: 'KE remaining', keLossBar: 'KE lost',
+        keNone: 'No cart–cart collision yet', keSame: 'KE conserved, loss ≈ 0', keLost: 'Some KE became heat / deformation',
+        keA: 'Red', keB: 'Blue',
+        vtGraph: 'Velocity–time v–t', ptGraph: 'Momentum–time p–t', ktGraph: 'Kinetic energy–time K–t',
+        redData: 'Red cart', blueData: 'Blue cart', sysData: 'System',
+        modalTitle: 'Head-on collisions & momentum', modalSub: 'Momentum, restitution, elastic vs inelastic', modalClose: 'Close',
+        m1t: '1. What is momentum?',
+        m1d: 'Momentum is mass times velocity, with direction. Right is positive. An air track has almost no friction, so the two carts act as an isolated system.',
+        m2t: '2. Conservation of momentum',
+        m2d: 'If there is no horizontal external force, total momentum is the same before and after the collision. Bumpers do apply an external force.',
+        m3t: '3. Coefficient of restitution e',
+        m3d: 'e is the ratio of speed of separation to speed of approach. e = 1 is elastic (KE conserved); e = 0 is perfectly inelastic (they stick).',
+        m4t: 'Elastic (e = 1)', m4d: 'Both momentum and KE are conserved. Equal masses swap velocities — like a head-on snooker shot.',
+        m5t: 'Inelastic (e < 1)', m5d: 'Momentum is still conserved, but some KE becomes heat, deformation or sound. Crashes and clay blobs are nearly perfectly inelastic.',
+        m6t: '4. Everyday examples',
+        m6d: 'Newton’s cradle is almost elastic. Coupled train cars are inelastic and then move as one. With no external force the centre of mass moves at constant velocity (purple marker).',
+        eElastic: 'elastic', eInelastic: 'inelastic', eSticky: 'perfectly inelastic',
+        posView: 'Air track (metres)'
+    }
+};
+
+let lang = 'zh';
+const els = {};
+[
+    'btn-play','btn-reset','btn-principle','btn-steps','btn-lang','btn-lang-mobile','modal-principle','modal-close','modal-confirm',
+    'modal-steps','steps-close','steps-confirm','modal-chart','chart-close','chart-title','chart-big','trackCanvas','chart-vt','chart-pt','chart-kt',
+    'in-m1','in-m2','in-v1','in-v2','in-e','in-slow','in-vectors','in-cm','in-bumpers',
+    'disp-m1','disp-m2','disp-v1','disp-v2','disp-e','iso-badge','stat-p','stat-k',
+    'pred-v1','pred-v2','pred-note','d-v1','d-v2','d-p1','d-p2','d-k1','d-k2','d-pT','d-kT','d-kLoss','stat-kloss',
+    'ke-note','ke-before','ke-after','ke-loss','ke-loss-pct','ke-bar-before','ke-bar-after','ke-bar-loss',
+    'ke-stack-remain','ke-stack-lost','ke-remain-lab','ke-lost-lab','ke-ab','ke-bb'
+].forEach(id => els[id] = document.getElementById(id));
+
+const track = els.trackCanvas;
+const tctx = track.getContext('2d');
+const chartCtx = {
+    vt: els['chart-vt'].getContext('2d'),
+    pt: els['chart-pt'].getContext('2d'),
+    kt: els['chart-kt'].getContext('2d')
+};
+
+function gliderWidth(m) { return 0.62 + 0.14 * m; }
+
+const A = { id: 'A', m: 1, v: 2, x: 1.1, w: gliderWidth(1), wheel: 0, color: '#ef4444', fill: '#fca5a5' };
+const B = { id: 'B', m: 1, v: -2, x: 5.9, w: gliderWidth(1), wheel: 0, color: '#3b82f6', fill: '#93c5fd' };
+
+let playing = false;
+let tSim = 0;
+let k0 = 0;
+let p0 = 0;
+let wallHit = false;
+let history = [];
+let spark = null;
+let lastTs = 0;
+let drag = null;
+let expanded = null;
+let lastCollision = null;
+let cssW = 800, cssH = 320;
+
+function eVal() { return parseFloat(els['in-e'].value); }
+
+function derived() {
+    const p1 = A.m * A.v, p2 = B.m * B.v;
+    const k1 = 0.5 * A.m * A.v * A.v, k2 = 0.5 * B.m * B.v * B.v;
+    return { p1, p2, pT: p1 + p2, k1, k2, kT: k1 + k2 };
+}
+
+function predict(m1, m2, u1, u2, e) {
+    const den = m1 + m2;
+    return {
+        v1: (m1 * u1 + m2 * u2 - m2 * e * (u1 - u2)) / den,
+        v2: (m1 * u1 + m2 * u2 + m1 * e * (u1 - u2)) / den
+    };
+}
+
+function leftRight() {
+    return A.x <= B.x ? [A, B] : [B, A];
+}
+
+function separateIfOverlap() {
+    const [L, R] = leftRight();
+    const gap = R.x - (L.x + L.w);
+    if (gap < 0) {
+        L.x += gap / 2;
+        R.x -= gap / 2;
+    }
+}
+
+function collidePair() {
+    const [L, R] = leftRight();
+    const gap = R.x - (L.x + L.w);
+    if (gap > 1e-6) return;
+    if (L.v <= R.v + 1e-9) {
+        separateIfOverlap();
+        return;
+    }
+    const kA0 = 0.5 * A.m * A.v * A.v;
+    const kB0 = 0.5 * B.m * B.v * B.v;
+    const e = eVal();
+    const u1 = L.v, u2 = R.v;
+    const out = predict(L.m, R.m, u1, u2, e);
+    L.v = out.v1;
+    R.v = out.v2;
+    separateIfOverlap();
+    spark = { x: L.x + L.w, life: 0.35 };
+    const kA1 = 0.5 * A.m * A.v * A.v;
+    const kB1 = 0.5 * B.m * B.v * B.v;
+    lastCollision = { kA0, kB0, kT0: kA0 + kB0, kA1, kB1, kT1: kA1 + kB1 };
+}
+
+function bounceWall(g) {
+    if (g.x < 0) {
+        g.x = 0;
+        if (g.v < 0) { g.v = -g.v; wallHit = true; spark = { x: 0, life: 0.25 }; }
+    }
+    if (g.x + g.w > TRACK_LEN) {
+        g.x = TRACK_LEN - g.w;
+        if (g.v > 0) { g.v = -g.v; wallHit = true; spark = { x: TRACK_LEN, life: 0.25 }; }
+    }
+}
+
+function isStuckPair() {
+    const [L, R] = leftRight();
+    return eVal() < 0.04 && (R.x - (L.x + L.w)) < 0.03 && Math.abs(L.v - R.v) < 0.08;
+}
+
+function bounceWalls() {
+    if (!els['in-bumpers'].checked) return;
+    if (isStuckPair()) {
+        const [L, R] = leftRight();
+        const vcm = (L.m * L.v + R.m * R.v) / (L.m + R.m);
+        if (L.x < 0 || (vcm < 0 && L.x <= 1e-6)) {
+            L.x = 0;
+            R.x = L.w;
+            L.v = R.v = Math.abs(vcm) || Math.abs(L.v);
+            wallHit = true;
+            spark = { x: 0, life: 0.25 };
+        } else if (R.x + R.w > TRACK_LEN || (vcm > 0 && R.x + R.w >= TRACK_LEN - 1e-6)) {
+            R.x = TRACK_LEN - R.w;
+            L.x = R.x - L.w;
+            L.v = R.v = -(Math.abs(vcm) || Math.abs(R.v));
+            wallHit = true;
+            spark = { x: TRACK_LEN, life: 0.25 };
+        }
+        return;
+    }
+    bounceWall(A);
+    bounceWall(B);
+}
+
+function record() {
+    const d = derived();
+    history.push({ t: tSim, v1: A.v, v2: B.v, p1: d.p1, p2: d.p2, pT: d.pT, k1: d.k1, k2: d.k2, kT: d.kT });
+    if (history.length > 3600) history.splice(0, history.length - 3600);
+}
+
+function applyMassWidth() {
+    A.w = gliderWidth(A.m);
+    B.w = gliderWidth(B.m);
+    A.x = Math.max(0, Math.min(TRACK_LEN - A.w, A.x));
+    B.x = Math.max(0, Math.min(TRACK_LEN - B.w, B.x));
+    separateIfOverlap();
+}
+
+function snapshotStart() {
+    const d = derived();
+    k0 = d.kT;
+    p0 = d.pT;
+    wallHit = false;
+}
+
+function resetSim(keepSliders) {
+    playing = false;
+    lastTs = 0;
+    tSim = 0;
+    history = [];
+    spark = null;
+    wallHit = false;
+    lastCollision = null;
+    if (!keepSliders) {
+        els['in-m1'].value = 1; els['in-v1'].value = 2;
+        els['in-m2'].value = 1; els['in-v2'].value = -2;
+        els['in-e'].value = 1;
+    }
+    A.m = parseFloat(els['in-m1'].value);
+    B.m = parseFloat(els['in-m2'].value);
+    A.v = parseFloat(els['in-v1'].value);
+    B.v = parseFloat(els['in-v2'].value);
+    A.w = gliderWidth(A.m);
+    B.w = gliderWidth(B.m);
+    A.x = 1.05;
+    B.x = TRACK_LEN - 1.05 - B.w;
+    A.wheel = 0; B.wheel = 0;
+    separateIfOverlap();
+    snapshotStart();
+    record();
+    syncSliders();
+    setPlayLabel();
+    renderAll();
+}
+
+function setPlayLabel() {
+    els['btn-play'].textContent = playing ? i18n[lang].pause : i18n[lang].play;
+    els['btn-play'].className = playing
+        ? 'flex-1 py-2 rounded-xl font-bold text-sm bg-amber-400 hover:bg-amber-500 text-amber-950'
+        : 'flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white';
+    const lock = playing;
+    ['in-m1','in-m2','in-v1','in-v2'].forEach(id => { els[id].disabled = lock; });
+}
+
+function step(dt) {
+    const rel = Math.abs(A.v) + Math.abs(B.v) + Math.abs(A.v - B.v);
+    const n = Math.max(1, Math.min(24, Math.ceil(rel * dt / 0.025)));
+    const h = dt / n;
+    for (let i = 0; i < n; i++) {
+        A.x += A.v * h;
+        B.x += B.v * h;
+        bounceWalls();
+        collidePair();
+        A.wheel += A.v * h / 0.12;
+        B.wheel += B.v * h / 0.12;
+    }
+    tSim += dt;
+    if (spark) {
+        spark.life -= dt;
+        if (spark.life <= 0) spark = null;
+    }
+    record();
+}
+
+function loop(ts) {
+    if (playing) {
+        if (!lastTs) lastTs = ts;
+        let dt = Math.min(0.033, (ts - lastTs) / 1000);
+        lastTs = ts;
+        if (els['in-slow'].checked) dt *= 0.4;
+        step(dt);
+    } else {
+        lastTs = 0;
+    }
+    renderAll();
+    requestAnimationFrame(loop);
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    setPlayLabel();
+    syncSliders();
+    updateHud();
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+    }
+}
+
+function eLabel(e) {
+    if (e >= 0.97) return i18n[lang].eElastic;
+    if (e <= 0.03) return i18n[lang].eSticky;
+    return i18n[lang].eInelastic;
+}
+
+function syncSliders() {
+    els['disp-m1'].textContent = parseFloat(els['in-m1'].value).toFixed(1) + ' kg';
+    els['disp-m2'].textContent = parseFloat(els['in-m2'].value).toFixed(1) + ' kg';
+    els['disp-v1'].textContent = parseFloat(els['in-v1'].value).toFixed(1) + ' m/s';
+    els['disp-v2'].textContent = parseFloat(els['in-v2'].value).toFixed(1) + ' m/s';
+    const e = eVal();
+    els['disp-e'].textContent = e.toFixed(2) + ' ' + eLabel(e);
+}
+
+function fmt(n, u) {
+    const s = (Math.abs(n) < 0.005 ? 0 : n).toFixed(2);
+    return u ? s + ' ' + u : s;
+}
+
+function updateHud() {
+    const d = derived();
+    els['stat-p'].textContent = fmt(d.pT, 'kg·m/s');
+    els['stat-k'].textContent = fmt(d.kT, 'J');
+    els['d-v1'].textContent = fmt(A.v, 'm/s');
+    els['d-v2'].textContent = fmt(B.v, 'm/s');
+    els['d-p1'].textContent = fmt(d.p1);
+    els['d-p2'].textContent = fmt(d.p2);
+    els['d-k1'].textContent = fmt(d.k1, 'J');
+    els['d-k2'].textContent = fmt(d.k2, 'J');
+    els['d-pT'].textContent = fmt(d.pT);
+    els['d-kT'].textContent = fmt(d.kT, 'J');
+    els['d-kT'].className = (eVal() < 0.97 && playing ? 'text-rose-300' : 'text-emerald-300');
+
+    const badge = els['iso-badge'];
+    if (wallHit) {
+        badge.textContent = i18n[lang].isoWall;
+        badge.className = 'mb-2 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-100';
+    } else {
+        badge.textContent = i18n[lang].isoOk;
+        badge.className = 'mb-2 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100';
+    }
+
+    const [L, R] = leftRight();
+    const approaching = L.v > R.v + 0.02;
+    const pred = predict(L.m, R.m, L.v, R.v, eVal());
+    if (L === A) {
+        els['pred-v1'].textContent = fmt(pred.v1, 'm/s');
+        els['pred-v2'].textContent = fmt(pred.v2, 'm/s');
+    } else {
+        els['pred-v1'].textContent = fmt(pred.v2, 'm/s');
+        els['pred-v2'].textContent = fmt(pred.v1, 'm/s');
+    }
+    els['pred-note'].textContent = approaching ? i18n[lang].predApproach : i18n[lang].predApart;
+
+    if (!lastCollision) {
+        els['ke-note'].textContent = i18n[lang].keNone;
+        els['ke-note'].className = 'text-[11px] font-bold text-slate-500';
+        ['ke-before','ke-after','ke-loss','ke-loss-pct','ke-ab','ke-bb'].forEach(id => { els[id].textContent = '—'; });
+        els['ke-loss'].className = 'text-rose-600';
+        els['ke-bar-before'].style.width = '0%';
+        els['ke-bar-after'].style.width = '0%';
+        els['ke-bar-loss'].style.width = '0%';
+        els['ke-stack-remain'].style.width = '0%';
+        els['ke-stack-lost'].style.width = '0%';
+        els['ke-remain-lab'].textContent = '';
+        els['ke-lost-lab'].textContent = '';
+        els['stat-kloss'].textContent = '—';
+        els['d-kLoss'].textContent = '—';
+    } else {
+        const c = lastCollision;
+        const lost = Math.max(0, c.kT0 - c.kT1);
+        const pct = c.kT0 > 1e-6 ? 100 * lost / c.kT0 : 0;
+        const conserved = pct < 2;
+        els['ke-note'].textContent = conserved ? i18n[lang].keSame : i18n[lang].keLost;
+        els['ke-note'].className = conserved
+            ? 'text-[11px] font-bold text-emerald-700'
+            : 'text-[11px] font-bold text-amber-700';
+        els['ke-before'].textContent = fmt(c.kT0, 'J');
+        els['ke-after'].textContent = fmt(c.kT1, 'J');
+        els['ke-loss'].textContent = fmt(lost, 'J');
+        els['ke-loss'].className = conserved ? 'text-emerald-700' : 'text-rose-600';
+        els['ke-loss-pct'].textContent = pct.toFixed(1) + '%';
+        els['ke-loss-pct'].className = conserved ? 'text-emerald-700' : 'text-rose-600';
+        const maxK = Math.max(c.kT0, c.kT1, lost, 1e-6);
+        els['ke-bar-before'].style.width = (100 * c.kT0 / maxK) + '%';
+        els['ke-bar-after'].style.width = (100 * c.kT1 / maxK) + '%';
+        els['ke-bar-loss'].style.width = (100 * lost / maxK) + '%';
+        const remainPct = c.kT0 > 1e-6 ? 100 * c.kT1 / c.kT0 : 0;
+        els['ke-stack-remain'].style.width = Math.max(0, remainPct) + '%';
+        els['ke-stack-lost'].style.width = Math.max(0, pct) + '%';
+        els['ke-remain-lab'].textContent = fmt(c.kT1, 'J');
+        els['ke-lost-lab'].textContent = fmt(lost, 'J') + ' (' + pct.toFixed(1) + '%)';
+        els['ke-ab'].textContent = fmt(c.kA0, 'J') + ' → ' + fmt(c.kA1, 'J');
+        els['ke-bb'].textContent = fmt(c.kB0, 'J') + ' → ' + fmt(c.kB1, 'J');
+        els['stat-kloss'].textContent = fmt(lost, 'J') + ' (' + pct.toFixed(1) + '%)';
+        els['d-kLoss'].textContent = fmt(lost, 'J');
+        els['d-kLoss'].className = conserved ? 'text-emerald-300' : 'text-rose-300';
+    }
+}
+
+function fitCanvas(c, ctx) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const r = c.getBoundingClientRect();
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+        c.width = Math.round(w * dpr);
+        c.height = Math.round(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+}
+
+function drawTrack() {
+    const { w, h } = fitCanvas(track, tctx);
+    cssW = w; cssH = h;
+    const padL = 28, padR = 18, padB = 36, railY = h * 0.62;
+    const trackW = w - padL - padR;
+    const xOf = (xm) => padL + (xm / TRACK_LEN) * trackW;
+    const wOf = (wm) => (wm / TRACK_LEN) * trackW;
+
+    tctx.clearRect(0, 0, w, h);
+    const bg = tctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#f8fafc');
+    bg.addColorStop(1, '#e2e8f0');
+    tctx.fillStyle = bg;
+    tctx.fillRect(0, 0, w, h);
+
+    tctx.fillStyle = '#94a3b8';
+    tctx.font = '11px "Noto Sans TC", sans-serif';
+    tctx.fillText(i18n[lang].posView, padL, 22);
+
+    tctx.fillStyle = '#cbd5e1';
+    tctx.fillRect(padL, railY + 18, trackW, 10);
+    tctx.fillStyle = '#64748b';
+    roundRect(tctx, padL, railY + 8, trackW, 14, 4);
+    tctx.fill();
+    tctx.fillStyle = '#94a3b8';
+    const holes = 28;
+    for (let i = 0; i < holes; i++) {
+        const hx = padL + (i + 0.5) * trackW / holes;
+        tctx.beginPath();
+        tctx.arc(hx, railY + 15, 1.6, 0, Math.PI * 2);
+        tctx.fill();
+    }
+
+    if (els['in-bumpers'].checked) {
+        tctx.fillStyle = '#334155';
+        tctx.fillRect(padL - 8, railY - 28, 8, 50);
+        tctx.fillRect(padL + trackW, railY - 28, 8, 50);
+    }
+
+    tctx.strokeStyle = '#94a3b8';
+    tctx.fillStyle = '#64748b';
+    tctx.font = '10px "Noto Sans TC", sans-serif';
+    tctx.textAlign = 'center';
+    tctx.beginPath();
+    for (let m = 0; m <= TRACK_LEN; m++) {
+        const x = xOf(m);
+        tctx.moveTo(x, h - padB + 4);
+        tctx.lineTo(x, h - padB + 12);
+        tctx.fillText(String(m), x, h - 8);
+    }
+    tctx.stroke();
+    tctx.textAlign = 'left';
+
+    if (els['in-cm'].checked) {
+        const xcm = (A.m * (A.x + A.w / 2) + B.m * (B.x + B.w / 2)) / (A.m + B.m);
+        const px = xOf(xcm);
+        tctx.strokeStyle = '#a855f7';
+        tctx.setLineDash([5, 4]);
+        tctx.beginPath();
+        tctx.moveTo(px, 40);
+        tctx.lineTo(px, railY + 8);
+        tctx.stroke();
+        tctx.setLineDash([]);
+        tctx.fillStyle = '#a855f7';
+        tctx.beginPath();
+        tctx.moveTo(px, railY - 6);
+        tctx.lineTo(px - 8, railY - 20);
+        tctx.lineTo(px + 8, railY - 20);
+        tctx.closePath();
+        tctx.fill();
+        tctx.fillStyle = '#7e22ce';
+        tctx.font = '10px "Noto Sans TC", sans-serif';
+        tctx.textAlign = 'center';
+        tctx.fillText('CM', px, 38);
+        tctx.textAlign = 'left';
+    }
+
+    function drawGlider(g) {
+        const gx = xOf(g.x), gw = wOf(g.w), gh = 44, gy = railY - gh + 6;
+        const wheelR = 7;
+        if (els['in-vectors'].checked && Math.abs(g.v) > 0.05) {
+            const len = Math.max(18, Math.min(90, Math.abs(g.v) * 18));
+            const dir = g.v >= 0 ? 1 : -1;
+            const y = gy - 16;
+            const x0 = gx + gw / 2;
+            const x1 = x0 + dir * len;
+            tctx.strokeStyle = g.color;
+            tctx.fillStyle = g.color;
+            tctx.lineWidth = 3;
+            tctx.beginPath();
+            tctx.moveTo(x0, y);
+            tctx.lineTo(x1, y);
+            tctx.stroke();
+            tctx.beginPath();
+            tctx.moveTo(x1, y);
+            tctx.lineTo(x1 - dir * 8, y - 5);
+            tctx.lineTo(x1 - dir * 8, y + 5);
+            tctx.closePath();
+            tctx.fill();
+            tctx.lineWidth = 1;
+            tctx.font = '11px "Noto Sans TC", sans-serif';
+            tctx.textAlign = 'center';
+            tctx.fillText(g.v.toFixed(2) + ' m/s', x0, y - 8);
+            tctx.textAlign = 'left';
+        }
+        tctx.fillStyle = g.fill;
+        tctx.strokeStyle = g.color;
+        tctx.lineWidth = 2;
+        roundRect(tctx, gx, gy, gw, gh, 8);
+        tctx.fill();
+        tctx.stroke();
+        tctx.fillStyle = 'rgba(255,255,255,.35)';
+        roundRect(tctx, gx + 8, gy + 6, gw * 0.38, 10, 4);
+        tctx.fill();
+        tctx.fillStyle = g.color === '#ef4444' ? '#7f1d1d' : '#1e3a8a';
+        tctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+        tctx.textAlign = 'center';
+        tctx.fillText(g.m.toFixed(1) + ' kg', gx + gw / 2, gy + gh / 2 + 4);
+        tctx.textAlign = 'left';
+        [gx + gw * 0.25, gx + gw * 0.75].forEach((wx, i) => {
+            tctx.beginPath();
+            tctx.fillStyle = '#1e293b';
+            tctx.arc(wx, railY + 10, wheelR, 0, Math.PI * 2);
+            tctx.fill();
+            tctx.strokeStyle = '#64748b';
+            tctx.beginPath();
+            tctx.moveTo(wx, railY + 10);
+            tctx.lineTo(wx + Math.cos(g.wheel + i) * (wheelR - 1), railY + 10 + Math.sin(g.wheel + i) * (wheelR - 1));
+            tctx.stroke();
+        });
+    }
+    drawGlider(A);
+    drawGlider(B);
+
+    {
+        const [L, R] = leftRight();
+        if (eVal() < 0.04 && Math.abs(L.v - R.v) < 0.08 && Math.abs(R.x - (L.x + L.w)) < 0.12) {
+            const mx = xOf(L.x + L.w);
+            tctx.strokeStyle = '#f59e0b';
+            tctx.lineWidth = 3;
+            tctx.beginPath();
+            tctx.moveTo(mx - 4, railY - 36);
+            tctx.lineTo(mx + 4, railY - 36);
+            tctx.stroke();
+        }
+    }
+
+    if (spark) {
+        const sx = xOf(Math.max(0, Math.min(TRACK_LEN, spark.x)));
+        tctx.fillStyle = `rgba(251, 191, 36, ${Math.max(0, spark.life / 0.35)})`;
+        tctx.beginPath();
+        tctx.arc(sx, railY - 8, 16 * (spark.life / 0.35 + 0.2), 0, Math.PI * 2);
+        tctx.fill();
+    }
+}
+
+function drawAxisArrow(ctx, x1, y1, x2, y2, color) {
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const s = 8;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - s * Math.cos(ang - 0.4), y2 - s * Math.sin(ang - 0.4));
+    ctx.lineTo(x2 - s * Math.cos(ang + 0.4), y2 - s * Math.sin(ang + 0.4));
+    ctx.closePath();
+    ctx.fill();
+}
+
+function drawChartOn(ctx, canvas, keys, colors, dashes, yMin, yMax, big, yLabel) {
+    const { w, h } = fitCanvas(canvas, ctx);
+    ctx.clearRect(0, 0, w, h);
+    const mL = big ? 48 : 28, mR = big ? 28 : 18, mT = big ? 22 : 16, mB = big ? 36 : 22;
+    const cw = w - mL - mR, ch = h - mT - mB;
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(mL, mT, cw, ch);
+    const tMax = history.length ? history[history.length - 1].t : 1;
+    const tMin = Math.max(0, tMax - (big ? Math.max(8, tMax) : 5));
+    const span = Math.max(1e-6, tMax - tMin);
+    const y0 = mT + ch - ((0 - yMin) / (yMax - yMin)) * ch;
+    const ox = mL;
+    const oy = (y0 >= mT && y0 <= mT + ch) ? y0 : mT + ch;
+    if (yMin < 0 && yMax > 0) {
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(mL, y0); ctx.lineTo(mL + cw, y0); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(mL, mT, cw, ch);
+    ctx.clip();
+    keys.forEach((key, i) => {
+        ctx.strokeStyle = colors[i];
+        ctx.lineWidth = big ? 2.4 : 1.8;
+        ctx.setLineDash(dashes[i] ? [6, 4] : []);
+        ctx.beginPath();
+        let started = false;
+        for (const pt of history) {
+            if (pt.t < tMin) continue;
+            const x = mL + ((pt.t - tMin) / span) * cw;
+            const val = Math.max(yMin, Math.min(yMax, pt[key]));
+            const y = mT + ch - ((val - yMin) / (yMax - yMin)) * ch;
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+    });
+    ctx.restore();
+    drawAxisArrow(ctx, ox, mT + ch, ox, mT - 2, '#334155');
+    drawAxisArrow(ctx, ox, oy, ox + cw + 6, oy, '#334155');
+    ctx.fillStyle = '#334155';
+    ctx.font = (big ? '12px' : '11px') + ' "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(yLabel || '', ox, mT - 4);
+    ctx.textAlign = 'left';
+    ctx.fillText('t', ox + cw + 8, oy - 4);
+    if (big) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(yMax.toFixed(0), mL - 8, mT + 10);
+        ctx.fillText(yMin.toFixed(0), mL - 8, mT + ch);
+        ctx.textAlign = 'center';
+        ctx.fillText(tMin.toFixed(1) + 's', mL, h - 8);
+        ctx.fillText(tMax.toFixed(1) + 's', mL + cw, h - 8);
+        ctx.textAlign = 'left';
+    }
+}
+
+function autoRange(keys, pad, floorMin) {
+    let lo = Infinity, hi = -Infinity;
+    for (const pt of history) {
+        for (const k of keys) {
+            lo = Math.min(lo, pt[k]);
+            hi = Math.max(hi, pt[k]);
+        }
+    }
+    if (!isFinite(lo)) { lo = floorMin; hi = 1; }
+    const extra = Math.max(pad, (hi - lo) * 0.15);
+    lo -= extra; hi += extra;
+    if (floorMin != null && lo > floorMin) lo = floorMin;
+    if (hi === lo) { hi += 1; lo -= 1; }
+    return [lo, hi];
+}
+
+function drawCharts() {
+    const [vLo, vHi] = autoRange(['v1', 'v2'], 1, null);
+    drawChartOn(chartCtx.vt, els['chart-vt'], ['v1', 'v2'], ['#ef4444', '#3b82f6'], [false, false], vLo, vHi, false, 'v');
+    const [pLo, pHi] = autoRange(['p1', 'p2', 'pT'], 1, null);
+    drawChartOn(chartCtx.pt, els['chart-pt'], ['p1', 'p2', 'pT'], ['#ef4444', '#3b82f6', '#475569'], [false, false, true], pLo, pHi, false, 'p');
+    const [kLo, kHi] = autoRange(['k1', 'k2', 'kT'], 1, 0);
+    drawChartOn(chartCtx.kt, els['chart-kt'], ['k1', 'k2', 'kT'], ['#ef4444', '#3b82f6', '#16a34a'], [false, false, true], Math.min(0, kLo), kHi, false, 'K');
+}
+
+function renderAll() {
+    drawTrack();
+    drawCharts();
+    updateHud();
+    if (expanded) drawExpanded();
+}
+
+function drawExpanded() {
+    const big = els['chart-big'];
+    const ctx = big.getContext('2d');
+    if (expanded === 'vt') {
+        const [lo, hi] = autoRange(['v1', 'v2'], 1, null);
+        drawChartOn(ctx, big, ['v1', 'v2'], ['#ef4444', '#3b82f6'], [false, false], lo, hi, true, 'v');
+    } else if (expanded === 'pt') {
+        const [lo, hi] = autoRange(['p1', 'p2', 'pT'], 1, null);
+        drawChartOn(ctx, big, ['p1', 'p2', 'pT'], ['#ef4444', '#3b82f6', '#475569'], [false, false, true], lo, hi, true, 'p');
+    } else {
+        const [lo, hi] = autoRange(['k1', 'k2', 'kT'], 1, 0);
+        drawChartOn(ctx, big, ['k1', 'k2', 'kT'], ['#ef4444', '#3b82f6', '#16a34a'], [false, false, true], Math.min(0, lo), hi, true, 'K');
+    }
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function hitGlider(mx, my, g) {
+    const padL = 28, padR = 18, railY = cssH * 0.62;
+    const trackW = cssW - padL - padR;
+    const gx = padL + (g.x / TRACK_LEN) * trackW;
+    const gw = (g.w / TRACK_LEN) * trackW;
+    const gy = railY - 44 + 6;
+    return mx >= gx && mx <= gx + gw && my >= gy - 20 && my <= railY + 22;
+}
+
+function canvasPos(ev) {
+    const r = track.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+
+track.addEventListener('pointerdown', (ev) => {
+    if (playing) return;
+    const p = canvasPos(ev);
+    const target = hitGlider(p.x, p.y, A) ? A : hitGlider(p.x, p.y, B) ? B : null;
+    if (!target) return;
+    drag = { g: target, dx: p.x };
+    track.setPointerCapture(ev.pointerId);
+});
+track.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const padL = 28, padR = 18;
+    const trackW = cssW - padL - padR;
+    const p = canvasPos(ev);
+    const xm = ((p.x - padL) / trackW) * TRACK_LEN - drag.g.w / 2;
+    drag.g.x = Math.max(0, Math.min(TRACK_LEN - drag.g.w, xm));
+    const other = drag.g === A ? B : A;
+    if (drag.g.x < other.x) {
+        drag.g.x = Math.min(drag.g.x, other.x - drag.g.w);
+    } else {
+        drag.g.x = Math.max(drag.g.x, other.x + other.w);
+    }
+    drag.g.x = Math.max(0, Math.min(TRACK_LEN - drag.g.w, drag.g.x));
+    snapshotStart();
+    history = [];
+    tSim = 0;
+    record();
+});
+track.addEventListener('pointerup', () => { drag = null; });
+track.addEventListener('pointercancel', () => { drag = null; });
+
+els['btn-play'].addEventListener('click', () => {
+    playing = !playing;
+    if (playing) snapshotStart();
+    setPlayLabel();
+});
+els['btn-reset'].addEventListener('click', () => resetSim(true));
+
+function onMassVel() {
+    if (playing) return;
+    A.m = parseFloat(els['in-m1'].value);
+    B.m = parseFloat(els['in-m2'].value);
+    A.v = parseFloat(els['in-v1'].value);
+    B.v = parseFloat(els['in-v2'].value);
+    applyMassWidth();
+    snapshotStart();
+    history = [];
+    tSim = 0;
+    record();
+    syncSliders();
+}
+['in-m1','in-m2','in-v1','in-v2'].forEach(id => els[id].addEventListener('input', onMassVel));
+els['in-e'].addEventListener('input', syncSliders);
+
+document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const p = PRESETS[btn.dataset.preset];
+        els['in-m1'].value = p.m1; els['in-v1'].value = p.v1;
+        els['in-m2'].value = p.m2; els['in-v2'].value = p.v2;
+        els['in-e'].value = p.e;
+        document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b === btn));
+        resetSim(true);
+    });
+});
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
+
+els['btn-principle'].addEventListener('click', () => {
+    openModal(els['modal-principle']);
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([els['modal-principle']]).catch(() => {});
+});
+els['modal-close'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-confirm'].addEventListener('click', () => closeModal(els['modal-principle']));
+els['modal-principle'].addEventListener('click', (ev) => { if (ev.target === els['modal-principle']) closeModal(els['modal-principle']); });
+
+els['btn-steps'].addEventListener('click', () => openModal(els['modal-steps']));
+els['steps-close'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['steps-confirm'].addEventListener('click', () => closeModal(els['modal-steps']));
+els['modal-steps'].addEventListener('click', (ev) => { if (ev.target === els['modal-steps']) closeModal(els['modal-steps']); });
+
+document.querySelectorAll('[data-chart]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        expanded = btn.dataset.chart;
+        const titles = { vt: i18n[lang].vtGraph, pt: i18n[lang].ptGraph, kt: i18n[lang].ktGraph };
+        els['chart-title'].textContent = titles[expanded];
+        openModal(els['modal-chart']);
+        requestAnimationFrame(drawExpanded);
+    });
+});
+els['chart-close'].addEventListener('click', () => { expanded = null; closeModal(els['modal-chart']); });
+els['modal-chart'].addEventListener('click', (ev) => {
+    if (ev.target === els['modal-chart']) { expanded = null; closeModal(els['modal-chart']); }
+});
+
+document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!els['modal-chart'].classList.contains('pointer-events-none')) {
+        expanded = null; closeModal(els['modal-chart']); return;
+    }
+    if (!els['modal-steps'].classList.contains('pointer-events-none')) {
+        closeModal(els['modal-steps']); return;
+    }
+    if (!els['modal-principle'].classList.contains('pointer-events-none')) closeModal(els['modal-principle']);
+});
+
+window.addEventListener('resize', renderAll);
+
+resetSim(true);
+applyLang();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

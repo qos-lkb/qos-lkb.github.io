@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星體演化 | Stellar Evolution</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #020617; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #334155; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #60a5fa; border: 2px solid #fff; margin-top: -5px; cursor: pointer;
+            box-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
+        }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .preset-btn {
+            width: 100%; text-align: left; padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 0.72rem;
+            border: 1px solid #334155; background: #0f172a; color: #cbd5e1;
+        }
+        .preset-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .glow-text { text-shadow: 0 0 10px rgba(255, 255, 255, 0.35); }
+        #sim-canvas { display: block; width: 100%; height: 100%; }
+        .spec-btn {
+            flex: 1; min-width: 0; padding: 6px 0; border-radius: 8px; font-weight: 900; font-size: 0.85rem;
+            border: 1px solid #334155; color: #0f172a; opacity: 0.45; transition: opacity .2s, transform .2s, box-shadow .2s;
+        }
+        .spec-btn.active { opacity: 1; transform: scale(1.08); box-shadow: 0 0 12px currentColor; }
+        .path-node {
+            flex: 1; min-width: 72px; position: relative; text-align: center; padding: 6px 4px 8px;
+            opacity: 0.45; transition: opacity .25s, transform .25s; cursor: pointer;
+        }
+        .path-node.active { opacity: 1; transform: translateY(-2px); }
+        .path-node.done { opacity: 0.8; }
+        .cmp-bar { height: 6px; border-radius: 999px; background: #1e293b; overflow: hidden; }
+        .cmp-fill { height: 100%; border-radius: 999px; }
+        .fate-btn {
+            flex: 1; padding: 7px 8px; border-radius: 10px; font-weight: 800; font-size: 0.68rem; line-height: 1.25;
+            border: 1px solid #334155; background: #0f172a; color: #cbd5e1;
+        }
+        .fate-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        #wd-fate-box.hidden { display: none; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-200 overflow-hidden">
+
+    <header class="shrink-0 z-20 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-rose-500 text-slate-900 flex items-center justify-center shadow-md text-xl font-black">☀</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">星體演化</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-900/80 text-indigo-200 font-bold border border-indigo-700/60" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-400" data-i18n="subtitle">質量決定壽命、光譜型與最終命運</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-800 text-xs font-bold rounded-lg border border-slate-600">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-xl font-bold text-sm border border-amber-700/50 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm border border-slate-600">中 / EN</button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+        <aside class="w-full md:w-[22rem] bg-slate-900/90 border-r border-slate-800 flex flex-col shrink-0 max-h-[42vh] md:max-h-none overflow-y-auto custom-scroll">
+            <div class="p-4 border-b border-slate-800">
+                <h2 class="text-sm font-bold text-blue-400 mb-3 uppercase tracking-wider" data-i18n="controlTitle">實驗控制</h2>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="sun" data-i18n="preSun">① 太陽（G2V → 黑矮星）</button>
+                    <button type="button" class="preset-btn" data-preset="ia" data-i18n="preIA">② 雙星吸積（白矮星 → Ia）</button>
+                    <button type="button" class="preset-btn" data-preset="red" data-i18n="preRed">③ 紅矮星（M 型，極長壽）</button>
+                    <button type="button" class="preset-btn" data-preset="brown" data-i18n="preBrown">④ 棕矮星（質量不足）</button>
+                    <button type="button" class="preset-btn" data-preset="massive" data-i18n="preMassive">⑤ 大質量（B／O → 中子星）</button>
+                    <button type="button" class="preset-btn" data-preset="bh" data-i18n="preBH">⑥ 超大質量（O → 黑洞）</button>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-slate-300" data-i18n="labelMass">初始質量</span>
+                        <span id="mass-val" class="font-mono text-blue-400 font-bold">1.00 M☉</span>
+                    </div>
+                    <input type="range" id="mass-slider" min="-1.3" max="1.7" step="0.05" value="0">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                        <span data-i18n="massLow">0.05 M☉</span>
+                        <span data-i18n="massHigh">50 M☉</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-2" data-i18n="massHint">1 M☉ = 一個太陽質量。質量決定光譜型、壽命與殘骸。</p>
+                </div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between items-baseline mb-1.5">
+                        <span class="text-[11px] font-bold text-slate-400" data-i18n="specTitle">光譜型 OBAFGKM</span>
+                        <span id="spec-code" class="font-mono text-amber-300 font-black text-sm">G2V</span>
+                    </div>
+                    <div id="spec-bar" class="flex gap-1 mb-1"></div>
+                    <p class="text-[10px] text-slate-500" data-i18n="specHint">點選字母可跳到該型主序星的典型質量。太陽是 G2V。</p>
+                </div>
+
+                <div id="wd-fate-box" class="mb-4">
+                    <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="wdFateTitle">白矮星之後</p>
+                    <div class="flex gap-1.5">
+                        <button type="button" id="fate-isolate" class="fate-btn active" data-i18n="fateIsolate">孤獨冷卻 → 黑矮星</button>
+                        <button type="button" id="fate-accrete" class="fate-btn" data-i18n="fateAccrete">雙星吸積 → Ia</button>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-1.5" data-i18n="wdFateHint">宇宙還不夠老，尚未出現黑矮星。若從伴星吸積超過 1.4 M☉，會變成 Ia 超新星。</p>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-slate-300" data-i18n="labelSpeed">演化速度</span>
+                        <span id="speed-val" class="font-mono text-slate-400">2×</span>
+                    </div>
+                    <input type="range" id="speed-slider" min="1" max="5" step="1" value="2">
+                </div>
+
+                <div class="flex gap-2">
+                    <button type="button" id="btn-play" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
+                        <span data-i18n="play">開始演化</span>
+                    </button>
+                    <button type="button" id="btn-reset" class="px-4 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-xl font-bold" data-i18n="reset">重置</button>
+                </div>
+            </div>
+
+            <div class="p-4 flex-1 space-y-3">
+                <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider" data-i18n="liveTitle">星體狀態</h2>
+                <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
+                    <div>
+                        <div class="text-xs text-slate-500 mb-1" data-i18n="statStage">當前階段</div>
+                        <div id="stat-stage" class="text-lg font-bold text-white glow-text">—</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="text-xs text-slate-500 mb-1" data-i18n="statTemp">表面溫度</div>
+                            <div class="font-mono text-orange-400 text-sm"><span id="stat-temp">—</span> <span class="text-xs text-slate-500">K</span></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 mb-1" data-i18n="statLum">相對光度</div>
+                            <div class="font-mono text-yellow-300 text-sm"><span id="stat-lum">—</span> <span class="text-xs text-slate-500">L☉</span></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 mb-1" data-i18n="statRad">半徑</div>
+                            <div class="font-mono text-emerald-300 text-sm"><span id="stat-rad">—</span> <span class="text-xs text-slate-500">R☉</span></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 mb-1" data-i18n="statSpec">光譜／光度型</div>
+                            <div id="stat-spec" class="font-mono text-rose-300 text-sm">—</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 mb-1" data-i18n="statFuel">核心燃料</div>
+                        <div id="stat-fuel" class="text-sm font-bold text-sky-200">—</div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-800">
+                        <div class="text-xs text-slate-500 mb-1 flex justify-between">
+                            <span data-i18n="statTime">模擬時間</span>
+                            <span id="stat-time" class="font-mono text-blue-300 text-xs">—</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="progress-bar" class="bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 h-full w-0 transition-all duration-100"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 rounded-xl p-3 border border-slate-800">
+                    <div class="text-xs font-bold text-violet-300 mb-2" data-i18n="vsSunTitle">相對太陽</div>
+                    <div class="space-y-2 text-[11px]">
+                        <div>
+                            <div class="flex justify-between text-slate-400 mb-0.5"><span data-i18n="vsMass">質量</span><span id="vs-mass">1×</span></div>
+                            <div class="cmp-bar"><div id="bar-mass" class="cmp-fill bg-blue-500" style="width:20%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-slate-400 mb-0.5"><span data-i18n="vsLum">光度</span><span id="vs-lum">1×</span></div>
+                            <div class="cmp-bar"><div id="bar-lum" class="cmp-fill bg-amber-400" style="width:20%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-slate-400 mb-0.5"><span data-i18n="vsRad">半徑</span><span id="vs-rad">1×</span></div>
+                            <div class="cmp-bar"><div id="bar-rad" class="cmp-fill bg-emerald-400" style="width:20%"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 rounded-xl p-3 border border-slate-800">
+                    <div class="text-xs font-bold text-sky-300 mb-1" data-i18n="analogTitle">著名類比</div>
+                    <p id="analog-text" class="text-xs text-slate-300 font-bold"></p>
+                    <p id="insight-text" class="text-xs text-slate-400 leading-relaxed mt-1"></p>
+                </div>
+            </div>
+        </aside>
+
+        <section class="flex-1 min-h-0 flex flex-col bg-black">
+            <div id="canvas-wrap" class="flex-1 relative min-h-[220px] overflow-hidden">
+                <div class="absolute inset-0 z-0 opacity-40 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iIzAwMCIvPjxjaXJjbGUgY3g9IjEwMCIgY3k9IjEwMCIgcj0iMSIgZmlsbD0iI2ZmZiIvPjxjaXJjbGUgY3g9IjMwMCIgY3k9IjIwMCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMjAwIiBjeT0iMzUwIiByPSIwLjUiIGZpbGw9IiNmZmYiLz48L2N2Zz4=')] pointer-events-none"></div>
+                <canvas id="sim-canvas" class="relative z-10"></canvas>
+                <div id="stage-banner" class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 text-3xl md:text-5xl font-bold text-white opacity-0 transition-opacity duration-1000 tracking-widest z-20 pointer-events-none" style="text-shadow: 0 0 20px currentColor;"></div>
+                <div class="absolute top-3 left-3 z-20 pointer-events-none">
+                    <div id="hud-spec" class="text-2xl md:text-3xl font-black text-white/90 tracking-wide glow-text">G2V</div>
+                    <div id="hud-color" class="text-[11px] text-slate-400 mt-0.5"></div>
+                </div>
+                <div id="hud-scale" class="absolute bottom-2 right-3 z-20 text-[10px] text-slate-500 pointer-events-none text-right"></div>
+            </div>
+
+            <div class="shrink-0 bg-slate-950/95 border-t border-slate-800 px-3 py-2.5">
+                <div class="flex items-center justify-between mb-1.5 gap-2">
+                    <div class="text-xs font-bold text-slate-400" data-i18n="pathTitle">預計演化路徑</div>
+                    <p class="text-[10px] text-slate-500 hidden sm:block" data-i18n="pathHint">點選階段可跳到該段；主序通常佔最長壽命</p>
+                </div>
+                <div id="path-preview" class="flex items-start overflow-x-auto pb-1"></div>
+            </div>
+        </section>
+    </div>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-600 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">恆星演化原理</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">從星雲到殘骸</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scroll space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-sky-950/50 p-4 rounded-2xl border border-sky-800/60">
+                    <h3 class="font-bold text-sky-200 mb-1" data-i18n="m1t">1. 恆星如何誕生？</h3>
+                    <p class="text-xs" data-i18n="m1d">星際雲氣在重力下坍縮，核心升溫。若質量 ≥ 0.08 M☉，核心達約 10⁷ K，氫核融合點燃，成為主序星。</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-amber-200 text-xs mb-1" data-i18n="m2t">主序階段</h4>
+                        <p class="text-[11px]" data-i18n="m2d">核心穩定把氫變成氦。質量愈大，光度愈高、壽命愈短（約 ∝ M⁻²·⁵）。太陽在此約 100 億年。</p>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-rose-200 text-xs mb-1" data-i18n="m3t">晚期膨脹</h4>
+                        <p class="text-[11px]" data-i18n="m3d">核心氫耗盡後，外層膨脹、表面變冷，成為紅巨星或紅超巨星；核心繼續融合更重元素。</p>
+                    </div>
+                </div>
+                <div class="bg-amber-950/40 p-4 rounded-2xl border border-amber-800/50">
+                    <h3 class="font-bold text-amber-200 mb-1" data-i18n="m6t">4. 光譜型 OBAFGKM</h3>
+                    <p class="text-xs" data-i18n="m6d">由熱到冷：O（藍）→ B → A → F → G（黃，太陽是 G2V）→ K → M（紅）。數字 0–9 是細分，0 較熱。光度級 V＝主序、III＝巨星、I＝超巨星、D＝白矮星。</p>
+                </div>
+                <div class="bg-indigo-950/50 p-4 rounded-2xl border border-indigo-800/60">
+                    <h3 class="font-bold text-indigo-200 mb-1" data-i18n="m4t">2. 質量分岔</h3>
+                    <p class="text-xs" data-i18n="m4d">&lt; 0.08 M☉：棕矮星，無法點燃。0.08–8 M☉：行星狀星雲 → 白矮星。≳ 8 M☉：超新星 → 中子星；≳ 25 M☉ 常形成黑洞。</p>
+                </div>
+                <div class="bg-violet-950/40 p-4 rounded-2xl border border-violet-800/50">
+                    <h3 class="font-bold text-violet-200 mb-1" data-i18n="m7t">5. 白矮星之後</h3>
+                    <p class="text-xs" data-i18n="m7d">孤獨白矮星會慢慢冷卻，理論上經過約 10¹² 年變成黑矮星（宇宙目前只有 138 億年，還沒有真的黑矮星）。若在雙星中吸積伴星物質：表面氫閃發即新星；質量逼近錢德拉塞卡極限 1.4 M☉ 則 Ia 型超新星，整顆炸光、不留中子星或黑洞。</p>
+                </div>
+                <div class="bg-emerald-950/40 p-4 rounded-2xl border border-emerald-800/50">
+                    <h3 class="font-bold text-emerald-200 mb-1" data-i18n="m5t">3. 生活例子</h3>
+                    <p class="text-xs" data-i18n="m5d">太陽約 50 億年後成紅巨星，最終冷卻成白矮星；天狼星 B 是白矮星；Ia 超新星可用來測宇宙距離。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-amber-100" data-i18n="stepsSub">先調什麼、看什麼、比較什麼</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-300">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">選「太陽」預設：確認光譜型是 G2V，再按開始演化，看路徑走到白矮星後繼續冷卻成黑矮星。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">點 OBAFGKM 字母：比較 O／B 又熱又亮、壽命極短，M 型紅矮星又冷又暗、幾乎永不熄滅。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">選「大質量」或「超大質量」：對照下方路徑出現超新星與中子星／黑洞，並看相對太陽的光度／半徑條。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">比較「孤獨冷卻 → 黑矮星」與「雙星吸積 → Ia」：看白矮星變暗，或吸積盤、新星閃發與炸光後不留殘骸。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const STAGE_META = {
+    NEBULA:           { color: '#7dd3fc' },
+    PROTOSTAR:        { color: '#fb7185' },
+    BROWN_DWARF:      { color: '#9a3412' },
+    MAIN_SEQUENCE:    { color: '#fcd34d' },
+    RED_GIANT:        { color: '#f97316' },
+    SUPER_GIANT:      { color: '#dc2626' },
+    PLANETARY_NEBULA: { color: '#2dd4bf' },
+    WHITE_DWARF:      { color: '#e0f2fe' },
+    BLACK_DWARF:      { color: '#475569' },
+    ACCRETING:        { color: '#c084fc' },
+    TYPE_IA:          { color: '#fde68a' },
+    SUPERNOVA:        { color: '#ffffff' },
+    NEUTRON_STAR:     { color: '#818cf8' },
+    BLACK_HOLE:       { color: '#94a3b8' }
+};
+
+const STAGE_WEIGHTS = {
+    NEBULA: 10, PROTOSTAR: 10, BROWN_DWARF: 80, MAIN_SEQUENCE: 46,
+    RED_GIANT: 14, SUPER_GIANT: 25, PLANETARY_NEBULA: 8, WHITE_DWARF: 8,
+    BLACK_DWARF: 12, ACCRETING: 12, TYPE_IA: 8,
+    SUPERNOVA: 5, NEUTRON_STAR: 5, BLACK_HOLE: 5
+};
+
+const PRESETS = {
+    sun:     { mass: 1,  wdFate: 'isolate' },
+    ia:      { mass: 1,  wdFate: 'accrete' },
+    red:     { mass: 0.2, wdFate: 'isolate' },
+    brown:   { mass: 0.05 },
+    massive: { mass: 15 },
+    bh:      { mass: 30 }
+};
+
+const SPEC_TYPES = [
+    { cls: 'O', tLo: 30000, tHi: 50000, color: '#93c5fd', mass: 20 },
+    { cls: 'B', tLo: 10000, tHi: 30000, color: '#bfdbfe', mass: 5 },
+    { cls: 'A', tLo: 7500,  tHi: 10000, color: '#e0f2fe', mass: 2 },
+    { cls: 'F', tLo: 6000,  tHi: 7500,  color: '#fefce8', mass: 1.3 },
+    { cls: 'G', tLo: 5200,  tHi: 6000,  color: '#fde047', mass: 1 },
+    { cls: 'K', tLo: 3700,  tHi: 5200,  color: '#fb923c', mass: 0.7 },
+    { cls: 'M', tLo: 2400,  tHi: 3700,  color: '#ef4444', mass: 0.25 }
+];
+
+const i18n = {
+    zh: {
+        title: '星體演化', badge: '中一科學', subtitle: '質量決定壽命、光譜型與最終命運',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        presets: '教學情境',
+        preSun: '① 太陽（G2V → 黑矮星）',
+        preIA: '② 雙星吸積（白矮星 → Ia）',
+        preRed: '③ 紅矮星（M 型，極長壽）',
+        preBrown: '④ 棕矮星（質量不足）',
+        preMassive: '⑤ 大質量（B／O → 中子星）',
+        preBH: '⑥ 超大質量（O → 黑洞）',
+        labelMass: '初始質量', massLow: '0.05 M☉', massHigh: '50 M☉',
+        massHint: '1 M☉ = 一個太陽質量。質量決定光譜型、壽命與殘骸。',
+        specTitle: '光譜型 OBAFGKM', specHint: '點選字母可跳到該型主序星的典型質量。太陽是 G2V。',
+        wdFateTitle: '白矮星之後', fateIsolate: '孤獨冷卻 → 黑矮星', fateAccrete: '雙星吸積 → Ia',
+        wdFateHint: '宇宙還不夠老，尚未出現黑矮星。若從伴星吸積超過 1.4 M☉，會變成 Ia 超新星。',
+        labelSpeed: '演化速度', play: '開始演化', pause: '暫停', reset: '重置',
+        liveTitle: '星體狀態', statStage: '當前階段', statTemp: '表面溫度', statLum: '相對光度',
+        statRad: '半徑', statSpec: '光譜／光度型', statFuel: '核心燃料', statTime: '模擬時間',
+        vsSunTitle: '相對太陽', vsMass: '質量', vsLum: '光度', vsRad: '半徑',
+        analogTitle: '著名類比', pathTitle: '預計演化路徑', pathHint: '點選階段可跳到該段；主序通常佔最長壽命',
+        stages: {
+            NEBULA: '星雲', PROTOSTAR: '原恆星', BROWN_DWARF: '棕矮星', MAIN_SEQUENCE: '主序星',
+            RED_GIANT: '紅巨星', SUPER_GIANT: '紅超巨星', PLANETARY_NEBULA: '行星狀星雲',
+            WHITE_DWARF: '白矮星', BLACK_DWARF: '黑矮星', ACCRETING: '吸積／新星', TYPE_IA: 'Ia 超新星',
+            SUPERNOVA: '超新星', NEUTRON_STAR: '中子星', BLACK_HOLE: '黑洞'
+        },
+        stageDesc: {
+            NEBULA: '氣體坍縮', PROTOSTAR: '尚未融合', BROWN_DWARF: '無法點燃',
+            MAIN_SEQUENCE: '氫→氦', RED_GIANT: '外層膨脹', SUPER_GIANT: '重元素融合',
+            PLANETARY_NEBULA: '外殼拋射', WHITE_DWARF: '碳氧餘燼', BLACK_DWARF: '完全冷卻',
+            ACCRETING: '吸積逼近 1.4 M☉', TYPE_IA: '熱核炸光',
+            SUPERNOVA: '核心坍縮', NEUTRON_STAR: '極緻密', BLACK_HOLE: '事件視界'
+        },
+        colorNames: { O: '藍白', B: '藍白', A: '白', F: '黃白', G: '黃', K: '橙', M: '紅' },
+        lumClass: { V: '主序 V', III: '巨星 III', I: '超巨星 I', D: '白矮星 D', L: '棕矮星 L', n: '—' },
+        fuel: {
+            NEBULA: '無（重力加熱）', PROTOSTAR: '無（尚未點燃）', BROWN_DWARF: '無氫融合',
+            MAIN_SEQUENCE: '氫 → 氦', RED_GIANT: '殼層氫；核心氦', SUPER_GIANT: '氦 → 碳／氧／鐵',
+            PLANETARY_NEBULA: '融合停止', WHITE_DWARF: '餘熱冷卻', BLACK_DWARF: '無（結晶碳氧）',
+            ACCRETING: '表面氫閃發（新星）', TYPE_IA: '碳氧熱核爆炸', SUPERNOVA: '重力坍縮釋放',
+            NEUTRON_STAR: '無（簡併壓支撐）', BLACK_HOLE: '無（奇異點）'
+        },
+        analog: {
+            brown: '像木星般大小的失敗恆星（棕矮星）',
+            proxima: '比鄰星：最近的 M 型紅矮星',
+            sun: '太陽：G2V 黃矮星',
+            sirius: '天狼星 A：A 型主序星',
+            vega: '織女星：A／F 型主序星',
+            rigel: '參宿七類型：熱而短命的大質量星',
+            bh: '大質量 O 型：超新星後常成黑洞',
+            giant: '大角星類型：離開主序的紅巨星',
+            sg: '參宿四類型：紅超巨星',
+            wd: '天狼星 B：地球大小的白矮星',
+            blackd: '黑矮星：理論終點，宇宙還未夠老',
+            accrete: '雙星吸積：像再發新星系統',
+            ia: 'Ia 超新星：整顆白矮星炸光',
+            ns: '蟹狀星雲脈衝星：中子星',
+            nebula: '獵戶座星雲：恆星正在誕生'
+        },
+        insightBrown: '質量低於 0.08 M☉：永遠無法點燃氫融合，只能緩慢冷卻成棕矮星。',
+        insightRed: 'M 型紅矮星佔銀河大多數：又冷又暗，主序壽命可達萬億年。',
+        insightSolar: '太陽質量孤獨路徑：G2V 主序 → 紅巨星 → 白矮星 → 極漫長冷卻成黑矮星。',
+        insightAccrete: '雙星中的白矮星會吸積伴星物質：反覆新星；質量接近 1.4 M☉ 則 Ia 超新星，不留殘骸。',
+        insightMassive: 'B／O 型大質量星主序極短，以超新星結束，留下中子星。',
+        insightBH: '最熱的 O 型星燃料燒得最快，超新星後常形成黑洞。',
+        hudColor: (name, t) => `視色 ${name} · ${t}`,
+        hudScale: (r) => `視覺半徑約 ${r}（相對太陽）`,
+        timeNebula: (p) => `坍縮中（${Math.max(0, Math.floor(10 - p * 0.1))} 萬年前）`,
+        timeProto: '誕生前夕', timeBrown: '冷卻中…',
+        timeMS: (age, life) => age < 1000
+            ? `${Math.floor(age)} / ${Math.floor(life)} 百萬年`
+            : `${(age / 1000).toFixed(2)} / ${(life / 1000).toFixed(2)} 億年`,
+        timeGiant: '邁向死亡', timeWD: '餘燼冷卻中', timeBD: '≳ 10¹² 年（宇宙還未夠）',
+        timeAcc: (m) => `白矮星 ${m.toFixed(2)} / 1.40 M☉`,
+        timeIA: '熱核炸光，不留殘骸', timeNS: '高速自轉', timeBH: '奇異點',
+        stepsTitle: '觀察步驟', stepsSub: '先調什麼、看什麼、比較什麼',
+        s1: '選「太陽」預設：確認光譜型是 G2V，再按開始演化，看路徑走到白矮星後繼續冷卻成黑矮星。',
+        s2: '點 OBAFGKM 字母：比較 O／B 又熱又亮、壽命極短，M 型紅矮星又冷又暗、幾乎永不熄滅。',
+        s3: '選「大質量」或「超大質量」：對照下方路徑出現超新星與中子星／黑洞，並看相對太陽的光度／半徑條。',
+        s4: '比較「孤獨冷卻 → 黑矮星」與「雙星吸積 → Ia」：看白矮星變暗，或吸積盤、新星閃發與炸光後不留殘骸。',
+        modalTitle: '恆星演化原理', modalSub: '從星雲到殘骸', modalClose: '關閉',
+        m1t: '1. 恆星如何誕生？',
+        m1d: '星際雲氣在重力下坍縮，核心升溫。若質量 ≥ 0.08 M☉，核心達約 10⁷ K，氫核融合點燃，成為主序星。',
+        m2t: '主序階段', m2d: '核心穩定把氫變成氦。質量愈大，光度愈高、壽命愈短（約 ∝ M⁻²·⁵）。太陽在此約 100 億年。',
+        m3t: '晚期膨脹', m3d: '核心氫耗盡後，外層膨脹、表面變冷，成為紅巨星或紅超巨星；核心繼續融合更重元素。',
+        m4t: '2. 質量分岔',
+        m4d: '< 0.08 M☉：棕矮星，無法點燃。0.08–8 M☉：行星狀星雲 → 白矮星。≳ 8 M☉：超新星 → 中子星；≳ 25 M☉ 常形成黑洞。',
+        m5t: '3. 生活例子',
+        m5d: '太陽約 50 億年後成紅巨星，最終冷卻成白矮星；天狼星 B 是白矮星；Ia 超新星可用來測宇宙距離。',
+        m6t: '4. 光譜型 OBAFGKM',
+        m6d: '由熱到冷：O（藍）→ B → A → F → G（黃，太陽是 G2V）→ K → M（紅）。數字 0–9 是細分，0 較熱。光度級 V＝主序、III＝巨星、I＝超巨星、D＝白矮星。',
+        m7t: '5. 白矮星之後',
+        m7d: '孤獨白矮星會慢慢冷卻，理論上經過約 10¹² 年變成黑矮星（宇宙目前只有 138 億年，還沒有真的黑矮星）。若在雙星中吸積伴星物質：表面氫閃發即新星；質量逼近錢德拉塞卡極限 1.4 M☉ 則 Ia 型超新星，整顆炸光、不留中子星或黑洞。',
+        pageTitle: '星體演化 | Stellar Evolution'
+    },
+    en: {
+        title: 'Stellar Evolution', badge: 'S1 Science', subtitle: 'Mass sets lifetime, spectral type and fate',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls',
+        presets: 'Scenarios',
+        preSun: '① Sun (G2V → black dwarf)',
+        preIA: '② Binary accretion (WD → Ia)',
+        preRed: '③ Red dwarf (M-type, long-lived)',
+        preBrown: '④ Brown dwarf (too low mass)',
+        preMassive: '⑤ Massive (B/O → neutron star)',
+        preBH: '⑥ Very massive (O → black hole)',
+        labelMass: 'Initial mass', massLow: '0.05 M☉', massHigh: '50 M☉',
+        massHint: '1 M☉ = one solar mass. Mass sets spectral type, lifetime and remnant.',
+        specTitle: 'Spectral type OBAFGKM', specHint: 'Click a letter to jump to a typical MS mass. The Sun is G2V.',
+        wdFateTitle: 'After the white dwarf', fateIsolate: 'Cool → black dwarf', fateAccrete: 'Accrete → Ia',
+        wdFateHint: 'The universe is not old enough for black dwarfs. Accreting past 1.4 M☉ yields a Type Ia supernova.',
+        labelSpeed: 'Evolution speed', play: 'Start', pause: 'Pause', reset: 'Reset',
+        liveTitle: 'Star status', statStage: 'Stage', statTemp: 'Surface T', statLum: 'Luminosity',
+        statRad: 'Radius', statSpec: 'Spectrum / class', statFuel: 'Core fuel', statTime: 'Simulated time',
+        vsSunTitle: 'Versus the Sun', vsMass: 'Mass', vsLum: 'Luminosity', vsRad: 'Radius',
+        analogTitle: 'Famous analog', pathTitle: 'Expected path', pathHint: 'Click a stage to jump; the main sequence usually lasts longest',
+        stages: {
+            NEBULA: 'Nebula', PROTOSTAR: 'Protostar', BROWN_DWARF: 'Brown dwarf', MAIN_SEQUENCE: 'Main sequence',
+            RED_GIANT: 'Red giant', SUPER_GIANT: 'Red supergiant', PLANETARY_NEBULA: 'Planetary nebula',
+            WHITE_DWARF: 'White dwarf', BLACK_DWARF: 'Black dwarf', ACCRETING: 'Accretion / nova', TYPE_IA: 'Type Ia',
+            SUPERNOVA: 'Supernova', NEUTRON_STAR: 'Neutron star', BLACK_HOLE: 'Black hole'
+        },
+        stageDesc: {
+            NEBULA: 'Gas collapsing', PROTOSTAR: 'No fusion yet', BROWN_DWARF: 'Cannot ignite',
+            MAIN_SEQUENCE: 'H → He', RED_GIANT: 'Envelope swells', SUPER_GIANT: 'Heavy fusion',
+            PLANETARY_NEBULA: 'Shell ejected', WHITE_DWARF: 'C/O ember', BLACK_DWARF: 'Fully cooled',
+            ACCRETING: 'Mass → 1.4 M☉', TYPE_IA: 'Thermonuclear',
+            SUPERNOVA: 'Core collapse', NEUTRON_STAR: 'Ultra-dense', BLACK_HOLE: 'Event horizon'
+        },
+        colorNames: { O: 'blue-white', B: 'blue-white', A: 'white', F: 'yellow-white', G: 'yellow', K: 'orange', M: 'red' },
+        lumClass: { V: 'dwarf V', III: 'giant III', I: 'supergiant I', D: 'white dwarf D', L: 'brown dwarf L', n: '—' },
+        fuel: {
+            NEBULA: 'None (gravitational heat)', PROTOSTAR: 'None (not ignited)', BROWN_DWARF: 'No H fusion',
+            MAIN_SEQUENCE: 'Hydrogen → helium', RED_GIANT: 'H shell; He core', SUPER_GIANT: 'He → C/O/Fe',
+            PLANETARY_NEBULA: 'Fusion stops', WHITE_DWARF: 'Residual heat', BLACK_DWARF: 'None (C/O crystal)',
+            ACCRETING: 'Surface H flashes (nova)', TYPE_IA: 'C/O thermonuclear', SUPERNOVA: 'Gravitational energy',
+            NEUTRON_STAR: 'None (degeneracy)', BLACK_HOLE: 'None (singularity)'
+        },
+        analog: {
+            brown: 'A failed star about the size of Jupiter',
+            proxima: 'Proxima Centauri: nearest M-type red dwarf',
+            sun: 'The Sun: a G2V yellow dwarf',
+            sirius: 'Sirius A: an A-type main-sequence star',
+            vega: 'Vega: an A/F main-sequence star',
+            rigel: 'Rigel-like: a hot, short-lived massive star',
+            bh: 'Massive O-type: often a black hole after SN',
+            giant: 'Arcturus-like: a red giant off the MS',
+            sg: 'Betelgeuse-like: a red supergiant',
+            wd: 'Sirius B: an Earth-sized white dwarf',
+            blackd: 'Black dwarf: theoretical end; universe still too young',
+            accrete: 'Binary accretion: like a recurrent nova',
+            ia: 'Type Ia: the white dwarf is destroyed',
+            ns: 'Crab pulsar: a neutron star',
+            nebula: 'Orion Nebula: stars being born'
+        },
+        insightBrown: 'Below 0.08 M☉ hydrogen fusion never starts; the object cools as a brown dwarf.',
+        insightRed: 'M-type red dwarfs dominate the Galaxy: cool, faint, MS lives up to trillions of years.',
+        insightSolar: 'Isolated solar-mass path: G2V MS → red giant → white dwarf → an extremely long cool-down to a black dwarf.',
+        insightAccrete: 'A white dwarf in a binary accretes: repeated novae; near 1.4 M☉ it detonates as Type Ia and leaves no remnant.',
+        insightMassive: 'B/O massive stars live briefly on the MS, end in a supernova, leave a neutron star.',
+        insightBH: 'The hottest O stars burn fastest and often leave a black hole.',
+        hudColor: (name, t) => `Apparent colour ${name} · ${t}`,
+        hudScale: (r) => `Visual radius ~ ${r} (vs the Sun)`,
+        timeNebula: (p) => `Collapsing (${Math.max(0, Math.floor(10 - p * 0.1))} ×10⁴ yr ago)`,
+        timeProto: 'Pre-main-sequence', timeBrown: 'Cooling…',
+        timeMS: (age, life) => age < 1000
+            ? `${Math.floor(age)} / ${Math.floor(life)} Myr`
+            : `${(age / 1000).toFixed(2)} / ${(life / 1000).toFixed(2)} Gyr`,
+        timeGiant: 'Approaching death', timeWD: 'Ember cooling', timeBD: '≳ 10¹² yr (universe too young)',
+        timeAcc: (m) => `WD ${m.toFixed(2)} / 1.40 M☉`,
+        timeIA: 'Thermonuclear blast, no remnant', timeNS: 'Fast spin', timeBH: 'Singularity',
+        stepsTitle: 'What to watch', stepsSub: 'Adjust, observe, compare',
+        s1: 'Choose “Sun”: confirm G2V, play, and watch the path continue from white dwarf to black dwarf.',
+        s2: 'Click OBAFGKM letters: O/B are hot, bright and short-lived; M dwarfs are cool, faint and almost immortal.',
+        s3: 'Use Massive / Very massive: the path gains a supernova and a neutron star or black hole; compare the vs-Sun bars.',
+        s4: 'Compare “cool → black dwarf” with “accrete → Ia”: fading WD vs disk, nova flashes, and a blast with no remnant.',
+        modalTitle: 'How stars evolve', modalSub: 'From nebula to remnant', modalClose: 'Close',
+        m1t: '1. Star birth',
+        m1d: 'Interstellar clouds collapse under gravity. Above ~0.08 M☉ the core reaches ~10⁷ K and hydrogen fusion begins.',
+        m2t: 'Main sequence', m2d: 'Stable core fusion of H → He. Higher mass → higher L, shorter life (∝ M⁻²·⁵). The Sun ~10 Gyr.',
+        m3t: 'Late expansion', m3d: 'When core H is gone, outer layers swell and cool into red (super)giants while the core fuses heavier elements.',
+        m4t: '2. Mass branches',
+        m4d: '< 0.08 M☉: brown dwarf. 0.08–8 M☉: planetary nebula → white dwarf. ≳8 M☉: supernova → neutron star; ≳25 M☉ often a black hole.',
+        m5t: '3. Examples',
+        m5d: 'The Sun will become a red giant then a cooling white dwarf; Sirius B is a WD; Type Ia supernovae measure cosmic distance.',
+        m6t: '4. Spectral type OBAFGKM',
+        m6d: 'Hot to cool: O (blue) → B → A → F → G (yellow; the Sun is G2V) → K → M (red). Subclass 0–9, 0 is hotter. Luminosity class V = MS, III = giant, I = supergiant, D = white dwarf.',
+        m7t: '5. After the white dwarf',
+        m7d: 'An isolated WD cools for ~10¹² years toward a black dwarf (the universe is only 13.8 Gyr, so none exist yet). In a binary it can accrete: surface H flashes are novae; near the Chandrasekhar limit 1.4 M☉ it explodes as Type Ia, leaving no neutron star or black hole.',
+        pageTitle: 'Stellar Evolution | 星體演化'
+    }
+};
+
+let lang = 'zh';
+const state = {
+    mass: 1,
+    wdFate: 'isolate',
+    isPlaying: false,
+    progress: 0,
+    currentStageIndex: 0,
+    path: [],
+    thresholds: [],
+    speed: 0.1,
+    particles: [],
+    msParams: null,
+    live: null,
+    convectionSpots: [],
+    nebulaBlobs: [],
+    starfield: null,
+    novaFlash: 0,
+    activePreset: 'sun'
+};
+
+const ui = {};
+[
+    'mass-slider', 'mass-val', 'speed-slider', 'speed-val', 'btn-play', 'btn-reset',
+    'stat-stage', 'stat-temp', 'stat-lum', 'stat-rad', 'stat-spec', 'stat-fuel', 'stat-time',
+    'progress-bar', 'path-preview', 'sim-canvas', 'stage-banner', 'insight-text', 'analog-text',
+    'spec-bar', 'spec-code', 'hud-spec', 'hud-color', 'hud-scale', 'canvas-wrap',
+    'vs-mass', 'vs-lum', 'vs-rad', 'bar-mass', 'bar-lum', 'bar-rad',
+    'fate-isolate', 'fate-accrete', 'wd-fate-box',
+    'btn-principle', 'btn-steps', 'btn-lang', 'btn-lang-mobile',
+    'modal-principle', 'modal-close', 'modal-confirm', 'modal-steps', 'steps-close', 'steps-confirm'
+].forEach(id => { ui[id.replace(/-/g, '_')] = document.getElementById(id); });
+ui.canvas = ui.sim_canvas;
+ui.ctx = ui.canvas.getContext('2d');
+
+function t(key) { return i18n[lang][key]; }
+function stageName(key) { return i18n[lang].stages[key]; }
+function stageDesc(key) { return i18n[lang].stageDesc[key]; }
+
+function getActualMass(sliderValue) {
+    return parseFloat(Math.pow(10, sliderValue).toFixed(2));
+}
+
+function massToSlider(m) {
+    return Math.max(-1.3, Math.min(1.7, Math.log10(m)));
+}
+
+function remnantWDMass(M) {
+    return Math.min(1.15, Math.max(0.5, 0.55 + 0.12 * (M - 1)));
+}
+
+function accretingWDMass(stageP) {
+    const m0 = remnantWDMass(state.mass);
+    return m0 + (1.4 - m0) * Math.min(1, stageP);
+}
+
+function determinePath(mass, fate) {
+    if (mass < 0.08) return ['NEBULA', 'PROTOSTAR', 'BROWN_DWARF'];
+    if (mass < 8) {
+        const core = ['NEBULA', 'PROTOSTAR', 'MAIN_SEQUENCE', 'RED_GIANT', 'PLANETARY_NEBULA', 'WHITE_DWARF'];
+        if (fate === 'accrete') return core.concat(['ACCRETING', 'TYPE_IA']);
+        return core.concat(['BLACK_DWARF']);
+    }
+    if (mass < 25) return ['NEBULA', 'PROTOSTAR', 'MAIN_SEQUENCE', 'SUPER_GIANT', 'SUPERNOVA', 'NEUTRON_STAR'];
+    return ['NEBULA', 'PROTOSTAR', 'MAIN_SEQUENCE', 'SUPER_GIANT', 'SUPERNOVA', 'BLACK_HOLE'];
+}
+
+function estimateMSParams(mass) {
+    const M = Math.max(mass, 0.08);
+    let lum;
+    if (M < 0.43) lum = 0.23 * Math.pow(M, 2.3);
+    else if (M < 2) lum = Math.pow(M, 4);
+    else if (M < 55) lum = 1.5 * Math.pow(M, 3.5);
+    else lum = 32000 * M;
+    const radius = M < 1 ? Math.pow(M, 0.8) : Math.pow(M, 0.57);
+    const temp = 5778 * Math.pow(lum / (radius * radius), 0.25);
+    const lifespanMioYears = 10000 * Math.pow(M, -2.5);
+    return { lum, radius, temp, lifespanMioYears, color: tempToColor(temp) };
+}
+
+function tempToColor(temp) {
+    if (temp < 3500) return '#ef4444';
+    if (temp < 5000) return '#f97316';
+    if (temp < 6000) return '#facc15';
+    if (temp < 7500) return '#fef08a';
+    if (temp < 10000) return '#e0f2fe';
+    return '#93c5fd';
+}
+
+function spectralFromTemp(temp) {
+    if (temp < 2000) return { cls: 'L', sub: 5, letter: 'L' };
+    let band = SPEC_TYPES[SPEC_TYPES.length - 1];
+    for (const b of SPEC_TYPES) {
+        if (temp >= b.tLo) { band = b; break; }
+    }
+    const span = band.tHi - band.tLo;
+    const sub = Math.max(0, Math.min(9, Math.round((band.tHi - temp) / span * 9)));
+    return { cls: band.cls, sub, letter: band.cls, color: band.color };
+}
+
+function luminosityClass(stageKey) {
+    if (stageKey === 'MAIN_SEQUENCE') return 'V';
+    if (stageKey === 'RED_GIANT') return 'III';
+    if (stageKey === 'SUPER_GIANT') return 'I';
+    if (stageKey === 'WHITE_DWARF' || stageKey === 'ACCRETING') return 'D';
+    if (stageKey === 'BLACK_DWARF') return 'D';
+    if (stageKey === 'BROWN_DWARF') return 'L';
+    return 'n';
+}
+
+function liveParams(stageKey, stageP) {
+    const ms = state.msParams;
+    const M = state.mass;
+    let temp = ms.temp, lum = ms.lum, radius = ms.radius;
+    if (stageKey === 'NEBULA') {
+        temp = 80; lum = 0.001; radius = 20 * (1 - stageP * 0.7);
+    } else if (stageKey === 'PROTOSTAR') {
+        temp = 2500; lum = ms.lum * 5; radius = Math.max(2, ms.radius * 4 * (1 - stageP * 0.5));
+    } else if (stageKey === 'BROWN_DWARF') {
+        temp = 1800; lum = 0.00008; radius = 0.1;
+    } else if (stageKey === 'RED_GIANT') {
+        temp = 3800; lum = ms.lum * 50; radius = ms.radius * (3 + 80 * stageP);
+    } else if (stageKey === 'SUPER_GIANT') {
+        temp = 3500; lum = ms.lum * 100; radius = ms.radius * (5 + 200 * stageP);
+    } else if (stageKey === 'PLANETARY_NEBULA') {
+        temp = 80000; lum = 20; radius = 0.02;
+    } else if (stageKey === 'WHITE_DWARF') {
+        temp = 25000 - 12000 * stageP; lum = 0.02 * (1 - 0.6 * stageP); radius = 0.01;
+    } else if (stageKey === 'BLACK_DWARF') {
+        temp = 400 - 250 * stageP; lum = 1e-6 * (1 - 0.9 * stageP); radius = 0.01;
+    } else if (stageKey === 'ACCRETING') {
+        temp = 18000 + 8000 * stageP; lum = 0.05 + 8 * novaPulse(stageP); radius = 0.01;
+    } else if (stageKey === 'TYPE_IA') {
+        temp = 30000; lum = 1e9 * (0.4 + stageP); radius = 8 + 80 * stageP;
+    } else if (stageKey === 'SUPERNOVA') {
+        temp = 20000; lum = 1e8; radius = 50 * stageP + 1;
+    } else if (stageKey === 'NEUTRON_STAR') {
+        temp = 1e6; lum = 0.001; radius = 1e-5;
+    } else if (stageKey === 'BLACK_HOLE') {
+        temp = 0; lum = 0; radius = 3 * M / 333000;
+    }
+    const spec = spectralFromTemp(temp);
+    const lumC = luminosityClass(stageKey);
+    let code = spec.letter + spec.sub + (lumC === 'n' || lumC === 'L' ? '' : lumC);
+    if (stageKey === 'WHITE_DWARF' || stageKey === 'ACCRETING') code = 'DA';
+    if (stageKey === 'BLACK_DWARF') code = 'DC';
+    if (stageKey === 'BROWN_DWARF') code = 'L' + spec.sub;
+    if (stageKey === 'NEBULA' || stageKey === 'SUPERNOVA' || stageKey === 'TYPE_IA' || stageKey === 'BLACK_HOLE' || stageKey === 'NEUTRON_STAR') code = '—';
+    return { temp, lum, radius, spec, lumC, code };
+}
+
+function novaPulse(stageP) {
+    const cycle = (stageP * 5) % 1;
+    return cycle < 0.18 ? Math.sin(cycle / 0.18 * Math.PI) : 0;
+}
+
+function analogKey(stageKey) {
+    if (stageKey === 'NEBULA' || stageKey === 'PROTOSTAR') return 'nebula';
+    if (stageKey === 'BROWN_DWARF') return 'brown';
+    if (stageKey === 'RED_GIANT') return 'giant';
+    if (stageKey === 'SUPER_GIANT') return 'sg';
+    if (stageKey === 'WHITE_DWARF' || stageKey === 'PLANETARY_NEBULA') return 'wd';
+    if (stageKey === 'BLACK_DWARF') return 'blackd';
+    if (stageKey === 'ACCRETING') return 'accrete';
+    if (stageKey === 'TYPE_IA') return 'ia';
+    if (stageKey === 'NEUTRON_STAR' || stageKey === 'SUPERNOVA') return 'ns';
+    if (stageKey === 'BLACK_HOLE') return 'bh';
+    if (state.mass < 0.08) return 'brown';
+    if (state.mass < 0.5) return 'proxima';
+    if (state.mass < 1.4) return 'sun';
+    if (state.mass < 3) return 'sirius';
+    if (state.mass < 8) return 'vega';
+    if (state.mass < 25) return 'rigel';
+    return 'bh';
+}
+
+function fmtNum(n) {
+    if (!isFinite(n) || n === 0) return n === 0 ? '0' : '—';
+    const a = Math.abs(n);
+    if (a >= 1e5 || (a > 0 && a < 0.01)) return n.toExponential(1);
+    if (a >= 100) return Math.round(n).toLocaleString('en-US');
+    if (a >= 10) return n.toFixed(1);
+    if (a >= 1) return n.toFixed(2);
+    return n.toFixed(3);
+}
+
+function barWidth(ratio) {
+    const log = Math.log10(Math.max(ratio, 1e-4));
+    const t = (log + 2) / 6;
+    return Math.max(4, Math.min(100, t * 100));
+}
+
+function buildStageThresholds(path) {
+    const weights = path.map(k => STAGE_WEIGHTS[k]);
+    const total = weights.reduce((a, b) => a + b, 0);
+    let cum = 0;
+    return path.map((k, i) => {
+        cum += weights[i];
+        return { key: k, end: (cum / total) * 100 };
+    });
+}
+
+function progressToStageIndex(progress, thresholds) {
+    for (let i = 0; i < thresholds.length; i++) {
+        if (progress <= thresholds[i].end) return i;
+    }
+    return thresholds.length - 1;
+}
+
+function stageProgress(progress, thresholds, index) {
+    const start = index === 0 ? 0 : thresholds[index - 1].end;
+    const end = thresholds[index].end;
+    return end > start ? (progress - start) / (end - start) : 1;
+}
+
+function makeConvectionSpots(n = 12) {
+    const spots = [];
+    for (let i = 0; i < n; i++) {
+        spots.push({
+            ox: (Math.random() - 0.5) * 1.5,
+            oy: (Math.random() - 0.5) * 1.5,
+            r: 0.08 + Math.random() * 0.16,
+            a: 0.08 + Math.random() * 0.1
+        });
+    }
+    return spots;
+}
+
+function makeNebulaBlobs() {
+    const hues = [200, 265, 310, 28, 185];
+    const blobs = [];
+    for (let i = 0; i < 16; i++) {
+        blobs.push({
+            x: (Math.random() - 0.5) * 1.4,
+            y: (Math.random() - 0.5) * 1.05,
+            rx: 0.22 + Math.random() * 0.55,
+            ry: 0.16 + Math.random() * 0.4,
+            rot: Math.random() * Math.PI,
+            hue: hues[i % hues.length],
+            a: 0.1 + Math.random() * 0.14
+        });
+    }
+    return blobs;
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (typeof i18n[lang][k] === 'string') el.textContent = i18n[lang][k];
+    });
+    buildSpecBar();
+    updatePath();
+    updatePlayButton();
+    updateStatsDisplay();
+}
+
+function setModal(id, open) {
+    const el = document.getElementById(id);
+    const box = el.querySelector('.modal-content');
+    if (open) {
+        el.classList.remove('opacity-0', 'pointer-events-none');
+        box.classList.remove('scale-95', 'opacity-0');
+    } else {
+        el.classList.add('opacity-0', 'pointer-events-none');
+        box.classList.add('scale-95', 'opacity-0');
+    }
+}
+
+function syncMassLabel() {
+    ui.mass_val.textContent = `${state.mass.toFixed(2)} M☉`;
+}
+
+function setMass(mass, presetKey) {
+    state.mass = parseFloat(Math.max(0.05, Math.min(50, mass)).toFixed(2));
+    ui.mass_slider.value = massToSlider(state.mass);
+    syncMassLabel();
+    state.activePreset = presetKey || '';
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === state.activePreset);
+    });
+    resetSim(false);
+}
+
+function setPreset(key) {
+    const p = PRESETS[key];
+    if (!p) return;
+    if (p.wdFate) state.wdFate = p.wdFate;
+    setMass(p.mass, key);
+}
+
+function setWdFate(fate) {
+    state.wdFate = fate;
+    state.activePreset = '';
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    resetSim(false);
+}
+
+function syncFateUI() {
+    const show = state.mass >= 0.08 && state.mass < 8;
+    ui.wd_fate_box.classList.toggle('hidden', !show);
+    ui.fate_isolate.classList.toggle('active', state.wdFate === 'isolate');
+    ui.fate_accrete.classList.toggle('active', state.wdFate === 'accrete');
+}
+
+function updateInsight() {
+    const m = state.mass;
+    let text = t('insightSolar');
+    if (m < 0.08) text = t('insightBrown');
+    else if (m < 0.5) text = t('insightRed');
+    else if (m < 8) text = state.wdFate === 'accrete' ? t('insightAccrete') : t('insightSolar');
+    else if (m < 25) text = t('insightMassive');
+    else text = t('insightBH');
+    ui.insight_text.textContent = text;
+}
+
+function buildSpecBar() {
+    ui.spec_bar.innerHTML = SPEC_TYPES.map(s =>
+        `<button type="button" class="spec-btn" data-spec="${s.cls}" style="background:${s.color};color:#0f172a">${s.cls}</button>`
+    ).join('');
+    ui.spec_bar.querySelectorAll('.spec-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const s = SPEC_TYPES.find(x => x.cls === btn.dataset.spec);
+            setMass(s.mass, '');
+        });
+    });
+}
+
+function highlightSpec(letter) {
+    ui.spec_bar.querySelectorAll('.spec-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.spec === letter);
+    });
+}
+
+function init() {
+    buildSpecBar();
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => setPreset(btn.dataset.preset));
+    });
+
+    ui.fate_isolate.addEventListener('click', () => setWdFate('isolate'));
+    ui.fate_accrete.addEventListener('click', () => setWdFate('accrete'));
+
+    ui.mass_slider.addEventListener('input', e => {
+        state.mass = getActualMass(parseFloat(e.target.value));
+        state.activePreset = '';
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        syncMassLabel();
+        if (state.isPlaying) resetSim(false);
+        else { updatePath(); renderInitial(); updateStatsDisplay(); }
+    });
+
+    ui.speed_slider.addEventListener('input', e => {
+        ui.speed_val.textContent = `${e.target.value}×`;
+        state.speed = e.target.value * 0.05;
+    });
+
+    ui.btn_play.addEventListener('click', () => {
+        state.isPlaying = !state.isPlaying;
+        updatePlayButton();
+    });
+
+    ui.btn_reset.addEventListener('click', () => setPreset('sun'));
+
+    ui.btn_lang.addEventListener('click', toggleLang);
+    ui.btn_lang_mobile.addEventListener('click', toggleLang);
+    ui.btn_principle.addEventListener('click', () => setModal('modal-principle', true));
+    ui.btn_steps.addEventListener('click', () => setModal('modal-steps', true));
+    ui.modal_close.addEventListener('click', () => setModal('modal-principle', false));
+    ui.modal_confirm.addEventListener('click', () => setModal('modal-principle', false));
+    ui.steps_close.addEventListener('click', () => setModal('modal-steps', false));
+    ui.steps_confirm.addEventListener('click', () => setModal('modal-steps', false));
+    ui.modal_principle.addEventListener('click', ev => { if (ev.target === ui.modal_principle) setModal('modal-principle', false); });
+    ui.modal_steps.addEventListener('click', ev => { if (ev.target === ui.modal_steps) setModal('modal-steps', false); });
+    document.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') {
+            setModal('modal-principle', false);
+            setModal('modal-steps', false);
+        }
+        if (ev.key === ' ' && ev.target === document.body) {
+            ev.preventDefault();
+            state.isPlaying = !state.isPlaying;
+            updatePlayButton();
+        }
+    });
+
+    ui.path_preview.addEventListener('click', ev => {
+        const node = ev.target.closest('.path-node');
+        if (!node) return;
+        jumpToStage(parseInt(node.dataset.index, 10));
+    });
+
+    state.speed = ui.speed_slider.value * 0.05;
+    ui.speed_val.textContent = `${ui.speed_slider.value}×`;
+    state.mass = getActualMass(parseFloat(ui.mass_slider.value));
+    syncMassLabel();
+    updatePath();
+    renderInitial();
+    updateStatsDisplay();
+    requestAnimationFrame(renderLoop);
+}
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+
+function resizeCanvas() {
+    const parent = ui.canvas_wrap;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    ui.canvas.width = Math.floor(parent.clientWidth * dpr);
+    ui.canvas.height = Math.floor(parent.clientHeight * dpr);
+    ui.canvas.style.width = parent.clientWidth + 'px';
+    ui.canvas.style.height = parent.clientHeight + 'px';
+    ui.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    state.starfield = null;
+}
+
+function updatePlayButton() {
+    const label = state.isPlaying ? t('pause') : t('play');
+    ui.btn_play.innerHTML = state.isPlaying
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> ${label}`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> ${label}`;
+    ui.btn_play.className = state.isPlaying
+        ? 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2 rounded-xl font-bold transition-colors flex items-center justify-center gap-2'
+        : 'flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-bold transition-colors flex items-center justify-center gap-2';
+}
+
+function resetSim(clearPreset) {
+    state.isPlaying = false;
+    state.progress = 0;
+    state.currentStageIndex = 0;
+    state.particles = [];
+    if (clearPreset) setPreset('sun');
+    else updatePath();
+    updatePlayButton();
+    renderInitial();
+    updateStatsDisplay();
+    ui.progress_bar.style.width = '0%';
+    ui.stage_banner.style.opacity = '0';
+}
+
+function jumpToStage(index) {
+    if (!state.thresholds[index]) return;
+    const start = index === 0 ? 0.5 : state.thresholds[index - 1].end + 0.5;
+    state.progress = Math.min(99.5, start);
+    const prev = state.currentStageIndex;
+    state.currentStageIndex = index;
+    highlightPathNode(index);
+    if (index !== prev) {
+        const key = state.path[index];
+        showStageBanner(stageName(key), STAGE_META[key].color);
+        if (key === 'SUPERNOVA' || key === 'TYPE_IA' || key === 'PLANETARY_NEBULA') initExplosion(key !== 'PLANETARY_NEBULA');
+        else state.particles = [];
+        if (key === 'RED_GIANT' || key === 'SUPER_GIANT') state.convectionSpots = makeConvectionSpots();
+        if (key === 'NEBULA') state.nebulaBlobs = makeNebulaBlobs();
+    }
+    updateStatsDisplay();
+}
+
+function updatePath() {
+    state.path = determinePath(state.mass, state.wdFate);
+    state.thresholds = buildStageThresholds(state.path);
+    state.msParams = estimateMSParams(state.mass);
+    state.convectionSpots = makeConvectionSpots(12);
+    state.nebulaBlobs = makeNebulaBlobs();
+    syncFateUI();
+
+    ui.path_preview.innerHTML = state.path.map((key, idx) => `
+        <div class="path-node" data-index="${idx}" id="path-node-${idx}">
+            <div class="mx-auto w-3 h-3 rounded-full border-2 border-slate-950 mb-1" style="background-color:${STAGE_META[key].color}"></div>
+            ${idx < state.path.length - 1 ? '<div class="absolute top-[11px] left-1/2 right-[-50%] h-0.5 bg-slate-700"></div>' : ''}
+            <div class="text-[11px] font-bold text-slate-200 relative">${stageName(key)}</div>
+            <div class="text-[9px] text-slate-500 leading-tight relative">${stageDesc(key)}</div>
+        </div>
+    `).join('');
+    highlightPathNode(state.currentStageIndex);
+    updateInsight();
+}
+
+function highlightPathNode(index) {
+    document.querySelectorAll('.path-node').forEach((el, i) => {
+        el.classList.toggle('active', i === index);
+        el.classList.toggle('done', i < index);
+    });
+}
+
+function renderLoop() {
+    if (state.isPlaying) {
+        state.progress += state.speed;
+        if (state.progress >= 100) {
+            state.progress = 100;
+            state.isPlaying = false;
+            updatePlayButton();
+        }
+        updateLogic();
+    }
+    renderFrame();
+    requestAnimationFrame(renderLoop);
+}
+
+function updateLogic() {
+    ui.progress_bar.style.width = `${state.progress}%`;
+    const newIndex = progressToStageIndex(state.progress, state.thresholds);
+    if (newIndex !== state.currentStageIndex) {
+        state.currentStageIndex = newIndex;
+        const key = state.path[newIndex];
+        highlightPathNode(newIndex);
+        showStageBanner(stageName(key), STAGE_META[key].color);
+        if (key === 'SUPERNOVA' || key === 'TYPE_IA' || key === 'PLANETARY_NEBULA') initExplosion(key !== 'PLANETARY_NEBULA');
+        if (key === 'RED_GIANT' || key === 'SUPER_GIANT') state.convectionSpots = makeConvectionSpots(12);
+    }
+    updateStatsDisplay();
+}
+
+function showStageBanner(text, color) {
+    ui.stage_banner.textContent = text;
+    ui.stage_banner.style.color = color;
+    ui.stage_banner.style.opacity = '1';
+    setTimeout(() => { ui.stage_banner.style.opacity = '0'; }, 2000);
+}
+
+function updateStatsDisplay() {
+    if (!state.path.length) return;
+    const key = state.path[state.currentStageIndex];
+    const stageP = stageProgress(state.progress, state.thresholds, state.currentStageIndex);
+    const live = liveParams(key, stageP);
+    state.live = live;
+
+    ui.stat_stage.textContent = stageName(key);
+    ui.stat_stage.style.color = STAGE_META[key].color;
+    ui.stat_temp.textContent = key === 'BLACK_HOLE' ? (lang === 'zh' ? '吸積盤' : 'disk') : fmtNum(live.temp);
+    ui.stat_lum.textContent = fmtNum(live.lum);
+    ui.stat_rad.textContent = fmtNum(live.radius);
+    ui.stat_spec.textContent = live.code === '—' ? '—' : `${live.code} · ${t('lumClass')[live.lumC]}`;
+    ui.stat_fuel.textContent = t('fuel')[key];
+    ui.spec_code.textContent = live.code;
+    ui.hud_spec.textContent = live.code === '—' ? stageName(key) : live.code;
+    highlightSpec(live.spec.letter);
+
+    const colorName = t('colorNames')[live.spec.letter] || '—';
+    ui.hud_color.textContent = live.code === '—' ? '' : t('hudColor')(colorName, `${fmtNum(live.temp)} K`);
+    ui.hud_scale.textContent = t('hudScale')(fmtNum(live.radius));
+    ui.analog_text.textContent = t('analog')[analogKey(key)];
+
+    const showMass = key === 'ACCRETING' ? accretingWDMass(stageP) : state.mass;
+    ui.vs_mass.textContent = `${fmtNum(showMass)}×`;
+    ui.vs_lum.textContent = `${fmtNum(live.lum)}×`;
+    ui.vs_rad.textContent = `${fmtNum(live.radius)}×`;
+    ui.bar_mass.style.width = barWidth(state.mass) + '%';
+    ui.bar_lum.style.width = barWidth(live.lum) + '%';
+    ui.bar_rad.style.width = barWidth(live.radius) + '%';
+
+    const ms = state.msParams;
+    let timeStr = '—';
+    if (key === 'NEBULA') timeStr = t('timeNebula')(state.progress);
+    else if (key === 'PROTOSTAR') timeStr = t('timeProto');
+    else if (key === 'BROWN_DWARF') timeStr = t('timeBrown');
+    else if (key === 'MAIN_SEQUENCE') {
+        const msStart = state.thresholds.findIndex(th => th.key === 'MAIN_SEQUENCE');
+        const msEnd = state.thresholds[msStart].end;
+        const msStartP = msStart > 0 ? state.thresholds[msStart - 1].end : 0;
+        const frac = (state.progress - msStartP) / (msEnd - msStartP);
+        timeStr = t('timeMS')(Math.max(0, frac * ms.lifespanMioYears), ms.lifespanMioYears);
+    } else if (key === 'RED_GIANT' || key === 'SUPER_GIANT') timeStr = t('timeGiant');
+    else if (key === 'WHITE_DWARF') timeStr = t('timeWD');
+    else if (key === 'BLACK_DWARF') timeStr = t('timeBD');
+    else if (key === 'ACCRETING') timeStr = t('timeAcc')(accretingWDMass(stageP));
+    else if (key === 'TYPE_IA') timeStr = t('timeIA');
+    else if (key === 'NEUTRON_STAR') timeStr = t('timeNS');
+    else if (key === 'BLACK_HOLE') timeStr = t('timeBH');
+    else timeStr = stageName(key);
+    ui.stat_time.textContent = timeStr;
+    ui.progress_bar.style.width = `${state.progress}%`;
+}
+
+function renderInitial() {
+    state.currentStageIndex = 0;
+    highlightPathNode(0);
+}
+
+function renderFrame() {
+    const { ctx, canvas } = ui;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+    if (!state.path.length) return;
+
+    const key = state.path[state.currentStageIndex];
+    const ms = state.msParams;
+    const stageP = stageProgress(state.progress, state.thresholds, state.currentStageIndex);
+    const live = state.live || liveParams(key, stageP);
+    const baseRadius = Math.min(w, h) * 0.052;
+    const tNow = Date.now();
+
+    drawStarfield(ctx, w, h);
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+
+    if (key === 'NEBULA' || key === 'PROTOSTAR') {
+        drawNebula(ctx, baseRadius, key === 'PROTOSTAR' ? 0.55 : Math.max(0.22, 1 - stageP * 0.75), key === 'PROTOSTAR');
+        if (key === 'PROTOSTAR') drawStar(0, 0, baseRadius * 0.55, '#fda4af', { glow: 2.8, spikes: false, temp: 2800 });
+    } else if (key === 'BROWN_DWARF') {
+        drawStar(0, 0, baseRadius * 0.62, '#7c2d12', { glow: 0.7, spikes: false, temp: 1800, spots: true });
+    } else if (key === 'MAIN_SEQUENCE') {
+        const r = baseRadius * Math.min(3.1, 0.85 + Math.pow(state.mass, 0.42));
+        const pulse = 1 + Math.sin(tNow * 0.0025) * 0.018;
+        drawStar(0, 0, r * pulse, ms.color, {
+            glow: Math.min(4.2, 1.1 + Math.log10(ms.lum + 1) * 1.1),
+            spikes: false,
+            temp: ms.temp,
+            spots: ms.temp < 5200
+        });
+    } else if (key === 'RED_GIANT' || key === 'SUPER_GIANT') {
+        const startR = baseRadius * Math.min(2.4, 0.85 + Math.pow(state.mass, 0.35));
+        const endR = startR * (key === 'SUPER_GIANT' ? 5.2 : 3.4);
+        const currentR = startR + (endR - startR) * Math.min(1, stageP);
+        drawStar(0, 0, currentR, STAGE_META[key].color, { glow: 2.4, spikes: false, temp: 3600, spots: true, atmosphere: true });
+    } else if (key === 'PLANETARY_NEBULA') {
+        drawPlanetaryNebula(ctx, baseRadius, stageP, tNow);
+        drawStar(0, 0, baseRadius * 0.16, '#e0f2fe', { glow: 3.2, spikes: true, temp: 80000 });
+    } else if (key === 'WHITE_DWARF') {
+        drawStar(0, 0, baseRadius * 0.18, '#f8fafc', { glow: 2.6, spikes: true, temp: live.temp });
+    } else if (key === 'BLACK_DWARF') {
+        drawBlackDwarf(ctx, baseRadius * 0.28, stageP);
+    } else if (key === 'ACCRETING') {
+        drawAccretingWD(ctx, baseRadius, stageP, tNow);
+    } else if (key === 'TYPE_IA') {
+        drawTypeIa(ctx, baseRadius, stageP, tNow);
+    } else if (key === 'NEUTRON_STAR') {
+        drawNeutronStar(ctx, baseRadius * 0.14, tNow);
+    } else if (key === 'BLACK_HOLE') {
+        drawBlackHole(ctx, baseRadius * 0.48, tNow);
+    } else if (key === 'SUPERNOVA') {
+        drawStar(0, 0, baseRadius * (0.4 + stageP * 0.3), '#fff7ed', { glow: 4.5, spikes: true, temp: 20000 });
+    }
+
+    if (state.particles.length) renderParticles(ctx);
+    ctx.restore();
+}
+
+function hexToRgb(hex) {
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+
+function rgba(hex, a) {
+    const [r, g, b] = hexToRgb(hex);
+    return `rgba(${r},${g},${b},${a})`;
+}
+
+function drawStarfield(ctx, w, h) {
+    if (!state.starfield || state.starfield.w !== w || state.starfield.h !== h) {
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const o = off.getContext('2d');
+        o.fillStyle = '#020617';
+        o.fillRect(0, 0, w, h);
+        const g = o.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
+        g.addColorStop(0, 'rgba(15, 23, 42, 0.55)');
+        g.addColorStop(1, 'rgba(2, 6, 23, 0)');
+        o.fillStyle = g;
+        o.fillRect(0, 0, w, h);
+        for (let i = 0; i < 220; i++) {
+            const x = Math.random() * w, y = Math.random() * h;
+            const s = Math.random() * 1.4 + 0.2;
+            o.globalAlpha = 0.25 + Math.random() * 0.75;
+            o.fillStyle = Math.random() > 0.85 ? '#93c5fd' : '#fff';
+            o.beginPath();
+            o.arc(x, y, s, 0, Math.PI * 2);
+            o.fill();
+        }
+        o.globalAlpha = 1;
+        state.starfield = { w, h, canvas: off };
+    }
+    ctx.drawImage(state.starfield.canvas, 0, 0);
+}
+
+function drawGlow(ctx, x, y, r, color, layers) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = layers; i >= 1; i--) {
+        const rad = r * (1 + i * 0.55);
+        const g = ctx.createRadialGradient(x, y, r * 0.15, x, y, rad);
+        g.addColorStop(0, rgba(color, 0.18 / i));
+        g.addColorStop(0.45, rgba(color, 0.07 / i));
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawSpikes(ctx, x, y, r, color) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = rgba(color, 0.35);
+    ctx.lineWidth = 1.2;
+    const len = r * 4.8;
+    [[1, 0], [0, 1], [0.7, 0.7], [-0.7, 0.7]].forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(x - dx * len, y - dy * len);
+        ctx.lineTo(x + dx * len, y + dy * len);
+        ctx.stroke();
+    });
+    ctx.restore();
+}
+
+function drawStar(x, y, radius, color, opt = {}) {
+    const { ctx } = ui;
+    const glow = opt.glow ?? 1.5;
+    const temp = opt.temp ?? 5800;
+    drawGlow(ctx, x, y, radius, color, Math.max(2, Math.round(glow + 1)));
+    if (opt.spikes) drawSpikes(ctx, x, y, radius, color);
+    if (opt.atmosphere) {
+        const atm = ctx.createRadialGradient(x, y, radius * 0.9, x, y, radius * 1.35);
+        atm.addColorStop(0, 'rgba(251,146,60,0.18)');
+        atm.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = atm;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 1.35, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    const hx = x - radius * 0.32, hy = y - radius * 0.34;
+    const body = ctx.createRadialGradient(hx, hy, radius * 0.05, x, y, radius);
+    const rim = darken(color, temp < 4500 ? 70 : 45);
+    body.addColorStop(0, '#ffffff');
+    body.addColorStop(0.18, color);
+    body.addColorStop(0.72, color);
+    body.addColorStop(1, rim);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    if (opt.spots) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.clip();
+        state.convectionSpots.forEach(sp => {
+            ctx.fillStyle = `rgba(0,0,0,${sp.a || 0.12})`;
+            ctx.beginPath();
+            ctx.arc(x + sp.ox * radius * 0.55, y + sp.oy * radius * 0.55, radius * sp.r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.restore();
+    }
+    const spec = ctx.createRadialGradient(hx, hy, 0, hx, hy, radius * 0.45);
+    spec.addColorStop(0, 'rgba(255,255,255,0.55)');
+    spec.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = spec;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawNebula(ctx, baseR, scale, hotCore) {
+    const R = baseR * 11 * scale;
+    ctx.save();
+    state.nebulaBlobs.forEach(b => {
+        ctx.save();
+        ctx.translate(b.x * R, b.y * R);
+        ctx.rotate(b.rot);
+        ctx.scale(b.rx, b.ry);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+        g.addColorStop(0, `hsla(${b.hue}, 80%, 62%, ${b.a})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.45);
+    core.addColorStop(0, hotCore ? 'rgba(253,164,175,0.45)' : 'rgba(125,211,252,0.22)');
+    core.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawPlanetaryNebula(ctx, baseR, stageP, tNow) {
+    const R = baseR * (4.2 + stageP * 5.5);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.rotate(tNow * 0.00015);
+    [1, 0.72, 0.48].forEach((k, i) => {
+        const g = ctx.createRadialGradient(0, 0, R * k * 0.55, 0, 0, R * k);
+        const col = i === 1 ? 'rgba(45,212,191,0.28)' : (i === 0 ? 'rgba(167,139,250,0.18)' : 'rgba(244,114,182,0.2)');
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(0.7, col);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * k, R * k * 0.78, 0, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.restore();
+}
+
+function drawBlackDwarf(ctx, r) {
+    drawGlow(ctx, 0, 0, r, '#64748b', 2);
+    const g = ctx.createRadialGradient(-r * 0.28, -r * 0.28, 0, 0, 0, r);
+    g.addColorStop(0, '#475569');
+    g.addColorStop(0.55, '#1e293b');
+    g.addColorStop(1, '#020617');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(148,163,184,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+function drawAccretingWD(ctx, baseR, stageP, tNow) {
+    const flash = novaPulse(stageP);
+    const companionX = -baseR * 7.2;
+    drawStar(companionX, 0, baseR * 0.7, '#fb923c', { glow: 1.1, spikes: false, temp: 4200, spots: true });
+    ctx.save();
+    ctx.strokeStyle = 'rgba(192,132,252,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(companionX + baseR * 0.7, 0);
+    ctx.quadraticCurveTo(companionX * 0.4, -baseR * 1.4, baseR * 0.4, 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    drawAccretionDisk(ctx, baseR * 2.6, tNow * 0.0018, flash);
+    drawStar(0, 0, baseR * 0.17, flash > 0.2 ? '#fff7ed' : '#e0f2fe', { glow: 2.2 + flash * 3, spikes: true, temp: 20000 });
+}
+
+function drawAccretionDisk(ctx, r, ang, flash) {
+    ctx.save();
+    ctx.scale(1, 0.32);
+    ctx.rotate(ang);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, 0, r * 0.18, 0, 0, r);
+    g.addColorStop(0, `rgba(255,255,255,${0.55 + flash * 0.4})`);
+    g.addColorStop(0.22, `rgba(196,181,253,${0.45 + flash * 0.3})`);
+    g.addColorStop(0.55, 'rgba(251,146,60,0.28)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawTypeIa(ctx, baseR, stageP, tNow) {
+    const R = baseR * (3 + stageP * 14);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    g.addColorStop(0, 'rgba(255,255,255,0.85)');
+    g.addColorStop(0.18, 'rgba(253,224,71,0.55)');
+    g.addColorStop(0.45, 'rgba(251,146,60,0.28)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawNeutronStar(ctx, r, tNow) {
+    ctx.save();
+    ctx.rotate(tNow * 0.012);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(165,180,252,0.28)';
+    [[-1], [1]].forEach(([dir]) => {
+        ctx.beginPath();
+        ctx.moveTo(dir * r, 0);
+        ctx.lineTo(dir * r * 16, -r * 1.6);
+        ctx.lineTo(dir * r * 16, r * 1.6);
+        ctx.fill();
+    });
+    ctx.restore();
+    drawStar(0, 0, r, '#c7d2fe', { glow: 2.4, spikes: true, temp: 1e6 });
+}
+
+function drawBlackHole(ctx, r, tNow) {
+    drawAccretionDisk(ctx, r * 4.2, tNow * 0.002, 0.15);
+    ctx.strokeStyle = 'rgba(254,240,138,0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.55, r * 0.42, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const lens = ctx.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.8);
+    lens.addColorStop(0, 'rgba(0,0,0,0)');
+    lens.addColorStop(0.7, 'rgba(255,255,255,0.08)');
+    lens.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lens;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function darken(hex, amount) {
+    let color = hex.replace('#', '');
+    if (color.length === 3) color = color.split('').map(c => c + c).join('');
+    const clamp = v => Math.max(0, v).toString(16).padStart(2, '0');
+    return '#' + clamp(parseInt(color.slice(0, 2), 16) - amount)
+        + clamp(parseInt(color.slice(2, 4), 16) - amount)
+        + clamp(parseInt(color.slice(4, 6), 16) - amount);
+}
+
+function initExplosion(isSupernova) {
+    state.particles = [];
+    const n = isSupernova ? 300 : 150;
+    const speedBase = isSupernova ? 15 : 2;
+    const colors = isSupernova ? ['#ffffff', '#60a5fa', '#fcd34d', '#f87171'] : ['#2dd4bf', '#818cf8', '#f472b6'];
+    for (let i = 0; i < n; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const rOffset = isSupernova ? Math.random() * 20 : 30 + Math.random() * 10;
+        const speed = Math.random() * speedBase + speedBase / 2;
+        state.particles.push({
+            x: Math.cos(angle) * rOffset,
+            y: Math.sin(angle) * rOffset,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: isSupernova ? 0.01 + Math.random() * 0.02 : 0.005 + Math.random() * 0.01,
+            size: Math.random() * 4 + 1,
+            color: colors[Math.floor(Math.random() * colors.length)]
+        });
+    }
+}
+
+function renderParticles(ctx) {
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.decay;
+        if (p.life <= 0) { state.particles.splice(i, 1); continue; }
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+init();
+</script>
+</body>
+</html>

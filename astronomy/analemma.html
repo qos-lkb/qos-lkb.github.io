@@ -1,910 +1,1134 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>世界日行跡觀測儀 (Analemma)</title>
+    <title>日行跡 | Analemma</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        .canvas-container { cursor: crosshair; }
-        
-        /* 滑桿自定義樣式 */
-        input[type=range] {
-            -webkit-appearance: none; 
-            background: transparent; 
-        }
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #020617; }
+        canvas { display: block; width: 100%; height: 100%; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #334155; border-radius: 3px; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 16px;
-            width: 16px;
-            border-radius: 50%;
-            background: #f59e0b;
-            margin-top: -6px; 
-            cursor: pointer;
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #f59e0b; border: 2px solid #fff; margin-top: -5px; cursor: pointer;
         }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            background: #475569;
-            border-radius: 2px;
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .preset-btn {
+            width: 100%; text-align: left; padding: 7px 10px; border-radius: 10px; font-weight: 800; font-size: 0.72rem;
+            border: 1px solid #334155; background: #0f172a; color: #cbd5e1;
         }
-        
-        /* Modal 動畫 */
-        .modal-enter { opacity: 0; }
-        .modal-enter-active { opacity: 1; transition: opacity 300ms; }
-        .modal-exit { opacity: 1; }
-        .modal-exit-active { opacity: 0; transition: opacity 300ms; }
+        .preset-btn.active { background: #d97706; color: #fff; border-color: #d97706; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #cbd5e1; cursor: pointer; }
+        .check-row input { width: 14px; height: 14px; accent-color: #f59e0b; }
+        .stat { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 10px 12px; border-top: 3px solid #64748b; }
+        select {
+            width: 100%; background: #0f172a; color: #e2e8f0; border: 1px solid #334155;
+            border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 700;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .mj-box { background: #0f172a; border: 1px solid #334155; border-radius: 0.75rem; padding: 0.75rem 1rem; }
+        .mj-box mjx-container { color: #e2e8f0 !important; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-200 h-screen flex flex-col overflow-hidden font-sans">
+<body class="h-full flex flex-col text-slate-200">
 
-    <!-- 頂部標題 -->
-    <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center shadow-lg z-10">
-        <div>
-            <h1 class="text-xl md:text-2xl font-bold text-amber-500 tracking-wider flex items-center">
-                <span class="text-2xl mr-2">☀</span><span data-i18n="appTitle">世界日行跡觀測儀</span>
-            </h1>
-            <p class="text-[10px] md:text-xs text-slate-400 mt-1" data-i18n="appSubtitle">觀測太陽在固定當地時間的軌跡變化 (Local Time)</p>
+    <header class="shrink-0 z-20 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-500 text-slate-900 flex items-center justify-center shadow-md text-xl font-black">☀</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">日行跡</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-900/80 text-indigo-200 font-bold border border-indigo-700/60" data-i18n="badge">天文</span>
+                    </h1>
+                    <p class="text-xs text-slate-400" data-i18n="subtitle">固定當地時刻的太陽 8 字軌跡</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-800 text-xs font-bold rounded-lg border border-slate-600">中 / EN</button>
         </div>
-        
-        <!-- 右側功能區 -->
-        <div class="flex items-center gap-3">
-             <button id="help-btn" class="bg-slate-800 hover:bg-slate-700 hover:text-sky-300 text-sky-400 text-xs md:text-sm px-3 py-1.5 rounded-full border border-slate-700 transition-all flex items-center gap-1 shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span class="hidden md:inline font-bold" data-i18n="helpBtn">日行跡解說</span>
-                <span class="md:hidden">?</span>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-xl font-bold text-sm border border-amber-700/50 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
             </button>
-            
-            <!-- 語言切換按鈕 (移至最右) -->
-            <button id="lang-btn" class="bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 text-xs font-bold px-3 py-1.5 rounded-full border border-slate-700 transition-all shadow-sm">
-                中 / Eng
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
             </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm border border-slate-600">中 / EN</button>
         </div>
     </header>
 
-    <!-- 主內容區 -->
-    <div class="flex flex-1 overflow-hidden relative">
-        
-        <!-- 左側：設定與選單 -->
-        <aside class="w-1/3 md:w-72 bg-slate-900 border-r border-slate-800 flex flex-col z-20 shadow-xl p-5 gap-6 overflow-y-auto">
-            
-            <!-- 1. 城市選擇 -->
-            <div class="flex flex-col gap-2">
-                <label for="city-select" class="text-xs font-bold text-slate-400 uppercase tracking-wide" data-i18n="cityLabel">觀測城市</label>
-                <select id="city-select" class="bg-slate-800 text-white border border-slate-600 rounded-md p-2 focus:ring-2 focus:ring-amber-500 outline-none text-sm transition-all hover:border-slate-500">
-                    <!-- Javascript 填充 -->
-                </select>
-                <div class="text-[10px] text-slate-500 flex justify-between font-mono px-1">
-                    <span id="city-lat">--</span>
-                    <span>UTC <span id="city-offset">--</span></span>
-                </div>
-            </div>
+    <main class="flex-1 min-h-0 w-full max-w-[1600px] mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-4 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto custom-scroll">
+            <div class="bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-800">
+                <h2 class="font-bold text-slate-100 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <button type="button" id="btnReset" class="w-full mb-3 py-2 rounded-xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-white" data-i18n="reset">重置</button>
 
-            <!-- 2. 時間滑桿 -->
-            <div class="flex flex-col gap-3">
-                <div class="flex justify-between items-center">
-                    <label for="time-slider" class="text-xs font-bold text-slate-400 uppercase tracking-wide" data-i18n="timeLabel">每日觀測時間 (當地)</label>
-                    <span id="time-display" class="text-amber-400 font-mono font-bold text-sm bg-slate-800 px-2 py-0.5 rounded border border-slate-700">18:30</span>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn active" data-preset="hkSunset" data-i18n="preHkSunset">① 香港日落</button>
+                    <button type="button" class="preset-btn" data-preset="hkNoon" data-i18n="preHkNoon">② 香港正午</button>
+                    <button type="button" class="preset-btn" data-preset="eqSunset" data-i18n="preEqSunset">③ 赤道日落</button>
+                    <button type="button" class="preset-btn" data-preset="londonNoon" data-i18n="preLondonNoon">④ 倫敦正午</button>
+                    <button type="button" class="preset-btn" data-preset="sydneyNoon" data-i18n="preSydneyNoon">⑤ 雪梨正午</button>
+                    <button type="button" class="preset-btn" data-preset="arctic" data-i18n="preArctic">⑥ 北極圈夏至</button>
                 </div>
-                <input type="range" id="time-slider" min="16" max="22" step="0.1" value="18.5" class="w-full">
-                <div class="flex justify-between text-[10px] text-slate-500 px-1">
-                    <span>16:00</span>
-                    <span>22:00</span>
-                </div>
-            </div>
 
-            <hr class="border-slate-800">
-
-            <!-- 3. 日期選擇 -->
-            <div class="flex flex-col gap-4">
-                <div class="text-xs font-bold text-slate-400 uppercase tracking-wide" data-i18n="dateSelectionLabel">日期定位</div>
-                
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="flex flex-col gap-1">
-                        <label class="text-[10px] text-slate-500" data-i18n="monthLabel">月份</label>
-                        <select id="month-select" class="bg-slate-800 text-white border border-slate-600 rounded p-1.5 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-                            <!-- Javascript 填充 -->
-                        </select>
+                <label class="block mb-3">
+                    <span class="text-[11px] font-bold text-slate-400 mb-1 block" data-i18n="cityLabel">觀測城市</span>
+                    <select id="citySelect"></select>
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1 px-0.5">
+                        <span id="cityLat">--</span>
+                        <span>UTC <span id="cityOffset">--</span></span>
                     </div>
-                    <div class="flex flex-col gap-1">
-                        <label class="text-[10px] text-slate-500" data-i18n="dayLabel">日期</label>
-                        <select id="day-select" class="bg-slate-800 text-white border border-slate-600 rounded p-1.5 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
-                            <!-- Javascript 填充 -->
-                        </select>
+                </label>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                        <span data-i18n="labelLat">緯度</span>
+                        <span id="disp-lat" class="text-amber-400">22.3° N</span>
+                    </span>
+                    <input type="range" id="latSlider" min="-90" max="90" step="0.5" value="22.3">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                        <span data-i18n="latSouth">南極</span>
+                        <span data-i18n="latEq">赤道</span>
+                        <span data-i18n="latNorth">北極</span>
                     </div>
+                </label>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                        <span data-i18n="timeLabel">每日觀測時刻（當地）</span>
+                        <span id="disp-time" class="text-amber-400 font-mono">12:00</span>
+                    </span>
+                    <input type="range" id="timeSlider" min="0" max="24" step="0.1" value="12">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                        <span>00:00</span>
+                        <span>12:00</span>
+                        <span>24:00</span>
+                    </div>
+                </label>
+
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <label>
+                        <span class="text-[11px] font-bold text-slate-400 mb-1 block" data-i18n="monthLabel">月份</span>
+                        <select id="monthSelect"></select>
+                    </label>
+                    <label>
+                        <span class="text-[11px] font-bold text-slate-400 mb-1 block" data-i18n="dayLabel">日期</span>
+                        <select id="daySelect"></select>
+                    </label>
                 </div>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                        <span data-i18n="doyLabel">年內日期</span>
+                        <span id="disp-doy" class="text-sky-300 font-mono">--</span>
+                    </span>
+                    <input type="range" id="doySlider" min="0" max="364" step="1" value="0">
+                </label>
+
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btnPlay" class="flex-1 py-2 rounded-xl font-bold text-sm bg-amber-600 hover:bg-amber-500 text-white" data-i18n="play">播放一年</button>
+                    <button type="button" id="btnStop" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-white" data-i18n="stop">停止</button>
+                </div>
+
+                <div class="space-y-1.5 border-t border-slate-800 pt-3">
+                    <label class="check-row"><input type="checkbox" id="showMonths" checked><span data-i18n="showMonths">月份標籤</span></label>
+                    <label class="check-row"><input type="checkbox" id="showSeasons" checked><span data-i18n="showSeasons">季節上色</span></label>
+                    <label class="check-row"><input type="checkbox" id="showMarkers" checked><span data-i18n="showMarkers">二至／二分／近日點</span></label>
+                    <label class="check-row"><input type="checkbox" id="showHidden" checked><span data-i18n="showHidden">顯示地平下軌跡</span></label>
+                </div>
+                <p class="mt-3 text-[10px] text-slate-500 leading-relaxed" data-i18n="footerNote">計算用標準時（不含夏令時間），讓軌跡連續平滑。</p>
             </div>
 
-            <!-- 底部說明 -->
-            <div class="mt-auto pt-4 text-[10px] text-slate-600 text-center border-t border-slate-800" data-i18n="footerNote">
-                註：計算採用標準時間，不含夏令時間調整<br>
-                以確保軌跡平滑連續
+            <div class="bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-800 text-xs">
+                <div class="font-black text-amber-300 mb-2" data-i18n="liveTitle">即時解讀</div>
+                <p id="insightText" class="text-slate-300 leading-relaxed"></p>
             </div>
         </aside>
 
-        <!-- 右側：可視化畫布 -->
-        <main class="flex-1 relative bg-slate-200 canvas-container flex items-center justify-center overflow-hidden" id="main-area">
-            
-            <!-- Canvas -->
-            <canvas id="skyCanvas" class="absolute inset-0 z-0"></canvas>
+        <section class="order-1 lg:order-2 lg:col-span-3 flex flex-col gap-3 min-h-[520px]">
+            <div class="bg-slate-950 rounded-3xl shadow-sm border border-slate-800 overflow-hidden flex-1 min-h-[420px] relative">
+                <canvas id="skyCanvas" class="cursor-crosshair"></canvas>
+                <div class="absolute top-3 left-3 pointer-events-none">
+                    <div class="bg-slate-950/55 backdrop-blur-sm text-white text-[11px] font-bold px-3 py-1.5 rounded-full border border-white/10" id="facingBadge">--</div>
+                </div>
+                <p class="absolute bottom-3 left-0 right-0 text-center text-[11px] text-white/85 pointer-events-none" data-i18n="chartTip">點選 8 字軌跡上的位置以選定日期 · 拖曳可連續瀏覽</p>
+            </div>
 
-            <!-- 數據顯示浮層 -->
-            <div id="info-panel" class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm border border-slate-200 p-4 rounded-lg shadow-2xl w-64 transform transition-all duration-300 opacity-0 translate-y-[-10px] text-slate-800 pointer-events-none">
-                <h3 class="text-amber-600 font-bold text-lg mb-2 border-b border-slate-200 pb-1 flex justify-between">
-                    <span id="info-date">--月--日</span>
-                </h3>
-                <div class="space-y-1.5 text-sm">
-                    <div class="flex justify-between">
-                        <span class="text-slate-500" data-i18n="azimuth">方位角 (Az):</span>
-                        <span class="font-mono text-emerald-600 font-bold" id="info-az">--°</span>
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+                <div class="stat" style="border-top-color:#f59e0b">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statDate">日期</div>
+                    <div id="statDate" class="text-sm font-black text-white truncate">--</div>
+                </div>
+                <div class="stat" style="border-top-color:#34d399">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statAz">方位角</div>
+                    <div id="statAz" class="text-sm font-mono text-emerald-200">--°</div>
+                </div>
+                <div class="stat" style="border-top-color:#38bdf8">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statAlt">仰角</div>
+                    <div id="statAlt" class="text-sm font-mono text-sky-200">--°</div>
+                </div>
+                <div class="stat" style="border-top-color:#a78bfa">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statDec">赤緯 δ</div>
+                    <div id="statDec" class="text-sm font-mono text-violet-200">--°</div>
+                </div>
+                <div class="stat" style="border-top-color:#fb7185">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statEot">時差方程</div>
+                    <div id="statEot" class="text-sm font-mono text-rose-200">-- min</div>
+                </div>
+                <div class="stat" style="border-top-color:#fbbf24">
+                    <div class="text-[10px] text-slate-500 font-bold" data-i18n="statVis">可見性</div>
+                    <div id="statVis" class="text-sm font-black text-amber-200">--</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-600 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">日行跡原理</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">黃赤交角、橢圓軌道與時差方程</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scroll space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-sky-950/50 p-4 rounded-2xl border border-sky-800/60">
+                    <h3 class="font-bold text-sky-200 mb-1" data-i18n="m1t">1. 甚麼是日行跡？</h3>
+                    <p class="text-xs" data-i18n="m1d">若在同一地點、一年中每天的同一鐘面時刻拍攝太陽，再把照片疊加，太陽不會停在同一點，而會畫出「8」字形，稱為日行跡（analemma）。</p>
+                </div>
+                <div class="bg-amber-950/30 p-4 rounded-2xl border border-amber-800/50">
+                    <h3 class="font-bold text-amber-200 mb-2" data-i18n="m2t">2. 為甚麼是 8 字形？</h3>
+                    <p class="text-xs mb-3" data-i18n="m2d">兩個天文因素疊加：南北來自地軸傾斜，東西來自公轉快慢不均。</p>
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                            <h4 class="font-bold text-sky-200 text-xs mb-1" data-i18n="m2a">黃赤交角（上下）</h4>
+                            <p class="text-[11px]" data-i18n="m2ad">地軸相對公轉面傾斜約 $23.44^\circ$，太陽赤緯 $\delta$ 在二至之間南北擺動，造成 8 字的高度。</p>
+                        </div>
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                            <h4 class="font-bold text-rose-200 text-xs mb-1" data-i18n="m2b">橢圓軌道（左右）</h4>
+                            <p class="text-[11px]" data-i18n="m2bd">近日點較快、遠日點較慢，真太陽時與平太陽時之差稱為時差方程 $E$，造成 8 字的寬度。</p>
+                        </div>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-slate-500" data-i18n="altitude">仰角 (Alt):</span>
-                        <span class="font-mono text-cyan-600 font-bold" id="info-alt">--°</span>
+                    <div class="mj-box mt-3 text-center text-xs">
+                        $$E \approx 4\,(\lambda_{\mathrm{mean}}-\alpha)\ \mathrm{min}$$
                     </div>
-                    <div class="mt-2 pt-2 border-t border-slate-100">
-                        <span class="block text-center font-bold text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600" id="info-status">--</span>
+                    <p class="text-[11px] text-slate-400 mt-2" data-i18n="m2e">$E>0$ 表示真太陽比鐘面快，同一鐘面時刻太陽已偏西。</p>
+                </div>
+                <div class="bg-indigo-950/50 p-4 rounded-2xl border border-indigo-800/60">
+                    <h3 class="font-bold text-indigo-200 mb-1" data-i18n="m3t">3. 為甚麼 8 字不對稱？</h3>
+                    <p class="text-xs" data-i18n="m3d">近日點約在 1 月初，與冬至（12 月）並不重合，兩個週期錯開，所以通常「頭小身大」：冬季那圈較窄、夏季那圈較寬。</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-emerald-200 text-xs mb-1" data-i18n="m4t">緯度與時刻</h4>
+                        <p class="text-[11px]" data-i18n="m4d">8 字本身形狀差不多，但在天空中的傾斜取決於緯度與觀測時刻：正午多半豎直（北半球面向南）；日出／日落則橫躺在東／西方地平附近。</p>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-amber-200 text-xs mb-1" data-i18n="m5t">生活例子</h4>
+                        <p class="text-[11px]" data-i18n="m5d">日晷與鐘面時刻會差十幾分鐘；地球儀上常印日行跡；熱帶地區正午太陽可在天頂以北或以南，對應 8 字穿越天頂。</p>
                     </div>
                 </div>
             </div>
-
-            <!-- 提示文字 -->
-            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 text-white/90 text-xs pointer-events-none text-center bg-slate-900/40 px-4 py-2 rounded-full backdrop-blur-md border border-white/10 shadow-lg" data-i18n="hint">
-                正西方視角 • 自動置中模式
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
-        </main>
+        </div>
     </div>
 
-    <!-- 解說 Modal -->
-    <div id="help-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
-        <div class="bg-slate-900 w-full max-w-2xl max-h-[85vh] mx-4 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col transform scale-95 transition-transform duration-300" id="help-content-container">
-            <!-- Modal Header -->
-            <div class="p-4 md:p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
-                <h2 class="text-lg md:text-xl font-bold text-amber-500 flex items-center gap-2" data-i18n="helpTitle">
-                    <span>📚</span> 關於日行跡 (Analemma)
-                </h2>
-                <button id="close-help-btn" class="text-slate-400 hover:text-white transition-colors p-1 rounded hover:bg-slate-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-amber-100" data-i18n="stepsSub">先調什麼、看什麼、比較什麼</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
             </div>
-            
-            <!-- Modal Content (Dynamic) -->
-            <div id="help-body" class="p-6 overflow-y-auto text-slate-300 space-y-6 leading-relaxed text-sm md:text-base scroll-smooth">
-                <!-- Javascript will inject content here -->
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-300">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">用「香港日落」：在西方天空認出 8 字，夏至在右上、冬至在左下；再開「香港正午」比較豎直的季節高度。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">沿軌跡點選日期，對照時差方程 $E$：正值表示真太陽比鐘面快，太陽偏西。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">切到「赤道日落」：8 字幾乎橫躺在地平線上。再開「倫敦正午」看中緯度豎直的 8 字。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">比較「雪梨正午」（南半球上下顛倒）與「北極圈夏至」（半年在地平下）。按播放，細圈（近日點附近）移動較快。</span></li>
+                </ol>
             </div>
-
-            <!-- Modal Footer -->
-            <div class="p-4 border-t border-slate-800 bg-slate-800/50 text-center">
-                <button id="close-help-btn-bottom" class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2 rounded-lg transition-all font-bold text-sm shadow-lg hover:shadow-sky-500/20 transform hover:-translate-y-0.5" data-i18n="helpClose">
-                    明白了
-                </button>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
 <script>
-/**
- * 多語言字典
- */
-const I18N = {
+const YEAR = 2025;
+const CITIES = [
+    { id: 'hk', zh: '香港', en: 'Hong Kong', lat: 22.3, lon: 114.2, utc: 8 },
+    { id: 'tpe', zh: '台北', en: 'Taipei', lat: 25.03, lon: 121.56, utc: 8 },
+    { id: 'tyo', zh: '東京', en: 'Tokyo', lat: 35.68, lon: 139.76, utc: 9 },
+    { id: 'pek', zh: '北京', en: 'Beijing', lat: 39.90, lon: 116.40, utc: 8 },
+    { id: 'sin', zh: '新加坡', en: 'Singapore', lat: 1.35, lon: 103.82, utc: 8 },
+    { id: 'eq', zh: '赤道（坤甸）', en: 'Equator (Pontianak)', lat: 0.0, lon: 109.33, utc: 7 },
+    { id: 'uio', zh: '基多', en: 'Quito', lat: -0.18, lon: -78.47, utc: -5 },
+    { id: 'lon', zh: '倫敦', en: 'London', lat: 51.50, lon: -0.12, utc: 0 },
+    { id: 'par', zh: '巴黎', en: 'Paris', lat: 48.85, lon: 2.35, utc: 1 },
+    { id: 'mow', zh: '莫斯科', en: 'Moscow', lat: 55.75, lon: 37.61, utc: 3 },
+    { id: 'cpt', zh: '開普敦', en: 'Cape Town', lat: -33.92, lon: 18.42, utc: 2 },
+    { id: 'nyc', zh: '紐約', en: 'New York', lat: 40.71, lon: -74.00, utc: -5 },
+    { id: 'lax', zh: '洛杉磯', en: 'Los Angeles', lat: 34.05, lon: -118.24, utc: -8 },
+    { id: 'rio', zh: '里約熱內盧', en: 'Rio de Janeiro', lat: -22.90, lon: -43.17, utc: -3 },
+    { id: 'syd', zh: '雪梨', en: 'Sydney', lat: -33.86, lon: 151.20, utc: 10 },
+    { id: 'ush', zh: '烏斯懷亞', en: 'Ushuaia', lat: -54.80, lon: -68.30, utc: -3 },
+    { id: 'rey', zh: '雷克雅維克', en: 'Reykjavik', lat: 64.14, lon: -21.90, utc: 0 },
+    { id: 'lyr', zh: '朗伊爾城', en: 'Longyearbyen', lat: 78.22, lon: 15.65, utc: 1 },
+    { id: 'np', zh: '北極點', en: 'North Pole', lat: 89.9, lon: 0, utc: 0 },
+    { id: 'sp', zh: '南極點', en: 'South Pole', lat: -89.9, lon: 0, utc: 12 }
+];
+
+const MARKERS = [
+    { m: 1, d: 3, key: 'peri', color: '#fb7185' },
+    { m: 3, d: 20, key: 'veq', color: '#34d399' },
+    { m: 6, d: 21, key: 'ssol', color: '#fbbf24' },
+    { m: 7, d: 4, key: 'aph', color: '#38bdf8' },
+    { m: 9, d: 22, key: 'aeq', color: '#a3e635' },
+    { m: 12, d: 21, key: 'wsol', color: '#818cf8' }
+];
+
+const PRESETS = {
+    hkNoon: { city: 'hk', hour: 12, minute: 0, month: 6, day: 21 },
+    hkSunset: { city: 'hk', hour: 18, minute: 30, month: 6, day: 21 },
+    eqSunset: { city: 'eq', hour: 18, minute: 0, month: 3, day: 20 },
+    londonNoon: { city: 'lon', hour: 12, minute: 0, month: 6, day: 21 },
+    sydneyNoon: { city: 'syd', hour: 12, minute: 0, month: 12, day: 21 },
+    arctic: { city: 'lyr', hour: 12, minute: 0, month: 6, day: 21 }
+};
+
+const i18n = {
     zh: {
-        appTitle: "世界日行跡觀測儀",
-        appSubtitle: "觀測太陽在固定當地時間的軌跡變化 (Local Time)",
-        helpBtn: "日行跡解說",
-        cityLabel: "觀測城市",
-        timeLabel: "每日觀測時間 (當地)",
-        dateSelectionLabel: "日期定位",
-        monthLabel: "月份",
-        dayLabel: "日期",
-        footerNote: "註：計算採用標準時間，不含夏令時間調整<br>以確保軌跡平滑連續",
-        azimuth: "方位角 (Az):",
-        altitude: "仰角 (Alt):",
-        hint: "正西方視角 • 自動置中模式",
-        helpTitle: "關於日行跡 (Analemma)",
-        helpClose: "明白了",
-        horizon: "地平線 (0°)",
-        west: "西 (W)",
-        south: "南 (S)",
-        north: "北 (N)",
-        visible: "地平線上 (可見)",
-        invisible: "地平線下 (不可見)",
-        months: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
-        daySuffix: "日"
+        pageTitle: '日行跡 | Analemma',
+        title: '日行跡', badge: '天文', subtitle: '固定當地時刻的太陽 8 字軌跡',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制', reset: '重置',
+        presets: '教學情境',
+        preHkSunset: '① 香港日落', preHkNoon: '② 香港正午', preEqSunset: '③ 赤道日落',
+        preLondonNoon: '④ 倫敦正午', preSydneyNoon: '⑤ 雪梨正午', preArctic: '⑥ 北極圈夏至',
+        cityLabel: '觀測城市', labelLat: '緯度', latSouth: '南極', latEq: '赤道', latNorth: '北極',
+        timeLabel: '每日觀測時刻（當地）', monthLabel: '月份', dayLabel: '日期', doyLabel: '年內日期',
+        play: '播放一年', stop: '停止',
+        showMonths: '月份標籤', showSeasons: '季節上色', showMarkers: '二至／二分／近日點', showHidden: '顯示地平下軌跡',
+        footerNote: '計算用標準時（不含夏令時間），讓軌跡連續平滑。',
+        liveTitle: '即時解讀',
+        chartTip: '點選 8 字軌跡上的位置以選定日期 · 拖曳可連續瀏覽',
+        statDate: '日期', statAz: '方位角', statAlt: '仰角', statDec: '赤緯 δ', statEot: '時差方程', statVis: '可見性',
+        months: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+        daySuffix: '日',
+        horizon: '地平線 0°',
+        north: '北 N', east: '東 E', south: '南 S', west: '西 W',
+        visible: '地平線上', invisible: '地平線下',
+        facing: (name) => `面向${name} · 自動置中`,
+        dirN: '北方', dirE: '東方', dirS: '南方', dirW: '西方',
+        eotFast: '真太陽快', eotSlow: '真太陽慢',
+        peri: '近日點', aph: '遠日點', veq: '春分', aeq: '秋分', ssol: '夏至', wsol: '冬至',
+        modalTitle: '日行跡原理', modalSub: '黃赤交角、橢圓軌道與時差方程', modalClose: '關閉',
+        m1t: '1. 甚麼是日行跡？',
+        m1d: '若在同一地點、一年中每天的同一鐘面時刻拍攝太陽，再把照片疊加，太陽不會停在同一點，而會畫出「8」字形，稱為日行跡（analemma）。',
+        m2t: '2. 為甚麼是 8 字形？',
+        m2d: '兩個天文因素疊加：南北來自地軸傾斜，東西來自公轉快慢不均。',
+        m2a: '黃赤交角（上下）',
+        m2ad: '地軸相對公轉面傾斜約 $23.44^\\circ$，太陽赤緯 $\\delta$ 在二至之間南北擺動，造成 8 字的高度。',
+        m2b: '橢圓軌道（左右）',
+        m2bd: '近日點較快、遠日點較慢，真太陽時與平太陽時之差稱為時差方程 $E$，造成 8 字的寬度。',
+        m2e: '$E>0$ 表示真太陽比鐘面快，同一鐘面時刻太陽已偏西。',
+        m3t: '3. 為甚麼 8 字不對稱？',
+        m3d: '近日點約在 1 月初，與冬至（12 月）並不重合，兩個週期錯開，所以通常「頭小身大」：冬季那圈較窄、夏季那圈較寬。',
+        m4t: '緯度與時刻',
+        m4d: '8 字本身形狀差不多，但在天空中的傾斜取決於緯度與觀測時刻：正午多半豎直（北半球面向南）；日出／日落則橫躺在東／西方地平附近。',
+        m5t: '生活例子',
+        m5d: '日晷與鐘面時刻會差十幾分鐘；地球儀上常印日行跡；熱帶地區正午太陽可在天頂以北或以南，對應 8 字穿越天頂。',
+        stepsTitle: '觀察步驟', stepsSub: '先調什麼、看什麼、比較什麼',
+        s1: '用「香港日落」：在西方天空認出 8 字，夏至在右上、冬至在左下；再開「香港正午」比較豎直的季節高度。',
+        s2: '沿軌跡點選日期，對照時差方程 $E$：正值表示真太陽比鐘面快，太陽偏西。',
+        s3: '切到「赤道日落」：8 字幾乎橫躺在地平線上。再開「倫敦正午」看中緯度豎直的 8 字。',
+        s4: '比較「雪梨正午」（南半球上下顛倒）與「北極圈夏至」（半年在地平下）。按播放，細圈（近日點附近）移動較快。',
+        insightNoon: '正午日行跡接近豎直：上下主要來自黃赤交角（季節），左右來自時差方程。',
+        insightSet: '日落時刻 8 字向西傾斜，靠近地平。同一形狀，視角不同。',
+        insightRise: '日出時刻 8 字躺在東方地平附近。',
+        insightEq: '赤道上，正午 8 字幾乎垂直；日出日落則近乎橫臥。',
+        insightSH: '南半球正午面向北方，8 字上下顛倒：夏至在下、冬至在上（當地夏季太陽較高）。',
+        insightPolar: '高緯度：半年軌跡可在地平下。極晝／極夜期間，固定時刻的太陽仍沿 8 字緩慢移動。',
+        insightCustom: '拖動緯度可看到 8 字在天空中傾斜與高度的變化，形狀本身幾乎不變。'
     },
     en: {
-        appTitle: "World Analemma Visualizer",
-        appSubtitle: "Observe solar position changes at fixed local time",
-        helpBtn: "Explanation",
-        cityLabel: "Observation City",
-        timeLabel: "Observation Time (Local)",
-        dateSelectionLabel: "Date Selection",
-        monthLabel: "Month",
-        dayLabel: "Date",
-        footerNote: "Note: Standard time used (no DST)<br>to ensure smooth continuity.",
-        azimuth: "Azimuth:",
-        altitude: "Altitude:",
-        hint: "West Facing • Auto-Center Mode",
-        helpTitle: "About Analemma",
-        helpClose: "Got it",
-        horizon: "Horizon (0°)",
-        west: "West (W)",
-        south: "South (S)",
-        north: "North (N)",
-        visible: "Above Horizon (Visible)",
-        invisible: "Below Horizon (Invisible)",
-        months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        daySuffix: ""
+        pageTitle: 'Analemma | 日行跡',
+        title: 'Analemma', badge: 'Astronomy', subtitle: 'The Sun’s figure-8 at a fixed clock time',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls', reset: 'Reset',
+        presets: 'Teaching scenes',
+        preHkSunset: '① Hong Kong sunset', preHkNoon: '② Hong Kong noon', preEqSunset: '③ Equator sunset',
+        preLondonNoon: '④ London noon', preSydneyNoon: '⑤ Sydney noon', preArctic: '⑥ Arctic summer solstice',
+        cityLabel: 'City', labelLat: 'Latitude', latSouth: 'S. Pole', latEq: 'Equator', latNorth: 'N. Pole',
+        timeLabel: 'Clock time each day (local)', monthLabel: 'Month', dayLabel: 'Day', doyLabel: 'Day of year',
+        play: 'Play year', stop: 'Stop',
+        showMonths: 'Month labels', showSeasons: 'Season colours', showMarkers: 'Solstices / equinoxes / perihelion', showHidden: 'Show path below horizon',
+        footerNote: 'Standard time only (no DST), so the curve stays smooth.',
+        liveTitle: 'Live reading',
+        chartTip: 'Click the figure-8 to pick a date · drag to scrub',
+        statDate: 'Date', statAz: 'Azimuth', statAlt: 'Altitude', statDec: 'Declination δ', statEot: 'Equation of time', statVis: 'Visibility',
+        months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+        daySuffix: '',
+        horizon: 'Horizon 0°',
+        north: 'N', east: 'E', south: 'S', west: 'W',
+        visible: 'Above horizon', invisible: 'Below horizon',
+        facing: (name) => `Facing ${name} · auto-centred`,
+        dirN: 'north', dirE: 'east', dirS: 'south', dirW: 'west',
+        eotFast: 'Sun fast', eotSlow: 'Sun slow',
+        peri: 'Perihelion', aph: 'Aphelion', veq: 'Mar equinox', aeq: 'Sep equinox', ssol: 'Jun solstice', wsol: 'Dec solstice',
+        modalTitle: 'How the analemma forms', modalSub: 'Obliquity, eccentricity and the equation of time', modalClose: 'Close',
+        m1t: '1. What is an analemma?',
+        m1d: 'Photograph the Sun from one place at the same clock time every day for a year and overlay the frames: the Sun traces a figure-8, the analemma.',
+        m2t: '2. Why a figure-8?',
+        m2d: 'Two effects add: north–south from axial tilt, east–west from uneven orbital speed.',
+        m2a: 'Obliquity (vertical)',
+        m2ad: 'Earth’s axis is tilted by about $23.44^\\circ$. Solar declination $\\delta$ swings between the solstices and sets the height of the 8.',
+        m2b: 'Elliptical orbit (horizontal)',
+        m2bd: 'Earth moves faster near perihelion. The gap between apparent and mean solar time is the equation of time $E$, which sets the width.',
+        m2e: '$E>0$ means the true Sun is fast: at a given clock time it already lies west of the meridian.',
+        m3t: '3. Why is it lopsided?',
+        m3d: 'Perihelion is in early January, not exactly at the December solstice. The two cycles are out of step, so the winter loop is usually the smaller one.',
+        m4t: 'Latitude and clock time',
+        m4d: 'The intrinsic shape is nearly fixed, but its tilt on the sky depends on latitude and time of day. Near noon it stands upright (facing south in the north); at sunrise/sunset it lies along the eastern or western horizon.',
+        m5t: 'Everyday links',
+        m5d: 'A sundial can disagree with a clock by a quarter-hour. Globes often print an analemma. In the tropics the noon Sun can pass north or south of the zenith.',
+        stepsTitle: 'Observation steps', stepsSub: 'What to set, what to watch, what to compare',
+        s1: 'Start with “Hong Kong sunset”: spot the figure-8 in the west, June solstice upper-right. Then “Hong Kong noon” to compare the upright seasonal swing.',
+        s2: 'Click along the path and watch $E$: positive means the true Sun is fast, so it sits west of the meridian.',
+        s3: 'Switch to “Equator sunset”: the 8 lies almost flat on the horizon. Then “London noon” for a mid-latitude upright 8.',
+        s4: 'Compare “Sydney noon” (flipped in the south) with the Arctic scene (half the year below the horizon). Play the year: the thin loop near perihelion moves faster.',
+        insightNoon: 'At noon the analemma stands nearly upright: height from obliquity (seasons), width from the equation of time.',
+        insightSet: 'Near sunset the figure-8 tilts west, close to the horizon. Same shape, different view.',
+        insightRise: 'Near sunrise the figure-8 lies along the eastern horizon.',
+        insightEq: 'On the equator the noon 8 is almost vertical; at sunrise/sunset it lies nearly horizontal.',
+        insightSH: 'In the southern hemisphere you face north at noon and the 8 is upside-down: local summer sits higher.',
+        insightPolar: 'At high latitude, part of the year the path is below the horizon. During polar day/night the Sun still creeps along the 8 at a fixed clock time.',
+        insightCustom: 'Drag latitude to tilt and raise/lower the 8 on the sky. The intrinsic shape barely changes.'
     }
 };
 
-let currentLang = 'zh';
+const els = {};
+['citySelect','latSlider','timeSlider','monthSelect','daySelect','doySlider','btnReset','btnPlay','btnStop',
+ 'showMonths','showSeasons','showMarkers','showHidden','insightText','skyCanvas','facingBadge',
+ 'statDate','statAz','statAlt','statDec','statEot','statVis','disp-lat','disp-time','disp-doy','cityLat','cityOffset',
+ 'btn-lang','btn-lang-mobile','btn-principle','btn-steps','modal-principle','modal-steps',
+ 'modal-close','modal-confirm','steps-close','steps-confirm'].forEach(id => { els[id] = document.getElementById(id); });
 
-/**
- * 城市數據庫 (支援雙語)
- */
-const CITIES = [
-    { nameZh: "香港", nameEn: "Hong Kong", lat: 22.3, lon: 114.2, utcOffset: 8 },
-    { nameZh: "台北", nameEn: "Taipei", lat: 25.03, lon: 121.56, utcOffset: 8 },
-    { nameZh: "東京", nameEn: "Tokyo", lat: 35.68, lon: 139.76, utcOffset: 9 },
-    { nameZh: "北京", nameEn: "Beijing", lat: 39.90, lon: 116.40, utcOffset: 8 },
-    { nameZh: "新加坡", nameEn: "Singapore", lat: 1.35, lon: 103.82, utcOffset: 8 },
-    { nameZh: "赤道 (坤甸)", nameEn: "Equator (Pontianak)", lat: 0.0, lon: 109.33, utcOffset: 7 },
-    { nameZh: "基多", nameEn: "Quito", lat: -0.18, lon: -78.47, utcOffset: -5 },
-    { nameZh: "倫敦", nameEn: "London", lat: 51.50, lon: -0.12, utcOffset: 0 },
-    { nameZh: "巴黎", nameEn: "Paris", lat: 48.85, lon: 2.35, utcOffset: 1 },
-    { nameZh: "莫斯科", nameEn: "Moscow", lat: 55.75, lon: 37.61, utcOffset: 3 },
-    { nameZh: "開普敦", nameEn: "Cape Town", lat: -33.92, lon: 18.42, utcOffset: 2 }, 
-    { nameZh: "紐約", nameEn: "New York", lat: 40.71, lon: -74.00, utcOffset: -5 },
-    { nameZh: "洛杉磯", nameEn: "Los Angeles", lat: 34.05, lon: -118.24, utcOffset: -8 },
-    { nameZh: "里約熱內盧", nameEn: "Rio de Janeiro", lat: -22.90, lon: -43.17, utcOffset: -3 },
-    { nameZh: "雪梨", nameEn: "Sydney", lat: -33.86, lon: 151.20, utcOffset: 10 },
-    { nameZh: "烏斯懷亞", nameEn: "Ushuaia", lat: -54.80, lon: -68.30, utcOffset: -3 }, 
-    { nameZh: "雷克雅維克", nameEn: "Reykjavik", lat: 64.14, lon: -21.90, utcOffset: 0 },
-    { nameZh: "朗伊爾城", nameEn: "Longyearbyen", lat: 78.22, lon: 15.65, utcOffset: 1 },
-    { nameZh: "北極點", nameEn: "North Pole", lat: 89.99, lon: 0, utcOffset: 0 }, 
-    { nameZh: "南極點", nameEn: "South Pole", lat: -89.99, lon: 0, utcOffset: 12 }
-];
+const canvas = els.skyCanvas;
+const ctx = canvas.getContext('2d');
+let lang = 'zh';
+let cssW = 1, cssH = 1;
+let sunData = [];
+let playId = 0;
 
-/**
- * 全局配置
- */
-let CONFIG = {
-    lat: 22.3, 
+const state = {
+    preset: 'hkSunset',
+    cityIndex: 0,
+    lat: 22.3,
     lon: 114.2,
-    utcOffset: 8,
-    year: 2025,
-    hour: 18,   
-    minute: 30, 
-    viewAzimuthCenter: 270,
-    viewAzimuthRange: 60,
-    viewAltMin: -15,       
-    viewAltMax: 35         
+    utc: 8,
+    hour: 12,
+    minute: 0,
+    dayIndex: 0,
+    playing: false,
+    dragging: false
 };
 
-let sunData = [];
-let activePointIndex = -1;
+const view = { azCenter: 180, xMin: -20, xMax: 20, altMin: -10, altMax: 90 };
 
-/**
- * 簡易太陽位置計算算法 (無折射)
- */
+function t(key) {
+    const v = i18n[lang][key];
+    return v === undefined ? key : v;
+}
+
+function cityName(c) { return lang === 'zh' ? c.zh : c.en; }
+
+function fmtTime(h, m) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function wrap180(d) {
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    return d;
+}
+
+function wrapDelta(az, center) { return wrap180(az - center); }
+
+function circularMean(azs) {
+    let sx = 0, sy = 0;
+    azs.forEach(a => {
+        const r = a * Math.PI / 180;
+        sx += Math.cos(r);
+        sy += Math.sin(r);
+    });
+    return (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360;
+}
+
 function getSunPosition(date, lat, lon) {
-    const PI = Math.PI;
-    const rad = PI / 180;
-    const deg = 180 / PI;
-
+    const rad = Math.PI / 180;
+    const deg = 180 / Math.PI;
     const Y = date.getUTCFullYear();
     const M = date.getUTCMonth() + 1;
     const D = date.getUTCDate();
-    const UT = date.getUTCHours() + date.getUTCMinutes()/60 + date.getUTCSeconds()/3600;
-
-    let JD = 367*Y - Math.floor(7*(Y + Math.floor((M+9)/12))/4) + Math.floor(275*M/9) + D + 1721013.5 + UT/24;
+    const UT = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+    const JD = 367 * Y - Math.floor(7 * (Y + Math.floor((M + 9) / 12)) / 4) + Math.floor(275 * M / 9) + D + 1721013.5 + UT / 24;
     const T = (JD - 2451545.0) / 36525;
-
-    let L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T*T;
-    L0 = L0 % 360;
-
-    const M_sun = 357.52911 + 35999.05029 * T - 0.0001537 * T*T;
-    const C = (1.914602 - 0.004817 * T - 0.000014 * T*T) * Math.sin(M_sun * rad) +
-              (0.019993 - 0.000101 * T) * Math.sin(2 * M_sun * rad) +
-              0.000289 * Math.sin(3 * M_sun * rad);
-
+    let L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
+    L0 = ((L0 % 360) + 360) % 360;
+    const Msun = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
+    const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Msun * rad)
+        + (0.019993 - 0.000101 * T) * Math.sin(2 * Msun * rad)
+        + 0.000289 * Math.sin(3 * Msun * rad);
     const sunTrueLong = L0 + C;
     const omega = 125.04 - 1934.136 * T;
     const lambda = sunTrueLong - 0.00569 - 0.00478 * Math.sin(omega * rad);
-    const epsilon = 23.439291 - 0.0130041 * T - 0.000000163 * T*T + 0.0005036 * T*T*T;
+    const epsilon = 23.439291 - 0.0130041 * T;
     const obliq = epsilon + 0.00256 * Math.cos(omega * rad);
-
-    const alpha = Math.atan2(Math.cos(obliq * rad) * Math.sin(lambda * rad), Math.cos(lambda * rad)) * deg;
+    let alpha = Math.atan2(Math.cos(obliq * rad) * Math.sin(lambda * rad), Math.cos(lambda * rad)) * deg;
+    alpha = ((alpha % 360) + 360) % 360;
     const delta = Math.asin(Math.sin(obliq * rad) * Math.sin(lambda * rad)) * deg;
-
-    const GMST0 = 280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T*T - T*T*T/38710000;
-    const GMST = (GMST0 % 360 + 360) % 360;
-    const LMST = (GMST + lon) % 360;
-
-    let H = LMST - alpha;
-    H = (H + 180) % 360 - 180;
-
+    const eot = 4 * wrap180(L0 - alpha);
+    const GMST0 = 280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T * T - T * T * T / 38710000;
+    const GMST = ((GMST0 % 360) + 360) % 360;
+    const LMST = (GMST + lon + 360) % 360;
+    let H = wrap180(LMST - alpha);
     const sinAlt = Math.sin(lat * rad) * Math.sin(delta * rad) + Math.cos(lat * rad) * Math.cos(delta * rad) * Math.cos(H * rad);
-    const altitude = Math.asin(sinAlt) * deg;
-
-    const cosAz = (Math.sin(delta * rad) - Math.sin(lat * rad) * Math.sin(altitude * rad)) / (Math.cos(lat * rad) * Math.cos(altitude * rad));
-    let azimuth = Math.acos(Math.min(1, Math.max(-1, cosAz))) * deg;
-
-    if (Math.sin(H * rad) > 0) {
-        azimuth = 360 - azimuth;
+    const altitude = Math.asin(Math.max(-1, Math.min(1, sinAlt))) * deg;
+    const cosAlt = Math.cos(altitude * rad);
+    const cosLat = Math.cos(lat * rad);
+    let azimuth;
+    if (Math.abs(cosLat * cosAlt) < 1e-8) {
+        azimuth = (H > 0) ? 270 : 90;
+        if (lat < 0) azimuth = (H > 0) ? 90 : 270;
+    } else {
+        const cosAz = (Math.sin(delta * rad) - Math.sin(lat * rad) * Math.sin(altitude * rad)) / (cosLat * cosAlt);
+        azimuth = Math.acos(Math.max(-1, Math.min(1, cosAz))) * deg;
+        if (Math.sin(H * rad) > 0) azimuth = 360 - azimuth;
     }
-
-    return { az: azimuth, alt: altitude, trueAlt: altitude };
+    return { az: (azimuth + 360) % 360, alt: altitude, delta, eot };
 }
 
-function calculateAndCenter() {
+function rebuildPath() {
     sunData = [];
-    const startDate = new Date(CONFIG.year, 0, 1);
-    
-    let minAz = 360;
-    let maxAz = 0;
-
+    const start = new Date(YEAR, 0, 1);
     for (let i = 0; i < 366; i++) {
-        const d = new Date(startDate);
-        d.setDate(startDate.getDate() + i);
-        if (d.getFullYear() > CONFIG.year) break;
-
-        const targetUTCHour = CONFIG.hour - CONFIG.utcOffset;
-        const targetUTCMinute = CONFIG.minute;
-        
-        d.setUTCHours(targetUTCHour, targetUTCMinute, 0, 0);
-        
-        const pos = getSunPosition(d, CONFIG.lat, CONFIG.lon);
-        
-        if (pos.az < minAz) minAz = pos.az;
-        if (pos.az > maxAz) maxAz = pos.az;
-
-        const displayDate = new Date(CONFIG.year, 0, 1 + i);
-
+        const local = new Date(YEAR, 0, 1 + i);
+        if (local.getFullYear() > YEAR) break;
+        const utc = new Date(Date.UTC(YEAR, 0, 1 + i, 0, 0, 0));
+        utc.setUTCHours(state.hour - state.utc, state.minute, 0, 0);
+        const pos = getSunPosition(utc, state.lat, state.lon);
         sunData.push({
-            date: d,
-            month: displayDate.getMonth() + 1,
-            day: displayDate.getDate(),
+            month: local.getMonth() + 1,
+            day: local.getDate(),
+            dayOfYear: i,
             az: pos.az,
             alt: pos.alt,
-            trueAlt: pos.trueAlt,
-            dayOfYear: i
+            delta: pos.delta,
+            eot: pos.eot
         });
     }
+    els.doySlider.max = String(sunData.length - 1);
+    if (state.dayIndex >= sunData.length) state.dayIndex = sunData.length - 1;
+    fitView();
+}
 
-    CONFIG.viewAzimuthCenter = (minAz + maxAz) / 2;
-    const range = maxAz - minAz;
-    if (range > CONFIG.viewAzimuthRange - 10) {
-        CONFIG.viewAzimuthRange = range + 20;
+function angX(az, alt) {
+    return wrapDelta(az, view.azCenter) * Math.cos(alt * Math.PI / 180);
+}
+
+function angDist(a, b) {
+    const midAlt = (a.alt + b.alt) / 2;
+    const dx = wrapDelta(a.az, b.az) * Math.cos(midAlt * Math.PI / 180);
+    return Math.hypot(dx, a.alt - b.alt);
+}
+
+function fitView() {
+    if (!sunData.length) return;
+    const pts = els.showHidden.checked ? sunData : sunData.filter(p => p.alt > -1);
+    const use = pts.length ? pts : sunData;
+    const stable = use.filter(p => p.alt < 82);
+    view.azCenter = circularMean((stable.length ? stable : use).map(p => p.az));
+    let minX = Infinity, maxX = -Infinity, minAlt = Infinity, maxAlt = -Infinity;
+    use.forEach(p => {
+        const x = angX(p.az, p.alt);
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minAlt = Math.min(minAlt, p.alt);
+        maxAlt = Math.max(maxAlt, p.alt);
+    });
+    const pad = Math.max(2.5, (maxAlt - minAlt) * 0.08, (maxX - minX) * 0.12);
+    view.xMin = minX - pad;
+    view.xMax = maxX + pad;
+    view.altMin = minAlt - pad;
+    view.altMax = maxAlt + pad;
+    if (view.altMin > -3 && view.altMin < 12) view.altMin = Math.min(view.altMin, -5);
+    if (view.altMax < 4) view.altMax = 8;
+    let xSpan = view.xMax - view.xMin;
+    let ySpan = view.altMax - view.altMin;
+    const aspect = cssW / Math.max(1, cssH);
+    if (xSpan / ySpan < aspect) {
+        const extra = (ySpan * aspect - xSpan) / 2;
+        view.xMin -= extra;
+        view.xMax += extra;
+    } else {
+        const extra = (xSpan / aspect - ySpan) / 2;
+        view.altMin -= extra;
+        view.altMax += extra;
     }
 }
 
-const canvas = document.getElementById('skyCanvas');
-const ctx = canvas.getContext('2d');
-
 function mapCoordinates(az, alt) {
-    const width = canvas.width;
-    const height = canvas.height;
-    const minAz = CONFIG.viewAzimuthCenter - CONFIG.viewAzimuthRange / 2;
-    const maxAz = CONFIG.viewAzimuthCenter + CONFIG.viewAzimuthRange / 2;
-    const minAlt = CONFIG.viewAltMin;
-    const maxAlt = CONFIG.viewAltMax;
-
-    const x = ((az - minAz) / (maxAz - minAz)) * width;
-    const y = height - ((alt - minAlt) / (maxAlt - minAlt)) * height;
+    const x = ((angX(az, alt) - view.xMin) / (view.xMax - view.xMin)) * cssW;
+    const y = cssH - ((alt - view.altMin) / (view.altMax - view.altMin)) * cssH;
     return { x, y };
 }
 
-function draw() {
-    const w = canvas.width;
-    const h = canvas.height;
-    const dict = I18N[currentLang];
+function seasonColor(doy, alpha) {
+    const t0 = (doy % 365) / 365;
+    const h = (t0 * 360 + 210) % 360;
+    return `hsla(${h.toFixed(0)}, 80%, 52%, ${alpha})`;
+}
 
+function cardinalLabel(az) {
+    const a = ((az % 360) + 360) % 360;
+    if (Math.abs(wrap180(a - 0)) < 1) return t('north');
+    if (Math.abs(wrap180(a - 90)) < 1) return t('east');
+    if (Math.abs(wrap180(a - 180)) < 1) return t('south');
+    if (Math.abs(wrap180(a - 270)) < 1) return t('west');
+    return `${Math.round(a)}°`;
+}
+
+function facingName(az) {
+    const dirs = [
+        { a: 0, k: 'dirN' }, { a: 90, k: 'dirE' }, { a: 180, k: 'dirS' }, { a: 270, k: 'dirW' }
+    ];
+    let best = dirs[0], bestD = 999;
+    dirs.forEach(d => {
+        const dd = Math.abs(wrap180(az - d.a));
+        if (dd < bestD) { bestD = dd; best = d; }
+    });
+    return t(best.k);
+}
+
+function currentPoint() { return sunData[state.dayIndex] || sunData[0]; }
+
+function skyTheme(alt) {
+    if (alt > 12) return { top: '#38bdf8', bot: '#e0f2fe', ground0: '#86efac', ground1: '#22c55e', grid: 'rgba(255,255,255,0.35)', ink: '#0f172a' };
+    if (alt > 0) return { top: '#fb923c', bot: '#fda4af', ground0: '#65a30d', ground1: '#3f6212', grid: 'rgba(255,255,255,0.28)', ink: '#1e1b4b' };
+    if (alt > -8) return { top: '#1e3a5f', bot: '#7c3aed', ground0: '#14532d', ground1: '#052e16', grid: 'rgba(255,255,255,0.18)', ink: '#e2e8f0' };
+    return { top: '#020617', bot: '#1e293b', ground0: '#052e16', ground1: '#022c22', grid: 'rgba(148,163,184,0.22)', ink: '#e2e8f0' };
+}
+
+function draw() {
+    const p0 = currentPoint();
+    const theme = skyTheme(p0 ? p0.alt : 20);
+    const w = cssW, h = cssH;
     ctx.clearRect(0, 0, w, h);
 
-    // 背景
-    const horizonY = mapCoordinates(CONFIG.viewAzimuthCenter, 0).y;
-    const skyGradient = ctx.createLinearGradient(0, 0, 0, horizonY);
-    skyGradient.addColorStop(0, '#38bdf8'); 
-    skyGradient.addColorStop(1, '#bae6fd'); 
-    ctx.fillStyle = skyGradient;
-    ctx.fillRect(0, 0, w, horizonY);
+    const horizonY = mapCoordinates(view.azCenter, 0).y;
+    const skyG = ctx.createLinearGradient(0, 0, 0, Math.max(horizonY, 1));
+    skyG.addColorStop(0, theme.top);
+    skyG.addColorStop(1, theme.bot);
+    ctx.fillStyle = skyG;
+    ctx.fillRect(0, 0, w, Math.max(0, horizonY));
+    const gnd = ctx.createLinearGradient(0, horizonY, 0, h);
+    gnd.addColorStop(0, theme.ground0);
+    gnd.addColorStop(1, theme.ground1);
+    ctx.fillStyle = gnd;
+    ctx.fillRect(0, Math.max(0, horizonY), w, h);
 
-    const groundGradient = ctx.createLinearGradient(0, horizonY, 0, h);
-    groundGradient.addColorStop(0, '#4ade80');
-    groundGradient.addColorStop(1, '#22c55e');
-    ctx.fillStyle = groundGradient;
-    ctx.fillRect(0, horizonY, w, h - horizonY);
-
-    // 網格
-    ctx.lineWidth = 1;
+    ctx.font = '11px "Noto Sans TC", sans-serif';
     ctx.textAlign = 'center';
-    
-    // 地平線
+    ctx.lineWidth = 1;
+
     ctx.beginPath();
     ctx.moveTo(0, horizonY);
     ctx.lineTo(w, horizonY);
     ctx.strokeStyle = '#15803d';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.2;
     ctx.stroke();
-    ctx.fillStyle = '#15803d';
-    ctx.font = '12px sans-serif';
-    ctx.fillText(dict.horizon, 60, horizonY + 15);
+    ctx.fillStyle = theme.ink;
+    ctx.textAlign = 'left';
+    ctx.fillText(t('horizon'), 10, Math.min(h - 8, horizonY + 16));
 
-    // 仰角線
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    for (let a = -10; a <= 60; a += 10) {
+    ctx.strokeStyle = theme.grid;
+    ctx.fillStyle = theme.ink;
+    ctx.textAlign = 'left';
+    ctx.lineWidth = 1;
+    const altStart = Math.ceil(view.altMin / 10) * 10;
+    const altEnd = Math.floor(view.altMax / 10) * 10;
+    for (let a = altStart; a <= altEnd; a += 10) {
         if (a === 0) continue;
-        const y = mapCoordinates(CONFIG.viewAzimuthCenter, a).y;
-        if (y < 0 || y > h) continue;
+        const y = mapCoordinates(view.azCenter, a).y;
+        if (y < 32 || y > h - 22) continue;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
         ctx.stroke();
-        ctx.fillText(`${a}°`, 20, y + 4);
+        ctx.fillText(`${a}°`, 8, y - 3);
     }
 
-    // 方位線
-    const startAz = Math.ceil((CONFIG.viewAzimuthCenter - CONFIG.viewAzimuthRange/2) / 10) * 10;
-    const endAz = Math.floor((CONFIG.viewAzimuthCenter + CONFIG.viewAzimuthRange/2) / 10) * 10;
-
-    for (let az = startAz; az <= endAz; az += 10) {
-        const x = mapCoordinates(az, 0).x;
+    ctx.textAlign = 'center';
+    const midC = Math.max(0.18, Math.abs(Math.cos(((view.altMin + view.altMax) / 2) * Math.PI / 180)));
+    const azSpan = Math.max(20, (view.xMax - view.xMin) / midC);
+    const az0 = view.azCenter - azSpan;
+    const az1 = view.azCenter + azSpan;
+    const startAz = Math.ceil(az0 / 10) * 10;
+    for (let az = startAz; az <= az1; az += 10) {
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
+        let started = false;
+        for (let alt = view.altMin; alt <= view.altMax; alt += 2) {
+            const p = mapCoordinates(az, alt);
+            if (p.x < -20 || p.x > w + 20) { started = false; continue; }
+            if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+            else ctx.lineTo(p.x, p.y);
+        }
         ctx.stroke();
-        
-        let label = `${az}°`;
-        if (az % 90 === 0) {
-            if (az === 270) label = dict.west;
-            if (az === 180) label = dict.south;
-            if (az === 0 || az === 360) label = dict.north;
+        const footAlt = (horizonY > 18 && horizonY < h - 22) ? 0 : view.altMin + 2;
+        const foot = mapCoordinates(az, footAlt);
+        if (foot.x > 18 && foot.x < w - 18 && foot.y > 16 && foot.y < h - 8) {
+            ctx.fillStyle = theme.ink;
+            ctx.fillText(cardinalLabel(az), foot.x, Math.min(h - 8, foot.y + 14));
         }
-        ctx.fillText(label, x, h - 20);
     }
 
-    // 8 字軌跡
-    ctx.beginPath();
-    sunData.forEach((p, i) => {
-        const { x, y } = mapCoordinates(p.az, p.alt);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // 點
-    sunData.forEach((p, i) => {
-        const { x, y } = mapCoordinates(p.az, p.alt);
-        const isActive = (i === activePointIndex);
-
-        if (p.day === 1 || isActive) {
+    const drawSeg = (visibleOnly) => {
+        for (let i = 1; i < sunData.length; i++) {
+            const a = sunData[i - 1], b = sunData[i];
+            const aVis = a.alt >= 0, bVis = b.alt >= 0;
+            if (visibleOnly && !(aVis || bVis)) continue;
+            if (!visibleOnly && (aVis && bVis)) continue;
+            if (angDist(a, b) > 12) continue;
+            const pA = mapCoordinates(a.az, a.alt);
+            const pB = mapCoordinates(b.az, b.alt);
             ctx.beginPath();
-            ctx.arc(x, y, isActive ? 8 : 4, 0, Math.PI * 2);
-            ctx.fillStyle = isActive ? '#fff' : '#d97706';
-            ctx.fill();
-            
-            if (isActive) {
-                ctx.beginPath();
-                ctx.arc(x, y, 15, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-                ctx.fill();
-            }
-
-            if (p.day === 1 && !isActive) {
-                ctx.fillStyle = '#fff';
-                ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-                ctx.lineWidth = 2;
-                ctx.strokeText(dict.months[p.month - 1], x + 10, y + 3);
-                ctx.fillText(dict.months[p.month - 1], x + 10, y + 3);
-            }
+            ctx.moveTo(pA.x, pA.y);
+            ctx.lineTo(pB.x, pB.y);
+            if (els.showSeasons.checked) ctx.strokeStyle = seasonColor(b.dayOfYear, visibleOnly ? 0.95 : 0.35);
+            else ctx.strokeStyle = visibleOnly ? '#f59e0b' : 'rgba(245,158,11,0.28)';
+            ctx.lineWidth = visibleOnly ? 3.2 : 2;
+            if (!visibleOnly) ctx.setLineDash([5, 5]);
+            else ctx.setLineDash([]);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
-    });
+    };
+    if (els.showHidden.checked) drawSeg(false);
+    drawSeg(true);
 
-    // 太陽
-    if (activePointIndex !== -1) {
-        const p = sunData[activePointIndex];
-        const { x, y } = mapCoordinates(p.az, p.alt);
-        
-        const sunGradient = ctx.createRadialGradient(x, y, 4, x, y, 25);
-        sunGradient.addColorStop(0, '#fff');
-        sunGradient.addColorStop(0.2, '#fde047');
-        sunGradient.addColorStop(1, 'rgba(251, 146, 60, 0)');
-        
-        ctx.fillStyle = sunGradient;
+    if (els.showMonths.checked) {
+        sunData.forEach(p => {
+            if (p.day !== 1) return;
+            const { x, y } = mapCoordinates(p.az, p.alt);
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = 'rgba(15,23,42,0.55)';
+            ctx.lineWidth = 3;
+            if (p0 && Math.hypot(x - mapCoordinates(p0.az, p0.alt).x, y - mapCoordinates(p0.az, p0.alt).y) < 22) return;
+            ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+            const toLeft = p.month % 2 === 0;
+            ctx.textAlign = toLeft ? 'right' : 'left';
+            const lx = x + (toLeft ? -8 : 8);
+            ctx.strokeText(t('months')[p.month - 1], lx, y + 3);
+            ctx.fillText(t('months')[p.month - 1], lx, y + 3);
+            ctx.beginPath();
+            ctx.arc(x, y, 3.4, 0, Math.PI * 2);
+            ctx.fillStyle = '#d97706';
+            ctx.fill();
+        });
+    }
+
+    if (els.showMarkers.checked) {
+        MARKERS.forEach(m => {
+            const p = sunData.find(s => s.month === m.m && s.day === m.d);
+            if (!p) return;
+            const { x, y } = mapCoordinates(p.az, p.alt);
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = m.color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+            ctx.font = 'bold 10px "Noto Sans TC", sans-serif';
+            ctx.fillStyle = m.color;
+            ctx.textAlign = 'right';
+            ctx.fillText(t(m.key), x - 8, y - 6);
+        });
+    }
+
+    if (p0) {
+        const { x, y } = mapCoordinates(p0.az, p0.alt);
+        const g = ctx.createRadialGradient(x, y, 3, x, y, 28);
+        g.addColorStop(0, '#fff');
+        g.addColorStop(0.22, '#fde047');
+        g.addColorStop(1, 'rgba(251,146,60,0)');
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(x, y, 25, 0, Math.PI * 2);
+        ctx.arc(x, y, 28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
         ctx.fill();
     }
 }
 
-/**
- * UI 初始化與事件綁定
- */
-const citySelect = document.getElementById('city-select');
-const timeSlider = document.getElementById('time-slider');
-const timeDisplay = document.getElementById('time-display');
-const monthSelect = document.getElementById('month-select');
-const daySelect = document.getElementById('day-select');
-const langBtn = document.getElementById('lang-btn');
-
-// Modal Elements
-const helpBtn = document.getElementById('help-btn');
-const closeHelpBtn = document.getElementById('close-help-btn');
-const closeHelpBtnBottom = document.getElementById('close-help-btn-bottom');
-const helpModal = document.getElementById('help-modal');
-const helpContentContainer = document.getElementById('help-content-container');
-const helpBody = document.getElementById('help-body');
-
-function initUI() {
-    // 語言切換
-    langBtn.addEventListener('click', toggleLanguage);
-    
-    // 初始填充
-    populateCities();
-    populateMonths();
-    populateDays(1);
-    updateTexts();
-
-    citySelect.addEventListener('change', () => {
-        const city = CITIES[citySelect.value];
-        CONFIG.lat = city.lat;
-        CONFIG.lon = city.lon;
-        CONFIG.utcOffset = city.utcOffset;
-
-        let latDisplay = Math.abs(city.lat) + "°";
-        if (city.lat > 0) latDisplay += " N";
-        else if (city.lat < 0) latDisplay += " S";
-
-        document.getElementById('city-lat').innerText = `Lat: ${latDisplay}`;
-        const offsetSign = city.utcOffset >= 0 ? '+' : '';
-        document.getElementById('city-offset').innerText = `${offsetSign}${city.utcOffset}`;
-        
-        refreshAll();
-    });
-
-    timeSlider.addEventListener('input', () => {
-        const val = parseFloat(timeSlider.value);
-        const h = Math.floor(val);
-        const m = Math.round((val - h) * 60);
-        
-        CONFIG.hour = h;
-        CONFIG.minute = m;
-        
-        const mStr = m < 10 ? '0' + m : m;
-        timeDisplay.innerText = `${h}:${mStr}`;
-        
-        refreshAll();
-    });
-
-    monthSelect.addEventListener('change', () => {
-        populateDays(parseInt(monthSelect.value));
-        selectDateFromMenu();
-    });
-
-    daySelect.addEventListener('change', selectDateFromMenu);
-
-    // Modal Events
-    function toggleModal(show) {
-        if (show) {
-            generateHelpContent(); // 生成對應語言內容
-            helpModal.classList.remove('opacity-0', 'pointer-events-none');
-            helpContentContainer.classList.remove('scale-95');
-            helpContentContainer.classList.add('scale-100');
-        } else {
-            helpModal.classList.add('opacity-0', 'pointer-events-none');
-            helpContentContainer.classList.remove('scale-100');
-            helpContentContainer.classList.add('scale-95');
-        }
-    }
-
-    helpBtn.addEventListener('click', () => toggleModal(true));
-    closeHelpBtn.addEventListener('click', () => toggleModal(false));
-    closeHelpBtnBottom.addEventListener('click', () => toggleModal(false));
-    helpModal.addEventListener('click', (e) => {
-        if (e.target === helpModal) toggleModal(false);
-    });
-
-    // 觸發初始計算
-    citySelect.dispatchEvent(new Event('change'));
+function latLabel(lat) {
+    const hemi = lat > 0.05 ? 'N' : lat < -0.05 ? 'S' : '';
+    return `${Math.abs(lat).toFixed(1)}° ${hemi}`.trim();
 }
 
-function toggleLanguage() {
-    currentLang = currentLang === 'zh' ? 'en' : 'zh';
-    
-    // 更新所有文字
-    updateTexts();
-    
-    // 重新填充下拉選單 (保持當前選擇)
-    const currentCityIdx = citySelect.value;
-    const currentMonthIdx = monthSelect.value;
-    const currentDayIdx = daySelect.value;
-    
-    populateCities();
-    populateMonths();
-    populateDays(parseInt(currentMonthIdx));
-    
-    citySelect.value = currentCityIdx;
-    monthSelect.value = currentMonthIdx;
-    daySelect.value = currentDayIdx;
-
-    // 更新數據面板和重繪 Canvas
-    refreshAll();
+function syncCityMeta() {
+    const c = CITIES[state.cityIndex];
+    els.cityLat.textContent = `φ ${latLabel(state.lat)}`;
+    const sign = state.utc >= 0 ? '+' : '';
+    els.cityOffset.textContent = `${sign}${state.utc}`;
+    els['disp-lat'].textContent = latLabel(state.lat);
+    els.latSlider.value = String(state.lat);
 }
 
-function updateTexts() {
-    const dict = I18N[currentLang];
-    
-    // 更新 data-i18n 元素
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (dict[key]) {
-            if (el.tagName === 'INPUT' && el.type === 'placeholder') {
-                el.placeholder = dict[key];
-            } else {
-                el.innerHTML = dict[key]; // 使用 innerHTML 支援 HTML 標籤
-            }
-        }
-    });
-
-    // 語言按鈕文字
-    langBtn.innerText = '中 / Eng';
+function setTimeFromSlider() {
+    const val = parseFloat(els.timeSlider.value);
+    state.hour = Math.min(23, Math.floor(val));
+    if (val >= 24) { state.hour = 23; state.minute = 59; }
+    else state.minute = Math.round((val - Math.floor(val)) * 60) % 60;
+    els['disp-time'].textContent = fmtTime(state.hour, state.minute);
 }
 
 function populateCities() {
-    citySelect.innerHTML = '';
-    CITIES.forEach((city, index) => {
-        const opt = document.createElement('option');
-        opt.value = index;
-        opt.text = currentLang === 'zh' ? city.nameZh : city.nameEn;
-        citySelect.appendChild(opt);
-    });
+    const prev = CITIES[state.cityIndex] ? CITIES[state.cityIndex].id : 'hk';
+    els.citySelect.innerHTML = CITIES.map((c, i) => `<option value="${i}">${cityName(c)}</option>`).join('');
+    const idx = CITIES.findIndex(c => c.id === prev);
+    state.cityIndex = idx >= 0 ? idx : 0;
+    els.citySelect.value = String(state.cityIndex);
 }
 
 function populateMonths() {
-    monthSelect.innerHTML = '';
-    const dict = I18N[currentLang];
-    dict.months.forEach((m, i) => {
+    els.monthSelect.innerHTML = i18n[lang].months.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+}
+
+function populateDays(month, keepDay) {
+    const dim = new Date(YEAR, month, 0).getDate();
+    const day = Math.min(keepDay || parseInt(els.daySelect.value, 10) || 1, dim);
+    els.daySelect.innerHTML = '';
+    for (let d = 1; d <= dim; d++) {
         const opt = document.createElement('option');
-        opt.value = i + 1;
-        opt.text = m;
-        monthSelect.appendChild(opt);
-    });
-}
-
-function populateDays(month) {
-    const currentDay = parseInt(daySelect.value) || 1;
-    daySelect.innerHTML = '';
-    const daysInMonth = new Date(CONFIG.year, month, 0).getDate();
-    const suffix = I18N[currentLang].daySuffix;
-    
-    for (let d = 1; d <= daysInMonth; d++) {
-        const opt = document.createElement('option');
-        opt.value = d;
-        opt.text = `${d}${suffix}`;
-        daySelect.appendChild(opt);
+        opt.value = String(d);
+        opt.textContent = `${d}${t('daySuffix')}`;
+        els.daySelect.appendChild(opt);
     }
-    daySelect.value = Math.min(currentDay, daysInMonth);
+    els.daySelect.value = String(day);
 }
 
-function generateHelpContent() {
-    if (currentLang === 'zh') {
-        helpBody.innerHTML = `
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">1</span>
-                    何謂日行跡？
-                </h3>
-                <p class="pl-8">如果你在一年中每一天的<strong class="text-slate-100">同一時刻</strong>（例如下午 4:00），在同一地點拍攝太陽的位置，並將所有照片疊加，你會發現太陽並不在同一點，而是畫出了一個「8」字形的軌跡，這就是日行跡。</p>
-            </section>
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">2</span>
-                    為甚麼形狀像 8 字形？
-                </h3>
-                <div class="pl-8 space-y-2">
-                    <p>這由兩個主要天文因素共同造成：</p>
-                    <ul class="list-disc list-outside ml-4 space-y-2 text-slate-400 marker:text-amber-500">
-                        <li><strong class="text-slate-200">地球自轉軸傾斜 (23.5°)：</strong><br>這導致太陽在天球上的赤緯隨季節南北移動，形成了 8 字形的<strong class="text-amber-500">上下幅度</strong>（高度變化）。</li>
-                        <li><strong class="text-slate-200">地球軌道是橢圓形：</strong><br>地球繞太陽公轉的速度並非恆定（近日點快、遠日點慢）。這導致太陽視運動快慢不均（時差方程），形成了 8 字形的<strong class="text-amber-500">左右寬度</strong>（時間快慢）。</li>
-                    </ul>
-                </div>
-            </section>
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">3</span>
-                    為甚麼 8 字不對稱？
-                </h3>
-                <p class="pl-8">8 字形通常「頭小身大」，這是因為地球通過近日點（1月初）和遠日點（7月初）的時間，與二至點（冬至、夏至）的時間並不重合。這兩個週期的錯位導致 8 字形不對稱。</p>
-            </section>
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">4</span>
-                    緯度與日行跡的關係
-                </h3>
-                <div class="pl-8">
-                    <p class="mb-2">8 字形的形狀本身是固定的，但它在天空中的<strong class="text-emerald-400">傾斜角度</strong>取決於觀測者的緯度：</p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                        <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                            <strong class="block text-slate-200 mb-1">赤道 (0°)</strong>
-                            <span class="text-xs text-slate-400">8 字形垂直豎立（正午時），或平躺橫臥（日出日落時）。</span>
-                        </div>
-                        <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                            <strong class="block text-slate-200 mb-1">中緯度</strong>
-                            <span class="text-xs text-slate-400">8 字形會向南或向北傾斜，這是我們最常見的形態。</span>
-                        </div>
-                        <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                            <strong class="block text-slate-200 mb-1">極地 (90°)</strong>
-                            <span class="text-xs text-slate-400">8 字形只有一半露出地平線，或者幾乎垂直於地平線。</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        `;
-    } else {
-        helpBody.innerHTML = `
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">1</span>
-                    What is an Analemma?
-                </h3>
-                <p class="pl-8">If you take a picture of the Sun at the <strong class="text-slate-100">same time each day</strong> (e.g., 4:00 PM) from the same location throughout the year and overlay them, the Sun will trace out a figure-8 shape called an Analemma.</p>
-            </section>
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">2</span>
-                    Why is it Figure-8 shaped?
-                </h3>
-                <div class="pl-8 space-y-2">
-                    <p>This is caused by two astronomical factors:</p>
-                    <ul class="list-disc list-outside ml-4 space-y-2 text-slate-400 marker:text-amber-500">
-                        <li><strong class="text-slate-200">Earth's Axial Tilt (23.5°):</strong><br>This causes the Sun's declination to move north and south, creating the <strong class="text-amber-500">vertical</strong> height.</li>
-                        <li><strong class="text-slate-200">Eccentricity of Earth's Orbit:</strong><br>Earth orbits faster near perihelion and slower near aphelion. This variation (Equation of Time) creates the <strong class="text-amber-500">horizontal</strong> width.</li>
-                    </ul>
-                </div>
-            </section>
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">3</span>
-                    Why is it Asymmetrical?
-                </h3>
-                <p class="pl-8">The loops are different sizes because the dates when Earth is closest/furthest from the Sun do not align with the Solstices. This misalignment creates the "small head, big body" shape.</p>
-            </section>
-            <section>
-                <h3 class="text-sky-400 font-bold text-base md:text-lg mb-2 flex items-center gap-2">
-                    <span class="bg-sky-500/20 text-sky-400 w-6 h-6 rounded flex items-center justify-center text-xs">4</span>
-                    Latitude Effects
-                </h3>
-                <div class="pl-8">
-                    <p class="mb-2">The shape is constant, but its <strong class="text-emerald-400">tilt</strong> depends on your latitude:</p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                        <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                            <strong class="block text-slate-200 mb-1">Equator (0°)</strong>
-                            <span class="text-xs text-slate-400">Stands vertically at noon, or lies horizontally at sunrise/sunset.</span>
-                        </div>
-                        <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                            <strong class="block text-slate-200 mb-1">Mid-Latitudes</strong>
-                            <span class="text-xs text-slate-400">Tilts south or north. This is the most common view.</span>
-                        </div>
-                        <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                            <strong class="block text-slate-200 mb-1">Poles (90°)</strong>
-                            <span class="text-xs text-slate-400">Half of it is hidden below the horizon.</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        `;
+function applyDateFromIndex() {
+    const p = currentPoint();
+    if (!p) return;
+    if (parseInt(els.monthSelect.value, 10) !== p.month) {
+        els.monthSelect.value = String(p.month);
+        populateDays(p.month, p.day);
     }
+    els.daySelect.value = String(p.day);
+    els.doySlider.value = String(state.dayIndex);
+    els['disp-doy'].textContent = `${p.month}/${p.day}`;
 }
 
-function refreshAll() {
-    calculateAndCenter();
-    resizeCanvas(); 
-    if (activePointIndex !== -1) {
-        updateInfoPanel(activePointIndex);
-    } else {
-        selectToday();
-    }
-}
-
-function selectDateFromMenu() {
-    const m = parseInt(monthSelect.value);
-    const d = parseInt(daySelect.value);
-    const index = sunData.findIndex(item => item.month === m && item.day === d);
-    if (index !== -1) updateInfoPanel(index);
-}
-
-function selectToday() {
-    const today = new Date();
-    const m = today.getMonth() + 1;
-    const d = today.getDate();
-    let idx = sunData.findIndex(item => item.month === m && item.day === d);
-    if (idx === -1) idx = 0;
-    updateInfoPanel(idx);
-}
-
-function updateInfoPanel(index) {
-    if (index < 0 || index >= sunData.length) return;
-    
-    const data = sunData[index];
-    const dict = I18N[currentLang];
-    
-    document.getElementById('info-date').innerText = `${dict.months[data.month - 1]} ${data.day}${dict.daySuffix}`;
-    document.getElementById('info-az').innerText = data.az.toFixed(2) + '°';
-    document.getElementById('info-alt').innerText = data.alt.toFixed(2) + '°';
-
-    const statusEl = document.getElementById('info-status');
-    if (data.trueAlt > 0) {
-        statusEl.innerText = dict.visible;
-        statusEl.className = 'block text-center font-bold text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700';
-    } else {
-        statusEl.innerText = dict.invisible;
-        statusEl.className = 'block text-center font-bold text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-500';
-    }
-
-    const panel = document.getElementById('info-panel');
-    panel.classList.remove('opacity-0', 'translate-y-[-10px]');
-    
-    activePointIndex = index;
-    draw();
-
-    if (parseInt(monthSelect.value) !== data.month) {
-        monthSelect.value = data.month;
-        populateDays(data.month);
-    }
-    daySelect.value = data.day;
-}
-
-function resizeCanvas() {
-    const parent = canvas.parentElement;
-    canvas.width = parent.clientWidth;
-    canvas.height = parent.clientHeight;
+function selectByMonthDay(m, d) {
+    let idx = sunData.findIndex(p => p.month === m && p.day === d);
+    if (idx < 0) idx = 0;
+    state.dayIndex = idx;
+    applyDateFromIndex();
+    updateStats();
     draw();
 }
 
-function handleCanvasInteraction(e) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+function updateStats() {
+    const p = currentPoint();
+    if (!p) return;
+    els.statDate.textContent = `${t('months')[p.month - 1]} ${p.day}${t('daySuffix')}`;
+    els.statAz.textContent = `${p.az.toFixed(1)}°`;
+    els.statAlt.textContent = `${p.alt.toFixed(1)}°`;
+    els.statDec.textContent = `${p.delta >= 0 ? '+' : ''}${p.delta.toFixed(1)}°`;
+    const sign = p.eot >= 0 ? '+' : '';
+    const eotWord = p.eot >= 0 ? t('eotFast') : t('eotSlow');
+    els.statEot.textContent = `${sign}${p.eot.toFixed(1)} min`;
+    els.statEot.title = eotWord;
+    els.statVis.textContent = p.alt > 0 ? t('visible') : t('invisible');
+    els.statVis.className = 'text-sm font-black ' + (p.alt > 0 ? 'text-emerald-300' : 'text-slate-400');
+    els.facingBadge.textContent = i18n[lang].facing(facingName(view.azCenter));
 
-    let minDist = Infinity;
-    let closestIndex = -1;
+    const absLat = Math.abs(state.lat);
+    const hour = state.hour + state.minute / 60;
+    let msg;
+    if (absLat > 66) msg = t('insightPolar');
+    else if (state.lat < -10) msg = t('insightSH');
+    else if (absLat < 8 && (hour < 8 || hour > 16)) msg = t('insightEq');
+    else if (hour >= 16 || hour <= 7) msg = hour >= 16 ? t('insightSet') : t('insightRise');
+    else if (Math.abs(state.lat - CITIES[state.cityIndex].lat) > 0.6) msg = t('insightCustom');
+    else msg = t('insightNoon');
+    const marker = MARKERS.find(m => m.m === p.month && m.d === p.day);
+    if (marker) msg = `${t(marker.key)} · ${msg}`;
+    els.insightText.textContent = msg;
+}
 
-    sunData.forEach((p, i) => {
-        const { x, y } = mapCoordinates(p.az, p.alt);
-        const dist = Math.hypot(mouseX - x, mouseY - y);
-        if (dist < minDist) {
-            minDist = dist;
-            closestIndex = i;
+function refreshPathAndDraw() {
+    rebuildPath();
+    applyDateFromIndex();
+    updateStats();
+    draw();
+}
+
+function setPresetActive(name) {
+    state.preset = name;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+}
+
+function applyCity(index, keepLat) {
+    state.cityIndex = index;
+    const c = CITIES[index];
+    state.lon = c.lon;
+    state.utc = c.utc;
+    if (!keepLat) state.lat = c.lat;
+    els.citySelect.value = String(index);
+    syncCityMeta();
+}
+
+function applyPreset(name) {
+    stopPlay();
+    setPresetActive(name);
+    const p = PRESETS[name];
+    const idx = CITIES.findIndex(c => c.id === p.city);
+    applyCity(idx >= 0 ? idx : 0, false);
+    state.hour = p.hour;
+    state.minute = p.minute;
+    els.timeSlider.value = String(p.hour + p.minute / 60);
+    els['disp-time'].textContent = fmtTime(state.hour, state.minute);
+    rebuildPath();
+    populateDays(p.month, p.day);
+    els.monthSelect.value = String(p.month);
+    selectByMonthDay(p.month, p.day);
+}
+
+function resetAll() {
+    els.showMonths.checked = true;
+    els.showSeasons.checked = true;
+    els.showMarkers.checked = true;
+    els.showHidden.checked = true;
+    applyPreset('hkSunset');
+}
+
+function playYear() {
+    if (state.playing) return;
+    state.playing = true;
+    let last = 0;
+    const step = (now) => {
+        if (!state.playing) return;
+        if (now - last >= 28) {
+            last = now;
+            state.dayIndex = (state.dayIndex + 1) % sunData.length;
+            applyDateFromIndex();
+            updateStats();
+            draw();
         }
-    });
+        playId = requestAnimationFrame(step);
+    };
+    playId = requestAnimationFrame(step);
+}
 
-    if (minDist < 100) {
-        updateInfoPanel(closestIndex);
+function stopPlay() {
+    state.playing = false;
+    cancelAnimationFrame(playId);
+}
+
+function canvasPos(ev) {
+    const r = canvas.getBoundingClientRect();
+    const src = ev.touches ? ev.touches[0] : ev;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+}
+
+function pickNearest(x, y) {
+    let best = 0, bestD = Infinity;
+    sunData.forEach((p, i) => {
+        if (!els.showHidden.checked && p.alt < -0.5) return;
+        const q = mapCoordinates(p.az, p.alt);
+        const d = Math.hypot(q.x - x, q.y - y);
+        if (d < bestD) { bestD = d; best = i; }
+    });
+    if (bestD < 80) {
+        state.dayIndex = best;
+        applyDateFromIndex();
+        updateStats();
+        draw();
     }
 }
 
-window.onload = () => {
-    initUI();
-    window.addEventListener('resize', resizeCanvas);
-    canvas.addEventListener('mousemove', (e) => {
-        if(e.buttons === 1) handleCanvasInteraction(e);
+function resize() {
+    const parent = canvas.parentElement;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = parent.getBoundingClientRect();
+    cssW = Math.max(1, rect.width);
+    cssH = Math.max(1, rect.height);
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (sunData.length) fitView();
+    draw();
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        const v = i18n[lang][k];
+        if (typeof v !== 'string') return;
+        if (v.includes('<') || v.includes('$') || v.includes('\\')) el.innerHTML = v;
+        else el.textContent = v;
     });
-    canvas.addEventListener('click', handleCanvasInteraction);
-    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleCanvasInteraction(e.touches[0]); }, {passive: false});
-    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleCanvasInteraction(e.touches[0]); }, {passive: false});
-};
+    populateCities();
+    populateMonths();
+    const p = currentPoint();
+    populateDays(p ? p.month : 1, p ? p.day : 1);
+    if (p) {
+        els.monthSelect.value = String(p.month);
+        els.daySelect.value = String(p.day);
+    }
+    syncCityMeta();
+    applyDateFromIndex();
+    updateStats();
+    draw();
+    typesetMath();
+}
+
+function typesetMath() {
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise().catch(() => {});
+    }
+}
+
+function setModal(id, open) {
+    const el = document.getElementById(id);
+    const box = el.querySelector('.modal-content');
+    if (open) {
+        el.classList.remove('opacity-0', 'pointer-events-none');
+        box.classList.remove('scale-95', 'opacity-0');
+        if (id === 'modal-principle' || id === 'modal-steps') typesetMath();
+    } else {
+        el.classList.add('opacity-0', 'pointer-events-none');
+        box.classList.add('scale-95', 'opacity-0');
+    }
+}
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
+els['btn-principle'].addEventListener('click', () => setModal('modal-principle', true));
+els['btn-steps'].addEventListener('click', () => setModal('modal-steps', true));
+els['modal-close'].addEventListener('click', () => setModal('modal-principle', false));
+els['modal-confirm'].addEventListener('click', () => setModal('modal-principle', false));
+els['steps-close'].addEventListener('click', () => setModal('modal-steps', false));
+els['steps-confirm'].addEventListener('click', () => setModal('modal-steps', false));
+els['modal-principle'].addEventListener('click', ev => { if (ev.target === els['modal-principle']) setModal('modal-principle', false); });
+els['modal-steps'].addEventListener('click', ev => { if (ev.target === els['modal-steps']) setModal('modal-steps', false); });
+document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape') return;
+    setModal('modal-principle', false);
+    setModal('modal-steps', false);
+});
+
+els.btnReset.addEventListener('click', resetAll);
+els.btnPlay.addEventListener('click', playYear);
+els.btnStop.addEventListener('click', stopPlay);
+document.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+
+els.citySelect.addEventListener('change', () => {
+    stopPlay();
+    setPresetActive('');
+    applyCity(parseInt(els.citySelect.value, 10), false);
+    refreshPathAndDraw();
+});
+els.latSlider.addEventListener('input', () => {
+    stopPlay();
+    setPresetActive('');
+    state.lat = parseFloat(els.latSlider.value);
+    syncCityMeta();
+    refreshPathAndDraw();
+});
+els.timeSlider.addEventListener('input', () => {
+    stopPlay();
+    setPresetActive('');
+    setTimeFromSlider();
+    refreshPathAndDraw();
+});
+els.monthSelect.addEventListener('change', () => {
+    stopPlay();
+    populateDays(parseInt(els.monthSelect.value, 10));
+    selectByMonthDay(parseInt(els.monthSelect.value, 10), parseInt(els.daySelect.value, 10));
+});
+els.daySelect.addEventListener('change', () => {
+    stopPlay();
+    selectByMonthDay(parseInt(els.monthSelect.value, 10), parseInt(els.daySelect.value, 10));
+});
+els.doySlider.addEventListener('input', () => {
+    stopPlay();
+    state.dayIndex = parseInt(els.doySlider.value, 10);
+    applyDateFromIndex();
+    updateStats();
+    draw();
+});
+['showMonths','showSeasons','showMarkers','showHidden'].forEach(id => {
+    els[id].addEventListener('change', () => {
+        if (id === 'showHidden') fitView();
+        updateStats();
+        draw();
+    });
+});
+
+canvas.addEventListener('mousedown', ev => { state.dragging = true; pickNearest(canvasPos(ev).x, canvasPos(ev).y); });
+canvas.addEventListener('mousemove', ev => { if (state.dragging) pickNearest(canvasPos(ev).x, canvasPos(ev).y); });
+window.addEventListener('mouseup', () => { state.dragging = false; });
+canvas.addEventListener('touchstart', ev => { ev.preventDefault(); state.dragging = true; pickNearest(canvasPos(ev).x, canvasPos(ev).y); }, { passive: false });
+canvas.addEventListener('touchmove', ev => { ev.preventDefault(); if (state.dragging) pickNearest(canvasPos(ev).x, canvasPos(ev).y); }, { passive: false });
+canvas.addEventListener('touchend', () => { state.dragging = false; });
+
+window.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas.parentElement);
+
+populateCities();
+populateMonths();
+populateDays(6, 21);
+applyPreset('hkSunset');
+resize();
 </script>
 </body>
 </html>

@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基本化學鍵與分子間引力學習模擬器</title>
+    <!-- 引入 Three.js 與 OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #151d2a;
+            --accent-color: #38bdf8;
+            --text-color: #f8fafc;
+            --text-dim: #94a3b8;
+            --border-color: #26334d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: #151d2a;
+            padding: 0.8rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 1.3rem;
+            color: var(--accent-color);
+        }
+
+        header p {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            margin-top: 2px;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 320px;
+            gap: 0.8rem;
+            padding: 0.8rem;
+            flex: 1;
+            height: calc(100vh - 60px);
+        }
+
+        .panel {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.4rem;
+            color: #e2e8f0;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        label {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+
+        select, button, input[type="range"] {
+            width: 100%;
+            padding: 0.5rem;
+            background: #0b0f19;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        select:focus, button:hover {
+            border-color: var(--accent-color);
+        }
+
+        .dual-view-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .view-box {
+            position: relative;
+            background: #050811;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .view-title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        .fallback-msg {
+            position: absolute;
+            padding: 1.5rem;
+            text-align: center;
+            color: #f87171;
+            font-size: 0.85rem;
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 8px;
+            border: 1px solid #ef4444;
+            max-width: 80%;
+            display: none;
+            z-index: 10;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 0.4rem;
+        }
+
+        .badge-metallic { background: #eab308; color: #000; }
+        .badge-ionic { background: #ef4444; color: #fff; }
+        .badge-giant-cov { background: #10b981; color: #fff; }
+        .badge-simple-mol { background: #8b5cf6; color: #fff; }
+
+        .info-card {
+            background: #0b0f19;
+            border-radius: 8px;
+            padding: 0.75rem;
+            border-left: 4px solid var(--accent-color);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+
+        .info-card h3 {
+            font-size: 0.88rem;
+            margin-bottom: 0.3rem;
+            color: var(--accent-color);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            margin-top: 0.35rem;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .legend-line {
+            width: 18px;
+            height: 3px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>基礎化學鍵與分子間引力學習模擬器</h1>
+        <p>Basic Chemical Bonds & Intermolecular Forces Simulator</p>
+    </header>
+
+    <div class="main-container">
+        <!-- 左側控制面板 -->
+        <div class="panel">
+            <div class="panel-title">化學鍵與作用力選擇</div>
+            
+            <div class="control-group">
+                <label for="presetSelect">選擇介紹對象：</label>
+                <select id="presetSelect">
+                    <optgroup label="1. 巨型金屬結構 (Giant Metallic Structure)">
+                        <option value="Na">鈉 / Sodium (Na)</option>
+                        <option value="Mg">鎂 / Magnesium (Mg)</option>
+                        <option value="Al">鋁 / Aluminium (Al)</option>
+                    </optgroup>
+                    <optgroup label="2. 巨型離子結構 (Giant Ionic Structure)">
+                        <option value="NaCl">氯化鈉 / Sodium Chloride (NaCl)</option>
+                        <option value="MgO">氧化鎂 / Magnesium Oxide (MgO)</option>
+                        <option value="CaCl2">氯化鈣 / Calcium Chloride (CaCl₂)</option>
+                        <option value="CsCl">氯化銫 / Cesium Chloride (CsCl)</option>
+                    </optgroup>
+                    <optgroup label="3. 巨型共價結構 (Giant Covalent Structure)">
+                        <option value="C_diamond">鑽石 / Diamond (C)</option>
+                        <option value="Si">矽 / Silicon (Si)</option>
+                        <option value="SiO2">二氧化矽 / Silicon Dioxide (SiO₂)</option>
+                    </optgroup>
+                    <optgroup label="4. 簡單分子結構 (Simple Molecular Structure)">
+                        <option value="H2">氫 / Hydrogen (H₂)</option>
+                        <option value="He">氦 / Helium (He)</option>
+                        <option value="Ne">氖 / Neon (Ne)</option>
+                        <option value="Ar">氬 / Argon (Ar)</option>
+                        <option value="N2">氮 / Nitrogen (N₂)</option>
+                        <option value="O2">氧 / Oxygen (O₂)</option>
+                        <option value="H2O">水 / Water (H₂O)</option>
+                        <option value="CO2">二氧化碳 / Carbon Dioxide (CO₂)</option>
+                        <option value="CH4" selected>甲烷 / Methane (CH₄)</option>
+                        <option value="Cl2">氯 / Chlorine (Cl₂)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <hr style="border-color: var(--border-color)">
+
+            <div class="control-group">
+                <label>熱運動強度 (溫度) / Thermal Motion:</label>
+                <input type="range" id="tempSlider" min="0" max="10" value="3">
+            </div>
+
+            <div class="control-group">
+                <button id="btnPause">暫停 / 動態播放 (Pause/Play)</button>
+                <button id="btnResetCam" style="margin-top: 4px;">重置 3D 視角 (Reset View)</button>
+            </div>
+        </div>
+
+        <!-- 中間：雙視角容器 (平面 2D + 立體 3D) -->
+        <div class="dual-view-container">
+            <div class="view-box">
+                <div class="view-title">平面剖面結構 / 2D Diagram</div>
+                <canvas id="canvas2D"></canvas>
+            </div>
+            <div class="view-box">
+                <div class="view-title">3D 模型 / 3D Model</div>
+                <div id="fallback3D" class="fallback-msg">
+                    <strong>3D 模型未能載入</strong><br>
+                    請確認電腦已連接網絡以加載 3D 引擎。
+                </div>
+                <canvas id="webglCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- 右側資訊與圖例說明 -->
+        <div class="panel">
+            <div class="panel-title">鍵型與微觀結構詳情</div>
+            
+            <div id="badgeContainer"></div>
+
+            <div class="info-card">
+                <h3 id="infoName">-</h3>
+                <p><strong>化學式 / Formula:</strong> <span id="infoFormula">-</span></p>
+                <p><strong>化學鍵 / Bond Type:</strong> <span id="infoBondType">-</span></p>
+                <p><strong>結構類型 / Structure:</strong> <span id="infoStructType">-</span></p>
+            </div>
+
+            <div class="info-card">
+                <h3>微觀作用力原理 / Principle</h3>
+                <p id="infoProperties">-</p>
+            </div>
+
+            <div class="info-card">
+                <h3>圖例說明 / Legend</h3>
+                <div id="legendBox"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PRESETS = {
+            'Na': {
+                name: '鈉 / Sodium', formula: 'Na', bondType: '金屬鍵 / Metallic Bond',
+                structType: '巨型金屬結構 / Giant Metallic', category: 'metallic', chargeVal: 1,
+                properties: '金屬陽離子 (Na⁺) 與自由移動的「離域電子海」之間的強烈靜電吸引力。',
+                legend: [
+                    { label: '鈉陽離子 / Na⁺ Cation', color: '#f59e0b', type: 'sphere' },
+                    { label: '離域電子 / Delocalized e⁻', color: '#38bdf8', type: 'sphere' }
+                ]
+            },
+            'Mg': {
+                name: '鎂 / Magnesium', formula: 'Mg', bondType: '金屬鍵 / Metallic Bond',
+                structType: '巨型金屬結構 / Giant Metallic', category: 'metallic', chargeVal: 2,
+                properties: '鎂原子釋放 2 個價電子形成 Mg²⁺。帶更高電荷（2+）的陽離子吸引更密集的離域電子海。',
+                legend: [
+                    { label: '鎂陽離子 / Mg²⁺ Cation', color: '#eab308', type: 'sphere' },
+                    { label: '離域電子 / Delocalized e⁻', color: '#38bdf8', type: 'sphere' }
+                ]
+            },
+            'Al': {
+                name: '鋁 / Aluminium', formula: 'Al', bondType: '金屬鍵 / Metallic Bond',
+                structType: '巨型金屬結構 / Giant Metallic', category: 'metallic', chargeVal: 3,
+                properties: '鋁原子釋放 3 個價電子形成 Al³⁺。高電荷陽離子與極高密度的離域電子海產生極強靜電引力。',
+                legend: [
+                    { label: '鋁陽離子 / Al³⁺ Cation', color: '#94a3b8', type: 'sphere' },
+                    { label: '離域電子 / Delocalized e⁻', color: '#38bdf8', type: 'sphere' }
+                ]
+            },
+            'NaCl': {
+                name: '氯化鈉 / Sodium Chloride', formula: 'NaCl', bondType: '離子鍵 / Ionic Bond',
+                structType: '巨型離子結構 / Giant Ionic', category: 'ionic',
+                properties: '陽離子 (Na⁺) 與陰離子 (Cl⁻) 通過全方位靜電引力結合。配位數為 6:6。',
+                legend: [
+                    { label: '鈉離子 / Na⁺ (較小)', color: '#f59e0b', type: 'sphere' },
+                    { label: '氯離子 / Cl⁻ (較大)', color: '#10b981', type: 'sphere' },
+                    { label: '離子鍵 / Ionic Bond', color: '#475569', type: 'line' }
+                ]
+            },
+            'MgO': {
+                name: '氧化鎂 / Magnesium Oxide', formula: 'MgO', bondType: '離子鍵 / Ionic Bond',
+                structType: '巨型離子結構 / Giant Ionic', category: 'ionic',
+                properties: '由 Mg²⁺ 與 O²⁻ 離子組成，帶雙倍電荷靜電引力極強。氧陰離子 (O²⁻) 體積大於鎂陽離子 (Mg²⁺)。',
+                legend: [
+                    { label: '鎂離子 / Mg²⁺ (較小)', color: '#eab308', type: 'sphere' },
+                    { label: '氧離子 / O²⁻ (較大)', color: '#ef4444', type: 'sphere' },
+                    { label: '離子鍵 / Ionic Bond', color: '#475569', type: 'line' }
+                ]
+            },
+            'CaCl2': {
+                name: '氯化鈣 / Calcium Chloride', formula: 'CaCl₂', bondType: '離子鍵 / Ionic Bond',
+                structType: '巨型離子結構 / Giant Ionic', category: 'ionic',
+                properties: '由 Ca²⁺ 陽離子與 Cl⁻ 陰離子以 1:2 比例構成巨型晶體，陰離子體積大於陽離子。',
+                legend: [
+                    { label: '鈣離子 / Ca²⁺ Cation', color: '#06b6d4', type: 'sphere' },
+                    { label: '氯離子 / Cl⁻ Anion', color: '#10b981', type: 'sphere' },
+                    { label: '離子鍵 / Ionic Bond', color: '#475569', type: 'line' }
+                ]
+            },
+            'CsCl': {
+                name: '氯化銫 / Cesium Chloride', formula: 'CsCl', bondType: '離子鍵 / Ionic Bond',
+                structType: '巨型離子結構 (BCC) / Giant Ionic', category: 'ionic',
+                properties: '採用體心立方 (BCC) 晶體結構！中央 1 個 Cs⁺ 離子被頂點 8 個 Cl⁻ 離子緊密包圍 (配位數 8:8)，結構與 NaCl (6:6) 完全不同。',
+                legend: [
+                    { label: '銫離子 / Cs⁺ Cation (中央)', color: '#a855f7', type: 'sphere' },
+                    { label: '氯離子 / Cl⁻ Anion (周圍8粒)', color: '#10b981', type: 'sphere' },
+                    { label: '離子鍵 / Ionic Bond', color: '#475569', type: 'line' }
+                ]
+            },
+            'C_diamond': {
+                name: '鑽石 / Diamond', formula: 'C', bondType: '共價鍵 / Covalent Bond',
+                structType: '巨型共價結構 / Giant Covalent', category: 'giant_covalent',
+                properties: '每個碳原子僅與相鄰 4 個碳原子以 109.5° 鍵角結合，形成無數正四面體相互交聯的三維堅硬網狀結構。',
+                legend: [
+                    { label: '碳原子 / Carbon Atom (連4個C)', color: '#64748b', type: 'sphere' },
+                    { label: '共價鍵 / Covalent Bond', color: '#ffffff', type: 'line' }
+                ]
+            },
+            'Si': {
+                name: '矽 / Silicon', formula: 'Si', bondType: '共價鍵 / Covalent Bond',
+                structType: '巨型共價結構 / Giant Covalent', category: 'giant_covalent',
+                properties: '結構與鑽石相同。每個矽原子只連繫 4 個相鄰矽原子，構成正四面體連續共價網狀結構。',
+                legend: [
+                    { label: '矽原子 / Silicon Atom (連4個Si)', color: '#38bdf8', type: 'sphere' },
+                    { label: '共價鍵 / Covalent Bond', color: '#ffffff', type: 'line' }
+                ]
+            },
+            'SiO2': {
+                name: '二氧化矽 / Silicon Dioxide', formula: 'SiO₂', bondType: '共價鍵 / Covalent Bond',
+                structType: '巨型共價結構 / Giant Covalent', category: 'giant_covalent',
+                properties: '每個矽原子 (Si) 連繫 4 個氧原子形成正四面體頂點；而每個氧原子 (O) 作為橋樑僅連繫 2 個矽原子。',
+                legend: [
+                    { label: '矽原子 / Si Atom (連4個O)', color: '#38bdf8', type: 'sphere' },
+                    { label: '氧原子 / O Atom (連2個Si)', color: '#ef4444', type: 'sphere' },
+                    { label: '共價鍵 / Covalent Bond', color: '#ffffff', type: 'line' }
+                ]
+            },
+            'H2': {
+                name: '氫 / Hydrogen', formula: 'H₂', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '雙原子簡單分子，分子內原子以共價單鍵結合，分子之間靠藍色虛線所示的微弱范德華力吸引。',
+                legend: [
+                    { label: '氫原子 / H Atom', color: '#ffffff', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'He': {
+                name: '氦 / Helium', formula: 'He', bondType: '無分子內鍵 / 分子間范德華力',
+                structType: '簡單分子結構 (單原子)', category: 'simple_molecular',
+                properties: '單原子簡單分子，原子間僅靠極微弱的范德華力動態吸引。',
+                legend: [
+                    { label: '氦原子 / He Atom', color: '#f472b6', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'Ne': {
+                name: '氖 / Neon', formula: 'Ne', bondType: '無分子內鍵 / 分子間范德華力',
+                structType: '簡單分子結構 (單原子)', category: 'simple_molecular',
+                properties: '單原子簡單分子，分子間作用力僅為微弱的范德華力。',
+                legend: [
+                    { label: '氖原子 / Ne Atom', color: '#fb923c', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'Ar': {
+                name: '氬 / Argon', formula: 'Ar', bondType: '無分子內鍵 / 分子間范德華力',
+                structType: '簡單分子結構 (單原子)', category: 'simple_molecular',
+                properties: '單原子簡單分子，沸點極低，依靠微弱的范德華力維持作用。',
+                legend: [
+                    { label: '氬原子 / Ar Atom', color: '#a3e635', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'N2': {
+                name: '氮 / Nitrogen', formula: 'N₂', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '雙原子簡單分子，分子內為強烈的氮氮共價三鍵，分子間存在微弱范德華力。',
+                legend: [
+                    { label: '氮原子 / N Atom', color: '#60a5fa', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'O2': {
+                name: '氧 / Oxygen', formula: 'O₂', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '雙原子簡單分子，分子內為共價雙鍵，分子間依靠范德華力吸引。',
+                legend: [
+                    { label: '氧原子 / O Atom', color: '#ef4444', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'H2O': {
+                name: '水 / Water', formula: 'H₂O', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '分子內部由強共價鍵結合；分子之間靠微弱的范德華力吸引。',
+                legend: [
+                    { label: '氧原子 / O Atom', color: '#ef4444', type: 'sphere' },
+                    { label: '氫原子 / H Atom', color: '#ffffff', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'CO2': {
+                name: '二氧化碳 / Carbon Dioxide', formula: 'CO₂', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '直線型簡單分子 (O=C=O)。分子間僅靠極微弱的范德華力維持。',
+                legend: [
+                    { label: '碳原子 / C Atom', color: '#64748b', type: 'sphere' },
+                    { label: '氧原子 / O Atom', color: '#ef4444', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'CH4': {
+                name: '甲烷 / Methane', formula: 'CH₄', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '每個甲烷分子由 1 個中心碳原子 (C) 與 4 個氫原子 (H) 以共價單鍵結合構成正四面體；分子間依靠微弱范德華力維持吸引。',
+                legend: [
+                    { label: '碳原子 / C Atom (中心)', color: '#64748b', type: 'sphere' },
+                    { label: '氫原子 / H Atom (4個)', color: '#ffffff', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            },
+            'Cl2': {
+                name: '氯 / Chlorine', formula: 'Cl₂', bondType: '分子內共價鍵 / 分子間范德華力',
+                structType: '簡單分子結構 / Simple Molecular', category: 'simple_molecular',
+                properties: '雙原子簡單分子，分子內為共價單鍵，分子之間存在微弱范德華力。',
+                legend: [
+                    { label: '氯原子 / Cl Atom', color: '#10b981', type: 'sphere' },
+                    { label: '范德華力 / Van der Waals\' force', color: '#38bdf8', type: 'dash' }
+                ]
+            }
+        };
+
+        let currentKey = 'CH4';
+        let isRunning = true;
+        let temperature = 3;
+
+        let canvas2D, ctx2D;
+        let particles2D = [];
+
+        let has3D = false;
+        let scene, camera, renderer, controls, sceneGroup;
+        let dynamicAtoms3D = [];
+        let dynamicElectrons3D = [];
+        let dynamicMolecules3D = [];
+        let vdwLines3D = [];
+
+        function initApp() {
+            init2D();
+            init3D();
+
+            window.addEventListener('resize', () => {
+                resize2DCanvas();
+                if (has3D && camera && renderer) {
+                    const container = document.getElementById('webglCanvas').parentElement;
+                    camera.aspect = container.clientWidth / container.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(container.clientWidth, container.clientHeight);
+                }
+            });
+
+            loadStructure(currentKey);
+            animate();
+        }
+
+        function init2D() {
+            canvas2D = document.getElementById('canvas2D');
+            ctx2D = canvas2D.getContext('2d');
+            resize2DCanvas();
+        }
+
+        function resize2DCanvas() {
+            if (!canvas2D) return;
+            const container = canvas2D.parentElement;
+            canvas2D.width = container.clientWidth || 300;
+            canvas2D.height = container.clientHeight || 300;
+        }
+
+        // 在 2D 畫布上將電荷符號繪製於右上角 (Superscript)
+        function drawTextWithSuperscript(ctx, symbol, charge, x, y, color = '#ffffff') {
+            ctx.fillStyle = color;
+            if (!charge) {
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(symbol || '', x, y);
+                return;
+            }
+
+            ctx.font = 'bold 11px sans-serif';
+            const symbolWidth = ctx.measureText(symbol).width;
+            ctx.font = 'bold 8px sans-serif';
+            const chargeWidth = ctx.measureText(charge).width;
+
+            const totalWidth = symbolWidth + chargeWidth;
+            const startX = x - (totalWidth / 2);
+
+            // 繪製元素符號 (主體)
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(symbol, startX, y + 1);
+
+            // 繪製電荷 (右上角上標)
+            ctx.font = 'bold 8px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(charge, startX + symbolWidth, y - 5);
+        }
+
+        function build2DParticles(data) {
+            particles2D = [];
+            const w = canvas2D.width, h = canvas2D.height;
+
+            if (data.category === 'metallic') {
+                const rows = 3, cols = 4;
+                const spacingX = w / (cols + 1), spacingY = h / (rows + 1);
+                const charge = data.chargeVal;
+                const chargeStr = charge === 1 ? '+' : charge + '+';
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        particles2D.push({
+                            type: 'cation',
+                            baseX: spacingX * (c + 1), baseY: spacingY * (r + 1),
+                            x: spacingX * (c + 1), y: spacingY * (r + 1),
+                            color: data.legend[0].color, radius: 18, 
+                            symbol: data.formula, charge: chargeStr
+                        });
+                    }
+                }
+                const numE = rows * cols * charge * 3;
+                for (let i = 0; i < numE; i++) {
+                    particles2D.push({
+                        type: 'delocalized_e',
+                        x: Math.random() * w, y: Math.random() * h,
+                        vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+                        color: '#38bdf8', radius: 3
+                    });
+                }
+            } 
+            else if (data.category === 'ionic') {
+                if (currentKey === 'CsCl') {
+                    const centerX = w / 2, centerY = h / 2;
+                    particles2D.push({
+                        type: 'ion',
+                        baseX: centerX, baseY: centerY,
+                        x: centerX, y: centerY,
+                        color: data.legend[0].color,
+                        radius: 18,
+                        symbol: 'Cs', charge: '+'
+                    });
+
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i * Math.PI / 4);
+                        const bx = centerX + Math.cos(angle) * 80;
+                        const by = centerY + Math.sin(angle) * 80;
+                        particles2D.push({
+                            type: 'ion',
+                            baseX: bx, baseY: by,
+                            x: bx, y: by,
+                            color: data.legend[1].color,
+                            radius: 15,
+                            symbol: 'Cl', charge: '-'
+                        });
+                    }
+                } else {
+                    const rows = 3, cols = 4;
+                    const spacingX = w / (cols + 1), spacingY = h / (rows + 1);
+                    let cationData = { symbol: 'Na', charge: '+' };
+                    let anionData = { symbol: 'Cl', charge: '-' };
+
+                    if (currentKey === 'MgO') { 
+                        cationData = { symbol: 'Mg', charge: '2+' }; 
+                        anionData = { symbol: 'O', charge: '2-' }; 
+                    }
+                    if (currentKey === 'CaCl2') { 
+                        cationData = { symbol: 'Ca', charge: '2+' }; 
+                        anionData = { symbol: 'Cl', charge: '-' }; 
+                    }
+
+                    for (let r = 0; r < rows; r++) {
+                        for (let c = 0; c < cols; c++) {
+                            const isCation = (r + c) % 2 === 0;
+                            const item = isCation ? cationData : anionData;
+                            particles2D.push({
+                                type: 'ion',
+                                baseX: spacingX * (c + 1), baseY: spacingY * (r + 1),
+                                x: spacingX * (c + 1), y: spacingY * (r + 1),
+                                color: isCation ? data.legend[0].color : data.legend[1].color,
+                                radius: isCation ? 15 : 22,
+                                symbol: item.symbol,
+                                charge: item.charge
+                            });
+                        }
+                    }
+                }
+            } 
+            else if (data.category === 'giant_covalent') {
+                const centerX = w / 2, centerY = h / 2;
+                if (currentKey === 'SiO2') {
+                    particles2D.push({ type: 'si', x: centerX, y: centerY, color: '#38bdf8', radius: 16, symbol: 'Si' });
+                    const oAngles = [0, Math.PI/2, Math.PI, Math.PI*1.5];
+                    oAngles.forEach((ang) => {
+                        const ox = centerX + Math.cos(ang) * 55;
+                        const oy = centerY + Math.sin(ang) * 55;
+                        particles2D.push({ type: 'o', x: ox, y: oy, color: '#ef4444', radius: 11, symbol: 'O', parentIdx: 0 });
+                        
+                        const outerSix = ox + Math.cos(ang) * 45;
+                        const outerSiy = oy + Math.sin(ang) * 45;
+                        particles2D.push({ type: 'si', x: outerSix, y: outerSiy, color: '#38bdf8', radius: 14, symbol: 'Si', parentIdx: particles2D.length - 1 });
+                    });
+                } else {
+                    particles2D.push({ type: 'c_center', x: centerX, y: centerY, color: data.legend[0].color, radius: 16, symbol: currentKey === 'Si' ? 'Si' : 'C' });
+                    const angles = [Math.PI*0.25, Math.PI*0.75, Math.PI*1.25, Math.PI*1.75];
+                    angles.forEach(ang => {
+                        const cx = centerX + Math.cos(ang) * 65;
+                        const cy = centerY + Math.sin(ang) * 65;
+                        particles2D.push({ type: 'c_sub', x: cx, y: cy, color: data.legend[0].color, radius: 14, symbol: currentKey === 'Si' ? 'Si' : 'C', parentIdx: 0 });
+                        [ang - 0.4, ang + 0.4].forEach(subAng => {
+                            const subX = cx + Math.cos(subAng) * 45;
+                            const subY = cy + Math.sin(subAng) * 45;
+                            particles2D.push({ type: 'c_outer', x: subX, y: subY, color: data.legend[0].color, radius: 10, symbol: currentKey === 'Si' ? 'Si' : 'C', parentIdx: particles2D.length - 1 });
+                        });
+                    });
+                }
+            } 
+            else if (data.category === 'simple_molecular') {
+                for (let i = 0; i < 8; i++) {
+                    particles2D.push({
+                        type: 'molecule',
+                        x: Math.random() * (w - 80) + 40, y: Math.random() * (h - 80) + 40,
+                        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+                        angle: Math.random() * Math.PI * 2,
+                        vRot: (Math.random() - 0.5) * 0.04
+                    });
+                }
+            }
+        }
+
+        function draw2D() {
+            if (!ctx2D) return;
+            ctx2D.clearRect(0, 0, canvas2D.width, canvas2D.height);
+            const data = PRESETS[currentKey];
+            const jitter = temperature * 0.4;
+
+            if (data.category === 'metallic') {
+                particles2D.filter(p => p.type === 'delocalized_e').forEach(e => {
+                    ctx2D.beginPath(); ctx2D.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                    ctx2D.fillStyle = e.color; ctx2D.fill();
+                    if (isRunning) {
+                        e.x += e.vx * (temperature * 0.4);
+                        e.y += e.vy * (temperature * 0.4);
+                        if (e.x < 0 || e.x > canvas2D.width) e.vx *= -1;
+                        if (e.y < 0 || e.y > canvas2D.height) e.vy *= -1;
+                    }
+                });
+
+                particles2D.filter(p => p.type === 'cation').forEach(p => {
+                    if (isRunning) {
+                        p.x = p.baseX + (Math.random() - 0.5) * jitter;
+                        p.y = p.baseY + (Math.random() - 0.5) * jitter;
+                    }
+                    ctx2D.beginPath(); ctx2D.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx2D.fillStyle = p.color; ctx2D.fill();
+                    ctx2D.strokeStyle = '#ffffff'; ctx2D.lineWidth = 1.5; ctx2D.stroke();
+                    
+                    // 正確繪製元素符號與右上角電荷
+                    drawTextWithSuperscript(ctx2D, p.symbol, p.charge, p.x, p.y, '#000000');
+                });
+            }
+            else if (data.category === 'ionic') {
+                const ions = particles2D.filter(p => p.type === 'ion');
+
+                if (currentKey === 'CsCl') {
+                    const cs = ions.find(p => p.symbol === 'Cs');
+                    if (cs) {
+                        ctx2D.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx2D.lineWidth = 1.5;
+                        ions.filter(p => p.symbol === 'Cl').forEach(cl => {
+                            ctx2D.beginPath(); ctx2D.moveTo(cs.x, cs.y); ctx2D.lineTo(cl.x, cl.y); ctx2D.stroke();
+                        });
+                    }
+                } else {
+                    ctx2D.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx2D.lineWidth = 2;
+                    for (let i = 0; i < ions.length; i++) {
+                        for (let j = i + 1; j < ions.length; j++) {
+                            const dist = Math.hypot(ions[i].x - ions[j].x, ions[i].y - ions[j].y);
+                            if (dist < 100) {
+                                ctx2D.beginPath(); ctx2D.moveTo(ions[i].x, ions[i].y); ctx2D.lineTo(ions[j].x, ions[j].y); ctx2D.stroke();
+                            }
+                        }
+                    }
+                }
+
+                ions.forEach(p => {
+                    if (isRunning) {
+                        p.x = p.baseX + (Math.random() - 0.5) * jitter;
+                        p.y = p.baseY + (Math.random() - 0.5) * jitter;
+                    }
+                    ctx2D.beginPath(); ctx2D.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx2D.fillStyle = p.color; ctx2D.fill();
+                    
+                    drawTextWithSuperscript(ctx2D, p.symbol, p.charge, p.x, p.y, '#ffffff');
+                });
+            }
+            else if (data.category === 'giant_covalent') {
+                ctx2D.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx2D.lineWidth = 2.5;
+                particles2D.forEach(p => {
+                    if (p.parentIdx !== undefined && particles2D[p.parentIdx]) {
+                        const parent = particles2D[p.parentIdx];
+                        ctx2D.beginPath();
+                        ctx2D.moveTo(p.x, p.y);
+                        ctx2D.lineTo(parent.x, parent.y);
+                        ctx2D.stroke();
+                    }
+                });
+
+                particles2D.forEach(p => {
+                    ctx2D.beginPath();
+                    ctx2D.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx2D.fillStyle = p.color;
+                    ctx2D.fill();
+                    ctx2D.strokeStyle = '#ffffff';
+                    ctx2D.lineWidth = 1.5;
+                    ctx2D.stroke();
+
+                    if (p.symbol) {
+                        const textColor = p.color === '#ffffff' ? '#000000' : '#ffffff';
+                        drawTextWithSuperscript(ctx2D, p.symbol, null, p.x, p.y, textColor);
+                    }
+                });
+            }
+            else if (data.category === 'simple_molecular') {
+                const mols = particles2D.filter(p => p.type === 'molecule');
+                ctx2D.strokeStyle = '#38bdf8';
+                ctx2D.setLineDash([4, 4]);
+
+                for (let i = 0; i < mols.length; i++) {
+                    for (let j = i + 1; j < mols.length; j++) {
+                        const dist = Math.hypot(mols[i].x - mols[j].x, mols[i].y - mols[j].y);
+                        if (dist < 100) {
+                            ctx2D.beginPath(); ctx2D.moveTo(mols[i].x, mols[i].y); ctx2D.lineTo(mols[j].x, mols[j].y); ctx2D.stroke();
+                        }
+                    }
+                }
+                ctx2D.setLineDash([]);
+
+                mols.forEach(m => {
+                    ctx2D.save();
+                    ctx2D.translate(m.x, m.y);
+                    ctx2D.rotate(m.angle);
+
+                    if (['He', 'Ne', 'Ar'].includes(currentKey)) {
+                        ctx2D.beginPath(); ctx2D.arc(0, 0, 10, 0, Math.PI * 2); ctx2D.fillStyle = data.legend[0].color; ctx2D.fill();
+                    } else if (['H2', 'N2', 'O2', 'Cl2'].includes(currentKey)) {
+                        ctx2D.beginPath(); ctx2D.arc(-8, 0, 8, 0, Math.PI * 2); ctx2D.fillStyle = data.legend[0].color; ctx2D.fill();
+                        ctx2D.beginPath(); ctx2D.arc(8, 0, 8, 0, Math.PI * 2); ctx2D.fillStyle = data.legend[0].color; ctx2D.fill();
+                    } else if (currentKey === 'H2O') {
+                        ctx2D.beginPath(); ctx2D.arc(0, 0, 11, 0, Math.PI * 2); ctx2D.fillStyle = '#ef4444'; ctx2D.fill();
+                        ctx2D.beginPath(); ctx2D.arc(-9, 7, 6, 0, Math.PI * 2); ctx2D.fillStyle = '#ffffff'; ctx2D.fill();
+                        ctx2D.beginPath(); ctx2D.arc(9, 7, 6, 0, Math.PI * 2); ctx2D.fillStyle = '#ffffff'; ctx2D.fill();
+                    } else if (currentKey === 'CO2') {
+                        ctx2D.beginPath(); ctx2D.arc(0, 0, 10, 0, Math.PI * 2); ctx2D.fillStyle = '#64748b'; ctx2D.fill();
+                        ctx2D.beginPath(); ctx2D.arc(-13, 0, 8, 0, Math.PI * 2); ctx2D.fillStyle = '#ef4444'; ctx2D.fill();
+                        ctx2D.beginPath(); ctx2D.arc(13, 0, 8, 0, Math.PI * 2); ctx2D.fillStyle = '#ef4444'; ctx2D.fill();
+                    } else if (currentKey === 'CH4') {
+                        ctx2D.beginPath(); ctx2D.arc(0, 0, 11, 0, Math.PI * 2); ctx2D.fillStyle = '#64748b'; ctx2D.fill();
+                        const hOffsets = [[0, -15], [0, 15], [-15, 0], [15, 0]];
+                        hOffsets.forEach(([hx, hy]) => {
+                            ctx2D.beginPath(); ctx2D.moveTo(0, 0); ctx2D.lineTo(hx, hy); ctx2D.strokeStyle = '#ffffff'; ctx2D.lineWidth = 1.5; ctx2D.stroke();
+                            ctx2D.beginPath(); ctx2D.arc(hx, hy, 5, 0, Math.PI * 2); ctx2D.fillStyle = '#ffffff'; ctx2D.fill();
+                        });
+                    } else {
+                        ctx2D.beginPath(); ctx2D.arc(0, 0, 11, 0, Math.PI * 2); ctx2D.fillStyle = '#64748b'; ctx2D.fill();
+                    }
+                    ctx2D.restore();
+
+                    if (isRunning) {
+                        m.x += m.vx * (temperature * 0.3);
+                        m.y += m.vy * (temperature * 0.3);
+                        m.angle += m.vRot * (temperature * 0.3);
+                        if (m.x < 20 || m.x > canvas2D.width - 20) m.vx *= -1;
+                        if (m.y < 20 || m.y > canvas2D.height - 20) m.vy *= -1;
+                    }
+                });
+            }
+        }
+
+        function init3D() {
+            const fallbackEl = document.getElementById('fallback3D');
+            if (typeof THREE === 'undefined') {
+                if (fallbackEl) fallbackEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const container = document.getElementById('webglCanvas').parentElement;
+                const canvas = document.getElementById('webglCanvas');
+
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x050811);
+
+                camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+                camera.position.set(0, 10, 28);
+
+                renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+                renderer.setSize(container.clientWidth, container.clientHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+
+                if (typeof THREE.OrbitControls === 'function') {
+                    controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.enableDamping = true;
+                    controls.dampingFactor = 0.05;
+                }
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+                scene.add(ambientLight);
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+                dirLight.position.set(12, 20, 15);
+                scene.add(dirLight);
+
+                sceneGroup = new THREE.Group();
+                scene.add(sceneGroup);
+
+                has3D = true;
+            } catch (err) {
+                console.warn('3D Initialization warning:', err);
+                if (fallbackEl) fallbackEl.style.display = 'block';
+                has3D = false;
+            }
+        }
+
+        function clear3DScene() {
+            if (!has3D || !sceneGroup) return;
+            while(sceneGroup.children.length > 0) {
+                sceneGroup.remove(sceneGroup.children[0]);
+            }
+            dynamicAtoms3D = [];
+            dynamicElectrons3D = [];
+            dynamicMolecules3D = [];
+            vdwLines3D = [];
+        }
+
+        function createAtomMesh3D(color, radius) {
+            const geometry = new THREE.SphereGeometry(radius, 20, 20);
+            const material = new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.2 });
+            return new THREE.Mesh(geometry, material);
+        }
+
+        function createBondCylinder3D(posA, posB, radius = 0.08, color = 0xffffff) {
+            const direction = new THREE.Vector3().subVectors(posB, posA);
+            const orientation = new THREE.Matrix4();
+            orientation.lookAt(posA, posB, new THREE.Object3D().up);
+            
+            const matrix = new THREE.Matrix4();
+            matrix.set(1,0,0,0, 0,0,1,0, 0,-1,0,0, 0,0,0,1);
+            orientation.multiply(matrix);
+
+            const geometry = new THREE.CylinderGeometry(radius, radius, direction.length(), 8);
+            const material = new THREE.MeshStandardMaterial({ color, roughness: 0.4 });
+            const cylinder = new THREE.Mesh(geometry, material);
+
+            cylinder.applyMatrix4(orientation);
+            cylinder.position.set((posA.x + posB.x)/2, (posA.y + posB.y)/2, (posA.z + posB.z)/2);
+            return cylinder;
+        }
+
+        function generateDiamondTetrahedralNodes(scale = 8.5) {
+            const points = [];
+            const unitCells = [-1, 0];
+            const fcc = [
+                [0,0,0], [0.5,0.5,0], [0.5,0,0.5], [0,0.5,0.5]
+            ];
+            const basis = [
+                [0.25,0.25,0.25], [0.75,0.75,0.25], [0.75,0.25,0.75], [0.25,0.75,0.75]
+            ];
+
+            for (let x of unitCells) {
+                for (let y of unitCells) {
+                    for (let z of unitCells) {
+                        fcc.forEach(p => {
+                            points.push(new THREE.Vector3((x + p[0]) * scale, (y + p[1]) * scale, (z + p[2]) * scale));
+                        });
+                        basis.forEach(p => {
+                            points.push(new THREE.Vector3((x + p[0]) * scale, (y + p[1]) * scale, (z + p[2]) * scale));
+                        });
+                    }
+                }
+            }
+            return points;
+        }
+
+        function build3DScene(data, key) {
+            if (!has3D) return;
+            clear3DScene();
+
+            if (data.category === 'metallic') {
+                const grid = 3, spacing = 3.5;
+                const offset = ((grid - 1) * spacing) / 2;
+
+                for (let x = 0; x < grid; x++) {
+                    for (let y = 0; y < grid; y++) {
+                        for (let z = 0; z < grid; z++) {
+                            const pos = new THREE.Vector3(x*spacing - offset, y*spacing - offset, z*spacing - offset);
+                            const cation = createAtomMesh3D(data.legend[0].color, 0.75);
+                            cation.position.copy(pos);
+                            sceneGroup.add(cation);
+                            dynamicAtoms3D.push({ obj: cation, basePos: pos.clone() });
+                        }
+                    }
+                }
+
+                const numElectrons = grid * grid * grid * data.chargeVal * 2;
+                const electronGeo = new THREE.SphereGeometry(0.1, 8, 8);
+                const electronMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+                for (let i = 0; i < numElectrons; i++) {
+                    const eMesh = new THREE.Mesh(electronGeo, electronMat);
+                    eMesh.position.set((Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10);
+                    sceneGroup.add(eMesh);
+                    dynamicElectrons3D.push({
+                        mesh: eMesh,
+                        vel: new THREE.Vector3((Math.random()-0.5)*0.2, (Math.random()-0.5)*0.2, (Math.random()-0.5)*0.2)
+                    });
+                }
+            }
+            else if (data.category === 'ionic') {
+                if (key === 'CsCl') {
+                    const s = 2.4;
+                    const cornerClPositions = [
+                        new THREE.Vector3(-s, -s, -s), new THREE.Vector3(s, -s, -s),
+                        new THREE.Vector3(-s, s, -s),  new THREE.Vector3(s, s, -s),
+                        new THREE.Vector3(-s, -s, s),  new THREE.Vector3(s, -s, s),
+                        new THREE.Vector3(-s, s, s),   new THREE.Vector3(s, s, s)
+                    ];
+                    
+                    const centerCsPos = new THREE.Vector3(0, 0, 0);
+                    const csIon = createAtomMesh3D(data.legend[0].color, 1.05);
+                    csIon.position.copy(centerCsPos);
+                    sceneGroup.add(csIon);
+                    dynamicAtoms3D.push({ obj: csIon, basePos: centerCsPos.clone() });
+
+                    cornerClPositions.forEach(pos => {
+                        const clIon = createAtomMesh3D(data.legend[1].color, 0.85);
+                        clIon.position.copy(pos);
+                        sceneGroup.add(clIon);
+                        dynamicAtoms3D.push({ obj: clIon, basePos: pos.clone() });
+
+                        sceneGroup.add(createBondCylinder3D(centerCsPos, pos, 0.05, 0x475569));
+                    });
+
+                    const cubeEdges = [
+                        [0,1],[1,3],[3,2],[2,0],
+                        [4,5],[5,7],[7,6],[6,4],
+                        [0,4],[1,5],[2,6],[3,7]
+                    ];
+                    cubeEdges.forEach(([i, j]) => {
+                        sceneGroup.add(createBondCylinder3D(cornerClPositions[i], cornerClPositions[j], 0.03, 0x334155));
+                    });
+                } else {
+                    const grid = 3, spacing = 3.2;
+                    const offset = ((grid - 1) * spacing) / 2;
+                    const positions = [];
+
+                    for (let x = 0; x < grid; x++) {
+                        for (let y = 0; y < grid; y++) {
+                            for (let z = 0; z < grid; z++) {
+                                const isCation = (x + y + z) % 2 === 0;
+                                const pos = new THREE.Vector3(x*spacing - offset, y*spacing - offset, z*spacing - offset);
+                                const color = isCation ? data.legend[0].color : data.legend[1].color;
+
+                                const ion = createAtomMesh3D(color, isCation ? 0.6 : 0.95);
+                                ion.position.copy(pos);
+                                sceneGroup.add(ion);
+
+                                positions.push({ pos, isCation });
+                                dynamicAtoms3D.push({ obj: ion, basePos: pos.clone() });
+                            }
+                        }
+                    }
+
+                    for (let i = 0; i < positions.length; i++) {
+                        for (let j = i + 1; j < positions.length; j++) {
+                            if (positions[i].isCation !== positions[j].isCation) {
+                                if (positions[i].pos.distanceTo(positions[j].pos) < spacing + 0.1) {
+                                    sceneGroup.add(createBondCylinder3D(positions[i].pos, positions[j].pos, 0.05, 0x475569));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (data.category === 'giant_covalent') {
+                const latticeScale = 8.2;
+                const rawTetraNodes = generateDiamondTetrahedralNodes(latticeScale);
+                const nodes = rawTetraNodes.filter(p => p.length() < 6.5);
+                const bondThreshold = latticeScale * 0.46;
+
+                if (key === 'C_diamond' || key === 'Si') {
+                    const atomColor = data.legend[0].color;
+
+                    nodes.forEach(p => {
+                        const atom = createAtomMesh3D(atomColor, 0.42);
+                        atom.position.copy(p);
+                        sceneGroup.add(atom);
+                        dynamicAtoms3D.push({ obj: atom, basePos: p.clone() });
+                    });
+
+                    for (let i = 0; i < nodes.length; i++) {
+                        for (let j = i + 1; j < nodes.length; j++) {
+                            const dist = nodes[i].distanceTo(nodes[j]);
+                            if (dist < bondThreshold) {
+                                sceneGroup.add(createBondCylinder3D(nodes[i], nodes[j], 0.06, 0xffffff));
+                            }
+                        }
+                    }
+                } 
+                else if (key === 'SiO2') {
+                    const siColor = '#38bdf8';
+                    const oColor = '#ef4444';
+
+                    nodes.forEach(p => {
+                        const siAtom = createAtomMesh3D(siColor, 0.45);
+                        siAtom.position.copy(p);
+                        sceneGroup.add(siAtom);
+                        dynamicAtoms3D.push({ obj: siAtom, basePos: p.clone() });
+                    });
+
+                    for (let i = 0; i < nodes.length; i++) {
+                        for (let j = i + 1; j < nodes.length; j++) {
+                            const dist = nodes[i].distanceTo(nodes[j]);
+                            if (dist < bondThreshold) {
+                                const midO = new THREE.Vector3().addVectors(nodes[i], nodes[j]).multiplyScalar(0.5);
+                                const oAtom = createAtomMesh3D(oColor, 0.3);
+                                oAtom.position.copy(midO);
+                                sceneGroup.add(oAtom);
+                                dynamicAtoms3D.push({ obj: oAtom, basePos: midO.clone() });
+
+                                sceneGroup.add(createBondCylinder3D(nodes[i], midO, 0.05, 0xcccccc));
+                                sceneGroup.add(createBondCylinder3D(nodes[j], midO, 0.05, 0xcccccc));
+                            }
+                        }
+                    }
+                }
+            }
+            else if (data.category === 'simple_molecular') {
+                for (let i = 0; i < 8; i++) {
+                    const molGroup = new THREE.Group();
+                    const center = new THREE.Vector3((Math.random()-0.5)*13, (Math.random()-0.5)*13, (Math.random()-0.5)*13);
+                    molGroup.position.copy(center);
+
+                    if (['He', 'Ne', 'Ar'].includes(key)) {
+                        const m = createAtomMesh3D(data.legend[0].color, 0.65);
+                        molGroup.add(m);
+                    } else if (['H2', 'N2', 'O2', 'Cl2'].includes(key)) {
+                        const m1 = createAtomMesh3D(data.legend[0].color, 0.55); m1.position.set(-0.45, 0, 0);
+                        const m2 = createAtomMesh3D(data.legend[0].color, 0.55); m2.position.set(0.45, 0, 0);
+                        molGroup.add(m1); molGroup.add(m2);
+                        molGroup.add(createBondCylinder3D(m1.position, m2.position, 0.07, 0xffffff));
+                    } else if (key === 'H2O') {
+                        const o = createAtomMesh3D('#ef4444', 0.6); o.position.set(0, 0, 0);
+                        const h1 = createAtomMesh3D('#ffffff', 0.4); h1.position.set(-0.6, -0.4, 0);
+                        const h2 = createAtomMesh3D('#ffffff', 0.4); h2.position.set(0.6, -0.4, 0);
+                        molGroup.add(o); molGroup.add(h1); molGroup.add(h2);
+                        molGroup.add(createBondCylinder3D(o.position, h1.position, 0.05, 0xffffff));
+                        molGroup.add(createBondCylinder3D(o.position, h2.position, 0.05, 0xffffff));
+                    } else if (key === 'CO2') {
+                        const c = createAtomMesh3D('#64748b', 0.55); c.position.set(0, 0, 0);
+                        const o1 = createAtomMesh3D('#ef4444', 0.5); o1.position.set(-0.85, 0, 0);
+                        const o2 = createAtomMesh3D('#ef4444', 0.5); o2.position.set(0.85, 0, 0);
+                        molGroup.add(c); molGroup.add(o1); molGroup.add(o2);
+                        molGroup.add(createBondCylinder3D(o1.position, o2.position, 0.06, 0xffffff));
+                    } else if (key === 'CH4') {
+                        const c = createAtomMesh3D('#64748b', 0.55);
+                        c.position.set(0, 0, 0);
+                        molGroup.add(c);
+
+                        const hDist = 0.75;
+                        const hPositions = [
+                            new THREE.Vector3(hDist, hDist, hDist),
+                            new THREE.Vector3(hDist, -hDist, -hDist),
+                            new THREE.Vector3(-hDist, hDist, -hDist),
+                            new THREE.Vector3(-hDist, -hDist, hDist)
+                        ];
+
+                        hPositions.forEach(hPos => {
+                            const h = createAtomMesh3D('#ffffff', 0.35);
+                            h.position.copy(hPos);
+                            molGroup.add(h);
+                            molGroup.add(createBondCylinder3D(c.position, hPos, 0.04, 0xffffff));
+                        });
+                    } else {
+                        const c = createAtomMesh3D('#64748b', 0.6);
+                        molGroup.add(c);
+                    }
+
+                    sceneGroup.add(molGroup);
+                    dynamicMolecules3D.push({
+                        group: molGroup,
+                        vel: new THREE.Vector3((Math.random()-0.5)*0.04, (Math.random()-0.5)*0.04, (Math.random()-0.5)*0.04),
+                        rotVel: new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02)
+                    });
+                }
+
+                for (let i = 0; i < 15; i++) {
+                    const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+                    const mat = new THREE.LineDashedMaterial({
+                        color: 0x38bdf8,
+                        dashSize: 0.4,
+                        gapSize: 0.3,
+                        linewidth: 2
+                    });
+                    const line = new THREE.Line(geom, mat);
+                    line.visible = false;
+                    sceneGroup.add(line);
+                    vdwLines3D.push(line);
+                }
+            }
+        }
+
+        function loadStructure(key) {
+            currentKey = key;
+            const data = PRESETS[key];
+
+            updateUI(data);
+            build2DParticles(data);
+            if (has3D) build3DScene(data, key);
+        }
+
+        function updateUI(data) {
+            document.getElementById('infoName').textContent = data.name;
+            document.getElementById('infoFormula').textContent = data.formula;
+            document.getElementById('infoBondType').textContent = data.bondType;
+            document.getElementById('infoStructType').textContent = data.structType;
+            document.getElementById('infoProperties').textContent = data.properties;
+
+            const badgeContainer = document.getElementById('badgeContainer');
+            let badgeClass = 'badge-simple-mol';
+            if (data.category === 'metallic') badgeClass = 'badge-metallic';
+            if (data.category === 'ionic') badgeClass = 'badge-ionic';
+            if (data.category === 'giant_covalent') badgeClass = 'badge-giant-cov';
+
+            badgeContainer.innerHTML = `<span class="badge ${badgeClass}">${data.structType.split(' / ')[0]}</span>`;
+
+            const legendBox = document.getElementById('legendBox');
+            legendBox.innerHTML = '';
+            data.legend.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'legend-item';
+                if (item.type === 'sphere') {
+                    div.innerHTML = `<div class="legend-color" style="background:${item.color}"></div><span>${item.label}</span>`;
+                } else if (item.type === 'dash') {
+                    div.innerHTML = `<div class="legend-line" style="border-top: 2px dashed ${item.color}"></div><span>${item.label}</span>`;
+                } else {
+                    div.innerHTML = `<div class="legend-line" style="background:${item.color}"></div><span>${item.label}</span>`;
+                }
+                legendBox.appendChild(div);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            draw2D();
+
+            if (has3D && renderer && scene && camera) {
+                if (isRunning) {
+                    const speed = temperature * 0.2;
+
+                    dynamicAtoms3D.forEach(item => {
+                        const jitter = new THREE.Vector3(
+                            (Math.random()-0.5)*0.025*speed, (Math.random()-0.5)*0.025*speed, (Math.random()-0.5)*0.025*speed
+                        );
+                        item.obj.position.copy(item.basePos).add(jitter);
+                    });
+
+                    dynamicElectrons3D.forEach(e => {
+                        e.mesh.position.addScaledVector(e.vel, speed * 2);
+                        ['x', 'y', 'z'].forEach(axis => {
+                            if (Math.abs(e.mesh.position[axis]) > 6) e.vel[axis] *= -1;
+                        });
+                    });
+
+                    dynamicMolecules3D.forEach(m => {
+                        m.group.position.addScaledVector(m.vel, speed * 1.5);
+                        m.group.rotation.x += m.rotVel.x * speed;
+                        m.group.rotation.y += m.rotVel.y * speed;
+                        ['x', 'y', 'z'].forEach(axis => {
+                            if (Math.abs(m.group.position[axis]) > 7.5) m.vel[axis] *= -1;
+                        });
+                    });
+
+                    if (PRESETS[currentKey].category === 'simple_molecular') {
+                        let lineIdx = 0;
+                        const threshold = 6.2;
+
+                        for (let i = 0; i < dynamicMolecules3D.length; i++) {
+                            for (let j = i + 1; j < dynamicMolecules3D.length; j++) {
+                                const posA = dynamicMolecules3D[i].group.position;
+                                const posB = dynamicMolecules3D[j].group.position;
+                                const dist = posA.distanceTo(posB);
+
+                                if (dist < threshold && lineIdx < vdwLines3D.length) {
+                                    const line = vdwLines3D[lineIdx++];
+                                    const positions = line.geometry.attributes.position.array;
+                                    positions[0] = posA.x; positions[1] = posA.y; positions[2] = posA.z;
+                                    positions[3] = posB.x; positions[4] = posB.y; positions[5] = posB.z;
+                                    line.geometry.attributes.position.needsUpdate = true;
+                                    line.computeLineDistances();
+                                    line.visible = true;
+                                }
+                            }
+                        }
+                        for (; lineIdx < vdwLines3D.length; lineIdx++) {
+                            vdwLines3D[lineIdx].visible = false;
+                        }
+                    }
+                }
+
+                if (controls) controls.update();
+                renderer.render(scene, camera);
+            }
+        }
+
+        document.getElementById('presetSelect').addEventListener('change', (e) => loadStructure(e.target.value));
+        document.getElementById('tempSlider').addEventListener('input', (e) => temperature = parseFloat(e.target.value));
+        document.getElementById('btnPause').addEventListener('click', () => isRunning = !isRunning);
+        document.getElementById('btnResetCam').addEventListener('click', () => {
+            if (has3D && camera && controls) {
+                camera.position.set(0, 10, 28);
+                controls.target.set(0, 0, 0);
+            }
+        });
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>

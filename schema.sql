@@ -138,7 +138,7 @@ CREATE TABLE simulations (
     title_en VARCHAR(512) NOT NULL DEFAULT '',
     summary_zh VARCHAR(500) NOT NULL DEFAULT '',
     summary_en VARCHAR(500) NOT NULL DEFAULT '',
-    html LONGTEXT NOT NULL,
+    html_path VARCHAR(512) NULL,
     screenshot_path VARCHAR(512) NULL,
     subject_id SMALLINT UNSIGNED NULL,
     topic_id INT UNSIGNED NULL,

@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>放射衰變 | Radioactive Decay</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; overscroll-behavior: none; background: #f1f5f9; }
+        body { overflow: hidden; }
+        #canvas-container { position: relative; width: 100%; height: 100%; border-radius: 12px; background: #0a0f18; overflow: hidden; }
+        #renderCanvas { width: 100%; height: 100%; touch-action: none; outline: none; display: block; }
+        .checkbox-wrapper input:checked + div { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #2563eb; border: 2px solid #fff; margin-top: -5px; cursor: pointer;
+        }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #93c5fd; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #93c5fd !important; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .sim-tab { padding: 8px 10px; font-size: 12px; font-weight: 700; border-radius: 10px; color: #64748b; transition: background .2s, color .2s; }
+        .sim-tab.active { background: #2563eb; color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,.25); }
+        .decay-type-btn { border: 2px solid #e2e8f0; background: #f8fafc; transition: all .2s; }
+        .decay-type-btn.active { border-color: #2563eb; background: #eff6ff; ring: 2px; box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+        .isotope { display: inline-flex; align-items: center; line-height: 1; }
+        .isotope-numbers { display: flex; flex-direction: column; justify-content: center; font-size: 0.7em; margin-right: 2px; text-align: right; }
+        .isotope-element { font-size: 1.2em; }
+        @keyframes excited-pulse {
+            0%, 100% { box-shadow: 0 0 10px #a855f7, inset 0 0 10px #a855f7; }
+            50% { box-shadow: 0 0 30px #d946ef, inset 0 0 20px #d946ef; }
+        }
+        .excited-state { animation: excited-pulse 0.5s infinite alternate; }
+        #type-canvas-wrap { position: relative; background: #0a0f18; }
+        #typeDecayCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-hidden">
+
+    <header class="shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col md:flex-row justify-between items-center gap-2 sm:gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-blue-600 text-white flex items-center justify-center shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2 flex-wrap">
+                        <span data-i18n="title">放射衰變</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">半衰期骰子模型 · α／β／γ 衰變動畫</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto shrink-0">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-700 rounded-xl font-bold text-sm shadow-sm border border-blue-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto overflow-x-hidden">
+
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 shrink-0">
+                <div class="grid grid-cols-2 gap-1">
+                    <button type="button" id="tab-dice" class="sim-tab active" data-i18n="tabDice">半衰期</button>
+                    <button type="button" id="tab-type" class="sim-tab" data-i18n="tabType">αβγ 衰變</button>
+                </div>
+            </div>
+
+            <div id="panel-dice" class="flex flex-col gap-3">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="startBtn" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="play">開始</button>
+                    <button type="button" id="resetBtn" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                </div>
+
+                <label class="block mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1 block" data-i18n="labelN0">原子核數量 (N₀)</span>
+                    <select id="diceCount" class="w-full text-sm border rounded-lg p-2 bg-white">
+                        <option value="100">100</option>
+                        <option value="1000" selected>1000</option>
+                        <option value="10000">10000</option>
+                    </select>
+                </label>
+
+                <div class="mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1.5 block" data-i18n="labelDecay">衰變點數（擲出即衰變）</span>
+                    <div class="flex gap-1 flex-wrap">
+                        <label class="cursor-pointer checkbox-wrapper"><input type="checkbox" class="hidden decay-option" value="1" checked><div class="w-7 h-7 flex items-center justify-center border rounded-lg bg-white text-xs font-bold transition select-none">1</div></label>
+                        <label class="cursor-pointer checkbox-wrapper"><input type="checkbox" class="hidden decay-option" value="2"><div class="w-7 h-7 flex items-center justify-center border rounded-lg bg-white text-xs font-bold transition select-none">2</div></label>
+                        <label class="cursor-pointer checkbox-wrapper"><input type="checkbox" class="hidden decay-option" value="3"><div class="w-7 h-7 flex items-center justify-center border rounded-lg bg-white text-xs font-bold transition select-none">3</div></label>
+                        <label class="cursor-pointer checkbox-wrapper"><input type="checkbox" class="hidden decay-option" value="4"><div class="w-7 h-7 flex items-center justify-center border rounded-lg bg-white text-xs font-bold transition select-none">4</div></label>
+                        <label class="cursor-pointer checkbox-wrapper"><input type="checkbox" class="hidden decay-option" value="5"><div class="w-7 h-7 flex items-center justify-center border rounded-lg bg-white text-xs font-bold transition select-none">5</div></label>
+                        <label class="cursor-pointer checkbox-wrapper"><input type="checkbox" class="hidden decay-option" value="6"><div class="w-7 h-7 flex items-center justify-center border rounded-lg bg-white text-xs font-bold transition select-none">6</div></label>
+                    </div>
+                </div>
+
+                <label class="block">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1 flex justify-between">
+                        <span data-i18n="labelSpeed">速度</span>
+                        <span><span id="intervalDisplay">1.0</span>s</span>
+                    </span>
+                    <input type="range" id="intervalSlider" min="0.2" max="2" step="0.1" value="1.0">
+                </label>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-blue-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statThrows">次數</span><b id="timeElapsed">0</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statK">衰變常數 k</span><b id="decayConstant">-</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statHalf">理論半衰期 t₁/₂</span><b id="halfLifeTheoretical">-</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statPct">剩餘 %</span><b id="percentageLeft">100%</b></div>
+                <p class="text-[10px] text-slate-400 mt-2" data-i18n="kHint">k ≈ P(衰變) = 所選點數 / 6</p>
+            </div>
+
+            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 text-[11px] text-emerald-900 leading-relaxed hidden lg:block">
+                <p class="font-bold mb-1" data-i18n="quickTipTitle">操作提示</p>
+                <p data-i18n="quickTip">綠色圓球＝未衰變；藍色（約 80% 大小）＝已衰變。可拖曳旋轉 3D 視角。</p>
+            </div>
+            </div>
+
+            <div id="panel-type" class="hidden flex flex-col gap-3">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="typeSelectTitle">選擇衰變類型</h2>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button type="button" id="btn-alpha" class="decay-type-btn relative flex items-center p-3 rounded-xl text-left">
+                            <div class="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-xl mr-3 border border-orange-200 shrink-0">α</div>
+                            <div>
+                                <div class="font-bold text-slate-800 text-sm" data-i18n="typeAlphaName">阿爾法衰變</div>
+                                <div class="text-[11px] text-slate-500" data-i18n="typeAlphaHint">釋放氦核（2p + 2n）</div>
+                            </div>
+                        </button>
+                        <button type="button" id="btn-beta" class="decay-type-btn relative flex items-center p-3 rounded-xl text-left">
+                            <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg mr-3 border border-blue-200 shrink-0">β⁻</div>
+                            <div>
+                                <div class="font-bold text-slate-800 text-sm" data-i18n="typeBetaName">貝他衰變</div>
+                                <div class="text-[11px] text-slate-500" data-i18n="typeBetaHint">中子→質子，釋放電子</div>
+                            </div>
+                        </button>
+                        <button type="button" id="btn-gamma" class="decay-type-btn relative flex items-center p-3 rounded-xl text-left">
+                            <div class="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xl mr-3 border border-purple-200 shrink-0">γ</div>
+                            <div>
+                                <div class="font-bold text-slate-800 text-sm" data-i18n="typeGammaName">伽瑪衰變</div>
+                                <div class="text-[11px] text-slate-500" data-i18n="typeGammaHint">激發態→基態，釋放光子</div>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button type="button" id="btn-type-trigger" class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="typeTrigger">觸發衰變</button>
+                        <button type="button" id="btn-type-reset" class="px-4 py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex-1 overflow-y-auto min-h-0">
+                    <h2 class="text-sm font-bold text-slate-700 mb-3 border-b border-slate-100 pb-2" data-i18n="typeInfoTitle">反應方程式與說明</h2>
+                    <div id="type-info-content" class="space-y-3 text-sm text-slate-600"></div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-2 flex flex-col gap-3 min-h-0 lg:overflow-hidden">
+            <div id="view-dice" class="flex flex-col flex-1 min-h-0 gap-3">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col flex-1 min-h-[220px] lg:min-h-0">
+                <div class="flex justify-between items-center mb-2 px-1 shrink-0">
+                    <h2 class="text-sm font-bold text-slate-700" data-i18n="viewTitle">模擬過程</h2>
+                    <div class="text-[10px] sm:text-xs text-slate-500">
+                        <span class="inline-block w-2.5 h-2.5 bg-emerald-400 mr-1 rounded-full"></span><span data-i18n="legendActive">未衰變</span>
+                        <span class="inline-block w-2.5 h-2.5 bg-blue-500 ml-2 mr-1 rounded-full"></span><span data-i18n="legendDecayed">已衰變</span>
+                    </div>
+                </div>
+                <div id="canvas-container" class="flex-1 min-h-[220px]">
+                    <canvas id="renderCanvas"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col shrink-0 lg:shrink lg:max-h-[42%] lg:overflow-y-auto">
+                <div class="flex justify-between items-center border-b pb-2 mb-3">
+                    <h2 class="text-sm font-bold text-slate-700" data-i18n="chartTitle">衰變曲線</h2>
+                    <div class="text-right">
+                        <div class="text-xl font-mono font-bold text-blue-600" id="currentN">N: 1000</div>
+                        <div class="text-[10px] text-slate-500" data-i18n="remainingN">剩餘原子核</div>
+                    </div>
+                </div>
+                <div class="relative h-44 sm:h-52 w-full shrink-0">
+                    <canvas id="decayChart"></canvas>
+                </div>
+            </div>
+            </div>
+
+            <div id="view-type" class="hidden flex flex-col flex-1 min-h-0">
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col flex-1 min-h-[280px] lg:min-h-0">
+                    <div class="flex justify-between items-center mb-2 px-1 shrink-0">
+                        <h2 class="text-sm font-bold text-slate-700" data-i18n="typeViewTitle">α／β／γ 衰變過程</h2>
+                    </div>
+                    <div id="type-canvas-wrap" class="flex-1 min-h-[240px] rounded-xl overflow-hidden relative">
+                        <div class="absolute top-3 left-3 z-10 bg-slate-900/85 backdrop-blur-sm p-3 rounded-lg border border-slate-700 text-[10px] shadow-lg pointer-events-none">
+                            <div class="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-red-500"></div><span class="text-slate-300" data-i18n="legendProton">質子</span></div>
+                                <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div><span class="text-slate-300" data-i18n="legendNeutron">中子</span></div>
+                                <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-yellow-400"></div><span class="text-slate-300" data-i18n="legendElectron">電子 (β)</span></div>
+                                <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-purple-500"></div><span class="text-slate-300" data-i18n="legendGamma">光子 (γ)</span></div>
+                                <div class="flex items-center gap-1.5 col-span-2"><div class="w-2.5 h-2.5 rounded-full bg-slate-400 opacity-60"></div><span class="text-slate-300" data-i18n="legendAntineutrino">反微中子</span></div>
+                            </div>
+                        </div>
+                        <canvas id="typeDecayCanvas"></canvas>
+                        <div id="gamma-glow" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full pointer-events-none opacity-0 transition-opacity duration-300"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-emerald-500 to-blue-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">放射性衰變</h2>
+                    <p class="text-xs text-emerald-100" data-i18n="modalSub">隨機過程、指數衰減與半衰期</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m1t">1. 核心概念</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">放射性衰變是單一原子核的隨機事件——我們無法預測哪一個核會在何時衰變，但大量原子核的統計行為可預測。</p>
+                    <div class="mj-box mt-2">\( N = N_0 e^{-kt} \)</div>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 骰子模型機制</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">每個未衰變原子核視為一顆骰子。每個時間單位擲一次：若點數落在「衰變點數」內，該核衰變（綠→藍）；否則保留。選 1 點時，每次衰變機率 p = 1/6。</p>
+                    <div class="mj-box">\( k \approx p,\quad t_{1/2} = \dfrac{\ln 2}{k} = \dfrac{\ln 2}{\ln(1/(1-p))} \)</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                        <h4 class="font-bold text-blue-800 text-xs mb-1" data-i18n="m3t">半衰期</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m3d">N 降至 N₀/2 所需的平均時間（此處為「擲骰次數」）。鈾-238 半衰期約 45 億年；碳-14 約 5730 年。</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 text-xs mb-1" data-i18n="m4t">統計漸近</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m4d">原子核愈多，實驗曲線愈貼近虛線理論值 N₀(1−p)ⁿ。這說明微觀隨機、宏觀可預測。</p>
+                    </div>
+                </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m5t">3. 生活例子</h3>
+                    <p class="text-xs text-violet-800" data-i18n="m5d">碳-14 定年：量剩餘 C-14 比例推算古物年代。醫用同位素（如 Tc-99m）半衰期短，適合造影後快速衰減。煙霧探測器內的 Am-241 持續釋放 α 粒子——衰變是日常科技基礎。</p>
+                </div>
+                <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                    <h3 class="font-bold text-orange-900 mb-1" data-i18n="m6t">4. α／β／γ 衰變類型</h3>
+                    <p class="text-xs text-orange-900" data-i18n="m6d">α 衰變改變 A、Z（重核常見）；β⁻ 中子變質子（如 C-14→N-14）；γ 僅釋放能量、不改元素種類（如 Tc-99m）。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-emerald-500 to-blue-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-emerald-100" data-i18n="stepsSub">如何使用這個衰變模擬</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="step1">選 N₀（100／1000／10000）與衰變點數。點數愈多，p 愈大，衰變愈快。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="step2">按「開始」：每步所有未衰變核擲骰一次；綠球變藍球即衰變。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="step3">觀察右下衰變曲線：藍實線為實驗值，灰虛線為 N₀(1−p)ⁿ 理論值。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="step4">比較理論半衰期 t₁/₂ 與 N 減半所需步數。N₀ 愈大，兩者愈接近。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-black flex items-center justify-center shrink-0">5</span><span data-i18n="typeStep1">切換至「αβγ 衰變」分頁，選 α、β⁻ 或 γ 衰變類型。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-black flex items-center justify-center shrink-0">6</span><span data-i18n="typeStep2">閱讀左側核反應方程式，按「觸發衰變」觀察粒子發射動畫。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-black flex items-center justify-center shrink-0">7</span><span data-i18n="typeStep3">α：2p+2n 成團射出；β：中子變質子＋電子；γ：激發態發光後射出光子。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const i18n = {
+    zh: {
+        title: '放射衰變', badge: '物理', subtitle: '半衰期骰子模型 · α／β／γ 衰變動畫',
+        tabDice: '半衰期', tabType: 'αβγ 衰變',
+        typeSelectTitle: '選擇衰變類型', typeAlphaName: '阿爾法衰變', typeAlphaHint: '釋放氦核（2p + 2n）',
+        typeBetaName: '貝他衰變', typeBetaHint: '中子→質子，釋放電子',
+        typeGammaName: '伽瑪衰變', typeGammaHint: '激發態→基態，釋放光子',
+        typeTrigger: '觸發衰變', typeInfoTitle: '反應方程式與說明', typeViewTitle: 'α／β／γ 衰變過程',
+        legendProton: '質子', legendNeutron: '中子', legendElectron: '電子 (β)', legendGamma: '光子 (γ)', legendAntineutrino: '反微中子',
+        typeAlphaTitle: '阿爾法衰變 (Alpha Decay)',
+        typeAlphaDesc: '原子核釋放阿爾法粒子（氦-4 核：2 質子 + 2 中子）。<br><br><b>結果：</b>質量數 A 減 4，原子序 Z 減 2。常見於較重核（鈾、鐳）。',
+        typeBetaTitle: '貝他衰變 (Beta-minus Decay)',
+        typeGammaTitle: '伽瑪衰變 (Gamma Decay)',
+        typeGammaDesc: '激發態核（常標 m 或 *）躍遷至基態，釋放高能 γ 光子。<br><br><b>結果：</b>A 與 Z 不變，僅能量降低。',
+        typeStep1: '切換至「αβγ 衰變」分頁，選 α、β⁻ 或 γ 衰變類型。',
+        typeStep2: '閱讀左側核反應方程式，按「觸發衰變」觀察粒子發射動畫。',
+        typeStep3: 'α：整顆 α 粒子（2p+2n）射出；β：中子裂變，質子留核內，只有 e⁻ 飛出；γ：激發態發光後射出光子。',
+        typeBetaDesc: '中子裂變為質子（留在原子核內），同時釋放高速電子（β 粒子）。<br><br><b>結果：</b>質量數 A 不變，原子序 Z 加 1。',
+        m6t: '4. α／β／γ 衰變類型',
+        m6d: 'α 衰變改變 A、Z（重核常見）；β⁻ 中子變質子（如 C-14→N-14）；γ 僅釋放能量、不改元素種類（如 Tc-99m）。',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        play: '開始', pause: '暫停', resume: '繼續', done: '完成', reset: '重置',
+        labelN0: '原子核數量 (N₀)', labelDecay: '衰變點數（擲出即衰變）', labelSpeed: '速度',
+        liveTitle: '即時數據', statThrows: '次數', statK: '衰變常數 k', statHalf: '理論半衰期 t₁/₂', statPct: '剩餘 %',
+        kHint: 'k ≈ P(衰變) = 所選點數 / 6',
+        quickTipTitle: '操作提示',
+        quickTip: '綠色圓球＝未衰變；藍色（約 80% 大小）＝已衰變。可拖曳旋轉 3D 視角。',
+        viewTitle: '模擬過程', legendActive: '未衰變', legendDecayed: '已衰變',
+        chartTitle: '衰變曲線', remainingN: '剩餘原子核',
+        chartActual: '未衰變 (N)', chartTheory: '理論值', chartX: '次數', chartY: '數量 N',
+        modalTitle: '放射性衰變', modalSub: '隨機過程、指數衰減與半衰期', modalClose: '關閉',
+        stepsTitle: '觀察步驟', stepsSub: '如何使用這個衰變模擬',
+        step1: '選 N₀（100／1000／10000）與衰變點數。點數愈多，p 愈大，衰變愈快。',
+        step2: '按「開始」：每步所有未衰變核擲骰一次；綠球變藍球即衰變。',
+        step3: '觀察右下衰變曲線：藍實線為實驗值，灰虛線為 N₀(1−p)ⁿ 理論值。',
+        step4: '比較理論半衰期 t₁/₂ 與 N 減半所需步數。N₀ 愈大，兩者愈接近。',
+        m1t: '1. 核心概念',
+        m1d: '放射性衰變是單一原子核的隨機事件——我們無法預測哪一個核會在何時衰變，但大量原子核的統計行為可預測。',
+        m2t: '2. 骰子模型機制',
+        m2d: '每個未衰變原子核視為一顆骰子。每個時間單位擲一次：若點數落在「衰變點數」內，該核衰變（綠→藍）；否則保留。選 1 點時，每次衰變機率 p = 1/6。',
+        m3t: '半衰期',
+        m3d: 'N 降至 N₀/2 所需的平均時間（此處為「擲骰次數」）。鈾-238 半衰期約 45 億年；碳-14 約 5730 年。',
+        m4t: '統計漸近',
+        m4d: '原子核愈多，實驗曲線愈貼近虛線理論值 N₀(1−p)ⁿ。這說明微觀隨機、宏觀可預測。',
+        m5t: '3. 生活例子',
+        m5d: '碳-14 定年：量剩餘 C-14 比例推算古物年代。醫用同位素（如 Tc-99m）半衰期短，適合造影後快速衰減。煙霧探測器內的 Am-241 持續釋放 α 粒子——衰變是日常科技基礎。'
+    },
+    en: {
+        title: 'Radioactive Decay', badge: 'Physics', subtitle: 'Half-life dice model · α/β/γ decay animation',
+        tabDice: 'Half-life', tabType: 'αβγ decay',
+        typeSelectTitle: 'Decay type', typeAlphaName: 'Alpha decay', typeAlphaHint: 'Helium nucleus (2p + 2n)',
+        typeBetaName: 'Beta-minus decay', typeBetaHint: 'n → p + electron',
+        typeGammaName: 'Gamma decay', typeGammaHint: 'Excited → ground state + photon',
+        typeTrigger: 'Trigger decay', typeInfoTitle: 'Equation & notes', typeViewTitle: 'α / β / γ decay process',
+        legendProton: 'Proton', legendNeutron: 'Neutron', legendElectron: 'Electron (β)', legendGamma: 'Photon (γ)', legendAntineutrino: 'Antineutrino',
+        typeAlphaTitle: 'Alpha decay',
+        typeAlphaDesc: 'Nucleus emits an alpha particle (He-4: 2 protons + 2 neutrons).<br><br><b>Result:</b> A decreases by 4, Z by 2. Common in heavy nuclei (U, Ra).',
+        typeBetaTitle: 'Beta-minus decay',
+        typeGammaTitle: 'Gamma decay',
+        typeGammaDesc: 'An excited nucleus (often marked m or *) drops to ground state, emitting a γ photon.<br><br><b>Result:</b> A and Z unchanged; only energy decreases.',
+        typeStep1: 'Switch to the “αβγ decay” tab and pick α, β⁻, or γ.',
+        typeStep2: 'Read the nuclear equation on the left, then press “Trigger decay”.',
+        typeStep3: 'α: one α particle (2p+2n) ejected; β: neutron splits — proton stays, only e⁻ flies out; γ: glow then photon.',
+        typeBetaDesc: 'A neutron splits into a proton (stays in the nucleus) and a fast electron (β) that is ejected.<br><br><b>Result:</b> A unchanged, Z increases by 1.',
+        m6t: '4. α / β / γ decay types',
+        m6d: 'α changes A and Z (heavy nuclei); β⁻ converts n→p (e.g. C-14→N-14); γ releases energy only (e.g. Tc-99m).',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls',
+        play: 'Start', pause: 'Pause', resume: 'Resume', done: 'Done', reset: 'Reset',
+        labelN0: 'Initial nuclei (N₀)', labelDecay: 'Decay faces (roll → decay)', labelSpeed: 'Speed',
+        liveTitle: 'Live data', statThrows: 'Throws', statK: 'Decay constant k', statHalf: 'Theoretical t₁/₂', statPct: 'Remaining %',
+        kHint: 'k ≈ P(decay) = selected faces / 6',
+        quickTipTitle: 'Tips',
+        quickTip: 'Green = undecayed; blue (~80% size) = decayed. Drag to rotate the 3D view.',
+        viewTitle: 'Simulation', legendActive: 'Undecayed', legendDecayed: 'Decayed',
+        chartTitle: 'Decay curve', remainingN: 'Remaining nuclei',
+        chartActual: 'Undecayed (N)', chartTheory: 'Theory', chartX: 'Throws', chartY: 'Count N',
+        modalTitle: 'Radioactive decay', modalSub: 'Random process, exponential decay & half-life', modalClose: 'Close',
+        stepsTitle: 'What to watch', stepsSub: 'How to use this decay lab',
+        step1: 'Choose N₀ (100 / 1000 / 10000) and decay faces. More faces → larger p → faster decay.',
+        step2: 'Press Start: each step every undecayed nucleus rolls once; green → blue means decay.',
+        step3: 'Watch the curve: solid blue = experiment, dashed grey = N₀(1−p)ⁿ theory.',
+        step4: 'Compare theoretical t₁/₂ with steps until N halves. Larger N₀ gives closer agreement.',
+        m1t: '1. Core idea',
+        m1d: 'Decay of one nucleus is random — we cannot predict which one or when, but statistics of a large sample are predictable.',
+        m2t: '2. Dice model',
+        m2d: 'Each undecayed nucleus is a die. Each time step, roll once: if the face is a “decay face”, it decays (green → blue). With face 1 only, p = 1/6 per throw.',
+        m3t: 'Half-life',
+        m3d: 'Average throws until N falls to N₀/2. U-238 ≈ 4.5 billion years; C-14 ≈ 5730 years.',
+        m4t: 'Statistical limit',
+        m4d: 'More nuclei → experimental curve closer to N₀(1−p)ⁿ. Microscopic randomness, macroscopic predictability.',
+        m5t: '3. Everyday examples',
+        m5d: 'Carbon-14 dating; medical Tc-99m (short half-life for imaging); Am-241 in smoke detectors — decay underpins everyday technology.'
+    }
+};
+
+let lang = 'zh';
+let startBtnMode = 'play';
+
+const state = {
+    totalDice: 1000,
+    currentDice: 1000,
+    decayConditions: [1],
+    interval: 1000,
+    isPlaying: false,
+    throwCount: 0,
+    history: [],
+    theoreticalHistory: []
+};
+
+const SPHERE_DIAMETER = 0.55;
+const GRID_SPACING = 0.72;
+const SPHERE_SEGMENTS = { 100: 12, 1000: 10, 10000: 8 };
+
+let timer = null;
+let engine, scene, nucleusMesh, sphereMaterial;
+let nucleusData = [], activeIndices = [];
+let matrixBuffer, colorBuffer, currentSphereSegments = 0;
+let decayChart;
+
+const tempMatrix = BABYLON.Matrix.Identity();
+const tempVector = new BABYLON.Vector3();
+const tempQuat = new BABYLON.Quaternion(0, 0, 0, 1);
+const scaleActive = new BABYLON.Vector3(1, 1, 1);
+const scaleDecayed = new BABYLON.Vector3(0.8, 0.8, 0.8);
+const colorActive = new BABYLON.Color4(0.2, 0.85, 0.45, 1);
+const colorDecayed = new BABYLON.Color4(0.23, 0.51, 0.96, 1);
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function setStartBtnMode(mode) {
+    startBtnMode = mode;
+    document.getElementById('startBtn').textContent = i18n[lang][mode] || i18n[lang].play;
+    const btn = document.getElementById('startBtn');
+    if (mode === 'pause') {
+        btn.className = 'flex-1 py-2 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white';
+    } else {
+        btn.className = 'flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white';
+    }
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    setStartBtnMode(startBtnMode);
+    updateStatsUI();
+    if (typeDecay.initialized) typeDecay.updateUI();
+    if (decayChart) {
+        decayChart.data.datasets[0].label = i18n[lang].chartActual;
+        decayChart.data.datasets[1].label = i18n[lang].chartTheory;
+        decayChart.options.scales.x.title.text = i18n[lang].chartX;
+        decayChart.options.scales.y.title.text = i18n[lang].chartY;
+        decayChart.update('none');
+    }
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([document.getElementById('modal-principle')]).catch(() => {});
+    }
+}
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    applyLang();
+}
+
+function updateMathStats() {
+    const p = state.decayConditions.length / 6.0;
+    let tHalf = 0;
+    if (p > 0 && p < 1) tHalf = Math.log(0.5) / Math.log(1 - p);
+    else if (p === 1) tHalf = 1;
+    else tHalf = Infinity;
+    document.getElementById('decayConstant').innerText = p.toFixed(3);
+    document.getElementById('halfLifeTheoretical').innerText = (tHalf === Infinity) ? '∞' : tHalf.toFixed(2);
+}
+
+function getSphereSegments(count) {
+    if (count <= 100) return SPHERE_SEGMENTS[100];
+    if (count <= 1000) return SPHERE_SEGMENTS[1000];
+    return SPHERE_SEGMENTS[10000];
+}
+
+function getGridRadius(count) {
+    const side = Math.ceil(Math.cbrt(count));
+    return (side - 1) * GRID_SPACING * 0.55 + SPHERE_DIAMETER;
+}
+
+function initBabylon() {
+    const canvas = document.getElementById('renderCanvas');
+    engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+    scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color4(0.05, 0.07, 0.11, 1);
+
+    const camera = new BABYLON.ArcRotateCamera(
+        'camera', -Math.PI / 2, Math.PI / 2.4,
+        Math.max(18, getGridRadius(state.totalDice) * 2.2),
+        BABYLON.Vector3.Zero(), scene
+    );
+    camera.attachControl(canvas, true);
+    camera.wheelPrecision = 40;
+    camera.lowerRadiusLimit = 8;
+    camera.upperRadiusLimit = 120;
+    camera.minZ = 0.1;
+
+    const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0.2, 1, 0.1), scene);
+    hemi.intensity = 0.55;
+    hemi.groundColor = new BABYLON.Color3(0.08, 0.1, 0.14);
+    const key = new BABYLON.DirectionalLight('key', new BABYLON.Vector3(-0.8, -1.2, -0.6), scene);
+    key.position = new BABYLON.Vector3(25, 35, 20);
+    key.intensity = 0.85;
+    const rim = new BABYLON.PointLight('rim', new BABYLON.Vector3(-20, 10, -15), scene);
+    rim.intensity = 0.35;
+    rim.diffuse = new BABYLON.Color3(0.4, 0.7, 1);
+
+    rebuildSphereMeshIfNeeded();
+    generateNucleusInstances();
+
+    engine.runRenderLoop(function () {
+        if (!scene) return;
+        if (state.isPlaying) scene.activeCamera.alpha += 0.0015;
+        scene.render();
+    });
+}
+
+function rebuildSphereMeshIfNeeded() {
+    const segments = getSphereSegments(state.totalDice);
+    if (nucleusMesh && segments === currentSphereSegments) return;
+    if (nucleusMesh) nucleusMesh.dispose(false, true);
+    nucleusMesh = BABYLON.MeshBuilder.CreateSphere('rootSphere', { diameter: SPHERE_DIAMETER, segments }, scene);
+    if (!sphereMaterial) {
+        sphereMaterial = new BABYLON.StandardMaterial('sphereMat', scene);
+        sphereMaterial.useVertexColor = true;
+        sphereMaterial.specularColor = new BABYLON.Color3(0.45, 0.45, 0.45);
+        sphereMaterial.specularPower = 48;
+        sphereMaterial.emissiveColor = new BABYLON.Color3(0.03, 0.06, 0.04);
+        sphereMaterial.backFaceCulling = true;
+    }
+    nucleusMesh.material = sphereMaterial;
+    nucleusMesh.thinInstanceRegisterAttribute('color', 4);
+    currentSphereSegments = segments;
+}
+
+function generateNucleusInstances() {
+    rebuildSphereMeshIfNeeded();
+    if (!nucleusMesh) return;
+    const count = state.totalDice;
+    nucleusData = new Array(count);
+    activeIndices = [];
+    const matricesData = new Float32Array(count * 16);
+    const colorData = new Float32Array(count * 4);
+    const side = Math.ceil(Math.cbrt(count));
+    const offset = (side - 1) * 0.5 * GRID_SPACING;
+    let index = 0;
+    for (let x = 0; x < side && index < count; x++) {
+        for (let y = 0; y < side && index < count; y++) {
+            for (let z = 0; z < side && index < count; z++) {
+                const posX = x * GRID_SPACING - offset;
+                const posY = y * GRID_SPACING - offset;
+                const posZ = z * GRID_SPACING - offset;
+                tempVector.set(posX, posY, posZ);
+                tempQuat.set(0, 0, 0, 1);
+                BABYLON.Matrix.ComposeToRef(scaleActive, tempQuat, tempVector, tempMatrix);
+                tempMatrix.copyToArray(matricesData, index * 16);
+                colorData[index * 4] = colorActive.r;
+                colorData[index * 4 + 1] = colorActive.g;
+                colorData[index * 4 + 2] = colorActive.b;
+                colorData[index * 4 + 3] = colorActive.a;
+                nucleusData[index] = { status: 1, baseX: posX, baseY: posY, baseZ: posZ };
+                activeIndices.push(index);
+                index++;
+            }
+        }
+    }
+    nucleusMesh.thinInstanceSetBuffer('matrix', matricesData, 16);
+    nucleusMesh.thinInstanceSetBuffer('color', colorData, 4);
+    matrixBuffer = matricesData;
+    colorBuffer = colorData;
+    if (scene && scene.activeCamera) {
+        scene.activeCamera.radius = Math.max(18, getGridRadius(count) * 2.2);
+    }
+}
+
+function markDecayedVisual(index) {
+    const off = index * 4;
+    colorBuffer[off] = colorDecayed.r;
+    colorBuffer[off + 1] = colorDecayed.g;
+    colorBuffer[off + 2] = colorDecayed.b;
+    colorBuffer[off + 3] = colorDecayed.a;
+    const n = nucleusData[index];
+    tempVector.set(n.baseX, n.baseY, n.baseZ);
+    tempQuat.set(0, 0, 0, 1);
+    BABYLON.Matrix.ComposeToRef(scaleDecayed, tempQuat, tempVector, tempMatrix);
+    tempMatrix.copyToArray(matrixBuffer, index * 16);
+}
+
+function updateActiveNucleusVisuals() {
+    const jitter = 0.12;
+    for (let k = 0; k < activeIndices.length; k++) {
+        const i = activeIndices[k];
+        const n = nucleusData[i];
+        BABYLON.Quaternion.RotationYawPitchRollToRef(
+            Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, tempQuat
+        );
+        tempVector.set(
+            n.baseX + (Math.random() - 0.5) * jitter,
+            n.baseY + (Math.random() - 0.5) * jitter,
+            n.baseZ + (Math.random() - 0.5) * jitter
+        );
+        BABYLON.Matrix.ComposeToRef(scaleActive, tempQuat, tempVector, tempMatrix);
+        tempMatrix.copyToArray(matrixBuffer, i * 16);
+    }
+    nucleusMesh.thinInstanceSetBuffer('matrix', matrixBuffer, 16);
+    nucleusMesh.thinInstanceSetBuffer('color', colorBuffer, 4);
+}
+
+function initChart() {
+    const ctx = document.getElementById('decayChart').getContext('2d');
+    decayChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [0],
+            datasets: [{
+                label: i18n[lang].chartActual,
+                data: [state.totalDice],
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 2, tension: 0.1, pointRadius: 2, fill: true
+            }, {
+                label: i18n[lang].chartTheory,
+                data: [state.totalDice],
+                borderColor: '#94a3b8',
+                borderDash: [5, 5],
+                borderWidth: 2, pointRadius: 0, fill: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { title: { display: true, text: i18n[lang].chartX }, grid: { display: false } },
+                y: { title: { display: true, text: i18n[lang].chartY }, beginAtZero: true, max: state.totalDice }
+            },
+            plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } }
+        }
+    });
+}
+
+function toggleSimulation() {
+    if (state.isPlaying) {
+        clearInterval(timer);
+        state.isPlaying = false;
+        setStartBtnMode('resume');
+    } else {
+        if (state.currentDice === 0 && state.throwCount > 0) { resetSimulation(); return; }
+        if (state.throwCount === 0) resetSimulationData();
+        state.isPlaying = true;
+        setStartBtnMode('pause');
+        timer = setInterval(simulationStep, state.interval);
+    }
+}
+
+function resetSimulation() {
+    clearInterval(timer);
+    state.isPlaying = false;
+    setStartBtnMode('play');
+    resetSimulationData();
+    generateNucleusInstances();
+    updateChart();
+    updateStatsUI();
+}
+
+function resetSimulationData() {
+    state.currentDice = state.totalDice;
+    state.throwCount = 0;
+    state.history = [state.totalDice];
+    state.theoreticalHistory = [state.totalDice];
+    updateMathStats();
+}
+
+function simulationStep() {
+    if (state.currentDice === 0) {
+        clearInterval(timer);
+        state.isPlaying = false;
+        setStartBtnMode('done');
+        return;
+    }
+    let decayedThisRound = 0, write = 0;
+    for (let k = 0; k < activeIndices.length; k++) {
+        const i = activeIndices[k];
+        const roll = Math.floor(Math.random() * 6) + 1;
+        if (state.decayConditions.includes(roll)) {
+            nucleusData[i].status = 0;
+            markDecayedVisual(i);
+            decayedThisRound++;
+        } else {
+            activeIndices[write++] = i;
+        }
+    }
+    activeIndices.length = write;
+    state.currentDice -= decayedThisRound;
+    state.throwCount++;
+    state.history.push(state.currentDice);
+    const p = state.decayConditions.length / 6.0;
+    state.theoreticalHistory.push(state.totalDice * Math.pow(1 - p, state.throwCount));
+    updateActiveNucleusVisuals();
+    updateChart();
+    updateStatsUI();
+}
+
+function updateChart() {
+    decayChart.data.labels = Array.from({ length: state.throwCount + 1 }, (_, i) => i);
+    decayChart.data.datasets[0].data = state.history;
+    decayChart.data.datasets[1].data = state.theoreticalHistory;
+    decayChart.options.scales.y.max = state.totalDice;
+    decayChart.update('none');
+}
+
+function updateStatsUI() {
+    document.getElementById('currentN').innerText = `N: ${state.currentDice}`;
+    document.getElementById('timeElapsed').innerText = state.throwCount;
+    document.getElementById('percentageLeft').innerText = `${((state.currentDice / state.totalDice) * 100).toFixed(1)}%`;
+}
+
+let simMode = 'dice';
+
+function setSimMode(mode) {
+    simMode = mode;
+    const dice = mode === 'dice';
+    if (!dice && state.isPlaying) toggleSimulation();
+    document.getElementById('panel-dice').classList.toggle('hidden', !dice);
+    document.getElementById('panel-type').classList.toggle('hidden', dice);
+    document.getElementById('view-dice').classList.toggle('hidden', !dice);
+    document.getElementById('view-type').classList.toggle('hidden', dice);
+    document.getElementById('tab-dice').classList.toggle('active', dice);
+    document.getElementById('tab-type').classList.toggle('active', !dice);
+    if (dice) {
+        handleLayoutResize();
+    } else {
+        typeDecay.initIfNeeded();
+        typeDecay.resize();
+    }
+}
+
+const typeDecay = (function () {
+    const PARTICLE_RADIUS = 12;
+    let currentMode = 'alpha';
+    let isAnimating = false;
+    let isDecayCompleted = false;
+    let initialized = false;
+    let canvas, ctx, container;
+    let width, height, cx, cy;
+    let particles = [];
+    let emittedParticles = [];
+    let animationId;
+
+    function getEquation(mode) {
+        const eq = {
+            alpha: `<div class="flex items-center justify-center font-mono text-base py-3 bg-slate-900 rounded-lg text-slate-200 shadow-inner">
+                <div class="isotope"><div class="isotope-numbers"><span>238</span><span>92</span></div><div class="isotope-element text-white">U</div></div>
+                <span class="mx-2 text-slate-400">→</span>
+                <div class="isotope"><div class="isotope-numbers"><span>234</span><span>90</span></div><div class="isotope-element text-white">Th</div></div>
+                <span class="mx-2 text-slate-400">+</span>
+                <div class="isotope"><div class="isotope-numbers"><span>4</span><span>2</span></div><div class="isotope-element text-orange-400 font-bold">α</div></div></div>`,
+            beta: `<div class="flex items-center justify-center font-mono text-base py-3 bg-slate-900 rounded-lg text-slate-200 shadow-inner">
+                <div class="isotope"><div class="isotope-numbers"><span>14</span><span>6</span></div><div class="isotope-element text-white">C</div></div>
+                <span class="mx-2 text-slate-400">→</span>
+                <div class="isotope"><div class="isotope-numbers"><span>14</span><span>7</span></div><div class="isotope-element text-white">N</div></div>
+                <span class="mx-2 text-slate-400">+</span>
+                <div class="isotope"><div class="isotope-numbers"><span>0</span><span>-1</span></div><div class="isotope-element text-blue-400 font-bold">e⁻</div></div>
+                <span class="mx-2 text-slate-400">+</span>
+                <div class="isotope"><div class="isotope-element text-slate-400">ν̄<sub class="text-[10px]">e</sub></div></div></div>`,
+            gamma: `<div class="flex items-center justify-center font-mono text-base py-3 bg-slate-900 rounded-lg text-slate-200 shadow-inner">
+                <div class="isotope"><div class="isotope-numbers"><span>99m</span><span>43</span></div><div class="isotope-element text-white">Tc</div></div>
+                <span class="mx-2 text-slate-400">→</span>
+                <div class="isotope"><div class="isotope-numbers"><span>99</span><span>43</span></div><div class="isotope-element text-white">Tc</div></div>
+                <span class="mx-2 text-slate-400">+</span>
+                <div class="isotope"><div class="isotope-element text-purple-400 font-bold">γ</div></div></div>`
+        };
+        return eq[mode];
+    }
+
+    class Nucleon {
+        constructor(x, y, type) {
+            this.x = x; this.y = y; this.targetX = x; this.targetY = y;
+            this.type = type; this.radius = PARTICLE_RADIUS;
+            this.vx = 0; this.vy = 0; this.isEmitted = false;
+            this.betaFlash = 0;
+        }
+        draw(c) {
+            if (this.betaFlash > 0) {
+                c.beginPath();
+                c.arc(this.x, this.y, this.radius + this.betaFlash * 0.4, 0, Math.PI * 2);
+                c.fillStyle = `rgba(250, 204, 21, ${this.betaFlash * 0.04})`;
+                c.fill();
+                this.betaFlash--;
+            }
+            c.beginPath();
+            c.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            const g = c.createRadialGradient(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1, this.x, this.y, this.radius);
+            if (this.type === 'proton') {
+                g.addColorStop(0, '#f87171'); g.addColorStop(1, '#b91c1c');
+                c.shadowColor = 'rgba(239, 68, 68, 0.5)';
+            } else {
+                g.addColorStop(0, '#60a5fa'); g.addColorStop(1, '#1d4ed8');
+                c.shadowColor = 'rgba(59, 130, 246, 0.5)';
+            }
+            c.fillStyle = g; c.shadowBlur = 10; c.fill();
+            if (this.type === 'proton') {
+                c.shadowBlur = 0; c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 2;
+                c.beginPath(); c.moveTo(this.x - 4, this.y); c.lineTo(this.x + 4, this.y);
+                c.moveTo(this.x, this.y - 4); c.lineTo(this.x, this.y + 4); c.stroke();
+            }
+        }
+        update() {
+            if (this.isEmitted) {
+                this.x += this.vx; this.y += this.vy;
+            } else {
+                const amp = (currentMode === 'gamma' && !isDecayCompleted && isAnimating) ? 4 : 1;
+                this.x += (this.targetX - this.x) * 0.1 + (Math.random() - 0.5) * 1.5 * amp;
+                this.y += (this.targetY - this.y) * 0.1 + (Math.random() - 0.5) * 1.5 * amp;
+            }
+        }
+    }
+
+    /** 單一 α 粒子：2 質子 + 2 中子緊密成團，整體射出 */
+    class AlphaParticle {
+        constructor(x, y) {
+            this.x = x; this.y = y;
+            this.vx = 5; this.vy = 0;
+            this.members = [
+                { dx: -9, dy: -7, type: 'proton' },
+                { dx: 9, dy: -7, type: 'proton' },
+                { dx: -9, dy: 7, type: 'neutron' },
+                { dx: 9, dy: 7, type: 'neutron' }
+            ];
+        }
+        drawNucleon(c, x, y, type) {
+            const r = 10;
+            c.beginPath();
+            c.arc(x, y, r, 0, Math.PI * 2);
+            const g = c.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+            if (type === 'proton') {
+                g.addColorStop(0, '#f87171'); g.addColorStop(1, '#b91c1c');
+                c.shadowColor = 'rgba(239, 68, 68, 0.45)';
+            } else {
+                g.addColorStop(0, '#60a5fa'); g.addColorStop(1, '#1d4ed8');
+                c.shadowColor = 'rgba(59, 130, 246, 0.45)';
+            }
+            c.fillStyle = g; c.shadowBlur = 8; c.fill();
+            if (type === 'proton') {
+                c.shadowBlur = 0; c.strokeStyle = 'rgba(255,255,255,0.75)'; c.lineWidth = 1.5;
+                c.beginPath(); c.moveTo(x - 3, y); c.lineTo(x + 3, y);
+                c.moveTo(x, y - 3); c.lineTo(x, y + 3); c.stroke();
+            }
+        }
+        draw(c) {
+            c.save();
+            c.shadowBlur = 0;
+            c.beginPath();
+            c.arc(this.x, this.y, 24, 0, Math.PI * 2);
+            c.fillStyle = 'rgba(251, 146, 60, 0.12)';
+            c.fill();
+            c.strokeStyle = 'rgba(251, 146, 60, 0.75)';
+            c.lineWidth = 2.5;
+            c.stroke();
+            this.members.forEach(m => this.drawNucleon(c, this.x + m.dx, this.y + m.dy, m.type));
+            c.fillStyle = 'rgba(255, 237, 213, 0.95)';
+            c.font = 'bold 14px "Noto Sans TC", sans-serif';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText('α', this.x, this.y);
+            c.restore();
+        }
+        update() { this.x += this.vx; this.y += this.vy; }
+    }
+
+    class Electron {
+        constructor(x, y) { this.x = x; this.y = y; this.vx = 15; this.vy = -5; this.radius = 4; }
+        draw(c) {
+            c.beginPath(); c.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            c.fillStyle = '#fef08a'; c.shadowColor = '#facc15'; c.shadowBlur = 15; c.fill();
+            c.beginPath(); c.moveTo(this.x - this.vx * 2, this.y - this.vy * 2); c.lineTo(this.x, this.y);
+            c.strokeStyle = 'rgba(250, 204, 21, 0.5)'; c.lineWidth = 2; c.stroke();
+        }
+        update() { this.x += this.vx; this.y += this.vy; }
+    }
+
+    class Antineutrino {
+        constructor(x, y) { this.x = x; this.y = y; this.vx = 8; this.vy = 8; this.radius = 2; }
+        draw(c) { c.beginPath(); c.arc(this.x, this.y, this.radius, 0, Math.PI * 2); c.fillStyle = '#cbd5e1'; c.shadowBlur = 0; c.fill(); }
+        update() { this.x += this.vx; this.y += this.vy; }
+    }
+
+    class GammaRay {
+        constructor(x, y) { this.x = x; this.y = y; this.vx = 12; this.time = 0; }
+        draw(c) {
+            c.beginPath(); c.moveTo(this.x, this.y);
+            for (let i = 0; i < 60; i += 2) {
+                c.lineTo(this.x - i, this.y + Math.sin((i - this.time * 10) * 0.2) * 15);
+            }
+            c.strokeStyle = '#c084fc'; c.shadowColor = '#a855f7'; c.shadowBlur = 10; c.lineWidth = 3; c.stroke();
+        }
+        update() { this.x += this.vx; this.time += 1; }
+    }
+
+    function resize() {
+        if (!container || !canvas) return;
+        width = container.clientWidth;
+        height = container.clientHeight;
+        if (width < 1 || height < 1) return;
+        canvas.width = width;
+        canvas.height = height;
+        cx = width / 2;
+        cy = height / 2;
+    }
+
+    function generateNucleus(totalParticles) {
+        particles = [];
+        emittedParticles = [];
+        isDecayCompleted = false;
+        const c = 14;
+        for (let i = 1; i <= totalParticles; i++) {
+            const r = c * Math.sqrt(i);
+            const theta = i * 137.508 * (Math.PI / 180);
+            const x = cx + r * Math.cos(theta);
+            const y = cy + r * Math.sin(theta);
+            particles.push(new Nucleon(x, y, Math.random() > 0.5 ? 'proton' : 'neutron'));
+        }
+        particles.sort((a, b) => b.x - a.x);
+        if (currentMode === 'alpha') {
+            particles[0].type = 'proton'; particles[1].type = 'proton';
+            particles[2].type = 'neutron'; particles[3].type = 'neutron';
+        } else if (currentMode === 'beta') {
+            particles[0].type = 'neutron';
+        }
+        particles.sort(() => Math.random() - 0.5);
+        particles.forEach(p => { p.targetX = p.x; p.targetY = p.y; p.x = cx; p.y = cy; });
+    }
+
+    function animate() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, width, height);
+        particles.forEach(p => { p.update(); p.draw(ctx); });
+        emittedParticles.forEach(p => { p.update(); p.draw(ctx); });
+        animationId = requestAnimationFrame(animate);
+    }
+
+    function initSimulation() {
+        resize();
+        const count = currentMode === 'alpha' ? 60 : (currentMode === 'beta' ? 25 : 40);
+        generateNucleus(count);
+        if (animationId) cancelAnimationFrame(animationId);
+        animate();
+    }
+
+    function setTriggerEnabled(on) {
+        const btn = document.getElementById('btn-type-trigger');
+        btn.disabled = !on;
+        btn.classList.toggle('opacity-50', !on);
+        btn.classList.toggle('cursor-not-allowed', !on);
+    }
+
+    function updateUI() {
+        ['alpha', 'beta', 'gamma'].forEach(mode => {
+            const btn = document.getElementById('btn-' + mode);
+            btn.classList.toggle('active', mode === currentMode);
+        });
+        const t = i18n[lang];
+        const titleKey = 'type' + currentMode.charAt(0).toUpperCase() + currentMode.slice(1) + 'Title';
+        const descKey = 'type' + currentMode.charAt(0).toUpperCase() + currentMode.slice(1) + 'Desc';
+        document.getElementById('type-info-content').innerHTML =
+            `<div class="mb-3">${getEquation(currentMode)}</div>
+             <div class="leading-relaxed"><h3 class="font-bold text-slate-800 mb-1">${t[titleKey]}</h3>${t[descKey]}</div>`;
+        const glow = document.getElementById('gamma-glow');
+        if (currentMode === 'gamma') {
+            glow.classList.add('excited-state');
+            glow.style.opacity = 1;
+        } else {
+            glow.classList.remove('excited-state');
+            glow.style.opacity = 0;
+        }
+    }
+
+    function selectMode(mode) {
+        if (isAnimating && !isDecayCompleted) return;
+        currentMode = mode;
+        isAnimating = false;
+        updateUI();
+        initSimulation();
+        setTriggerEnabled(true);
+    }
+
+    function trigger() {
+        if (isAnimating) return;
+        isAnimating = true;
+        setTriggerEnabled(false);
+        if (currentMode === 'alpha') {
+            const rightmost = particles.slice().sort((a, b) => b.x - a.x);
+            const alphaMembers = [
+                ...rightmost.filter(p => p.type === 'proton').slice(0, 2),
+                ...rightmost.filter(p => p.type === 'neutron').slice(0, 2)
+            ];
+            if (alphaMembers.length === 4) {
+                const ax = alphaMembers.reduce((s, p) => s + p.x, 0) / 4;
+                const ay = alphaMembers.reduce((s, p) => s + p.y, 0) / 4;
+                particles = particles.filter(p => !alphaMembers.includes(p));
+                emittedParticles.push(new AlphaParticle(ax, ay));
+            }
+            isDecayCompleted = true;
+        } else if (currentMode === 'beta') {
+            const targetNeutron = particles.slice().sort((a, b) => b.x - a.x).find(p => p.type === 'neutron');
+            if (targetNeutron) {
+                const px = targetNeutron.x;
+                const py = targetNeutron.y;
+                targetNeutron.type = 'proton';
+                targetNeutron.isEmitted = false;
+                targetNeutron.vx = 0;
+                targetNeutron.vy = 0;
+                targetNeutron.targetX = px;
+                targetNeutron.targetY = py;
+                targetNeutron.x = px;
+                targetNeutron.y = py;
+                targetNeutron.betaFlash = 12;
+                emittedParticles.push(new Electron(px + 14, py));
+            }
+            isDecayCompleted = true;
+        } else if (currentMode === 'gamma') {
+            setTimeout(() => {
+                isDecayCompleted = true;
+                document.getElementById('gamma-glow').style.opacity = 0;
+                emittedParticles.push(new GammaRay(cx + 40, cy));
+            }, 1000);
+        }
+    }
+
+    function reset() {
+        isAnimating = false;
+        setTriggerEnabled(true);
+        updateUI();
+        initSimulation();
+    }
+
+    function initIfNeeded() {
+        if (initialized) return;
+        initialized = true;
+        canvas = document.getElementById('typeDecayCanvas');
+        container = document.getElementById('type-canvas-wrap');
+        ctx = canvas.getContext('2d');
+        document.getElementById('btn-alpha').addEventListener('click', () => selectMode('alpha'));
+        document.getElementById('btn-beta').addEventListener('click', () => selectMode('beta'));
+        document.getElementById('btn-gamma').addEventListener('click', () => selectMode('gamma'));
+        document.getElementById('btn-type-trigger').addEventListener('click', trigger);
+        document.getElementById('btn-type-reset').addEventListener('click', reset);
+        selectMode('alpha');
+    }
+
+    return {
+        get initialized() { return initialized; },
+        initIfNeeded, resize, updateUI, reset
+    };
+})();
+
+window.onload = function () {
+    initBabylon();
+    initChart();
+    applyLang();
+    updateStatsUI();
+
+    document.getElementById('intervalSlider').addEventListener('input', (e) => {
+        state.interval = parseFloat(e.target.value) * 1000;
+        document.getElementById('intervalDisplay').innerText = e.target.value;
+        if (state.isPlaying) {
+            clearInterval(timer);
+            timer = setInterval(simulationStep, state.interval);
+        }
+    });
+    document.getElementById('startBtn').addEventListener('click', toggleSimulation);
+    document.getElementById('resetBtn').addEventListener('click', resetSimulation);
+    document.getElementById('diceCount').addEventListener('change', (e) => {
+        state.totalDice = parseInt(e.target.value);
+        resetSimulation();
+    });
+    document.querySelectorAll('.decay-option').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const selected = [];
+            document.querySelectorAll('.decay-option:checked').forEach(c => selected.push(parseInt(c.value)));
+            state.decayConditions = selected;
+            updateMathStats();
+        });
+    });
+
+    document.getElementById('btn-lang').addEventListener('click', toggleLang);
+    document.getElementById('btn-lang-mobile').addEventListener('click', toggleLang);
+
+    document.getElementById('tab-dice').addEventListener('click', () => setSimMode('dice'));
+    document.getElementById('tab-type').addEventListener('click', () => setSimMode('type'));
+
+    const modalPrinciple = document.getElementById('modal-principle');
+    const modalSteps = document.getElementById('modal-steps');
+    document.getElementById('btn-principle').addEventListener('click', () => {
+        openModal(modalPrinciple);
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([modalPrinciple]).catch(() => {});
+    });
+    document.getElementById('modal-close').addEventListener('click', () => closeModal(modalPrinciple));
+    document.getElementById('modal-confirm').addEventListener('click', () => closeModal(modalPrinciple));
+    modalPrinciple.addEventListener('click', (ev) => { if (ev.target === modalPrinciple) closeModal(modalPrinciple); });
+
+    document.getElementById('btn-steps').addEventListener('click', () => openModal(modalSteps));
+    document.getElementById('steps-close').addEventListener('click', () => closeModal(modalSteps));
+    document.getElementById('steps-confirm').addEventListener('click', () => closeModal(modalSteps));
+    modalSteps.addEventListener('click', (ev) => { if (ev.target === modalSteps) closeModal(modalSteps); });
+
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Escape') return;
+        if (!modalSteps.classList.contains('pointer-events-none')) { closeModal(modalSteps); return; }
+        if (!modalPrinciple.classList.contains('pointer-events-none')) closeModal(modalPrinciple);
+    });
+
+    window.addEventListener('resize', handleLayoutResize);
+    if (window.ResizeObserver) {
+        const layoutTargets = [document.getElementById('canvas-container'), document.querySelector('main')];
+        const ro = new ResizeObserver(() => handleLayoutResize());
+        layoutTargets.forEach(el => { if (el) ro.observe(el); });
+    }
+    handleLayoutResize();
+};
+
+function handleLayoutResize() {
+    if (engine) engine.resize();
+    if (decayChart) decayChart.resize();
+    if (typeDecay.initialized && simMode === 'type') typeDecay.resize();
+}
+</script>
+</body>
+</html>

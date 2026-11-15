@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/simulations_lib.php';
+require_once __DIR__ . '/simulation_files.php';
 
 function sim_resolve_status(string $requested, bool $canPublishAny): string
 {
@@ -113,9 +114,22 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
         }
         $slug = sim_ensure_unique_slug($pdo, $slug, $id);
 
+        $stored = sim_commit_html_body(
+            $pdo,
+            $slug,
+            $subjectId,
+            isset($row['html_path']) ? (string) $row['html_path'] : null,
+            $html
+        );
+        if (!$stored['ok']) {
+            return $stored;
+        }
+        $htmlPath = (string) $stored['path'];
+        $htmlSql = sim_db_has_column($pdo, 'simulations', 'html') ? 'html = NULL, ' : '';
+
         $upd = $pdo->prepare(
             'UPDATE simulations SET slug = ?, title_zh = ?, title_en = ?, summary_zh = ?, summary_en = ?,
-             html = ?, screenshot_path = ?, subject_id = ?, topic_id = ?, list_sort_order = ?, status = ?,
+             ' . $htmlSql . 'html_path = ?, screenshot_path = ?, subject_id = ?, topic_id = ?, list_sort_order = ?, status = ?,
              owner_user_id = ?, submitter_name = ?, submitter_email = ?, submitter_note = ?,
              updated_at = CURRENT_TIMESTAMP
              WHERE id = ?'
@@ -126,7 +140,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
             $titleEn,
             $summaryZh,
             $summaryEn,
-            $html,
+            $htmlPath,
             $screenshot !== '' ? $screenshot : null,
             $subjectId,
             $topicId,
@@ -153,12 +167,20 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
     $baseSlug = $slugInput !== '' ? sim_slugify($slugInput) : sim_slugify($titleEn);
     $slug = sim_ensure_unique_slug($pdo, substr($baseSlug, 0, 190));
 
+    $stored = sim_commit_html_body($pdo, $slug, $subjectId, null, $html);
+    if (!$stored['ok']) {
+        return $stored;
+    }
+    $htmlPath = (string) $stored['path'];
+    $htmlCol = sim_db_has_column($pdo, 'simulations', 'html') ? 'html, ' : '';
+    $htmlVal = sim_db_has_column($pdo, 'simulations', 'html') ? 'NULL, ' : '';
+
     $ins = $pdo->prepare(
         'INSERT INTO simulations (
-            owner_user_id, slug, title_zh, title_en, summary_zh, summary_en, html, screenshot_path,
+            owner_user_id, slug, title_zh, title_en, summary_zh, summary_en, ' . $htmlCol . 'html_path, screenshot_path,
             subject_id, topic_id, list_sort_order, status, submitter_name, submitter_email, submitter_note,
             submission_source, last_updated
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'editor\', CURDATE())'
+         ) VALUES (?, ?, ?, ?, ?, ?, ' . $htmlVal . '?, ?, ?, ?, ?, ?, ?, ?, ?, \'editor\', CURDATE())'
     );
     $ins->execute([
         $ownerUserId,
@@ -167,7 +189,7 @@ function simulation_save_from_request(PDO $pdo, array $currentUser, array $post,
         $titleEn,
         $summaryZh,
         $summaryEn,
-        $html,
+        $htmlPath,
         $screenshot !== '' ? $screenshot : null,
         $subjectId,
         $topicId,
@@ -265,12 +287,20 @@ function simulation_contribute_from_request(PDO $pdo, array $post, ?array $user)
     $slug = sim_ensure_unique_slug($pdo, substr($baseSlug !== '' ? $baseSlug : 'sim-submission', 0, 190));
     $ownerId = $user !== null ? (int) $user['id'] : null;
 
+    $stored = sim_commit_html_body($pdo, $slug, $subjectId, null, $html);
+    if (!$stored['ok']) {
+        return $stored;
+    }
+    $htmlPath = (string) $stored['path'];
+    $htmlCol = sim_db_has_column($pdo, 'simulations', 'html') ? 'html, ' : '';
+    $htmlVal = sim_db_has_column($pdo, 'simulations', 'html') ? 'NULL, ' : '';
+
     $ins = $pdo->prepare(
         'INSERT INTO simulations (
-            owner_user_id, slug, title_zh, title_en, summary_zh, summary_en, html, screenshot_path,
+            owner_user_id, slug, title_zh, title_en, summary_zh, summary_en, ' . $htmlCol . 'html_path, screenshot_path,
             subject_id, topic_id, list_sort_order, status, submitter_name, submitter_email, submitter_note,
             submission_source, last_updated
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, \'pending_review\', ?, ?, ?, \'guest_form\', CURDATE())'
+         ) VALUES (?, ?, ?, ?, ?, ?, ' . $htmlVal . '?, ?, ?, ?, 0, \'pending_review\', ?, ?, ?, \'guest_form\', CURDATE())'
     );
     $ins->execute([
         $ownerId,
@@ -279,7 +309,7 @@ function simulation_contribute_from_request(PDO $pdo, array $post, ?array $user)
         $titleEn,
         $summaryZh,
         $summaryEn,
-        $html,
+        $htmlPath,
         $screenshot !== '' ? $screenshot : null,
         $subjectId,
         $topicId,

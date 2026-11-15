@@ -12,7 +12,7 @@
 - [ ] **不**依賴 `app/` Vite／bundler；雙擊或靜態伺服器即可運作
 - [ ] 鍵盤可操作主要控制；適當 `aria-*`／`alt`
 - [ ] 截圖放科目慣用目錄（如 `physics/screenshots/`、`science/screenshots/`），檔名與模擬 basename 對齊（無空白）
-- [ ] 同步進 DB：`php scripts/sync_simulations_to_db.php`（必要時 `--create-missing`）
+- [ ] HTML 留在科目資料夾；目錄列的 `html_path` 指向該檔（不要把 HTML 內文寫進資料庫）
 - [ ] 通過：`php scripts/check_sim_standards.php`
 
 ## 共用資產
@@ -40,7 +40,7 @@
 | `music/drum-set.html` | `music/drum_set.html` | |
 | `s4_physics/4A02 - Aero.html` 等 | `s4_physics/4a02_aero.html` 等 | 見目錄內全部 `4a##_*.html` |
 
-別名對照供 sync 使用：[`scripts/sim_path_aliases.php`](../scripts/sim_path_aliases.php)。
+別名對照供 `html_path` 對應使用：[`scripts/sim_path_aliases.php`](../scripts/sim_path_aliases.php)。
 
 ## 豁免
 

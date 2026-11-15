@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聽覺音準測試 | Pitch Training</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .modal-backdrop { transition: opacity .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #4f46e5; }
+        .mode-btn { flex: 1; padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
+        .mode-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
+        .mode-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #a5b4fc; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #a5b4fc !important; }
+        @keyframes pop {
+            0% { transform: scale(0.92); opacity: 0; }
+            60% { transform: scale(1.04); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .piano-key { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+        .piano-key:active, .piano-key.active {
+            transform: translateY(3px);
+            box-shadow: none !important;
+        }
+        .piano-key.white-key:active, .piano-key.white-key.active { background-color: #e2e8f0 !important; }
+        .piano-key.black-key:active, .piano-key.black-key.active { background-color: #334155 !important; }
+        .piano-key.flash-correct { background-color: #86efac !important; }
+        .piano-key.black-key.flash-correct { background-color: #16a34a !important; }
+        .piano-key.flash-wrong { background-color: #fca5a5 !important; }
+        .piano-key.black-key.flash-wrong { background-color: #dc2626 !important; }
+        #piano-scroll { scrollbar-width: thin; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/25 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2 flex-wrap">
+                        <span data-i18n="title">聽覺音準測試</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 truncate" data-i18n="subtitle">絕對／相對音感練習與音高辨識</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300 shrink-0">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-indigo-50 text-indigo-700 rounded-xl font-bold text-sm shadow-sm border border-indigo-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-reset-sim" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-sm shadow-sm">
+                <span data-i18n="btnReset">重置</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto lg:overflow-hidden">
+        <!-- 左：控制 -->
+        <aside class="lg:col-span-4 flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto min-h-0">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">練習控制</h2>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="modeLabel">模式</p>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" class="mode-btn active" data-mode="absolute" id="mode-abs" data-i18n="modeAbs">絕對音感</button>
+                    <button type="button" class="mode-btn" data-mode="relative" id="mode-rel" data-i18n="modeRel">相對音感</button>
+                </div>
+                <label class="check-row mb-3">
+                    <input type="checkbox" id="toggle-accidentals" checked>
+                    <span data-i18n="toggleBlack">包含黑鍵（半音）</span>
+                </label>
+                <label class="block text-[11px] font-bold text-slate-500 mb-1" data-i18n="rangeLabel">音域範圍</label>
+                <select id="range-select" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-700 mb-4 focus:outline-none focus:border-indigo-500">
+                    <option value="middle" selected data-i18n-option="optMiddle">單八度 (C4–B4)</option>
+                    <option value="wide" data-i18n-option="optWide">雙八度 (C3–B4)</option>
+                    <option value="full" data-i18n-option="optFull">三八度 (C3–B5)</option>
+                </select>
+                <label class="block text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="timbreLabel">樂器音色</label>
+                <div class="flex flex-wrap gap-1.5 mb-4" id="timbre-chips">
+                    <button type="button" class="mode-btn active" data-timbre="piano" data-i18n="timbrePiano">鋼琴</button>
+                    <button type="button" class="mode-btn" data-timbre="epiano" data-i18n="timbreEpiano">電鋼琴</button>
+                    <button type="button" class="mode-btn" data-timbre="bell" data-i18n="timbreBell">鐘琴</button>
+                </div>
+                <div class="mb-1 flex justify-between text-[11px] font-bold text-slate-500">
+                    <span data-i18n="volLabel">音量</span>
+                    <span id="vol-disp" class="text-indigo-600 font-mono">60%</span>
+                </div>
+                <input type="range" id="vol-slider" min="10" max="100" value="60" class="w-full accent-indigo-600 mb-4">
+                <p class="text-[11px] text-slate-500 leading-relaxed" data-i18n="hintCtrl">先按「播放題目」聽音，再於右側琴鍵作答。相對音感會先播參考音 C4。</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-indigo-800 mb-2" data-i18n="liveTitle">即時成績</div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statScore">分數</span><b id="stat-score" class="font-mono text-indigo-600">0</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statCorrect">答對</span><b id="stat-correct" class="font-mono text-emerald-600">0</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statTotal">總題數</span><b id="stat-total" class="font-mono">0</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statAcc">正確率</span><b id="stat-acc" class="font-mono">—</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statStreak">連對</span><b id="stat-streak" class="font-mono text-amber-600">0</b></div>
+                <div class="mt-3 mj-box text-[13px]">\(f_n = 440 \times 2^{n/12}\)</div>
+                <p class="text-[10px] text-slate-400 mt-2" data-i18n="freqHint">\(n\)：相對 A4 的半音數。十二平均律每半音乘 \(2^{1/12}\)。</p>
+            </div>
+        </aside>
+
+        <!-- 右：舞台 -->
+        <section class="lg:col-span-8 order-1 lg:order-2 flex flex-col gap-4 min-w-0 min-h-0">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col sm:flex-row gap-5 items-center">
+                <div class="flex flex-col items-center shrink-0">
+                    <button type="button" id="btn-play-random" class="group relative w-28 h-28 rounded-full bg-indigo-500 hover:bg-indigo-600 shadow-[0_6px_0_rgb(67,56,202)] hover:shadow-[0_3px_0_rgb(67,56,202)] hover:translate-y-0.5 transition-all flex flex-col items-center justify-center gap-1.5 active:shadow-none active:translate-y-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <span class="text-white font-bold text-xs" id="btn-play-text" data-i18n="btnPlay">播放題目</span>
+                    </button>
+                    <p class="text-slate-400 text-[11px] mt-3 text-center max-w-[200px]" data-i18n="playHint">聽完後在下方琴鍵選出音高</p>
+                </div>
+                <div class="flex-1 w-full min-h-[130px] bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                    <div id="feedback-idle" class="text-center text-slate-400 text-sm" data-i18n="fbIdle">等待播放題目…</div>
+                    <div id="feedback-wait" class="hidden text-center text-indigo-600 font-bold text-sm animate-pulse" data-i18n="fbWait">請選擇聽到的音高</div>
+                    <div id="feedback-success" class="hidden absolute inset-0 bg-emerald-50 flex flex-col items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" class="mb-1"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        <span class="text-emerald-700 font-bold text-lg" data-i18n="fbOk">正確！</span>
+                        <span class="text-emerald-600 text-sm font-mono mt-0.5" id="success-note">—</span>
+                        <span class="text-emerald-500 text-xs font-mono" id="success-freq">—</span>
+                    </div>
+                    <div id="feedback-error" class="hidden absolute inset-0 bg-rose-50 flex flex-col items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2" class="mb-1"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        <span class="text-rose-700 font-bold text-lg" data-i18n="fbWrong">答錯了</span>
+                        <div class="text-sm mt-1">
+                            <span class="text-slate-500" data-i18n="fbAnswer">正確答案：</span>
+                            <span class="text-rose-600 font-mono font-bold" id="error-correct">—</span>
+                        </div>
+                        <span class="text-rose-500 text-xs font-mono mt-0.5" id="error-detail">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex-1 min-h-0 flex flex-col">
+                <div class="flex justify-between items-end mb-3 gap-2">
+                    <h2 class="text-base font-bold text-slate-800" data-i18n="kbTitle">互動鋼琴鍵盤</h2>
+                    <span class="text-[11px] text-slate-400" data-i18n="kbHint">點鍵可試聽；出題後點鍵才計分</span>
+                </div>
+                <div id="piano-scroll" class="overflow-x-auto pb-2 flex-1 flex items-center justify-center">
+                    <div id="piano-container" class="relative h-56 sm:h-64 bg-slate-800 p-2 rounded-xl shadow-xl select-none" style="min-width: max-content;"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 原理解說 -->
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">聽覺音準原理</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="modalSub">Pitch perception &amp; equal temperament</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m1t">1. 音高與頻率</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m1d">音高由聲波頻率決定。頻率愈高，聽到的音愈尖。人耳大約可聽 20 Hz–20 kHz。</p>
+                </div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-2" data-i18n="m2t">2. 十二平均律</h3>
+                    <p class="text-xs leading-relaxed mb-3" data-i18n="m2d">一個八度（頻率 ×2）均分成 12 個半音。以 A4 = 440 Hz 為基準：</p>
+                    <div class="mj-box">$$f_n = 440 \times 2^{n/12}$$</div>
+                    <p class="text-xs text-slate-500 mt-2" data-i18n="m2ex">例：中央 C（C4）約 261.63 Hz（\(n = -9\)）。</p>
+                </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m3t">3. 絕對音感與相對音感</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m3d"><strong>絕對音感</strong>：不靠參考音直接說出音名。<strong>相對音感</strong>：先聽參考音，再判斷音程（半音距離）。多數人可透過練習改善相對音感。</p>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m4t">4. 生活例子</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m4d">調音器、合唱團對準 A4、吉他調弦、科學課用訊號產生器辨別頻率差異。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 觀察步驟 -->
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-xs" data-i18n="s1">1. 選「絕對音感」、單八度、先關閉黑鍵，按「播放題目」後在琴鍵作答。</div>
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-xs" data-i18n="s2">2. 答錯時看正確鍵與頻率差（半音數），再按「重聽此音」比較。</div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s3">3. 切換「相對音感」：先聽 C4，再聽目標音，用音程距離判斷。</div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-xs" data-i18n="s4">4. 開啟黑鍵並擴大音域，比較難度對正確率的影響。</div>
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs" data-i18n="s5">5. 對照公式 \(f_n=440\times 2^{n/12}\)，把聽到的音與頻率對應起來。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function () {
+    const A4 = 440;
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const RANGES = {
+        middle: { startMidi: 60, endMidi: 71 }, // C4–B4
+        wide: { startMidi: 48, endMidi: 71 },   // C3–B4
+        full: { startMidi: 48, endMidi: 83 }    // C3–B5
+    };
+
+    function midiToFreq(midi) {
+        return A4 * Math.pow(2, (midi - 69) / 12);
+    }
+    function midiToName(midi) {
+        const name = NOTE_NAMES[midi % 12];
+        const oct = Math.floor(midi / 12) - 1;
+        return name + oct;
+    }
+    function isBlack(midi) {
+        return [1, 3, 6, 8, 10].includes(midi % 12);
+    }
+    function buildNotes(startMidi, endMidi) {
+        const list = [];
+        for (let m = startMidi; m <= endMidi; m++) {
+            list.push({ midi: m, name: midiToName(m), freq: midiToFreq(m), isBlack: isBlack(m) });
+        }
+        return list;
+    }
+
+    const ALL_NOTES = buildNotes(48, 83); // C3–B5
+
+    let currentLang = 'zh';
+    const i18n = {
+        zh: {
+            title: '聽覺音準測試',
+            subtitle: '絕對／相對音感練習與音高辨識',
+            badge: '物理',
+            btnSteps: '觀察步驟',
+            btnPrinciple: '原理解說',
+            btnReset: '重置',
+            stepsTitle: '觀察步驟',
+            modalTitle: '聽覺音準原理',
+            modalSub: '音高感知與十二平均律',
+            modalClose: '關閉',
+            m1t: '1. 音高與頻率',
+            m1d: '音高由聲波頻率決定。頻率愈高，聽到的音愈尖。人耳大約可聽 20 Hz–20 kHz。',
+            m2t: '2. 十二平均律',
+            m2d: '一個八度（頻率 ×2）均分成 12 個半音。以 A4 = 440 Hz 為基準：',
+            m2ex: '例：中央 C（C4）約 261.63 Hz（n = −9）。',
+            m3t: '3. 絕對音感與相對音感',
+            m3d: '<strong>絕對音感</strong>：不靠參考音直接說出音名。<strong>相對音感</strong>：先聽參考音，再判斷音程（半音距離）。多數人可透過練習改善相對音感。',
+            m4t: '4. 生活例子',
+            m4d: '調音器、合唱團對準 A4、吉他調弦、科學課用訊號產生器辨別頻率差異。',
+            s1: '1. 選「絕對音感」、單八度、先關閉黑鍵，按「播放題目」後在琴鍵作答。',
+            s2: '2. 答錯時看正確鍵與頻率差（半音數），再按「重聽此音」比較。',
+            s3: '3. 切換「相對音感」：先聽 C4，再聽目標音，用音程距離判斷。',
+            s4: '4. 開啟黑鍵並擴大音域，比較難度對正確率的影響。',
+            s5: '5. 對照公式 fₙ=440×2ⁿ⁄¹²，把聽到的音與頻率對應起來。',
+            controlTitle: '練習控制',
+            modeLabel: '模式',
+            modeAbs: '絕對音感',
+            modeRel: '相對音感',
+            toggleBlack: '包含黑鍵（半音）',
+            rangeLabel: '音域範圍',
+            optMiddle: '單八度 (C4–B4)',
+            optWide: '雙八度 (C3–B4)',
+            optFull: '三八度 (C3–B5)',
+            volLabel: '音量',
+            timbreLabel: '樂器音色',
+            timbrePiano: '鋼琴',
+            timbreEpiano: '電鋼琴',
+            timbreBell: '鐘琴',
+            hintCtrl: '先按「播放題目」聽音，再於右側琴鍵作答。相對音感會先播參考音 C4。',
+            liveTitle: '即時成績',
+            statScore: '分數',
+            statCorrect: '答對',
+            statTotal: '總題數',
+            statAcc: '正確率',
+            statStreak: '連對',
+            freqHint: 'n：相對 A4 的半音數。十二平均律每半音乘 2¹⁄¹²。',
+            btnPlay: '播放題目',
+            btnReplay: '重聽此音',
+            btnNext: '播放下一題',
+            playHint: '聽完後在下方琴鍵選出音高',
+            fbIdle: '等待播放題目…',
+            fbWait: '請選擇聽到的音高',
+            fbOk: '正確！',
+            fbWrong: '答錯了',
+            fbAnswer: '正確答案：',
+            kbTitle: '互動鋼琴鍵盤',
+            kbHint: '點鍵可試聽；出題後點鍵才計分',
+            errDetail: '你選 {guess}（相差 {semi} 半音）',
+            refThen: '參考音 C4 → 目標音'
+        },
+        en: {
+            title: 'Pitch Training',
+            subtitle: 'Absolute / relative pitch practice',
+            badge: 'Physics',
+            btnSteps: 'Steps',
+            btnPrinciple: 'Principle',
+            btnReset: 'Reset',
+            stepsTitle: 'Observation Steps',
+            modalTitle: 'Pitch Perception',
+            modalSub: 'Pitch & equal temperament',
+            modalClose: 'Close',
+            m1t: '1. Pitch and frequency',
+            m1d: 'Pitch is set by sound frequency. Higher frequency sounds higher. Humans hear roughly 20 Hz–20 kHz.',
+            m2t: '2. Equal temperament',
+            m2d: 'An octave (×2 in frequency) is split into 12 semitones. With A4 = 440 Hz:',
+            m2ex: 'Example: middle C (C4) ≈ 261.63 Hz (n = −9).',
+            m3t: '3. Absolute vs relative pitch',
+            m3d: '<strong>Absolute pitch</strong>: name a note without a reference. <strong>Relative pitch</strong>: judge intervals from a reference. Most people can improve relative pitch with practice.',
+            m4t: '4. Everyday links',
+            m4d: 'Tuners, choir tuning to A4, guitar tuning, lab signal generators.',
+            s1: '1. Choose Absolute, one octave, white keys only; play a round and answer on the keyboard.',
+            s2: '2. On a miss, note the correct key and semitone error; replay to compare.',
+            s3: '3. Switch to Relative: hear C4 first, then the target; judge by interval.',
+            s4: '4. Enable black keys and widen the range; watch accuracy change.',
+            s5: '5. Use fₙ=440×2ⁿ⁄¹² to link heard notes with frequency.',
+            controlTitle: 'Controls',
+            modeLabel: 'Mode',
+            modeAbs: 'Absolute',
+            modeRel: 'Relative',
+            toggleBlack: 'Include black keys (semitones)',
+            rangeLabel: 'Range',
+            optMiddle: '1 octave (C4–B4)',
+            optWide: '2 octaves (C3–B4)',
+            optFull: '3 octaves (C3–B5)',
+            volLabel: 'Volume',
+            timbreLabel: 'Timbre',
+            timbrePiano: 'Piano',
+            timbreEpiano: 'E-piano',
+            timbreBell: 'Bell',
+            hintCtrl: 'Play a question, then answer on the keyboard. Relative mode plays C4 first.',
+            liveTitle: 'Live score',
+            statScore: 'Score',
+            statCorrect: 'Correct',
+            statTotal: 'Attempts',
+            statAcc: 'Accuracy',
+            statStreak: 'Streak',
+            freqHint: 'n = semitones from A4. Each step multiplies by 2¹⁄¹².',
+            btnPlay: 'Play round',
+            btnReplay: 'Replay',
+            btnNext: 'Next round',
+            playHint: 'Then pick the pitch on the keyboard',
+            fbIdle: 'Waiting for a round…',
+            fbWait: 'Choose the pitch you heard',
+            fbOk: 'Correct!',
+            fbWrong: 'Incorrect',
+            fbAnswer: 'Answer: ',
+            kbTitle: 'Interactive piano',
+            kbHint: 'Tap to audition; scoring starts after a round',
+            errDetail: 'You chose {guess} ({semi} semitones off)',
+            refThen: 'Ref C4 → target'
+        }
+    };
+
+    const state = {
+        score: 0,
+        correct: 0,
+        total: 0,
+        streak: 0,
+        targetNote: null,
+        isWaitingForAnswer: false,
+        includeAccidentals: true,
+        currentRange: 'middle',
+        mode: 'absolute',
+        volume: 0.6,
+        timbre: 'piano',
+        lastGuessMidi: null
+    };
+
+    // Additive presets: { ratio, amp, type } — soft inharmonicity for piano realism
+    const TIMBRES = {
+        piano: {
+            partials: [
+                { r: 1, a: 1.00, type: 'sine' },
+                { r: 2.01, a: 0.52, type: 'sine' },
+                { r: 3.02, a: 0.28, type: 'sine' },
+                { r: 4.04, a: 0.16, type: 'sine' },
+                { r: 5.05, a: 0.10, type: 'sine' },
+                { r: 6.07, a: 0.06, type: 'sine' },
+                { r: 7.08, a: 0.04, type: 'triangle' }
+            ],
+            attack: 0.008,
+            decay: 0.22,
+            sustain: 0.18,
+            releaseScale: 1.0,
+            filterStart: 4200,
+            filterEnd: 1600,
+            noise: 0.045
+        },
+        epiano: {
+            partials: [
+                { r: 1, a: 1.00, type: 'sine' },
+                { r: 2, a: 0.35, type: 'sine' },
+                { r: 3, a: 0.55, type: 'sine' },
+                { r: 4, a: 0.12, type: 'sine' },
+                { r: 5, a: 0.22, type: 'sine' },
+                { r: 6, a: 0.08, type: 'sine' }
+            ],
+            attack: 0.012,
+            decay: 0.35,
+            sustain: 0.28,
+            releaseScale: 1.15,
+            filterStart: 2800,
+            filterEnd: 900,
+            noise: 0.02
+        },
+        bell: {
+            partials: [
+                { r: 1, a: 1.00, type: 'sine' },
+                { r: 2.76, a: 0.45, type: 'sine' },
+                { r: 5.4, a: 0.22, type: 'sine' },
+                { r: 8.1, a: 0.10, type: 'sine' }
+            ],
+            attack: 0.004,
+            decay: 0.45,
+            sustain: 0.12,
+            releaseScale: 1.35,
+            filterStart: 5000,
+            filterEnd: 2200,
+            noise: 0.01
+        }
+    };
+
+    let audioCtx = null;
+    let masterGain = null;
+    let compressor = null;
+    let activeVoices = [];
+
+    const els = {
+        pianoContainer: document.getElementById('piano-container'),
+        btnPlay: document.getElementById('btn-play-random'),
+        btnPlayText: document.getElementById('btn-play-text'),
+        toggleAccidentals: document.getElementById('toggle-accidentals'),
+        rangeSelect: document.getElementById('range-select'),
+        volSlider: document.getElementById('vol-slider'),
+        volDisp: document.getElementById('vol-disp'),
+        fbIdle: document.getElementById('feedback-idle'),
+        fbWait: document.getElementById('feedback-wait'),
+        fbSuccess: document.getElementById('feedback-success'),
+        fbError: document.getElementById('feedback-error'),
+        successNote: document.getElementById('success-note'),
+        successFreq: document.getElementById('success-freq'),
+        errorCorrect: document.getElementById('error-correct'),
+        errorDetail: document.getElementById('error-detail'),
+        statScore: document.getElementById('stat-score'),
+        statCorrect: document.getElementById('stat-correct'),
+        statTotal: document.getElementById('stat-total'),
+        statAcc: document.getElementById('stat-acc'),
+        statStreak: document.getElementById('stat-streak')
+    };
+
+    function t(key) {
+        return (i18n[currentLang] && i18n[currentLang][key]) || i18n.zh[key] || key;
+    }
+
+    function applyI18n() {
+        document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+        const pack = i18n[currentLang];
+        document.querySelectorAll('[data-i18n]').forEach(function (el) {
+            const key = el.getAttribute('data-i18n');
+            if (pack[key] == null) return;
+            if (/<[a-z][\s\S]*>/i.test(pack[key])) el.innerHTML = pack[key];
+            else el.textContent = pack[key];
+        });
+        document.querySelectorAll('[data-i18n-option]').forEach(function (opt) {
+            const key = opt.getAttribute('data-i18n-option');
+            if (pack[key] != null) opt.textContent = pack[key];
+        });
+        refreshPlayButtonLabel();
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            MathJax.typesetPromise().catch(function () {});
+        }
+    }
+
+    function refreshPlayButtonLabel() {
+        if (state.isWaitingForAnswer) els.btnPlayText.textContent = t('btnReplay');
+        else if (state.total > 0) els.btnPlayText.textContent = t('btnNext');
+        else els.btnPlayText.textContent = t('btnPlay');
+    }
+
+    function updateStats() {
+        els.statScore.textContent = String(state.score);
+        els.statCorrect.textContent = String(state.correct);
+        els.statTotal.textContent = String(state.total);
+        els.statStreak.textContent = String(state.streak);
+        els.statAcc.textContent = state.total ? ((100 * state.correct / state.total).toFixed(0) + '%') : '—';
+    }
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            compressor = audioCtx.createDynamicsCompressor();
+            compressor.threshold.value = -18;
+            compressor.knee.value = 18;
+            compressor.ratio.value = 3.5;
+            compressor.attack.value = 0.003;
+            compressor.release.value = 0.18;
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.85;
+            compressor.connect(masterGain);
+            masterGain.connect(audioCtx.destination);
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (masterGain) masterGain.gain.setTargetAtTime(0.55 + 0.55 * state.volume, audioCtx.currentTime, 0.02);
+    }
+
+    function stopActiveVoices(quick) {
+        const now = audioCtx ? audioCtx.currentTime : 0;
+        const fade = quick ? 0.04 : 0.08;
+        activeVoices.forEach(function (v) {
+            try {
+                v.gain.gain.cancelScheduledValues(now);
+                v.gain.gain.setTargetAtTime(0.0001, now, fade / 3);
+                v.nodes.forEach(function (n) {
+                    try { n.stop(now + fade + 0.05); } catch (e) { /* already stopped */ }
+                });
+            } catch (e) { /* ignore */ }
+        });
+        activeVoices = [];
+    }
+
+    function makeNoiseBurst(duration) {
+        const len = Math.max(1, Math.floor(audioCtx.sampleRate * duration));
+        const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) {
+            const env = 1 - i / len;
+            data[i] = (Math.random() * 2 - 1) * env * env;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        return src;
+    }
+
+    function playTone(frequency, duration) {
+        duration = duration == null ? 1.35 : duration;
+        initAudio();
+        stopActiveVoices(true);
+
+        const preset = TIMBRES[state.timbre] || TIMBRES.piano;
+        const t0 = audioCtx.currentTime;
+        const release = Math.max(0.35, duration * preset.releaseScale);
+        const peak = 0.42;
+
+        // Brightness scales gently with pitch (higher notes thinner)
+        const bright = Math.min(1.35, Math.max(0.55, 520 / frequency));
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.Q.value = 0.7;
+        filter.frequency.setValueAtTime(preset.filterStart * bright, t0);
+        filter.frequency.exponentialRampToValueAtTime(
+            Math.max(280, preset.filterEnd * bright),
+            t0 + 0.35
+        );
+
+        const voiceGain = audioCtx.createGain();
+        voiceGain.gain.setValueAtTime(0.0001, t0);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.001, peak), t0 + preset.attack);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.001, peak * preset.sustain), t0 + preset.attack + preset.decay);
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, t0 + release);
+
+        filter.connect(voiceGain);
+        voiceGain.connect(compressor);
+
+        const nodes = [];
+        const ampSum = preset.partials.reduce(function (s, p) { return s + p.a; }, 0);
+
+        preset.partials.forEach(function (p) {
+            const freq = frequency * p.r;
+            if (freq > 16000) return;
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = p.type || 'sine';
+            osc.frequency.setValueAtTime(freq, t0);
+            // Higher partials decay faster (hammered-string feel)
+            const pAmp = (p.a / ampSum) * 1.6;
+            const pDecay = release * (0.45 + 0.55 / Math.sqrt(p.r));
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(Math.max(0.001, pAmp), t0 + preset.attack * (1 + 0.15 * (p.r - 1)));
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + pDecay);
+            osc.connect(g);
+            g.connect(filter);
+            osc.start(t0);
+            osc.stop(t0 + release + 0.05);
+            nodes.push(osc);
+        });
+
+        // Soft hammer / mallet noise click
+        if (preset.noise > 0) {
+            const noise = makeNoiseBurst(0.035);
+            const ng = audioCtx.createGain();
+            const nf = audioCtx.createBiquadFilter();
+            nf.type = 'bandpass';
+            nf.frequency.value = Math.min(4500, frequency * 4);
+            nf.Q.value = 1.2;
+            ng.gain.setValueAtTime(preset.noise * peak, t0);
+            ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.04);
+            noise.connect(nf);
+            nf.connect(ng);
+            ng.connect(filter);
+            noise.start(t0);
+            noise.stop(t0 + 0.05);
+            nodes.push(noise);
+        }
+
+        activeVoices.push({ gain: voiceGain, nodes: nodes });
+        setTimeout(function () {
+            activeVoices = activeVoices.filter(function (v) { return v.gain !== voiceGain; });
+        }, (release + 0.1) * 1000);
+    }
+
+    function playSequence(notes) {
+        // notes: [{freq, delay, duration}]
+        initAudio();
+        notes.forEach(function (n, i) {
+            setTimeout(function () { playTone(n.freq, n.duration); }, n.delay);
+        });
+    }
+
+    function getActiveNotes() {
+        const r = RANGES[state.currentRange];
+        let pool = ALL_NOTES.filter(function (n) {
+            return n.midi >= r.startMidi && n.midi <= r.endMidi;
+        });
+        if (!state.includeAccidentals) pool = pool.filter(function (n) { return !n.isBlack; });
+        return pool;
+    }
+
+    function getRandomNote() {
+        const pool = getActiveNotes();
+        if (!pool.length) return ALL_NOTES.find(function (n) { return n.name === 'C4'; });
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function hideFeedback() {
+        els.fbIdle.classList.add('hidden');
+        els.fbWait.classList.add('hidden');
+        els.fbSuccess.classList.add('hidden');
+        els.fbError.classList.add('hidden');
+        els.fbSuccess.classList.remove('animate-pop');
+        els.fbError.classList.remove('animate-pop');
+    }
+
+    function showIdle() {
+        hideFeedback();
+        els.fbIdle.classList.remove('hidden');
+    }
+
+    function showWait() {
+        hideFeedback();
+        els.fbWait.classList.remove('hidden');
+    }
+
+    function startRound() {
+        state.targetNote = getRandomNote();
+        state.isWaitingForAnswer = true;
+        state.lastGuessMidi = null;
+
+        if (state.mode === 'relative') {
+            const c4 = ALL_NOTES.find(function (n) { return n.name === 'C4'; });
+            playSequence([
+                { freq: c4.freq, delay: 0, duration: 0.7 },
+                { freq: state.targetNote.freq, delay: 900, duration: 1.1 }
+            ]);
+        } else {
+            playTone(state.targetNote.freq);
+        }
+
+        showWait();
+        refreshPlayButtonLabel();
+    }
+
+    function replayTarget() {
+        if (!state.targetNote) return;
+        if (state.mode === 'relative') {
+            const c4 = ALL_NOTES.find(function (n) { return n.name === 'C4'; });
+            playSequence([
+                { freq: c4.freq, delay: 0, duration: 0.7 },
+                { freq: state.targetNote.freq, delay: 900, duration: 1.1 }
+            ]);
+        } else {
+            playTone(state.targetNote.freq);
+        }
+    }
+
+    function highlightKey(noteName, cls) {
+        const keyEl = els.pianoContainer.querySelector('.piano-key[data-note="' + noteName + '"]');
+        if (!keyEl) return;
+        keyEl.classList.add('active');
+        if (cls) keyEl.classList.add(cls);
+        setTimeout(function () {
+            keyEl.classList.remove('active');
+            if (cls) keyEl.classList.remove(cls);
+        }, 450);
+    }
+
+    function handleKeyClick(noteName) {
+        const clicked = ALL_NOTES.find(function (n) { return n.name === noteName; });
+        if (!clicked) return;
+
+        playTone(clicked.freq, 0.75);
+        highlightKey(noteName);
+
+        if (!state.isWaitingForAnswer || !state.targetNote) return;
+
+        state.isWaitingForAnswer = false;
+        state.total += 1;
+        state.lastGuessMidi = clicked.midi;
+
+        if (clicked.name === state.targetNote.name) {
+            state.correct += 1;
+            state.streak += 1;
+            state.score += 10 + Math.min(state.streak, 5);
+            hideFeedback();
+            els.successNote.textContent = clicked.name;
+            els.successFreq.textContent = clicked.freq.toFixed(2) + ' Hz';
+            els.fbSuccess.classList.remove('hidden');
+            els.fbSuccess.classList.add('animate-pop');
+            highlightKey(clicked.name, 'flash-correct');
+        } else {
+            state.streak = 0;
+            const semi = clicked.midi - state.targetNote.midi;
+            const semiAbs = Math.abs(semi);
+            hideFeedback();
+            els.errorCorrect.textContent = state.targetNote.name + ' (' + state.targetNote.freq.toFixed(1) + ' Hz)';
+            els.errorDetail.textContent = t('errDetail')
+                .replace('{guess}', clicked.name)
+                .replace('{semi}', String(semiAbs));
+            els.fbError.classList.remove('hidden');
+            els.fbError.classList.add('animate-pop');
+            highlightKey(clicked.name, 'flash-wrong');
+            setTimeout(function () {
+                highlightKey(state.targetNote.name, 'flash-correct');
+            }, 200);
+        }
+
+        updateStats();
+        refreshPlayButtonLabel();
+    }
+
+    function renderKeyboard() {
+        const r = RANGES[state.currentRange];
+        const notes = ALL_NOTES.filter(function (n) {
+            return n.midi >= r.startMidi && n.midi <= r.endMidi;
+        });
+
+        const whiteW = 46;
+        const blackW = 28;
+        let whiteCount = 0;
+        let whiteHtml = '';
+        let blackHtml = '';
+
+        notes.forEach(function (note) {
+            if (!note.isBlack) {
+                const left = whiteCount * whiteW;
+                const label = note.name.indexOf('C') === 0 && note.name.indexOf('#') < 0
+                    ? '<span class="absolute bottom-2 left-0 right-0 text-center text-slate-400 font-mono text-[10px] pointer-events-none">' + note.name + '</span>'
+                    : '';
+                whiteHtml +=
+                    '<button type="button" class="piano-key white-key bg-white border border-slate-300 rounded-b shadow-[0_4px_0_#cbd5e1] absolute top-0 h-full cursor-pointer transition-colors"' +
+                    ' style="left:' + left + 'px;width:' + whiteW + 'px;z-index:1;" data-note="' + note.name + '" aria-label="' + note.name + '">' +
+                    label + '</button>';
+                whiteCount++;
+            } else {
+                const left = whiteCount * whiteW - blackW / 2;
+                blackHtml +=
+                    '<button type="button" class="piano-key black-key bg-slate-900 rounded-b shadow-[0_4px_0_#000] absolute top-0 cursor-pointer transition-colors"' +
+                    ' style="left:' + left + 'px;width:' + blackW + 'px;height:58%;z-index:2;" data-note="' + note.name + '" aria-label="' + note.name + '"></button>';
+            }
+        });
+
+        els.pianoContainer.style.width = (whiteCount * whiteW + 16) + 'px';
+        els.pianoContainer.innerHTML = whiteHtml + blackHtml;
+
+        els.pianoContainer.querySelectorAll('.piano-key').forEach(function (btn) {
+            btn.addEventListener('pointerdown', function (e) {
+                e.preventDefault();
+                handleKeyClick(btn.getAttribute('data-note'));
+            });
+        });
+    }
+
+    function resetSim() {
+        state.score = 0;
+        state.correct = 0;
+        state.total = 0;
+        state.streak = 0;
+        state.targetNote = null;
+        state.isWaitingForAnswer = false;
+        state.lastGuessMidi = null;
+        updateStats();
+        showIdle();
+        refreshPlayButtonLabel();
+    }
+
+    function bindUI() {
+        els.toggleAccidentals.addEventListener('change', function (e) {
+            state.includeAccidentals = e.target.checked;
+        });
+
+        els.rangeSelect.addEventListener('change', function (e) {
+            state.currentRange = e.target.value;
+            renderKeyboard();
+            state.isWaitingForAnswer = false;
+            state.targetNote = null;
+            showIdle();
+            refreshPlayButtonLabel();
+        });
+
+        els.volSlider.addEventListener('input', function (e) {
+            state.volume = Number(e.target.value) / 100;
+            els.volDisp.textContent = e.target.value + '%';
+            if (masterGain && audioCtx) {
+                masterGain.gain.setTargetAtTime(0.55 + 0.55 * state.volume, audioCtx.currentTime, 0.02);
+            }
+        });
+
+        document.querySelectorAll('#mode-abs, #mode-rel').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('#mode-abs, #mode-rel').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                state.mode = btn.getAttribute('data-mode');
+                state.isWaitingForAnswer = false;
+                state.targetNote = null;
+                showIdle();
+                refreshPlayButtonLabel();
+            });
+        });
+
+        document.querySelectorAll('#timbre-chips [data-timbre]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('#timbre-chips [data-timbre]').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                state.timbre = btn.getAttribute('data-timbre');
+                initAudio();
+                // Preview current C4 so students hear the new instrument
+                const c4 = ALL_NOTES.find(function (n) { return n.name === 'C4'; });
+                if (c4) playTone(c4.freq, 0.9);
+            });
+        });
+
+        els.btnPlay.addEventListener('click', function () {
+            initAudio();
+            if (state.isWaitingForAnswer) replayTarget();
+            else startRound();
+        });
+
+        document.getElementById('btn-reset-sim').addEventListener('click', resetSim);
+
+        // language + modals
+        function openModal(id) {
+            const mp = document.getElementById(id);
+            const mc = mp && mp.querySelector('.modal-content');
+            if (!mp || !mc) return;
+            mp.classList.remove('opacity-0', 'pointer-events-none');
+            mc.classList.remove('scale-95', 'opacity-0');
+            mc.classList.add('scale-100', 'opacity-100');
+        }
+        function closeModal(id) {
+            const mp = document.getElementById(id);
+            const mc = mp && mp.querySelector('.modal-content');
+            if (!mp || !mc) return;
+            mc.classList.remove('scale-100', 'opacity-100');
+            mc.classList.add('scale-95', 'opacity-0');
+            mp.classList.add('opacity-0', 'pointer-events-none');
+        }
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyI18n();
+        }
+
+        document.getElementById('btn-steps').onclick = function () { closeModal('modal-principle'); openModal('modal-steps'); };
+        document.getElementById('btn-principle').onclick = function () { closeModal('modal-steps'); openModal('modal-principle'); };
+        document.getElementById('btn-lang').onclick = toggleLang;
+        document.getElementById('btn-lang-mobile').onclick = toggleLang;
+        ['modal-close', 'modal-confirm'].forEach(function (id) {
+            document.getElementById(id).onclick = function () { closeModal('modal-principle'); };
+        });
+        ['steps-close', 'steps-confirm'].forEach(function (id) {
+            document.getElementById(id).onclick = function () { closeModal('modal-steps'); };
+        });
+        document.getElementById('modal-principle').addEventListener('click', function (e) {
+            if (e.target.id === 'modal-principle') closeModal('modal-principle');
+        });
+        document.getElementById('modal-steps').addEventListener('click', function (e) {
+            if (e.target.id === 'modal-steps') closeModal('modal-steps');
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                closeModal('modal-principle');
+                closeModal('modal-steps');
+            }
+        });
+
+        renderKeyboard();
+        updateStats();
+        applyI18n();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindUI);
+    else bindUI();
+})();
+</script>
+</body>
+</html>

@@ -3,633 +3,1050 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>熱傳遞：對流模擬 (Convection Simulation)</title>
+    <title>熱對流模擬 | Thermal Convection</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f3f4f6;
-            touch-action: manipulation;
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        html, body { height: 100%; margin: 0; }
+        body { font-family: 'Noto Sans TC', sans-serif; touch-action: manipulation; }
+        canvas { touch-action: none; display: block; position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+            background: #ea580c; cursor: pointer; margin-top: -7px;
+            box-shadow: 0 2px 6px rgba(0,0,0,.3); border: 2px solid #fff;
         }
-        canvas {
-            touch-action: none;
-            background: radial-gradient(circle at 50% 50%, #ffffff 0%, #e6e6e6 100%);
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
-            border-radius: 16px;
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; cursor: pointer; background: #cbd5e1; border-radius: 3px;
         }
-        .slider-thumb::-webkit-slider-thumb {
-            appearance: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #ef4444;
-            cursor: pointer;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
+        .modal-backdrop { transition: opacity .3s ease, visibility .3s ease; }
+        .modal-content { transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s ease; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; }
+        .check-row input { width: 16px; height: 16px; accent-color: #ea580c; cursor: pointer; }
+        .seg-btn { flex: 1; padding: .4rem .5rem; border-radius: .7rem; font-size: 11px; font-weight: 800; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; }
+        .seg-btn.on { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
+<body class="bg-slate-100 text-slate-800 h-full min-h-0 p-3 sm:p-5 flex flex-col items-center select-none overflow-x-hidden overflow-y-auto">
 
-    <!-- Header -->
-    <header class="text-center mb-6 w-full max-w-2xl">
-        <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">♨️ 水煲中的熱對流模擬</h1>
-        <p class="text-gray-600 text-sm md:text-base">觀察中央加熱後，熱水上升與冷水下降形成的循環路徑。</p>
+    <header class="w-full max-w-6xl bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 z-20 sticky top-2">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 bg-gradient-to-tr from-orange-500 to-red-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-orange-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-black tracking-tight text-slate-800 flex items-center gap-2">
+                        <span data-i18n="title">熱對流</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">燒杯中的溫場與對流循環</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3 w-full md:w-auto justify-end flex-wrap">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-orange-50 text-orange-700 rounded-xl font-bold text-sm transition-all shadow-sm border border-orange-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300 items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>中 / EN</span>
+            </button>
+        </div>
     </header>
 
-    <!-- Main Simulation Container -->
-    <div class="bg-white p-4 rounded-2xl shadow-xl w-full max-w-2xl border border-gray-200">
-        
-        <!-- Stats & Legend -->
-        <div class="flex justify-between items-center mb-4 text-xs md:text-sm text-gray-600 font-medium">
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> 冷 (25°C)
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <aside class="flex flex-col gap-4 order-2 lg:order-1">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-4 flex items-center gap-2 text-base">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-orange-600"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                    <span data-i18n="controlTitle">實驗控制</span>
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="powerSlider" class="text-xs font-bold text-slate-700" data-i18n="labelPower">電功率</label>
+                            <span id="powerValue" class="text-xs font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">0 W</span>
+                        </div>
+                        <input type="range" id="powerSlider" min="0" max="2000" value="0" step="100">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-medium mt-1">
+                            <span data-i18n="powerOff">關閉</span>
+                            <span data-i18n="powerMax">最大火力</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-700 mb-1.5" data-i18n="heaterPos">加熱位置</div>
+                        <div class="flex gap-2">
+                            <button type="button" id="btn-heat-center" class="seg-btn on" data-i18n="heatCenter">中央底部</button>
+                            <button type="button" id="btn-heat-left" class="seg-btn" data-i18n="heatLeft">左側底部</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-700 mb-1.5" data-i18n="simSpeed">模擬速率</div>
+                        <div class="flex gap-2">
+                            <button type="button" id="btn-spd-05" class="seg-btn">0.5×</button>
+                            <button type="button" id="btn-spd-1" class="seg-btn on">1×</button>
+                            <button type="button" id="btn-spd-2" class="seg-btn">2×</button>
+                        </div>
+                    </div>
+                    <label class="check-row"><input type="checkbox" id="chkHeatmap" checked><span data-i18n="showHeatmap">顯示水溫色圖</span></label>
+                    <label class="check-row"><input type="checkbox" id="chkParticles" checked><span data-i18n="showParticles">顯示水團粒子（跟色圖同色）</span></label>
+                    <label class="check-row"><input type="checkbox" id="chkFlow" checked><span data-i18n="showPaths">顯示對流循環</span></label>
+                    <label class="check-row"><input type="checkbox" id="chkLabels" checked><span data-i18n="showLabels">顯示對流標註</span></label>
+                    <label class="check-row"><input type="checkbox" id="chkInsulate"><span data-i18n="insulate">隔熱壺壁（減少散熱）</span></label>
+                </div>
             </div>
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span> 溫 (60°C)
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-red-600 inline-block"></span> 熱 (100°C)
-            </div>
-        </div>
 
-        <!-- Canvas Wrapper -->
-        <div class="relative w-full flex justify-center">
-            <canvas id="simCanvas" class="w-full border border-gray-300"></canvas>
-            
-            <!-- Overlay Labels -->
-            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-xs pointer-events-none whitespace-nowrap">
-                中央加熱元件 (Central Heating)
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-[11px] text-slate-500 mb-1" data-i18n="avgTemp">平均水溫</div>
+                    <div id="avgTemp" class="text-xl font-black text-slate-800">25.0°C</div>
+                </div>
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-[11px] text-slate-500 mb-1" data-i18n="rangeT">最低／最高</div>
+                    <div id="rangeT" class="text-lg font-black text-slate-800">25–25</div>
+                </div>
             </div>
-        </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-[11px] text-slate-500 mb-1" data-i18n="deltaT">中心−側壁 ΔT</div>
+                    <div id="deltaT" class="text-xl font-black text-sky-700">0.0°C</div>
+                </div>
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-[11px] text-slate-500 mb-1" data-i18n="probeT">探測點溫度</div>
+                    <div id="probeT" class="text-lg font-black text-orange-700">—</div>
+                </div>
+            </div>
+            <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 text-center">
+                <div class="text-[11px] text-slate-500 mb-1" data-i18n="stateLabel">對流狀態</div>
+                <div id="stateText" class="text-lg font-black text-slate-600">靜止</div>
+            </div>
 
-        <!-- Controls -->
-        <div class="mt-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
-            <div class="flex flex-col gap-4">
-                
-                <!-- Power Control -->
+            <p class="text-[11px] text-slate-500 leading-relaxed px-1" data-i18n="probeHint">在燒杯水面點一下可探測該處溫度。粒子顏色與水溫色圖使用同一把色尺。</p>
+
+            <div class="flex gap-2">
+                <button type="button" id="pauseBtn" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-3 rounded-xl" data-i18n="pause">暫停</button>
+                <button type="button" id="stepBtn" class="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 px-3 rounded-xl border border-slate-300 text-sm" data-i18n="stepOnce">單步</button>
+            </div>
+            <button type="button" id="dyeBtn" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm" data-i18n="injectDye">注入示蹤劑</button>
+            <button type="button" id="resetBtn" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                <span data-i18n="btnReset">重置模擬</span>
+            </button>
+        </aside>
+
+        <section id="canvas-wrap" class="relative bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[480px] lg:min-h-[640px] h-full order-1 lg:order-2 lg:col-span-2">
+            <canvas id="simCanvas"></canvas>
+            <div class="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl border border-white/70 shadow-sm text-[11px] font-bold text-slate-600 pointer-events-none">
+                <div class="mb-1" data-i18n="legendTitle">水溫色尺</div>
+                <div class="w-36 h-2.5 rounded-full overflow-hidden mb-1" id="legendBar"></div>
+                <div class="flex justify-between text-[10px] font-black">
+                    <span>25°C</span><span>60°C</span><span>100°C</span>
+                </div>
+            </div>
+            <div id="pausedBadge" class="hidden absolute top-3 right-3 z-10 bg-amber-500 text-white text-xs font-black px-3 py-1.5 rounded-full shadow" data-i18n="pausedBadge">已暫停</div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="conv-modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-orange-500 to-red-600 p-5 text-white flex justify-between items-center shrink-0">
                 <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <label for="powerSlider" class="font-bold text-gray-700 flex items-center gap-2">
-                            ⚡ 電功率 (Power)
-                        </label>
-                        <span id="powerValue" class="text-red-600 font-mono font-bold text-lg">0 W</span>
-                    </div>
-                    <input type="range" id="powerSlider" min="0" max="2000" value="0" step="100" 
-                           class="slider-thumb w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>關閉</span>
-                        <span>最大火力</span>
+                    <h2 id="conv-modal-title" class="text-lg font-bold" data-i18n="modalTitle">熱對流原理與科學知識</h2>
+                    <p class="text-xs text-orange-100" data-i18n="modalSub">Convection Principles &amp; Science Concepts</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-6 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-orange-50/70 p-4 rounded-2xl border border-orange-100">
+                    <h3 class="font-bold text-orange-900 mb-2" data-i18n="mSec1Title">1. 什麼是熱對流？</h3>
+                    <p class="text-xs text-slate-600" data-i18n="mSec1Desc">對流是流體靠自身流動傳遞熱能。熱水密度較低而上升，冷水密度較高而下沉，形成循環，把底部熱能帶到整杯水。本模擬用溫場（色圖）表示水溫，粒子只是跟隨水流的示蹤水團，顏色與所在位置的水溫相同。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-3" data-i18n="mSec2Title">2. 密度、浮力與循環</h3>
+                    <div class="space-y-3 text-xs">
+                        <p data-i18n="mStep1D">受熱處水分子動能增加、體積膨脹，密度下降。</p>
+                        <p data-i18n="mStep2D">周圍較冷的水把較輕的熱水向上推，形成上升流。</p>
+                        <p data-i18n="mStep3D">熱水在水面散開，經杯壁散熱後下沉，再流回加熱器。</p>
                     </div>
                 </div>
-
-                <!-- Checkbox for flow lines -->
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" id="showLines" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
-                    <label for="showLines" class="text-sm text-gray-700 select-none cursor-pointer">顯示對流路徑 (Flow Paths)</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
+                    <div class="bg-white p-2.5 rounded-xl border border-slate-200"><span class="font-bold text-amber-700 block" data-i18n="mP1">傳導</span><span class="text-[11px] text-slate-500" data-i18n="mP1d">固體內分子碰撞傳熱</span></div>
+                    <div class="bg-white p-2.5 rounded-xl border border-orange-200"><span class="font-bold text-orange-600 block" data-i18n="mP2">對流</span><span class="text-[11px] text-slate-500" data-i18n="mP2d">流體流動帶走熱能</span></div>
+                    <div class="bg-white p-2.5 rounded-xl border border-slate-200"><span class="font-bold text-rose-600 block" data-i18n="mP3">輻射</span><span class="text-[11px] text-slate-500" data-i18n="mP3d">電磁波傳遞，不需介質</span></div>
                 </div>
-
-                <!-- Info Stats -->
-                <div class="grid grid-cols-2 gap-4 mt-2">
-                    <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100 text-center">
-                        <div class="text-xs text-gray-500 mb-1">平均水溫</div>
-                        <div id="avgTemp" class="text-xl font-bold text-gray-800">25°C</div>
-                    </div>
-                    <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100 text-center">
-                        <div class="text-xs text-gray-500 mb-1">對流狀態</div>
-                        <div id="stateText" class="text-lg font-bold text-blue-600">靜止</div>
-                    </div>
+                <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="mSec3Title">3. 為何要從底部加熱？</h3>
+                    <p class="text-xs text-emerald-800" data-i18n="mSec3Desc">底部較熱時密度分佈不穩定，對流才能持續。改從水面加熱會形成穩定熱層，主要只靠緩慢傳導。可把加熱器改到左側，觀察單側上升、對側下降的單環流。</p>
                 </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl" data-i18n="modalBtnClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-                <!-- Reset Button -->
-                <button id="resetBtn" class="w-full mt-2 bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                    </svg>
-                    重置模擬
-                </button>
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-orange-500 to-red-600 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100 text-xs" data-i18n="s1">1. 功率由 0 慢慢調高。色圖應由底部先變黃／紅，平均水溫只升不降。</div>
+                <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100 text-xs" data-i18n="s2">2. 打開流動箭咀，對照粒子：中央（或左側）上升、對側下降。點燒杯探測局部溫度。</div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s3">3. 改加熱位置（中央／左側），比較雙環流與單環流。勾選隔熱，看 ΔT 如何改變。</div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s4">4. 用暫停凍結畫面，再注入示蹤劑；關火後應看到緩慢冷卻，而不是加熱時溫度無故下降。</div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl" data-i18n="modalBtnClose">關閉</button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- Configuration ---
+        const i18n = {
+            zh: {
+                title: '熱對流', badge: '中一科學', subtitle: '燒杯中的溫場與對流循環',
+                btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+                labelPower: '電功率', powerOff: '關閉', powerMax: '最大火力',
+                heaterPos: '加熱位置', heatCenter: '中央底部', heatLeft: '左側底部',
+                simSpeed: '模擬速率',
+                showHeatmap: '顯示水溫色圖', showParticles: '顯示水團粒子（跟色圖同色）',
+                showPaths: '顯示對流循環', showLabels: '顯示對流標註', insulate: '隔熱壺壁（減少散熱）',
+                avgTemp: '平均水溫', rangeT: '最低／最高', deltaT: '中心−側壁 ΔT',
+                probeT: '探測點溫度', stateLabel: '對流狀態',
+                probeHint: '在燒杯水面點一下可探測該處溫度。粒子顏色與水溫色圖使用同一把色尺。',
+                pause: '暫停', resume: '繼續', stepOnce: '單步', injectDye: '注入示蹤劑', btnReset: '重置模擬',
+                hotPlate: '電熱板',
+                pausedBadge: '已暫停', legendTitle: '水溫色尺',
+                stepsTitle: '觀察步驟',
+                s1: '1. 功率由 0 慢慢調高。色圖應由底部先變黃／紅，平均水溫只升不降。',
+                s2: '2. 打開流動箭咀，對照粒子：中央（或左側）上升、對側下降。點燒杯探測局部溫度。',
+                s3: '3. 改加熱位置（中央／左側），比較雙環流與單環流。勾選隔熱，看 ΔT 如何改變。',
+                s4: '4. 用暫停凍結畫面，再注入示蹤劑；關火後應看到緩慢冷卻，而不是加熱時溫度無故下降。',
+                modalTitle: '熱對流原理與科學知識', modalSub: 'Convection Principles & Science Concepts',
+                mSec1Title: '1. 什麼是熱對流？',
+                mSec1Desc: '對流是流體靠自身流動傳遞熱能。熱水密度較低而上升，冷水密度較高而下沉，形成循環，把底部熱能帶到整杯水。本模擬用溫場（色圖）表示水溫，粒子只是跟隨水流的示蹤水團，顏色與所在位置的水溫相同。',
+                mSec2Title: '2. 密度、浮力與循環',
+                mStep1D: '受熱處水分子動能增加、體積膨脹，密度下降。',
+                mStep2D: '周圍較冷的水把較輕的熱水向上推，形成上升流。',
+                mStep3D: '熱水在水面散開，經杯壁散熱後下沉，再流回加熱器。',
+                mP1: '傳導', mP1d: '固體內分子碰撞傳熱',
+                mP2: '對流', mP2d: '流體流動帶走熱能',
+                mP3: '輻射', mP3d: '電磁波傳遞，不需介質',
+                mSec3Title: '3. 為何要從底部加熱？',
+                mSec3Desc: '底部較熱時密度分佈不穩定，對流才能持續。改從水面加熱會形成穩定熱層，主要只靠緩慢傳導。可把加熱器改到左側，觀察單側上升、對側下降的單環流。',
+                modalBtnClose: '關閉',
+                stateStatic: '靜止', stateHeat: '對流加熱中', stateBoil: '沸騰', stateCool: '均勻冷卻', stateCoast: '殘餘對流', statePaused: '已暫停',
+                hotRise: '↑ 熱水上升', coldSink: '↓ 冷水下降', heater: '加熱元件'
+            },
+            en: {
+                title: 'Thermal Convection', badge: 'S1 Science', subtitle: 'Temperature field and convection cells in a beaker',
+                btnPrinciple: 'Principles', btnSteps: 'Steps', controlTitle: 'Controls',
+                labelPower: 'Electric power', powerOff: 'Off', powerMax: 'Max heat',
+                heaterPos: 'Heater position', heatCenter: 'Bottom centre', heatLeft: 'Bottom left',
+                simSpeed: 'Sim speed',
+                showHeatmap: 'Show water-temperature map', showParticles: 'Show water parcels (same colours)',
+                showPaths: 'Show convection loops', showLabels: 'Show convection labels', insulate: 'Insulate walls (less heat loss)',
+                avgTemp: 'Mean temperature', rangeT: 'Min / max', deltaT: 'Core − wall ΔT',
+                probeT: 'Probe temperature', stateLabel: 'State',
+                probeHint: 'Click the water to read local temperature. Parcel colours use the same scale as the water map.',
+                pause: 'Pause', resume: 'Resume', stepOnce: 'Step', injectDye: 'Inject tracer', btnReset: 'Reset',
+                hotPlate: 'Hot plate',
+                pausedBadge: 'Paused', legendTitle: 'Temperature scale',
+                stepsTitle: 'What to watch',
+                s1: '1. Raise power from 0 W. The map should warm from the bottom; mean T must not fall while heating.',
+                s2: '2. Turn on flow arrows. Watch parcels rise above the heater and sink on the far side. Click to probe T.',
+                s3: '3. Switch heater position to compare two cells vs one cell. Tick insulation and watch ΔT change.',
+                s4: '4. Pause to freeze the frame, then inject tracer. After switching off, cooling should be slow — not a sudden drop while the heater is on.',
+                modalTitle: 'Principles of thermal convection', modalSub: 'Convection Principles & Science Concepts',
+                mSec1Title: '1. What is convection?',
+                mSec1Desc: 'Convection is heat carried by bulk fluid motion. Hot, less-dense water rises; cold, denser water sinks. The colour map is the water temperature; particles are parcels that follow the flow and take the local colour.',
+                mSec2Title: '2. Density, buoyancy and the cell',
+                mStep1D: 'Heating increases molecular kinetic energy so the fluid expands and density falls.',
+                mStep2D: 'Cooler water around it pushes the lighter parcel upward (buoyancy).',
+                mStep3D: 'Hot water spreads at the surface, loses heat at the wall, sinks, and returns to the heater.',
+                mP1: 'Conduction', mP1d: 'Heat by molecular collisions in solids',
+                mP2: 'Convection', mP2d: 'Heat carried by fluid flow',
+                mP3: 'Radiation', mP3d: 'Electromagnetic waves; no medium needed',
+                mSec3Title: '3. Why heat from below?',
+                mSec3Desc: 'A hot bottom makes the density profile unstable, so convection continues. Heating from above makes a stable hot layer; then heat moves mainly by slow conduction. Move the heater to the left to see a single roll.',
+                modalBtnClose: 'Close',
+                stateStatic: 'Still', stateHeat: 'Convecting', stateBoil: 'Boiling', stateCool: 'Cooling evenly', stateCoast: 'Residual flow', statePaused: 'Paused',
+                hotRise: '↑ Hot water rises', coldSink: '↓ Cold water sinks', heater: 'Heater'
+            }
+        };
+
+        let lang = 'zh';
+        const t = (k) => i18n[lang][k] || k;
+
+        const NX = 40, NY = 40;
+        const HSX = 96, HSY = 96;
+        const ROOM = 25, BOIL = 100;
+        const HEAT_MEAN = 2.2;
+        const WALL_K = 0.09;
+        const N_PARCELS = 160;
+
         const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
-        const powerSlider = document.getElementById('powerSlider');
-        const powerValueDisplay = document.getElementById('powerValue');
-        const avgTempDisplay = document.getElementById('avgTemp');
-        const stateTextDisplay = document.getElementById('stateText');
-        const resetBtn = document.getElementById('resetBtn');
-        const showLinesCheckbox = document.getElementById('showLines');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const wrap = document.getElementById('canvas-wrap');
+        const heatCanvas = document.createElement('canvas');
+        heatCanvas.width = HSX; heatCanvas.height = HSY;
+        const heatCtx = heatCanvas.getContext('2d');
+        const heatImg = heatCtx.createImageData(HSX, HSY);
 
-        // Physics Constants
-        let POWER = 0; // Watts
-        const PARTICLE_COUNT = 400;
-        const ROOM_TEMP = 25;
-        const BOILING_POINT = 100;
-        const KETTLE_WIDTH_RATIO = 0.7;
-        const KETTLE_HEIGHT_RATIO = 0.8;
-        
-        // Simulation State
-        let particles = [];
-        let bubbles = [];
-        let frameId;
-        let width, height;
-        let kettleBounds = {};
-        let centerAxisX = 0;
-        
-        // Smoothing for display value
-        let displayAvgTemp = ROOM_TEMP; 
+        let POWER = 0, speed = 1, paused = false, heaterMode = 'center';
+        let flowDrive = 0, residual = 0;
+        let T = [], T2 = [], vx = [], vy = [];
+        let parcels = [], dyes = [], bubbles = [];
+        let width = 640, height = 480, dpr = 1;
+        let beaker = {};
+        let lastTs = 0, lastState = '', time = 0;
+        let probe = null;
+        let stats = { avg: ROOM, min: ROOM, max: ROOM, dT: 0 };
 
-        // --- Classes ---
-
-        class Particle {
-            constructor() {
-                this.reset(true);
+        const LUT = new Uint8Array(256 * 3);
+        (function buildLut() {
+            const stops = [
+                [0, 30, 70, 190], [0.22, 20, 170, 220], [0.42, 50, 190, 90],
+                [0.62, 250, 210, 40], [0.82, 245, 110, 20], [1, 190, 25, 25]
+            ];
+            for (let i = 0; i < 256; i++) {
+                const u = i / 255;
+                let a = stops[0], b = stops[1];
+                for (let s = 0; s < stops.length - 1; s++) {
+                    if (u >= stops[s][0] && u <= stops[s + 1][0]) { a = stops[s]; b = stops[s + 1]; break; }
+                }
+                const k = (u - a[0]) / (b[0] - a[0] || 1);
+                LUT[i * 3] = Math.round(a[1] + (b[1] - a[1]) * k);
+                LUT[i * 3 + 1] = Math.round(a[2] + (b[2] - a[2]) * k);
+                LUT[i * 3 + 2] = Math.round(a[3] + (b[3] - a[3]) * k);
             }
-
-            reset(randomY = false) {
-                // Initial position
-                this.x = kettleBounds.x + Math.random() * kettleBounds.w;
-                this.y = randomY 
-                    ? kettleBounds.y + Math.random() * kettleBounds.h 
-                    : kettleBounds.y + kettleBounds.h - 10; 
-                
-                this.vx = (Math.random() - 0.5) * 0.5;
-                this.vy = (Math.random() - 0.5) * 0.5;
-                this.temp = ROOM_TEMP + (Math.random() * 5);
-                this.radius = 2 + Math.random() * 2;
+            const bar = document.getElementById('legendBar');
+            const parts = [];
+            for (let i = 0; i < 24; i++) {
+                const p = LUT[Math.round(i / 23 * 255) * 3];
+                const q = LUT[Math.round(i / 23 * 255) * 3 + 1];
+                const r = LUT[Math.round(i / 23 * 255) * 3 + 2];
+                parts.push(`rgb(${p},${q},${r})`);
             }
+            bar.style.background = `linear-gradient(90deg, ${parts.join(',')})`;
+        })();
 
-            update() {
-                const kBottom = kettleBounds.y + kettleBounds.h;
-                const kTop = kettleBounds.y;
-                const kLeft = kettleBounds.x;
-                const kRight = kettleBounds.x + kettleBounds.w;
-                const distToCenter = this.x - centerAxisX;
-                
-                // 1. Heat Source (Centralized at bottom)
-                const isAboveHeater = Math.abs(distToCenter) < kettleBounds.w * 0.2;
-                const isAtBottom = (kBottom - this.y) < 40;
+        function tempRGB(temp) {
+            const u = Math.max(0, Math.min(1, (temp - ROOM) / (BOIL - ROOM)));
+            const i = Math.round(u * 255) * 3;
+            return [LUT[i], LUT[i + 1], LUT[i + 2]];
+        }
+        function tempCss(temp, a = 1) {
+            const [r, g, b] = tempRGB(temp);
+            return `rgba(${r},${g},${b},${a})`;
+        }
+        function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+        function hx() { return heaterMode === 'left' ? 0.22 : 0.5; }
 
-                if (isAboveHeater && isAtBottom) {
-                    // Heat gain
-                    const heatGain = (POWER / 2000) * 2.0; 
-                    this.temp += heatGain;
+        function allocGrid() {
+            T = Array.from({ length: NX }, () => new Float64Array(NY).fill(ROOM));
+            T2 = Array.from({ length: NX }, () => new Float64Array(NY).fill(ROOM));
+            vx = Array.from({ length: NX }, () => new Float64Array(NY));
+            vy = Array.from({ length: NX }, () => new Float64Array(NY));
+        }
+        function sampleT(nx, ny) {
+            const x = clamp(nx * (NX - 1), 0, NX - 1);
+            const y = clamp(ny * (NY - 1), 0, NY - 1);
+            const i = Math.floor(x), j = Math.floor(y);
+            const fx = x - i, fy = y - j;
+            const i2 = Math.min(NX - 1, i + 1), j2 = Math.min(NY - 1, j + 1);
+            return T[i][j] * (1 - fx) * (1 - fy) + T[i2][j] * fx * (1 - fy) + T[i][j2] * (1 - fx) * fy + T[i2][j2] * fx * fy;
+        }
+        function sampleV(nx, ny) {
+            const x = clamp(nx * (NX - 1), 0, NX - 1);
+            const y = clamp(ny * (NY - 1), 0, NY - 1);
+            const i = Math.floor(x), j = Math.floor(y);
+            const fx = x - i, fy = y - j;
+            const i2 = Math.min(NX - 1, i + 1), j2 = Math.min(NY - 1, j + 1);
+            const ux = vx[i][j] * (1 - fx) * (1 - fy) + vx[i2][j] * fx * (1 - fy) + vx[i][j2] * (1 - fx) * fy + vx[i2][j2] * fx * fy;
+            const uy = vy[i][j] * (1 - fx) * (1 - fy) + vy[i2][j] * fx * (1 - fy) + vy[i][j2] * (1 - fx) * fy + vy[i2][j2] * fx * fy;
+            return [ux, uy];
+        }
+
+        function flowAmp() {
+            return 0.55 * flowDrive;
+        }
+
+        function updateFlowDrive(dt) {
+            const p = POWER / 2000;
+            if (p > 0.02) {
+                residual = 0.28 + 0.72 * p;
+                flowDrive = residual;
+            } else {
+                residual *= Math.exp(-dt / 2.8);
+                flowDrive = residual < 0.06 ? 0 : residual;
+                if (flowDrive === 0) residual = 0;
+            }
+        }
+
+        function computeVelocity() {
+            const A = flowAmp();
+            const mode = heaterMode;
+            if (A < 1e-4) {
+                for (let i = 0; i < NX; i++) {
+                    vx[i].fill(0);
+                    vy[i].fill(0);
                 }
-
-                // 2. Cooling Logic
-                const isAtSurface = (this.y - kTop) < 20;
-                if (isAtSurface) {
-                    // Slight surface evaporation cooling
-                    this.temp -= 0.05; 
-                }
-                
-                // General Ambient cooling (very slow)
-                if (this.temp > ROOM_TEMP) {
-                    this.temp -= 0.005; 
-                }
-
-                // Clamp Temp
-                if (this.temp > BOILING_POINT + 5) this.temp = BOILING_POINT + 5;
-                if (this.temp < ROOM_TEMP) this.temp = ROOM_TEMP;
-
-                // 3. Flow Field / Forces
-                // A. Buoyancy (MODIFIED: Reduced speed)
-                // Reduced coefficient from -0.006 to -0.0025
-                let buoyancy = (this.temp - displayAvgTemp) * -0.0025;
-                // Reduced extra boost from -0.02 to -0.005
-                if (this.temp > displayAvgTemp + 5) buoyancy -= 0.005;
-                this.vy += buoyancy;
-
-                // B. Convection Current Guidance (Force Field)
-                if (POWER > 100) {
-                    const flowStrength = (POWER / 2000) * 0.12; 
-
-                    // Horizontal Flow Logic
-                    // MODIFIED: Increased range (0.25 -> 0.35) to make them turn earlier/lower
-                    if (this.y < kTop + kettleBounds.h * 0.35) {
-                        // Top region: PUSH OUTWARD
-                        if (distToCenter > 0) this.vx += flowStrength; 
-                        else this.vx -= flowStrength;
-                        
-                        // Add slight downward pressure near top to prevent sticking to ceiling
-                        if (this.y < kTop + kettleBounds.h * 0.1) {
-                             this.vy += flowStrength * 0.2;
-                        }
-                    } else if (this.y > kBottom - kettleBounds.h * 0.2) {
-                        // Bottom region: SUCK INWARD
-                        if (distToCenter > 0) this.vx -= flowStrength; 
-                        else this.vx += flowStrength; 
+                return;
+            }
+            for (let i = 0; i < NX; i++) {
+                const nx = i / (NX - 1);
+                for (let j = 0; j < NY; j++) {
+                    const ny = j / (NY - 1);
+                    const yup = 1 - ny;
+                    let u, vUp;
+                    if (mode === 'center') {
+                        u = A * Math.PI * Math.sin(2 * Math.PI * nx) * Math.cos(Math.PI * yup);
+                        vUp = -A * 2 * Math.PI * Math.cos(2 * Math.PI * nx) * Math.sin(Math.PI * yup);
+                    } else {
+                        u = -A * Math.PI * Math.sin(Math.PI * nx) * Math.cos(Math.PI * yup);
+                        vUp = A * Math.PI * Math.cos(Math.PI * nx) * Math.sin(Math.PI * yup);
                     }
-
-                    // Vertical Flow Logic
-                    if (Math.abs(distToCenter) < kettleBounds.w * 0.25) {
-                        // Center: Encourage UP (Reduced strength 0.4 -> 0.2)
-                        this.vy -= flowStrength * 0.2;
-                    } else if (Math.abs(distToCenter) > kettleBounds.w * 0.35) {
-                        // Sides: Encourage DOWN
-                        this.vy += flowStrength * 0.4;
-                    }
+                    vx[i][j] = u;
+                    vy[i][j] = -vUp;
                 }
+            }
+        }
 
-                // C. Random Turbulence
-                const energy = this.temp / 100;
-                this.vx += (Math.random() - 0.5) * energy * 0.4;
-                this.vy += (Math.random() - 0.5) * energy * 0.2;
-
-                // D. Damping
-                this.vx *= 0.96;
-                this.vy *= 0.96;
-
-                // 4. Update Position
-                this.x += this.vx;
-                this.y += this.vy;
-
-                // 5. Boiling (Bubbles)
-                if (this.temp >= 98 && Math.abs(distToCenter) < kettleBounds.w * 0.3 && Math.random() < (POWER/100000)) {
-                    createBubble(this.x, this.y);
-                }
-
-                // 6. Boundaries
-                if (this.x < kLeft) { this.x = kLeft; this.vx *= -0.5; }
-                if (this.x > kRight) { this.x = kRight; this.vx *= -0.5; }
-                if (this.y > kBottom) { this.y = kBottom; this.vy *= -0.5; }
-                if (this.y < kTop) {
-                    this.y = kTop;
-                    this.vy = Math.abs(this.vy) * 0.1;
-                    // Horizontal spread at surface
-                    if (this.temp > 60) {
-                        this.vx += (this.x < centerAxisX ? -1 : 1) * 0.5; // Reduced spread force
+        function diffuse(passes, mix) {
+            for (let p = 0; p < passes; p++) {
+                for (let i = 0; i < NX; i++) {
+                    for (let j = 0; j < NY; j++) {
+                        const im = i > 0 ? i - 1 : i, ip = i < NX - 1 ? i + 1 : i;
+                        const jm = j > 0 ? j - 1 : j, jp = j < NY - 1 ? j + 1 : j;
+                        const avg = (T[ip][j] + T[im][j] + T[i][jp] + T[i][jm]) * 0.25;
+                        T2[i][j] = T[i][j] * (1 - mix) + avg * mix;
                     }
                 }
-            }
-
-            draw() {
-                let t = (this.temp - ROOM_TEMP) / (BOILING_POINT - ROOM_TEMP);
-                t = Math.max(0, Math.min(1, t));
-                
-                let hue;
-                if (t < 0.3) {
-                    hue = 240 - (t / 0.3) * 40;
-                } else if (t < 0.7) {
-                    hue = 200 - ((t - 0.3) / 0.4) * 160;
-                } else {
-                    hue = 40 - ((t - 0.7) / 0.3) * 40;
+                for (let i = 0; i < NX; i++) {
+                    for (let j = 0; j < NY; j++) T[i][j] = T2[i][j];
                 }
-                
-                const sat = 80 + (t * 20) + '%';
-                const light = 55 + (t * 10) + '%';
-                
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `hsla(${hue}, ${sat}, ${light}, 0.7)`;
-                ctx.fill();
             }
         }
 
-        class Bubble {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.vx = (Math.random() - 0.5) * 0.5;
-                this.vy = -2 - Math.random() * 2;
-                this.radius = 1 + Math.random() * 3;
-                this.active = true;
+        function homogenize(rate) {
+            if (rate <= 0) return;
+            let sum = 0;
+            const n = NX * NY;
+            for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) sum += T[i][j];
+            const mean = sum / n;
+            for (let i = 0; i < NX; i++) {
+                for (let j = 0; j < NY; j++) T[i][j] += rate * (mean - T[i][j]);
             }
+        }
 
-            update() {
-                this.y += this.vy;
-                this.x += this.vx;
-                this.radius += 0.05;
-                this.x += Math.sin(this.y * 0.1) * 0.5; // Wobble
+        function stepPhysics(dt) {
+            updateFlowDrive(dt);
+            computeVelocity();
+            const pNorm = POWER / 2000;
+            const ins = document.getElementById('chkInsulate').checked ? 0.12 : 1;
 
-                if (this.y < kettleBounds.y) {
-                    this.active = false;
+            if (flowDrive > 0.05) {
+                for (let i = 0; i < NX; i++) {
+                    for (let j = 0; j < NY; j++) {
+                        const nx = i / (NX - 1) - vx[i][j] * dt;
+                        const ny = j / (NY - 1) - vy[i][j] * dt;
+                        T2[i][j] = sampleT(nx, ny);
+                    }
+                }
+                for (let i = 0; i < NX; i++) {
+                    for (let j = 0; j < NY; j++) T[i][j] = T2[i][j];
                 }
             }
 
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.fill();
+            if (pNorm > 0) {
+                let wsum = 0;
+                const hx0 = hx();
+                const weights = [];
+                for (let i = 0; i < NX; i++) {
+                    const nx = i / (NX - 1);
+                    const wx = Math.exp(-0.5 * Math.pow((nx - hx0) / 0.18, 2));
+                    for (let j = NY - 8; j < NY; j++) {
+                        const wy = (j - (NY - 9)) / 8;
+                        const w = wx * wy;
+                        weights.push(i, j, w);
+                        wsum += w;
+                    }
+                }
+                const n = NX * NY;
+                const gain = pNorm * HEAT_MEAN * dt * n / (wsum || 1);
+                for (let k = 0; k < weights.length; k += 3) {
+                    T[weights[k]][weights[k + 1]] += gain * weights[k + 2];
+                }
+            }
+
+            if (pNorm > 0) {
+                diffuse(3, 0.4);
+                const kWall = WALL_K * ins;
+                for (let i = 0; i < NX; i++) {
+                    T[i][0] -= kWall * 1.1 * (T[i][0] - ROOM) * dt;
+                    for (let j = 0; j < NY; j++) {
+                        if (i === 0 || i === NX - 1) T[i][j] -= kWall * (T[i][j] - ROOM) * dt;
+                    }
+                }
+            } else if (flowDrive > 0.05) {
+                diffuse(5, 0.5);
+                const cool = 0.04 * ins * dt;
+                for (let i = 0; i < NX; i++) {
+                    for (let j = 0; j < NY; j++) T[i][j] -= cool * (T[i][j] - ROOM);
+                }
+            } else {
+                diffuse(10, 0.62);
+                homogenize(1 - Math.exp(-dt / 1.1));
+                const cool = 0.055 * ins * dt;
+                for (let i = 0; i < NX; i++) {
+                    for (let j = 0; j < NY; j++) T[i][j] -= cool * (T[i][j] - ROOM);
+                }
+            }
+
+            for (let i = 0; i < NX; i++) {
+                for (let j = 0; j < NY; j++) T[i][j] = clamp(T[i][j], ROOM, BOIL);
+            }
+
+            if (pNorm > 0) {
+                let sum = 0;
+                for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) sum += T[i][j];
+                const mean = sum / (NX * NY);
+                if (mean + 1e-6 < stats.avg && stats.avg < BOIL - 0.5) {
+                    const bump = (stats.avg - mean) + pNorm * HEAT_MEAN * dt * 0.2;
+                    for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) T[i][j] = Math.min(BOIL, T[i][j] + bump);
+                }
             }
         }
 
-        function createBubble(x, y) {
-            bubbles.push(new Bubble(x, y));
-        }
-
-        // --- Initialization ---
-
-        function resize() {
-            const parent = canvas.parentElement;
-            canvas.width = parent.clientWidth;
-            canvas.height = Math.min(500, parent.clientWidth * 0.8); 
-            
-            width = canvas.width;
-            height = canvas.height;
-
-            const kw = width * KETTLE_WIDTH_RATIO;
-            const kh = height * KETTLE_HEIGHT_RATIO;
-            kettleBounds = {
-                x: (width - kw) / 2,
-                y: (height - kh) / 2 + 20,
-                w: kw,
-                h: kh
-            };
-            centerAxisX = width / 2;
-        }
-
-        function initParticles() {
-            particles = [];
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                particles.push(new Particle());
+        function gatherStats() {
+            let sum = 0, mn = 1e9, mx = -1e9, core = 0, cn = 0, wall = 0, wn = 0;
+            const h = hx();
+            for (let i = 0; i < NX; i++) {
+                const nx = i / (NX - 1);
+                for (let j = 0; j < NY; j++) {
+                    const v = T[i][j];
+                    sum += v;
+                    if (v < mn) mn = v;
+                    if (v > mx) mx = v;
+                    if (Math.abs(nx - h) < 0.16) { core += v; cn++; }
+                    if (heaterMode === 'center' ? (nx < 0.12 || nx > 0.88) : nx > 0.78) { wall += v; wn++; }
+                }
             }
+            stats.avg = sum / (NX * NY);
+            stats.min = mn;
+            stats.max = mx;
+            stats.dT = (cn && wn) ? core / cn - wall / wn : 0;
+        }
+
+        function initParcels() {
+            parcels = [];
+            for (let n = 0; n < N_PARCELS; n++) {
+                parcels.push({
+                    nx: 0.04 + Math.random() * 0.92,
+                    ny: 0.08 + Math.random() * 0.84,
+                    trail: Math.random() < 0.2 ? [] : null,
+                    r: 2.4 + Math.random() * 1.6
+                });
+            }
+            dyes = [];
             bubbles = [];
         }
 
-        // --- Visuals ---
-
-        function drawKettle() {
-            ctx.save();
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = '#374151';
-
-            const kx = kettleBounds.x;
-            const ky = kettleBounds.y;
-            const kw = kettleBounds.w;
-            const kh = kettleBounds.h;
-
-            // Glass Body
-            ctx.beginPath();
-            ctx.moveTo(kx, ky);
-            ctx.lineTo(kx + kw, ky);
-            ctx.bezierCurveTo(kx + kw + 20, ky + kh/2, kx + kw, ky + kh, kx + kw - 20, ky + kh);
-            ctx.lineTo(kx + 20, ky + kh);
-            ctx.bezierCurveTo(kx, ky + kh, kx - 20, ky + kh/2, kx, ky);
-            ctx.stroke();
-
-            // Handle
-            ctx.beginPath();
-            ctx.moveTo(kx + kw + 5, ky + kh * 0.2);
-            ctx.bezierCurveTo(kx + kw + 60, ky + kh * 0.2, kx + kw + 60, ky + kh * 0.8, kx + kw + 5, ky + kh * 0.8);
-            ctx.lineWidth = 8;
-            ctx.strokeStyle = '#1f2937';
-            ctx.stroke();
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#4b5563';
-            ctx.stroke();
-            
-            ctx.restore();
-        }
-
-        function drawCentralHeater() {
-            const kx = kettleBounds.x;
-            const ky = kettleBounds.y;
-            const kw = kettleBounds.w;
-            const kh = kettleBounds.h;
-            
-            const heaterWidth = kw * 0.3;
-            const heaterX = centerAxisX - heaterWidth/2;
-            const heaterY = ky + kh - 15;
-
-            ctx.save();
-            const glowIntensity = POWER / 2000;
-            const r = 80 + (175 * glowIntensity);
-            const g = 80 * (1 - glowIntensity);
-            const b = 80 * (1 - glowIntensity);
-            const color = `rgb(${r},${g},${b})`;
-
-            ctx.fillStyle = '#4b5563';
-            ctx.fillRect(heaterX, heaterY, heaterWidth, 10);
-
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 6;
-            ctx.lineCap = 'round';
-            ctx.shadowBlur = POWER > 0 ? 15 : 0;
-            ctx.shadowColor = 'red';
-
-            ctx.beginPath();
-            const coils = 6;
-            const coilStep = heaterWidth / coils;
-            for(let i=0; i<coils; i++) {
-                const cx = heaterX + 5 + i*coilStep;
-                ctx.moveTo(cx, heaterY);
-                ctx.lineTo(cx + coilStep/2, heaterY - 8);
-                ctx.lineTo(cx + coilStep, heaterY);
+        function injectDye() {
+            const h = hx();
+            for (let n = 0; n < 28; n++) {
+                dyes.push({
+                    nx: clamp(h + (Math.random() - 0.5) * 0.12, 0.04, 0.96),
+                    ny: 0.82 + Math.random() * 0.12,
+                    life: 1,
+                    trail: []
+                });
             }
-            ctx.stroke();
-            ctx.restore();
         }
 
-        // --- Math Helpers for Bezier Curves ---
-        // Get point at t (0 to 1) on cubic bezier
-        function getCubicBezierXY(t, p0, p1, p2, p3) {
-            const cX = 3 * (p1.x - p0.x);
-            const bX = 3 * (p2.x - p1.x) - cX;
-            const aX = p3.x - p0.x - cX - bX;
-
-            const cY = 3 * (p1.y - p0.y);
-            const bY = 3 * (p2.y - p1.y) - cY;
-            const aY = p3.y - p0.y - cY - bY;
-
-            const x = (aX * Math.pow(t, 3)) + (bX * Math.pow(t, 2)) + (cX * t) + p0.x;
-            const y = (aY * Math.pow(t, 3)) + (bY * Math.pow(t, 2)) + (cY * t) + p0.y;
-
-            return { x, y };
+        function bounce(p) {
+            if (p.nx < 0.03) p.nx = 0.03;
+            if (p.nx > 0.97) p.nx = 0.97;
+            if (p.ny < 0.05) p.ny = 0.05;
+            if (p.ny > 0.95) p.ny = 0.95;
         }
 
-        // Get tangent angle at t (0 to 1)
-        function getCubicBezierAngle(t, p0, p1, p2, p3) {
-            // Derivative of cubic bezier
-            const dx = 3 * Math.pow(1 - t, 2) * (p1.x - p0.x) + 
-                       6 * (1 - t) * t * (p2.x - p1.x) + 
-                       3 * Math.pow(t, 2) * (p3.x - p2.x);
-            
-            const dy = 3 * Math.pow(1 - t, 2) * (p1.y - p0.y) + 
-                       6 * (1 - t) * t * (p2.y - p1.y) + 
-                       3 * Math.pow(t, 2) * (p3.y - p2.y);
-            
-            return Math.atan2(dy, dx);
-        }
-
-        function drawConvectionLines() {
-            if (!showLinesCheckbox.checked) return;
-
-            const kx = kettleBounds.x;
-            const ky = kettleBounds.y;
-            const kw = kettleBounds.w;
-            const kh = kettleBounds.h;
-            const cx = centerAxisX;
-
-            ctx.save();
-            ctx.globalAlpha = 0.4; 
-            ctx.strokeStyle = '#4b5563'; // darker gray
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]); 
-
-            // --- Right Loop Definition ---
-            // We split the loop into two cubic bezier segments for a full smooth oval-ish shape
-            
-            // Segment 1: Bottom-Center -> Top-Right (Up & Out)
-            const r1_p0 = { x: cx + 10, y: ky + kh - 20 };
-            const r1_p1 = { x: cx + 10, y: ky + kh * 0.2 }; // Control point goes UP
-            const r1_p2 = { x: kx + kw * 0.8, y: ky + 20 };  // Control point goes OUT
-            const r1_p3 = { x: kx + kw - 20, y: ky + kh * 0.4 }; // End near top side
-
-            // Segment 2: Top-Right -> Bottom-Center (Down & In)
-            const r2_p0 = r1_p3;
-            const r2_p1 = { x: kx + kw + 10, y: ky + kh * 0.8 }; // Control point goes DOWN
-            const r2_p2 = { x: cx + kw * 0.3, y: ky + kh - 10 }; // Control point goes IN
-            const r2_p3 = r1_p0; // Loop back to start
-
-            // Draw Right Path
-            ctx.beginPath();
-            ctx.moveTo(r1_p0.x, r1_p0.y);
-            ctx.bezierCurveTo(r1_p1.x, r1_p1.y, r1_p2.x, r1_p2.y, r1_p3.x, r1_p3.y);
-            ctx.bezierCurveTo(r2_p1.x, r2_p1.y, r2_p2.x, r2_p2.y, r2_p3.x, r2_p3.y);
-            ctx.stroke();
-
-            // Draw Right Arrows (Calculated exactly on the curve)
-            // Arrow 1: On the way Up (t=0.5 of seg 1)
-            const rArrow1 = getCubicBezierXY(0.5, r1_p0, r1_p1, r1_p2, r1_p3);
-            const rAngle1 = getCubicBezierAngle(0.5, r1_p0, r1_p1, r1_p2, r1_p3);
-            drawArrowHeadAtPoint(rArrow1.x, rArrow1.y, rAngle1);
-
-            // Arrow 2: On the way Down (t=0.5 of seg 2)
-            const rArrow2 = getCubicBezierXY(0.5, r2_p0, r2_p1, r2_p2, r2_p3);
-            const rAngle2 = getCubicBezierAngle(0.5, r2_p0, r2_p1, r2_p2, r2_p3);
-            drawArrowHeadAtPoint(rArrow2.x, rArrow2.y, rAngle2);
-
-
-            // --- Left Loop Definition (Mirror) ---
-            
-            // Segment 1: Bottom-Center -> Top-Left (Up & Out)
-            const l1_p0 = { x: cx - 10, y: ky + kh - 20 };
-            const l1_p1 = { x: cx - 10, y: ky + kh * 0.2 }; 
-            const l1_p2 = { x: kx + kw * 0.2, y: ky + 20 };  
-            const l1_p3 = { x: kx + 20, y: ky + kh * 0.4 }; 
-
-            // Segment 2: Top-Left -> Bottom-Center (Down & In)
-            const l2_p0 = l1_p3;
-            const l2_p1 = { x: kx - 10, y: ky + kh * 0.8 }; 
-            const l2_p2 = { x: cx - kw * 0.3, y: ky + kh - 10 }; 
-            const l2_p3 = l1_p0; 
-
-            // Draw Left Path
-            ctx.beginPath();
-            ctx.moveTo(l1_p0.x, l1_p0.y);
-            ctx.bezierCurveTo(l1_p1.x, l1_p1.y, l1_p2.x, l1_p2.y, l1_p3.x, l1_p3.y);
-            ctx.bezierCurveTo(l2_p1.x, l2_p1.y, l2_p2.x, l2_p2.y, l2_p3.x, l2_p3.y);
-            ctx.stroke();
-
-            // Draw Left Arrows
-            const lArrow1 = getCubicBezierXY(0.5, l1_p0, l1_p1, l1_p2, l1_p3);
-            const lAngle1 = getCubicBezierAngle(0.5, l1_p0, l1_p1, l1_p2, l1_p3);
-            drawArrowHeadAtPoint(lArrow1.x, lArrow1.y, lAngle1);
-
-            const lArrow2 = getCubicBezierXY(0.5, l2_p0, l2_p1, l2_p2, l2_p3);
-            const lAngle2 = getCubicBezierAngle(0.5, l2_p0, l2_p1, l2_p2, l2_p3);
-            drawArrowHeadAtPoint(lArrow2.x, lArrow2.y, lAngle2);
-
-            ctx.restore();
-        }
-
-        function drawArrowHeadAtPoint(x, y, angle) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle);
-            ctx.beginPath();
-            ctx.moveTo(-5, -5); // Back left
-            ctx.lineTo(5, 0);   // Tip
-            ctx.lineTo(-5, 5);  // Back right
-            ctx.closePath();
-            ctx.fillStyle = '#4b5563'; // Gray-600
-            ctx.fill();
-            ctx.restore();
-        }
-
-        // --- Main Loop ---
-
-        function animate() {
-            ctx.clearRect(0, 0, width, height);
-
-            let totalTemp = 0;
-            particles.forEach(p => {
-                p.update();
-                totalTemp += p.temp;
-            });
-            
+        function stepTracers(dt) {
+            const conv = flowDrive > 0.05;
+            const jitter = conv ? 0.35 : 1.8;
+            const move = (p, fade) => {
+                if (conv) {
+                    const [u, v] = sampleV(p.nx, p.ny);
+                    p.nx += u * dt;
+                    p.ny += v * dt;
+                }
+                p.nx += (Math.random() + Math.random() - 1) * jitter * dt;
+                p.ny += (Math.random() + Math.random() - 1) * jitter * dt;
+                bounce(p);
+                if (p.trail) {
+                    if (conv) {
+                        p.trail.push(p.nx, p.ny);
+                        if (p.trail.length > 18) p.trail.splice(0, p.trail.length - 18);
+                    } else if (p.trail.length) {
+                        p.trail.length = 0;
+                    }
+                }
+                if (fade) p.life -= 0.08 * dt;
+            };
+            for (const p of parcels) move(p, false);
+            for (let i = dyes.length - 1; i >= 0; i--) {
+                move(dyes[i], true);
+                if (dyes[i].life <= 0) dyes.splice(i, 1);
+            }
+            if (stats.max > 98 && POWER > 200 && bubbles.length < 40 && Math.random() < dt * 8) {
+                bubbles.push({ nx: hx() + (Math.random() - 0.5) * 0.1, ny: 0.9, r: 1.5 + Math.random() * 2, life: 1 });
+            }
             for (let i = bubbles.length - 1; i >= 0; i--) {
-                bubbles[i].update();
-                if (!bubbles[i].active) bubbles.splice(i, 1);
+                const b = bubbles[i];
+                b.ny -= 0.35 * dt;
+                b.nx += Math.sin(time * 0.2 + i) * 0.04 * dt;
+                b.r += 3 * dt;
+                b.life -= 0.35 * dt;
+                if (b.ny < 0.05 || b.life <= 0) bubbles.splice(i, 1);
             }
-
-            // Stats Smoothing
-            const currentAvg = totalTemp / particles.length;
-            displayAvgTemp += (currentAvg - displayAvgTemp) * 0.05; 
-
-            avgTempDisplay.textContent = Math.round(displayAvgTemp) + "°C";
-            
-            if (POWER === 0 && displayAvgTemp < 30) {
-                stateTextDisplay.textContent = "靜止 (Static)";
-                stateTextDisplay.className = "text-lg font-bold text-gray-600";
-            } else if (displayAvgTemp >= 95) {
-                stateTextDisplay.textContent = "沸騰 (Boiling)";
-                stateTextDisplay.className = "text-lg font-bold text-red-600 animate-pulse";
-            } else if (POWER > 0) {
-                stateTextDisplay.textContent = "對流加熱中 (Heating)";
-                stateTextDisplay.className = "text-lg font-bold text-orange-500";
-            } else {
-                stateTextDisplay.textContent = "冷卻中 (Cooling)";
-                stateTextDisplay.className = "text-lg font-bold text-blue-500";
-            }
-
-            drawConvectionLines();
-            particles.forEach(p => p.draw());
-            bubbles.forEach(b => b.draw());
-            drawCentralHeater();
-            drawKettle();
-
-            frameId = requestAnimationFrame(animate);
         }
 
-        // --- Events ---
+        function layout() {
+            const cssW = wrap.clientWidth, cssH = wrap.clientHeight;
+            if (cssW < 40 || cssH < 40) return;
+            dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const nw = Math.round(cssW * dpr), nh = Math.round(cssH * dpr);
+            if (Math.abs(canvas.width - nw) > 1 || Math.abs(canvas.height - nh) > 1) {
+                canvas.width = nw; canvas.height = nh;
+            }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            width = cssW; height = cssH;
+            const bh = Math.min(height * 0.56, 390);
+            const bw = Math.min(width * 0.48, bh * 1.05);
+            beaker = {
+                x: (width - bw) / 2,
+                y: height * 0.11,
+                w: bw, h: bh, r: 20,
+                cx: 0, waterTop: 0, waterBot: 0
+            };
+            beaker.cx = beaker.x + beaker.w / 2;
+            beaker.waterTop = beaker.y + 20;
+            beaker.waterBot = beaker.y + beaker.h - 16;
+        }
 
-        powerSlider.addEventListener('input', (e) => {
-            POWER = parseInt(e.target.value);
-            powerValueDisplay.textContent = POWER + " W";
-        });
+        function waterRect() {
+            return { x: beaker.x + 6, y: beaker.waterTop, w: beaker.w - 12, h: beaker.waterBot - beaker.waterTop };
+        }
+        function nxnyFromPx(px, py) {
+            const wr = waterRect();
+            return [(px - wr.x) / wr.w, (py - wr.y) / wr.h];
+        }
+        function pxFromNx(nx, ny) {
+            const wr = waterRect();
+            return [wr.x + nx * wr.w, wr.y + ny * wr.h];
+        }
 
-        resetBtn.addEventListener('click', () => {
-            POWER = 0;
-            powerSlider.value = 0;
-            powerValueDisplay.textContent = "0 W";
-            displayAvgTemp = ROOM_TEMP;
-            initParticles();
-        });
+        function beakerPath(out = 0) {
+            const x = beaker.x - out, y = beaker.y - out, w = beaker.w + out * 2, h = beaker.h + out * 2, r = Math.max(8, beaker.r + out * 0.3);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + w, y);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.closePath();
+        }
 
-        window.addEventListener('resize', () => {
-            resize();
-            initParticles();
-        });
+        function drawArrowHead(x, y, ux, uy, s) {
+            ctx.beginPath();
+            ctx.moveTo(x + ux * s, y + uy * s);
+            ctx.lineTo(x - uy * s * 0.55, y + ux * s * 0.55);
+            ctx.lineTo(x + uy * s * 0.55, y - ux * s * 0.55);
+            ctx.closePath();
+            ctx.fill();
+        }
 
-        window.onload = () => {
-            resize();
-            initParticles();
-            animate();
+        function drawLoopArrows(cx, cy, rx, ry, clockwise) {
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            const ts = [0.08, Math.PI * 0.5 + 0.08, Math.PI + 0.08, Math.PI * 1.5 + 0.08];
+            for (const t of ts) {
+                const x = cx + rx * Math.cos(t);
+                const y = cy + ry * Math.sin(t);
+                let tx = -rx * Math.sin(t), ty = ry * Math.cos(t);
+                if (!clockwise) { tx = -tx; ty = -ty; }
+                const mag = Math.hypot(tx, ty) || 1;
+                drawArrowHead(x, y, tx / mag, ty / mag, 13);
+            }
+        }
+
+        function drawCirculation(wr) {
+            if (flowDrive < 0.06) return;
+            ctx.save();
+            ctx.globalAlpha = 0.55 + 0.25 * clamp(flowDrive, 0, 1);
+            ctx.strokeStyle = 'rgba(15,23,42,.82)';
+            ctx.fillStyle = 'rgba(15,23,42,.82)';
+            ctx.lineWidth = 3.4;
+            ctx.lineCap = 'round';
+            if (heaterMode === 'center') {
+                const [lx, ly] = pxFromNx(0.28, 0.52);
+                const [rx, ry] = pxFromNx(0.72, 0.52);
+                const radX = wr.w * 0.2, radY = wr.h * 0.3;
+                drawLoopArrows(lx, ly, radX, radY, false);
+                drawLoopArrows(rx, ry, radX, radY, true);
+            } else {
+                const [cx, cy] = pxFromNx(0.5, 0.52);
+                drawLoopArrows(cx, cy, wr.w * 0.34, wr.h * 0.3, true);
+            }
+            ctx.restore();
+        }
+
+        function drawScene() {
+            const tableY = beaker.y + beaker.h + 6;
+            const wall = ctx.createLinearGradient(0, 0, 0, tableY);
+            wall.addColorStop(0, '#f4f7fb'); wall.addColorStop(1, '#dce6f0');
+            ctx.fillStyle = wall; ctx.fillRect(0, 0, width, tableY);
+            ctx.strokeStyle = 'rgba(148,163,184,.18)'; ctx.lineWidth = 1;
+            for (let gx = 28; gx < width; gx += 36) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, tableY); ctx.stroke(); }
+            for (let gy = 24; gy < tableY; gy += 36) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(width, gy); ctx.stroke(); }
+
+            const wood = ctx.createLinearGradient(0, tableY, 0, height);
+            wood.addColorStop(0, '#c9a06c'); wood.addColorStop(0.45, '#a97845'); wood.addColorStop(1, '#7d542c');
+            ctx.fillStyle = wood; ctx.fillRect(0, tableY, width, height - tableY);
+            ctx.fillStyle = '#6b4423'; ctx.fillRect(0, tableY, width, 6);
+
+            const glow = POWER / 2000;
+            const plateW = beaker.w * 0.86, plateH = 22;
+            const plateX = beaker.cx - plateW / 2, plateY = tableY - 4;
+            ctx.fillStyle = 'rgba(15,23,42,.22)';
+            ctx.beginPath(); ctx.ellipse(beaker.cx, tableY + 10, plateW * 0.52, 9, 0, 0, Math.PI * 2); ctx.fill();
+            roundRect(plateX, plateY, plateW, plateH, 6);
+            const plateGrad = ctx.createLinearGradient(plateX, plateY, plateX, plateY + plateH);
+            plateGrad.addColorStop(0, '#334155'); plateGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = plateGrad; ctx.fill();
+            if (glow > 0) {
+                ctx.fillStyle = `rgba(249,115,22,${0.18 + 0.35 * glow})`;
+                roundRect(plateX + 10, plateY + 5, plateW - 20, 8, 4); ctx.fill();
+            }
+            ctx.fillStyle = glow > 0.02 ? '#f97316' : '#475569';
+            ctx.beginPath(); ctx.arc(plateX + 12, plateY + 11, 3.2, 0, Math.PI * 2); ctx.fill();
+
+            ctx.save();
+            beakerPath(-1); ctx.clip();
+            ctx.fillStyle = 'rgba(226,239,248,.92)';
+            ctx.fillRect(beaker.x, beaker.y, beaker.w, beaker.waterTop - beaker.y);
+
+            const wr = waterRect();
+            if (document.getElementById('chkHeatmap').checked) {
+                const data = heatImg.data;
+                for (let j = 0; j < HSY; j++) {
+                    const ny = j / (HSY - 1);
+                    for (let i = 0; i < HSX; i++) {
+                        const [r, g, b] = tempRGB(sampleT(i / (HSX - 1), ny));
+                        const o = (j * HSX + i) * 4;
+                        data[o] = r; data[o + 1] = g; data[o + 2] = b; data[o + 3] = 240;
+                    }
+                }
+                heatCtx.putImageData(heatImg, 0, 0);
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(heatCanvas, wr.x, wr.y, wr.w, wr.h);
+            } else {
+                ctx.fillStyle = '#3d8fc4';
+                ctx.fillRect(wr.x, wr.y, wr.w, wr.h);
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(wr.x, wr.y + 2);
+            for (let x = wr.x; x <= wr.x + wr.w; x += 3) {
+                ctx.lineTo(x, wr.y + Math.sin(x * 0.07 + time * 0.035) * (1.1 + glow * 1.4));
+            }
+            ctx.strokeStyle = 'rgba(255,255,255,.78)'; ctx.lineWidth = 2.2; ctx.stroke();
+
+            if (document.getElementById('chkFlow').checked) drawCirculation(wr);
+
+            if (document.getElementById('chkParticles').checked) {
+                for (const p of parcels) {
+                    const temp = sampleT(p.nx, p.ny);
+                    if (p.trail && p.trail.length >= 4) {
+                        ctx.beginPath();
+                        const [sx, sy] = pxFromNx(p.trail[0], p.trail[1]);
+                        ctx.moveTo(sx, sy);
+                        for (let k = 2; k < p.trail.length; k += 2) {
+                            const [tx, ty] = pxFromNx(p.trail[k], p.trail[k + 1]);
+                            ctx.lineTo(tx, ty);
+                        }
+                        ctx.strokeStyle = tempCss(temp, 0.4);
+                        ctx.lineWidth = 1.5; ctx.stroke();
+                    }
+                    const [x, y] = pxFromNx(p.nx, p.ny);
+                    const [r, g, b] = tempRGB(temp);
+                    ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill();
+                    ctx.strokeStyle = `rgba(${Math.round(r * 0.45)},${Math.round(g * 0.45)},${Math.round(b * 0.45)},0.7)`;
+                    ctx.lineWidth = 0.9; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(x - p.r * 0.28, y - p.r * 0.28, p.r * 0.28, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fill();
+                }
+            }
+            for (const d of dyes) {
+                if (d.trail.length >= 4) {
+                    ctx.beginPath();
+                    const [sx, sy] = pxFromNx(d.trail[0], d.trail[1]);
+                    ctx.moveTo(sx, sy);
+                    for (let k = 2; k < d.trail.length; k += 2) {
+                        const [tx, ty] = pxFromNx(d.trail[k], d.trail[k + 1]);
+                        ctx.lineTo(tx, ty);
+                    }
+                    ctx.strokeStyle = `rgba(109,40,217,${0.5 * d.life})`;
+                    ctx.lineWidth = 2.2; ctx.stroke();
+                }
+                const [x, y] = pxFromNx(d.nx, d.ny);
+                ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(124,58,237,${0.9 * d.life})`; ctx.fill();
+            }
+            for (const b of bubbles) {
+                const [x, y] = pxFromNx(b.nx, b.ny);
+                ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255,255,255,${0.72 * b.life})`; ctx.stroke();
+                ctx.fillStyle = `rgba(255,255,255,${0.16 * b.life})`; ctx.fill();
+            }
+
+            const hx0 = hx();
+            const [coilX, coilY] = pxFromNx(hx0, 0.94);
+            const coilW = wr.w * 0.32;
+            ctx.fillStyle = `rgba(${50 + 90 * glow}, ${28 + 10 * glow}, 22, 0.92)`;
+            roundRect(coilX - coilW / 2 - 8, coilY - 9, coilW + 16, 18, 5); ctx.fill();
+            if (glow > 0) {
+                const rg = ctx.createRadialGradient(coilX, coilY, 2, coilX, coilY, 46);
+                rg.addColorStop(0, `rgba(255,90,30,${0.55 * glow})`);
+                rg.addColorStop(1, 'rgba(255,120,40,0)');
+                ctx.fillStyle = rg;
+                ctx.beginPath(); ctx.ellipse(coilX, coilY, 52, 18, 0, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.strokeStyle = glow > 0.02 ? `rgb(${210 + 45 * glow},${90 + 40 * glow},40)` : '#78716c';
+            ctx.lineWidth = 3.4; ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(coilX - coilW / 2, coilY);
+            for (let s = 0; s < 7; s++) {
+                const x = coilX - coilW / 2 + (s + 1) * coilW / 7;
+                ctx.quadraticCurveTo(x - coilW / 14, coilY + (s % 2 ? 5 : -5), x, coilY);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            beakerPath(3);
+            ctx.strokeStyle = 'rgba(148,163,184,.5)'; ctx.lineWidth = 12; ctx.stroke();
+            beakerPath(0);
+            ctx.strokeStyle = 'rgba(248,250,252,.96)'; ctx.lineWidth = 3.2; ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(beaker.x + 14, beaker.y + 18);
+            ctx.quadraticCurveTo(beaker.x + 7, beaker.y + beaker.h * 0.48, beaker.x + 16, beaker.y + beaker.h - 30);
+            ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 6; ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(beaker.cx, beaker.y + 3, beaker.w * 0.5, 9, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4; ctx.stroke();
+            ctx.fillStyle = 'rgba(241,245,249,.35)';
+            ctx.beginPath(); ctx.ellipse(beaker.cx, beaker.y + 3, beaker.w * 0.48, 7, 0, Math.PI, Math.PI * 2); ctx.fill();
+            ctx.restore();
+
+            ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            pill(beaker.cx, Math.min(height - 16, tableY + 34), t('hotPlate'), '#0f172a', '#f8fafc');
+            if (document.getElementById('chkLabels').checked && flowDrive > 0.08) {
+                const [rx, ry] = pxFromNx(hx(), 0.2);
+                pill(rx, ry, t('hotRise'), '#7f1d1d', '#fecaca');
+                if (heaterMode === 'center') {
+                    pill(wr.x + 40, wr.y + wr.h * 0.58, t('coldSink'), '#1e3a8a', '#bfdbfe');
+                    pill(wr.x + wr.w - 40, wr.y + wr.h * 0.58, t('coldSink'), '#1e3a8a', '#bfdbfe');
+                } else {
+                    pill(wr.x + wr.w - 44, wr.y + wr.h * 0.5, t('coldSink'), '#1e3a8a', '#bfdbfe');
+                }
+            }
+
+            if (probe) {
+                const [px, py] = pxFromNx(probe.nx, probe.ny);
+                ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2);
+                ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(px - 11, py); ctx.lineTo(px + 11, py); ctx.moveTo(px, py - 11); ctx.lineTo(px, py + 11);
+                ctx.stroke();
+                pill(px, py - 18, sampleT(probe.nx, probe.ny).toFixed(1) + '°C', '#9a3412', '#ffedd5');
+            }
+        }
+
+        function pill(x, y, text, fg, bg) {
+            const tw = ctx.measureText(text).width + 16;
+            roundRect(x - tw / 2, y - 10, tw, 20, 10);
+            ctx.fillStyle = bg; ctx.fill();
+            ctx.strokeStyle = 'rgba(15,23,42,.08)'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.fillStyle = fg; ctx.fillText(text, x, y + 0.5);
+        }
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+            else {
+                ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+                ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+            }
+        }
+
+        function updateHud(force) {
+            document.getElementById('avgTemp').textContent = stats.avg.toFixed(1) + '°C';
+            document.getElementById('rangeT').textContent = Math.round(stats.min) + '–' + Math.round(stats.max);
+            const d = stats.dT;
+            document.getElementById('deltaT').textContent = (Math.abs(d) < 0.05 ? '0.0' : (d >= 0 ? '+' : '') + d.toFixed(1)) + '°C';
+            document.getElementById('probeT').textContent = probe ? sampleT(probe.nx, probe.ny).toFixed(1) + '°C' : '—';
+            let key = 'stateStatic', cls = 'text-lg font-black text-slate-600';
+            if (paused) { key = 'statePaused'; cls = 'text-lg font-black text-amber-600'; }
+            else if (POWER === 0 && stats.avg < 27) key = 'stateStatic';
+            else if (stats.max >= 99 && stats.avg >= 82) { key = 'stateBoil'; cls = 'text-lg font-black text-red-600'; }
+            else if (POWER > 0) { key = 'stateHeat'; cls = 'text-lg font-black text-orange-500'; }
+            else if (flowDrive > 0.05) { key = 'stateCoast'; cls = 'text-lg font-black text-amber-600'; }
+            else { key = 'stateCool'; cls = 'text-lg font-black text-sky-600'; }
+            if (force || key !== lastState) {
+                lastState = key;
+                const el = document.getElementById('stateText');
+                el.textContent = t(key); el.className = cls;
+            }
+        }
+
+        function applyI18n() {
+            document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+            const pack = i18n[lang];
+            document.querySelectorAll('[data-i18n]').forEach((el) => {
+                const key = el.getAttribute('data-i18n');
+                if (pack[key]) el.textContent = pack[key];
+            });
+            document.getElementById('pauseBtn').textContent = paused ? t('resume') : t('pause');
+            updateHud(true);
+        }
+
+        function animate(ts) {
+            if (!lastTs) lastTs = ts;
+            let dt = Math.min(0.033, (ts - lastTs) / 1000) || 0.016;
+            lastTs = ts;
+            dt *= speed;
+            time += 1;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (!paused) {
+                stepPhysics(dt);
+                gatherStats();
+                stepTracers(dt);
+            }
+            drawScene();
+            updateHud(false);
+            requestAnimationFrame(animate);
+        }
+
+        function setModal(id, on) {
+            const el = document.getElementById(id);
+            const box = el.querySelector('.modal-content');
+            if (on) {
+                el.classList.remove('opacity-0', 'pointer-events-none');
+                box.classList.remove('scale-95', 'opacity-0');
+                box.classList.add('scale-100', 'opacity-100');
+            } else {
+                box.classList.remove('scale-100', 'opacity-100');
+                box.classList.add('scale-95', 'opacity-0');
+                el.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        function setHeater(mode) {
+            heaterMode = mode;
+            document.getElementById('btn-heat-center').classList.toggle('on', mode === 'center');
+            document.getElementById('btn-heat-left').classList.toggle('on', mode === 'left');
+        }
+        function setSpeed(v) {
+            speed = v;
+            document.getElementById('btn-spd-05').classList.toggle('on', v === 0.5);
+            document.getElementById('btn-spd-1').classList.toggle('on', v === 1);
+            document.getElementById('btn-spd-2').classList.toggle('on', v === 2);
+        }
+        function togglePause() {
+            paused = !paused;
+            lastTs = 0;
+            document.getElementById('pauseBtn').textContent = paused ? t('resume') : t('pause');
+            document.getElementById('pausedBadge').classList.toggle('hidden', !paused);
+            updateHud(true);
+        }
+        function stepOnce() {
+            if (!paused) togglePause();
+            const dt = 0.016 * speed;
+            time += 1;
+            stepPhysics(dt);
+            gatherStats();
+            stepTracers(dt);
+            drawScene();
+            updateHud(true);
+        }
+
+        document.getElementById('btn-lang').onclick = document.getElementById('btn-lang-mobile').onclick = () => {
+            lang = lang === 'zh' ? 'en' : 'zh'; applyI18n();
         };
+        document.getElementById('btn-principle').onclick = () => setModal('modal-principle', true);
+        document.getElementById('btn-steps').onclick = () => setModal('modal-steps', true);
+        document.getElementById('modal-close').onclick = document.getElementById('modal-confirm').onclick = () => setModal('modal-principle', false);
+        document.getElementById('steps-close').onclick = document.getElementById('steps-confirm').onclick = () => setModal('modal-steps', false);
+        document.getElementById('modal-principle').addEventListener('click', (e) => { if (e.target.id === 'modal-principle') setModal('modal-principle', false); });
+        document.getElementById('modal-steps').addEventListener('click', (e) => { if (e.target.id === 'modal-steps') setModal('modal-steps', false); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { setModal('modal-principle', false); setModal('modal-steps', false); }
+            if (e.key === ' ' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault(); togglePause();
+            }
+        });
+        document.getElementById('powerSlider').addEventListener('input', (e) => {
+            POWER = parseInt(e.target.value, 10);
+            document.getElementById('powerValue').textContent = POWER + ' W';
+        });
+        document.getElementById('btn-heat-center').onclick = () => setHeater('center');
+        document.getElementById('btn-heat-left').onclick = () => setHeater('left');
+        document.getElementById('btn-spd-05').onclick = () => setSpeed(0.5);
+        document.getElementById('btn-spd-1').onclick = () => setSpeed(1);
+        document.getElementById('btn-spd-2').onclick = () => setSpeed(2);
+        document.getElementById('pauseBtn').onclick = togglePause;
+        document.getElementById('stepBtn').onclick = stepOnce;
+        document.getElementById('dyeBtn').onclick = injectDye;
+        document.getElementById('resetBtn').onclick = () => {
+            POWER = 0; paused = false; speed = 1; probe = null;
+            flowDrive = 0; residual = 0;
+            document.getElementById('powerSlider').value = 0;
+            document.getElementById('powerValue').textContent = '0 W';
+            document.getElementById('pauseBtn').textContent = t('pause');
+            document.getElementById('pausedBadge').classList.add('hidden');
+            document.getElementById('chkInsulate').checked = false;
+            setHeater('center'); setSpeed(1);
+            allocGrid(); initParcels(); gatherStats(); lastState = ''; updateHud(true);
+        };
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const px = (e.clientX - rect.left) * (width / rect.width);
+            const py = (e.clientY - rect.top) * (height / rect.height);
+            const [nx, ny] = nxnyFromPx(px, py);
+            if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) probe = { nx, ny };
+            else probe = null;
+        });
 
+        new ResizeObserver(() => layout()).observe(wrap);
+        allocGrid();
+        layout();
+        initParcels();
+        gatherStats();
+        applyI18n();
+        requestAnimationFrame(animate);
     </script>
 </body>
 </html>

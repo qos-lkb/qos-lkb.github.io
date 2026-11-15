@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>混和溶液 | Mixing Solutions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
+        };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .modal-backdrop { transition: opacity .25s ease; z-index: 60; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
+        .bench {
+            background:
+                linear-gradient(180deg, #e8eef5 0%, #f1f5f9 38%, #e7e0d4 100%);
+        }
+        .tube-glass {
+            background: linear-gradient(90deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.08) 18%, rgba(255,255,255,.02) 50%, rgba(255,255,255,.18) 100%);
+            box-shadow: inset 4px 0 8px rgba(255,255,255,.45), inset -3px 0 6px rgba(15,23,42,.08);
+        }
+        .tube-selected { outline: 3px solid #059669; outline-offset: 6px; }
+        .layer-unmixed { background-image: repeating-linear-gradient(-32deg, transparent, transparent 6px, rgba(255,255,255,.18) 6px, rgba(255,255,255,.18) 8px); }
+        .liquid-cloudy { filter: contrast(.88) brightness(1.08); }
+        .ppt-band {
+            background-image: radial-gradient(circle at 30% 40%, rgba(255,255,255,.35) 0 1px, transparent 2px),
+                radial-gradient(circle at 70% 60%, rgba(15,23,42,.18) 0 1.2px, transparent 2px);
+            background-size: 7px 7px;
+        }
+        @keyframes shake-tube {
+            0%, 100% { transform: rotate(0deg); }
+            20% { transform: rotate(-14deg); }
+            40% { transform: rotate(12deg); }
+            60% { transform: rotate(-10deg); }
+            80% { transform: rotate(8deg); }
+        }
+        @keyframes tap-tube {
+            0%, 100% { transform: translateY(0); }
+            30% { transform: translateY(8px); }
+            55% { transform: translateY(-4px); }
+            75% { transform: translateY(3px); }
+        }
+        .anim-shake { animation: shake-tube .7s ease-in-out; transform-origin: 50% 90%; }
+        .anim-tap { animation: tap-tube .55s ease-in-out; }
+        @keyframes rise {
+            0% { transform: translateY(0) scale(.7); opacity: 0; }
+            15% { opacity: .75; }
+            100% { transform: translateY(-42px) scale(1.1); opacity: 0; }
+        }
+        .bubble-dot {
+            position: absolute;
+            bottom: 12px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.85);
+            border: 1px solid rgba(14,116,144,.45);
+            animation: rise 1.8s linear infinite;
+            z-index: 3;
+        }
+        .bottle-fill { box-shadow: inset 0 8px 12px rgba(255,255,255,.35); }
+        .mj-box { background: #f8fafc; color: #0f172a; border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-0 h-full flex flex-col p-3 sm:p-5 overflow-x-hidden overflow-y-auto selection:bg-emerald-200">
+
+    <header class="w-full max-w-6xl mx-auto bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-2 z-50">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 bg-gradient-to-tr from-sky-500 to-emerald-500 rounded-xl flex items-center justify-center text-white shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">混和溶液</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">實驗 1.3：觀察混和後的顏色、混濁與沉澱</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div class="lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
+            <div class="bg-amber-50 rounded-2xl p-3 border border-amber-200 text-xs text-amber-900">
+                <span class="font-bold" data-i18n="safetyTitle">安全：</span>
+                <span data-i18n="safetyText">搖盪時把試管口遠離面部；稀酸／稀鹼勿觸及皮膚或眼睛。</span>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                <h2 class="font-bold text-slate-700 text-sm mb-3" data-i18n="reagentsTitle">溶液（每次加入 10 滴）</h2>
+                <div id="bottle-grid" class="grid grid-cols-1 gap-2"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-2">
+                <h2 class="font-bold text-slate-700 text-sm" data-i18n="ctrlTitle">操作選中的試管</h2>
+                <p id="selected-hint" class="text-[11px] text-slate-500"></p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="btn-shake" class="px-3 py-2 rounded-xl text-xs font-bold border border-emerald-200 bg-emerald-50 text-emerald-800" data-i18n="btnShake">方法 1：搖盪</button>
+                    <button type="button" id="btn-tap" class="px-3 py-2 rounded-xl text-xs font-bold border border-sky-200 bg-sky-50 text-sky-800" data-i18n="btnTap">方法 2：輕敲底部</button>
+                    <button type="button" id="btn-log" class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white" data-i18n="btnLog">記錄觀察</button>
+                    <button type="button" id="btn-rinse" class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50" data-i18n="btnRinse">倒掉並清洗</button>
+                </div>
+                <button type="button" id="btn-reset" class="w-full px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 bg-slate-100" data-i18n="btnReset">全部重置</button>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                <h2 class="font-bold text-slate-700 text-sm mb-2" data-i18n="obsTitle">即時觀察</h2>
+                <dl id="obs-list" class="text-xs space-y-1.5 text-slate-700"></dl>
+            </div>
+        </div>
+
+        <div class="lg:col-span-8 flex flex-col gap-4 order-1 lg:order-2">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bench relative min-h-[420px] p-4 sm:p-6">
+                    <div class="absolute top-4 left-4 bg-slate-800/80 text-white px-3 py-1 rounded-full text-xs font-bold" data-i18n="stageLabel">試管架</div>
+                    <div id="rack" class="flex items-end justify-center gap-6 sm:gap-10 pt-10 pb-8 min-h-[340px]"></div>
+                    <div class="absolute left-6 right-6 bottom-3 h-4 rounded-md bg-gradient-to-b from-stone-400 to-stone-600 shadow-inner"></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <h2 class="font-bold text-slate-700 text-sm" data-i18n="logTitle">觀察紀錄</h2>
+                    <button type="button" id="btn-clear-log" class="text-[11px] font-bold text-slate-500 hover:text-slate-800" data-i18n="btnClearLog">清除紀錄</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs border-collapse">
+                        <thead>
+                            <tr class="text-left text-slate-500 border-b border-slate-200">
+                                <th class="py-2 pr-2" data-i18n="colMix">溶液</th>
+                                <th class="py-2 pr-2" data-i18n="colColor">混合溶液的顏色</th>
+                                <th class="py-2 pr-2" data-i18n="colClear">清澈還是混濁？</th>
+                                <th class="py-2 pr-2" data-i18n="colPpt">有沒有沉澱物形成？</th>
+                                <th class="py-2" data-i18n="colGas">氣泡</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-body"></tbody>
+                    </table>
+                </div>
+                <p id="log-empty" class="text-center text-slate-400 text-xs py-6" data-i18n="logEmpty">混和後按「記錄觀察」加入一列。</p>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-600 p-5 text-white flex justify-between items-center">
+                <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">混和溶液 — 原理解說</h2>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
+                    <b data-i18n="reagentListTitle">本實驗五種溶液</b>
+                    <div data-i18n="reagentList"></div>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="m1d">把兩種或以上溶液放在同一試管並搖盪／輕敲，讓粒子均勻接觸。有些只是混色，有些會生成不溶的沉澱或氣體。</div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-sky-50 p-3 rounded-xl border border-sky-100"><b data-i18n="m2t">混色（無新固體）</b><p class="mt-1" data-i18n="m2d">A（藍）＋ C（綠）得到藍綠色清澈溶液，因為 Cu²⁺ 與 Fe²⁺ 都可溶，沒有沉澱。</p></div>
+                    <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100"><b data-i18n="m3t">沉澱</b><p class="mt-1" data-i18n="m3d">OH⁻ 與 Cu²⁺／Fe²⁺ 生成不溶的氫氧化物，溶液變混濁，底部出現有色沉澱。</p></div>
+                </div>
+                <div class="mj-box text-xs">
+                    <div class="mj-eq">$$\mathrm{Cu^{2+}(aq) + 2OH^{-}(aq) \rightarrow Cu(OH)_2(s)}$$</div>
+                    <div class="mj-eq">$$\mathrm{Fe^{2+}(aq) + 2OH^{-}(aq) \rightarrow Fe(OH)_2(s)}$$</div>
+                    <div class="mj-eq">$$\mathrm{H^{+}(aq) + HCO_3^{-}(aq) \rightarrow CO_2(g) + H_2O(l)}$$</div>
+                </div>
+                <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100 text-xs" data-i18n="m4d">加入稀氫氯酸會中和 OH⁻，並可溶解氫氧化物／碳酸鹽沉澱；稀碳酸氫鈉遇酸會放出二氧化碳氣泡。</div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100 text-xs" data-i18n="m5d">生活例子：洗碗時油污被鹼液乳化分散；發粉遇酸產氣使蛋糕膨脹；清洗試管要用水沖走沉澱。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s1">1. 選空試管，分別加入 A、B、C，記錄本色：藍、無色、淺綠。</div>
+                <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100 text-xs" data-i18n="s2">2. 做課本三組：A+B、A+C、B+C。每次 10 滴＋10 滴，再搖盪或輕敲，比較清澈／混濁與沉澱顏色。</div>
+                <div class="bg-teal-50 p-4 rounded-2xl border border-teal-100 text-xs" data-i18n="s3">3. 自由加入 D 或 E：留意沉澱會否溶解、有沒有氣泡。</div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100 text-xs" data-i18n="s4">4. 三支試管可同時進行；比較搖盪與輕敲是否都能混勻。把觀察記入右表。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ADD_DROPS = 10;
+        const MAX_DROPS = 50;
+        const REAGENTS = {
+            A: { color: '#2563eb', rgb: [37, 99, 235] },
+            B: { color: '#e2e8f0', rgb: [226, 232, 240] },
+            C: { color: '#65a30d', rgb: [101, 163, 13] },
+            D: { color: '#f1f5f9', rgb: [241, 245, 249] },
+            E: { color: '#f8fafc', rgb: [248, 250, 252] }
+        };
+
+        const i18n = {
+            zh: {
+                title: '混和溶液', badge: '中一科學',
+                subtitle: '實驗 1.3：觀察混和後的顏色、混濁與沉澱',
+                btnSteps: '觀察步驟', btnPrinciple: '原理解說',
+                safetyTitle: '安全：',
+                safetyText: '搖盪時把試管口遠離面部；稀酸／稀鹼勿觸及皮膚或眼睛。',
+                reagentsTitle: '溶液（每次加入 10 滴）',
+                ctrlTitle: '操作選中的試管',
+                btnShake: '方法 1：搖盪', btnTap: '方法 2：輕敲底部',
+                btnLog: '記錄觀察', btnRinse: '倒掉並清洗', btnReset: '全部重置',
+                obsTitle: '即時觀察', stageLabel: '試管架',
+                logTitle: '觀察紀錄', btnClearLog: '清除紀錄',
+                colMix: '溶液', colColor: '混合溶液的顏色', colClear: '清澈還是混濁？',
+                colPpt: '有沒有沉澱物形成？', colGas: '氣泡',
+                logEmpty: '混和後按「記錄觀察」加入一列。',
+                modalTitle: '混和溶液 — 原理解說', modalClose: '關閉', stepsTitle: '觀察步驟',
+                reagentListTitle: '本實驗五種溶液',
+                reagentList: '<ul class="mt-2 space-y-1"><li><strong>A</strong>　稀硫酸銅(II)溶液（藍色）</li><li><strong>B</strong>　稀氫氧化鈉溶液（無色）</li><li><strong>C</strong>　稀硫酸鐵(II)溶液（淺綠色）</li><li><strong>D</strong>　稀氫氯酸溶液（無色）</li><li><strong>E</strong>　稀碳酸氫鈉溶液（無色）</li></ul>',
+                m1d: '把兩種或以上溶液放在同一試管並搖盪／輕敲，讓粒子均勻接觸。有些只是混色，有些會生成不溶的沉澱或氣體。',
+                m2t: '混色（無新固體）',
+                m2d: 'A（藍）＋ C（綠）得到藍綠色清澈溶液，因為 Cu²⁺ 與 Fe²⁺ 都可溶，沒有沉澱。',
+                m3t: '沉澱',
+                m3d: 'OH⁻ 與 Cu²⁺／Fe²⁺ 生成不溶的氫氧化物，溶液變混濁，底部出現有色沉澱。',
+                m4d: '加入稀氫氯酸會中和 OH⁻，並可溶解氫氧化物／碳酸鹽沉澱；稀碳酸氫鈉遇酸會放出二氧化碳氣泡。',
+                m5d: '生活例子：洗碗時油污被鹼液乳化分散；發粉遇酸產氣使蛋糕膨脹；清洗試管要用水沖走沉澱。',
+                s1: '1. 選空試管，分別加入 A、B、C，記錄本色：藍、無色、淺綠。',
+                s2: '2. 做課本三組：A+B、A+C、B+C。每次 10 滴＋10 滴，再搖盪或輕敲，比較清澈／混濁與沉澱顏色。',
+                s3: '3. 自由加入 D 或 E：留意沉澱會否溶解、有沒有氣泡。',
+                s4: '4. 三支試管可同時進行；比較搖盪與輕敲是否都能混勻。把觀察記入右表。',
+                bottleHint: {
+                    A: '藍色', B: '無色', C: '淺綠色', D: '無色', E: '無色'
+                },
+                hintEmpty: '選中試管 {n}（空）。點溶液瓶加入 10 滴。',
+                hintFill: '試管 {n}：已加 {drops} 滴（{recipe}）。{mix}',
+                needMix: '請搖盪或輕敲底部以混和。',
+                mixedOk: '已混和。',
+                tubeFull: '試管已滿，請清洗後再加。',
+                needSelect: '請先點選一支試管。',
+                needLiquid: '試管是空的。',
+                needMixLog: '請先混和，再記錄觀察。',
+                logged: '已記入觀察表。',
+                emptyTube: '空試管',
+                layered: '尚未混和（可見分層）',
+                color: '顏色',
+                clarity: '外觀',
+                ppt: '沉澱',
+                gas: '氣體',
+                clear: '清澈的',
+                turbid: '混濁的',
+                pptNone: '沒有',
+                pptYes: '有',
+                gasNone: '沒有氣泡',
+                gasYes: '有氣泡（CO₂）',
+                colorless: '無色',
+                blue: '藍色',
+                green: '綠色',
+                paleGreen: '淺綠色',
+                blueGreen: '藍綠色',
+                whiteGreen: '近白色／淺綠',
+                pptBlue: '藍色',
+                pptGreen: '綠色',
+                pptBlueGreen: '藍綠色',
+                pptPale: '淺綠色',
+                yesNo: (has, extra) => has ? `有／${extra}` : '沒有'
+            },
+            en: {
+                title: 'Mixing Solutions', badge: 'S1 Science',
+                subtitle: 'Expt 1.3: colour, turbidity and precipitate after mixing',
+                btnSteps: 'Observation steps', btnPrinciple: 'Principles',
+                safetyTitle: 'Safety: ',
+                safetyText: 'Keep the mouth of the tube away from your face when shaking. Handle dilute acid/alkali with care.',
+                reagentsTitle: 'Solutions (10 drops each add)',
+                ctrlTitle: 'Actions for the selected tube',
+                btnShake: 'Method 1: Shake', btnTap: 'Method 2: Tap the bottom',
+                btnLog: 'Log observation', btnRinse: 'Pour away & rinse', btnReset: 'Reset all',
+                obsTitle: 'Live observation', stageLabel: 'Test-tube rack',
+                logTitle: 'Results table', btnClearLog: 'Clear log',
+                colMix: 'Mixture', colColor: 'Colour of mixture', colClear: 'Clear or cloudy?',
+                colPpt: 'Precipitate formed?', colGas: 'Bubbles',
+                logEmpty: 'After mixing, tap “Log observation” to add a row.',
+                modalTitle: 'Mixing solutions — principles', modalClose: 'Close', stepsTitle: 'Observation steps',
+                reagentListTitle: 'Five solutions in this experiment',
+                reagentList: '<ul class="mt-2 space-y-1"><li><strong>A</strong> dilute copper(II) sulfate (blue)</li><li><strong>B</strong> dilute sodium hydroxide (colourless)</li><li><strong>C</strong> dilute iron(II) sulfate (pale green)</li><li><strong>D</strong> dilute hydrochloric acid (colourless)</li><li><strong>E</strong> dilute sodium hydrogencarbonate (colourless)</li></ul>',
+                m1d: 'Two or more solutions share a tube and are shaken or tapped so particles meet. Some only mix colours; others form an insoluble precipitate or a gas.',
+                m2t: 'Mixing colours (no new solid)',
+                m2d: 'A (blue) + C (green) gives a clear blue-green solution: both Cu²⁺ and Fe²⁺ stay dissolved.',
+                m3t: 'Precipitation',
+                m3d: 'OH⁻ with Cu²⁺ / Fe²⁺ makes insoluble hydroxides. The mixture turns cloudy and a coloured solid settles.',
+                m4d: 'Dilute hydrochloric acid neutralises OH⁻ and can dissolve hydroxide/carbonate precipitates. Dilute sodium hydrogencarbonate fizzes with acid (CO₂).',
+                m5d: 'Everyday links: washing-up alkali disperses grease; baking powder fizzes with acid; rinse tubes to wash away solids.',
+                s1: '1. Pick empty tubes and add A, B and C separately. Record the colours: blue, colourless, pale green.',
+                s2: '2. Do the textbook pairs A+B, A+C and B+C (10 + 10 drops). Shake or tap, then compare clear/cloudy and any precipitate.',
+                s3: '3. Freely add D or E. Watch whether the solid dissolves and whether bubbles appear.',
+                s4: '4. Use all three tubes at once. Check that shaking and tapping both mix well. Log your observations.',
+                bottleHint: {
+                    A: 'blue', B: 'colourless', C: 'pale green', D: 'colourless', E: 'colourless'
+                },
+                hintEmpty: 'Tube {n} is empty. Tap a bottle to add 10 drops.',
+                hintFill: 'Tube {n}: {drops} drops ({recipe}). {mix}',
+                needMix: 'Shake or tap the bottom to mix.',
+                mixedOk: 'Mixed.',
+                tubeFull: 'Tube is full. Rinse before adding more.',
+                needSelect: 'Select a test tube first.',
+                needLiquid: 'The tube is empty.',
+                needMixLog: 'Mix first, then log the observation.',
+                logged: 'Row added to the table.',
+                emptyTube: 'Empty tube',
+                layered: 'Not yet mixed (layers visible)',
+                color: 'Colour',
+                clarity: 'Appearance',
+                ppt: 'Precipitate',
+                gas: 'Gas',
+                clear: 'clear',
+                turbid: 'cloudy',
+                pptNone: 'none',
+                pptYes: 'yes',
+                gasNone: 'no bubbles',
+                gasYes: 'bubbles (CO₂)',
+                colorless: 'colourless',
+                blue: 'blue',
+                green: 'green',
+                paleGreen: 'pale green',
+                blueGreen: 'blue-green',
+                whiteGreen: 'off-white / pale green',
+                pptBlue: 'blue',
+                pptGreen: 'green',
+                pptBlueGreen: 'blue-green',
+                pptPale: 'pale green',
+                yesNo: (has, extra) => has ? `yes / ${extra}` : 'no'
+            }
+        };
+
+        let lang = 'zh';
+        function t() { return i18n[lang]; }
+
+        function emptyTube() {
+            return { layers: [], mixed: true, result: null, anim: '', bubbles: false };
+        }
+        const tubes = [emptyTube(), emptyTube(), emptyTube()];
+        let selected = 0;
+        const logRows = [];
+        let statusMsg = '';
+
+        function totalDrops(tube) {
+            return tube.layers.reduce((s, L) => s + L.drops, 0);
+        }
+
+        function countsOf(tube) {
+            const c = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+            tube.layers.forEach(L => { c[L.id] += L.drops; });
+            return c;
+        }
+
+        function recipeLabel(tube) {
+            const c = countsOf(tube);
+            const parts = Object.keys(c).filter(k => c[k] > 0).map(k => `${k}×${c[k] / ADD_DROPS}`);
+            return parts.join(' + ') || '—';
+        }
+
+        function react(c) {
+            let Cu = c.A, Fe = c.C, H = c.D, OH = c.B, HCO3 = c.E;
+            let CO2 = 0;
+            const n1 = Math.min(H, OH);
+            H -= n1; OH -= n1;
+            const n2 = Math.min(H, HCO3);
+            H -= n2; HCO3 -= n2; CO2 += n2;
+            let cuoh = 0, feoh = 0;
+            while (OH >= 2 && (Cu >= 1 || Fe >= 1)) {
+                if (Cu >= Fe && Cu >= 1) { Cu -= 1; OH -= 2; cuoh += 1; }
+                else if (Fe >= 1) { Fe -= 1; OH -= 2; feoh += 1; }
+                else break;
+            }
+            let cucarb = 0, fecarb = 0;
+            while (HCO3 >= 2 && (Cu >= 1 || Fe >= 1)) {
+                if (Cu >= Fe && Cu >= 1) { Cu -= 1; HCO3 -= 2; cucarb += 1; CO2 += 1; }
+                else { Fe -= 1; HCO3 -= 2; fecarb += 1; CO2 += 1; }
+            }
+            return { Cu, Fe, cuoh, feoh, cucarb, fecarb, CO2, H, OH, HCO3 };
+        }
+
+        function mixRgb(parts) {
+            let tw = 0, r = 0, g = 0, b = 0;
+            parts.forEach(p => {
+                if (p.w <= 0) return;
+                tw += p.w; r += p.rgb[0] * p.w; g += p.rgb[1] * p.w; b += p.rgb[2] * p.w;
+            });
+            if (tw <= 0) return [226, 232, 240];
+            return [Math.round(r / tw), Math.round(g / tw), Math.round(b / tw)];
+        }
+
+        function rgbCss(rgb, a) {
+            return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+        }
+
+        function solutionColorName(Cu, Fe) {
+            const tr = t();
+            if (Cu <= 0 && Fe <= 0) return tr.colorless;
+            if (Cu > 0 && Fe <= 0) return tr.blue;
+            if (Fe > 0 && Cu <= 0) return Fe < 8 ? tr.paleGreen : tr.green;
+            return tr.blueGreen;
+        }
+
+        function pptColorName(res) {
+            const tr = t();
+            const { cuoh, feoh, cucarb, fecarb } = res;
+            const total = cuoh + feoh + cucarb + fecarb;
+            if (total <= 0) return tr.pptNone;
+            if (cuoh && !feoh && !cucarb && !fecarb) return tr.pptBlue;
+            if (feoh && !cuoh && !cucarb && !fecarb) return tr.pptGreen;
+            if (cucarb && !cuoh && !feoh && !fecarb) return tr.pptBlueGreen;
+            if (fecarb && !cuoh && !feoh && !cucarb) return tr.pptPale;
+            if ((cuoh || cucarb) && (feoh || fecarb)) return tr.pptBlueGreen;
+            if (cuoh || cucarb) return cuoh ? tr.pptBlue : tr.pptBlueGreen;
+            return tr.pptGreen;
+        }
+
+        function describe(res) {
+            const tr = t();
+            const pptAmt = res.cuoh + res.feoh + res.cucarb + res.fecarb;
+            const color = solutionColorName(res.Cu, res.Fe);
+            return {
+                color,
+                clarity: pptAmt > 0 ? tr.turbid : tr.clear,
+                hasPpt: pptAmt > 0,
+                pptColor: pptColorName(res),
+                hasGas: res.CO2 > 0,
+                pptAmt,
+                solRgb: (res.Cu + res.Fe) === 0
+                    ? [125, 211, 252]
+                    : mixRgb([
+                    { w: res.Cu, rgb: [37, 99, 235] },
+                    { w: res.Fe, rgb: [101, 163, 13] }
+                ]),
+                pptRgb: mixRgb([
+                    { w: res.cuoh, rgb: [59, 130, 246] },
+                    { w: res.feoh, rgb: [77, 124, 15] },
+                    { w: res.cucarb, rgb: [13, 148, 136] },
+                    { w: res.fecarb, rgb: [217, 249, 157] }
+                ])
+            };
+        }
+
+        function applyI18n() {
+            document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t()[key] != null) el.innerHTML = t()[key];
+            });
+            renderAll();
+            if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+        }
+
+        function setModal(id, open) {
+            const modal = document.getElementById(id);
+            const box = modal.querySelector('.modal-content');
+            if (open) {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                box.classList.remove('scale-95', 'opacity-0');
+                box.classList.add('scale-100', 'opacity-100');
+                if (id === 'modal-principle' && window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([modal]);
+            } else {
+                box.classList.remove('scale-100', 'opacity-100');
+                box.classList.add('scale-95', 'opacity-0');
+                modal.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        function renderBottles() {
+            const grid = document.getElementById('bottle-grid');
+            grid.innerHTML = Object.keys(REAGENTS).map(id => {
+                const r = REAGENTS[id];
+                return `<button type="button" data-add="${id}" aria-label="${id}" class="flex items-center gap-3 text-left px-3 py-2 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50">
+                    <span class="w-8 h-10 rounded-b-lg rounded-t-sm border border-slate-300 overflow-hidden flex items-end bottle-fill" style="background:${r.color}"></span>
+                    <span class="flex flex-col leading-tight">
+                        <span class="text-base font-black">${id}</span>
+                        <span class="text-[10px] text-slate-500 font-medium">${t().bottleHint[id]}</span>
+                    </span>
+                </button>`;
+            }).join('');
+            grid.querySelectorAll('[data-add]').forEach(btn => {
+                btn.addEventListener('click', () => addReagent(btn.getAttribute('data-add')));
+            });
+        }
+
+        function tubeHtml(i) {
+            const tube = tubes[i];
+            const drops = totalDrops(tube);
+            const fillPct = Math.min(100, (drops / MAX_DROPS) * 100);
+            const sel = i === selected ? 'tube-selected' : '';
+            const anim = tube.anim === 'shake' ? 'anim-shake' : tube.anim === 'tap' ? 'anim-tap' : '';
+            let inner = '';
+            if (drops === 0) {
+                inner = '';
+            } else if (!tube.mixed) {
+                const bands = tube.layers.map(L => {
+                    const h = (L.drops / drops) * 100;
+                    return `<div class="w-full layer-unmixed" style="height:${h}%;background:${REAGENTS[L.id].color}"></div>`;
+                }).join('');
+                inner = `<div class="absolute left-0 right-0 bottom-0 overflow-hidden flex flex-col-reverse" style="height:${fillPct}%;border-radius:0 0 18px 18px">${bands}</div>`;
+            } else {
+                const d = describe(tube.result);
+                const cloudy = d.hasPpt ? 'liquid-cloudy' : '';
+                const pptH = d.hasPpt ? Math.min(28, 8 + d.pptAmt) : 0;
+                inner = `<div class="absolute left-0 right-0 bottom-0 overflow-hidden ${cloudy}" style="height:${fillPct}%;border-radius:0 0 18px 18px;background:${rgbCss(d.solRgb, d.hasPpt ? 0.78 : 0.62)}">
+                    ${d.hasPpt ? `<div class="ppt-band absolute left-0 right-0 bottom-0" style="height:${pptH}%;background-color:${rgbCss(d.pptRgb, 0.95)}"></div>` : ''}
+                    ${tube.bubbles ? '<span class="bubble-dot" style="left:22%;animation-delay:0s"></span><span class="bubble-dot" style="left:48%;animation-delay:.35s"></span><span class="bubble-dot" style="left:68%;animation-delay:.7s"></span>' : ''}
+                </div>`;
+            }
+            return `<button type="button" data-tube="${i}" class="relative ${sel} ${anim} focus:outline-none">
+                <div class="relative w-[52px] h-[220px] mx-auto">
+                    <div class="absolute inset-x-0 top-0 h-3 rounded-t-full border-2 border-slate-300 bg-white/70"></div>
+                    <div class="tube-glass absolute left-1 right-1 top-2 bottom-0 rounded-b-[22px] border-2 border-slate-300/90 overflow-hidden bg-white/25">
+                        ${inner}
+                    </div>
+                </div>
+                <div class="mt-2 text-center text-[11px] font-black text-slate-600">${lang === 'zh' ? '試管' : 'Tube'} ${i + 1}</div>
+            </button>`;
+        }
+
+        function renderRack() {
+            const rack = document.getElementById('rack');
+            rack.innerHTML = tubes.map((_, i) => tubeHtml(i)).join('');
+            rack.querySelectorAll('[data-tube]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    selected = Number(btn.getAttribute('data-tube'));
+                    statusMsg = '';
+                    renderAll();
+                });
+            });
+        }
+
+        function obsLines(tube) {
+            const tr = t();
+            if (totalDrops(tube) === 0) {
+                return [
+                    ['—', tr.emptyTube]
+                ];
+            }
+            if (!tube.mixed || !tube.result) {
+                return [
+                    [tr.color, tr.layered],
+                    [tr.clarity, '—']
+                ];
+            }
+            const d = describe(tube.result);
+            return [
+                [tr.color, d.color],
+                [tr.clarity, d.clarity],
+                [tr.ppt, d.hasPpt ? `${tr.pptYes}／${d.pptColor}` : tr.pptNone],
+                [tr.gas, d.hasGas ? tr.gasYes : tr.gasNone]
+            ];
+        }
+
+        function renderObs() {
+            const tube = tubes[selected];
+            const tr = t();
+            const drops = totalDrops(tube);
+            let mixNote = '';
+            if (drops === 0) {
+                document.getElementById('selected-hint').textContent = statusMsg || tr.hintEmpty.replace('{n}', String(selected + 1));
+            } else {
+                mixNote = tube.mixed ? tr.mixedOk : tr.needMix;
+                document.getElementById('selected-hint').textContent = statusMsg || tr.hintFill
+                    .replace('{n}', String(selected + 1))
+                    .replace('{drops}', String(drops))
+                    .replace('{recipe}', recipeLabel(tube))
+                    .replace('{mix}', mixNote);
+            }
+            document.getElementById('obs-list').innerHTML = obsLines(tube).map(([k, v]) =>
+                `<div class="flex justify-between gap-2 border-b border-slate-100 pb-1"><dt class="text-slate-500">${k}</dt><dd class="font-bold">${v}</dd></div>`
+            ).join('');
+        }
+
+        function renderLog() {
+            const body = document.getElementById('log-body');
+            const empty = document.getElementById('log-empty');
+            if (!logRows.length) {
+                body.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            body.innerHTML = logRows.map(row => `<tr class="border-b border-slate-100">
+                <td class="py-2 pr-2 font-bold">${row.mix}</td>
+                <td class="py-2 pr-2">${row.color}</td>
+                <td class="py-2 pr-2">${row.clarity}</td>
+                <td class="py-2 pr-2">${row.ppt}</td>
+                <td class="py-2">${row.gas}</td>
+            </tr>`).join('');
+        }
+
+        function renderAll() {
+            renderBottles();
+            renderRack();
+            renderObs();
+            renderLog();
+        }
+
+        function addReagent(id) {
+            const tube = tubes[selected];
+            const tr = t();
+            if (totalDrops(tube) + ADD_DROPS > MAX_DROPS) {
+                statusMsg = tr.tubeFull;
+                renderObs();
+                return;
+            }
+            const last = tube.layers[tube.layers.length - 1];
+            if (!tube.mixed && last && last.id === id) {
+                last.drops += ADD_DROPS;
+            } else {
+                tube.layers.push({ id, drops: ADD_DROPS });
+            }
+            const unique = new Set(tube.layers.map(L => L.id));
+            tube.mixed = unique.size === 1;
+            if (tube.mixed) {
+                tube.result = react(countsOf(tube));
+                tube.bubbles = false;
+            } else {
+                tube.result = null;
+                tube.bubbles = false;
+            }
+            statusMsg = '';
+            renderAll();
+        }
+
+        function mixTube(method) {
+            const tube = tubes[selected];
+            const tr = t();
+            if (totalDrops(tube) === 0) {
+                statusMsg = tr.needLiquid;
+                renderObs();
+                return;
+            }
+            tube.result = react(countsOf(tube));
+            tube.mixed = true;
+            tube.anim = method;
+            tube.bubbles = tube.result.CO2 > 0;
+            statusMsg = '';
+            renderAll();
+            setTimeout(() => {
+                tube.anim = '';
+                renderRack();
+            }, 750);
+            if (tube.bubbles) {
+                setTimeout(() => {
+                    tube.bubbles = false;
+                    renderRack();
+                }, 5000);
+            }
+        }
+
+        function rinseSelected() {
+            tubes[selected] = emptyTube();
+            statusMsg = '';
+            renderAll();
+        }
+
+        function resetAll() {
+            tubes[0] = emptyTube();
+            tubes[1] = emptyTube();
+            tubes[2] = emptyTube();
+            selected = 0;
+            statusMsg = '';
+            renderAll();
+        }
+
+        function logObservation() {
+            const tube = tubes[selected];
+            const tr = t();
+            if (totalDrops(tube) === 0) {
+                statusMsg = tr.needLiquid;
+                renderObs();
+                return;
+            }
+            if (!tube.mixed || !tube.result) {
+                statusMsg = tr.needMixLog;
+                renderObs();
+                return;
+            }
+            const d = describe(tube.result);
+            const parts = [];
+            const c = countsOf(tube);
+            ['A', 'B', 'C', 'D', 'E'].forEach(k => { if (c[k]) parts.push(k); });
+            logRows.push({
+                mix: parts.join(' + '),
+                color: d.color,
+                clarity: d.clarity,
+                ppt: tr.yesNo(d.hasPpt, d.pptColor),
+                gas: d.hasGas ? tr.gasYes : tr.gasNone
+            });
+            statusMsg = tr.logged;
+            renderAll();
+        }
+
+        document.getElementById('btn-shake').addEventListener('click', () => mixTube('shake'));
+        document.getElementById('btn-tap').addEventListener('click', () => mixTube('tap'));
+        document.getElementById('btn-rinse').addEventListener('click', rinseSelected);
+        document.getElementById('btn-reset').addEventListener('click', resetAll);
+        document.getElementById('btn-log').addEventListener('click', logObservation);
+        document.getElementById('btn-clear-log').addEventListener('click', () => { logRows.length = 0; renderLog(); });
+        document.getElementById('btn-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyI18n(); });
+        document.getElementById('btn-lang-mobile').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyI18n(); });
+        document.getElementById('btn-principle').addEventListener('click', () => setModal('modal-principle', true));
+        document.getElementById('btn-steps').addEventListener('click', () => setModal('modal-steps', true));
+        document.getElementById('modal-close').addEventListener('click', () => setModal('modal-principle', false));
+        document.getElementById('modal-confirm').addEventListener('click', () => setModal('modal-principle', false));
+        document.getElementById('steps-close').addEventListener('click', () => setModal('modal-steps', false));
+        document.getElementById('steps-confirm').addEventListener('click', () => setModal('modal-steps', false));
+        document.getElementById('modal-principle').addEventListener('click', e => { if (e.target.id === 'modal-principle') setModal('modal-principle', false); });
+        document.getElementById('modal-steps').addEventListener('click', e => { if (e.target.id === 'modal-steps') setModal('modal-steps', false); });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                setModal('modal-principle', false);
+                setModal('modal-steps', false);
+            }
+        });
+
+        applyI18n();
+    </script>
+</body>
+</html>

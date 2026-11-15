@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Rat Dissection Simulator - Secondary School Biology Lab</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Dynamic Tool Cursors */
+        .cursor-scalpel { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m18 15-6-6-6 6'/><path d='M6 9l6-6 6 6'/></svg>") 12 12, crosshair !important; }
+        .cursor-pins { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2'><circle cx='12' cy='6' r='4' fill='%23ef4444'/><path d='M12 10v10'/></svg>") 12 2, pointer !important; }
+        .cursor-scissors { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><line x1='8.5' y1='7.5' x2='20' y2='19'/><line x1='8.5' y1='16.5' x2='20' y2='5'/></svg>") 6 6, pointer !important; }
+        .cursor-forceps { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2'><path d='M7 21L12 3l5 18'/><path d='M9 14h6'/></svg>") 12 3, pointer !important; }
+
+        .tool-btn {
+            transition: all 0.2s ease;
+        }
+        .tool-btn.active {
+            border-color: #3b82f6;
+            background-color: #1e3a8a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Realistic Organ Hover & Focus Effects */
+        .organ-path {
+            transition: all 0.25s ease;
+            cursor: pointer;
+        }
+        .organ-path:hover {
+            filter: brightness(1.25) drop-shadow(0 0 6px rgba(59, 130, 246, 0.9));
+            stroke-width: 2.5px;
+        }
+        .organ-selected {
+            filter: brightness(1.35) drop-shadow(0 0 10px rgba(250, 204, 21, 1)) !important;
+        }
+
+        /* Cut Line Pulsing Animation */
+        @keyframes lineGlow {
+            0% { stroke-dashoffset: 0; opacity: 0.7; }
+            50% { opacity: 1; stroke: #facc15; }
+            100% { stroke-dashoffset: 20; opacity: 0.7; }
+        }
+        .animated-cut-line {
+            stroke-dasharray: 8 6;
+            animation: lineGlow 1.5s infinite linear;
+            cursor: pointer;
+        }
+        .animated-cut-line:hover {
+            stroke: #38bdf8 !important;
+            stroke-width: 5px !important;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-slate-950 text-slate-100">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between shrink-0 shadow-md z-30">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center justify-center">
+                <i class="fa-solid fa-microscope text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-slate-100 text-base md:text-lg leading-tight flex items-center gap-2">
+                    <span id="titleText">Virtual Biology Lab: Rat Dissection</span>
+                    <span class="text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-900/80 text-blue-300 border border-blue-700/50" id="badgeText">Secondary School Standard</span>
+                </h1>
+                <p class="text-xs text-slate-400" id="subtitleText">Interactive Anatomical Workflow & Multi-System Exploration</p>
+            </div>
+        </div>
+
+        <!-- Dissection Workflow Stepper Container -->
+        <div class="hidden xl:flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800" id="stepperContainer">
+            <!-- Stepper elements injected dynamically via JS -->
+        </div>
+
+        <!-- Right Side Controls & Language Switcher -->
+        <div class="flex items-center gap-2 md:gap-3">
+            <!-- Language Toggle Switch -->
+            <button onclick="toggleLanguage()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition-all shadow-sm" title="Switch Language / 切換語言">
+                <i class="fa-solid fa-globe text-blue-400"></i>
+                <span id="langSwitchText">繁體中文</span>
+            </button>
+
+            <!-- Reset Lab -->
+            <button onclick="resetLab()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors" title="Reset Lab">
+                <i class="fa-solid fa-rotate-right text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- LEFT SIDEBAR: Tools, Stage Directives & Organ Systems -->
+        <aside class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-20 shadow-xl overflow-y-auto">
+            
+            <!-- Safety Status Panel -->
+            <div id="safetyNotice" class="p-3.5 bg-amber-950/40 border-b border-amber-800/50 flex items-start gap-3">
+                <i class="fa-solid fa-shield-halved text-amber-400 text-base mt-0.5"></i>
+                <div>
+                    <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wide" id="safetyTitle">Lab Safety Required</h4>
+                    <p class="text-[11px] text-amber-200/80 mt-0.5 leading-snug" id="safetyDesc">Wear lab apron, safety goggles, and nitrile gloves during dissection.</p>
+                </div>
+            </div>
+
+            <!-- Current Stage Instructions -->
+            <div class="p-4 border-b border-slate-800 bg-slate-900/60">
+                <div class="flex items-center justify-between mb-2">
+                    <span id="stageBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">STAGE 1/5</span>
+                    <span id="progressText" class="text-xs font-medium text-slate-400">Step 1 of 5</span>
+                </div>
+                <h2 id="stageTitle" class="text-sm font-bold text-slate-100 mb-1.5">Pinning Specimen</h2>
+                <p id="stageInstructions" class="text-xs text-slate-300 leading-relaxed mb-3">
+                    Secure rat to wax tray ventral side up. Select 'Pins' and click all four limbs.
+                </p>
+
+                <div class="p-2.5 bg-blue-950/50 border border-blue-800/50 rounded-lg">
+                    <div class="flex items-center gap-1.5 text-xs font-semibold text-blue-300 mb-0.5">
+                        <i class="fa-solid fa-lightbulb text-amber-400"></i> <span id="tipHeading">Dissection Tip</span>
+                    </div>
+                    <p id="stageTip" class="text-[11px] text-blue-200/80 leading-snug">
+                        Pinning prevents specimen slippage during precision incisions.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tool Selection Tray -->
+            <div class="p-4 border-b border-slate-800">
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5" id="toolsHeader">Lab Instruments Shelf</h3>
+                <div class="grid grid-cols-2 gap-2" id="toolsShelf">
+                    <!-- Tool buttons populated by JS -->
+                </div>
+            </div>
+
+            <!-- System Toggle Controls -->
+            <div class="p-4">
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5" id="systemsHeader">Organ System Views</h3>
+                <div class="space-y-1.5">
+                    <button onclick="setSystemFilter('all')" id="filter-all" class="w-full text-left px-3 py-2 rounded-lg border text-xs font-medium flex items-center justify-between border-blue-500 bg-blue-950/60 text-blue-300">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-layer-group text-blue-400"></i> <span id="sysAllText">Full Anatomical View</span></span>
+                        <i class="fa-solid fa-check text-xs"></i>
+                    </button>
+                    <button onclick="setSystemFilter('digestive')" id="filter-digestive" class="w-full text-left px-3 py-2 rounded-lg border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-medium flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-utensils text-amber-400"></i> <span id="sysDigText">Digestive System</span></span>
+                    </button>
+                    <button onclick="setSystemFilter('breathing')" id="filter-breathing" class="w-full text-left px-3 py-2 rounded-lg border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-medium flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-lungs text-rose-400"></i> <span id="sysRespText">Breathing System</span></span>
+                    </button>
+                    <button onclick="setSystemFilter('reproductive')" id="filter-reproductive" class="w-full text-left px-3 py-2 rounded-lg border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-medium flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-dna text-purple-400"></i> <span id="sysRepText">Reproductive System</span></span>
+                    </button>
+                </div>
+
+                <!-- Gender Switcher for Reproductive System -->
+                <div class="mt-3.5 pt-3 border-t border-slate-800">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2" id="sexLabel">Specimen Sex Selection</label>
+                    <div class="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                        <button onclick="setSex('female')" id="sexFemaleBtn" class="py-1.5 text-xs font-semibold rounded-md bg-slate-800 text-pink-400 border border-slate-700 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-venus"></i> <span id="femaleText">Female</span>
+                        </button>
+                        <button onclick="setSex('male')" id="sexMaleBtn" class="py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-mars"></i> <span id="maleText">Male</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- CENTER WORKSPACE: Dissection Wax Tray & Realistic Specimen Graphic -->
+        <main class="flex-1 bg-slate-950 relative flex flex-col items-center justify-center p-3 md:p-5 overflow-hidden">
+            
+            <!-- Stainless Steel Lab Counter Grid Texture -->
+            <div class="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:24px_24px] opacity-40"></div>
+
+            <!-- Dissection Wax Tray Outer Bezel -->
+            <div class="relative w-full max-w-3xl h-[95%] bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 rounded-2xl p-4 shadow-2xl border-2 border-slate-600 flex flex-col items-center justify-center">
+                
+                <!-- Inner Black/Dark Green Wax Bed -->
+                <div id="trayBed" class="relative w-full h-full bg-slate-900 rounded-xl overflow-hidden shadow-inner flex items-center justify-center border-2 border-slate-950">
+                    
+                    <!-- Wax Bed Surface Shading -->
+                    <div class="absolute inset-0 bg-emerald-950/20 mix-blend-overlay"></div>
+                    
+                    <!-- INTERACTIVE VECTOR RAT SPECIMEN -->
+                    <svg id="dissectionSvg" class="w-full h-full max-h-[720px] drop-shadow-2xl z-10" viewBox="0 0 500 800" preserveAspectRatio="xMidYMid meet">
+                        
+                        <!-- Rich Realistic Gradients & Filters -->
+                        <defs>
+                            <!-- Specimen Fur Texture/Color -->
+                            <linearGradient id="ratFurGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#475569" />
+                                <stop offset="50%" stop-color="#334155" />
+                                <stop offset="100%" stop-color="#1e293b" />
+                            </linearGradient>
+                            
+                            <!-- Ventral Belly Flesh Gradient -->
+                            <linearGradient id="ratVentralGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#cbd5e1" />
+                                <stop offset="50%" stop-color="#f8fafc" />
+                                <stop offset="100%" stop-color="#cbd5e1" />
+                            </linearGradient>
+
+                            <!-- Subcutaneous Muscle Gradient -->
+                            <linearGradient id="muscleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#991b1b" />
+                                <stop offset="50%" stop-color="#7f1d1d" />
+                                <stop offset="100%" stop-color="#450a0a" />
+                            </linearGradient>
+
+                            <!-- Liver Organic Gradient -->
+                            <linearGradient id="liverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#881337" />
+                                <stop offset="50%" stop-color="#4c0519" />
+                                <stop offset="100%" stop-color="#28020d" />
+                            </linearGradient>
+
+                            <!-- Stomach Soft Organic Gradient -->
+                            <linearGradient id="stomachGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#fef08a" />
+                                <stop offset="70%" stop-color="#ca8a04" />
+                                <stop offset="100%" stop-color="#854d0e" />
+                            </linearGradient>
+
+                            <!-- Intestines Gradient -->
+                            <linearGradient id="intestineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#fca5a5" />
+                                <stop offset="60%" stop-color="#ef4444" />
+                                <stop offset="100%" stop-color="#991b1b" />
+                            </linearGradient>
+
+                            <!-- Lung Tissue Gradient -->
+                            <linearGradient id="lungGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#fb7185" />
+                                <stop offset="70%" stop-color="#e11d48" />
+                                <stop offset="100%" stop-color="#9f1239" />
+                            </linearGradient>
+
+                            <!-- Realistic Soft Shadow Filter -->
+                            <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+                                <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
+                            </filter>
+                        </defs>
+
+                        <!-- BASE RAT EXTERNAL MORPHOLOGY -->
+                        <g id="bodyBase">
+                            <!-- Scaly Tail -->
+                            <path d="M 250 670 C 255 720, 240 760, 260 790" fill="none" stroke="#e2e8f0" stroke-width="9" stroke-linecap="round" opacity="0.9"/>
+                            <path d="M 250 670 C 255 720, 240 760, 260 790" fill="none" stroke="#94a3b8" stroke-width="7" stroke-dasharray="2 3" stroke-linecap="round"/>
+
+                            <!-- Hind Limbs -->
+                            <path d="M 180 560 C 130 585, 105 615, 80 630" fill="none" stroke="#334155" stroke-width="28" stroke-linecap="round"/>
+                            <path d="M 320 560 C 370 585, 395 615, 420 630" fill="none" stroke="#334155" stroke-width="28" stroke-linecap="round"/>
+                            
+                            <!-- Fore Limbs -->
+                            <path d="M 170 230 C 120 220, 95 195, 75 185" fill="none" stroke="#334155" stroke-width="24" stroke-linecap="round"/>
+                            <path d="M 330 230 C 380 220, 405 195, 425 185" fill="none" stroke="#334155" stroke-width="24" stroke-linecap="round"/>
+
+                            <!-- Paws (Pinnable Target Nodes) -->
+                            <circle id="paw-tl" cx="75" cy="185" r="14" fill="#cbd5e1" stroke="#64748b" stroke-width="2" class="cursor-pointer hover:fill-amber-300 transition-colors" />
+                            <circle id="paw-tr" cx="425" cy="185" r="14" fill="#cbd5e1" stroke="#64748b" stroke-width="2" class="cursor-pointer hover:fill-amber-300 transition-colors" />
+                            <circle id="paw-bl" cx="80" cy="630" r="14" fill="#cbd5e1" stroke="#64748b" stroke-width="2" class="cursor-pointer hover:fill-amber-300 transition-colors" />
+                            <circle id="paw-br" cx="420" cy="630" r="14" fill="#cbd5e1" stroke="#64748b" stroke-width="2" class="cursor-pointer hover:fill-amber-300 transition-colors" />
+
+                            <!-- Main Body Silhouette (Fur Outline & Shading) -->
+                            <ellipse cx="250" cy="410" rx="100" ry="210" fill="url(#ratFurGrad)" filter="url(#dropShadow)"/>
+                            <!-- Ventral Abdominal Patch -->
+                            <ellipse cx="250" cy="410" rx="78" ry="190" fill="url(#ratVentralGrad)"/>
+
+                            <!-- Head & Whisker Details -->
+                            <path d="M 210 210 C 210 120, 250 60, 250 60 C 250 60, 290 120, 290 210 Z" fill="url(#ratFurGrad)"/>
+                            <ellipse cx="250" cy="65" rx="12" ry="8" fill="#fda4af"/> <!-- Pink Nose Tip -->
+                            <!-- Ears (Pinnae) -->
+                            <ellipse cx="220" cy="120" rx="8" ry="14" fill="#475569" transform="rotate(-20 220 120)"/>
+                            <ellipse cx="280" cy="120" rx="8" ry="14" fill="#475569" transform="rotate(20 280 120)"/>
+                            <ellipse cx="220" cy="120" rx="5" ry="10" fill="#fda4af" transform="rotate(-20 220 120)" opacity="0.6"/>
+                            <ellipse cx="280" cy="120" rx="5" ry="10" fill="#fda4af" transform="rotate(20 280 120)" opacity="0.6"/>
+                        </g>
+
+                        <!-- DYNAMIC SPECIMEN PINS -->
+                        <g id="pinsGroup">
+                            <!-- Injected by JavaScript upon pinning -->
+                        </g>
+
+                        <!-- STEP 2 INCISION GUIDELINES (Simple Click Target Lines) -->
+                        <g id="incisionGuides" class="hidden">
+                            <!-- Ventral Midline Cut Line -->
+                            <line id="line-midline" x1="250" y1="580" x2="250" y2="220" stroke="#ef4444" stroke-width="4" class="animated-cut-line"/>
+                            <!-- Upper Transverse Cut Line -->
+                            <line id="line-top-lateral" x1="185" y1="240" x2="315" y2="240" stroke="#ef4444" stroke-width="4" class="animated-cut-line"/>
+                            <!-- Lower Transverse Cut Line -->
+                            <line id="line-bottom-lateral" x1="185" y1="560" x2="315" y2="560" stroke="#ef4444" stroke-width="4" class="animated-cut-line"/>
+                        </g>
+
+                        <!-- STEP 3 SKIN FLAPS (Pinned Back) -->
+                        <g id="skinFlaps" class="hidden">
+                            <!-- Left Pinned Skin Flap -->
+                            <path id="leftFlap" d="M 250 220 Q 130 240 130 400 Q 130 560 250 580 Q 200 400 250 220" fill="#cbd5e1" stroke="#64748b" stroke-width="2"/>
+                            <!-- Right Pinned Skin Flap -->
+                            <path id="rightFlap" d="M 250 220 Q 370 240 370 400 Q 370 560 250 580 Q 300 400 250 220" fill="#cbd5e1" stroke="#64748b" stroke-width="2"/>
+                            <!-- Stainless Pins Holding Flaps -->
+                            <circle cx="135" cy="390" r="5" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5"/>
+                            <circle cx="365" cy="390" r="5" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5"/>
+                        </g>
+
+                        <!-- INTERNAL CAVITY & ORGAN SYSTEMS CONTAINER -->
+                        <g id="internalCavity" class="hidden">
+                            <!-- Subcutaneous Muscular Cavity Bed -->
+                            <ellipse cx="250" cy="400" rx="72" ry="175" fill="url(#muscleGrad)" stroke="#450a0a" stroke-width="3"/>
+
+                            <!-- RIB CAGE / THORACIC WALL -->
+                            <g id="ribCage" class="transition-opacity duration-500">
+                                <path d="M 210 230 Q 250 240 290 230 M 205 255 Q 250 265 295 255 M 202 280 Q 250 290 298 280 M 205 305 Q 250 315 295 305 M 210 330 Q 250 340 290 330" 
+                                      fill="none" stroke="#f8fafc" stroke-width="4.5" stroke-linecap="round" opacity="0.9"/>
+                                <line x1="250" y1="215" x2="250" y2="338" stroke="#f1f5f9" stroke-width="7" stroke-linecap="round"/> <!-- Sternum -->
+                            </g>
+
+                            <!-- DIAPHRAGM MUSCLE (Thoracic/Abdominal Partition) -->
+                            <path id="organ-diaphragm" data-organ="diaphragm" d="M 183 342 Q 250 365 317 342 C 310 355, 190 355, 183 342 Z" fill="#991b1b" stroke="#ef4444" stroke-width="1.5" class="organ-path"/>
+
+                            <!-- ================================================================= -->
+                            <!-- 1. BREATHING SYSTEM (RESPIRATORY) -->
+                            <!-- ================================================================= -->
+                            <g id="breathingSystem" class="transition-opacity duration-300">
+                                <!-- Larynx -->
+                                <path id="organ-larynx" data-organ="larynx" d="M 243 150 L 257 150 L 255 168 L 245 168 Z" fill="#e2e8f0" stroke="#475569" stroke-width="1.5" class="organ-path"/>
+                                
+                                <!-- Trachea with Cartilage Rings -->
+                                <g id="organ-trachea" data-organ="trachea" class="organ-path">
+                                    <path d="M 245 168 L 255 168 L 255 230 L 245 230 Z" fill="#cbd5e1" stroke="#475569"/>
+                                    <!-- C-Shaped Cartilage Rings -->
+                                    <line x1="244" y1="174" x2="256" y2="174" stroke="#334155" stroke-width="2.5"/>
+                                    <line x1="244" y1="182" x2="256" y2="182" stroke="#334155" stroke-width="2.5"/>
+                                    <line x1="244" y1="190" x2="256" y2="190" stroke="#334155" stroke-width="2.5"/>
+                                    <line x1="244" y1="198" x2="256" y2="198" stroke="#334155" stroke-width="2.5"/>
+                                    <line x1="244" y1="206" x2="256" y2="206" stroke="#334155" stroke-width="2.5"/>
+                                    <line x1="244" y1="214" x2="256" y2="214" stroke="#334155" stroke-width="2.5"/>
+                                    <line x1="244" y1="222" x2="256" y2="222" stroke="#334155" stroke-width="2.5"/>
+                                </g>
+
+                                <!-- Left Lung (Single Large Lobe) -->
+                                <path id="organ-leftlung" data-organ="leftlung" d="M 257 235 C 282 240, 292 265, 288 300 C 275 315, 257 295, 257 260 Z" fill="url(#lungGrad)" stroke="#881337" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Right Lung (Multi-Lobed Structure) -->
+                                <g id="organ-rightlung" data-organ="rightlung" class="organ-path">
+                                    <!-- Cranial Lobe -->
+                                    <path d="M 243 235 C 220 240, 208 255, 214 270 C 225 275, 243 260, 243 235 Z" fill="url(#lungGrad)" stroke="#881337" stroke-width="1.5"/>
+                                    <!-- Middle & Caudal Lobes -->
+                                    <path d="M 243 260 C 215 265, 205 285, 215 305 C 232 312, 243 290, 243 260 Z" fill="url(#lungGrad)" stroke="#881337" stroke-width="1.5"/>
+                                </g>
+
+                                <!-- Heart (Thoracic Context) -->
+                                <path id="organ-heart" data-organ="heart" d="M 240 250 C 232 238, 250 226, 250 242 C 250 226, 268 238, 260 250 C 256 268, 250 276, 250 276 C 250 276, 244 268, 240 250 Z" fill="#b91c1c" stroke="#450a0a" stroke-width="1.5" class="organ-path"/>
+                            </g>
+
+                            <!-- ================================================================= -->
+                            <!-- 2. DIGESTIVE SYSTEM -->
+                            <!-- ================================================================= -->
+                            <g id="digestiveSystem" class="transition-opacity duration-300">
+                                <!-- Esophagus (Dorsal to trachea) -->
+                                <path id="organ-esophagus" data-organ="esophagus" d="M 250 155 L 250 345" stroke="#fda4af" stroke-width="3" fill="none" opacity="0.6" stroke-dasharray="3 2" class="organ-path"/>
+
+                                <!-- Multi-Lobed Liver (Detailed Cranial Abdominal Placement) -->
+                                <g id="organ-liver" data-organ="liver" class="organ-path">
+                                    <!-- Left Lateral Lobe -->
+                                    <path d="M 190 350 C 178 375, 215 410, 250 395 C 250 360, 205 345, 190 350 Z" fill="url(#liverGrad)" stroke="#450a0a" stroke-width="1.5"/>
+                                    <!-- Right Lateral Lobe -->
+                                    <path d="M 250 395 C 285 410, 322 375, 310 350 C 295 345, 250 360, 250 395 Z" fill="url(#liverGrad)" stroke="#450a0a" stroke-width="1.5"/>
+                                    <!-- Median Lobe -->
+                                    <path d="M 225 350 C 235 340, 265 340, 275 350 C 265 378, 235 378, 225 350 Z" fill="url(#liverGrad)" stroke="#312e81" stroke-width="1.5"/>
+                                </g>
+
+                                <!-- Stomach (J-Shape on Left Side) -->
+                                <path id="organ-stomach" data-organ="stomach" d="M 255 390 C 285 385, 312 400, 302 430 C 285 452, 242 435, 248 412 C 248 400, 242 395, 255 390 Z" fill="url(#stomachGrad)" stroke="#713f12" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Diffuse Pancreas -->
+                                <path id="organ-pancreas" data-organ="pancreas" d="M 242 422 Q 265 428 278 442 Q 255 438 242 422 Z" fill="#fef08a" stroke="#ca8a04" stroke-dasharray="2 1" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Small Intestine (Coiled Loops: Duodenum, Jejunum, Ileum) -->
+                                <g id="organ-smallintestine" data-organ="smallintestine" class="organ-path">
+                                    <path d="M 245 438 C 215 442, 205 465, 228 478 C 250 488, 275 455, 288 478 C 298 500, 230 512, 220 490 C 208 468, 265 468, 245 438 Z" fill="none" stroke="url(#muscleGrad)" stroke-width="14" stroke-linejoin="round" stroke-linecap="round"/>
+                                    <path d="M 245 438 C 215 442, 205 465, 228 478 C 250 488, 275 455, 288 478 C 298 500, 230 512, 220 490 C 208 468, 265 468, 245 438 Z" fill="none" stroke="url(#intestineGrad)" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+                                </g>
+
+                                <!-- Large Intestine: Caecum (Large Blind Sac) -->
+                                <path id="organ-caecum" data-organ="caecum" d="M 205 488 C 170 500, 175 545, 215 545 C 238 545, 228 518, 205 488 Z" fill="#15803d" stroke="#14532d" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Colon & Rectum -->
+                                <path id="organ-colon" data-organ="colon" d="M 215 535 Q 250 522 250 555 L 250 595" fill="none" stroke="#166534" stroke-width="8" stroke-linecap="round" class="organ-path"/>
+                            </g>
+
+                            <!-- ================================================================= -->
+                            <!-- 3. REPRODUCTIVE SYSTEM -->
+                            <!-- ================================================================= -->
+                            <!-- FEMALE REPRODUCTIVE STRUCTURES -->
+                            <g id="femaleReproductive" class="transition-opacity duration-300">
+                                <!-- Ovaries -->
+                                <circle id="organ-ovaries-l" data-organ="ovaries" cx="198" cy="510" r="5" fill="#f472b6" stroke="#be185d" stroke-width="1.5" class="organ-path"/>
+                                <circle id="organ-ovaries-r" data-organ="ovaries" cx="302" cy="510" r="5" fill="#f472b6" stroke="#be185d" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Bicornuate Uterine Horns -->
+                                <path id="organ-uterinehorns" data-organ="uterinehorns" d="M 198 515 Q 210 555 245 575 M 302 515 Q 290 555 255 575" fill="none" stroke="#f472b6" stroke-width="4.5" stroke-linecap="round" class="organ-path"/>
+
+                                <!-- Body of Uterus & Vagina -->
+                                <path id="organ-vagina" data-organ="vagina" d="M 245 575 L 255 575 L 253 600 L 247 600 Z" fill="#db2777" stroke="#9d174d" stroke-width="1.5" class="organ-path"/>
+                            </g>
+
+                            <!-- MALE REPRODUCTIVE STRUCTURES (Hidden by default) -->
+                            <g id="maleReproductive" class="hidden transition-opacity duration-300">
+                                <!-- Testes in Scrotal Sacs -->
+                                <ellipse id="organ-testes-l" data-organ="testes" cx="222" cy="600" rx="11" ry="17" fill="#c084fc" stroke="#7e22ce" stroke-width="1.5" class="organ-path"/>
+                                <ellipse id="organ-testes-r" data-organ="testes" cx="278" cy="600" rx="11" ry="17" fill="#c084fc" stroke="#7e22ce" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Seminal Vesicles (Wing-like Glands) -->
+                                <path id="organ-seminalvesicles" data-organ="seminalvesicles" d="M 215 570 Q 192 552 220 540 Q 232 558 226 576 M 285 570 Q 308 552 280 540 Q 268 558 274 576" fill="#a855f7" stroke="#6b21a8" stroke-width="1.5" class="organ-path"/>
+
+                                <!-- Vas Deferens -->
+                                <path id="organ-vasdeferens" data-organ="vasdeferens" d="M 222 585 Q 240 575 248 588 M 278 585 Q 260 575 252 588" fill="none" stroke="#f3e8ff" stroke-width="2.5" class="organ-path"/>
+
+                                <!-- Penis Structure -->
+                                <g id="organ-penis" data-organ="penis" class="organ-path">
+                                    <path d="M 246 585 L 254 585 L 254 625 L 246 625 Z" fill="#e9d5ff" stroke="#a855f7" stroke-width="1.5"/>
+                                    <ellipse cx="250" cy="626" rx="5" ry="4" fill="#d8b4fe" stroke="#7e22ce" stroke-width="1"/>
+                                </g>
+                            </g>
+
+                        </g> <!-- End Internal Cavity -->
+
+                    </svg>
+
+                    <!-- User Canvas Interactive Hint Toast -->
+                    <div id="canvasHint" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md text-slate-100 text-xs px-4 py-2 rounded-full border border-slate-700 flex items-center gap-2 pointer-events-none shadow-xl">
+                        <i class="fa-solid fa-hand-pointer text-blue-400"></i>
+                        <span id="canvasHintText">Select 'Pins' from the Left Tool Shelf to start.</span>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+
+        <!-- RIGHT SIDEBAR: Anatomical Inspector & Fact Panel -->
+        <aside class="w-80 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 z-20 shadow-xl overflow-y-auto">
+            
+            <!-- Inspector Header -->
+            <div class="p-4 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between">
+                <h3 class="font-bold text-xs text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-blue-400"></i> <span id="inspectorTitle">Organ Inspector</span>
+                </h3>
+                <span id="systemTag" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 uppercase">Interactive</span>
+            </div>
+
+            <!-- Organ Detail Panel -->
+            <div id="organDetailPanel" class="p-4 flex-1 flex flex-col justify-between">
+                <div>
+                    <!-- Empty State -->
+                    <div id="organEmptyState" class="text-center py-14">
+                        <div class="w-14 h-14 rounded-full bg-slate-800 text-blue-400 border border-slate-700 flex items-center justify-center mx-auto mb-3 text-xl">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </div>
+                        <h4 class="font-semibold text-sm text-slate-200 mb-1" id="emptyTitle">No Structure Selected</h4>
+                        <p class="text-xs text-slate-400 leading-relaxed max-w-[210px] mx-auto" id="emptyDesc">
+                            Expose the cavity and click on any organ or structure to inspect its function and biology notes.
+                        </p>
+                    </div>
+
+                    <!-- Selected Organ Info State -->
+                    <div id="organContent" class="hidden space-y-4">
+                        <div>
+                            <span id="organSystemBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase">Digestive System</span>
+                            <h2 id="organName" class="text-lg font-bold text-slate-100 mt-1">Multi-Lobed Liver</h2>
+                            <p id="organLatin" class="text-xs font-mono text-slate-400 italic">Hepar</p>
+                        </div>
+
+                        <!-- Primary Function -->
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                                <i class="fa-solid fa-gears text-blue-400"></i> <span id="functionTitle">Primary Function</span>
+                            </h4>
+                            <p id="organFunction" class="text-xs text-slate-300 leading-relaxed bg-slate-950 p-3 rounded-lg border border-slate-800">
+                                Produces bile to emulsify lipids, processes absorbed nutrients, and detoxifies metabolic waste products.
+                            </p>
+                        </div>
+
+                        <!-- Key Biology Exam Facts -->
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bookmark text-amber-400"></i> <span id="notesTitle">Key Biology Exam Notes</span>
+                            </h4>
+                            <ul id="organFacts" class="text-xs text-slate-300 space-y-1.5 list-disc list-inside bg-amber-950/30 p-3 rounded-lg border border-amber-900/50">
+                                <li>Rats do <strong>NOT</strong> have a gallbladder; bile flows directly from liver to duodenum.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Species Card -->
+                <div class="mt-6 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Specimen: <i>Rattus norvegicus</i></span>
+                    <i class="fa-solid fa-dna text-slate-500"></i>
+                </div>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <script>
+        /* ==========================================================================
+           BILINGUAL DICTIONARY & SIMULATION DATA STRUCTURES
+           ========================================================================== */
+
+        let currentLang = 'en'; // 'en' or 'zh'
+
+        const TRANSLATIONS = {
+            en: {
+                titleText: "Virtual Biology Lab: Rat Dissection",
+                badgeText: "Secondary School Standard",
+                subtitleText: "Interactive Anatomical Workflow & Multi-System Exploration",
+                langSwitchText: "繁體中文",
+                safetyTitle: "Lab Safety Required",
+                safetyDesc: "Wear lab apron, safety goggles, and nitrile gloves during dissection.",
+                tipHeading: "Dissection Tip",
+                toolsHeader: "Lab Instruments Shelf",
+                systemsHeader: "Organ System Views",
+                sysAllText: "Full Anatomical View",
+                sysDigText: "Digestive System",
+                sysRespText: "Breathing System",
+                sysRepText: "Reproductive System",
+                sexLabel: "Specimen Sex Selection",
+                femaleText: "Female",
+                maleText: "Male",
+                inspectorTitle: "Organ Inspector",
+                emptyTitle: "No Structure Selected",
+                emptyDesc: "Expose cavity and click on any organ structure to inspect its function and biology notes.",
+                functionTitle: "Primary Function",
+                notesTitle: "Key Biology Exam Notes",
+                stepPrefix: "Step",
+                ofText: "of"
+            },
+            zh: {
+                titleText: "虛擬生物實驗室：大鼠解剖",
+                badgeText: "中學生物學標準",
+                subtitleText: "互動解剖流程與多系統構造探索",
+                langSwitchText: "English",
+                safetyTitle: "實驗室安全守則",
+                safetyDesc: "解剖過程中請務必穿戴實驗防護衣、安全護目鏡及無粉手套。",
+                tipHeading: "解剖小貼士",
+                toolsHeader: "實驗器材工具架",
+                systemsHeader: "器官系統視圖",
+                sysAllText: "完整解剖總覽",
+                sysDigText: "消化系統",
+                sysRespText: "呼吸系統",
+                sysRepText: "生殖系統",
+                sexLabel: "標本性別選擇",
+                femaleText: "雌性",
+                maleText: "雄性",
+                inspectorTitle: "器官解剖檢視器",
+                emptyTitle: "未選擇任何器官構造",
+                emptyDesc: "切開體腔後點擊任意器官，即可檢視其生理功能與中學生物科考試重點。",
+                functionTitle: "主要生理功能",
+                notesTitle: "中學生物應試重點",
+                stepPrefix: "步驟",
+                ofText: "/"
+            }
+        };
+
+        // Tools shelf definitions
+        const TOOLS = [
+            { id: 'pins', name: { en: 'Dissection Pins', zh: '解剖大頭針' }, icon: 'fa-thumbtack', desc: { en: 'Pin limbs and skin flaps', zh: '固定四肢與皮瓣' } },
+            { id: 'scalpel', name: { en: 'Scalpel', zh: '解剖刀' }, icon: 'fa-pen-nib', desc: { en: 'Make midline skin cut', zh: '切開腹部中線皮膚' } },
+            { id: 'forceps', name: { en: 'Forceps', zh: '解剖鑷' }, icon: 'fa-hand-holding-medical', desc: { en: 'Reflect skin flaps', zh: '翻開並拉平皮瓣' } },
+            { id: 'scissors', name: { en: 'Scissors', zh: '解剖剪' }, icon: 'fa-scissors', desc: { en: 'Open abdominal cavity', zh: '剪開腹壁肌肉層' } }
+        ];
+
+        // Dissection Workflow Stages
+        const WORKFLOW_STAGES = [
+            {
+                id: 1,
+                title: { en: "1. Specimen Pinning", zh: "1. 標本固定" },
+                badge: "STAGE 1/5",
+                instructions: { 
+                    en: "Secure rat to wax tray ventral side up. Select 'Pins' from tools shelf and click all 4 paws.",
+                    zh: "將大鼠腹面朝上放置於解剖盤中。從工具架選擇「解剖大頭針」，依次點擊四肢爪子進行固定。"
+                },
+                tip: { 
+                    en: "Ventral orientation ensures easy access to major abdominal and thoracic cavity organ systems.",
+                    zh: "腹面朝上固定能確保清楚展示腹腔與胸腔的主要器官系統。"
+                },
+                requiredTool: "pins",
+                hint: { en: "Click each of the 4 paws to insert dissection pins.", zh: "點擊大鼠的 4 個爪子以插針固定。" }
+            },
+            {
+                id: 2,
+                title: { en: "2. Midline Skin Cut", zh: "2. 劃開腹部中線皮膚" },
+                badge: "STAGE 2/5",
+                instructions: { 
+                    en: "Select 'Scalpel' tool and click along the red dashed midline to cut skin from pelvic area to throat.",
+                    zh: "選擇「解剖刀」工具，直接點擊紅色虛線切口，將皮膚從骨盆區縱向切至咽喉處。"
+                },
+                tip: { 
+                    en: "Shallow incisions prevent accidental puncturing of underlying digestive abdominal organs.",
+                    zh: "淺層切開可避免刺穿下方的腹腔消化器官。"
+                },
+                requiredTool: "scalpel",
+                hint: { en: "Click the red dashed cut line to cut the skin.", zh: "點擊紅色的虛線切口以劃開皮膚。" }
+            },
+            {
+                id: 3,
+                title: { en: "3. Pinning Skin Flaps", zh: "3. 翻開並固定皮瓣" },
+                badge: "STAGE 3/5",
+                instructions: { 
+                    en: "Use 'Forceps' to reflect skin flaps laterally and pin them down flat to expose abdominal wall.",
+                    zh: "使用「解剖鑷」將切開的皮膚向兩側翻開並釘緊，露出腹壁肌肉。"
+                },
+                tip: { 
+                    en: "Reflecting skin separates dermal layers from abdominal body wall muscles cleanly.",
+                    zh: "翻開皮瓣能將皮膚層與肌肉壁清晰分離。"
+                },
+                requiredTool: "forceps",
+                hint: { en: "Click the skin flaps to pin them back to the wax bed.", zh: "點擊皮瓣以將其固定在蠟盤上。" }
+            },
+            {
+                id: 4,
+                title: { en: "4. Abdominal Cavity Exposure", zh: "4. 開啟腹腔" },
+                badge: "STAGE 4/5",
+                instructions: { 
+                    en: "Select 'Scissors' and click the body cavity to cut abdominal muscles and reveal Digestive System.",
+                    zh: "選擇「解剖剪」並點擊腹部肌肉層，剪開腹壁以展示消化與生殖系統。"
+                },
+                tip: { 
+                    en: "Observe the prominent dark reddish multi-lobed liver and large green caecum sac.",
+                    zh: "觀察腹腔內顯著的深紅色多葉肝臟與綠色大盲腸。"
+                },
+                requiredTool: "scissors",
+                hint: { en: "Click on the abdominal cavity to cut open muscle bed.", zh: "點擊腹腔以剪開肌肉層。" }
+            },
+            {
+                id: 5,
+                title: { en: "5. Thoracic & System Study", zh: "5. 胸腔與系統觀察" },
+                badge: "STAGE 5/5",
+                instructions: { 
+                    en: "Expose thoracic cavity. Click on any organ to inspect its detailed anatomy and biological functions.",
+                    zh: "胸腔已開啟。現在可以點擊任何器官，詳細觀察其構造與生理功能。"
+                },
+                tip: { 
+                    en: "Notice cartilage rings on the trachea keeping airway open during respiration.",
+                    zh: "注意氣管上的 C 型軟骨環，它能防止呼吸時氣管塌陷。"
+                },
+                requiredTool: "forceps",
+                hint: { en: "Click any organ structure to inspect its anatomy notes.", zh: "點擊任何器官構造以檢視其詳細筆記。" }
+            }
+        ];
+
+        // Comprehensive Bilingual Organ Database
+        const ORGAN_DATABASE = {
+            liver: {
+                name: { en: "Multi-Lobed Liver", zh: "多葉肝臟" },
+                latin: "Hepar",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "Secretes bile to emulsify fats, synthesizes plasma proteins, stores glycogen, and detoxifies metabolic wastes.",
+                    zh: "分泌膽汁以乳化脂肪、合成血漿蛋白、儲存糖原，並解毒代謝廢物。"
+                },
+                facts: {
+                    en: [
+                        "Rats do NOT have a gallbladder; bile flows continuously into the duodenum.",
+                        "Divided into median lobe, left lateral lobe, right lateral lobe, and caudate lobe."
+                    ],
+                    zh: [
+                        "大鼠沒有膽囊！膽汁由肝臟直接持續流入十二指腸。",
+                        "分為中葉、左側葉、右側葉及尾葉。"
+                    ]
+                }
+            },
+            stomach: {
+                name: { en: "Stomach", zh: "胃" },
+                latin: "Gaster",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "J-shaped muscular organ that mechanically churns ingested food and initiates protein breakdown with pepsin & HCl.",
+                    zh: "J 形肌肉器官，透過蠕動磨碎食物，並利用胃蛋白酶和鹽酸開始分解蛋白質。"
+                },
+                facts: {
+                    en: [
+                        "Divided into a thin translucent forestomach (storage) and glandular stomach (secretion).",
+                        "A powerful esophageal sphincter prevents rats from vomiting."
+                    ],
+                    zh: [
+                        "分為薄壁的前胃（儲存食物）與腺胃（分泌胃液）。",
+                        "強大的食道括約肌使大鼠無法嘔吐。"
+                    ]
+                }
+            },
+            pancreas: {
+                name: { en: "Pancreas", zh: "胰臟" },
+                latin: "Pancreas",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "Diffuse gland secreting digestive enzymes (amylase, lipase, trypsin) and blood sugar hormones (insulin & glucagon).",
+                    zh: "彌散狀腺體，分泌消化酵素（澱粉酶、脂肪酶、胰蛋白酶）及調節血糖的激素（胰島素與升糖素）。"
+                },
+                facts: {
+                    en: [
+                        "Unlike human compact pancreas, rat pancreas is diffuse tissue embedded in mesentery around duodenum."
+                    ],
+                    zh: [
+                        "與人類緊密的胰臟不同，大鼠的胰臟呈粉紅色彌散狀，分布於十二指腸附近的腸系膜中。"
+                    ]
+                }
+            },
+            smallintestine: {
+                name: { en: "Small Intestine", zh: "小腸" },
+                latin: "Intestinum tenue",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "Primary site of chemical digestion and nutrient absorption (Duodenum, Jejunum, Ileum).",
+                    zh: "化學消化與營養吸收的主要場所（包括十二指腸、空腸和回腸）。"
+                },
+                facts: {
+                    en: [
+                        "Densely lined with microscopic villi to maximize internal surface area.",
+                        "Measures over 90 cm in length in adult laboratory rats!"
+                    ],
+                    zh: [
+                        "內壁佈滿微小的絨毛（Villi），以最大化吸收營養的表面積。",
+                        "成年大鼠的小腸長度可達 90 公分以上！"
+                    ]
+                }
+            },
+            caecum: {
+                name: { en: "Caecum (Cecum)", zh: "盲腸" },
+                latin: "Caecum",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "Large green blind sac housing symbiotic microorganisms that ferment cellulose and tough plant fiber.",
+                    zh: "巨大的綠色盲袋，內含共生微生物，用於發酵分解纖維素與植物纖維。"
+                },
+                facts: {
+                    en: [
+                        "Essential for hindgut fermentation in omnivorous/herbivorous rodents.",
+                        "Analogous to human appendix, but functionally vital and immensely larger."
+                    ],
+                    zh: [
+                        "雜食/草食性齧齒動物進行後腸發酵的重要器官。",
+                        "與同源的人類闌尾相比，大鼠的盲腸體積非常巨大且具實際功能。"
+                    ]
+                }
+            },
+            colon: {
+                name: { en: "Colon & Rectum", zh: "結腸與直腸" },
+                latin: "Intestinum crassum",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "Reabsorbs water and mineral salts from indigestible residues, forming dry fecal pellets.",
+                    zh: "重新吸收不可消化殘渣中的水份與礦物質，將其形成乾燥的糞便顆粒。"
+                },
+                facts: {
+                    en: [
+                        "Compacted fecal pellets are temporarily stored in rectum prior to egestion."
+                    ],
+                    zh: [
+                        "壓縮的糞便顆粒在排泄前暫存於直腸中。"
+                    ]
+                }
+            },
+            esophagus: {
+                name: { en: "Esophagus", zh: "食道" },
+                latin: "Oesophagus",
+                system: { en: "Digestive System", zh: "消化系統" },
+                badgeColor: "bg-amber-950 text-amber-300 border-amber-800",
+                function: {
+                    en: "Muscular tube carrying swallowed food bolus from pharynx to stomach via wave-like peristalsis.",
+                    zh: "肌肉管道，透過波浪狀的蠕動將吞嚥的食物由咽部輸送至胃部。"
+                },
+                facts: {
+                    en: [
+                        "Passes through thoracic cavity dorsal to the trachea and pierces the diaphragm."
+                    ],
+                    zh: [
+                        "穿過胸腔（位於氣管背側），並穿過膈肌進入腹腔。"
+                    ]
+                }
+            },
+            trachea: {
+                name: { en: "Trachea (Windpipe)", zh: "氣管" },
+                latin: "Trachea",
+                system: { en: "Breathing System", zh: "呼吸系統" },
+                badgeColor: "bg-rose-950 text-rose-300 border-rose-800",
+                function: {
+                    en: "Main airway tube conducting air between larynx and bronchial lungs. Kept open by cartilage rings.",
+                    zh: "連接喉部與肺部的主要通氣管道，由軟骨環支撐維持暢通。"
+                },
+                facts: {
+                    en: [
+                        "C-shaped cartilaginous rings prevent airway collapse during negative pressure inhalation."
+                    ],
+                    zh: [
+                        "C 型軟骨環可防止吸氣時胸腔內壓下降導致氣管塌陷。"
+                    ]
+                }
+            },
+            larynx: {
+                name: { en: "Larynx (Voice Box)", zh: "喉" },
+                latin: "Larynx",
+                system: { en: "Breathing System", zh: "呼吸系統" },
+                badgeColor: "bg-rose-950 text-rose-300 border-rose-800",
+                function: {
+                    en: "Cartilaginous structure regulating airflow into trachea and protecting airway during swallowing.",
+                    zh: "由軟骨組成的構造，調節進入氣管的氣流，並在吞嚥時保護呼吸道。"
+                },
+                facts: {
+                    en: [
+                        "Guarded by the epiglottis flap to prevent food particles from entering lungs."
+                    ],
+                    zh: [
+                        "頂端有會厭軟骨（Epiglottis），防止食物誤入氣管。"
+                    ]
+                }
+            },
+            leftlung: {
+                name: { en: "Left Lung", zh: "左肺" },
+                latin: "Pulmo sinister",
+                system: { en: "Breathing System", zh: "呼吸系統" },
+                badgeColor: "bg-rose-950 text-rose-300 border-rose-800",
+                function: {
+                    en: "Site of gas exchange (O2 diffusion into capillary blood, CO2 excretion).",
+                    zh: "氣體交換的場所（氧氣擴散入微血管，二氧化碳排出）。"
+                },
+                facts: {
+                    en: [
+                        "In rats, the left lung consists of a single large lobe (unlike human left lung which has 2 lobes)."
+                    ],
+                    zh: [
+                        "大鼠的左肺僅由一個單一的大肺葉組成（與人類左肺分為兩葉不同）。"
+                    ]
+                }
+            },
+            rightlung: {
+                name: { en: "Right Lung (Multi-Lobed)", zh: "右肺（多葉）" },
+                latin: "Pulmo dexter",
+                system: { en: "Breathing System", zh: "呼吸系統" },
+                badgeColor: "bg-rose-950 text-rose-300 border-rose-800",
+                function: {
+                    en: "Multi-lobed pulmonary structure providing main surface area for gas exchange.",
+                    zh: "多葉狀的肺部構造，提供主要的氣體交換表面積。"
+                },
+                facts: {
+                    en: [
+                        "Divided into 4 distinct lobes: Cranial, Middle, Caudal, and Accessory lobes."
+                    ],
+                    zh: [
+                        "明確分為 4 個肺葉：前葉、中葉、後葉及副葉。"
+                    ]
+                }
+            },
+            diaphragm: {
+                name: { en: "Diaphragm", zh: "膈肌（橫膈膜）" },
+                latin: "Diaphragma",
+                system: { en: "Breathing System", zh: "呼吸系統" },
+                badgeColor: "bg-rose-950 text-rose-300 border-rose-800",
+                function: {
+                    en: "Thin dome-shaped muscular sheet separating thoracic and abdominal cavities; primary breathing muscle.",
+                    zh: "分隔胸腔與腹腔的薄圓頂狀肌肉薄膜，為主要呼吸肌肉。"
+                },
+                facts: {
+                    en: [
+                        "Contraction flattens the diaphragm, expanding thoracic volume to draw air into lungs."
+                    ],
+                    zh: [
+                        "膈肌收縮時會變平，擴大胸腔體積以將空氣吸入肺部。"
+                    ]
+                }
+            },
+            heart: {
+                name: { en: "Heart", zh: "心臟" },
+                latin: "Cor",
+                system: { en: "Cardiovascular System", zh: "循環系統" },
+                badgeColor: "bg-red-950 text-red-300 border-red-800",
+                function: {
+                    en: "Four-chambered muscular pump driving pulmonary and systemic blood circulation.",
+                    zh: "四腔室肌肉泵，驅動肺循環與體循環。"
+                },
+                facts: {
+                    en: [
+                        "Beats at an astonishing rate of 300 to 500 beats per minute in live rats."
+                    ],
+                    zh: [
+                        "活體大鼠的心跳率高達每分鐘 300 至 500 次。"
+                    ]
+                }
+            },
+            ovaries: {
+                name: { en: "Ovaries", zh: "卵巢" },
+                latin: "Ovaria",
+                system: { en: "Reproductive System (Female)", zh: "生殖系統（雌性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Female gonads producing ova (eggs) and female sex hormones (estrogen & progesterone).",
+                    zh: "雌性生殖腺，產生卵子及雌性激素（雌激素與孕酮）。"
+                },
+                facts: {
+                    en: [
+                        "Small nodular bodies surrounded by fat pads located caudal to the kidneys."
+                    ],
+                    zh: [
+                        "位於腎臟後方、被脂肪墊包圍的結節狀小器官。"
+                    ]
+                }
+            },
+            uterinehorns: {
+                name: { en: "Uterine Horns", zh: "子宮角" },
+                latin: "Cornua uteri",
+                system: { en: "Reproductive System (Female)", zh: "生殖系統（雌性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Paired elongated uterine tubes accommodating multiple developing embryos during pregnancy.",
+                    zh: "雙側成對的延長子宮管，能在懷孕期間容納多個發育中的胚胎。"
+                },
+                facts: {
+                    en: [
+                        "Rats have a bicornuate uterus perfectly adapted for large litters (6-12 pups)."
+                    ],
+                    zh: [
+                        "大鼠具有雙角子宮（Bicornuate Uterus），非常適合每胎生育多隻幼鼠（約 6-12 隻）。"
+                    ]
+                }
+            },
+            vagina: {
+                name: { en: "Vagina & Uterus Body", zh: "陰道與子宮體" },
+                latin: "Vagina",
+                system: { en: "Reproductive System (Female)", zh: "生殖系統（雌性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Copulatory organ and birth canal opening externally at urogenital orifice.",
+                    zh: "交配器官及產道，開口於外生殖孔。"
+                },
+                facts: {
+                    en: [
+                        "Completely separate from the urinary urethra."
+                    ],
+                    zh: [
+                        "與排尿的尿道完全分開。"
+                    ]
+                }
+            },
+            testes: {
+                name: { en: "Testes", zh: "睪丸" },
+                latin: "Testes",
+                system: { en: "Reproductive System (Male)", zh: "生殖系統（雄性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Male gonads producing spermatozoa and male androgen hormones (testosterone).",
+                    zh: "雄性生殖腺，產生精子及雄性激素（睾酮）。"
+                },
+                facts: {
+                    en: [
+                        "Can be retracted back into abdominal cavity through open inguinal canals."
+                    ],
+                    zh: [
+                        "可透過開放的腹股溝管縮回腹腔內。"
+                    ]
+                }
+            },
+            seminalvesicles: {
+                name: { en: "Seminal Vesicles", zh: "儲精囊" },
+                latin: "Vesiculae seminales",
+                system: { en: "Reproductive System (Male)", zh: "生殖系統（雄性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Large prominent wing-like glands secreting coagulating fluid component of semen.",
+                    zh: "大型羽狀/翼狀腺體，分泌精液中的凝固性液體。"
+                },
+                facts: {
+                    en: [
+                        "Forms a copulatory plug inside female post-mating to prevent sperm loss."
+                    ],
+                    zh: [
+                        "交配後能在雌性體內形成交配栓（Copulatory plug），防止精液流失。"
+                    ]
+                }
+            },
+            vasdeferens: {
+                name: { en: "Vas Deferens", zh: "輸精管" },
+                latin: "Ductus deferens",
+                system: { en: "Reproductive System (Male)", zh: "生殖系統（雄性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Duct transporting mature sperm from epididymis to urethra during ejaculation.",
+                    zh: "射精時將成熟精子由附睾輸送至尿道的管道。"
+                },
+                facts: {
+                    en: [
+                        "Loops over the ureter before entering the male urethra."
+                    ],
+                    zh: [
+                        "在進入尿道前會繞過輸尿管。"
+                    ]
+                }
+            },
+            penis: {
+                name: { en: "Penis", zh: "陰莖" },
+                latin: "Penis",
+                system: { en: "Reproductive System (Male)", zh: "生殖系統（雄性）" },
+                badgeColor: "bg-purple-950 text-purple-300 border-purple-800",
+                function: {
+                    en: "Male intromittent copulatory organ for transferring sperm into female reproductive tract and discharging urine.",
+                    zh: "雄性交配器官，用於將精子輸送至雌性生殖道及排出尿液。"
+                },
+                facts: {
+                    en: [
+                        "Contains an os penis (baculum), a small bone that aids in intromission during mating."
+                    ],
+                    zh: [
+                        "包含陰莖骨（Baculum），有助於交配時順利插入。"
+                    ]
+                }
+            }
+        };
+
+        /* ==========================================================================
+           APPLICATION STATE MANAGEMENT
+           ========================================================================== */
+
+        let currentStageIdx = 0;
+        let selectedTool = null;
+        let pinnedCount = 0;
+        let isSkinCutDone = false;
+        let isSkinningDone = false;
+        let isAbdomenOpen = false;
+        let currentSex = 'female';
+        let currentFilter = 'all';
+
+        // Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            renderStepper();
+            renderToolsShelf();
+            updateLanguageUI();
+            updateStageUI();
+            attachOrganListeners();
+            attachCanvasInteractions();
+        });
+
+        /* ==========================================================================
+           LANGUAGE SWITCHER & UI UPDATES
+           ========================================================================== */
+
+        function toggleLanguage() {
+            currentLang = (currentLang === 'en') ? 'zh' : 'en';
+            updateLanguageUI();
+            renderStepper();
+            renderToolsShelf();
+            updateStageUI();
+
+            // Refresh organ detail panel if active
+            const activeOrgan = document.querySelector('.organ-selected');
+            if (activeOrgan) {
+                const key = activeOrgan.getAttribute('data-organ');
+                if (key) inspectOrgan(key, activeOrgan);
+            }
+        }
+
+        function updateLanguageUI() {
+            const t = TRANSLATIONS[currentLang];
+            document.getElementById('titleText').innerText = t.titleText;
+            document.getElementById('badgeText').innerText = t.badgeText;
+            document.getElementById('subtitleText').innerText = t.subtitleText;
+            document.getElementById('langSwitchText').innerText = t.langSwitchText;
+            document.getElementById('safetyTitle').innerText = t.safetyTitle;
+            document.getElementById('safetyDesc').innerText = t.safetyDesc;
+            document.getElementById('tipHeading').innerText = t.tipHeading;
+            document.getElementById('toolsHeader').innerText = t.toolsHeader;
+            document.getElementById('systemsHeader').innerText = t.systemsHeader;
+            document.getElementById('sysAllText').innerText = t.sysAllText;
+            document.getElementById('sysDigText').innerText = t.sysDigText;
+            document.getElementById('sysRespText').innerText = t.sysRespText;
+            document.getElementById('sysRepText').innerText = t.sysRepText;
+            document.getElementById('sexLabel').innerText = t.sexLabel;
+            document.getElementById('femaleText').innerText = t.femaleText;
+            document.getElementById('maleText').innerText = t.maleText;
+            document.getElementById('inspectorTitle').innerText = t.inspectorTitle;
+            document.getElementById('emptyTitle').innerText = t.emptyTitle;
+            document.getElementById('emptyDesc').innerText = t.emptyDesc;
+            document.getElementById('functionTitle').innerText = t.functionTitle;
+            document.getElementById('notesTitle').innerText = t.notesTitle;
+        }
+
+        /* ==========================================================================
+           STEPPER & TOOLS RENDERERS
+           ========================================================================== */
+
+        function renderStepper() {
+            const container = document.getElementById('stepperContainer');
+            container.innerHTML = WORKFLOW_STAGES.map((s, idx) => `
+                <button onclick="jumpToStage(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    idx === currentStageIdx 
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40' 
+                        : idx < currentStageIdx 
+                        ? 'bg-blue-950/80 text-blue-300 border border-blue-800/50 hover:bg-blue-900' 
+                        : 'text-slate-500 hover:text-slate-300'
+                }">
+                    <span class="w-4 h-4 rounded-full ${idx === currentStageIdx ? 'bg-white text-blue-700' : 'bg-slate-800 text-slate-400'} flex items-center justify-center text-[10px] font-bold">${idx + 1}</span>
+                    <span class="hidden xl:inline">${s.title[currentLang].split('.')[1]}</span>
+                </button>
+            `).join('');
+        }
+
+        function renderToolsShelf() {
+            const shelf = document.getElementById('toolsShelf');
+            shelf.innerHTML = TOOLS.map(t => `
+                <button onclick="selectTool('${t.id}')" id="tool-btn-${t.id}" class="tool-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950 hover:border-blue-500/50 text-left flex flex-col items-center justify-center text-center group">
+                    <i class="fa-solid ${t.icon} text-slate-400 group-hover:text-blue-400 text-base mb-1"></i>
+                    <span class="text-xs font-bold text-slate-200 group-hover:text-blue-400 block">${t.name[currentLang]}</span>
+                    <span class="text-[10px] text-slate-500 leading-tight mt-0.5 hidden sm:block">${t.desc[currentLang]}</span>
+                </button>
+            `).join('');
+        }
+
+        function selectTool(toolId) {
+            selectedTool = toolId;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`tool-btn-${toolId}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // Cursor simulations
+            const canvas = document.getElementById('trayBed');
+            canvas.className = canvas.className.replace(/cursor-\w+/g, '');
+            if (toolId === 'scalpel') canvas.classList.add('cursor-scalpel');
+            else if (toolId === 'pins') canvas.classList.add('cursor-pins');
+            else if (toolId === 'scissors') canvas.classList.add('cursor-scissors');
+            else if (toolId === 'forceps') canvas.classList.add('cursor-forceps');
+            
+            updateHintText();
+        }
+
+        function updateStageUI() {
+            const stage = WORKFLOW_STAGES[currentStageIdx];
+            const t = TRANSLATIONS[currentLang];
+
+            document.getElementById('stageBadge').innerText = stage.badge;
+            document.getElementById('progressText').innerText = `${t.stepPrefix} ${currentStageIdx + 1} ${t.ofText} 5`;
+            document.getElementById('stageTitle').innerText = stage.title[currentLang];
+            document.getElementById('stageInstructions').innerText = stage.instructions[currentLang];
+            document.getElementById('stageTip').innerText = stage.tip[currentLang];
+            
+            renderStepper();
+            updateHintText();
+            updateCanvasVisibility();
+        }
+
+        function updateHintText() {
+            const stage = WORKFLOW_STAGES[currentStageIdx];
+            const hintEl = document.getElementById('canvasHintText');
+            const reqTool = TOOLS.find(t => t.id === stage.requiredTool);
+
+            if (selectedTool !== stage.requiredTool) {
+                hintEl.innerText = (currentLang === 'en')
+                    ? `Please select '${reqTool.name.en}' from Left Shelf.`
+                    : `請從左側工具架選擇「${reqTool.name.zh}」。`;
+            } else {
+                hintEl.innerText = stage.hint[currentLang];
+            }
+        }
+
+        /* ==========================================================================
+           DIRECT DISSECTION CANVASES & WORKFLOW HANDLERS
+           ========================================================================== */
+
+        function attachCanvasInteractions() {
+            // Stage 1: Paws Click Listeners
+            ['paw-tl', 'paw-tr', 'paw-bl', 'paw-br'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('click', () => {
+                        if (currentStageIdx === 0 && selectedTool === 'pins') {
+                            pinPaw(el);
+                        }
+                    });
+                }
+            });
+
+            // Stage 2: Direct Cut Lines Click Listener
+            ['line-midline', 'line-top-lateral', 'line-bottom-lateral'].forEach(id => {
+                const line = document.getElementById(id);
+                if (line) {
+                    line.addEventListener('click', () => {
+                        if (currentStageIdx === 1 && selectedTool === 'scalpel') {
+                            performDirectSkinCut();
+                        }
+                    });
+                }
+            });
+
+            // Stage 3: Skin Flap Click Listener
+            document.getElementById('skinFlaps').addEventListener('click', () => {
+                if (currentStageIdx === 2 && selectedTool === 'forceps') {
+                    isSkinningDone = true;
+                    advanceStage();
+                }
+            });
+
+            // Stage 4: Abdominal Muscular Bed Click Listener
+            document.getElementById('internalCavity').addEventListener('click', () => {
+                if (currentStageIdx === 3 && selectedTool === 'scissors') {
+                    isAbdomenOpen = true;
+                    advanceStage();
+                }
+            });
+        }
+
+        function pinPaw(element) {
+            if (element.getAttribute('data-pinned') === 'true') return;
+            element.setAttribute('data-pinned', 'true');
+            element.setAttribute('fill', '#38bdf8');
+            
+            const pinsGroup = document.getElementById('pinsGroup');
+            const cx = element.getAttribute('cx');
+            const cy = element.getAttribute('cy');
+            
+            // Add SVG Pin graphic
+            pinsGroup.innerHTML += `
+                <g class="pin-marker">
+                    <line x1="${cx}" y1="${cy}" x2="${parseInt(cx) + 12}" y2="${parseInt(cy) - 18}" stroke="#e2e8f0" stroke-width="3.5"/>
+                    <circle cx="${parseInt(cx) + 12}" cy="${parseInt(cy) - 18}" r="6" fill="#ef4444" stroke="#991b1b" stroke-width="1"/>
+                </g>
+            `;
+
+            pinnedCount++;
+
+            if (pinnedCount >= 4) {
+                setTimeout(() => { advanceStage(); }, 400);
+            }
+        }
+
+        function performDirectSkinCut() {
+            isSkinCutDone = true;
+            setTimeout(() => { advanceStage(); }, 300);
+        }
+
+        function advanceStage() {
+            if (currentStageIdx < WORKFLOW_STAGES.length - 1) {
+                currentStageIdx++;
+                updateStageUI();
+            }
+        }
+
+        function jumpToStage(idx) {
+            currentStageIdx = idx;
+            if (idx >= 1) pinnedCount = 4;
+            if (idx >= 2) isSkinCutDone = true;
+            if (idx >= 3) isSkinningDone = true;
+            if (idx >= 4) isAbdomenOpen = true;
+            updateStageUI();
+        }
+
+        function updateCanvasVisibility() {
+            const incisionGuides = document.getElementById('incisionGuides');
+            const skinFlaps = document.getElementById('skinFlaps');
+            const internalCavity = document.getElementById('internalCavity');
+
+            // Visibility based on stages
+            if (currentStageIdx >= 1) incisionGuides.classList.remove('hidden');
+            else incisionGuides.classList.add('hidden');
+
+            if (currentStageIdx >= 2) skinFlaps.classList.remove('hidden');
+            else skinFlaps.classList.add('hidden');
+
+            if (currentStageIdx >= 3) internalCavity.classList.remove('hidden');
+            else internalCavity.classList.add('hidden');
+
+            // Update System visibility filters if cavity is open
+            if (currentStageIdx >= 3) {
+                applySystemFilter();
+            }
+        }
+
+        /* ==========================================================================
+           SYSTEM FILTERING & SEX SELECTION
+           ========================================================================== */
+
+        function setSystemFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('[id^="filter-"]').forEach(btn => {
+                btn.className = 'w-full text-left px-3 py-2 rounded-lg border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-medium flex items-center justify-between';
+                const icon = btn.querySelector('.fa-check');
+                if (icon) icon.remove();
+            });
+
+            const activeBtn = document.getElementById(`filter-${filter}`);
+            if (activeBtn) {
+                activeBtn.className = 'w-full text-left px-3 py-2 rounded-lg border text-xs font-medium flex items-center justify-between border-blue-500 bg-blue-950/60 text-blue-300';
+                activeBtn.innerHTML += ' <i class="fa-solid fa-check text-xs"></i>';
+            }
+
+            applySystemFilter();
+        }
+
+        function applySystemFilter() {
+            const breathing = document.getElementById('breathingSystem');
+            const digestive = document.getElementById('digestiveSystem');
+            const femaleRep = document.getElementById('femaleReproductive');
+            const maleRep = document.getElementById('maleReproductive');
+
+            if (currentFilter === 'all') {
+                breathing.style.opacity = '1';
+                digestive.style.opacity = '1';
+                femaleRep.style.opacity = (currentSex === 'female') ? '1' : '0';
+                maleRep.style.opacity = (currentSex === 'male') ? '1' : '0';
+            } else if (currentFilter === 'digestive') {
+                breathing.style.opacity = '0.15';
+                digestive.style.opacity = '1';
+                femaleRep.style.opacity = '0.05';
+                maleRep.style.opacity = '0.05';
+            } else if (currentFilter === 'breathing') {
+                breathing.style.opacity = '1';
+                digestive.style.opacity = '0.15';
+                femaleRep.style.opacity = '0.05';
+                maleRep.style.opacity = '0.05';
+            } else if (currentFilter === 'reproductive') {
+                breathing.style.opacity = '0.15';
+                digestive.style.opacity = '0.15';
+                femaleRep.style.opacity = (currentSex === 'female') ? '1' : '0';
+                maleRep.style.opacity = (currentSex === 'male') ? '1' : '0';
+            }
+        }
+
+        function setSex(sex) {
+            currentSex = sex;
+            const femaleBtn = document.getElementById('sexFemaleBtn');
+            const maleBtn = document.getElementById('sexMaleBtn');
+            const femaleRep = document.getElementById('femaleReproductive');
+            const maleRep = document.getElementById('maleReproductive');
+
+            if (sex === 'female') {
+                femaleBtn.className = 'py-1.5 text-xs font-semibold rounded-md bg-slate-800 text-pink-400 border border-slate-700 flex items-center justify-center gap-1.5';
+                maleBtn.className = 'py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5';
+                femaleRep.classList.remove('hidden');
+                maleRep.classList.add('hidden');
+            } else {
+                maleBtn.className = 'py-1.5 text-xs font-semibold rounded-md bg-slate-800 text-purple-400 border border-slate-700 flex items-center justify-center gap-1.5';
+                femaleBtn.className = 'py-1.5 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5';
+                maleRep.classList.remove('hidden');
+                femaleRep.classList.add('hidden');
+            }
+
+            applySystemFilter();
+        }
+
+        /* ==========================================================================
+           ORGAN INSPECTOR & DETAIL PANEL
+           ========================================================================== */
+
+        function attachOrganListeners() {
+            document.querySelectorAll('.organ-path').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (currentStageIdx < 3) return; // Only inspect after opening cavity
+
+                    const organKey = el.getAttribute('data-organ');
+                    if (organKey) {
+                        inspectOrgan(organKey, el);
+                    }
+                });
+            });
+        }
+
+        function inspectOrgan(key, element) {
+            const data = ORGAN_DATABASE[key];
+            if (!data) return;
+
+            // Highlight selected element
+            document.querySelectorAll('.organ-path').forEach(o => o.classList.remove('organ-selected'));
+            element.classList.add('organ-selected');
+
+            // Populate inspector details
+            document.getElementById('organEmptyState').classList.add('hidden');
+            document.getElementById('organContent').classList.remove('hidden');
+
+            const badge = document.getElementById('organSystemBadge');
+            badge.innerText = data.system[currentLang];
+            badge.className = `text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${data.badgeColor}`;
+
+            document.getElementById('organName').innerText = data.name[currentLang];
+            document.getElementById('organLatin').innerText = data.latin;
+            document.getElementById('organFunction').innerText = data.function[currentLang];
+
+            const factsList = document.getElementById('organFacts');
+            factsList.innerHTML = data.facts[currentLang].map(f => `<li>${f}</li>`).join('');
+        }
+
+        /* ==========================================================================
+           RESET SIMULATION
+           ========================================================================== */
+
+        function resetLab() {
+            currentStageIdx = 0;
+            selectedTool = null;
+            pinnedCount = 0;
+            isSkinCutDone = false;
+            isSkinningDone = false;
+            isAbdomenOpen = false;
+
+            document.getElementById('pinsGroup').innerHTML = '';
+            document.querySelectorAll('[id^="paw-"]').forEach(paw => {
+                paw.removeAttribute('data-pinned');
+                paw.setAttribute('fill', '#cbd5e1');
+            });
+
+            document.querySelectorAll('.organ-path').forEach(o => o.classList.remove('organ-selected'));
+            document.getElementById('organContent').classList.add('hidden');
+            document.getElementById('organEmptyState').classList.remove('hidden');
+
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+
+            updateStageUI();
+        }
+    </script>
+</body>
+</html>

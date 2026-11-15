@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光波的偏振作用 / Polarization of Light</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MathJax for rendering formulas -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Noto Sans TC';
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: #f8fafc;
+        }
+        /* Custom Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8; /* sky-400 */
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155; /* slate-700 */
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        /* Canvas shadow for depth */
+        #sim-canvas {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+            background: #000;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 lg:p-8">
+
+    <!-- Header & Navigation -->
+    <header class="w-full max-w-5xl flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+            <h1 id="app-title" class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500">
+                光波的偏振作用
+            </h1>
+            <p id="app-subtitle" class="text-slate-400 mt-1">馬呂斯定律 (Malus's Law) 模擬</p>
+        </div>
+        <div class="flex gap-3">
+            <button id="theory-btn" onclick="toggleModal(true)" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-600 rounded-lg transition-colors font-medium">
+                📖 科學原理
+            </button>
+            <button id="lang-btn" onclick="toggleLanguage()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-bold">
+                中 / EN
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Simulation Canvas (Left/Top) -->
+        <div class="lg:col-span-2 w-full relative flex justify-center items-center bg-slate-800 rounded-2xl p-4 border border-slate-700">
+            <!-- 拖曳提示標籤 -->
+            <div class="absolute top-8 left-8 bg-slate-900/60 backdrop-blur px-3 py-1.5 rounded-lg text-slate-300 text-sm flex items-center gap-2 pointer-events-none border border-slate-600/50 shadow-lg z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="19 9 22 12 19 15"></polyline><polyline points="9 19 12 22 15 19"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>
+                <span id="hint-text">可拖曳移動偏振片</span>
+            </div>
+            <canvas id="sim-canvas" width="800" height="500" class="w-full rounded-xl bg-black touch-none cursor-grab"></canvas>
+        </div>
+
+        <!-- Control Panel (Right/Bottom) -->
+        <div class="lg:col-span-1 flex flex-col gap-6 bg-slate-800 rounded-2xl p-6 border border-slate-700 h-fit">
+            
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                <div class="flex justify-between items-center mb-2">
+                    <label id="lbl-p1" class="font-semibold text-sky-400">偏振片 1 角度</label>
+                    <span class="text-xl font-mono bg-slate-800 px-2 py-1 rounded text-white" id="val-p1">0°</span>
+                </div>
+                <input type="range" id="slider-p1" min="0" max="360" value="0">
+            </div>
+
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                <div class="flex justify-between items-center mb-2">
+                    <label id="lbl-p2" class="font-semibold text-pink-400">偏振片 2 角度</label>
+                    <span class="text-xl font-mono bg-slate-800 px-2 py-1 rounded text-white" id="val-p2">90°</span>
+                </div>
+                <input type="range" id="slider-p2" min="0" max="360" value="90">
+            </div>
+
+            <!-- Physics Output -->
+            <div class="mt-4 flex flex-col gap-4">
+                <div class="flex justify-between items-center border-b border-slate-600 pb-2">
+                    <span id="lbl-diff" class="text-slate-300">相對夾角 (Δθ)</span>
+                    <span class="text-2xl font-bold font-mono text-white" id="val-diff">90°</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span id="lbl-intensity" class="text-slate-300">相對透射強度 (I/I₁)</span>
+                    <span class="text-3xl font-bold font-mono text-emerald-400" id="val-intensity">0.0%</span>
+                </div>
+                
+                <!-- Simple bar indicator for intensity -->
+                <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden mt-2">
+                    <div id="intensity-bar" class="h-full bg-gradient-to-r from-emerald-500 to-green-300 transition-all duration-300" style="width: 0%;"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Theory Modal (Hidden by default) -->
+    <div id="theory-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex-justify-center items-center z-50 p-4 opacity-0 transition-opacity duration-300" style="display: none;">
+        <div class="bg-slate-800 max-w-3xl w-full rounded-2xl border border-slate-600 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-900">
+                <h2 id="modal-title" class="text-2xl font-bold text-sky-400">馬呂斯定律與偏振</h2>
+                <button onclick="toggleModal(false)" class="text-slate-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+            </div>
+            <div id="modal-content" class="p-6 overflow-y-auto text-slate-200 leading-relaxed text-lg space-y-4">
+                <!-- Content injected via JS based on language -->
+            </div>
+            <div class="p-4 border-t border-slate-700 bg-slate-900 flex justify-end">
+                <button id="modal-close-btn" onclick="toggleModal(false)" class="px-6 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-medium transition-colors">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let state = {
+            theta1: 0,
+            theta2: 90,
+            lang: 'zh',
+            isModalOpen: false,
+            p1: { x: 320, y: 250 }, // 偏光片 1 座標
+            p2: { x: 480, y: 250 }, // 偏光片 2 座標
+            R: 200,                 // 偏光片半徑
+            dragging: 0,            // 0: 未拖曳, 1: 拖曳 p1, 2: 拖曳 p2
+            dragOffset: { x: 0, y: 0 }
+        };
+
+        // --- DOM Elements ---
+        const canvas = document.getElementById('sim-canvas');
+        const ctx = canvas.getContext('2d');
+        const sliderP1 = document.getElementById('slider-p1');
+        const sliderP2 = document.getElementById('slider-p2');
+        const valP1 = document.getElementById('val-p1');
+        const valP2 = document.getElementById('val-p2');
+        const valDiff = document.getElementById('val-diff');
+        const valIntensity = document.getElementById('val-intensity');
+        const intensityBar = document.getElementById('intensity-bar');
+
+        // Offscreen canvas for background photo
+        const bgCanvas = document.createElement('canvas');
+        bgCanvas.width = canvas.width;
+        bgCanvas.height = canvas.height;
+        const bgCtx = bgCanvas.getContext('2d');
+
+        // --- Bilingual Dictionary ---
+        const dict = {
+            zh: {
+                appTitle: "光波的偏振作用",
+                appSubtitle: "馬呂斯定律 (Malus's Law) 模擬",
+                theoryBtn: "📖 科學原理",
+                lblP1: "偏振片 1 角度 (θ₁)",
+                lblP2: "偏振片 2 角度 (θ₂)",
+                lblDiff: "相對夾角 (Δθ)",
+                lblIntensity: "相對透射強度 (I/I₁)",
+                modalTitle: "馬呂斯定律與偏振",
+                closeBtn: "關閉",
+                dragHint: "可拖曳移動偏振片",
+                modalBody: `
+                    <p><strong>1. 光是一種橫波</strong><br>
+                    自然界的光（如太陽光或燈泡發出的光）包含了各個方向振動的電磁波，稱為<strong>非偏振光 (Unpolarized light)</strong>。</p>
+                    
+                    <p><strong>2. 偏振片的作用 (Polarizer)</strong><br>
+                    偏振片就像是一個只允許特定方向波形通過的柵欄（透振軸）。當自然光通過第一塊偏振片時，只有平行於透振軸的光能穿透。此時光變成了<strong>線偏振光 (Linearly polarized light)</strong>，且光強度減半：$$I_1 = \\frac{1}{2}I_0$$</p>
+                    
+                    <p><strong>3. 馬呂斯定律 (Malus's Law)</strong><br>
+                    當這束線偏振光進入第二塊偏振片（檢偏器）時，能穿透的光強度取決於兩塊偏振片透振軸的夾角 $\\Delta\\theta = |\\theta_1 - \\theta_2|$。公式為：
+                    $$I = I_1 \\cos^2(\\Delta\\theta)$$</p>
+                    
+                    <ul class="list-disc pl-6 space-y-2 text-slate-300">
+                        <li>當 $\\Delta\\theta = 0^\\circ$ (互相平行)，光強度最大 ($I = I_1$)。</li>
+                        <li>當 $\\Delta\\theta = 90^\\circ$ (互相垂直)，光波被完全阻擋，強度為 0 (呈現全黑)。</li>
+                    </ul>
+                    <p class="text-sm text-sky-300 mt-4">💡 試著在模型中將兩塊偏振片的夾角調整為 90 度，觀察交疊處是否會完全阻擋背景影像！</p>
+                `
+            },
+            en: {
+                appTitle: "Polarization of Light",
+                appSubtitle: "Malus's Law Simulation",
+                theoryBtn: "📖 Scientific Theory",
+                lblP1: "Polarizer 1 Angle (θ₁)",
+                lblP2: "Polarizer 2 Angle (θ₂)",
+                lblDiff: "Relative Angle (Δθ)",
+                lblIntensity: "Transmitted Intensity (I/I₁)",
+                modalTitle: "Malus's Law & Polarization",
+                closeBtn: "Close",
+                dragHint: "Drag to move polarizers",
+                modalBody: `
+                    <p><strong>1. Light as a Transverse Wave</strong><br>
+                    Natural light (like sunlight or light bulbs) consists of electromagnetic waves vibrating in all directions. This is called <strong>unpolarized light</strong>.</p>
+                    
+                    <p><strong>2. The Polarizer</strong><br>
+                    A polarizing filter acts like a fence that only allows waves vibrating in a specific direction (its transmission axis) to pass. When unpolarized light passes through the first polarizer, it becomes <strong>linearly polarized light</strong>, and its intensity drops by half: $$I_1 = \\frac{1}{2}I_0$$</p>
+                    
+                    <p><strong>3. Malus's Law</strong><br>
+                    When this linearly polarized light passes through a second polarizer (the analyzer), the final transmitted intensity depends on the angle $\\Delta\\theta = |\\theta_1 - \\theta_2|$ between their transmission axes. The formula is:
+                    $$I = I_1 \\cos^2(\\Delta\\theta)$$</p>
+                    
+                    <ul class="list-disc pl-6 space-y-2 text-slate-300">
+                        <li>When $\\Delta\\theta = 0^\\circ$ (parallel), intensity is maximized ($I = I_1$).</li>
+                        <li>When $\\Delta\\theta = 90^\\circ$ (crossed), light is completely blocked, and intensity is 0 (pitch black).</li>
+                    </ul>
+                    <p class="text-sm text-sky-300 mt-4">💡 Try setting the angle difference to 90 degrees in the simulation to see the intersection block the background completely!</p>
+                `
+            }
+        };
+
+        // --- Initialization ---
+        function init() {
+            generateBackground();
+            updateUI();
+            updatePhysics();
+            
+            // Event Listeners
+            sliderP1.addEventListener('input', (e) => {
+                state.theta1 = parseInt(e.target.value);
+                updatePhysics();
+            });
+            sliderP2.addEventListener('input', (e) => {
+                state.theta2 = parseInt(e.target.value);
+                updatePhysics();
+            });
+            
+            // 初始化拖曳事件
+            setupDragEvents();
+        }
+
+        // --- 拖曳互動邏輯 (Dragging Logic) ---
+        function getPointerPos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+            if (evt.touches && evt.touches.length > 0) {
+                clientX = evt.touches[0].clientX;
+                clientY = evt.touches[0].clientY;
+            } else {
+                clientX = evt.clientX;
+                clientY = evt.clientY;
+            }
+            // 轉換為 canvas 內部座標系統 (800x500)
+            return {
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+
+        function setupDragEvents() {
+            canvas.addEventListener('mousedown', handlePointerDown);
+            canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handlePointerDown(e); }, {passive: false});
+
+            canvas.addEventListener('mousemove', handlePointerMove);
+            canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handlePointerMove(e); }, {passive: false});
+
+            canvas.addEventListener('mouseup', handlePointerUp);
+            canvas.addEventListener('touchend', handlePointerUp);
+            canvas.addEventListener('mouseleave', handlePointerUp);
+            canvas.addEventListener('touchcancel', handlePointerUp);
+        }
+
+        function handlePointerDown(e) {
+            const pos = getPointerPos(canvas, e);
+            const d1 = Math.hypot(pos.x - state.p1.x, pos.y - state.p1.y);
+            const d2 = Math.hypot(pos.x - state.p2.x, pos.y - state.p2.y);
+
+            // 判斷點擊落在哪個偏光片內 (若重疊則選較近的)
+            if (d2 <= state.R && d1 <= state.R) {
+                if (d2 < d1) startDrag(2, pos, state.p2);
+                else startDrag(1, pos, state.p1);
+            } else if (d2 <= state.R) {
+                startDrag(2, pos, state.p2);
+            } else if (d1 <= state.R) {
+                startDrag(1, pos, state.p1);
+            }
+        }
+
+        function startDrag(id, pos, p) {
+            state.dragging = id;
+            state.dragOffset.x = pos.x - p.x;
+            state.dragOffset.y = pos.y - p.y;
+            canvas.style.cursor = 'grabbing';
+        }
+
+        function handlePointerMove(e) {
+            if (state.dragging === 0) {
+                // 僅做懸停效果判定
+                const pos = getPointerPos(canvas, e);
+                const d1 = Math.hypot(pos.x - state.p1.x, pos.y - state.p1.y);
+                const d2 = Math.hypot(pos.x - state.p2.x, pos.y - state.p2.y);
+                canvas.style.cursor = (d1 <= state.R || d2 <= state.R) ? 'grab' : 'default';
+                return;
+            }
+
+            // 更新拖曳中的位置
+            const pos = getPointerPos(canvas, e);
+            if (state.dragging === 1) {
+                state.p1.x = pos.x - state.dragOffset.x;
+                state.p1.y = pos.y - state.dragOffset.y;
+            } else if (state.dragging === 2) {
+                state.p2.x = pos.x - state.dragOffset.x;
+                state.p2.y = pos.y - state.dragOffset.y;
+            }
+            renderCanvas();
+        }
+
+        function handlePointerUp() {
+            if (state.dragging !== 0) {
+                state.dragging = 0;
+                canvas.style.cursor = 'grab';
+            }
+        }
+
+        // --- Procedural Background Generation (The "Photo") ---
+        function generateBackground() {
+            const w = bgCanvas.width;
+            const h = bgCanvas.height;
+            
+            // Sky Gradient
+            let grad = bgCtx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, "#1e3a8a"); // deep blue
+            grad.addColorStop(1, "#38bdf8"); // sky blue
+            bgCtx.fillStyle = grad;
+            bgCtx.fillRect(0, 0, w, h);
+
+            // Sun
+            bgCtx.fillStyle = "#fde047";
+            bgCtx.beginPath();
+            bgCtx.arc(w * 0.7, h * 0.35, 60, 0, Math.PI * 2);
+            bgCtx.fill();
+            bgCtx.shadowColor = "#fef08a";
+            bgCtx.shadowBlur = 30;
+            bgCtx.fill();
+            bgCtx.shadowBlur = 0; // reset
+
+            // Mountains
+            bgCtx.fillStyle = "#065f46"; // dark green
+            bgCtx.beginPath();
+            bgCtx.moveTo(-50, h);
+            bgCtx.lineTo(w * 0.3, h * 0.4);
+            bgCtx.lineTo(w * 0.7, h);
+            bgCtx.fill();
+
+            bgCtx.fillStyle = "#047857"; // slightly lighter
+            bgCtx.beginPath();
+            bgCtx.moveTo(w * 0.2, h);
+            bgCtx.lineTo(w * 0.7, h * 0.5);
+            bgCtx.lineTo(w + 50, h);
+            bgCtx.fill();
+
+            // Text on image
+            bgCtx.fillStyle = "rgba(255, 255, 255, 0.9)";
+            bgCtx.font = "bold 40px 'Segoe UI', sans-serif";
+            bgCtx.textAlign = "center";
+            bgCtx.fillText("OPTICAL TEST PATTERN", w / 2, h * 0.85);
+            bgCtx.font = "20px 'Segoe UI', sans-serif";
+            bgCtx.fillText("Malus's Law Experiment", w / 2, h * 0.92);
+        }
+
+        // --- Physics & Rendering Logic ---
+        function updatePhysics() {
+            // Update labels
+            valP1.innerText = state.theta1 + "°";
+            valP2.innerText = state.theta2 + "°";
+            
+            // Calculate Malus's Law
+            let deltaTheta = Math.abs(state.theta1 - state.theta2) % 180;
+            if (deltaTheta > 90) deltaTheta = 180 - deltaTheta; // Symmetry for visualization
+            
+            valDiff.innerText = deltaTheta + "°";
+
+            // I = I1 * cos^2(theta)
+            const rad = (state.theta1 - state.theta2) * Math.PI / 180;
+            const intensity = Math.pow(Math.cos(rad), 2);
+            const intensityPercent = (intensity * 100).toFixed(1);
+            
+            valIntensity.innerText = intensityPercent + "%";
+            intensityBar.style.width = intensityPercent + "%";
+
+            // Change bar color based on intensity
+            if(intensity < 0.2) intensityBar.className = "h-full bg-red-500 transition-all duration-300";
+            else if(intensity < 0.6) intensityBar.className = "h-full bg-yellow-400 transition-all duration-300";
+            else intensityBar.className = "h-full bg-emerald-400 transition-all duration-300";
+
+            renderCanvas();
+        }
+
+        function renderCanvas() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const cx1 = state.p1.x;
+            const cy1 = state.p1.y;
+            const cx2 = state.p2.x;
+            const cy2 = state.p2.y;
+            const R = state.R;
+
+            // 1. Draw Background
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(bgCanvas, 0, 0);
+
+            // 2. Base darkening for single polarizers
+            // A single ideal polarizer absorbs 50% of unpolarized light.
+            // We use alpha = 0.5 to simulate this darkening.
+            const baseAlpha = 0.5;
+            
+            ctx.fillStyle = `rgba(0, 0, 10, ${baseAlpha})`; // Slightly bluish black tint
+            
+            // Draw Union of both polarizers
+            // The 'nonzero' fill rule ensures the intersection is filled exactly once.
+            ctx.beginPath();
+            ctx.arc(cx1, cy1, R, 0, Math.PI * 2);
+            ctx.arc(cx2, cy2, R, 0, Math.PI * 2);
+            ctx.fill('nonzero'); 
+
+            // 3. Physical Malus Calculation in the Intersection
+            // Current transmission in intersection = 1 - baseAlpha = 0.5.
+            // We need final transmission = 0.5 * cos^2(deltaTheta).
+            // So we need an extra layer of darkness in the intersection.
+            // (0.5) * (1 - extraAlpha) = 0.5 * cos^2(theta)
+            // 1 - extraAlpha = cos^2(theta) -> extraAlpha = sin^2(theta)
+            const rad = (state.theta1 - state.theta2) * Math.PI / 180;
+            const extraAlpha = Math.pow(Math.sin(rad), 2);
+
+            ctx.save();
+            // Clip to Intersection
+            ctx.beginPath();
+            ctx.arc(cx1, cy1, R, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.beginPath();
+            ctx.arc(cx2, cy2, R, 0, Math.PI * 2);
+            ctx.clip();
+
+            // Fill intersection with extra mathematically derived alpha
+            ctx.fillStyle = `rgba(0, 0, 10, ${extraAlpha})`;
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            // 4. Draw Polarizer Visual Details (Grids & Borders)
+            drawPolarizer(cx1, cy1, R, state.theta1, '#38bdf8'); // P1 (Sky Blue tint for UI matching)
+            drawPolarizer(cx2, cy2, R, state.theta2, '#f472b6'); // P2 (Pink tint)
+        }
+
+        function drawPolarizer(cx, cy, R, angle, color) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle * Math.PI / 180);
+            
+            // Draw transmission axis lines (grid)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 2;
+            const step = 25;
+            for (let y = -R + 10; y < R; y += step) {
+                const x = Math.sqrt(R * R - y * y);
+                ctx.beginPath();
+                ctx.moveTo(-x, y);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+
+            // Draw primary axis highlight
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-R, 0);
+            ctx.lineTo(R, 0);
+            ctx.stroke();
+
+            // Draw border
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(0, 0, R, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Draw center dot
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // --- UI & Language Logic ---
+        function toggleLanguage() {
+            state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            updateUI();
+        }
+
+        function updateUI() {
+            const d = dict[state.lang];
+            
+            document.getElementById('app-title').innerText = d.appTitle;
+            document.getElementById('app-subtitle').innerText = d.appSubtitle;
+            document.getElementById('theory-btn').innerText = d.theoryBtn;
+            
+            document.getElementById('lbl-p1').innerText = d.lblP1;
+            document.getElementById('lbl-p2').innerText = d.lblP2;
+            document.getElementById('lbl-diff').innerText = d.lblDiff;
+            document.getElementById('lbl-intensity').innerText = d.lblIntensity;
+            
+            document.getElementById('modal-title').innerText = d.modalTitle;
+            document.getElementById('modal-close-btn').innerText = d.closeBtn;
+            if (document.getElementById('hint-text')) document.getElementById('hint-text').innerText = d.dragHint;
+            document.getElementById('modal-content').innerHTML = d.modalBody;
+
+            // Retrigger MathJax parsing for newly injected HTML
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([document.getElementById('modal-content')]).catch((err) => console.log(err.message));
+            }
+        }
+
+        function toggleModal(show) {
+            const modal = document.getElementById('theory-modal');
+            state.isModalOpen = show;
+            if (show) {
+                modal.style.display = 'flex';
+                // Small delay to allow display:flex to apply before animating opacity
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.classList.add('opacity-100');
+                }, 10);
+                
+                // Ensure MathJax renders when opened
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise([document.getElementById('modal-content')]);
+                }
+            } else {
+                modal.classList.remove('opacity-100');
+                modal.classList.add('opacity-0');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 300); // match transition duration
+            }
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('theory-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                toggleModal(false);
+            }
+        });
+
+        // Run application
+        init();
+
+    </script>
+</body>
+</html>

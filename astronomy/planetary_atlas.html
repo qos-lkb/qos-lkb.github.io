@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行星圖集 | Planetary Atlas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #020617; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #334155; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #60a5fa; border: 2px solid #fff; margin-top: -5px; cursor: pointer;
+            box-shadow: 0 0 10px rgba(96, 165, 250, 0.6);
+        }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        #view-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+        .body-btn {
+            display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+            padding: 7px 9px; border-radius: 10px; font-weight: 700; font-size: 0.75rem;
+            border: 1px solid #334155; background: #0f172a; color: #cbd5e1;
+        }
+        .body-btn.active { background: #1d4ed8; color: #fff; border-color: #60a5fa; box-shadow: 0 0 12px rgba(37, 99, 235, 0.45); }
+        .poi-dot {
+            position: absolute; width: 11px; height: 11px; margin: 0; border-radius: 50%;
+            background: #fbbf24; box-shadow: 0 0 8px #fbbf24, 0 0 16px rgba(251, 191, 36, 0.6);
+            transform: translate(-50%, -50%); cursor: pointer; pointer-events: auto;
+            border: 1.5px solid #fff; transition: transform .15s ease, box-shadow .15s;
+        }
+        .poi-dot:hover, .poi-dot.active { transform: translate(-50%, -50%) scale(1.7); z-index: 30; }
+        .poi-dot.measure { background: #34d399; box-shadow: 0 0 8px #34d399; }
+        .poi-item { width: 100%; text-align: left; padding: 6px 8px; border-radius: 8px; font-size: 0.7rem; color: #cbd5e1; }
+        .poi-item:hover, .poi-item.active { background: #1e293b; color: #fff; }
+        .mj-box { background: rgba(2, 6, 23, 0.7); color: #e2e8f0; border-radius: 0.75rem; padding: 0.6rem 0.5rem; }
+        .mj-box mjx-container { color: #e2e8f0 !important; }
+        #loading { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(2, 6, 23, 0.92); transition: opacity .45s; }
+        .chk { width: 1rem; height: 1rem; accent-color: #3b82f6; }
+        .bar-track { height: 6px; border-radius: 999px; background: #1e293b; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 999px; }
+    </style>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body class="h-full flex flex-col text-slate-200 overflow-hidden">
+
+    <header class="shrink-0 z-20 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-400 via-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-md text-xl font-black">◎</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">行星圖集</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-900/80 text-indigo-200 font-bold border border-indigo-700/60" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-400" data-i18n="subtitle">月球、地球與太陽系天體的 3D 球面地圖</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-800 text-xs font-bold rounded-lg border border-slate-600 shrink-0">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end shrink-0">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-xl font-bold text-sm border border-amber-700/50 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm border border-slate-600">中 / EN</button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+        <aside class="w-full md:w-[22rem] bg-slate-900/90 border-r border-slate-800 flex flex-col shrink-0 max-h-[46vh] md:max-h-none overflow-y-auto custom-scroll">
+            <div class="p-4 border-b border-slate-800">
+                <h2 class="text-sm font-bold text-blue-400 mb-3 uppercase tracking-wider" data-i18n="controlTitle">實驗控制</h2>
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="pickBody">選擇天體</p>
+                <div id="body-grid" class="grid grid-cols-2 gap-1.5 mb-4"></div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-300" data-i18n="sunAngle">日照方位</span>
+                        <span id="sun-val" class="font-mono text-amber-300 font-bold">0°</span>
+                    </div>
+                    <input type="range" id="sun-slider" min="-180" max="180" value="0" step="1">
+                    <p id="phase-label" class="text-[11px] text-amber-200/90 mt-1">滿月 · 照明 100%</p>
+                </div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between items-center text-sm mb-1 gap-2">
+                        <span class="text-slate-300" data-i18n="rotSpeed">自轉速度</span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="btn-pause" class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-sky-200 transition" aria-pressed="false" aria-label="暫停自轉">
+                                <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                <svg id="icon-play" class="hidden" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            </button>
+                            <span id="rot-val" class="font-mono text-blue-300 font-bold">1.0×</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rot-slider" min="0" max="4" value="1" step="0.05">
+                    <p id="rot-status" class="text-[10px] text-slate-500 mt-1" data-i18n="rotPlaying">自轉中</p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-1.5 text-xs text-slate-300 mb-3">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="tog-poi" checked class="chk"><span data-i18n="showPoi">顯示地標</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="tog-grid" class="chk"><span data-i18n="showGrid">經緯網／赤道</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="tog-tilt" checked class="chk"><span data-i18n="showTilt">自轉軸傾角</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="tog-atm" checked class="chk"><span data-i18n="showAtm">大氣輝光</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="tog-cloud" checked class="chk"><span data-i18n="showCloud">雲層（地球）</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="tog-scale" class="chk"><span data-i18n="relSize">相對大小（壓縮）</span></label>
+                </div>
+
+                <div class="flex gap-2">
+                    <button type="button" id="btn-measure" class="flex-1 px-3 py-2 bg-emerald-800/70 hover:bg-emerald-700 text-emerald-100 rounded-xl font-bold text-xs border border-emerald-600/50" data-i18n="measure">測距</button>
+                    <button type="button" id="btn-reset" class="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-xs" data-i18n="reset">重置</button>
+                </div>
+                <p id="measure-hint" class="text-[10px] text-slate-500 mt-2 leading-relaxed" data-i18n="measureHint">點兩處球面，量度大圓距離。</p>
+            </div>
+
+            <div class="p-4 space-y-3">
+                <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider" data-i18n="liveTitle">天體數據</h2>
+                <div class="bg-slate-950 rounded-xl p-3 border border-slate-800">
+                    <div class="flex items-baseline gap-2 mb-2">
+                        <h3 id="stat-name" class="text-lg font-black text-white">月球</h3>
+                        <span id="stat-type" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">衛星</span>
+                    </div>
+                    <p id="stat-note" class="text-[11px] text-slate-400 leading-relaxed mb-3"></p>
+                    <div class="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
+                        <div class="text-slate-500" data-i18n="lblMass">質量</div>
+                        <div id="val-mass" class="text-right font-mono text-sky-200">—</div>
+                        <div class="text-slate-500" data-i18n="lblRad">半徑</div>
+                        <div id="val-rad" class="text-right font-mono text-sky-200">—</div>
+                        <div class="text-slate-500" data-i18n="lblG">表面重力 g</div>
+                        <div id="val-g" class="text-right font-mono text-amber-200">—</div>
+                        <div class="text-slate-500" data-i18n="lblVe">逃逸速度</div>
+                        <div id="val-ve" class="text-right font-mono text-amber-200">—</div>
+                        <div class="text-slate-500" data-i18n="lblTilt">自轉軸傾角</div>
+                        <div id="val-tilt" class="text-right font-mono text-emerald-200">—</div>
+                        <div class="text-slate-500" data-i18n="lblSpin">自轉週期</div>
+                        <div id="val-spin" class="text-right font-mono text-emerald-200">—</div>
+                        <div class="text-slate-500" data-i18n="lblAtm">大氣</div>
+                        <div id="val-atm" class="text-right font-mono text-violet-200">—</div>
+                    </div>
+                    <div class="mt-3 space-y-2">
+                        <div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-0.5"><span data-i18n="vsG">相對地球重力</span><span id="vs-g">—</span></div>
+                            <div class="bar-track"><div id="bar-g" class="bar-fill bg-amber-400"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-0.5"><span data-i18n="vsVe">相對地球逃逸速度</span><span id="vs-ve">—</span></div>
+                            <div class="bar-track"><div id="bar-ve" class="bar-fill bg-sky-400"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="poiList">地標</p>
+                    <div id="poi-list" class="space-y-0.5 max-h-40 overflow-y-auto custom-scroll"></div>
+                </div>
+                <p class="text-[10px] text-slate-600 leading-relaxed" id="tex-credit">貼圖自 <a class="text-sky-400 underline hover:text-sky-300" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a> 等遠端 URL 載入（CC BY 4.0）。拖曳旋轉、滾輪縮放。</p>
+            </div>
+        </aside>
+
+        <section class="flex-1 min-h-0 flex flex-col bg-black relative">
+            <div id="canvas-wrap" class="flex-1 relative min-h-[240px] overflow-hidden">
+                <canvas id="view-canvas"></canvas>
+                <div id="poi-labels" class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+                <div id="poi-tooltip" class="absolute z-20 pointer-events-none opacity-0 -translate-x-1/2 -translate-y-[120%] bg-slate-950/90 border border-slate-600 rounded-xl px-3 py-2 min-w-[180px] shadow-xl transition-opacity">
+                    <h3 id="tt-title" class="font-bold text-amber-300 text-sm"></h3>
+                    <p id="tt-desc" class="text-[11px] text-slate-300 mt-0.5 leading-relaxed"></p>
+                    <p id="tt-coord" class="text-[10px] font-mono text-slate-500 mt-1"></p>
+                </div>
+                <div id="loading" aria-live="polite">
+                    <div class="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-sky-300 font-mono tracking-widest text-xs" data-i18n="loading">載入球面貼圖…</p>
+                </div>
+                <div class="absolute top-3 left-3 z-20 pointer-events-none">
+                    <div id="hud-name" class="text-2xl md:text-3xl font-black text-white/90 tracking-wide" style="text-shadow:0 0 18px rgba(125,211,252,.45)">月球</div>
+                    <div id="hud-coord" class="text-[11px] text-slate-400 mt-0.5 font-mono">—</div>
+                    <div id="hud-dist" class="text-[11px] text-emerald-300 mt-0.5 font-mono hidden"></div>
+                </div>
+                <div class="absolute bottom-2 right-3 z-20 text-[10px] text-slate-500 pointer-events-none text-right leading-relaxed" data-i18n="hudHint">拖曳旋轉 · 滾輪縮放 · 點球面讀經緯</div>
+            </div>
+        </section>
+    </div>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-600 to-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">球面圖集與行星物理</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">重力、逃逸速度、潮汐鎖定與日照</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scroll space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-sky-950/50 p-4 rounded-2xl border border-sky-800/60">
+                    <h3 class="font-bold text-sky-200 mb-1" data-i18n="m1t">1. 表面重力</h3>
+                    <p class="text-xs" data-i18n="m1d">天體表面的重力加速度與質量成正比、與半徑平方成反比。月球質量約為地球的 1.2%，半徑約 27%，所以表面重力只有地球的六分之一。</p>
+                    <div class="mj-box mt-2">$$g = G\dfrac{M}{R^{2}}$$</div>
+                </div>
+                <div class="bg-amber-950/40 p-4 rounded-2xl border border-amber-800/50">
+                    <h3 class="font-bold text-amber-200 mb-1" data-i18n="m2t">2. 逃逸速度</h3>
+                    <p class="text-xs" data-i18n="m2d">要擺脫天體引力束縛所需的最小初速度。月球約 2.38 km/s，地球約 11.2 km/s。逃逸速度低的天體較難留住大氣。</p>
+                    <div class="mj-box mt-2">$$v_{e}=\sqrt{\dfrac{2GM}{R}}$$</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-violet-200 text-xs mb-1" data-i18n="m3t">3. 潮汐鎖定</h4>
+                        <p class="text-[11px]" data-i18n="m3d">月球自轉週期與公轉週期同為約 27.3 天，所以地球上總是看見同一面。這是潮汐摩擦力長期作用的結果。</p>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <h4 class="font-bold text-emerald-200 text-xs mb-1" data-i18n="m4t">4. 自轉軸傾角</h4>
+                        <p class="text-[11px]" data-i18n="m4d">地球傾角約 23.4°，造成四季。天王星傾角約 98°，幾乎「躺著」轉。金星傾角約 177°，是逆向自轉。</p>
+                    </div>
+                </div>
+                <div class="bg-indigo-950/50 p-4 rounded-2xl border border-indigo-800/60">
+                    <h3 class="font-bold text-indigo-200 mb-1" data-i18n="m5t">5. 日照與 terminator</h3>
+                    <p class="text-xs" data-i18n="m5d">調節日照方位可看到晝夜分界線。月球沒有大氣散射，terminator 很銳利；地球有大氣輝光與雲層，晨昏線較柔和。從地球看月球時，這個角度對應月相。</p>
+                </div>
+                <div class="bg-emerald-950/40 p-4 rounded-2xl border border-emerald-800/50">
+                    <h3 class="font-bold text-emerald-200 mb-1" data-i18n="m6t">6. 生活例子</h3>
+                    <p class="text-xs" data-i18n="m6d">阿波羅登月艙因月球重力弱、逃逸速度低，起飛所需燃料遠少於地球。火星大氣稀薄，塵暴與峽谷清晰可見。土星光環是冰粒與岩石碎屑繞行星公轉。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-700 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-amber-100" data-i18n="stepsSub">先調什麼、看什麼、比較什麼</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-300">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">先看月球：拖曳旋轉，點「靜海」飛到阿波羅 11 號着陸點；拉日照方位，對照月海（暗）與高地（亮）以及 terminator。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">換成地球：打開雲層與大氣輝光，點香港；比較左側 g 與逃逸速度相對月球差多少。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">看火星的奧林帕斯山與水手號峽谷，再開測距量兩者的大圓距離；留意大氣遠薄於地球。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">打開「相對大小」，比較木星、土星光環與天王星傾角；對照各星逃逸速度為何能留住厚大氣。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const G = 6.6743e-11;
+const ME = 5.972e24;
+const RE_M = 6.371e6;
+const BASE_R = 2.55;
+const TEX_ALIGN = -Math.PI / 2;
+/** 遠端球面貼圖 URL（Solar System Scope CC BY 4.0；jsDelivr / Three.js 直鏈） */
+const SSS = 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/';
+const REMOTE_TEX = {
+    stars: 'https://cdn.jsdelivr.net/gh/homer-jay/solar-system-textures@master/stars_milky_way.jpg',
+    earthClouds: SSS + 'earth-clouds.jpg',
+    earthLights: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_lights_2048.png',
+    saturnRing: SSS + 'saturn-ring.png'
+};
+
+const BODIES = [
+    { id: 'mercury', zh: '水星', en: 'Mercury', typeZh: '類地行星', typeEn: 'Terrestrial', mass: 3.301e23, radiusKm: 2439.7, tilt: 0.03, rotHours: 1407.6, atmZh: '幾乎沒有', atmEn: 'Almost none', atmos: 0x888899, gas: false, bump: 0.07, texUrl: SSS + 'mercury.jpg', hue: '#9ca3af', noteZh: '最靠近太陽；溫差極大，表面佈滿撞擊坑。', noteEn: 'Closest to the Sun; extreme temperatures and a cratered surface.' },
+    { id: 'venus', zh: '金星', en: 'Venus', typeZh: '類地行星', typeEn: 'Terrestrial', mass: 4.867e24, radiusKm: 6051.8, tilt: 177.4, rotHours: -5832.5, atmZh: 'CO₂ 厚雲', atmEn: 'Thick CO₂ clouds', atmos: 0xffcc88, gas: true, bump: 0, texUrl: SSS + 'venus-clouds.jpg', hue: '#fbbf24', noteZh: '逆向自轉；濃密雲層令我們只看見雲頂，表面氣壓約 90 倍地球。', noteEn: 'Retrograde spin; thick clouds hide the surface. Surface pressure ~90× Earth.' },
+    { id: 'earth', zh: '地球', en: 'Earth', typeZh: '類地行星', typeEn: 'Terrestrial', mass: 5.972e24, radiusKm: 6371, tilt: 23.44, rotHours: 23.93, atmZh: 'N₂ / O₂', atmEn: 'N₂ / O₂', atmos: 0x4ea8ff, gas: false, bump: 0.035, texUrl: SSS + 'earth.jpg', cloudUrl: REMOTE_TEX.earthClouds, emissiveUrl: REMOTE_TEX.earthLights, hue: '#38bdf8', noteZh: '目前已知唯一有液態水與生命的行星；雲層、大氣輝光與城市燈光可對照晝夜。', noteEn: 'The only known world with liquid water and life; clouds, airglow and city lights mark day and night.' },
+    { id: 'moon', zh: '月球', en: 'Moon', typeZh: '衛星', typeEn: 'Satellite', mass: 7.342e22, radiusKm: 1737.4, tilt: 6.68, rotHours: 655.7, atmZh: '幾乎真空', atmEn: 'Near vacuum', atmos: null, gas: false, bump: 0.06, texUrl: SSS + 'moon.jpg', hue: '#e5e7eb', noteZh: '潮汐鎖定：永遠以同一面朝向地球。暗區是月海，亮區是高地。', noteEn: 'Tidally locked: the same face always points at Earth. Dark maria, bright highlands.' },
+    { id: 'mars', zh: '火星', en: 'Mars', typeZh: '類地行星', typeEn: 'Terrestrial', mass: 6.417e23, radiusKm: 3389.5, tilt: 25.19, rotHours: 24.62, atmZh: '稀薄 CO₂', atmEn: 'Thin CO₂', atmos: 0xff7744, gas: false, bump: 0.055, texUrl: SSS + 'mars.jpg', hue: '#f97316', noteZh: '有太陽系最高火山與最長峽谷；兩極有冰蓋，大氣約為地球的 1%。', noteEn: 'Home to the tallest volcano and longest canyon; polar ice and an atmosphere ~1% of Earth.' },
+    { id: 'jupiter', zh: '木星', en: 'Jupiter', typeZh: '氣體巨行星', typeEn: 'Gas giant', mass: 1.898e27, radiusKm: 69911, tilt: 3.13, rotHours: 9.93, atmZh: 'H₂ / He', atmEn: 'H₂ / He', atmos: 0xffd9a0, gas: true, bump: 0, texUrl: SSS + 'jupiter.jpg', hue: '#fdba74', noteZh: '太陽系最大行星；大紅斑是持續數百年的高壓風暴。', noteEn: 'Largest planet; the Great Red Spot is a centuries-old high-pressure storm.' },
+    { id: 'saturn', zh: '土星', en: 'Saturn', typeZh: '氣體巨行星', typeEn: 'Gas giant', mass: 5.683e26, radiusKm: 58232, tilt: 26.73, rotHours: 10.66, atmZh: 'H₂ / He', atmEn: 'H₂ / He', atmos: 0xffe0a3, gas: true, bump: 0, texUrl: SSS + 'saturn.jpg', ringUrl: REMOTE_TEX.saturnRing, hue: '#fde68a', noteZh: '著名光環由冰粒與岩石碎屑組成；密度甚至低於水。', noteEn: 'Famous icy rings; mean density is less than water.' },
+    { id: 'uranus', zh: '天王星', en: 'Uranus', typeZh: '冰巨行星', typeEn: 'Ice giant', mass: 8.681e25, radiusKm: 25362, tilt: 97.77, rotHours: -17.24, atmZh: 'H₂ / He / CH₄', atmEn: 'H₂ / He / CH₄', atmos: 0x7dd3c7, gas: true, bump: 0, texUrl: SSS + 'uranus.jpg', hue: '#5eead4', noteZh: '自轉軸傾角約 98°，幾乎側躺公轉，季節極為極端。', noteEn: 'Axial tilt ~98°, so it rolls on its side and has extreme seasons.' },
+    { id: 'neptune', zh: '海王星', en: 'Neptune', typeZh: '冰巨行星', typeEn: 'Ice giant', mass: 1.024e26, radiusKm: 24622, tilt: 28.32, rotHours: 16.11, atmZh: 'H₂ / He / CH₄', atmEn: 'H₂ / He / CH₄', atmos: 0x60a5fa, gas: true, bump: 0, texUrl: SSS + 'neptune.jpg', hue: '#60a5fa', noteZh: '最外側的行星；甲烷吸收紅光而呈藍色，風速可超過 2000 km/h。', noteEn: 'Outermost planet; methane makes it blue. Winds can exceed 2000 km/h.' }
+];
+
+const POIS = {
+    mercury: [
+        { lat: 30.5, lon: 189.6, zh: '卡路里盆地', en: 'Caloris Basin', zhD: '水星最大撞擊盆地之一，直徑超過 1500 km。', enD: 'One of Mercury’s largest impact basins, over 1500 km across.' },
+        { lat: 0, lon: 0, zh: '赤道（經度 0）', en: 'Equator (0°)', zhD: '水星幾乎沒有自轉軸傾角，季節變化極小。', enD: 'Mercury’s tilt is nearly zero, so seasons are negligible.' }
+    ],
+    venus: [
+        { lat: 65.2, lon: 3.2, zh: '馬克斯韋爾山', en: 'Maxwell Montes', zhD: '金星最高山，高約 11 km，藏在濃雲之下。', enD: 'Venus’s highest mountain (~11 km), hidden under thick clouds.' },
+        { lat: -5, lon: 90, zh: '阿佛洛狄忒陸', en: 'Aphrodite Terra', zhD: '接近赤道的廣大高地，面積約等於非洲。', enD: 'A vast equatorial highland about the size of Africa.' }
+    ],
+    earth: [
+        { lat: 22.3, lon: 114.17, zh: '香港', en: 'Hong Kong', zhD: '位於北回歸線以南，屬亞熱帶海岸城市。', enD: 'South of the Tropic of Cancer; a subtropical coastal city.' },
+        { lat: 0, lon: 0, zh: '赤道與本初子午線', en: 'Equator & Prime Meridian', zhD: '經緯度原點在幾內亞灣海面。', enD: 'The origin of lat/lon, in the Gulf of Guinea.' },
+        { lat: 27.99, lon: 86.93, zh: '珠穆朗瑪峰', en: 'Mount Everest', zhD: '地球最高峰，由板塊碰撞抬升。', enD: 'Earth’s highest peak, raised by plate collision.' },
+        { lat: -3.5, lon: -62, zh: '亞馬遜雨林', en: 'Amazon', zhD: '地球最大熱帶雨林，影響全球水循環。', enD: 'Earth’s largest rainforest; a key part of the water cycle.' },
+        { lat: 23.4, lon: 10, zh: '撒哈拉沙漠', en: 'Sahara', zhD: '地球最大熱沙漠，對應北回歸線附近下沉氣流。', enD: 'Largest hot desert, under subtropical descending air.' },
+        { lat: -18.3, lon: 147.7, zh: '大堡礁', en: 'Great Barrier Reef', zhD: '全球最大珊瑚礁系統。', enD: 'The world’s largest coral reef system.' },
+        { lat: 90, lon: 0, zh: '北極', en: 'North Pole', zhD: '地軸北端；季節性海冰，沒有陸地。', enD: 'Northern end of the axis; seasonal sea ice, no land.' },
+        { lat: -90, lon: 0, zh: '南極', en: 'South Pole', zhD: '南極大陸冰蓋，地球淡水的主要儲庫。', enD: 'The Antarctic ice sheet, Earth’s largest freshwater store.' }
+    ],
+    moon: [
+        { lat: 8.5, lon: 28.3, zh: '靜海', en: 'Mare Tranquillitatis', zhD: '1969 年阿波羅 11 號首次載人登陸處。', enD: 'Landing site of Apollo 11 in 1969.' },
+        { lat: 20.19, lon: 30.77, zh: '阿波羅 17 號', en: 'Apollo 17', zhD: '迄今最後一次載人登月（1972）着陸點，位於澄海邊緣。', enD: 'Last crewed landing (1972), on the edge of Mare Serenitatis.' },
+        { lat: 18.4, lon: -57.4, zh: '風暴洋', en: 'Oceanus Procellarum', zhD: '月球正面最大的玄武岩月海。', enD: 'The largest basaltic mare on the near side.' },
+        { lat: 32.8, lon: -15.6, zh: '雨海', en: 'Mare Imbrium', zhD: '巨大撞擊盆地，邊界山脈清晰。', enD: 'A giant impact basin with sharp mountain rims.' },
+        { lat: 28.0, lon: 17.5, zh: '澄海', en: 'Mare Serenitatis', zhD: '月面「眼睛」之一。', enD: 'One of the Moon’s dark “eyes”.' },
+        { lat: 17.0, lon: 59.1, zh: '危海', en: 'Mare Crisium', zhD: '孤立的圓形月海，從地球很容易認出。', enD: 'An isolated circular mare, easy to spot from Earth.' },
+        { lat: -43.3, lon: -11.2, zh: '第谷坑', en: 'Tycho', zhD: '年輕撞擊坑，輻射紋延伸數千公里。', enD: 'A young crater with rays thousands of kilometres long.' },
+        { lat: 9.7, lon: -20.1, zh: '哥白尼坑', en: 'Copernicus', zhD: '典型中央峰撞擊坑。', enD: 'A classic central-peak impact crater.' },
+        { lat: 23.7, lon: -47.4, zh: '阿利斯塔克坑', en: 'Aristarchus', zhD: '月面最明亮的大型構造之一。', enD: 'One of the brightest large features on the Moon.' },
+        { lat: 18.9, lon: -3.7, zh: '亞平寧山脈', en: 'Montes Apenninus', zhD: '雨海撞擊時掀起的最長山脈。', enD: 'The longest range, raised by the Imbrium impact.' },
+        { lat: -53, lon: 169, zh: '南極–艾托肯盆地', en: 'South Pole–Aitken', zhD: '月球背面最大、最深的撞擊盆地。', enD: 'The largest, deepest basin on the far side.' }
+    ],
+    mars: [
+        { lat: 18.65, lon: -133.8, zh: '奧林帕斯山', en: 'Olympus Mons', zhD: '太陽系已知最高火山，高約 22 km。', enD: 'Tallest known volcano in the Solar System, ~22 km high.' },
+        { lat: -13.9, lon: -59.2, zh: '水手號峽谷', en: 'Valles Marineris', zhD: '長約 4000 km 的裂谷系統，遠大於地球大峽谷。', enD: 'A ~4000 km rift, far larger than Earth’s Grand Canyon.' },
+        { lat: -5.4, lon: 137.8, zh: '蓋爾撞擊坑', en: 'Gale Crater', zhD: '好奇號探測車着陸處，坑內有沉積岩層。', enD: 'Curiosity rover landing site, with sedimentary layers.' },
+        { lat: 18.44, lon: 77.45, zh: '耶澤羅撞擊坑', en: 'Jezero Crater', zhD: '毅力號着陸處，古河三角洲遺跡。', enD: 'Perseverance landing site; an ancient river delta.' },
+        { lat: -42.4, lon: 70.5, zh: '希臘平原', en: 'Hellas Basin', zhD: '火星最深的大型撞擊盆地。', enD: 'Mars’s deepest large impact basin.' },
+        { lat: 85, lon: 0, zh: '北極冰蓋', en: 'North Polar Cap', zhD: '水冰與乾冰組成的季節性極冠。', enD: 'A seasonal cap of water ice and dry ice.' }
+    ],
+    jupiter: [
+        { lat: -22, lon: -43, zh: '大紅斑', en: 'Great Red Spot', zhD: '持續數百年的反氣旋風暴，比地球還大。', enD: 'A centuries-old anticyclone larger than Earth.' },
+        { lat: 0, lon: 0, zh: '赤道條紋', en: 'Equatorial Belts', zhD: '明暗相間的雲帶由高速噴流維持。', enD: 'Light and dark belts kept by fast jet streams.' }
+    ],
+    saturn: [
+        { lat: 90, lon: 0, zh: '北極六邊形', en: 'North Polar Hexagon', zhD: '穩定的多邊形噴流，邊長各約 13 800 km。', enD: 'A stable polygonal jet, each side ~13 800 km.' },
+        { lat: 0, lon: 0, zh: '赤道／光環平面', en: 'Equator / Ring Plane', zhD: '光環大致位於赤道面，由冰粒組成。', enD: 'The rings lie near the equatorial plane and are mostly ice.' }
+    ],
+    uranus: [
+        { lat: 90, lon: 0, zh: '北極（側躺）', en: 'North Pole (on its side)', zhD: '因傾角極大，極地會長時間直對太陽。', enD: 'Extreme tilt means a pole can face the Sun for decades.' },
+        { lat: 0, lon: 0, zh: '赤道', en: 'Equator', zhD: '甲烷使天王星呈青綠色。', enD: 'Methane gives Uranus its cyan colour.' }
+    ],
+    neptune: [
+        { lat: -20, lon: 0, zh: '大暗斑位置（示意）', en: 'Great Dark Spot (schematic)', zhD: '旅行者 2 號曾拍到的高壓風暴，位置會漂移、出現與消失。', enD: 'A Voyager 2 storm; such spots drift, appear and fade.' },
+        { lat: 0, lon: 0, zh: '赤道', en: 'Equator', zhD: '海王星風速是太陽系最快之一。', enD: 'Among the fastest winds in the Solar System.' }
+    ]
+};
+
+const i18n = {
+    zh: {
+        title: '行星圖集', badge: '中一科學', subtitle: '月球、地球與太陽系天體的 3D 球面地圖',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        pickBody: '選擇天體', sunAngle: '日照方位', rotSpeed: '自轉速度',
+        pause: '暫停自轉', play: '繼續自轉', rotPlaying: '自轉中', rotPaused: '已暫停',
+        showPoi: '顯示地標', showGrid: '經緯網／赤道',
+        showTilt: '自轉軸傾角', showAtm: '大氣輝光', showCloud: '雲層（地球）',
+        relSize: '相對大小（壓縮）', measure: '測距', reset: '重置',
+        measureHint: '點兩處球面，量度大圓距離。再開一次可取消。',
+        liveTitle: '天體數據', lblMass: '質量', lblRad: '半徑', lblG: '表面重力 g',
+        lblVe: '逃逸速度', lblTilt: '自轉軸傾角', lblSpin: '自轉週期', lblAtm: '大氣',
+        vsG: '相對地球重力', vsVe: '相對地球逃逸速度', poiList: '地標',
+        texCredit: '貼圖自 Solar System Scope 等遠端 URL 載入（CC BY 4.0）。拖曳旋轉、滾輪縮放。',
+        loading: '載入球面貼圖…', hudHint: '拖曳旋轉 · 滾輪縮放 · 點球面讀經緯',
+        modalTitle: '球面圖集與行星物理', modalSub: '重力、逃逸速度、潮汐鎖定與日照',
+        m1t: '1. 表面重力', m1d: '天體表面的重力加速度與質量成正比、與半徑平方成反比。月球質量約為地球的 1.2%，半徑約 27%，所以表面重力只有地球的六分之一。',
+        m2t: '2. 逃逸速度', m2d: '要擺脫天體引力束縛所需的最小初速度。月球約 2.38 km/s，地球約 11.2 km/s。逃逸速度低的天體較難留住大氣。',
+        m3t: '3. 潮汐鎖定', m3d: '月球自轉週期與公轉週期同為約 27.3 天，所以地球上總是看見同一面。這是潮汐摩擦力長期作用的結果。',
+        m4t: '4. 自轉軸傾角', m4d: '地球傾角約 23.4°，造成四季。天王星傾角約 98°，幾乎「躺著」轉。金星傾角約 177°，是逆向自轉。',
+        m5t: '5. 日照與 terminator', m5d: '調節日照方位可看到晝夜分界線。月球沒有大氣散射，terminator 很銳利；地球有大氣輝光與雲層，晨昏線較柔和。從地球看月球時，這個角度對應月相。',
+        m6t: '6. 生活例子', m6d: '阿波羅登月艙因月球重力弱、逃逸速度低，起飛所需燃料遠少於地球。火星大氣稀薄，塵暴與峽谷清晰可見。土星光環是冰粒與岩石碎屑繞行星公轉。',
+        stepsTitle: '觀察步驟', stepsSub: '先調什麼、看什麼、比較什麼', modalClose: '關閉',
+        s1: '先看月球：拖曳旋轉，點「靜海」飛到阿波羅 11 號着陸點；拉日照方位，對照月海（暗）與高地（亮）以及 terminator。',
+        s2: '換成地球：打開雲層與大氣輝光，點香港；比較左側 g 與逃逸速度相對月球差多少。',
+        s3: '看火星的奧林帕斯山與水手號峽谷，再開測距量兩者的大圓距離；留意大氣遠薄於地球。',
+        s4: '打開「相對大小」，比較木星、土星光環與天王星傾角；對照各星逃逸速度為何能留住厚大氣。',
+        pageTitle: '行星圖集 | Planetary Atlas',
+        full: '滿月', newm: '新月', fq: '上弦', lq: '下弦', gib: '凸月', cres: '眉月',
+        illum: '照明', measureOn: '測距中：再點第二點', dist: '大圓距離',
+        massE: '地球質量', radE: '地球半徑', h: '小時', d: '日'
+    },
+    en: {
+        title: 'Planetary Atlas', badge: 'S1 Science', subtitle: '3D globes of the Moon, Earth and Solar System bodies',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls',
+        pickBody: 'Choose a body', sunAngle: 'Sun azimuth', rotSpeed: 'Spin speed',
+        pause: 'Pause rotation', play: 'Resume rotation', rotPlaying: 'Spinning', rotPaused: 'Paused',
+        showPoi: 'Show landmarks', showGrid: 'Lat/lon grid',
+        showTilt: 'Axial tilt', showAtm: 'Atmosphere glow', showCloud: 'Clouds (Earth)',
+        relSize: 'Relative size (compressed)', measure: 'Measure', reset: 'Reset',
+        measureHint: 'Click two points on the globe for great-circle distance. Click again to cancel.',
+        liveTitle: 'Body data', lblMass: 'Mass', lblRad: 'Radius', lblG: 'Surface g',
+        lblVe: 'Escape speed', lblTilt: 'Axial tilt', lblSpin: 'Rotation period', lblAtm: 'Atmosphere',
+        vsG: 'g relative to Earth', vsVe: 'Escape speed vs Earth', poiList: 'Landmarks',
+        texCredit: 'Textures load from remote URLs (Solar System Scope, CC BY 4.0). Drag to orbit, scroll to zoom.',
+        loading: 'Loading globe textures…', hudHint: 'Drag to orbit · scroll to zoom · click for lat/lon',
+        modalTitle: 'Globes and planetary physics', modalSub: 'Gravity, escape speed, tidal locking and sunlight',
+        m1t: '1. Surface gravity', m1d: 'Surface gravity is proportional to mass and inversely proportional to radius squared. The Moon is ~1.2% of Earth’s mass and ~27% of its radius, so g is about one-sixth of Earth’s.',
+        m2t: '2. Escape velocity', m2d: 'The minimum launch speed to leave a body. About 2.38 km/s on the Moon versus 11.2 km/s on Earth. Low escape speed makes it hard to keep an atmosphere.',
+        m3t: '3. Tidal locking', m3d: 'The Moon’s spin period equals its orbital period (~27.3 days), so Earth always sees the same face — the result of tidal friction over billions of years.',
+        m4t: '4. Axial tilt', m4d: 'Earth’s 23.4° tilt makes seasons. Uranus (~98°) rolls on its side. Venus (~177°) spins backwards.',
+        m5t: '5. Sunlight and the terminator', m5d: 'Move the sun azimuth to see the day–night line. The Moon has a sharp terminator; Earth has airglow and clouds. For the Moon as seen from Earth, this angle matches the phase.',
+        m6t: '6. Everyday links', m6d: 'The Apollo lander needed far less fuel to leave the Moon. Mars’s thin air leaves canyons and dust storms easy to see. Saturn’s rings are ice and rock in orbit.',
+        stepsTitle: 'Observation steps', stepsSub: 'What to change, watch and compare', modalClose: 'Close',
+        s1: 'Start with the Moon: drag to rotate, click Mare Tranquillitatis (Apollo 11). Move sun azimuth to compare maria, highlands and the terminator.',
+        s2: 'Switch to Earth: keep clouds and airglow on, click Hong Kong, and compare g and escape speed with the Moon.',
+        s3: 'On Mars, find Olympus Mons and Valles Marineris, then measure the great-circle distance. Note how thin the atmosphere is.',
+        s4: 'Turn on relative size. Compare Jupiter, Saturn’s rings and Uranus’s tilt, and why high escape speed helps keep a thick atmosphere.',
+        pageTitle: 'Planetary Atlas | 行星圖集',
+        full: 'Full Moon', newm: 'New Moon', fq: 'First quarter', lq: 'Last quarter', gib: 'Gibbous', cres: 'Crescent',
+        illum: 'Illumination', measureOn: 'Measuring: click a second point', dist: 'Great-circle distance',
+        massE: 'Earth masses', radE: 'Earth radii', h: 'h', d: 'd'
+    }
+};
+
+let lang = 'zh';
+const state = {
+    bodyId: 'moon',
+    sunAngle: 0,
+    rotSpeed: 1,
+    autoRot: true,
+    showPoi: true,
+    showGrid: false,
+    showTilt: true,
+    showAtm: true,
+    showCloud: true,
+    relSize: false,
+    measuring: false,
+    spinY: 0,
+    cloudSpin: 0,
+    hoverLat: null,
+    hoverLon: null,
+    measureA: null,
+    measureB: null,
+    fly: null,
+    activePoi: null
+};
+
+const ui = {};
+[
+    'sun-slider', 'sun-val', 'rot-slider', 'rot-val', 'phase-label', 'rot-status',
+    'btn-pause', 'icon-pause', 'icon-play',
+    'tog-poi', 'tog-grid', 'tog-tilt', 'tog-atm', 'tog-cloud', 'tog-scale',
+    'btn-measure', 'btn-reset', 'measure-hint', 'body-grid', 'poi-list',
+    'stat-name', 'stat-type', 'stat-note', 'val-mass', 'val-rad', 'val-g', 'val-ve',
+    'val-tilt', 'val-spin', 'val-atm', 'vs-g', 'vs-ve', 'bar-g', 'bar-ve',
+    'view-canvas', 'canvas-wrap', 'poi-labels', 'poi-tooltip', 'tt-title', 'tt-desc', 'tt-coord',
+    'hud-name', 'hud-coord', 'hud-dist', 'loading',
+    'btn-principle', 'btn-steps', 'btn-lang', 'btn-lang-mobile',
+    'modal-principle', 'modal-close', 'modal-confirm', 'modal-steps', 'steps-close', 'steps-confirm'
+].forEach(id => { ui[id.replace(/-/g, '_')] = document.getElementById(id); });
+
+function t(key) { return i18n[lang][key]; }
+function bodyById(id) { return BODIES.find(b => b.id === id); }
+function currentBody() { return bodyById(state.bodyId); }
+
+function latLonToVector3(lat, lon, radius) {
+    const la = lat * Math.PI / 180;
+    const lo = lon * Math.PI / 180;
+    return new THREE.Vector3(
+        radius * Math.cos(la) * Math.cos(lo),
+        radius * Math.sin(la),
+        -radius * Math.cos(la) * Math.sin(lo)
+    );
+}
+
+function vectorToLatLon(v) {
+    const n = v.clone().normalize();
+    const lat = Math.asin(THREE.MathUtils.clamp(n.y, -1, 1)) * 180 / Math.PI;
+    const lon = Math.atan2(-n.z, n.x) * 180 / Math.PI;
+    return { lat, lon };
+}
+
+function fmtLatLon(lat, lon) {
+    if (lat == null) return '—';
+    const ns = lat >= 0 ? 'N' : 'S';
+    const ew = lon >= 0 ? 'E' : 'W';
+    return `${Math.abs(lat).toFixed(1)}°${ns}  ${Math.abs(lon).toFixed(1)}°${ew}`;
+}
+
+function surfaceG(body) {
+    const R = body.radiusKm * 1000;
+    return G * body.mass / (R * R);
+}
+
+function escapeV(body) {
+    const R = body.radiusKm * 1000;
+    return Math.sqrt(2 * G * body.mass / R) / 1000;
+}
+
+function visualRadius(body) {
+    if (!state.relSize) return BASE_R;
+    return BASE_R * Math.pow(body.radiusKm / 6371, 0.42);
+}
+
+function wrapPi(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+}
+
+function phaseText(angle) {
+    const a = ((angle % 360) + 360) % 360;
+    const illum = (1 + Math.cos(a * Math.PI / 180)) / 2;
+    const pct = Math.round(illum * 100);
+    let name = t('gib');
+    if (pct >= 95) name = t('full');
+    else if (pct <= 5) name = t('newm');
+    else if (Math.abs(a - 90) < 18) name = t('lq');
+    else if (Math.abs(a - 270) < 18) name = t('fq');
+    else if (pct < 50) name = t('cres');
+    const extra = state.bodyId === 'moon' ? `${name} · ` : '';
+    return `${extra}${t('illum')} ${pct}%`;
+}
+
+function fmtPeriod(hours) {
+    const abs = Math.abs(hours);
+    const dir = hours < 0 ? (lang === 'zh' ? '（逆向）' : ' (retrograde)') : '';
+    if (abs >= 40) return `${(abs / 24).toFixed(1)} ${t('d')}${dir}`;
+    return `${abs.toFixed(2)} ${t('h')}${dir}`;
+}
+
+const loadingManager = new THREE.LoadingManager();
+const textureLoader = new THREE.TextureLoader(loadingManager);
+textureLoader.crossOrigin = 'anonymous';
+const textureCache = new Map();
+
+function loadTex(path, colorSpace = THREE.SRGBColorSpace) {
+    if (!textureCache.has(path)) {
+        const tex = textureLoader.load(path, t => {
+            t.colorSpace = colorSpace;
+            t.anisotropy = 8;
+        }, undefined, () => {
+            textureCache.delete(path);
+            console.warn('Texture failed:', path);
+        });
+        tex.colorSpace = colorSpace;
+        textureCache.set(path, tex);
+    }
+    return textureCache.get(path);
+}
+
+function showLoading() {
+    ui.loading.style.display = 'flex';
+    ui.loading.style.opacity = '1';
+    ui.loading.removeAttribute('aria-hidden');
+}
+function hideLoading() {
+    ui.loading.style.opacity = '0';
+    ui.loading.setAttribute('aria-hidden', 'true');
+    setTimeout(() => { ui.loading.style.display = 'none'; }, 450);
+}
+loadingManager.onStart = () => showLoading();
+loadingManager.onLoad = () => hideLoading();
+loadingManager.onError = url => console.warn('Texture load error:', url);
+
+const canvas = ui.view_canvas;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+renderer.setClearColor(0x02010a, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.08, 500);
+camera.position.set(0, 0.55, 9.2);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 3.4;
+controls.maxDistance = 28;
+controls.target.set(0, 0, 0);
+
+const hemi = new THREE.HemisphereLight(0x6b7cff, 0x1a1208, 0.18);
+scene.add(hemi);
+const fill = new THREE.AmbientLight(0x1c2434, 0.12);
+scene.add(fill);
+const sunLight = new THREE.DirectionalLight(0xfff4e5, 2.35);
+sunLight.position.set(0, 0.4, 18);
+scene.add(sunLight);
+
+const sunMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff1c1 })
+);
+scene.add(sunMesh);
+const sunGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.18, depthWrite: false })
+);
+sunMesh.add(sunGlow);
+
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(4500);
+for (let i = 0; i < 1500; i++) {
+    const r = 80 + Math.random() * 60;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    starPos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    starPos[i * 3 + 1] = r * Math.cos(ph);
+    starPos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, sizeAttenuation: true, transparent: true, opacity: 0.85 })));
+
+const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(220, 48, 32),
+    new THREE.MeshBasicMaterial({ map: loadTex(REMOTE_TEX.stars), side: THREE.BackSide, color: 0x667788 })
+);
+scene.add(sky);
+
+const tiltGroup = new THREE.Group();
+const spinGroup = new THREE.Group();
+const alignGroup = new THREE.Group();
+alignGroup.rotation.y = TEX_ALIGN;
+tiltGroup.add(spinGroup);
+spinGroup.add(alignGroup);
+scene.add(tiltGroup);
+
+const axisHelper = new THREE.Group();
+scene.add(axisHelper);
+
+let planetMesh = null;
+let cloudMesh = null;
+let atmosMesh = null;
+let ringMesh = null;
+let gridGroup = null;
+let measureLine = null;
+const poiAnchors = [];
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const clock = new THREE.Clock();
+
+function atmosMaterial(color) {
+    return new THREE.ShaderMaterial({
+        uniforms: { glowColor: { value: new THREE.Color(color) } },
+        vertexShader: `
+            varying vec3 vNormal;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 glowColor;
+            varying vec3 vNormal;
+            void main() {
+                float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.2);
+                gl_FragColor = vec4(glowColor, 1.0) * intensity;
+            }
+        `,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false
+    });
+}
+
+function makeGrid(radius) {
+    const g = new THREE.Group();
+    const mer = new THREE.LineBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.28 });
+    const eq = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.9 });
+    const pm = new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.9 });
+    for (let lon = -180; lon < 180; lon += 30) {
+        const pts = [];
+        for (let lat = -90; lat <= 90; lat += 2) pts.push(latLonToVector3(lat, lon, radius * 1.012));
+        g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lon === 0 ? pm : mer));
+    }
+    for (let lat = -60; lat <= 60; lat += 30) {
+        const pts = [];
+        for (let lon = -180; lon <= 180; lon += 2) pts.push(latLonToVector3(lat, lon, radius * 1.012));
+        g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? eq : mer));
+    }
+    return g;
+}
+
+function makeAxis(radius, tiltDeg) {
+    axisHelper.clear();
+    const h = radius * 1.55;
+    const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -h, 0),
+        new THREE.Vector3(0, h, 0)
+    ]);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xf472b6, transparent: true, opacity: 0.85 }));
+    const north = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), new THREE.MeshBasicMaterial({ color: 0xf9a8d4 }));
+    north.position.y = h;
+    axisHelper.add(line, north);
+    axisHelper.rotation.z = THREE.MathUtils.degToRad(tiltDeg);
+}
+
+function makeSaturnRing(radius, ringUrl) {
+    const inner = radius * 1.18;
+    const outer = radius * 2.15;
+    const geo = new THREE.RingGeometry(inner, outer, 160);
+    const pos = geo.attributes.position;
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i);
+        const len = Math.hypot(x, y);
+        uv.setXY(i, (len - inner) / (outer - inner), 0.5);
+    }
+    uv.needsUpdate = true;
+    const mat = new THREE.MeshBasicMaterial({
+        map: loadTex(ringUrl),
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = Math.PI / 2;
+    return mesh;
+}
+
+function clearPlanet() {
+    while (alignGroup.children.length) {
+        const ch = alignGroup.children[0];
+        alignGroup.remove(ch);
+        ch.traverse(obj => {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                else obj.material.dispose();
+            }
+        });
+    }
+    poiAnchors.length = 0;
+    ui.poi_labels.innerHTML = '';
+    planetMesh = cloudMesh = atmosMesh = ringMesh = gridGroup = null;
+}
+
+function buildPlanet() {
+    clearPlanet();
+    const body = currentBody();
+    const r = visualRadius(body);
+    const segs = body.gas ? 96 : 128;
+    const map = loadTex(body.texUrl);
+    const mat = new THREE.MeshStandardMaterial({
+        map,
+        bumpMap: body.bump ? map : null,
+        bumpScale: body.bump,
+        roughness: body.gas ? 0.5 : 0.86,
+        metalness: body.gas ? 0.04 : 0.02,
+        color: 0xffffff
+    });
+    if (body.emissiveUrl) {
+        mat.emissiveMap = loadTex(body.emissiveUrl);
+        mat.emissive = new THREE.Color(0x8899ff);
+        mat.emissiveIntensity = 0.9;
+    }
+    planetMesh = new THREE.Mesh(new THREE.SphereGeometry(r, segs, segs), mat);
+    alignGroup.add(planetMesh);
+
+    if (body.atmos) {
+        atmosMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(r * 1.045, 64, 64),
+            atmosMaterial(body.atmos)
+        );
+        alignGroup.add(atmosMesh);
+    }
+    if (body.cloudUrl) {
+        cloudMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(r * 1.012, 96, 96),
+            new THREE.MeshStandardMaterial({
+                map: loadTex(body.cloudUrl),
+                transparent: true,
+                opacity: 0.42,
+                depthWrite: false,
+                roughness: 1,
+                metalness: 0
+            })
+        );
+        alignGroup.add(cloudMesh);
+    }
+    if (body.ringUrl) {
+        ringMesh = makeSaturnRing(r, body.ringUrl);
+        alignGroup.add(ringMesh);
+    }
+    gridGroup = makeGrid(r);
+    alignGroup.add(gridGroup);
+
+    const pois = POIS[body.id] || [];
+    pois.forEach((poi, i) => {
+        const anchor = new THREE.Mesh(
+            new THREE.SphereGeometry(0.04, 8, 8),
+            new THREE.MeshBasicMaterial({ visible: false })
+        );
+        anchor.position.copy(latLonToVector3(poi.lat, poi.lon, r));
+        alignGroup.add(anchor);
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'poi-dot';
+        el.dataset.index = String(i);
+        el.addEventListener('mouseenter', () => showTooltip(poi, el));
+        el.addEventListener('mouseleave', hideTooltip);
+        el.addEventListener('click', ev => {
+            ev.stopPropagation();
+            flyTo(poi.lat, poi.lon);
+            state.activePoi = i;
+            refreshPoiList();
+        });
+        ui.poi_labels.appendChild(el);
+        poiAnchors.push({ poi, mesh: anchor, el });
+    });
+
+    makeAxis(r, body.tilt);
+    applyViewFlags();
+    updateStats();
+    refreshPoiList();
+    fitCamera(r);
+}
+
+function fitCamera(r) {
+    const dist = Math.max(7.2, r * 3.35);
+    camera.position.set(0, r * 0.18, dist);
+    controls.minDistance = r * 1.25;
+    controls.maxDistance = Math.max(18, r * 8);
+    controls.target.set(0, 0, 0);
+    controls.update();
+}
+
+function applyViewFlags() {
+    poiAnchors.forEach(p => { p.el.style.display = state.showPoi ? 'block' : 'none'; });
+    if (gridGroup) gridGroup.visible = state.showGrid;
+    axisHelper.visible = state.showTilt;
+    if (atmosMesh) atmosMesh.visible = state.showAtm;
+    if (cloudMesh) cloudMesh.visible = state.showCloud && !!currentBody().cloudUrl;
+    tiltGroup.rotation.z = state.showTilt ? THREE.MathUtils.degToRad(currentBody().tilt) : 0;
+}
+
+function updateStats() {
+    const b = currentBody();
+    const g = surfaceG(b);
+    const ve = escapeV(b);
+    const gE = surfaceG(bodyById('earth'));
+    const veE = escapeV(bodyById('earth'));
+    ui.stat_name.textContent = lang === 'zh' ? b.zh : b.en;
+    ui.hud_name.textContent = lang === 'zh' ? b.zh : b.en;
+    ui.stat_type.textContent = lang === 'zh' ? b.typeZh : b.typeEn;
+    ui.stat_note.textContent = lang === 'zh' ? b.noteZh : b.noteEn;
+    ui.val_mass.textContent = `${(b.mass / ME).toPrecision(3)} ${t('massE')}`;
+    ui.val_rad.textContent = `${b.radiusKm.toLocaleString()} km  (${(b.radiusKm / 6371).toPrecision(3)} ${t('radE')})`;
+    ui.val_g.textContent = `${g.toFixed(2)} m/s²`;
+    ui.val_ve.textContent = `${ve.toFixed(2)} km/s`;
+    ui.val_tilt.textContent = `${b.tilt.toFixed(2)}°`;
+    ui.val_spin.textContent = fmtPeriod(b.rotHours);
+    ui.val_atm.textContent = lang === 'zh' ? b.atmZh : b.atmEn;
+    ui.vs_g.textContent = `${(g / gE).toFixed(2)}×`;
+    ui.vs_ve.textContent = `${(ve / veE).toFixed(2)}×`;
+    ui.bar_g.style.width = `${Math.min(100, (g / 24.8) * 100)}%`;
+    ui.bar_ve.style.width = `${Math.min(100, (ve / 59.5) * 100)}%`;
+    ui.phase_label.textContent = phaseText(state.sunAngle);
+}
+
+function refreshPoiList() {
+    const pois = POIS[state.bodyId] || [];
+    ui.poi_list.innerHTML = '';
+    pois.forEach((poi, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'poi-item' + (state.activePoi === i ? ' active' : '');
+        btn.textContent = lang === 'zh' ? poi.zh : poi.en;
+        btn.addEventListener('click', () => {
+            flyTo(poi.lat, poi.lon);
+            state.activePoi = i;
+            refreshPoiList();
+        });
+        ui.poi_list.appendChild(btn);
+    });
+}
+
+function showTooltip(poi, el) {
+    ui.tt_title.textContent = lang === 'zh' ? poi.zh : poi.en;
+    ui.tt_desc.textContent = lang === 'zh' ? poi.zhD : poi.enD;
+    ui.tt_coord.textContent = fmtLatLon(poi.lat, poi.lon);
+    ui.poi_tooltip.style.opacity = '1';
+    const r = el.getBoundingClientRect();
+    const wrap = ui.canvas_wrap.getBoundingClientRect();
+    ui.poi_tooltip.style.left = `${r.left - wrap.left}px`;
+    ui.poi_tooltip.style.top = `${r.top - wrap.top}px`;
+}
+
+function hideTooltip() { ui.poi_tooltip.style.opacity = '0'; }
+
+function setAutoRot(on) {
+    state.autoRot = on;
+    updatePauseButton();
+}
+
+function updatePauseButton() {
+    const playing = state.autoRot;
+    ui.icon_pause.classList.toggle('hidden', !playing);
+    ui.icon_play.classList.toggle('hidden', playing);
+    ui.btn_pause.setAttribute('aria-pressed', String(!playing));
+    ui.btn_pause.setAttribute('aria-label', playing ? t('pause') : t('play'));
+    ui.rot_status.textContent = playing ? t('rotPlaying') : t('rotPaused');
+}
+
+function flyTo(lat, lon) {
+    setAutoRot(false);
+    const local = latLonToVector3(lat, lon, 1);
+    local.applyAxisAngle(new THREE.Vector3(0, 1, 0), TEX_ALIGN);
+    const toSpin = Math.atan2(-local.x, local.z);
+    const toPolar = Math.PI / 2 - lat * Math.PI / 180;
+    state.fly = {
+        t: 0,
+        dur: 0.9,
+        fromSpin: state.spinY,
+        toSpin: state.spinY + wrapPi(toSpin - state.spinY),
+        fromPolar: controls.getPolarAngle(),
+        toPolar: THREE.MathUtils.clamp(toPolar, 0.18, Math.PI - 0.18),
+        fromAz: controls.getAzimuthalAngle(),
+        dist: camera.position.length()
+    };
+}
+
+function setSun() {
+    const a = state.sunAngle * Math.PI / 180;
+    const d = 18;
+    sunLight.position.set(Math.sin(a) * d, 0.35, Math.cos(a) * d);
+    sunMesh.position.copy(sunLight.position).setLength(14.5);
+    ui.sun_val.textContent = `${state.sunAngle}°`;
+    ui.phase_label.textContent = phaseText(state.sunAngle);
+}
+
+function pickGlobe(ev) {
+    const rect = canvas.getBoundingClientRect();
+    pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    if (!planetMesh) return null;
+    const hits = raycaster.intersectObject(planetMesh, false);
+    if (!hits.length) return null;
+    const world = hits[0].point.clone();
+    alignGroup.worldToLocal(world);
+    return vectorToLatLon(world);
+}
+
+function onPointerMove(ev) {
+    const ll = pickGlobe(ev);
+    if (!ll) {
+        state.hoverLat = state.hoverLon = null;
+        ui.hud_coord.textContent = '—';
+        return;
+    }
+    state.hoverLat = ll.lat;
+    state.hoverLon = ll.lon;
+    ui.hud_coord.textContent = fmtLatLon(ll.lat, ll.lon);
+}
+
+function greatCircleKm(a, b) {
+    const la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180;
+    const dlo = (b.lon - a.lon) * Math.PI / 180;
+    const ang = Math.acos(THREE.MathUtils.clamp(
+        Math.sin(la1) * Math.sin(la2) + Math.cos(la1) * Math.cos(la2) * Math.cos(dlo),
+        -1, 1
+    ));
+    return currentBody().radiusKm * ang;
+}
+
+function drawMeasure() {
+    if (measureLine) {
+        alignGroup.remove(measureLine);
+        measureLine.geometry.dispose();
+        measureLine.material.dispose();
+        measureLine = null;
+    }
+    if (!state.measureA || !state.measureB) {
+        ui.hud_dist.classList.add('hidden');
+        return;
+    }
+    const r = visualRadius(currentBody()) * 1.018;
+    const va = latLonToVector3(state.measureA.lat, state.measureA.lon, 1);
+    const vb = latLonToVector3(state.measureB.lat, state.measureB.lon, 1);
+    const angle = va.angleTo(vb);
+    const axis = new THREE.Vector3().crossVectors(va, vb);
+    if (axis.lengthSq() < 1e-10) return;
+    axis.normalize();
+    const pts = [];
+    for (let i = 0; i <= 64; i++) {
+        const q = new THREE.Quaternion().setFromAxisAngle(axis, angle * i / 64);
+        pts.push(va.clone().applyQuaternion(q).multiplyScalar(r));
+    }
+    measureLine = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0x34d399, linewidth: 2 })
+    );
+    alignGroup.add(measureLine);
+    const km = greatCircleKm(state.measureA, state.measureB);
+    ui.hud_dist.classList.remove('hidden');
+    ui.hud_dist.textContent = `${t('dist')}: ${km < 100 ? km.toFixed(1) : km.toFixed(0)} km`;
+}
+
+function onCanvasClick(ev) {
+    if (ev.target.classList && ev.target.classList.contains('poi-dot')) return;
+    const ll = pickGlobe(ev);
+    if (!ll) return;
+    if (state.measuring) {
+        if (!state.measureA) {
+            state.measureA = ll;
+            ui.measure_hint.textContent = t('measureOn');
+        } else {
+            state.measureB = ll;
+            drawMeasure();
+            state.measuring = false;
+            ui.btn_measure.classList.remove('ring-2', 'ring-emerald-300');
+            ui.measure_hint.textContent = t('measureHint');
+        }
+        return;
+    }
+    ui.hud_coord.textContent = fmtLatLon(ll.lat, ll.lon);
+}
+
+function updateLabels() {
+    if (!state.showPoi) {
+        poiAnchors.forEach(p => { p.el.style.display = 'none'; });
+        return;
+    }
+    const wrap = ui.canvas_wrap;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const tmp = new THREE.Vector3();
+    const camDir = camera.position.clone().normalize();
+    poiAnchors.forEach((p, i) => {
+        p.mesh.getWorldPosition(tmp);
+        const vis = tmp.clone().normalize().dot(camDir) > 0.12;
+        if (!vis || tmp.project(camera).z > 1) {
+            p.el.style.display = 'none';
+            return;
+        }
+        p.el.style.display = 'block';
+        p.el.classList.toggle('active', state.activePoi === i);
+        p.el.style.left = `${(tmp.x * 0.5 + 0.5) * w}px`;
+        p.el.style.top = `${(-tmp.y * 0.5 + 0.5) * h}px`;
+    });
+}
+
+function resize() {
+    const wrap = ui.canvas_wrap;
+    const w = Math.max(1, wrap.clientWidth);
+    const h = Math.max(1, wrap.clientHeight);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false);
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (typeof i18n[lang][k] === 'string') el.textContent = i18n[lang][k];
+    });
+    const credit = document.getElementById('tex-credit');
+    if (credit) {
+        credit.innerHTML = lang === 'zh'
+            ? '貼圖自 <a class="text-sky-400 underline hover:text-sky-300" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a> 等遠端 URL 載入（CC BY 4.0）。拖曳旋轉、滾輪縮放。'
+            : 'Textures load via remote URLs from <a class="text-sky-400 underline hover:text-sky-300" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a> (CC BY 4.0). Drag to orbit, scroll to zoom.';
+    }
+    updatePauseButton();
+    document.querySelectorAll('[data-body]').forEach(btn => {
+        const b = bodyById(btn.dataset.body);
+        btn.querySelector('.body-name').textContent = lang === 'zh' ? b.zh : b.en;
+    });
+    ui.btn_measure.textContent = t('measure');
+    if (!state.measuring) ui.measure_hint.textContent = t('measureHint');
+    updateStats();
+    refreshPoiList();
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise();
+}
+
+function setModal(id, open) {
+    const el = document.getElementById(id);
+    const box = el.querySelector('.modal-content');
+    if (open) {
+        el.classList.remove('opacity-0', 'pointer-events-none');
+        box.classList.remove('scale-95', 'opacity-0');
+        if (id === 'modal-principle' && window.MathJax?.typesetPromise) MathJax.typesetPromise([el]);
+    } else {
+        el.classList.add('opacity-0', 'pointer-events-none');
+        box.classList.add('scale-95', 'opacity-0');
+    }
+}
+
+function selectBody(id) {
+    state.bodyId = id;
+    state.activePoi = null;
+    state.measureA = state.measureB = null;
+    drawMeasure();
+    document.querySelectorAll('.body-btn').forEach(b => b.classList.toggle('active', b.dataset.body === id));
+    buildPlanet();
+}
+
+function resetAll() {
+    state.sunAngle = 0;
+    state.rotSpeed = 1;
+    setAutoRot(true);
+    state.showPoi = true;
+    state.showGrid = false;
+    state.showTilt = true;
+    state.showAtm = true;
+    state.showCloud = true;
+    state.relSize = false;
+    state.measuring = false;
+    state.spinY = 0;
+    state.measureA = state.measureB = null;
+    state.activePoi = null;
+    ui.sun_slider.value = 0;
+    ui.rot_slider.value = 1;
+    ui.rot_val.textContent = '1.0×';
+    ui.tog_poi.checked = true;
+    ui.tog_grid.checked = false;
+    ui.tog_tilt.checked = true;
+    ui.tog_atm.checked = true;
+    ui.tog_cloud.checked = true;
+    ui.tog_scale.checked = false;
+    ui.btn_measure.classList.remove('ring-2', 'ring-emerald-300');
+    selectBody('moon');
+    setSun();
+}
+
+function buildBodyButtons() {
+    ui.body_grid.innerHTML = '';
+    BODIES.forEach(b => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'body-btn' + (b.id === state.bodyId ? ' active' : '');
+        btn.dataset.body = b.id;
+        btn.innerHTML = `<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${b.hue}"></span><span class="body-name truncate">${lang === 'zh' ? b.zh : b.en}</span>`;
+        btn.addEventListener('click', () => selectBody(b.id));
+        ui.body_grid.appendChild(btn);
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    sky.rotation.y += dt * 0.003;
+
+    if (state.fly) {
+        state.fly.t += dt;
+        const u = Math.min(1, state.fly.t / state.fly.dur);
+        const e = 1 - Math.pow(1 - u, 3);
+        state.spinY = THREE.MathUtils.lerp(state.fly.fromSpin, state.fly.toSpin, e);
+        const polar = THREE.MathUtils.lerp(state.fly.fromPolar, state.fly.toPolar, e);
+        const az = THREE.MathUtils.lerp(state.fly.fromAz, 0, e);
+        const dist = state.fly.dist;
+        camera.position.setFromSphericalCoords(dist, polar, az);
+        camera.lookAt(0, 0, 0);
+        if (u >= 1) state.fly = null;
+    } else if (state.autoRot) {
+        const b = currentBody();
+        const dir = b.rotHours < 0 ? -1 : 1;
+        state.spinY += dir * state.rotSpeed * dt * 0.28;
+    }
+
+    spinGroup.rotation.y = state.spinY;
+    if (cloudMesh && state.showCloud) {
+        state.cloudSpin += dt * 0.04;
+        cloudMesh.rotation.y = state.cloudSpin;
+    }
+
+    if (state.fly) controls.enabled = false;
+    else {
+        controls.enabled = true;
+        controls.update();
+    }
+    updateLabels();
+    renderer.render(scene, camera);
+}
+
+function init() {
+    buildBodyButtons();
+    buildPlanet();
+    setSun();
+    applyLang();
+    updatePauseButton();
+    resize();
+    new ResizeObserver(resize).observe(ui.canvas_wrap);
+
+    ui.sun_slider.addEventListener('input', e => {
+        state.sunAngle = parseInt(e.target.value, 10);
+        setSun();
+    });
+    ui.rot_slider.addEventListener('input', e => {
+        state.rotSpeed = parseFloat(e.target.value);
+        ui.rot_val.textContent = `${state.rotSpeed.toFixed(2)}×`;
+    });
+    ui.btn_pause.addEventListener('click', () => setAutoRot(!state.autoRot));
+    ui.tog_poi.addEventListener('change', e => { state.showPoi = e.target.checked; applyViewFlags(); });
+    ui.tog_grid.addEventListener('change', e => { state.showGrid = e.target.checked; applyViewFlags(); });
+    ui.tog_tilt.addEventListener('change', e => { state.showTilt = e.target.checked; applyViewFlags(); });
+    ui.tog_atm.addEventListener('change', e => { state.showAtm = e.target.checked; applyViewFlags(); });
+    ui.tog_cloud.addEventListener('change', e => { state.showCloud = e.target.checked; applyViewFlags(); });
+    ui.tog_scale.addEventListener('change', e => {
+        state.relSize = e.target.checked;
+        buildPlanet();
+    });
+    ui.btn_measure.addEventListener('click', () => {
+        state.measuring = !state.measuring;
+        state.measureA = state.measureB = null;
+        drawMeasure();
+        ui.btn_measure.classList.toggle('ring-2', state.measuring);
+        ui.btn_measure.classList.toggle('ring-emerald-300', state.measuring);
+        ui.measure_hint.textContent = state.measuring ? t('measureOn') : t('measureHint');
+    });
+    ui.btn_reset.addEventListener('click', resetAll);
+
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('click', onCanvasClick);
+
+    ui.btn_lang.addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); });
+    ui.btn_lang_mobile.addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); });
+    ui.btn_principle.addEventListener('click', () => setModal('modal-principle', true));
+    ui.btn_steps.addEventListener('click', () => setModal('modal-steps', true));
+    ui.modal_close.addEventListener('click', () => setModal('modal-principle', false));
+    ui.modal_confirm.addEventListener('click', () => setModal('modal-principle', false));
+    ui.steps_close.addEventListener('click', () => setModal('modal-steps', false));
+    ui.steps_confirm.addEventListener('click', () => setModal('modal-steps', false));
+    ui.modal_principle.addEventListener('click', ev => { if (ev.target === ui.modal_principle) setModal('modal-principle', false); });
+    ui.modal_steps.addEventListener('click', ev => { if (ev.target === ui.modal_steps) setModal('modal-steps', false); });
+    document.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') {
+            setModal('modal-principle', false);
+            setModal('modal-steps', false);
+        }
+    });
+
+    animate();
+}
+
+init();
+</script>
+</body>
+</html>

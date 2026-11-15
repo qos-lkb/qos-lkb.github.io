@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-11-15
+
+### 模擬 HTML 改回磁碟檔
+- `simulations` 新增 `html_path`（相對專案根的科目資料夾路徑）。目錄、狀態、標籤仍在資料庫；HTML 內文不再作為權威來源。
+- 後台 `admin/export_sim_html.php` 可把既有 `html` 欄寫回檔案。確認每一列都有檔後，執行 `php scripts/drop_simulations_html_column.php` 刪除 `html` 欄。
+- iframe、匯出下載、後台儲存與投稿改讀寫磁碟檔。`scripts/sync_simulations_to_db.php` 只檢查檔案是否齊全。
+
 ## 2026-11-14
 
 ### 模擬視窗截圖

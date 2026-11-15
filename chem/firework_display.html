@@ -3,820 +3,1315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>化學實驗室：維港煙花匯演</title>
+    <title>煙花焰色匯演 | Firework Flame Colours</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #0f172a; }
-        canvas { display: block; }
-        /* 自定義發光效果 */
-        .glow-text {
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: 'Noto Sans TC', 'Segoe UI', sans-serif;
+            background: #020617;
+            color: #e2e8f0;
+            touch-action: manipulation;
         }
-        .metal-btn.active {
-            ring-width: 4px;
-            --tw-ring-opacity: 1;
-            transform: scale(1.1);
-        }
-        /* 滑桿樣式 */
-        input[type=range] {
-            -webkit-appearance: none;
-            background: transparent;
-        }
+        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 16px;
-            width: 16px;
-            border-radius: 50%;
-            background: #ffffff;
-            cursor: pointer;
-            margin-top: -6px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #fff; cursor: pointer; margin-top: -6px;
+            box-shadow: 0 0 8px rgba(250, 204, 21, 0.5); border: 2px solid #facc15;
         }
         input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            cursor: pointer;
-            background: #475569;
-            border-radius: 2px;
+            height: 4px; background: #334155; border-radius: 2px;
         }
-        /* Modal 動畫 */
-        .modal {
+        .modal-backdrop {
             opacity: 0;
+            visibility: hidden;
             pointer-events: none;
-            transition: opacity 0.3s ease;
+            transition: opacity .25s ease, visibility .25s ease;
         }
-        .modal.open {
+        .modal-backdrop.modal-open {
             opacity: 1;
+            visibility: visible;
             pointer-events: auto;
         }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; transform: scale(.95); opacity: 0; }
+        .modal-open .modal-content { transform: scale(1); opacity: 1; }
+        .metal-btn.active { transform: scale(1.04); box-shadow: 0 0 0 2px #fff, 0 0 14px currentColor; }
+        .seg-btn.on { background: #1e293b; color: #fde68a; border-color: #facc15; }
+        .mj-box, .mj-display { background: rgba(0,0,0,.45); color: #e2e8f0; }
+        .mj-box mjx-container, .mj-display mjx-container { color: #e2e8f0 !important; }
+        #metal-grid::-webkit-scrollbar, aside::-webkit-scrollbar { width: 6px; }
+        #metal-grid::-webkit-scrollbar-thumb, aside::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
     </style>
 </head>
-<body class="font-sans text-white select-none">
+<body class="h-full min-h-0 flex flex-col overflow-hidden select-none">
 
-    <!-- UI 層 -->
-    <div class="absolute inset-0 pointer-events-none flex flex-col justify-between z-10">
-        
-        <!-- Header Bar -->
-        <div class="bg-black/60 backdrop-blur-md p-3 flex flex-col md:flex-row justify-between items-center border-b border-white/10 pointer-events-auto gap-2">
-            <h1 class="text-xl md:text-2xl font-bold text-yellow-400 glow-text flex items-center gap-2" data-i18n="title">
-                🧪 維港煙花化學實驗室
-            </h1>
-            
-            <div class="flex gap-2">
-                <button onclick="toggleModal('usage-modal')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition border border-white/20" data-i18n="btn_usage">
-                    使用方法
-                </button>
-                <button onclick="toggleModal('principle-modal')" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition border border-white/20" data-i18n="btn_principle">
-                    原理解說
-                </button>
-                <button onclick="switchLanguage()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition border border-white/20" id="lang-btn">
-                    中 / EN
-                </button>
-            </div>
-        </div>
-
-        <!-- 控制面板 -->
-        <div class="bg-black/70 backdrop-blur-xl p-4 md:pb-6 pointer-events-auto border-t border-white/10 flex flex-col gap-4">
-            
-            <div class="flex flex-col md:flex-row gap-6 justify-center items-center">
-                <!-- 左側：金屬選擇 -->
-                <div class="flex flex-wrap justify-center gap-2 max-w-2xl" id="metal-container">
-                    <!-- JS 生成按鈕 -->
+    <header class="shrink-0 sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-white/10 px-3 sm:px-5 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-400 to-emerald-400 flex items-center justify-center text-lg shadow-lg shadow-amber-500/20">🎆</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">煙花焰色匯演</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold" data-i18n="badge">化學</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block" data-i18n="subtitle">維港夜空 · 金屬焰色與火花 · 能階躍遷</p>
                 </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold border border-slate-600">中 / EN</button>
+        </div>
+        <div class="flex flex-wrap gap-2 justify-end w-full md:w-auto">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold border border-slate-600 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm font-semibold border border-slate-600">中 / EN</button>
+        </div>
+    </header>
 
-                <!-- 右側：變因控制 -->
-                <div class="flex flex-col gap-3 bg-white/5 p-4 rounded-xl border border-white/10 min-w-[250px]">
-                    
-                    <!-- 劑量滑桿 -->
-                    <div>
-                        <div class="flex justify-between text-xs text-blue-300 mb-1">
-                            <span data-i18n="label_dosage">金屬劑量 (爆炸半徑)</span>
-                            <span id="dosage-val">1.0x</span>
-                        </div>
-                        <input type="range" id="dosage-slider" min="0.5" max="2.0" step="0.1" value="1.0" class="w-full">
+    <main class="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 p-3">
+        <section class="relative flex-1 min-h-[260px] lg:min-h-0 rounded-2xl overflow-hidden border border-slate-700 shadow-inner order-1">
+            <canvas id="canvas"></canvas>
+            <div class="absolute top-3 left-3 right-3 flex flex-wrap gap-2 pointer-events-none">
+                <div id="hud-hint" class="bg-black/55 backdrop-blur-sm text-[11px] px-3 py-1.5 rounded-full border border-white/10 text-slate-200"></div>
+                <div id="hud-metal" class="bg-black/55 backdrop-blur-sm text-[11px] px-3 py-1.5 rounded-full border border-white/10 font-bold"></div>
+            </div>
+            <div id="quiz-panel" class="hidden absolute left-3 right-3 top-12 lg:left-auto lg:right-3 lg:w-80 bg-slate-900/92 backdrop-blur-md border border-amber-400/40 rounded-2xl p-3 pointer-events-auto z-20">
+                <p id="quiz-prompt" class="text-xs font-bold text-amber-200 mb-2"></p>
+                <div id="quiz-choices" class="grid grid-cols-2 gap-2"></div>
+                <p id="quiz-feedback" class="mt-2 text-xs font-semibold min-h-[1.2em]"></p>
+            </div>
+        </section>
+
+        <aside class="w-full lg:w-[22.5rem] shrink-0 overflow-y-auto order-2 flex flex-col gap-3 max-h-[46vh] lg:max-h-none">
+            <div class="bg-slate-900/80 rounded-2xl border border-slate-700 p-4">
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="mode-design" class="seg-btn on flex-1 py-1.5 rounded-lg border border-slate-600 text-[11px] font-extrabold" data-i18n="modeDesign">設計發射</button>
+                    <button type="button" id="mode-challenge" class="seg-btn flex-1 py-1.5 rounded-lg border border-slate-600 text-[11px] font-extrabold bg-slate-800" data-i18n="modeChallenge">辨色挑戰</button>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="filter-all" class="seg-btn on flex-1 py-1 rounded-lg border border-slate-600 text-[10px] font-bold" data-i18n="filterAll">全部</button>
+                    <button type="button" id="filter-emission" class="seg-btn flex-1 py-1 rounded-lg border border-slate-600 text-[10px] font-bold bg-slate-800" data-i18n="filterEmission">焰色金屬</button>
+                    <button type="button" id="filter-spark" class="seg-btn flex-1 py-1 rounded-lg border border-slate-600 text-[10px] font-bold bg-slate-800" data-i18n="filterSpark">火花金屬</button>
+                </div>
+                <p class="text-[10px] font-bold text-slate-400 mb-1.5" data-i18n="labelMetal">選擇金屬（外層星體）</p>
+                <div id="metal-grid" class="grid grid-cols-7 gap-1 mb-3"></div>
+                <label class="block text-[10px] font-bold text-slate-400 mb-1" data-i18n="labelPistil">內芯金屬（可混色）</label>
+                <select id="pistil-select" class="w-full mb-3 text-xs bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5"></select>
+                <p class="text-[10px] font-bold text-slate-400 mb-1.5" data-i18n="labelShape">綻放形狀</p>
+                <div id="shape-row" class="grid grid-cols-3 gap-1.5 mb-3"></div>
+                <div class="mb-3">
+                    <div class="flex justify-between text-[11px] text-sky-300 mb-1">
+                        <span data-i18n="labelDosage">金屬劑量（半徑）</span>
+                        <span id="dosage-val">1.0×</span>
                     </div>
+                    <input type="range" id="dosage-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+                <div class="mb-3">
+                    <div class="flex justify-between text-[11px] text-emerald-300 mb-1">
+                        <span data-i18n="labelTime">引信時間（高度）</span>
+                        <span id="time-val"></span>
+                    </div>
+                    <input type="range" id="time-slider" min="0" max="100" step="10" value="50">
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-[10px] mb-3">
+                    <label class="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2 py-1.5 border border-slate-700 cursor-pointer">
+                        <input type="checkbox" id="chk-sound" checked class="accent-amber-400">
+                        <span data-i18n="chkSound">音效</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2 py-1.5 border border-slate-700 cursor-pointer">
+                        <input type="checkbox" id="chk-slow" class="accent-amber-400">
+                        <span data-i18n="chkSlow">慢鏡</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2 py-1.5 border border-slate-700 cursor-pointer">
+                        <input type="checkbox" id="chk-labels" checked class="accent-amber-400">
+                        <span data-i18n="chkLabels">標籤</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button type="button" id="launch-btn" class="py-2 rounded-xl font-extrabold text-sm text-white bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-500 hover:to-orange-400" data-i18n="btnLaunch">全部發射</button>
+                    <button type="button" id="clear-btn" class="py-2 rounded-xl font-extrabold text-sm bg-slate-700 hover:bg-slate-600 border border-slate-500" data-i18n="btnClear">清除海面</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="show-btn" class="py-2 rounded-xl font-bold text-xs bg-violet-700 hover:bg-violet-600" data-i18n="btnShow">彩虹匯演</button>
+                    <button type="button" id="reset-btn" class="py-2 rounded-xl font-bold text-xs bg-slate-900 hover:bg-black border border-slate-600" data-i18n="btnReset">重置模擬</button>
+                </div>
+                <button type="button" id="quiz-new-btn" class="hidden mt-2 w-full py-2 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500" data-i18n="btnNewQuiz">出新題</button>
+            </div>
 
-                    <!-- 時間滑桿 -->
+            <div class="bg-slate-900/80 rounded-2xl border border-slate-700 p-4">
+                <h2 class="text-sm font-bold text-amber-300 mb-2" data-i18n="infoTitle">金屬資料卡</h2>
+                <div class="flex items-center gap-3 mb-2">
+                    <div id="info-swatch" class="w-8 h-8 rounded-full border border-white/40 shrink-0"></div>
                     <div>
-                        <div class="flex justify-between text-xs text-green-300 mb-1">
-                            <span data-i18n="label_time">引信時間 (爆炸高度)</span>
-                            <span id="time-val" data-i18n="val_standard">標準</span>
-                        </div>
-                        <input type="range" id="time-slider" min="0" max="100" step="10" value="50" class="w-full">
+                        <p id="info-name" class="font-black text-white text-sm">—</p>
+                        <p id="info-ion" class="text-[11px] text-slate-400 font-mono">—</p>
                     </div>
                 </div>
-            </div>
-
-            <!-- 操作按鈕 -->
-            <div class="flex justify-center gap-4 mt-2">
-                <button id="launch-btn" class="bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-2 px-8 rounded-full shadow-lg transition transform hover:scale-105 active:scale-95 text-lg flex items-center gap-2 border border-red-400/30">
-                    <span data-i18n="btn_launch">🔥 全部發射</span>
-                </button>
-                <button id="clear-btn" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 active:scale-95 border border-white/10">
-                    <span data-i18n="btn_clear">🌊 清除海面</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modals -->
-    
-    <!-- 使用說明 Modal -->
-    <div id="usage-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-        <div class="bg-gray-900 border border-white/20 rounded-2xl max-w-lg w-full p-6 relative shadow-2xl">
-            <button onclick="toggleModal('usage-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-white">✕</button>
-            <h2 class="text-2xl font-bold text-blue-400 mb-4" data-i18n="modal_usage_title">操作說明</h2>
-            <ul class="list-disc pl-5 space-y-2 text-gray-300 text-sm md:text-base">
-                <li data-i18n="modal_usage_1">1. 選擇一種金屬元素（如 Na 鈉）。</li>
-                <li data-i18n="modal_usage_2">2. 調整「劑量」與「時間」滑桿。</li>
-                <li data-i18n="modal_usage_3">3. 點擊「海面」放置煙花筒，可放置多個。</li>
-                <li data-i18n="modal_usage_4">4. 點擊「🔥 全部發射」按鈕，或直接點擊海面上的煙花筒進行單獨發射。</li>
-                <li data-i18n="modal_usage_5">5. 觀察不同金屬在維港夜空綻放的顏色（焰色反應）。</li>
-            </ul>
-            <div class="mt-6 text-center">
-                <button onclick="toggleModal('usage-modal')" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full font-bold">OK</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 原理解說 Modal -->
-    <div id="principle-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-        <div class="bg-gray-900 border border-white/20 rounded-2xl max-w-xl w-full p-6 relative shadow-2xl overflow-y-auto max-h-[90vh]">
-            <button onclick="toggleModal('principle-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-white">✕</button>
-            <h2 class="text-2xl font-bold text-purple-400 mb-4" data-i18n="modal_principle_title">焰色反應原理 (Flame Test)</h2>
-            
-            <div class="space-y-4 text-gray-300 text-sm md:text-base leading-relaxed">
-                <p>
-                    <strong class="text-white" data-i18n="principle_p1_title">為什麼金屬燃燒會有顏色？</strong><br>
-                    <span data-i18n="principle_p1_content">這是因為原子中的電子發生了「能階躍遷」。</span>
-                </p>
-                
-                <div class="bg-black/50 p-4 rounded-lg border border-white/10">
-                    <ol class="list-decimal pl-5 space-y-2">
-                        <li>
-                            <strong class="text-yellow-200" data-i18n="principle_step1_title">受熱激發 (Excitation)：</strong>
-                            <span data-i18n="principle_step1_content">當金屬鹽類受熱（煙花爆炸）時，原子外的電子吸收能量，從穩定的「基態」跳躍到能量較高的「激發態」。</span>
-                        </li>
-                        <li>
-                            <strong class="text-blue-200" data-i18n="principle_step2_title">返回基態 (Relaxation)：</strong>
-                            <span data-i18n="principle_step2_content">激發態很不穩定，電子會立刻跳回原本的低能量層。</span>
-                        </li>
-                        <li>
-                            <strong class="text-red-200" data-i18n="principle_step3_title">釋放光子 (Emission)：</strong>
-                            <span data-i18n="principle_step3_content">多餘的能量會以「光」的形式釋放出來。</span>
-                        </li>
-                    </ol>
+                <dl class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px] text-slate-300">
+                    <dt class="text-slate-500" data-i18n="infoKind">發光方式</dt><dd id="info-kind">—</dd>
+                    <dt class="text-slate-500" data-i18n="infoColor">觀察顏色</dt><dd id="info-color">—</dd>
+                    <dt class="text-slate-500" data-i18n="infoWave">主要波長</dt><dd id="info-wave" class="font-mono">—</dd>
+                    <dt class="text-slate-500" data-i18n="infoSalt">常用化合物</dt><dd id="info-salt" class="font-mono">—</dd>
+                </dl>
+                <div class="mt-2 h-3 rounded-full overflow-hidden relative bg-gradient-to-r from-violet-600 via-blue-500 via-30% via-emerald-400 via-50% via-yellow-300 via-70% to-red-500" id="spectrum-bar">
+                    <div id="spectrum-mark" class="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_6px_white]"></div>
                 </div>
-
-                <p data-i18n="principle_summary">
-                    不同的金屬元素，其電子能階的差距不同，釋放出的光波長也不同，因此我們能看到五顏六色的煙花！
-                    <br><br>
-                    例如：<span class="text-yellow-400">鈉(Na)</span> 釋放黃光，<span class="text-red-500">鍶(Sr)</span> 釋放紅光，<span class="text-green-400">鋇(Ba)</span> 釋放綠光。
-                </p>
+                <p id="info-desc" class="mt-2 text-[11px] text-slate-400 leading-relaxed">—</p>
+                <p id="quiz-score" class="hidden mt-2 text-[11px] font-bold text-amber-200"></p>
             </div>
+        </aside>
+    </main>
 
-            <div class="mt-6 text-center">
-                <button onclick="toggleModal('principle-modal')" class="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-full font-bold">Got it!</button>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-600 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="sticky top-0 bg-slate-800 p-5 border-b border-slate-700 flex justify-between items-center z-10">
+                <h2 id="modal-title" class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-rose-400" data-i18n="modalTitle">煙花顏色的化學原理</h2>
+                <button type="button" id="modal-close" class="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-700" aria-label="關閉">✕</button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <h3 class="font-bold text-white mb-2" data-i18n="m1t">1. 電子躍遷</h3>
+                    <p data-i18n="m1d">金屬鹽在煙花爆炸的高溫中受熱，電子吸收能量從<strong>基態</strong>跳到<strong>激發態</strong>。激發態不穩定，電子迅速返回低能階，多餘能量以光子放出，我們便看見特定顏色。</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <h3 class="font-bold text-white mb-2" data-i18n="m2t">2. 光子能量與波長</h3>
+                    <p class="mb-2" data-i18n="m2d">能量差決定光的頻率與波長，因而決定顏色：</p>
+                    <div class="mj-display p-4 rounded-lg my-2 overflow-x-auto">
+                        $$ \Delta E = E_{\text{high}} - E_{\text{low}} = h\nu = \frac{hc}{\lambda} $$
+                    </div>
+                    <p class="text-xs text-slate-400" data-i18n="m2n">$h$ 為普朗克常數，$c$ 為光速，$\lambda$ 為波長。能隙愈大，波長愈短（偏藍紫）；能隙愈小，波長愈長（偏紅）。</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <h3 class="font-bold text-white mb-2" data-i18n="m3t">3. 焰色 vs 火花</h3>
+                    <p data-i18n="m3d"><strong>焰色金屬</strong>（Li、Na、K、Ca、Sr、Ba、Cu 等）靠原子發射光譜，顏色是元素的「指紋」。 <strong>火花金屬</strong>（Mg、Al、Fe、Zn、Ti）主要是高溫固體的<strong>熱輻射（連續光譜）</strong>，呈白、銀或金色火花，並不是線狀焰色。</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <h3 class="font-bold text-white mb-2" data-i18n="m4t">4. 常見煙花金屬</h3>
+                    <div id="metal-table" class="overflow-x-auto text-[11px]"></div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <h3 class="font-bold text-white mb-2" data-i18n="m5t">5. 生活例子與安全</h3>
+                    <p data-i18n="m5d">維港匯演的紅、綠、金，常用硝酸鍶、硝酸鋇與鈉鹽／鐵粉。真正煙花含氧化劑與燃料，不可在家配制。本模擬只展示焰色與火花，對應本生燈焰色測試的同一原理。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-700 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
     </div>
 
-    <!-- 畫布層 -->
-    <canvas id="canvas"></canvas>
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-slate-800 w-full max-w-lg rounded-2xl shadow-2xl border border-slate-600 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="sticky top-0 bg-slate-800 p-5 border-b border-slate-700 flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold text-emerald-300" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-700" aria-label="關閉">✕</button>
+            </div>
+            <div class="p-5 space-y-3 text-sm text-slate-300">
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700" data-i18n="s1">1. 選一種焰色金屬，看資料卡的顏色與波長，預測夜空會出現什麼色。</div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700" data-i18n="s2">2. 點擊海面放置煙花船，調劑量與引信高度，按「全部發射」或點擊單艘船。</div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700" data-i18n="s3">3. 比較相近色：鋰 vs 鍶（紅）、鈉 vs 鈣（黃／橙）、鉀 vs 銫（紫）。鈉特別亮、鉀特別淡。</div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700" data-i18n="s4">4. 加內芯金屬與改形狀（牡丹／菊花／柳樹／環／心形），觀察外層與內芯混色。</div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700" data-i18n="s5">5. 對照火花金屬（鐵金柳、鎂亮白）與焰色金屬；再進入「辨色挑戰」由顏色反推元素。</div>
+            </div>
+            <div class="p-4 border-t border-slate-700 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
 
-    <script>
-        // --- 0. 語言與本地化 (Localization) ---
-        let currentLang = 'zh'; // 'zh' or 'en'
-        
-        const translations = {
-            zh: {
-                title: "🧪 維港煙花化學實驗室",
-                btn_usage: "使用方法",
-                btn_principle: "原理解說",
-                label_dosage: "金屬劑量 (爆炸半徑)",
-                label_time: "引信時間 (爆炸高度)",
-                val_standard: "標準",
-                val_low: "提早 (低空)",
-                val_high: "延遲 (高空)",
-                btn_launch: "🔥 全部發射",
-                btn_clear: "🌊 清除海面",
-                modal_usage_title: "操作說明",
-                modal_usage_1: "1. 選擇一種金屬元素（如 Na 鈉）。",
-                modal_usage_2: "2. 調整「劑量」與「時間」滑桿。",
-                modal_usage_3: "3. 點擊「海面」放置煙花筒，可放置多個。",
-                modal_usage_4: "4. 點擊「🔥 全部發射」按鈕，或直接點擊海面上的煙花筒進行單獨發射。",
-                modal_usage_5: "5. 觀察不同金屬在維港夜空綻放的顏色（焰色反應）。",
-                modal_principle_title: "焰色反應原理 (Flame Test)",
-                principle_p1_title: "為什麼金屬燃燒會有顏色？",
-                principle_p1_content: "這是因為原子中的電子發生了「能階躍遷」。",
-                principle_step1_title: "受熱激發 (Excitation)：",
-                principle_step1_content: "當金屬鹽類受熱（煙花爆炸）時，原子外的電子吸收能量，從穩定的「基態」跳躍到能量較高的「激發態」。",
-                principle_step2_title: "返回基態 (Relaxation)：",
-                principle_step2_content: "激發態很不穩定，電子會立刻跳回原本的低能量層。",
-                principle_step3_title: "釋放光子 (Emission)：",
-                principle_step3_content: "多餘的能量會以「光」的形式釋放出來。",
-                principle_summary: "不同的金屬元素，其電子能階的差距不同，釋放出的光波長也不同，因此我們能看到五顏六色的煙花！<br><br>例如：<span class='text-yellow-400'>鈉(Na)</span> 釋放黃光，<span class='text-red-500'>鍶(Sr)</span> 釋放紅光，<span class='text-green-400'>鋇(Ba)</span> 釋放綠光。",
-                // 金屬名稱
-                Sr_name: "鍶 (Strontium)",
-                Ca_name: "鈣 (Calcium)",
-                Na_name: "鈉 (Sodium)",
-                Ba_name: "鋇 (Barium)",
-                Cu_name: "銅 (Copper)",
-                K_name: "鉀 (Potassium)",
-                Mg_name: "鎂 (Magnesium)",
-                alert_place: "請先點擊海面放置煙花船！"
-            },
-            en: {
-                title: "🧪 Victoria Harbour Fireworks Lab",
-                btn_usage: "Instructions",
-                btn_principle: "Principles",
-                label_dosage: "Metal Dosage (Radius)",
-                label_time: "Fuse Time (Altitude)",
-                val_standard: "Standard",
-                val_low: "Early (Low)",
-                val_high: "Late (High)",
-                btn_launch: "🔥 Launch All",
-                btn_clear: "🌊 Clear Sea",
-                modal_usage_title: "How to Play",
-                modal_usage_1: "1. Select a Metal Element (e.g., Na).",
-                modal_usage_2: "2. Adjust 'Dosage' and 'Time' sliders.",
-                modal_usage_3: "3. Click on the 'Sea' to place fireworks barges.",
-                modal_usage_4: "4. Click 'Launch All' or click individual barges to fire.",
-                modal_usage_5: "5. Observe the unique colors produced by different metals (Flame Test).",
-                modal_principle_title: "Chemistry Principle: Flame Test",
-                principle_p1_title: "Why do metals burn with colors?",
-                principle_p1_content: "It's due to electron transitions within atoms.",
-                principle_step1_title: "Excitation:",
-                principle_step1_content: "When heated, electrons absorb energy and jump from the 'Ground State' to a higher energy 'Excited State'.",
-                principle_step2_title: "Relaxation:",
-                principle_step2_content: "The excited state is unstable. Electrons immediately fall back to lower energy levels.",
-                principle_step3_title: "Emission:",
-                principle_step3_content: "The excess energy is released in the form of light (Photons).",
-                principle_summary: "Different elements have different energy gaps, producing light of specific wavelengths (colors).<br><br>E.g., <span class='text-yellow-400'>Sodium(Na)</span> is Yellow, <span class='text-red-500'>Strontium(Sr)</span> is Red, <span class='text-green-400'>Barium(Ba)</span> is Green.",
-                // Metal Names
-                Sr_name: "Sr (Strontium)",
-                Ca_name: "Ca (Calcium)",
-                Na_name: "Na (Sodium)",
-                Ba_name: "Ba (Barium)",
-                Cu_name: "Cu (Copper)",
-                K_name: "K (Potassium)",
-                Mg_name: "Mg (Magnesium)",
-                alert_place: "Please click on the sea to place fireworks first!"
+<script>
+const I18N = {
+    zh: {
+        title: "煙花焰色匯演", badge: "化學", subtitle: "維港夜空 · 金屬焰色與火花 · 能階躍遷",
+        btnSteps: "觀察步驟", btnPrinciple: "原理解說", stepsTitle: "觀察步驟", modalClose: "關閉",
+        modeDesign: "設計發射", modeChallenge: "辨色挑戰",
+        filterAll: "全部", filterEmission: "焰色金屬", filterSpark: "火花金屬",
+        labelMetal: "選擇金屬（外層星體）", labelPistil: "內芯金屬（可混色）", labelShape: "綻放形狀",
+        labelDosage: "金屬劑量（半徑）", labelTime: "引信時間（高度）",
+        valStd: "標準", valLow: "提早（低空）", valHigh: "延遲（高空）",
+        chkSound: "音效", chkSlow: "慢鏡", chkLabels: "標籤",
+        btnLaunch: "全部發射", btnClear: "清除海面", btnShow: "彩虹匯演", btnReset: "重置模擬", btnNewQuiz: "出新題",
+        pistilNone: "無（單色）",
+        infoTitle: "金屬資料卡", infoKind: "發光方式", infoColor: "觀察顏色", infoWave: "主要波長", infoSalt: "常用化合物",
+        kindEmission: "原子發射光譜（焰色）", kindSpark: "熱輻射／火花（連續光譜）",
+        hintPlace: "點擊海面放置煙花船 · 點擊船身單獨發射",
+        hintChallenge: "題目已出：發射後根據顏色選出金屬",
+        hudMetal: (m, p, sh) => p ? `外層 ${m} · 內芯 ${p} · ${sh}` : `外層 ${m} · ${sh}`,
+        quizPrompt: "這發煙花是哪一種金屬？",
+        quizNeedBurst: "請先發射，觀察顏色後再作答。",
+        quizCorrect: (name, color) => `正確！這是${name}（${color}）。`,
+        quizWrong: (name, color, pick) => `未中。正確是${name}（${color}），你選了${pick}。`,
+        quizScore: (ok, n) => `挑戰成績：${ok}／${n} 題`,
+        alertPlace: "請先點擊海面放置煙花船！",
+        modalTitle: "煙花顏色的化學原理",
+        m1t: "1. 電子躍遷", m1d: "金屬鹽在煙花爆炸的高溫中受熱，電子吸收能量從<strong>基態</strong>跳到<strong>激發態</strong>。激發態不穩定，電子迅速返回低能階，多餘能量以光子放出，我們便看見特定顏色。",
+        m2t: "2. 光子能量與波長", m2d: "能量差決定光的頻率與波長，因而決定顏色：",
+        m2n: "$h$ 為普朗克常數，$c$ 為光速，$\\lambda$ 為波長。能隙愈大，波長愈短（偏藍紫）；能隙愈小，波長愈長（偏紅）。",
+        m3t: "3. 焰色 vs 火花", m3d: "<strong>焰色金屬</strong>（Li、Na、K、Ca、Sr、Ba、Cu 等）靠原子發射光譜，顏色是元素的「指紋」。<strong>火花金屬</strong>（Mg、Al、Fe、Zn、Ti）主要是高溫固體的<strong>熱輻射（連續光譜）</strong>，呈白、銀或金色火花，並不是線狀焰色。",
+        m4t: "4. 常見煙花金屬", m5t: "5. 生活例子與安全",
+        m5d: "維港匯演的紅、綠、金，常用硝酸鍶、硝酸鋇與鈉鹽／鐵粉。真正煙花含氧化劑與燃料，不可在家配制。本模擬只展示焰色與火花，對應本生燈焰色測試的同一原理。",
+        thEl: "元素", thColor: "顏色", thWave: "波長", thUse: "煙花用途",
+        s1: "1. 選一種焰色金屬，看資料卡的顏色與波長，預測夜空會出現什麼色。",
+        s2: "2. 點擊海面放置煙花船，調劑量與引信高度，按「全部發射」或點擊單艘船。",
+        s3: "3. 比較相近色：鋰 vs 鍶（紅）、鈉 vs 鈣（黃／橙）、鉀 vs 銫（紫）。鈉特別亮、鉀特別淡。",
+        s4: "4. 加內芯金屬與改形狀（牡丹／菊花／柳樹／環／心形），觀察外層與內芯混色。",
+        s5: "5. 對照火花金屬（鐵金柳、鎂亮白）與焰色金屬；再進入「辨色挑戰」由顏色反推元素。"
+    },
+    en: {
+        title: "Firework Flame Colours", badge: "Chemistry", subtitle: "Harbour night sky · atomic emission and sparks · energy levels",
+        btnSteps: "Steps", btnPrinciple: "Principles", stepsTitle: "Observation steps", modalClose: "Close",
+        modeDesign: "Design", modeChallenge: "Colour quiz",
+        filterAll: "All", filterEmission: "Flame metals", filterSpark: "Spark metals",
+        labelMetal: "Shell metal (outer stars)", labelPistil: "Pistil metal (inner core)", labelShape: "Burst shape",
+        labelDosage: "Metal dosage (radius)", labelTime: "Fuse time (height)",
+        valStd: "Standard", valLow: "Early (low)", valHigh: "Late (high)",
+        chkSound: "Sound", chkSlow: "Slow-mo", chkLabels: "Labels",
+        btnLaunch: "Launch all", btnClear: "Clear sea", btnShow: "Rainbow show", btnReset: "Reset", btnNewQuiz: "New question",
+        pistilNone: "None (single colour)",
+        infoTitle: "Metal card", infoKind: "Light source", infoColor: "Observed colour", infoWave: "Main wavelength", infoSalt: "Typical compound",
+        kindEmission: "Atomic emission (flame colour)", kindSpark: "Incandescence / sparks (continuum)",
+        hintPlace: "Click the sea to place a barge · click a barge to fire it",
+        hintChallenge: "Question ready: launch, then identify the metal by colour",
+        hudMetal: (m, p, sh) => p ? `Shell ${m} · core ${p} · ${sh}` : `Shell ${m} · ${sh}`,
+        quizPrompt: "Which metal made this burst?",
+        quizNeedBurst: "Launch first, then choose after you see the colour.",
+        quizCorrect: (name, color) => `Correct! It is ${name} (${color}).`,
+        quizWrong: (name, color, pick) => `Not quite. It was ${name} (${color}); you picked ${pick}.`,
+        quizScore: (ok, n) => `Score: ${ok} / ${n}`,
+        alertPlace: "Place fireworks on the sea first!",
+        modalTitle: "Chemistry of firework colours",
+        m1t: "1. Electron transitions", m1d: "Metal salts are heated in the explosion. Electrons absorb energy and jump from the <strong>ground state</strong> to an <strong>excited state</strong>, then fall back and emit photons of a characteristic colour.",
+        m2t: "2. Photon energy and wavelength", m2d: "The energy gap sets the frequency and wavelength, hence the colour:",
+        m2n: "$h$ is Planck’s constant, $c$ the speed of light, $\\lambda$ the wavelength. A larger gap means a shorter wavelength (blue–violet); a smaller gap means redder light.",
+        m3t: "3. Flame colour vs sparks", m3d: "<strong>Flame metals</strong> (Li, Na, K, Ca, Sr, Ba, Cu, …) emit line spectra — an elemental fingerprint. <strong>Spark metals</strong> (Mg, Al, Fe, Zn, Ti) glow mainly by <strong>incandescence (continuum)</strong> as hot solids, giving white, silver or gold sparks.",
+        m4t: "4. Common firework metals", m5t: "5. Everyday example and safety",
+        m5d: "Harbour displays often use strontium nitrate (red), barium nitrate (green) and sodium salts / iron filings (gold). Real fireworks contain oxidisers and fuels — never mix them at home. This sim shows colour only, the same idea as a Bunsen flame test.",
+        thEl: "Element", thColor: "Colour", thWave: "λ", thUse: "Use in fireworks",
+        s1: "1. Pick a flame-colour metal. Read its colour and wavelength, then predict the sky colour.",
+        s2: "2. Click the sea to place barges. Adjust dosage and fuse height. Launch all, or click one barge.",
+        s3: "3. Compare close colours: Li vs Sr (reds), Na vs Ca (yellow/orange), K vs Cs (purples). Sodium is intense; potassium is pale.",
+        s4: "4. Add a pistil metal and change shape (peony / chrysanthemum / willow / ring / heart) to mix two colours.",
+        s5: "5. Contrast spark metals (gold willow iron, bright magnesium) with flame metals, then try the colour quiz."
+    }
+};
+
+const SHAPES = [
+    { id: "peony", zh: "牡丹", en: "Peony" },
+    { id: "chrys", zh: "菊花", en: "Chrys." },
+    { id: "willow", zh: "柳樹", en: "Willow" },
+    { id: "ring", zh: "圓環", en: "Ring" },
+    { id: "palm", zh: "棕櫚", en: "Palm" },
+    { id: "heart", zh: "心形", en: "Heart" }
+];
+
+const METALS = [
+    { id: "li", symbol: "Li", ion: "Li⁺", z: 3, rgb: [227, 34, 39], hex: "#E32227", kind: "emission", waveNm: 670, wave: "670 nm", salt: "Li₂CO₃", colorZH: "洋紅／深紅", colorEN: "carmine red", nameZH: "鋰", nameEN: "Lithium", descZH: "鹼金屬；煙花中較少用，焰色偏洋紅，可與鍶的血紅比較。", descEN: "Alkali metal; carmine flame, useful to contrast with strontium crimson.", bright: 1.05, pale: 0 },
+    { id: "na", symbol: "Na", ion: "Na⁺", z: 11, rgb: [255, 215, 0], hex: "#FFD700", kind: "emission", waveNm: 589, wave: "589 nm", salt: "NaNO₃", colorZH: "金黃", colorEN: "golden yellow", nameZH: "鈉", nameEN: "Sodium", descZH: "黃光極強（D 線 589 nm），容易掩蓋其他金屬，維港金色常用鈉鹽。", descEN: "Very intense D-line yellow (589 nm) that easily masks other metals.", bright: 1.35, pale: 0 },
+    { id: "k", symbol: "K", ion: "K⁺", z: 19, rgb: [200, 162, 220], hex: "#C8A2DC", kind: "emission", waveNm: 766, wave: "766 nm", salt: "KNO₃", colorZH: "淡紫", colorEN: "lilac", nameZH: "鉀", nameEN: "Potassium", descZH: "焰色淡，易被鈉黃光掩蓋；硝酸鉀同時是常見氧化劑。", descEN: "Pale lilac, easily hidden by sodium yellow. KNO₃ is also a common oxidiser.", bright: 0.72, pale: 1 },
+    { id: "rb", symbol: "Rb", ion: "Rb⁺", z: 37, rgb: [186, 48, 118], hex: "#BA3076", kind: "emission", waveNm: 780, wave: "780 nm", salt: "RbNO₃", colorZH: "紅紫", colorEN: "red-violet", nameZH: "銣", nameEN: "Rubidium", descZH: "鹼金屬下一員，焰色紅紫，波長比鉀更偏紅外邊緣。", descEN: "Next alkali metal; red-violet emission near the infrared edge.", bright: 0.9, pale: 0.3 },
+    { id: "cs", symbol: "Cs", ion: "Cs⁺", z: 55, rgb: [92, 80, 210], hex: "#5C50D2", kind: "emission", waveNm: 455, wave: "455 nm", salt: "CsNO₃", colorZH: "藍紫", colorEN: "blue-violet", nameZH: "銫", nameEN: "Caesium", descZH: "鹼金屬中波長較短的藍紫線，可與鉀的淡紫對照。", descEN: "Shorter-wavelength blue-violet lines; contrast with potassium lilac.", bright: 0.88, pale: 0.2 },
+    { id: "ca", symbol: "Ca", ion: "Ca²⁺", z: 20, rgb: [255, 99, 51], hex: "#FF6333", kind: "emission", waveNm: 622, wave: "622 nm", salt: "CaCl₂", colorZH: "磚紅／橙", colorEN: "brick-red / orange", nameZH: "鈣", nameEN: "Calcium", descZH: "鹼土金屬，磚紅偏橙，比鍶更暖、比鈉更紅。", descEN: "Alkaline earth; brick-red to orange, warmer than Sr and redder than Na.", bright: 1.0, pale: 0 },
+    { id: "sr", symbol: "Sr", ion: "Sr²⁺", z: 38, rgb: [220, 20, 60], hex: "#DC143C", kind: "emission", waveNm: 650, wave: "650 nm", salt: "Sr(NO₃)₂", colorZH: "血紅", colorEN: "crimson", nameZH: "鍶", nameEN: "Strontium", descZH: "煙花最常用的紅色來源，硝酸鍶同時作為氧化劑與染色劑。", descEN: "The classic firework red; strontium nitrate is both oxidiser and colourant.", bright: 1.1, pale: 0 },
+    { id: "ba", symbol: "Ba", ion: "Ba²⁺", z: 56, rgb: [141, 182, 0], hex: "#8DB600", kind: "emission", waveNm: 524, wave: "524 nm", salt: "Ba(NO₃)₂", colorZH: "蘋果綠", colorEN: "apple green", nameZH: "鋇", nameEN: "Barium", descZH: "鹼土金屬，蘋果綠是煙花綠色的主力。", descEN: "Alkaline earth; apple-green is the main firework green.", bright: 1.05, pale: 0 },
+    { id: "cu", symbol: "Cu", ion: "Cu²⁺", z: 29, rgb: [0, 186, 186], hex: "#00BABA", kind: "emission", waveNm: 510, wave: "510 nm", salt: "CuCl₂", colorZH: "藍綠", colorEN: "blue-green", nameZH: "銅", nameEN: "Copper", descZH: "氯鹽有助產生藍色；氯化銅常用於藍綠色星體。", descEN: "Chloride helps a blue flame; copper(II) chloride is used for blue-green stars.", bright: 1.0, pale: 0 },
+    { id: "mg", symbol: "Mg", ion: "Mg", z: 12, rgb: [255, 255, 255], hex: "#FFFFFF", kind: "spark", waveNm: 0, wave: "連續光譜", salt: "Mg", colorZH: "亮白", colorEN: "brilliant white", nameZH: "鎂", nameEN: "Magnesium", descZH: "高溫燃燒發出強白光（熱輻射），常用作增亮劑，不是線狀焰色。", descEN: "Burns with intense white incandescence; used as a brightener, not a line emitter.", bright: 1.4, pale: 0 },
+    { id: "al", symbol: "Al", ion: "Al", z: 13, rgb: [210, 225, 240], hex: "#D2E1F0", kind: "spark", waveNm: 0, wave: "連續光譜", salt: "Al", colorZH: "銀白", colorEN: "silver-white", nameZH: "鋁", nameEN: "Aluminium", descZH: "鋁粉／鋁片產生銀白火花與閃光，屬熱金屬輻射。", descEN: "Flake or powder aluminium gives silver-white sparks by incandescence.", bright: 1.15, pale: 0 },
+    { id: "fe", symbol: "Fe", ion: "Fe", z: 26, rgb: [255, 176, 64], hex: "#FFB040", kind: "spark", waveNm: 0, wave: "連續光譜", salt: "Fe", colorZH: "金色火花", colorEN: "gold sparks", nameZH: "鐵", nameEN: "Iron", descZH: "鐵粉燒成金色「雨絲／柳樹」，長尾火花是煙花金色的常見來源。", descEN: "Iron filings make gold rain / willow tails — a common gold effect.", bright: 1.05, pale: 0 },
+    { id: "zn", symbol: "Zn", ion: "Zn", z: 30, rgb: [176, 220, 255], hex: "#B0DCFF", kind: "spark", waveNm: 0, wave: "連續光譜", salt: "Zn", colorZH: "藍白", colorEN: "bluish white", nameZH: "鋅", nameEN: "Zinc", descZH: "鋅粉可產生藍白火花與煙霧效果。", descEN: "Zinc dust can give bluish-white sparks and smoke effects.", bright: 0.95, pale: 0 },
+    { id: "ti", symbol: "Ti", ion: "Ti", z: 22, rgb: [236, 240, 248], hex: "#ECF0F8", kind: "spark", waveNm: 0, wave: "連續光譜", salt: "Ti", colorZH: "銀白火花", colorEN: "silver sparks", nameZH: "鈦", nameEN: "Titanium", descZH: "鈦海綿／粉產生又亮又長的銀白火花。", descEN: "Titanium sponge or powder makes bright, long silver sparks.", bright: 1.2, pale: 0 }
+];
+
+const TAU = Math.PI * 2;
+let lang = "zh";
+let metalFilter = "all";
+let mode = "design";
+let selected = METALS.find(m => m.id === "sr");
+let pistilId = "";
+let shapeId = "peony";
+let dosage = 1;
+let timeSetting = 50;
+let soundOn = true;
+let slowMo = false;
+let showLabels = true;
+
+let width = 0, height = 0, seaLevel = 0;
+let fireworks = [];
+let particles = [];
+let flashes = [];
+let stars = [];
+let harbourBlocks = [];
+let audioCtx = null;
+
+let quizAnswer = null;
+let quizChoices = [];
+let quizBurstSeen = false;
+let quizLocked = false;
+let quizOk = 0;
+let quizN = 0;
+
+const $ = id => document.getElementById(id);
+const canvas = $("canvas");
+const ctx = canvas.getContext("2d");
+const t = () => I18N[lang];
+const metalName = m => lang === "zh" ? m.nameZH : m.nameEN;
+const metalColor = m => lang === "zh" ? m.colorZH : m.colorEN;
+const metalWave = m => m.waveNm ? m.wave : (lang === "zh" ? "連續光譜" : "continuum");
+const shapeName = s => lang === "zh" ? s.zh : s.en;
+const pistilMetal = () => METALS.find(m => m.id === pistilId) || null;
+
+function applyLang() {
+    document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+    const dict = t();
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (typeof dict[key] === "string") el.innerHTML = dict[key];
+    });
+    renderMetals();
+    renderShapes();
+    fillPistilSelect();
+    updateTimeLabel();
+    updateInfo();
+    updateHud();
+    renderMetalTable();
+    updateQuizScore();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+}
+
+function openModal(id) {
+    const el = $(id);
+    el.classList.add("modal-open");
+    if (id === "modal-principle") {
+        renderMetalTable();
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]);
+    }
+}
+function closeModal(id) { $(id).classList.remove("modal-open"); }
+function closeAllModals() { closeModal("modal-principle"); closeModal("modal-steps"); }
+
+function renderMetals() {
+    const box = $("metal-grid");
+    box.innerHTML = "";
+    METALS.filter(m => metalFilter === "all" || m.kind === metalFilter).forEach(m => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `metal-btn min-w-0 w-full flex flex-col items-center py-1 px-0.5 rounded-md border border-white/15 bg-slate-800 hover:bg-slate-700 text-[11px] font-black leading-none ${m.id === selected.id && mode === "design" ? "active" : ""}`;
+        btn.style.color = m.hex;
+        btn.title = `${m.symbol} ${metalName(m)}`;
+        btn.innerHTML = `<span class="block w-full h-1 rounded-full mb-1" style="background:${m.hex}"></span>${m.symbol}`;
+        btn.disabled = mode === "challenge";
+        btn.onclick = () => {
+            selected = m;
+            if (m.kind === "spark" && (shapeId === "peony" || shapeId === "chrys") && m.id === "fe") {
+                shapeId = "willow";
+                renderShapes();
             }
+            renderMetals();
+            updateInfo();
+            updateHud();
         };
+        box.appendChild(btn);
+    });
+}
 
-        function switchLanguage() {
-            currentLang = currentLang === 'zh' ? 'en' : 'zh';
-            // 按鈕文字固定為 "中 / EN"，不再動態變更
-            // document.getElementById('lang-btn').textContent = currentLang === 'zh' ? 'EN' : '中';
-            updateTexts();
-            initUI(); // Re-render metal buttons
-        }
+function fillPistilSelect() {
+    const sel = $("pistil-select");
+    const cur = pistilId;
+    sel.innerHTML = `<option value="">${t().pistilNone}</option>` + METALS.map(m =>
+        `<option value="${m.id}">${m.symbol} ${metalName(m)}</option>`
+    ).join("");
+    sel.value = cur;
+    sel.disabled = mode === "challenge";
+}
 
-        function updateTexts() {
-            const t = translations[currentLang];
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (t[key]) el.innerHTML = t[key];
-            });
-            // Update Slider Text manually since it has dynamic values
-            const timeSlider = document.getElementById('time-slider');
-            // Trigger input event to refresh slider text logic
-            timeSlider.dispatchEvent(new Event('input'));
-        }
+function renderShapes() {
+    const row = $("shape-row");
+    row.innerHTML = "";
+    SHAPES.forEach(s => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `seg-btn min-w-0 py-1 px-0.5 rounded-lg border border-slate-600 text-[10px] font-extrabold ${s.id === shapeId ? "on" : "bg-slate-800"}`;
+        btn.textContent = shapeName(s);
+        btn.disabled = mode === "challenge";
+        btn.onclick = () => { shapeId = s.id; renderShapes(); updateHud(); };
+        row.appendChild(btn);
+    });
+}
 
-        function toggleModal(id) {
-            const modal = document.getElementById(id);
-            if (modal.classList.contains('open')) {
-                modal.classList.remove('open');
-            } else {
-                modal.classList.add('open');
-            }
-        }
+function updateTimeLabel() {
+    const dict = t();
+    let text = dict.valStd;
+    if (timeSetting < 30) text = dict.valLow;
+    else if (timeSetting > 70) text = dict.valHigh;
+    $("time-val").textContent = text;
+}
 
-        // --- 1. 資料設定 ---
-        const metals = [
-            { symbol: 'Sr', key: 'Sr_name', color: '#FF0000' },
-            { symbol: 'Ca', key: 'Ca_name', color: '#FF4500' },
-            { symbol: 'Na', key: 'Na_name', color: '#FFFF00' },
-            { symbol: 'Ba', key: 'Ba_name', color: '#32CD32' },
-            { symbol: 'Cu', key: 'Cu_name', color: '#00FFFF' },
-            { symbol: 'K',  key: 'K_name',  color: '#C77CFF' },
-            { symbol: 'Mg', key: 'Mg_name', color: '#FFFFFF' }
-        ];
+function updateInfo() {
+    const m = mode === "challenge" && quizAnswer ? quizAnswer : selected;
+    const hide = mode === "challenge" && !quizLocked;
+    $("info-swatch").style.background = hide ? "#334155" : m.hex;
+    $("info-swatch").style.boxShadow = hide ? "none" : `0 0 12px ${m.hex}`;
+    $("info-name").textContent = hide ? "???" : `${m.symbol} · ${metalName(m)}`;
+    $("info-ion").textContent = hide ? "—" : m.ion;
+    $("info-kind").textContent = hide ? "—" : (m.kind === "emission" ? t().kindEmission : t().kindSpark);
+    $("info-color").textContent = hide ? "—" : metalColor(m);
+    $("info-wave").textContent = hide ? "—" : metalWave(m);
+    $("info-salt").textContent = hide ? "—" : m.salt;
+    $("info-desc").textContent = hide ? t().hintChallenge : (lang === "zh" ? m.descZH : m.descEN);
+    const mark = $("spectrum-mark");
+    if (hide || !m.waveNm) {
+        mark.style.display = "none";
+    } else {
+        mark.style.display = "block";
+        const pct = Math.max(0, Math.min(1, (m.waveNm - 380) / (750 - 380)));
+        mark.style.left = `calc(${pct * 100}% - 1px)`;
+    }
+}
 
-        let selectedMetal = metals[0]; 
-        let currentDosage = 1.0;
-        let currentTimeSetting = 50; 
+function updateHud() {
+    $("hud-hint").textContent = mode === "challenge" ? t().hintChallenge : t().hintPlace;
+    const sh = shapeName(SHAPES.find(s => s.id === shapeId));
+    const p = pistilMetal();
+    if (mode === "challenge" && !quizLocked) {
+        $("hud-metal").textContent = "???";
+        $("hud-metal").style.color = "#fde68a";
+    } else {
+        $("hud-metal").textContent = t().hudMetal(metalName(selected), p ? metalName(p) : "", sh);
+        $("hud-metal").style.color = selected.hex;
+    }
+}
 
-        // --- 2. 系統變數 ---
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const launchBtn = document.getElementById('launch-btn');
-        const clearBtn = document.getElementById('clear-btn');
-        const metalContainer = document.getElementById('metal-container');
-        const dosageSlider = document.getElementById('dosage-slider');
-        const timeSlider = document.getElementById('time-slider');
-        const dosageVal = document.getElementById('dosage-val');
-        const timeVal = document.getElementById('time-val');
+function renderMetalTable() {
+    const dict = t();
+    const rows = METALS.map(m => `<tr class="border-t border-slate-700">
+        <td class="py-1 pr-2 font-bold" style="color:${m.hex}">${m.symbol} ${metalName(m)}</td>
+        <td class="py-1 pr-2">${metalColor(m)}</td>
+        <td class="py-1 pr-2 font-mono">${metalWave(m)}</td>
+        <td class="py-1">${m.kind === "emission" ? (lang === "zh" ? "焰色星體" : "colour stars") : (lang === "zh" ? "火花／增亮" : "sparks / brightener")}</td>
+    </tr>`).join("");
+    $("metal-table").innerHTML = `<table class="w-full text-left"><thead><tr class="text-slate-500">
+        <th class="pb-1">${dict.thEl}</th><th class="pb-1">${dict.thColor}</th><th class="pb-1">${dict.thWave}</th><th class="pb-1">${dict.thUse}</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
 
-        let width, height, seaLevel;
-        let fireworks = []; 
-        let particles = []; 
-        let stars = [];
-        
-        // --- Audio ---
-        let audioCtx;
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-        }
+function setFilter(f) {
+    metalFilter = f;
+    ["all", "emission", "spark"].forEach(id => {
+        $("filter-" + id).classList.toggle("on", f === id);
+        $("filter-" + id).classList.toggle("bg-slate-800", f !== id);
+    });
+    renderMetals();
+}
 
-        function playExplosionSound() {
-            if (!audioCtx) return;
-            const bufferSize = audioCtx.sampleRate * 2; 
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
-            const noise = audioCtx.createBufferSource();
-            noise.buffer = buffer;
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 800; 
-            const gainNode = audioCtx.createGain();
-            noise.connect(filter);
-            filter.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            const now = audioCtx.currentTime;
-            gainNode.gain.setValueAtTime(0.5, now); 
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5); 
-            noise.start(now);
-            noise.stop(now + 0.5);
-        }
+function setMode(next) {
+    mode = next;
+    $("mode-design").classList.toggle("on", next === "design");
+    $("mode-challenge").classList.toggle("on", next === "challenge");
+    $("mode-design").classList.toggle("bg-slate-800", next !== "design");
+    $("mode-challenge").classList.toggle("bg-slate-800", next !== "challenge");
+    $("quiz-new-btn").classList.toggle("hidden", next !== "challenge");
+    $("quiz-score").classList.toggle("hidden", next !== "challenge");
+    $("show-btn").disabled = next === "challenge";
+    if (next === "challenge") startQuiz(true);
+    else {
+        $("quiz-panel").classList.add("hidden");
+        quizAnswer = null;
+        renderMetals();
+        fillPistilSelect();
+        renderShapes();
+        updateInfo();
+        updateHud();
+    }
+}
 
-        // --- 3. UI 初始化與事件 ---
-        function initUI() {
-            // 生成金屬按鈕 (支援多語言)
-            metalContainer.innerHTML = '';
-            const t = translations[currentLang];
+function emissionPool() { return METALS.filter(m => m.kind === "emission"); }
 
-            metals.forEach((metal, index) => {
-                const btn = document.createElement('button');
-                btn.className = `metal-btn py-1.5 px-3 rounded-md font-bold text-sm transition border border-white/20 flex flex-col items-center min-w-[60px] bg-slate-800 hover:bg-slate-700`;
-                btn.style.color = metal.color;
-                
-                // Get localized name
-                const name = t[metal.key];
-                
-                btn.innerHTML = `<span class="text-base">${metal.symbol}</span><span class="text-[10px] opacity-70 whitespace-nowrap">${name.split('(')[0]}</span>`;
-                
-                if (metal.symbol === selectedMetal.symbol) {
-                    btn.classList.add('active', 'ring-2', 'ring-white');
-                }
+function startQuiz(resetScore) {
+    if (resetScore) { quizOk = 0; quizN = 0; }
+    fireworks = [];
+    particles = [];
+    flashes = [];
+    const pool = emissionPool();
+    quizAnswer = pool[Math.floor(Math.random() * pool.length)];
+    selected = quizAnswer;
+    pistilId = "";
+    $("pistil-select").value = "";
+    shapeId = "peony";
+    quizBurstSeen = false;
+    quizLocked = false;
+    const others = pool.filter(m => m.id !== quizAnswer.id).sort(() => Math.random() - 0.5).slice(0, 3);
+    quizChoices = [quizAnswer, ...others].sort(() => Math.random() - 0.5);
+    $("quiz-panel").classList.remove("hidden");
+    $("quiz-prompt").textContent = t().quizPrompt;
+    $("quiz-feedback").textContent = t().quizNeedBurst;
+    $("quiz-feedback").className = "mt-2 text-xs font-semibold text-slate-400";
+    const box = $("quiz-choices");
+    box.innerHTML = "";
+    quizChoices.forEach(m => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "py-1.5 rounded-lg border border-slate-600 bg-slate-800 text-xs font-bold";
+        btn.style.color = m.hex;
+        btn.textContent = `${m.symbol} ${metalName(m)}`;
+        btn.onclick = () => guessMetal(m);
+        box.appendChild(btn);
+    });
+    renderMetals();
+    fillPistilSelect();
+    renderShapes();
+    updateInfo();
+    updateHud();
+    updateQuizScore();
+    if (width) placeBarge(width * 0.52);
+}
 
-                btn.onclick = () => {
-                    initAudio(); 
-                    selectedMetal = metal;
-                    document.querySelectorAll('.metal-btn').forEach(b => b.classList.remove('active', 'ring-2', 'ring-white'));
-                    btn.classList.add('active', 'ring-2', 'ring-white');
-                };
-                metalContainer.appendChild(btn);
-            });
+function guessMetal(m) {
+    if (!quizBurstSeen) {
+        $("quiz-feedback").textContent = t().quizNeedBurst;
+        return;
+    }
+    if (quizLocked) return;
+    quizLocked = true;
+    quizN += 1;
+    const ok = m.id === quizAnswer.id;
+    if (ok) quizOk += 1;
+    $("quiz-feedback").textContent = ok
+        ? t().quizCorrect(metalName(quizAnswer), metalColor(quizAnswer))
+        : t().quizWrong(metalName(quizAnswer), metalColor(quizAnswer), metalName(m));
+    $("quiz-feedback").className = "mt-2 text-xs font-semibold " + (ok ? "text-emerald-300" : "text-rose-300");
+    updateInfo();
+    updateHud();
+    updateQuizScore();
+}
 
-            // 滑桿監聽
-            dosageSlider.addEventListener('input', (e) => {
-                currentDosage = parseFloat(e.target.value);
-                dosageVal.textContent = currentDosage.toFixed(1) + 'x';
-            });
+function updateQuizScore() {
+    $("quiz-score").textContent = t().quizScore(quizOk, quizN);
+}
 
-            timeSlider.addEventListener('input', (e) => {
-                currentTimeSetting = parseInt(e.target.value);
-                const t = translations[currentLang];
-                let text = t.val_standard;
-                if(currentTimeSetting < 30) text = t.val_low;
-                else if(currentTimeSetting > 70) text = t.val_high;
-                timeVal.textContent = text;
-            });
-        }
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+}
 
-        // --- 4. 場景與繪圖邏輯 (香港地標) ---
+function playBoom() {
+    if (!soundOn || !audioCtx) return;
+    const dur = 0.45;
+    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 900;
+    const gain = audioCtx.createGain();
+    src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + dur);
+    src.start(now); src.stop(now + dur);
+}
 
-        function initStars() {
-            stars = [];
-            for (let i = 0; i < 150; i++) {
-                stars.push({
-                    x: Math.random() * width,
-                    y: Math.random() * (seaLevel - 100),
-                    size: Math.random() * 1.5,
-                    alpha: Math.random(),
-                    twinkleSpeed: Math.random() * 0.02 + 0.005
-                });
-            }
-        }
+function playWhoosh() {
+    if (!soundOn || !audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sawtooth";
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    osc.frequency.setValueAtTime(420, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.35);
+    gain.gain.setValueAtTime(0.04, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.start(now); osc.stop(now + 0.35);
+}
 
-        function drawBOC(x, y, w, h) {
-            ctx.fillStyle = '#111'; 
-            ctx.beginPath();
-            ctx.moveTo(x, y); 
-            ctx.lineTo(x + w, y); 
-            ctx.lineTo(x + w, y - h * 0.7); 
-            ctx.lineTo(x + w/2, y - h); 
-            ctx.lineTo(x, y - h * 0.85); 
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = '#64748b'; 
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(x + w/2, y - h);
-            ctx.lineTo(x + w/2, y - h - 15);
-            ctx.stroke();
-        }
+function sceneScale() {
+    return Math.max(1, Math.min(width / 820, 2.1));
+}
 
-        function drawIFC(x, y, w, h) {
-            ctx.fillStyle = '#141414';
-            let taper = 5;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + w, y);
-            ctx.lineTo(x + w - taper, y - h);
-            ctx.lineTo(x + taper, y - h);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#94a3b8'; 
-            ctx.fillRect(x + taper, y - h, w - taper*2, 6);
-            ctx.strokeStyle = '#334155';
-            ctx.beginPath();
-            for(let i=1; i<4; i++) {
-                let lx = x + (w/4)*i;
-                ctx.moveTo(lx, y);
-                ctx.lineTo(lx, y - h + 5);
-            }
-            ctx.stroke();
-        }
+function hash(i, j) {
+    let n = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453;
+    return n - Math.floor(n);
+}
 
-        function drawHKCEC(x, y) {
-            const w = 140; 
-            const h = 40;  
-            ctx.fillStyle = '#334155'; 
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.bezierCurveTo(x + 20, y - h, x + 50, y - h - 10, x + 70, y - h + 5);
-            ctx.bezierCurveTo(x + 90, y - h - 10, x + 120, y - h, x + w, y);
-            ctx.fill();
-            ctx.strokeStyle = '#475569';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for(let i=1; i<6; i++) {
-                ctx.moveTo(x + 20*i, y);
-                ctx.lineTo(x + 20*i + 10, y - 20);
-            }
-            ctx.stroke();
-        }
+function skyU() {
+    return Math.max(0.72, Math.min(width / 1080, (height - seaLevel) / 140, 1.35));
+}
 
-        function drawScene() {
-            const gradient = ctx.createLinearGradient(0, 0, 0, height);
-            gradient.addColorStop(0, '#020617'); 
-            gradient.addColorStop(0.6, '#0f172a'); 
-            gradient.addColorStop(1, '#000000');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
-
-            ctx.fillStyle = '#FFF';
-            stars.forEach(star => {
-                star.alpha += star.twinkleSpeed * (Math.random() < 0.5 ? 1 : -1);
-                if(star.alpha > 1) star.alpha = 1; else if(star.alpha < 0.2) star.alpha = 0.2;
-                ctx.globalAlpha = star.alpha;
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.size, 0, Math.PI*2);
-                ctx.fill();
-            });
-            ctx.globalAlpha = 1.0;
-
-            ctx.beginPath();
-            ctx.moveTo(0, seaLevel);
-            ctx.lineTo(0, seaLevel - 120);
-            let peakX = width * 0.35; 
-            ctx.bezierCurveTo(width * 0.1, seaLevel - 150, peakX - 50, seaLevel - 320, peakX, seaLevel - 350); 
-            ctx.bezierCurveTo(peakX + 100, seaLevel - 320, width * 0.7, seaLevel - 150, width, seaLevel - 80);
-            ctx.lineTo(width, seaLevel);
-            ctx.fillStyle = '#0a0a0a'; 
-            ctx.fill();
-
-            /* 移除背景閃爍建築物
-            ctx.fillStyle = '#0f0f0f';
-            for(let i=0; i<width; i+=60) {
-                let h = Math.random() * 80 + 30;
-                if (i > width * 0.2 && i < width * 0.6) h += 40;
-                ctx.fillRect(i, seaLevel - h, 40, h);
-            }
-            */
-
-            let ifcX = width * 0.22;
-            drawIFC(ifcX, seaLevel, 50, 300);
-
-            ctx.fillStyle = '#111';
-            ctx.fillRect(width * 0.42, seaLevel - 240, 40, 240);
-            ctx.strokeStyle = '#0284c7'; 
-            ctx.beginPath();
-            ctx.moveTo(width*0.42+20, seaLevel-240);
-            ctx.lineTo(width*0.42+20, seaLevel);
-            ctx.stroke();
-
-            let hkcecX = width * 0.48;
-            drawHKCEC(hkcecX, seaLevel);
-
-            let bocX = width * 0.60;
-            drawBOC(bocX, seaLevel, 45, 260);
-
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, seaLevel, width, height - seaLevel);
-            
-            const reflectGrad = ctx.createLinearGradient(0, seaLevel, 0, height);
-            reflectGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
-            reflectGrad.addColorStop(0.2, 'rgba(0,0,0,0)');
-            ctx.fillStyle = reflectGrad;
-            
-            ctx.fillRect(ifcX, seaLevel, 50, 100);
-            ctx.fillRect(bocX, seaLevel, 45, 80);
-            ctx.fillRect(hkcecX, seaLevel, 140, 40); 
-
-            ctx.beginPath();
-            ctx.moveTo(0, seaLevel);
-            ctx.lineTo(width, seaLevel);
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        }
-
-        // --- 5. 煙花類別 ---
-
-        class Firework {
-            constructor(x, metal, dosage, timeSetting) {
-                this.x = x;
-                this.y = seaLevel;
-                this.metal = metal;
-                this.dosage = dosage; 
-                this.timeSetting = timeSetting; 
-                this.state = 'waiting'; 
-                
-                const minH = height * 0.15;
-                const maxH = height * 0.5;
-                const ratio = this.timeSetting / 100; 
-                this.targetY = maxH - (maxH - minH) * ratio;
-                this.targetY += (Math.random() - 0.5) * 50;
-
-                const distance = seaLevel - this.targetY;
-                this.speed = Math.sqrt(distance) * 0.7; 
-                
-                this.radius = 4 + (dosage * 2); 
-                this.trail = []; 
-                this.floatOffset = Math.random() * Math.PI * 2;
-                this.hitRadius = 25;
-            }
-
-            isHit(mx, my) {
-                const dist = Math.sqrt((mx - this.x)**2 + (my - (seaLevel - 15))**2);
-                return dist < this.hitRadius;
-            }
-
-            launch() {
-                if (this.state === 'waiting') {
-                    initAudio(); 
-                    this.state = 'rising';
-                }
-            }
-
-            update() {
-                if (this.state === 'waiting') {
-                    this.floatOffset += 0.05;
-                } else if (this.state === 'rising') {
-                    this.y -= this.speed;
-                    this.speed *= 0.97; 
-
-                    this.trail.push({x: this.x, y: this.y, alpha: 1});
-                    if (this.trail.length > 15) this.trail.shift();
-                    this.trail.forEach(t => t.alpha -= 0.08);
-
-                    if (this.y <= this.targetY || this.speed < 1) {
-                        this.explode();
-                    }
-                }
-            }
-
-            draw() {
-                if (this.state === 'waiting') {
-                    const floatY = Math.sin(this.floatOffset) * 3;
-                    
-                    ctx.beginPath();
-                    ctx.arc(this.x, seaLevel - 15 + floatY, this.hitRadius, 0, Math.PI*2);
-                    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-                    ctx.setLineDash([2, 2]);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    ctx.fillStyle = '#333';
-                    ctx.fillRect(this.x - 12, seaLevel - 5 + floatY, 24, 8);
-                    
-                    const w = 10 * this.dosage;
-                    ctx.fillStyle = '#64748b'; 
-                    ctx.fillRect(this.x - w/2, seaLevel - 25 + floatY, w, 20);
-                    
-                    ctx.fillStyle = this.metal.color;
-                    ctx.font = 'bold 14px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.shadowColor = 'black';
-                    ctx.shadowBlur = 4;
-                    ctx.fillText(this.metal.symbol, this.x, seaLevel - 30 + floatY);
-                    
-                    ctx.fillStyle = '#aaa';
-                    ctx.font = '10px Arial';
-                    ctx.fillText(`${this.dosage}x`, this.x, seaLevel + 15 + floatY);
-                    ctx.shadowBlur = 0;
-
-                } else if (this.state === 'rising') {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = '#fff';
-                    ctx.fill();
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = this.metal.color;
-                    ctx.stroke();
-                    ctx.shadowBlur = 0;
-
-                    this.trail.forEach(t => {
-                        ctx.beginPath();
-                        ctx.arc(t.x, t.y, this.radius * 0.5, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(255, 255, 255, ${t.alpha})`;
-                        ctx.fill();
-                    });
-                }
-            }
-
-            explode() {
-                this.state = 'exploded';
-                playExplosionSound(); 
-                createExplosion(this.x, this.y, this.metal.color, this.dosage);
-            }
-        }
-
-        class Particle {
-            constructor(x, y, color, dosage) {
-                this.x = x;
-                this.y = y;
-                this.color = color;
-                
-                const angle = Math.random() * Math.PI * 2;
-                const baseVel = 3 + (dosage * 3); 
-                const velocity = Math.random() * baseVel + 1; 
-                
-                this.vx = Math.cos(angle) * velocity;
-                this.vy = Math.sin(angle) * velocity;
-                
-                this.alpha = 1;
-                this.decay = Math.random() * 0.01 + 0.005;
-                this.gravity = 0.05;
-                this.friction = 0.95;
-            }
-
-            update() {
-                this.vx *= this.friction;
-                this.vy *= this.friction;
-                this.vy += this.gravity;
-                this.x += this.vx;
-                this.y += this.vy;
-                this.alpha -= this.decay;
-            }
-
-            draw() {
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = this.color;
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        function createExplosion(x, y, color, dosage) {
-            const particleCount = Math.floor(80 * dosage); 
-            
-            for (let i = 0; i < particleCount; i++) {
-                particles.push(new Particle(x, y, color, dosage));
-            }
-            
-            ctx.fillStyle = `rgba(255, 255, 255, ${0.2 * dosage})`;
-            ctx.fillRect(0, 0, width, height);
-            
-            ctx.fillStyle = color;
-            ctx.globalAlpha = 0.1 * dosage;
-            ctx.fillRect(0, seaLevel, width, height - seaLevel);
-            ctx.globalAlpha = 1.0;
-        }
-
-        // --- 6. 互動邏輯 ---
-
-        canvas.addEventListener('pointerdown', (e) => {
-            initAudio(); 
-            // 如果點擊的是 Modal，不處理 (雖然 pointer-events: auto 應該會擋住，但保險起見)
-            if (e.target !== canvas) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-
-            let hitFirework = false;
-            for (let i = fireworks.length - 1; i >= 0; i--) {
-                const fw = fireworks[i];
-                if (fw.state === 'waiting' && fw.isHit(clickX, clickY)) {
-                    fw.launch();
-                    hitFirework = true;
-                    break; 
-                }
-            }
-
-            if (hitFirework) return;
-
-            if (clickY >= seaLevel - 50) {
-                fireworks.push(new Firework(clickX, selectedMetal, currentDosage, currentTimeSetting));
-                
-                ctx.beginPath();
-                ctx.ellipse(clickX, seaLevel, 20, 5, 0, 0, Math.PI*2);
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.stroke();
-            }
+function initStars() {
+    stars = [];
+    const skyH = Math.max(40, seaLevel - 24);
+    for (let i = 0; i < 90; i++) {
+        stars.push({
+            x: hash(i, 1) * width,
+            y: hash(i, 2) * skyH * 0.72,
+            size: 0.35 + hash(i, 3) * 1.1,
+            phase: hash(i, 4) * TAU
         });
+    }
+    harbourBlocks = [];
+    const u = skyU();
+    const maxH = height * 0.15;
+    const pack = (x0, x1, base, spread, seed) => {
+        let x = x0, n = 0;
+        while (x < x1 && n < 28) {
+            const w = (9 + hash(seed, n) * 16) * u;
+            const h = Math.min(maxH * 0.85, (base + hash(seed + 1, n) * spread) * u);
+            harbourBlocks.push({ x, w, h, seed: seed * 31 + n, fill: hash(n, seed) > 0.55 ? "#141c28" : "#101820" });
+            x += w + (1.5 + hash(seed, n + 9) * 4) * u;
+            n++;
+        }
+    };
+    pack(width * 0.01, width * 0.99, 30, 22, 7);
+    pack(width * 0.01, width * 0.19, 42, 38, 11);
+    pack(width * 0.27, width * 0.44, 48, 28, 22);
+    pack(width * 0.68, width * 0.99, 40, 36, 33);
+}
 
-        launchBtn.addEventListener('click', () => {
-            initAudio(); 
-            let hasLaunched = false;
-            fireworks.forEach(fw => {
-                if (fw.state === 'waiting') {
-                    fw.launch();
-                    hasLaunched = true;
-                }
+function drawWindows(x, y, w, h, seed, tick, style) {
+    const u = skyU();
+    const cols = Math.max(2, Math.floor(w / (5.2 * u)));
+    const rows = Math.max(3, Math.floor(h / (6.5 * u)));
+    const cw = w / cols, rh = h / rows;
+    const ww = Math.max(1.4, cw * 0.42), hh = Math.max(1.4, rh * 0.42);
+    for (let r = 1; r < rows - 1; r++) {
+        for (let c = 0; c < cols; c++) {
+            const hv = hash(seed + c, r);
+            if (hv < 0.34) continue;
+            const tw = 0.42 + 0.32 * Math.sin(tick * 0.0011 + hv * 14);
+            let col;
+            if (style === "cool" || hv > 0.93) col = `rgba(160, 210, 255, ${0.42 * tw})`;
+            else if (hv > 0.88) col = `rgba(80, 230, 210, ${0.38 * tw})`;
+            else col = `rgba(255, 196, 96, ${0.55 * tw})`;
+            ctx.fillStyle = col;
+            ctx.fillRect(x + c * cw + (cw - ww) / 2, y + r * rh + (rh - hh) / 2, ww, hh);
+        }
+    }
+}
+
+function drawPeak() {
+    const S = seaLevel, u = skyU();
+    ctx.beginPath();
+    ctx.moveTo(0, S);
+    ctx.lineTo(0, S - 22 * u);
+    ctx.bezierCurveTo(width * 0.1, S - 48 * u, width * 0.18, S - 70 * u, width * 0.26, S - 64 * u);
+    ctx.bezierCurveTo(width * 0.34, S - 78 * u, width * 0.4, S - 88 * u, width * 0.46, S - 74 * u);
+    ctx.bezierCurveTo(width * 0.54, S - 72 * u, width * 0.66, S - 50 * u, width * 0.78, S - 40 * u);
+    ctx.bezierCurveTo(width * 0.9, S - 32 * u, width * 0.96, S - 24 * u, width, S - 20 * u);
+    ctx.lineTo(width, S);
+    ctx.fillStyle = "#0b1018";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(90, 115, 150, 0.28)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, S - 22 * u);
+    ctx.bezierCurveTo(width * 0.1, S - 48 * u, width * 0.18, S - 70 * u, width * 0.26, S - 64 * u);
+    ctx.bezierCurveTo(width * 0.34, S - 78 * u, width * 0.4, S - 88 * u, width * 0.46, S - 74 * u);
+    ctx.bezierCurveTo(width * 0.54, S - 72 * u, width * 0.66, S - 50 * u, width * 0.78, S - 40 * u);
+    ctx.bezierCurveTo(width * 0.9, S - 32 * u, width * 0.96, S - 24 * u, width, S - 20 * u);
+    ctx.stroke();
+}
+
+function drawIFC(x, S, u, tick) {
+    const w = 36 * u, h = Math.min(height * 0.15, 112 * u);
+    ctx.fillStyle = "#1a2432";
+    ctx.beginPath();
+    ctx.moveTo(x, S);
+    ctx.lineTo(x + w, S);
+    ctx.lineTo(x + w - 5 * u, S - h);
+    ctx.lineTo(x + 5 * u, S - h);
+    ctx.closePath();
+    ctx.fill();
+    drawWindows(x + 6 * u, S - h + 8 * u, w - 12 * u, h - 16 * u, 101, tick, "cool");
+    ctx.fillStyle = "#9aa8b8";
+    ctx.fillRect(x + 6 * u, S - h - 5 * u, w - 12 * u, 5 * u);
+    ctx.fillStyle = "#c5d0dc";
+    ctx.fillRect(x + w * 0.42, S - h - 16 * u, 2.2 * u, 12 * u);
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.28)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.33, S); ctx.lineTo(x + w * 0.33, S - h + 6 * u);
+    ctx.moveTo(x + w * 0.66, S); ctx.lineTo(x + w * 0.66, S - h + 6 * u);
+    ctx.stroke();
+    ctx.fillStyle = "#161e28";
+    ctx.fillRect(x - 22 * u, S - h * 0.62, 18 * u, h * 0.62);
+    drawWindows(x - 20 * u, S - h * 0.62 + 6 * u, 14 * u, h * 0.5, 102, tick, "cool");
+}
+
+function drawHSBC(x, S, u, tick) {
+    const w = 44 * u, h = Math.min(height * 0.12, 86 * u);
+    ctx.fillStyle = "#1c2836";
+    ctx.fillRect(x, S - h, w * 0.42, h);
+    ctx.fillRect(x + w * 0.58, S - h, w * 0.42, h);
+    ctx.fillRect(x, S - h * 0.55, w, h * 0.12);
+    ctx.fillRect(x, S - h * 0.22, w, 4 * u);
+    drawWindows(x + 2 * u, S - h + 6 * u, w * 0.38, h - 12 * u, 201, tick);
+    drawWindows(x + w * 0.6, S - h + 6 * u, w * 0.36, h - 12 * u, 202, tick);
+    ctx.strokeStyle = "rgba(212, 175, 90, 0.35)";
+    ctx.lineWidth = 1.2 * u;
+    ctx.beginPath();
+    ctx.moveTo(x + 2 * u, S - h); ctx.lineTo(x + w * 0.42 - 2 * u, S - h * 0.55);
+    ctx.moveTo(x + w * 0.42 - 2 * u, S - h); ctx.lineTo(x + 2 * u, S - h * 0.55);
+    ctx.stroke();
+}
+
+function drawBOC(x, S, u, tick) {
+    const w = 40 * u, h = Math.min(height * 0.145, 104 * u);
+    ctx.fillStyle = "#18222e";
+    ctx.beginPath();
+    ctx.moveTo(x, S);
+    ctx.lineTo(x + w, S);
+    ctx.lineTo(x + w, S - h * 0.62);
+    ctx.lineTo(x + w * 0.5, S - h);
+    ctx.lineTo(x, S - h * 0.78);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(186, 200, 220, 0.45)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, S - h * 0.38); ctx.lineTo(x + w * 0.5, S - h * 0.55); ctx.lineTo(x + w, S - h * 0.32);
+    ctx.moveTo(x + w * 0.5, S - h); ctx.lineTo(x + w * 0.5, S - h * 0.55);
+    ctx.stroke();
+    drawWindows(x + 5 * u, S - h * 0.55, w - 10 * u, h * 0.42, 301, tick, "cool");
+}
+
+function drawJardine(x, S, u, tick) {
+    const w = 34 * u, h = Math.min(height * 0.11, 78 * u);
+    ctx.fillStyle = "#1a2634";
+    ctx.fillRect(x, S - h, w, h);
+    const cols = 4, rows = 7;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const tw = 0.4 + 0.3 * Math.sin(tick * 0.001 + r * 0.7 + c);
+        ctx.fillStyle = `rgba(255, 210, 120, ${0.5 * tw})`;
+        ctx.beginPath();
+        ctx.arc(x + (c + 0.5) * (w / cols), S - h + (r + 0.7) * (h / (rows + 0.4)), 1.7 * u, 0, TAU);
+        ctx.fill();
+    }
+}
+
+function drawHKCEC(x, S, u) {
+    const w = 130 * u, h = 36 * u;
+    ctx.fillStyle = "#243040";
+    ctx.fillRect(x, S - 12 * u, w, 12 * u);
+    ctx.fillStyle = "#3a4a5e";
+    ctx.beginPath();
+    ctx.moveTo(x + 4 * u, S - 10 * u);
+    ctx.bezierCurveTo(x + 18 * u, S - h, x + 40 * u, S - h - 8 * u, x + 58 * u, S - h * 0.62);
+    ctx.bezierCurveTo(x + 72 * u, S - h - 6 * u, x + 100 * u, S - h, x + w - 6 * u, S - 10 * u);
+    ctx.lineTo(x + 4 * u, S - 10 * u);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(180, 200, 220, 0.35)";
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 214, 120, 0.35)";
+    for (let i = 0; i < 8; i++) ctx.fillRect(x + 12 * u + i * 14 * u, S - 9 * u, 6 * u, 3 * u);
+}
+
+function drawLandmarks(tick) {
+    const S = seaLevel, u = skyU();
+    drawIFC(width * 0.195, S, u, tick);
+    drawHSBC(width * 0.355, S, u, tick);
+    drawBOC(width * 0.445, S, u, tick);
+    drawJardine(width * 0.515, S, u, tick);
+    drawHKCEC(width * 0.545, S, u);
+}
+
+function drawHarbourBlocks(tick) {
+    harbourBlocks.forEach(b => {
+        ctx.fillStyle = b.fill;
+        ctx.fillRect(b.x, seaLevel - b.h, b.w, b.h);
+        drawWindows(b.x, seaLevel - b.h, b.w, b.h, b.seed, tick);
+    });
+}
+
+function drawJunk(x, y, s, tick) {
+    y += Math.sin(tick * 0.0016 + 0.4) * 1.4;
+    ctx.fillStyle = "#1a120e";
+    ctx.beginPath();
+    ctx.moveTo(x - 20 * s, y);
+    ctx.quadraticCurveTo(x, y + 5 * s, x + 22 * s, y);
+    ctx.lineTo(x + 16 * s, y - 7 * s);
+    ctx.lineTo(x - 14 * s, y - 7 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#c4a574";
+    ctx.lineWidth = 1.1 * s;
+    ctx.beginPath(); ctx.moveTo(x - 2 * s, y - 7 * s); ctx.lineTo(x - 2 * s, y - 38 * s); ctx.stroke();
+    ctx.fillStyle = "rgba(176, 72, 48, 0.5)";
+    ctx.beginPath();
+    ctx.moveTo(x - 2 * s, y - 36 * s);
+    ctx.lineTo(x + 14 * s, y - 28 * s);
+    ctx.lineTo(x + 12 * s, y - 12 * s);
+    ctx.lineTo(x - 2 * s, y - 10 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x - 2 * s, y - 34 * s);
+    ctx.lineTo(x - 16 * s, y - 24 * s);
+    ctx.lineTo(x - 13 * s, y - 12 * s);
+    ctx.lineTo(x - 2 * s, y - 11 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#f59e0b";
+    ctx.beginPath(); ctx.arc(x + 7 * s, y - 13 * s, 1.8 * s, 0, TAU); ctx.fill();
+}
+
+function drawStarFerry(x, y, s, tick) {
+    y += Math.sin(tick * 0.002 + 2) * 1.2;
+    ctx.fillStyle = "#16352c";
+    ctx.beginPath();
+    ctx.moveTo(x - 26 * s, y);
+    ctx.lineTo(x + 24 * s, y);
+    ctx.lineTo(x + 20 * s, y - 6 * s);
+    ctx.lineTo(x - 22 * s, y - 6 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#d5dce0";
+    ctx.fillRect(x - 15 * s, y - 15 * s, 28 * s, 9 * s);
+    ctx.fillStyle = "#2f6f55";
+    ctx.fillRect(x - 15 * s, y - 17.5 * s, 28 * s, 2.4 * s);
+    ctx.fillStyle = "#fde68a";
+    for (let i = 0; i < 5; i++) ctx.fillRect(x - 12 * s + i * 5.4 * s, y - 13.2 * s, 3.2 * s, 3.6 * s);
+}
+
+function drawWater(tick) {
+    const S = seaLevel;
+    const wg = ctx.createLinearGradient(0, S, 0, height);
+    wg.addColorStop(0, "#071016");
+    wg.addColorStop(0.45, "#050b12");
+    wg.addColorStop(1, "#03060c");
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, S, width, height - S);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, S, width, height - S);
+    ctx.clip();
+    ctx.translate(0, S);
+    ctx.scale(1, -0.3);
+    ctx.translate(0, -S);
+    ctx.globalAlpha = 0.26;
+    drawPeak();
+    drawHarbourBlocks(tick);
+    drawLandmarks(tick);
+    ctx.restore();
+
+    const fade = ctx.createLinearGradient(0, S, 0, height);
+    fade.addColorStop(0, "rgba(5, 10, 18, 0.15)");
+    fade.addColorStop(0.55, "rgba(3, 6, 12, 0.55)");
+    fade.addColorStop(1, "rgba(2, 4, 10, 0.85)");
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, S, width, height - S);
+
+    ctx.fillStyle = "rgba(255, 196, 96, 1)";
+    for (let i = 0; i < 14; i++) {
+        const y = S + 10 + (i / 14) * (height - S) * 0.5;
+        const wob = Math.sin(tick * 0.0008 + i) * 10;
+        ctx.globalAlpha = 0.06 * (1 - i / 14);
+        ctx.fillRect(width * 0.12 + wob, y, width * 0.76, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    const u = skyU();
+    drawJunk(width * 0.14, S + 22 * u, u * 0.95, tick);
+    drawStarFerry(width * 0.78, S + 18 * u, u * 0.92, tick);
+
+    ctx.strokeStyle = "rgba(120, 150, 180, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, S);
+    for (let x = 0; x <= width; x += 24) {
+        ctx.lineTo(x, S + Math.sin(x * 0.04 + tick * 0.001) * 0.8);
+    }
+    ctx.stroke();
+}
+
+function drawScene(tick) {
+    const sky = ctx.createLinearGradient(0, 0, 0, seaLevel);
+    sky.addColorStop(0, "#02040c");
+    sky.addColorStop(0.55, "#07101c");
+    sky.addColorStop(0.88, "#101c30");
+    sky.addColorStop(1, "#1a2a40");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+
+    const glow = ctx.createRadialGradient(width * 0.42, seaLevel, 8, width * 0.42, seaLevel, width * 0.55);
+    glow.addColorStop(0, "rgba(255, 168, 70, 0.08)");
+    glow.addColorStop(0.35, "rgba(70, 110, 170, 0.06)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, seaLevel);
+
+    const moonX = width * 0.86, moonY = Math.max(28, seaLevel * 0.12);
+    ctx.fillStyle = "#e8e0c8";
+    ctx.globalAlpha = 0.65;
+    ctx.beginPath(); ctx.arc(moonX, moonY, 8, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#07101c";
+    ctx.beginPath(); ctx.arc(moonX + 3.2, moonY - 1.4, 7.2, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    stars.forEach(s => {
+        ctx.globalAlpha = 0.16 + 0.4 * (0.5 + 0.5 * Math.sin(tick * 0.001 + s.phase));
+        ctx.fillStyle = "#e2e8f0";
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, TAU); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    drawPeak();
+    drawHarbourBlocks(tick);
+    drawLandmarks(tick);
+    drawWater(tick);
+}
+
+class Firework {
+    constructor(x, metal, pistil, shape, dosage, timeSetting, mystery) {
+        this.x = x;
+        this.y = seaLevel;
+        this.metal = metal;
+        this.pistil = pistil;
+        this.shape = shape;
+        this.dosage = dosage;
+        this.timeSetting = timeSetting;
+        this.mystery = !!mystery;
+        this.state = "waiting";
+        const skyTop = height * 0.13;
+        const aboveCity = seaLevel - Math.min(height * 0.24, seaLevel * 0.32);
+        const lo = Math.max(skyTop + 40, Math.min(aboveCity, height * 0.48));
+        const ratio = timeSetting / 100;
+        this.targetY = lo - (lo - skyTop) * ratio + (Math.random() - 0.5) * 18;
+        this.speed = Math.max(6.5, (seaLevel - this.targetY) / 32);
+        this.radius = 3.5 + dosage * 2;
+        this.trail = [];
+        this.float = Math.random() * TAU;
+        this.hitR = 26;
+    }
+    isHit(mx, my) {
+        return Math.hypot(mx - this.x, my - (seaLevel - 15)) < this.hitR;
+    }
+    launch() {
+        if (this.state !== "waiting") return;
+        initAudio();
+        this.state = "rising";
+        playWhoosh();
+    }
+    update(dt) {
+        if (this.state === "waiting") this.float += 0.05 * dt;
+        else if (this.state === "rising") {
+            this.y -= this.speed * dt;
+            this.speed *= Math.pow(0.991, dt);
+            this.trail.push({ x: this.x, y: this.y, a: 1 });
+            if (this.trail.length > 16) this.trail.shift();
+            this.trail.forEach(p => p.a -= 0.08 * dt);
+            if (this.y <= this.targetY) this.explode();
+        }
+    }
+    draw() {
+        if (this.state === "waiting") {
+            const fy = Math.sin(this.float) * 3;
+            ctx.strokeStyle = "rgba(255,255,255,0.12)";
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.arc(this.x, seaLevel - 15 + fy, this.hitR, 0, TAU); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#2a2a2a";
+            ctx.fillRect(this.x - 14, seaLevel - 6 + fy, 28, 9);
+            const w = 9 * this.dosage;
+            ctx.fillStyle = "#64748b";
+            ctx.fillRect(this.x - w / 2, seaLevel - 26 + fy, w, 20);
+            if (showLabels) {
+                ctx.textAlign = "center";
+                ctx.shadowColor = "#000"; ctx.shadowBlur = 4;
+                ctx.fillStyle = this.mystery ? "#fde68a" : this.metal.hex;
+                ctx.font = "bold 13px 'Noto Sans TC', sans-serif";
+                const label = this.mystery ? "?" : (this.pistil ? `${this.metal.symbol}/${this.pistil.symbol}` : this.metal.symbol);
+                ctx.fillText(label, this.x, seaLevel - 32 + fy);
+                ctx.fillStyle = "#94a3b8";
+                ctx.font = "10px 'Noto Sans TC', sans-serif";
+                ctx.fillText(`${this.dosage.toFixed(1)}×`, this.x, seaLevel + 16 + fy);
+                ctx.shadowBlur = 0;
+            }
+        } else if (this.state === "rising") {
+            ctx.fillStyle = "#fff";
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, TAU); ctx.fill();
+            ctx.fillStyle = `rgba(${this.metal.rgb.join(",")},0.55)`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 2.2, 0, TAU); ctx.fill();
+            this.trail.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.a);
+                ctx.fillStyle = "#fff";
+                ctx.beginPath(); ctx.arc(p.x, p.y, this.radius * 0.45, 0, TAU); ctx.fill();
             });
-            if (!hasLaunched && fireworks.length === 0) {
-                const t = translations[currentLang];
-                alert(t.alert_place);
-            }
-        });
-
-        clearBtn.addEventListener('click', () => {
-            fireworks = [];
-            particles = [];
-        });
-
-        // --- 7. 主循環 ---
-
-        function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-            seaLevel = height * 0.75;
-            initStars();
+            ctx.globalAlpha = 1;
         }
-        window.addEventListener('resize', resize);
+    }
+    explode() {
+        this.state = "exploded";
+        playBoom();
+        spawnBurst(this.x, this.y, this.metal, this.shape, this.dosage, false);
+        if (this.pistil) spawnBurst(this.x, this.y, this.pistil, "peony", this.dosage * 0.55, true);
+        flashes.push({ a: 0.22 * this.dosage, color: this.metal.hex, life: 1 });
+        if (mode === "challenge") quizBurstSeen = true;
+    }
+}
 
-        function loop() {
-            drawScene();
-
-            for (let i = fireworks.length - 1; i >= 0; i--) {
-                const fw = fireworks[i];
-                fw.update();
-                fw.draw();
-                if (fw.state === 'exploded') {
-                    fireworks.splice(i, 1);
-                }
-            }
-
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.update();
-                p.draw();
-                if (p.alpha <= 0) {
-                    particles.splice(i, 1);
-                }
-            }
-            requestAnimationFrame(loop);
+class Particle {
+    constructor(x, y, metal, vx, vy, opts) {
+        this.x = x; this.y = y; this.px = x; this.py = y;
+        this.metal = metal;
+        this.vx = vx; this.vy = vy;
+        this.life = opts.life;
+        this.max = opts.life;
+        this.g = opts.g;
+        this.fric = opts.fric;
+        this.size = opts.size;
+        this.trail = opts.trail;
+        this.spark = metal.kind === "spark";
+    }
+    update(dt) {
+        this.px = this.x; this.py = this.y;
+        this.vx *= Math.pow(this.fric, dt);
+        this.vy *= Math.pow(this.fric, dt);
+        this.vy += this.g * dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.life -= dt;
+    }
+    draw() {
+        const a = Math.max(0, this.life / this.max) * (this.metal.pale ? 0.82 : 1);
+        const flicker = this.spark ? 0.7 + 0.3 * Math.random() : 1;
+        const [r, g, b] = this.metal.rgb;
+        const br = this.metal.bright * flicker;
+        const rr = Math.min(255, r * br + 30);
+        const gg = Math.min(255, g * br + 30);
+        const bb = Math.min(255, b * br + 30);
+        if (this.trail) {
+            ctx.strokeStyle = `rgba(${rr},${gg},${bb},${a * 0.7})`;
+            ctx.lineWidth = Math.max(1.2, this.size * 0.9);
+            ctx.beginPath(); ctx.moveTo(this.px, this.py); ctx.lineTo(this.x, this.y); ctx.stroke();
         }
+        ctx.fillStyle = `rgba(${rr},${gg},${bb},${a * 0.28})`;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 2.6, 0, TAU); ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${a * 0.9})`;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.45, 0, TAU); ctx.fill();
+        ctx.fillStyle = `rgba(${rr},${gg},${bb},${a})`;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.95, 0, TAU); ctx.fill();
+        if (this.y < seaLevel && a > 0.25) {
+            const ry = 2 * seaLevel - this.y;
+            if (ry < height) {
+                ctx.fillStyle = `rgba(${rr},${gg},${bb},${a * 0.22})`;
+                ctx.beginPath(); ctx.ellipse(this.x, ry, this.size * 3, this.size, 0, 0, TAU); ctx.fill();
+            }
+        }
+    }
+}
 
-        // --- 啟動 ---
-        initUI();
-        resize();
-        loop();
+function burstDirs(shape, n) {
+    const dirs = [];
+    if (shape === "ring") {
+        for (let i = 0; i < n; i++) {
+            const a = (i / n) * TAU;
+            dirs.push({ x: Math.cos(a), y: Math.sin(a), s: 1 });
+        }
+    } else if (shape === "heart") {
+        for (let i = 0; i < n; i++) {
+            const p = (i / n) * TAU;
+            const hx = 16 * Math.sin(p) ** 3;
+            const hy = -(13 * Math.cos(p) - 5 * Math.cos(2 * p) - 2 * Math.cos(3 * p) - Math.cos(4 * p));
+            const mag = Math.hypot(hx, hy) || 1;
+            dirs.push({ x: hx / mag, y: hy / mag, s: mag / 20 });
+        }
+    } else if (shape === "palm") {
+        for (let i = 0; i < n; i++) {
+            const a = -Math.PI * 0.72 + Math.random() * Math.PI * 0.44;
+            dirs.push({ x: Math.cos(a) * (0.4 + Math.random() * 0.7), y: Math.sin(a), s: 0.8 + Math.random() * 0.5 });
+        }
+    } else {
+        for (let i = 0; i < n; i++) {
+            const a = Math.random() * TAU;
+            dirs.push({ x: Math.cos(a), y: Math.sin(a), s: 0.35 + Math.random() * 0.65 });
+        }
+    }
+    return dirs;
+}
 
-    </script>
+function spawnBurst(x, y, metal, shape, dosage, isPistil) {
+    if (particles.length > 2800) particles.splice(0, particles.length - 2200);
+    const sc = sceneScale();
+    const willow = shape === "willow" || metal.id === "fe";
+    const chrys = shape === "chrys" || willow || metal.kind === "spark";
+    const n = Math.floor((isPistil ? 48 : 120) * dosage * (willow ? 0.9 : 1));
+    const base = (isPistil ? 3.4 : 8.2) * dosage * sc * (metal.id === "na" ? 1.08 : 1);
+    const dirs = burstDirs(isPistil ? "peony" : shape, n);
+    dirs.forEach(d => {
+        const spd = base * d.s * (willow ? 0.88 : 1);
+        particles.push(new Particle(x, y, metal, d.x * spd, d.y * spd, {
+            life: (willow ? 180 : 100) * (0.8 + Math.random() * 0.4),
+            g: (willow ? 0.1 : (metal.kind === "spark" ? 0.075 : 0.05)) * sc,
+            fric: willow ? 0.986 : 0.962,
+            size: (metal.kind === "spark" ? 2.4 : 2.1) * sc * (isPistil ? 0.8 : 1) * (0.75 + dosage * 0.35),
+            trail: chrys || willow
+        }));
+    });
+}
+
+function placeBarge(x) {
+    const m = mode === "challenge" ? quizAnswer : selected;
+    const p = mode === "challenge" ? null : pistilMetal();
+    const sh = mode === "challenge" ? "peony" : shapeId;
+    fireworks.push(new Firework(Math.max(20, Math.min(width - 20, x)), m, p, sh, dosage, timeSetting, mode === "challenge" && !quizLocked));
+}
+
+function rainbowShow() {
+    if (mode === "challenge") return;
+    fireworks = []; particles = []; flashes = [];
+    const ids = ["li", "sr", "ca", "na", "ba", "cu", "k"];
+    const gap = width / (ids.length + 1);
+    ids.forEach((id, i) => {
+        const m = METALS.find(mm => mm.id === id);
+        const fw = new Firework(gap * (i + 1), m, null, i === 4 ? "chrys" : "peony", 1.1, 40 + i * 8, false);
+        fireworks.push(fw);
+        setTimeout(() => fw.launch(), 160 * i);
+    });
+}
+
+function resetSim() {
+    fireworks = []; particles = []; flashes = [];
+    selected = METALS.find(m => m.id === "sr");
+    pistilId = "";
+    shapeId = "peony";
+    dosage = 1;
+    timeSetting = 50;
+    $("dosage-slider").value = "1.0";
+    $("dosage-val").textContent = "1.0×";
+    $("time-slider").value = "50";
+    $("pistil-select").value = "";
+    $("chk-slow").checked = false;
+    slowMo = false;
+    $("chk-labels").checked = true;
+    showLabels = true;
+    $("chk-sound").checked = true;
+    soundOn = true;
+    metalFilter = "all";
+    if (mode === "challenge") startQuiz(true);
+    else {
+        setFilter("all");
+        renderMetals();
+        fillPistilSelect();
+        renderShapes();
+        updateTimeLabel();
+        updateInfo();
+        updateHud();
+    }
+}
+
+function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    width = Math.max(1, Math.floor(rect.width));
+    height = Math.max(1, Math.floor(rect.height));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seaLevel = Math.min(height * 0.8, height - 36);
+    initStars();
+}
+
+let last = performance.now();
+let tick = 0;
+function loop(now) {
+    const raw = Math.min(32, now - last);
+    last = now;
+    const dt = (slowMo ? 0.32 : 1) * (raw / 16.67);
+    tick += raw;
+    drawScene(tick);
+    flashes.forEach(f => {
+        ctx.fillStyle = f.color;
+        ctx.globalAlpha = f.a * f.life * 0.35;
+        ctx.fillRect(0, 0, width, seaLevel);
+        ctx.globalAlpha = f.a * f.life * 0.2;
+        ctx.fillRect(0, seaLevel, width, height - seaLevel);
+        ctx.globalAlpha = 1;
+        f.life -= 0.08 * dt;
+    });
+    flashes = flashes.filter(f => f.life > 0);
+    for (let i = fireworks.length - 1; i >= 0; i--) {
+        fireworks[i].update(dt);
+        fireworks[i].draw();
+        if (fireworks[i].state === "exploded") fireworks.splice(i, 1);
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update(dt);
+        particles[i].draw();
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+    requestAnimationFrame(loop);
+}
+
+canvas.addEventListener("pointerdown", e => {
+    initAudio();
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (width / rect.width);
+    const y = (e.clientY - rect.top) * (height / rect.height);
+    for (let i = fireworks.length - 1; i >= 0; i--) {
+        if (fireworks[i].state === "waiting" && fireworks[i].isHit(x, y)) {
+            fireworks[i].launch();
+            return;
+        }
+    }
+    if (y >= seaLevel - 48) placeBarge(x);
+});
+
+$("launch-btn").onclick = () => {
+    initAudio();
+    const waiting = fireworks.filter(f => f.state === "waiting");
+    if (!waiting.length) { alert(t().alertPlace); return; }
+    waiting.forEach((f, i) => setTimeout(() => f.launch(), i * 180));
+};
+$("clear-btn").onclick = () => { fireworks = []; particles = []; flashes = []; };
+$("reset-btn").onclick = resetSim;
+$("show-btn").onclick = () => { initAudio(); rainbowShow(); };
+$("quiz-new-btn").onclick = () => startQuiz(false);
+$("dosage-slider").oninput = e => { dosage = parseFloat(e.target.value); $("dosage-val").textContent = dosage.toFixed(1) + "×"; };
+$("time-slider").oninput = e => { timeSetting = parseInt(e.target.value, 10); updateTimeLabel(); };
+$("pistil-select").onchange = e => { pistilId = e.target.value; updateHud(); };
+$("chk-sound").onchange = e => { soundOn = e.target.checked; };
+$("chk-slow").onchange = e => { slowMo = e.target.checked; };
+$("chk-labels").onchange = e => { showLabels = e.target.checked; };
+$("mode-design").onclick = () => setMode("design");
+$("mode-challenge").onclick = () => setMode("challenge");
+$("filter-all").onclick = () => setFilter("all");
+$("filter-emission").onclick = () => setFilter("emission");
+$("filter-spark").onclick = () => setFilter("spark");
+$("btn-lang").onclick = $("btn-lang-mobile").onclick = () => { lang = lang === "zh" ? "en" : "zh"; applyLang(); };
+$("btn-steps").onclick = () => openModal("modal-steps");
+$("btn-principle").onclick = () => openModal("modal-principle");
+$("modal-close").onclick = $("modal-confirm").onclick = () => closeModal("modal-principle");
+$("steps-close").onclick = $("steps-confirm").onclick = () => closeModal("modal-steps");
+$("modal-principle").addEventListener("click", e => { if (e.target.id === "modal-principle") closeModal("modal-principle"); });
+$("modal-steps").addEventListener("click", e => { if (e.target.id === "modal-steps") closeModal("modal-steps"); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllModals(); });
+
+window.addEventListener("resize", resize);
+applyLang();
+resize();
+requestAnimationFrame(loop);
+</script>
 </body>
 </html>

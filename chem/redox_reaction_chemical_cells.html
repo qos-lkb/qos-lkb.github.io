@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>原電池 (Galvanic Cell) 氧化還原反應模擬器 | Electrochemical Redox Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+                    },
+                    colors: {
+                        anode: '#f43f5e',
+                        cathode: '#06b6d4',
+                        amberGlow: '#f59e0b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 420px;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100 overflow-x-hidden">
+
+    <!-- Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-50 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-cyan-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid fa-bolt text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 id="uiMainTitle" class="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-cyan-200 to-white">
+                        原電池 (Galvanic Cell) 氧化還原反應模擬器
+                    </h1>
+                    <p id="uiSubTitle" class="text-xs text-slate-400">高等化學互動教學模組 • 24種半電池與 Nernst 方程式</p>
+                </div>
+            </div>
+
+            <!-- Header Right: Language Switcher & Controls -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- Language Switcher Toggle -->
+                <button id="btnLangToggle" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold border border-cyan-500/30 transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-globe text-cyan-400"></i>
+                    <span id="langText">English</span>
+                </button>
+
+                <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
+
+                <!-- Simulation Master Controls -->
+                <div class="flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-xl border border-slate-700/60">
+                    <button id="btnPlayPause" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-md">
+                        <i id="playIcon" class="fa-solid fa-pause"></i>
+                        <span id="playText">暫停模擬</span>
+                    </button>
+                    <button id="btnReset" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span id="uiReset">重置</span>
+                    </button>
+                    <div class="h-5 w-px bg-slate-700 mx-0.5"></div>
+                    <div class="flex items-center gap-1.5 px-1">
+                        <i class="fa-solid fa-gauge text-slate-400 text-xs"></i>
+                        <input type="range" id="speedSlider" min="0.2" max="3.0" step="0.2" value="1.0" class="w-16 accent-indigo-500 cursor-pointer">
+                        <span id="speedVal" class="text-xs font-mono text-indigo-300 w-8">1.0x</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- Left Column: Controls & Presets (4 Cols) -->
+        <section class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- Left Half-Cell Box -->
+            <div class="glass-panel rounded-2xl p-4 border-l-4 border-l-rose-500 shadow-lg">
+                <div class="flex justify-between items-center mb-2.5">
+                    <span id="uiLeftTitle" class="text-xs font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                        <i class="fa-solid fa-flask mr-1"></i>左側半電池 (Left Half-Cell)
+                    </span>
+                    <span id="leftRoleBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded text-rose-300 bg-rose-950/60 border border-rose-800">
+                        陽極 (Anode) - 氧化
+                    </span>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label id="uiLeftSelectLabel" class="block text-xs text-slate-300 font-medium mb-1">選擇半電池反應物對 (24種標準電位)</label>
+                        <select id="leftMetalSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500/50">
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span id="uiLeftConcLabel" class="text-slate-400">溶液陽離子/反應物濃度</span>
+                            <span id="leftConcVal" class="font-mono text-rose-300 font-bold">1.00 M</span>
+                        </div>
+                        <input type="range" id="leftConcSlider" min="0.01" max="2.00" step="0.05" value="1.00" class="w-full accent-rose-500 cursor-pointer">
+                    </div>
+
+                    <div class="p-2 bg-slate-900/80 rounded-lg border border-slate-800 text-xs flex justify-between items-center">
+                        <span id="uiLeftE0Label" class="text-slate-400">標準還原電位 E°:</span>
+                        <span id="leftE0" class="font-mono font-bold text-slate-100">-0.76 V</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Half-Cell Box -->
+            <div class="glass-panel rounded-2xl p-4 border-l-4 border-l-cyan-500 shadow-lg">
+                <div class="flex justify-between items-center mb-2.5">
+                    <span id="uiRightTitle" class="text-xs font-bold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full border border-cyan-500/20">
+                        <i class="fa-solid fa-flask mr-1"></i>右側半電池 (Right Half-Cell)
+                    </span>
+                    <span id="rightRoleBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded text-cyan-300 bg-cyan-950/60 border border-cyan-800">
+                        陰極 (Cathode) - 還原
+                    </span>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label id="uiRightSelectLabel" class="block text-xs text-slate-300 font-medium mb-1">選擇半電池反應物對 (24種標準電位)</label>
+                        <select id="rightMetalSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span id="uiRightConcLabel" class="text-slate-400">溶液陽離子/反應物濃度</span>
+                            <span id="rightConcVal" class="font-mono text-cyan-300 font-bold">1.00 M</span>
+                        </div>
+                        <input type="range" id="rightConcSlider" min="0.01" max="2.00" step="0.05" value="1.00" class="w-full accent-cyan-500 cursor-pointer">
+                    </div>
+
+                    <div class="p-2 bg-slate-900/80 rounded-lg border border-slate-800 text-xs flex justify-between items-center">
+                        <span id="uiRightE0Label" class="text-slate-400">標準還原電位 E°:</span>
+                        <span id="rightE0" class="font-mono font-bold text-slate-100">+0.34 V</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Salt Bridge Electrolyte -->
+            <div class="glass-panel rounded-2xl p-3.5 shadow-lg">
+                <div class="flex items-center gap-2 mb-1.5">
+                    <i class="fa-solid fa-vial text-emerald-400 text-xs"></i>
+                    <h3 id="uiSaltBridgeLabel" class="text-xs font-bold uppercase tracking-wider text-slate-300">鹽橋電解質 (Salt Bridge)</h3>
+                </div>
+                <select id="saltSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200">
+                    <option value="KNO3">硝酸鉀 (KNO₃) - K⁺ / NO₃⁻</option>
+                    <option value="KCl">氯化鉀 (KCl) - K⁺ / Cl⁻</option>
+                    <option value="Na2SO4">硫酸鈉 (Na₂SO₄) - Na⁺ / SO₄²⁻</option>
+                    <option value="NH4NO3">硝酸銨 (NH₄NO₃) - NH₄⁺ / NO₃⁻</option>
+                </select>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="glass-panel rounded-2xl p-3.5 shadow-lg space-y-2">
+                <div id="uiPresetsLabel" class="text-xs text-slate-400 font-semibold mb-1">快速載入經典實驗組合：</div>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <button onclick="presetCell('Zn', 'Cu')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 text-slate-200 text-left transition flex items-center gap-1.5">
+                        ⚡ <span id="presetDaniell">丹尼爾電池 (Zn-Cu)</span>
+                    </button>
+                    <button onclick="presetCell('Mg', 'Cu')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 text-slate-200 text-left transition flex items-center gap-1.5">
+                        🔋 <span id="presetHighEMF">高電位差 (Mg-Cu)</span>
+                    </button>
+                    <button onclick="presetCell('H2', 'Cu')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 text-slate-200 text-left transition flex items-center gap-1.5">
+                        🧪 <span id="presetSHE">標準氫電極 (Pt/H₂-Cu)</span>
+                    </button>
+                    <button onclick="presetCell('Zn', 'MnO4')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 text-slate-200 text-left transition flex items-center gap-1.5">
+                        💜 <span id="presetPermanganate">高錳酸鉀 (Zn-MnO₄⁻)</span>
+                    </button>
+                    <button onclick="presetCell('Fe3_Fe2', 'Cr2O7')" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 text-slate-200 text-left transition flex items-center gap-1.5">
+                        🧡 <span id="presetDichromate">重鉻酸鉀 (Fe²⁺-Cr₂O₇²⁻)</span>
+                    </button>
+                    <button onclick="presetCell('Zn', 'Zn', 0.05, 1.5)" class="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-800 text-slate-200 text-left transition flex items-center gap-1.5">
+                        💧 <span id="presetConc">濃度電池 (Zn-Zn)</span>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Center & Right Columns: Simulation Canvas & Analysis (8 Cols) -->
+        <section class="lg:col-span-8 flex flex-col gap-5">
+
+            <!-- HTML5 Canvas Viewport Card -->
+            <div class="glass-panel rounded-2xl p-4 shadow-2xl relative overflow-hidden flex flex-col border border-slate-700/80">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="flex h-2.5 w-2.5 relative">
+                            <span id="livePulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <h2 id="uiCanvasTitle" class="text-xs sm:text-sm font-bold text-slate-200">即時微觀與宏觀模擬視圖 (Live Microscopic Simulation)</h2>
+                    </div>
+                    <div class="flex gap-3 text-[11px]">
+                        <span class="text-rose-400 font-semibold"><i class="fa-solid fa-minus-circle mr-1"></i><span id="uiAnodeTag">陽極 (-) 氧化</span></span>
+                        <span class="text-cyan-400 font-semibold"><i class="fa-solid fa-plus-circle mr-1"></i><span id="uiCathodeTag">陰極 (+) 還原</span></span>
+                    </div>
+                </div>
+
+                <!-- Canvas Wrapper -->
+                <div class="canvas-container rounded-xl overflow-hidden bg-slate-950/90 border border-slate-800 shadow-inner">
+                    <canvas id="simCanvas"></canvas>
+                </div>
+
+                <!-- Canvas Bottom Legend / Status Bar -->
+                <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div class="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                        <span id="uiLeftStatusTitle" class="text-slate-400 block text-[10px]">左極狀態 (Left Electrode)</span>
+                        <span id="leftElectrodeStatus" class="font-bold text-rose-400 text-[11px]">氧化反應</span>
+                    </div>
+                    <div class="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                        <span id="uiFlowStatusTitle" class="text-slate-400 block text-[10px]">外電路電子流 (e⁻ Flow)</span>
+                        <span id="electronFlowStatus" class="font-bold text-amber-400 text-[11px]">左 ➔ 右</span>
+                    </div>
+                    <div class="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
+                        <span id="uiRightStatusTitle" class="text-slate-400 block text-[10px]">右極狀態 (Right Electrode)</span>
+                        <span id="rightElectrodeStatus" class="font-bold text-cyan-400 text-[11px]">還原反應</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis & Equation Results Card -->
+            <div class="glass-panel rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-indigo-400 text-lg"></i>
+                        <h2 id="uiAnalysisTitle" class="text-sm sm:text-base font-bold text-slate-100">化學反應與電位計算分析 (Electrochemical Analysis)</h2>
+                    </div>
+                    <div class="text-right">
+                        <span id="uiVoltLabel" class="text-[10px] text-slate-400 block uppercase tracking-wider">Nernst 方程式實測電位</span>
+                        <span id="voltmeterDisplay" class="text-xl sm:text-2xl font-mono font-bold text-emerald-400 tracking-wider">
+                            +1.100 V
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Equations Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <!-- Half Reactions -->
+                    <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                        <h3 id="uiOxTitle" class="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrow-up-from-bracket"></i> 陽極氧化半反應 (Oxidation Half-Reaction):
+                        </h3>
+                        <p id="oxEq" class="font-mono text-xs sm:text-sm text-slate-100 bg-slate-950 p-2 rounded border border-slate-800/80 overflow-x-auto">
+                            Zn(s) → Zn²⁺(aq) + 2e⁻
+                        </p>
+
+                        <h3 id="uiRedTitle" class="text-xs font-bold text-cyan-400 flex items-center gap-1.5 pt-1">
+                            <i class="fa-solid fa-arrow-down-to-bracket"></i> 陰極還原半反應 (Reduction Half-Reaction):
+                        </h3>
+                        <p id="redEq" class="font-mono text-xs sm:text-sm text-slate-100 bg-slate-950 p-2 rounded border border-slate-800/80 overflow-x-auto">
+                            Cu²⁺(aq) + 2e⁻ → Cu(s)
+                        </p>
+                    </div>
+
+                    <!-- Overall & Nernst Details -->
+                    <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                        <h3 id="uiOverallTitle" class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-equals"></i> 總全反應式 (Balanced Overall Redox Equation):
+                        </h3>
+                        <p id="overallEq" class="font-mono text-xs sm:text-sm text-amber-200 bg-slate-950 p-2 rounded border border-slate-800/80 overflow-x-auto">
+                            Zn(s) + Cu²⁺(aq) → Zn²⁺(aq) + Cu(s)
+                        </p>
+
+                        <h3 id="uiNotationTitle" class="text-xs font-bold text-indigo-300 flex items-center gap-1.5 pt-1">
+                            <i class="fa-solid fa-link"></i> 電池簡記 (Cell Notation):
+                        </h3>
+                        <p id="cellNotation" class="font-mono text-xs text-indigo-200 bg-slate-950 p-2 rounded border border-slate-800/80 overflow-x-auto">
+                            Zn(s) | Zn²⁺(1.00M) || Cu²⁺(1.00M) | Cu(s)
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Math Calculation Steps -->
+                <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs space-y-1 text-slate-300 font-mono">
+                    <div class="flex justify-between items-center text-slate-400 flex-wrap gap-1">
+                        <span id="uiCalcStep1">標準電池電位 E°cell = E°cathode - E°anode:</span>
+                        <span id="e0CalcStep" class="text-slate-200">+0.34V - (-0.76V) = +1.100 V</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-400 flex-wrap gap-1">
+                        <span id="uiCalcStep2">反應商 Q = [陽極生成離子] / [陰極反應離子]:</span>
+                        <span id="qCalcStep" class="text-slate-200">Q = 1.00 / 1.00 = 1.000</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-400 flex-wrap gap-1">
+                        <span id="uiCalcStep3">Nernst 電位修正: E = E° - (0.0592/n) × log₁₀(Q):</span>
+                        <span id="nernstCalcStep" class="text-emerald-400 font-bold">1.100 V</span>
+                    </div>
+                </div>
+
+                <!-- Experimental Physical Observations Box -->
+                <div class="p-3 bg-indigo-950/40 rounded-xl border border-indigo-500/30 text-xs space-y-2">
+                    <h3 id="uiObsTitle" class="font-bold text-indigo-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-eye text-indigo-400"></i> 實驗現象與觀察 (Experimental Observations):
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-200">
+                        <div class="p-2 bg-slate-900/90 rounded border border-slate-800">
+                            <span id="uiLeftObsLabel" class="text-rose-400 font-bold block mb-0.5">左側半電池現象:</span>
+                            <span id="leftObsText">極板逐漸溶解變薄，溶液保持無色。</span>
+                        </div>
+                        <div class="p-2 bg-slate-900/90 rounded border border-slate-800">
+                            <span id="uiRightObsLabel" class="text-cyan-400 font-bold block mb-0.5">右側半電池現象:</span>
+                            <span id="rightObsText">電極表面沉積紅棕色銅金屬，藍色溶液顏色變淺。</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Bottom Educational Resources & Concept Quiz -->
+    <section class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+        <div class="glass-panel rounded-2xl p-4 sm:p-6 shadow-xl">
+            <!-- Tabs Header -->
+            <div class="flex border-b border-slate-800 gap-4 sm:gap-6 mb-4 overflow-x-auto">
+                <button id="tabBtn1" onclick="switchTab(1)" class="pb-3 text-xs sm:text-sm font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 whitespace-nowrap">
+                    <i class="fa-solid fa-graduation-cap"></i> <span id="tab1Title">記憶口訣與核心概念</span>
+                </button>
+                <button id="tabBtn2" onclick="switchTab(2)" class="pb-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap">
+                    <i class="fa-solid fa-circle-info"></i> <span id="tab2Title">鹽橋與電子流機制</span>
+                </button>
+                <button id="tabBtn3" onclick="switchTab(3)" class="pb-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap">
+                    <i class="fa-solid fa-clipboard-question"></i> <span id="tab3Title">隨堂概念檢測 (Quiz)</span>
+                </button>
+            </div>
+
+            <!-- Tab Content 1: Mnemonics -->
+            <div id="tabContent1" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 bg-slate-900/80 rounded-xl border border-rose-500/30">
+                        <div id="mne1Title" class="text-rose-400 font-bold text-sm sm:text-base mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-fire"></i> 陽極 (Anode) 氧化
+                        </div>
+                        <p id="mne1Text" class="text-xs text-slate-300 leading-relaxed">
+                            <strong class="text-white">口訣：AN OX (陽極氧化)</strong><br>
+                            • 還原電位較低的金屬/物質較易失去電子。<br>
+                            • 極板發生<span class="text-rose-400 font-bold">氧化反應</span>，陽極為原電池的<span class="text-rose-400 font-bold">負極 (-)</span>。<br>
+                            • 電子經外接導線由陽極流出。
+                        </p>
+                    </div>
+
+                    <div class="p-4 bg-slate-900/80 rounded-xl border border-cyan-500/30">
+                        <div id="mne2Title" class="text-cyan-400 font-bold text-sm sm:text-base mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-water"></i> 陰極 (Cathode) 還原
+                        </div>
+                        <p id="mne2Text" class="text-xs text-slate-300 leading-relaxed">
+                            <strong class="text-white">口訣：RED CAT (陰極還原)</strong><br>
+                            • 還原電位較高的物質較易獲得電子。<br>
+                            • 極板發生<span class="text-cyan-400 font-bold">還原反應</span>，陰極為原電池的<span class="text-cyan-400 font-bold">正極 (+)</span>。<br>
+                            • 接收來自外電路的電子。
+                        </p>
+                    </div>
+
+                    <div class="p-4 bg-slate-900/80 rounded-xl border border-amber-500/30">
+                        <div id="mne3Title" class="text-amber-400 font-bold text-sm sm:text-base mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-right-left"></i> 電荷守恆與鹽橋
+                        </div>
+                        <p id="mne3Text" class="text-xs text-slate-300 leading-relaxed">
+                            <strong class="text-white">口訣：陽隨陽，陰隨陰</strong><br>
+                            • 鹽橋中的<span class="text-amber-300 font-bold">陽離子 (K⁺)</span> 移向陰極，補充被消耗的陽電荷。<br>
+                            • 鹽橋中的<span class="text-cyan-300 font-bold">陰離子 (NO₃⁻)</span> 移向陽極，中和過多的陽離子。<br>
+                            • 保持兩杯溶液電中性，維持電流持續導通。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content 2: Mechanism -->
+            <div id="tabContent2" class="hidden space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div class="p-4 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                    <h4 id="mechTitle1" class="text-sm font-bold text-indigo-300">為什麼原電池可以產生電流？</h4>
+                    <p id="mechText1">當兩種標準還原電位不同的半電池用外接導線與鹽橋連接時，電位較低的半電池反應物傾向失去電子（氧化），而電位較高的半電池反應物傾向獲得電子（還原）。電子經由外部金屬導線流動，因而產生電流與可利用的電能。</p>
+                </div>
+                <div class="p-4 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                    <h4 id="mechTitle2" class="text-sm font-bold text-indigo-300">鹽橋 (Salt Bridge) 的三大關鍵功能：</h4>
+                    <ol id="mechList2" class="list-decimal list-inside space-y-1 text-slate-300">
+                        <li><strong class="text-slate-100">導電迴路：</strong>讓離子可以在兩半電池之間遷移，形成封閉的導電迴路。</li>
+                        <li><strong class="text-slate-100">維持電中性：</strong>防止陽極杯因正離子累積或陰極杯因正離子減少而積聚電荷，避免產生反向電場阻礙電子流動。</li>
+                        <li><strong class="text-slate-100">隔離反應物：</strong>防止氧化劑與還原劑直接接觸發生混合熱反應，確保化學能高效轉化為電能。</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Tab Content 3: Quiz -->
+            <div id="tabContent3" class="hidden space-y-4">
+                <div class="p-4 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold text-indigo-400"><span id="uiQuizQuestionNum">問題</span> <span id="quizIndex">1</span> / 4</span>
+                        <span id="quizScoreBadge" class="text-xs px-2 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">得分: 0/4</span>
+                    </div>
+                    <p id="quizQuestion" class="text-xs sm:text-sm font-bold text-slate-100 mb-3">
+                        載入中...
+                    </p>
+                    <div id="quizOptions" class="space-y-2">
+                        <!-- Dynamic options -->
+                    </div>
+                    <div id="quizFeedback" class="hidden mt-3 p-3 rounded-lg text-xs leading-relaxed">
+                        <!-- Dynamic feedback -->
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button id="btnNextQuiz" onclick="nextQuestion()" class="hidden px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold">
+                            <span id="uiNextBtn">下一題</span> <i class="fa-solid fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-900 py-3.5 text-center text-xs text-slate-500">
+        <p id="uiFooter">高等化學虛擬實驗室 • 廣義電化學與原電池模擬器 © 2026</p>
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Language state: 'zh' (繁體中文) or 'en' (English)
+        let currentLang = 'zh';
+
+        // 24 Standard Electrode Potentials E° (V at 25°C) Database
+        const HALF_CELLS = {
+            K: {
+                id: 'K',
+                e0: -2.93,
+                n: 1,
+                electrode: 'metal',
+                metalColor: '#e2e8f0',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鉀 (K⁺/K)', en: 'Potassium (K⁺/K)' },
+                metalName: { zh: '鉀金屬 (K)', en: 'Potassium Metal (K)' },
+                ionName: 'K⁺',
+                oxEq: 'K(s) → K⁺(aq) + e⁻',
+                redEq: 'K⁺(aq) + e⁻ → K(s)',
+                oxSpecies: { solid: 'K(s)', ion: 'K⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '銀白色鉀金屬極快溶解，溶液保持無色。', en: 'Silvery potassium metal dissolves rapidly; solution remains colorless.' },
+                obsRed: { zh: '極板表面析出銀白色鉀金屬。', en: 'Silvery potassium metal deposits on the electrode surface.' }
+            },
+            Ca: {
+                id: 'Ca',
+                e0: -2.87,
+                n: 2,
+                electrode: 'metal',
+                metalColor: '#cbd5e1',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鈣 (Ca²⁺/Ca)', en: 'Calcium (Ca²⁺/Ca)' },
+                metalName: { zh: '鈣金屬 (Ca)', en: 'Calcium Metal (Ca)' },
+                ionName: 'Ca²⁺',
+                oxEq: 'Ca(s) → Ca²⁺(aq) + 2e⁻',
+                redEq: 'Ca²⁺(aq) + 2e⁻ → Ca(s)',
+                oxSpecies: { solid: 'Ca(s)', ion: 'Ca²⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '鈣金屬逐漸溶解，溶液保持無色。', en: 'Calcium metal dissolves gradually; solution remains colorless.' },
+                obsRed: { zh: '極板表面析出灰白色鈣金屬。', en: 'Greyish-white calcium deposits on electrode surface.' }
+            },
+            Na: {
+                id: 'Na',
+                e0: -2.71,
+                n: 1,
+                electrode: 'metal',
+                metalColor: '#cbd5e1',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鈉 (Na⁺/Na)', en: 'Sodium (Na⁺/Na)' },
+                metalName: { zh: '鈉金屬 (Na)', en: 'Sodium Metal (Na)' },
+                ionName: 'Na⁺',
+                oxEq: 'Na(s) → Na⁺(aq) + e⁻',
+                redEq: 'Na⁺(aq) + e⁻ → Na(s)',
+                oxSpecies: { solid: 'Na(s)', ion: 'Na⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '銀白色鈉金屬溶解，溶液保持無色。', en: 'Silvery sodium metal dissolves; solution remains colorless.' },
+                obsRed: { zh: '極板表面析出金屬鈉。', en: 'Metallic sodium deposits on electrode.' }
+            },
+            Mg: {
+                id: 'Mg',
+                e0: -2.37,
+                n: 2,
+                electrode: 'metal',
+                metalColor: '#94a3b8',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鎂 (Mg²⁺/Mg)', en: 'Magnesium (Mg²⁺/Mg)' },
+                metalName: { zh: '鎂帶/極板 (Mg)', en: 'Magnesium Plate (Mg)' },
+                ionName: 'Mg²⁺',
+                oxEq: 'Mg(s) → Mg²⁺(aq) + 2e⁻',
+                redEq: 'Mg²⁺(aq) + 2e⁻ → Mg(s)',
+                oxSpecies: { solid: 'Mg(s)', ion: 'Mg²⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '銀白色鎂極板逐漸溶解變薄。', en: 'Silvery magnesium metal dissolves and thins down.' },
+                obsRed: { zh: '極板表面沉積灰白色鎂金屬。', en: 'Greyish magnesium metal deposits on electrode.' }
+            },
+            Al: {
+                id: 'Al',
+                e0: -1.66,
+                n: 3,
+                electrode: 'metal',
+                metalColor: '#cbd5e1',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鋁 (Al³⁺/Al)', en: 'Aluminium (Al³⁺/Al)' },
+                metalName: { zh: '鋁極板 (Al)', en: 'Aluminium Plate (Al)' },
+                ionName: 'Al³⁺',
+                oxEq: 'Al(s) → Al³⁺(aq) + 3e⁻',
+                redEq: 'Al³⁺(aq) + 3e⁻ → Al(s)',
+                oxSpecies: { solid: 'Al(s)', ion: 'Al³⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '銀白色鋁極板逐漸溶解。', en: 'Silvery aluminium metal dissolves slowly.' },
+                obsRed: { zh: '極板表面沉積金屬鋁。', en: 'Metallic aluminium deposits on electrode.' }
+            },
+            Zn: {
+                id: 'Zn',
+                e0: -0.76,
+                n: 2,
+                electrode: 'metal',
+                metalColor: '#a1a1aa',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鋅 (Zn²⁺/Zn)', en: 'Zinc (Zn²⁺/Zn)' },
+                metalName: { zh: '鋅極板 (Zn)', en: 'Zinc Plate (Zn)' },
+                ionName: 'Zn²⁺',
+                oxEq: 'Zn(s) → Zn²⁺(aq) + 2e⁻',
+                redEq: 'Zn²⁺(aq) + 2e⁻ → Zn(s)',
+                oxSpecies: { solid: 'Zn(s)', ion: 'Zn²⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '灰白色鋅極板逐漸氧化溶解變薄。', en: 'Greyish zinc electrode dissolves and becomes thinner.' },
+                obsRed: { zh: '極板表面沉積鋅金屬晶體。', en: 'Zinc metal deposits on electrode surface.' }
+            },
+            Fe: {
+                id: 'Fe',
+                e0: -0.44,
+                n: 2,
+                electrode: 'metal',
+                metalColor: '#64748b',
+                solColor: 'rgba(34, 197, 94, 0.12)', // Pale green Fe2+
+                gas: null,
+                name: { zh: '鐵 (Fe²⁺/Fe)', en: 'Iron (Fe²⁺/Fe)' },
+                metalName: { zh: '鐵極板 (Fe)', en: 'Iron Plate (Fe)' },
+                ionName: 'Fe²⁺',
+                oxEq: 'Fe(s) → Fe²⁺(aq) + 2e⁻',
+                redEq: 'Fe²⁺(aq) + 2e⁻ → Fe(s)',
+                oxSpecies: { solid: 'Fe(s)', ion: 'Fe²⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '深灰色鐵極板溶解，溶液呈微淡綠色 (Fe²⁺)。', en: 'Dark grey iron dissolves; solution shows faint pale green (Fe²⁺).' },
+                obsRed: { zh: '極板表面析出金屬鐵。', en: 'Metallic iron deposits on electrode.' }
+            },
+            Pb: {
+                id: 'Pb',
+                e0: -0.13,
+                n: 2,
+                electrode: 'metal',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '鉛 (Pb²⁺/Pb)', en: 'Lead (Pb²⁺/Pb)' },
+                metalName: { zh: '鉛極板 (Pb)', en: 'Lead Plate (Pb)' },
+                ionName: 'Pb²⁺',
+                oxEq: 'Pb(s) → Pb²⁺(aq) + 2e⁻',
+                redEq: 'Pb²⁺(aq) + 2e⁻ → Pb(s)',
+                oxSpecies: { solid: 'Pb(s)', ion: 'Pb²⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '暗灰色鉛極板逐漸溶解。', en: 'Dull grey lead electrode dissolves.' },
+                obsRed: { zh: '極板表面沉積灰黑色鉛金屬。', en: 'Greyish-black lead deposits on electrode.' }
+            },
+            H2: {
+                id: 'H2',
+                e0: 0.00,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: 'H2',
+                name: { zh: '標準氫電極 (2H⁺/H₂)', en: 'Standard Hydrogen (2H⁺/H₂)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'H⁺',
+                oxEq: 'H₂(g) → 2H⁺(aq) + 2e⁻',
+                redEq: '2H⁺(aq) + 2e⁻ → H₂(g)',
+                oxSpecies: { solid: 'H₂(g)', ion: '2H⁺(aq)', coeffM: 1, coeffI: 2 },
+                obsOx: { zh: '通入的無色氫氣 (H₂) 在鉑電極表面反應消耗。', en: 'Colorless hydrogen gas (H₂) is absorbed/reacted on Pt electrode.' },
+                obsRed: { zh: '鉑電極 (Pt) 表面大量產生無色氫氣 (H₂) 氣泡。', en: 'Bubbles of colorless hydrogen gas (H₂) rapidly evolve at Pt electrode.' }
+            },
+            SO2_SO4: {
+                id: 'SO2_SO4',
+                e0: 0.17,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: 'SO2',
+                name: { zh: '二氧化硫/硫酸根 (SO₄²⁻/SO₂)', en: 'Sulfate / Sulfur Dioxide (SO₄²⁻/SO₂)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'SO₄²⁻',
+                oxEq: 'SO₂(g) + 2H₂O(l) → SO₄²⁻(aq) + 4H⁺(aq) + 2e⁻',
+                redEq: 'SO₄²⁻(aq) + 4H⁺(aq) + 2e⁻ → SO₂(g) + 2H₂O(l)',
+                oxSpecies: { solid: 'SO₂(g)', ion: 'SO₄²⁻(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '通入具刺激性氣味的 SO₂ 氣體在鉑極氧化。', en: 'Pungent SO₂ gas is oxidized at Pt electrode.' },
+                obsRed: { zh: '鉑極表面冒出具刺激性氣味的無色 SO₂ 氣泡。', en: 'Pungent choking SO₂ gas bubbles evolve at Pt electrode.' }
+            },
+            Cu: {
+                id: 'Cu',
+                e0: 0.34,
+                n: 2,
+                electrode: 'metal',
+                metalColor: '#d97706', // Copper reddish color
+                solColor: 'rgba(59, 130, 246, 0.35)', // Blue Cu2+ solution
+                gas: null,
+                name: { zh: '銅 (Cu²⁺/Cu)', en: 'Copper (Cu²⁺/Cu)' },
+                metalName: { zh: '銅極板 (Cu)', en: 'Copper Plate (Cu)' },
+                ionName: 'Cu²⁺',
+                oxEq: 'Cu(s) → Cu²⁺(aq) + 2e⁻',
+                redEq: 'Cu²⁺(aq) + 2e⁻ → Cu(s)',
+                oxSpecies: { solid: 'Cu(s)', ion: 'Cu²⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '紅棕色銅極板溶解，溶液藍色 (Cu²⁺) 逐漸加深。', en: 'Reddish-brown copper dissolves; solution blue color intensifies.' },
+                obsRed: { zh: '極板表面析出紅棕色銅金屬，溶液藍色逐漸變淺。', en: 'Reddish-brown copper deposits on electrode; blue solution color fades.' }
+            },
+            O2: {
+                id: 'O2',
+                e0: 0.40,
+                n: 4,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: 'O2',
+                name: { zh: '氧氣/氫氧根 (O₂/OH⁻)', en: 'Oxygen / Hydroxide (O₂/OH⁻)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'OH⁻',
+                oxEq: '4OH⁻(aq) → O₂(g) + 2H₂O(l) + 4e⁻',
+                redEq: 'O₂(g) + 2H₂O(l) + 4e⁻ → 4OH⁻(aq)',
+                oxSpecies: { solid: 'OH⁻(aq)', ion: 'O₂(g)', coeffM: 4, coeffI: 1 },
+                obsOx: { zh: '鉑電極表面產生無色氧氣 (O₂) 氣泡。', en: 'Colorless oxygen gas (O₂) bubbles evolve at Pt electrode.' },
+                obsRed: { zh: '氧氣在鉑極反應消耗，生成 OH⁻ 溶液呈鹼性。', en: 'Oxygen gas reacts at Pt electrode generating OH⁻ ions.' }
+            },
+            I2: {
+                id: 'I2',
+                e0: 0.54,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(180, 83, 9, 0.35)', // Brown iodine
+                gas: null,
+                name: { zh: '碘/碘離子 (I₂/I⁻)', en: 'Iodine / Iodide (I₂/I⁻)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'I⁻',
+                oxEq: '2I⁻(aq) → I₂(aq) + 2e⁻',
+                redEq: 'I₂(aq) + 2e⁻ → 2I⁻(aq)',
+                oxSpecies: { solid: '2I⁻(aq)', ion: 'I₂(aq)', coeffM: 2, coeffI: 1 },
+                obsOx: { zh: '無色 I⁻ 氧化為 I₂，溶液逐漸轉為棕褐色。', en: 'Colorless I⁻ oxidizes to I₂; solution turns brown/amber.' },
+                obsRed: { zh: '棕褐色 I₂ 还原為 I⁻，溶液棕色逐漸褪去變無色。', en: 'Brown I₂ reduces to I⁻; solution brown color fades to colorless.' }
+            },
+            Fe3_Fe2: {
+                id: 'Fe3_Fe2',
+                e0: 0.77,
+                n: 1,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(234, 179, 8, 0.3)', // Yellow-brown Fe3+
+                gas: null,
+                name: { zh: '鐵離子/亞鐵離子 (Fe³⁺/Fe²⁺)', en: 'Iron(III) / Iron(II) (Fe³⁺/Fe²⁺)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'Fe²⁺',
+                oxEq: 'Fe²⁺(aq) → Fe³⁺(aq) + e⁻',
+                redEq: 'Fe³⁺(aq) + e⁻ → Fe²⁺(aq)',
+                oxSpecies: { solid: 'Fe²⁺(aq)', ion: 'Fe³⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '淺綠色 Fe²⁺ 氧化，溶液轉為黃褐色 (Fe³⁺)。', en: 'Pale green Fe²⁺ oxidizes; solution turns yellow-brown (Fe³⁺).' },
+                obsRed: { zh: '黃褐色 Fe³⁺ 還原，溶液黃褐色轉淺為淡綠色 (Fe²⁺)。', en: 'Yellow-brown Fe³⁺ reduces; solution color fades to pale green (Fe²⁺).' }
+            },
+            Ag: {
+                id: 'Ag',
+                e0: 0.80,
+                n: 1,
+                electrode: 'metal',
+                metalColor: '#f1f5f9',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '銀 (Ag⁺/Ag)', en: 'Silver (Ag⁺/Ag)' },
+                metalName: { zh: '銀極板 (Ag)', en: 'Silver Plate (Ag)' },
+                ionName: 'Ag⁺',
+                oxEq: 'Ag(s) → Ag⁺(aq) + e⁻',
+                redEq: 'Ag⁺(aq) + e⁻ → Ag(s)',
+                oxSpecies: { solid: 'Ag(s)', ion: 'Ag⁺(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '亮銀色銀極板逐漸氧化溶解。', en: 'Bright silver metal electrode dissolves.' },
+                obsRed: { zh: '極板表面析出銀白色金屬銀晶體。', en: 'Shiny silver crystals deposit on electrode surface.' }
+            },
+            Conc_HNO3: {
+                id: 'Conc_HNO3',
+                e0: 0.80,
+                n: 1,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(245, 158, 11, 0.2)',
+                gas: 'NO2',
+                name: { zh: '濃硝酸 (NO₃⁻/NO₂)', en: 'Conc. Nitric Acid (NO₃⁻/NO₂)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'NO₃⁻',
+                oxEq: 'NO₂(g) + H₂O(l) → NO₃⁻(aq) + 2H⁺(aq) + e⁻',
+                redEq: 'NO₃⁻(aq) + 2H⁺(aq) + e⁻ → NO₂(g) + H₂O(l)',
+                oxSpecies: { solid: 'NO₂(g)', ion: 'NO₃⁻(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '棕色 NO₂ 氣體在鉑電極吸收反應。', en: 'Brown NO₂ gas is absorbed/reacted at Pt electrode.' },
+                obsRed: { zh: '鉑電極表面大量逸出棕色具刺激性 NO₂ 氣體。', en: 'Brown choking NO₂ gas fumes bubble off Pt electrode.' }
+            },
+            Dil_HNO3: {
+                id: 'Dil_HNO3',
+                e0: 0.96,
+                n: 3,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: 'NO',
+                name: { zh: '稀硝酸 (NO₃⁻/NO)', en: 'Dilute Nitric Acid (NO₃⁻/NO)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'NO₃⁻',
+                oxEq: 'NO(g) + 2H₂O(l) → NO₃⁻(aq) + 4H⁺(aq) + 3e⁻',
+                redEq: 'NO₃⁻(aq) + 4H⁺(aq) + 3e⁻ → NO(g) + 2H₂O(l)',
+                oxSpecies: { solid: 'NO(g)', ion: 'NO₃⁻(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '無色 NO 氣體在鉑極氧化。', en: 'Colorless NO gas oxidizes at Pt electrode.' },
+                obsRed: { zh: '鉑極冒出無色 NO 氣泡，接觸空氣瓶口變紅棕色。', en: 'Colorless NO gas bubbles evolve, turning brown near air interface.' }
+            },
+            Br2: {
+                id: 'Br2',
+                e0: 1.07,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(217, 119, 6, 0.4)', // Orange-brown Br2
+                gas: null,
+                name: { zh: '溴/溴離子 (Br₂/Br⁻)', en: 'Bromine / Bromide (Br₂/Br⁻)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'Br⁻',
+                oxEq: '2Br⁻(aq) → Br₂(aq) + 2e⁻',
+                redEq: 'Br₂(aq) + 2e⁻ → 2Br⁻(aq)',
+                oxSpecies: { solid: '2Br⁻(aq)', ion: 'Br₂(aq)', coeffM: 2, coeffI: 1 },
+                obsOx: { zh: '無色 Br⁻ 氧化，溶液變為橙棕色 (Br₂)。', en: 'Colorless Br⁻ oxidizes; solution turns reddish-orange (Br₂).' },
+                obsRed: { zh: '橙棕色 Br₂ 還原，溶液橙棕色逐漸褪去變無色。', en: 'Reddish-orange Br₂ reduces; solution turns colorless.' }
+            },
+            Cr2O7: {
+                id: 'Cr2O7',
+                e0: 1.33,
+                n: 6,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(249, 115, 22, 0.45)', // Orange dichromate
+                gas: null,
+                name: { zh: '重鉻酸鉀/鉻離子 (Cr₂O₇²⁻/Cr³⁺)', en: 'Dichromate / Chromium(III) (Cr₂O₇²⁻/Cr³⁺)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'Cr₂O₇²⁻',
+                oxEq: '2Cr³⁺(aq) + 7H₂O(l) → Cr₂O₇²⁻(aq) + 14H⁺(aq) + 6e⁻',
+                redEq: 'Cr₂O₇²⁻(aq) + 14H⁺(aq) + 6e⁻ → 2Cr³⁺(aq) + 7H₂O(l)',
+                oxSpecies: { solid: '2Cr³⁺(aq)', ion: 'Cr₂O₇²⁻(aq)', coeffM: 2, coeffI: 1 },
+                obsOx: { zh: '綠色 Cr³⁺ 氧化，溶液轉為鮮橙色 (Cr₂O₇²⁻)。', en: 'Green Cr³⁺ oxidizes; solution turns vibrant orange (Cr₂O₇²⁻).' },
+                obsRed: { zh: '橙色溶液 (Cr₂O₇²⁻) 還原，逐漸轉變為深綠色 (Cr³⁺)。', en: 'Orange solution (Cr₂O₇²⁻) reduces to deep green (Cr³⁺).' }
+            },
+            Cl2: {
+                id: 'Cl2',
+                e0: 1.36,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(163, 230, 53, 0.2)', // Pale yellow-green
+                gas: 'Cl2',
+                name: { zh: '氯氣/氯離子 (Cl₂/Cl⁻)', en: 'Chlorine / Chloride (Cl₂/Cl⁻)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'Cl⁻',
+                oxEq: '2Cl⁻(aq) → Cl₂(g) + 2e⁻',
+                redEq: 'Cl₂(g) + 2e⁻ → 2Cl⁻(aq)',
+                oxSpecies: { solid: '2Cl⁻(aq)', ion: 'Cl₂(g)', coeffM: 2, coeffI: 1 },
+                obsOx: { zh: '鉑電極表面產生黃綠色具刺激性 Cl₂ 氣泡。', en: 'Pale yellow-green choking Cl₂ gas bubbles evolve at Pt electrode.' },
+                obsRed: { zh: '黃綠色 Cl₂ 氣體在鉑極還原為無色 Cl⁻。', en: 'Yellow-green Cl₂ gas reduces to colorless Cl⁻ at Pt electrode.' }
+            },
+            MnO4: {
+                id: 'MnO4',
+                e0: 1.51,
+                n: 5,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(168, 85, 247, 0.5)', // Deep purple permanganate
+                gas: null,
+                name: { zh: '高錳酸鉀/錳離子 (MnO₄⁻/Mn²⁺)', en: 'Permanganate / Manganese(II) (MnO₄⁻/Mn²⁺)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'MnO₄⁻',
+                oxEq: 'Mn²⁺(aq) + 4H₂O(l) → MnO₄⁻(aq) + 8H⁺(aq) + 5e⁻',
+                redEq: 'MnO₄⁻(aq) + 8H⁺(aq) + 5e⁻ → Mn²⁺(aq) + 4H₂O(l)',
+                oxSpecies: { solid: 'Mn²⁺(aq)', ion: 'MnO₄⁻(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: '淡粉紅 Mn²⁺ 氧化，溶液變深紫色 (MnO₄⁻)。', en: 'Pale pink Mn²⁺ oxidizes; solution turns deep purple (MnO₄⁻).' },
+                obsRed: { zh: '深紫色溶液 (MnO₄⁻) 還原，紫色逐漸褪去變為極淡粉紅/無色 (Mn²⁺)。', en: 'Deep purple solution (MnO₄⁻) reduces and decolourizes to pale pink/colorless (Mn²⁺).' }
+            },
+            S2O8: {
+                id: 'S2O8',
+                e0: 2.01,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: null,
+                name: { zh: '過二硫酸根/硫酸根 (S₂O₈²⁻/SO₄²⁻)', en: 'Persulfate / Sulfate (S₂O₈²⁻/SO₄²⁻)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'S₂O₈²⁻',
+                oxEq: '2SO₄²⁻(aq) → S₂O₈²⁻(aq) + 2e⁻',
+                redEq: 'S₂O₈²⁻(aq) + 2e⁻ → 2SO₄²⁻(aq)',
+                oxSpecies: { solid: '2SO₄²⁻(aq)', ion: 'S₂O₈²⁻(aq)', coeffM: 2, coeffI: 1 },
+                obsOx: { zh: 'SO₄²⁻ 離子在鉑極氧化為過二硫酸根。', en: 'SO₄²⁻ ions oxidise to persulfate at Pt electrode.' },
+                obsRed: { zh: '強氧化劑 S₂O₈²⁻ 在鉑極還原為 SO₄²⁻。', en: 'Strong oxidizing agent S₂O₈²⁻ reduces to SO₄²⁻.' }
+            },
+            F2: {
+                id: 'F2',
+                e0: 2.87,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(253, 224, 71, 0.15)', // Light yellow
+                gas: 'F2',
+                name: { zh: '氟氣/氟離子 (F₂/F⁻)', en: 'Fluorine / Fluoride (F₂/F⁻)' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'F⁻',
+                oxEq: '2F⁻(aq) → F₂(g) + 2e⁻',
+                redEq: 'F₂(g) + 2e⁻ → 2F⁻(aq)',
+                oxSpecies: { solid: '2F⁻(aq)', ion: 'F₂(g)', coeffM: 2, coeffI: 1 },
+                obsOx: { zh: '鉑電極表面產生淡黃色極劇毒 F₂ 氣泡。', en: 'Pale yellow toxic F₂ gas bubbles evolve at Pt electrode.' },
+                obsRed: { zh: '淡黃色 F₂ 氣體在鉑極還原為 F⁻ 離子。', en: 'Pale yellow F₂ gas reduces to F⁻ ions.' }
+            },
+            Conc_H2SO4: {
+                id: 'Conc_H2SO4',
+                e0: 0.17,
+                n: 2,
+                electrode: 'Pt',
+                metalColor: '#475569',
+                solColor: 'rgba(255, 255, 255, 0.03)',
+                gas: 'SO2',
+                name: { zh: '濃硫酸/二氧化硫 (Conc. H₂SO₄/SO₂)', en: 'Conc. H₂SO₄ / SO₂' },
+                metalName: { zh: '鉑電極 (Pt)', en: 'Platinum Electrode (Pt)' },
+                ionName: 'SO₄²⁻',
+                oxEq: 'SO₂(g) + 2H₂O(l) → SO₄²⁻(aq) + 4H⁺(aq) + 2e⁻',
+                redEq: '2H₂SO₄(l) + 2e⁻ → SO₄²⁻(aq) + SO₂(g) + 2H₂O(l)',
+                oxSpecies: { solid: 'SO₂(g)', ion: 'SO₄²⁻(aq)', coeffM: 1, coeffI: 1 },
+                obsOx: { zh: 'SO₂ 氣體在鉑極氧化為硫酸。', en: 'SO₂ gas oxidizes to sulfuric acid at Pt electrode.' },
+                obsRed: { zh: '濃硫酸還原，鉑極表面冒出刺鼻 SO₂ 氣泡。', en: 'Conc. H₂SO₄ reduces, emitting choking SO₂ gas bubbles.' }
+            }
+        };
+
+        // Application State
+        let state = {
+            leftKey: 'Zn',
+            rightKey: 'Cu',
+            leftConc: 1.00,
+            rightConc: 1.00,
+            isPlaying: true,
+            speed: 1.0,
+            animFrame: 0,
+            particles: [],
+            saltParticles: [],
+            bubblesLeft: [],
+            bubblesRight: []
+        };
+
+        // UI Translations Dictionary
+        const I18N = {
+            zh: {
+                mainTitle: "原電池 (Galvanic Cell) 氧化還原反應模擬器",
+                subTitle: "高等化學互動教學模組 • 24種半電池與 Nernst 方程式",
+                langBtn: "English",
+                play: "播放模擬",
+                pause: "暫停模擬",
+                reset: "重置",
+                speed: "速度:",
+                leftTitle: "左側半電池 (Left Half-Cell)",
+                rightTitle: "右側半電池 (Right Half-Cell)",
+                leftSelectLabel: "選擇半電池反應物對 (24種標準電位)",
+                rightSelectLabel: "選擇半電池反應物對 (24種標準電位)",
+                concLabel: "溶液陽離子/反應物濃度",
+                e0Label: "標準還原電位 E°:",
+                anodeRole: "陽極 (Anode) - 氧化",
+                cathodeRole: "陰極 (Cathode) - 還原",
+                saltBridge: "鹽橋電解質 (Salt Bridge)",
+                presets: "快速載入經典實驗組合：",
+                presetDaniell: "丹尼爾電池 (Zn-Cu)",
+                presetHighEMF: "高電位差 (Mg-Cu)",
+                presetSHE: "標準氫電極 (Pt/H₂-Cu)",
+                presetPermanganate: "高錳酸鉀 (Zn-MnO₄⁻)",
+                presetDichromate: "重鉻酸鉀 (Fe²⁺-Cr₂O₇²⁻)",
+                presetConc: "濃度電池 (Zn-Zn)",
+                canvasTitle: "即時微觀與宏觀模擬視圖 (Live Microscopic Simulation)",
+                anodeTag: "陽極 (-) 氧化",
+                cathodeTag: "陰極 (+) 還原",
+                leftStatusTitle: "左極狀態 (Left Electrode)",
+                flowStatusTitle: "外電路電子流 (e⁻ Flow)",
+                rightStatusTitle: "右極狀態 (Right Electrode)",
+                analysisTitle: "化學反應與電位計算分析 (Electrochemical Analysis)",
+                voltLabel: "Nernst 方程式實測電位",
+                oxTitle: "陽極氧化半反應 (Oxidation Half-Reaction):",
+                redTitle: "陰極還原半反應 (Reduction Half-Reaction):",
+                overallTitle: "總全反應式 (Balanced Overall Redox Equation):",
+                notationTitle: "電池簡記 (Cell Notation):",
+                calcStep1: "標準電池電位 E°cell = E°cathode - E°anode:",
+                calcStep2: "反應商 Q = [陽極生成物] / [陰極反應物]:",
+                calcStep3: "Nernst 電位修正: E = E° - (0.0592/n) × log₁₀(Q):",
+                obsTitle: "實驗現象與觀察 (Experimental Observations):",
+                leftObsLabel: "左側半電池現象:",
+                rightObsLabel: "右側半電池現象:",
+                tab1Title: "記憶口訣與核心概念",
+                tab2Title: "鹽橋與電子流機制",
+                tab3Title: "隨堂概念檢測 (Quiz)",
+                mne1Title: "陽極 (Anode) 氧化",
+                mne1Text: "<strong class='text-white'>口訣：AN OX (陽極氧化)</strong><br>• 還原電位較低的物質較易失去電子。<br>• 極板發生<span class='text-rose-400 font-bold'>氧化反應</span>，陽極為原電池的<span class='text-rose-400 font-bold'>負極 (-)</span>。<br>• 電子經外接導線由陽極流出。",
+                mne2Title: "陰極 (Cathode) 還原",
+                mne2Text: "<strong class='text-white'>口訣：RED CAT (陰極還原)</strong><br>• 還原電位較高的物質較易獲得電子。<br>• 極板發生<span class='text-cyan-400 font-bold'>還原反應</span>，陰極為原電池的<span class='text-cyan-400 font-bold'>正極 (+)</span>。<br>• 接收來自外電路的電子。",
+                mne3Title: "電荷守恆與鹽橋",
+                mne3Text: "<strong class='text-white'>口訣：陽隨陽，陰隨陰</strong><br>• 鹽橋中的<span class='text-amber-300 font-bold'>陽離子 (K⁺)</span> 移向陰極，補充被消耗的正電荷。<br>• 鹽橋中的<span class='text-cyan-300 font-bold'>陰離子 (NO₃⁻)</span> 移向陽極，中和過多的正電荷。<br>• 保持溶液電中性，維持迴路導通。",
+                mechTitle1: "為什麼原電池可以產生電流？",
+                mechText1: "當兩種標準還原電位不同的半電池用外接導線與鹽橋連接時，電位較低的半電池反應物傾向失去電子（氧化），而電位較高的半電池反應物傾向獲得電子（還原）。電子經由外部金屬導線流動，因而產生電流與可利用的電能。",
+                mechTitle2: "鹽橋 (Salt Bridge) 的三大關鍵功能：",
+                mechList2: "<li><strong class='text-slate-100'>導電迴路：</strong>讓離子可以在兩半電池之間遷移，形成封閉的導電迴路。</li><li><strong class='text-slate-100'>維持電中性：</strong>防止陽極杯因正離子累積或陰極杯因正離子減少而積聚電荷，避免產生反向電場阻礙電子流動。</li><li><strong class='text-slate-100'>隔離反應物：</strong>防止氧化劑與還原劑直接接觸發生混合熱反應，確保化學能高效轉化為電能。</li>",
+                quizQuestionNum: "問題",
+                nextBtn: "下一題",
+                footer: "高等化學虛擬實驗室 • 廣義電化學與原電池模擬器 © 2026"
+            },
+            en: {
+                mainTitle: "Galvanic / Voltaic Cell Redox Simulator",
+                subTitle: "Advanced Chemistry Module • 24 Half-Cells & Nernst Equation",
+                langBtn: "繁體中文",
+                play: "Play",
+                pause: "Pause",
+                reset: "Reset",
+                speed: "Speed:",
+                leftTitle: "Left Half-Cell",
+                rightTitle: "Right Half-Cell",
+                leftSelectLabel: "Select Redox Pair (24 Electrode Potentials)",
+                rightSelectLabel: "Select Redox Pair (24 Electrode Potentials)",
+                concLabel: "Ion / Reactant Concentration",
+                e0Label: "Standard Potential E°:",
+                anodeRole: "Anode (-) - Oxidation",
+                cathodeRole: "Cathode (+) - Reduction",
+                saltBridge: "Salt Bridge Electrolyte",
+                presets: "Quick Preset Configurations:",
+                presetDaniell: "Daniell Cell (Zn-Cu)",
+                presetHighEMF: "High Potential (Mg-Cu)",
+                presetSHE: "Std. Hydrogen (Pt/H₂-Cu)",
+                presetPermanganate: "Permanganate (Zn-MnO₄⁻)",
+                presetDichromate: "Dichromate (Fe²⁺-Cr₂O₇²⁻)",
+                presetConc: "Concentration Cell (Zn-Zn)",
+                canvasTitle: "Live Microscopic Visualizer",
+                anodeTag: "Anode (-) Oxidation",
+                cathodeTag: "Cathode (+) Reduction",
+                leftStatusTitle: "Left Electrode Status",
+                flowStatusTitle: "External Wire e⁻ Flow",
+                rightStatusTitle: "Right Electrode Status",
+                analysisTitle: "Electrochemical Calculations & Analysis",
+                voltLabel: "Measured Voltage via Nernst Equation",
+                oxTitle: "Oxidation Half-Reaction (Anode):",
+                redTitle: "Reduction Half-Reaction (Cathode):",
+                overallTitle: "Balanced Overall Redox Ionic Equation:",
+                notationTitle: "Standard Cell Notation:",
+                calcStep1: "Standard Potential E°cell = E°cathode - E°anode:",
+                calcStep2: "Reaction Quotient Q = [Anode Species] / [Cathode Species]:",
+                calcStep3: "Nernst Voltage Correction: E = E° - (0.0592/n) × log₁₀(Q):",
+                obsTitle: "Experimental Physical Observations:",
+                leftObsLabel: "Left Half-Cell Observation:",
+                rightObsLabel: "Right Half-Cell Observation:",
+                tab1Title: "Mnemonics & Core Concepts",
+                tab2Title: "Salt Bridge Mechanism",
+                tab3Title: "Concept Quiz",
+                mne1Title: "Anode (-) Oxidation",
+                mne1Text: "<strong class='text-white'>Mnemonic: AN OX (Anode Oxidation)</strong><br>• Species with lower reduction potential loses electrons easily.<br>• Undergoes <span class='text-rose-400 font-bold'>oxidation</span> at the Anode (Negative terminal).<br>• Electrons flow out via external wire.",
+                mne2Title: "Cathode (+) Reduction",
+                mne2Text: "<strong class='text-white'>Mnemonic: RED CAT (Reduction Cathode)</strong><br>• Species with higher reduction potential gains electrons easily.<br>• Undergoes <span class='text-cyan-400 font-bold'>reduction</span> at the Cathode (Positive terminal).<br>• Receives incoming electrons from external wire.",
+                mne3Title: "Charge Conservation & Salt Bridge",
+                mne3Text: "<strong class='text-white'>Rule: Cations to Cathode, Anions to Anode</strong><br>• <span class='text-amber-300 font-bold'>Cations (K⁺)</span> migrate to Cathode beaker to replace consumed positive charge.<br>• <span class='text-cyan-300 font-bold'>Anions (NO₃⁻)</span> migrate to Anode beaker to balance accumulating positive ions.<br>• Maintains electrical neutrality to keep circuit conducting.",
+                mechTitle1: "How does a Galvanic Cell generate electricity?",
+                mechText1: "When two half-cells with different electrode potentials are connected via wire and salt bridge, the half-cell with lower potential undergoes oxidation (loses e⁻), while the higher potential half-cell undergoes reduction (gains e⁻). Electron flow through the wire produces usable electrical current.",
+                mechTitle2: "Three Key Functions of the Salt Bridge:",
+                mechList2: "<li><strong class='text-slate-100'>Completes the Circuit:</strong> Allows ion migration between half-cells to close the electrical loop.</li><li><strong class='text-slate-100'>Maintains Charge Neutrality:</strong> Prevents charge accumulation in beakers that would create opposing electrical fields.</li><li><strong class='text-slate-100'>Prevents Direct Mixing:</strong> Keeps oxidants and reductants separate so energy is harnessed electrically rather than wasted as heat.</li>",
+                quizQuestionNum: "Question",
+                nextBtn: "Next Question",
+                footer: "Advanced Virtual Chemistry Lab • Electrochemical Redox Simulator © 2026"
+            }
+        };
+
+        // Math Helpers
+        function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+        function lcm(a, b) { return (a * b) / gcd(a, b); }
+
+        // Compute Electrochemical Reaction State
+        function computeElectrochemicalState() {
+            const left = HALF_CELLS[state.leftKey];
+            const right = HALF_CELLS[state.rightKey];
+
+            let isLeftAnode = true;
+
+            if (left.e0 < right.e0) {
+                isLeftAnode = true;
+            } else if (left.e0 > right.e0) {
+                isLeftAnode = false;
+            } else {
+                // Concentration cell logic
+                isLeftAnode = state.leftConc <= state.rightConc;
+            }
+
+            const anode = isLeftAnode ? left : right;
+            const cathode = isLeftAnode ? right : left;
+            const anodeConc = isLeftAnode ? state.leftConc : state.rightConc;
+            const cathodeConc = isLeftAnode ? state.rightConc : state.leftConc;
+
+            const e0Cell = cathode.e0 - anode.e0;
+
+            const nAnode = anode.n;
+            const nCathode = cathode.n;
+            const totalE = lcm(nAnode, nCathode);
+
+            const multAnode = totalE / nAnode;
+            const multCathode = totalE / nCathode;
+
+            const Q = Math.pow(anodeConc, multAnode) / Math.pow(cathodeConc, multCathode);
+
+            const nernstCorrection = (0.0592 / totalE) * Math.log10(Q);
+            let eCell = e0Cell - nernstCorrection;
+            if (isNaN(eCell) || !isFinite(eCell)) eCell = 0;
+
+            return {
+                isLeftAnode,
+                anode,
+                cathode,
+                anodeConc,
+                cathodeConc,
+                e0Cell,
+                eCell,
+                totalE,
+                multAnode,
+                multCathode,
+                Q
+            };
+        }
+
+        // Update All Equations, Text Displays & Language Switching
+        function updateEquationDisplays() {
+            const data = computeElectrochemicalState();
+            const left = HALF_CELLS[state.leftKey];
+            const right = HALF_CELLS[state.rightKey];
+            const t = I18N[currentLang];
+
+            // Badges
+            const leftRoleBadge = document.getElementById('leftRoleBadge');
+            const rightRoleBadge = document.getElementById('rightRoleBadge');
+
+            if (data.isLeftAnode) {
+                leftRoleBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded text-rose-300 bg-rose-950/60 border border-rose-800';
+                leftRoleBadge.innerHTML = t.anodeRole;
+                rightRoleBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded text-cyan-300 bg-cyan-950/60 border border-cyan-800';
+                rightRoleBadge.innerHTML = t.cathodeRole;
+
+                document.getElementById('leftElectrodeStatus').innerText = currentLang === 'zh' ? '陽極 (氧化溶解/反應)' : 'Anode (Oxidation)';
+                document.getElementById('leftElectrodeStatus').className = 'font-bold text-rose-400 text-[11px]';
+                document.getElementById('rightElectrodeStatus').innerText = currentLang === 'zh' ? '陰極 (還原析出/反應)' : 'Cathode (Reduction)';
+                document.getElementById('rightElectrodeStatus').className = 'font-bold text-cyan-400 text-[11px]';
+                document.getElementById('electronFlowStatus').innerText = currentLang === 'zh' ? '左電極 ➔ 右電極' : 'Left ➔ Right';
+            } else {
+                leftRoleBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded text-cyan-300 bg-cyan-950/60 border border-cyan-800';
+                leftRoleBadge.innerHTML = t.cathodeRole;
+                rightRoleBadge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded text-rose-300 bg-rose-950/60 border border-rose-800';
+                rightRoleBadge.innerHTML = t.anodeRole;
+
+                document.getElementById('leftElectrodeStatus').innerText = currentLang === 'zh' ? '陰極 (還原析出/反應)' : 'Cathode (Reduction)';
+                document.getElementById('leftElectrodeStatus').className = 'font-bold text-cyan-400 text-[11px]';
+                document.getElementById('rightElectrodeStatus').innerText = currentLang === 'zh' ? '陽極 (氧化溶解/反應)' : 'Anode (Oxidation)';
+                document.getElementById('rightElectrodeStatus').className = 'font-bold text-rose-400 text-[11px]';
+                document.getElementById('electronFlowStatus').innerText = currentLang === 'zh' ? '右電極 ➔ 左電極' : 'Right ➔ Left';
+            }
+
+            // Oxidation half-reaction
+            document.getElementById('oxEq').innerText = data.anode.oxEq;
+            // Reduction half-reaction
+            document.getElementById('redEq').innerText = data.cathode.redEq;
+
+            // Overall balanced ionic redox equation construction
+            let mA = data.multAnode === 1 ? '' : data.multAnode;
+            let mC = data.multCathode === 1 ? '' : data.multCathode;
+
+            let overallStr = `${mA} ${data.anode.oxEq.split('→')[0].trim()} + ${mC} ${data.cathode.redEq.split('→')[0].trim()} → ${mA} ${data.anode.oxEq.split('→')[1].replace(/\+\s*\d*e⁻/, '').trim()} + ${mC} ${data.cathode.redEq.split('→')[1].replace(/\+\s*\d*e⁻/, '').trim()}`;
+            document.getElementById('overallEq').innerText = overallStr;
+
+            // Cell notation
+            const cellNotationStr = data.isLeftAnode
+                ? `${left.electrode === 'Pt' ? 'Pt(s) | ' : ''}${left.name[currentLang].split(' ')[0]} | ${left.ionName}(${state.leftConc.toFixed(2)}M) || ${right.ionName}(${state.rightConc.toFixed(2)}M) | ${right.name[currentLang].split(' ')[0]}${right.electrode === 'Pt' ? ' | Pt(s)' : ''}`
+                : `${right.electrode === 'Pt' ? 'Pt(s) | ' : ''}${right.name[currentLang].split(' ')[0]} | ${right.ionName}(${state.rightConc.toFixed(2)}M) || ${left.ionName}(${state.leftConc.toFixed(2)}M) | ${left.name[currentLang].split(' ')[0]}${left.electrode === 'Pt' ? ' | Pt(s)' : ''}`;
+            document.getElementById('cellNotation').innerText = cellNotationStr;
+
+            // Voltmeter display
+            const voltElem = document.getElementById('voltmeterDisplay');
+            voltElem.innerText = `${data.eCell >= 0 ? '+' : ''}${data.eCell.toFixed(3)} V`;
+            voltElem.className = data.eCell <= 0
+                ? 'text-xl sm:text-2xl font-mono font-bold text-rose-500 tracking-wider'
+                : 'text-xl sm:text-2xl font-mono font-bold text-emerald-400 tracking-wider';
+
+            // Math breakdown
+            document.getElementById('e0CalcStep').innerText = `${data.cathode.e0 >= 0 ? '+' : ''}${data.cathode.e0.toFixed(2)}V - (${data.anode.e0 >= 0 ? '+' : ''}${data.anode.e0.toFixed(2)}V) = ${data.e0Cell >= 0 ? '+' : ''}${data.e0Cell.toFixed(3)} V`;
+            document.getElementById('qCalcStep').innerText = `Q = (${data.anodeConc.toFixed(2)})^${data.multAnode} / (${data.cathodeConc.toFixed(2)})^${data.multCathode} = ${data.Q.toFixed(4)}`;
+            document.getElementById('nernstCalcStep').innerText = `${data.e0Cell.toFixed(3)} - (0.0592 / ${data.totalE}) × log₁₀(${data.Q.toFixed(3)}) = ${data.eCell.toFixed(3)} V`;
+
+            // Experimental Observations
+            document.getElementById('leftObsText').innerText = data.isLeftAnode ? left.obsOx[currentLang] : left.obsRed[currentLang];
+            document.getElementById('rightObsText').innerText = data.isLeftAnode ? right.obsRed[currentLang] : right.obsOx[currentLang];
+        }
+
+        // Apply Language Change across entire UI
+        function applyLanguage() {
+            const t = I18N[currentLang];
+            document.getElementById('uiMainTitle').innerText = t.mainTitle;
+            document.getElementById('uiSubTitle').innerText = t.subTitle;
+            document.getElementById('langText').innerText = t.langBtn;
+            document.getElementById('playText').innerText = state.isPlaying ? t.pause : t.play;
+            document.getElementById('uiReset').innerText = t.reset;
+            document.getElementById('uiLeftTitle').innerHTML = `<i class="fa-solid fa-flask mr-1"></i>${t.leftTitle}`;
+            document.getElementById('uiRightTitle').innerHTML = `<i class="fa-solid fa-flask mr-1"></i>${t.rightTitle}`;
+            document.getElementById('uiLeftSelectLabel').innerText = t.leftSelectLabel;
+            document.getElementById('uiRightSelectLabel').innerText = t.rightSelectLabel;
+            document.getElementById('uiLeftConcLabel').innerText = t.concLabel;
+            document.getElementById('uiRightConcLabel').innerText = t.concLabel;
+            document.getElementById('uiLeftE0Label').innerText = t.e0Label;
+            document.getElementById('uiRightE0Label').innerText = t.e0Label;
+            document.getElementById('uiSaltBridgeLabel').innerText = t.saltBridge;
+            document.getElementById('uiPresetsLabel').innerText = t.presets;
+            document.getElementById('presetDaniell').innerText = t.presetDaniell;
+            document.getElementById('presetHighEMF').innerText = t.presetHighEMF;
+            document.getElementById('presetSHE').innerText = t.presetSHE;
+            document.getElementById('presetPermanganate').innerText = t.presetPermanganate;
+            document.getElementById('presetDichromate').innerText = t.presetDichromate;
+            document.getElementById('presetConc').innerText = t.presetConc;
+            document.getElementById('uiCanvasTitle').innerText = t.canvasTitle;
+            document.getElementById('uiAnodeTag').innerText = t.anodeTag;
+            document.getElementById('uiCathodeTag').innerText = t.cathodeTag;
+            document.getElementById('uiLeftStatusTitle').innerText = t.leftStatusTitle;
+            document.getElementById('uiFlowStatusTitle').innerText = t.flowStatusTitle;
+            document.getElementById('uiRightStatusTitle').innerText = t.rightStatusTitle;
+            document.getElementById('uiAnalysisTitle').innerText = t.analysisTitle;
+            document.getElementById('uiVoltLabel').innerText = t.voltLabel;
+            document.getElementById('uiOxTitle').innerHTML = `<i class="fa-solid fa-arrow-up-from-bracket mr-1"></i>${t.oxTitle}`;
+            document.getElementById('uiRedTitle').innerHTML = `<i class="fa-solid fa-arrow-down-to-bracket mr-1"></i>${t.redTitle}`;
+            document.getElementById('uiOverallTitle').innerHTML = `<i class="fa-solid fa-equals mr-1"></i>${t.overallTitle}`;
+            document.getElementById('uiNotationTitle').innerHTML = `<i class="fa-solid fa-link mr-1"></i>${t.notationTitle}`;
+            document.getElementById('uiCalcStep1').innerText = t.calcStep1;
+            document.getElementById('uiCalcStep2').innerText = t.calcStep2;
+            document.getElementById('uiCalcStep3').innerText = t.calcStep3;
+            document.getElementById('uiObsTitle').innerHTML = `<i class="fa-solid fa-eye text-indigo-400 mr-1"></i>${t.obsTitle}`;
+            document.getElementById('uiLeftObsLabel').innerText = t.leftObsLabel;
+            document.getElementById('uiRightObsLabel').innerText = t.rightObsLabel;
+            document.getElementById('tab1Title').innerText = t.tab1Title;
+            document.getElementById('tab2Title').innerText = t.tab2Title;
+            document.getElementById('tab3Title').innerText = t.tab3Title;
+            document.getElementById('mne1Title').innerHTML = `<i class="fa-solid fa-fire mr-1"></i>${t.mne1Title}`;
+            document.getElementById('mne1Text').innerHTML = t.mne1Text;
+            document.getElementById('mne2Title').innerHTML = `<i class="fa-solid fa-water mr-1"></i>${t.mne2Title}`;
+            document.getElementById('mne2Text').innerHTML = t.mne2Text;
+            document.getElementById('mne3Title').innerHTML = `<i class="fa-solid fa-right-left mr-1"></i>${t.mne3Title}`;
+            document.getElementById('mne3Text').innerHTML = t.mne3Text;
+            document.getElementById('mechTitle1').innerText = t.mechTitle1;
+            document.getElementById('mechText1').innerText = t.mechText1;
+            document.getElementById('mechTitle2').innerText = t.mechTitle2;
+            document.getElementById('mechList2').innerHTML = t.mechList2;
+            document.getElementById('uiQuizQuestionNum').innerText = t.quizQuestionNum;
+            document.getElementById('uiNextBtn').innerText = t.nextBtn;
+            document.getElementById('uiFooter').innerText = t.footer;
+
+            populateMetalSelectors();
+            updateEquationDisplays();
+            loadQuizQuestion();
+        }
+
+        // Populates Half-Cell Dropdowns
+        function populateMetalSelectors() {
+            const leftSelect = document.getElementById('leftMetalSelect');
+            const rightSelect = document.getElementById('rightMetalSelect');
+
+            const prevLeft = leftSelect.value || state.leftKey;
+            const prevRight = rightSelect.value || state.rightKey;
+
+            leftSelect.innerHTML = '';
+            rightSelect.innerHTML = '';
+
+            Object.keys(HALF_CELLS).forEach(key => {
+                const m = HALF_CELLS[key];
+                const label = `${m.name[currentLang]} [${m.e0 >= 0 ? '+' : ''}${m.e0.toFixed(2)}V]`;
+
+                const opt1 = document.createElement('option');
+                opt1.value = key;
+                opt1.textContent = label;
+                leftSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = key;
+                opt2.textContent = label;
+                rightSelect.appendChild(opt2);
+            });
+
+            leftSelect.value = prevLeft;
+            rightSelect.value = prevRight;
+        }
+
+        // HTML5 Canvas Render Loop
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        function initParticles() {
+            state.particles = [];
+            for (let i = 0; i < 20; i++) {
+                state.particles.push({ progress: Math.random() });
+            }
+            state.saltParticles = [];
+            for (let i = 0; i < 18; i++) {
+                state.saltParticles.push({
+                    type: i % 2 === 0 ? 'cation' : 'anion',
+                    progress: Math.random()
+                });
+            }
+            state.bubblesLeft = [];
+            state.bubblesRight = [];
+            for (let i = 0; i < 12; i++) {
+                state.bubblesLeft.push({ x: Math.random(), y: Math.random(), r: 2 + Math.random() * 3, speed: 0.5 + Math.random() });
+                state.bubblesRight.push({ x: Math.random(), y: Math.random(), r: 2 + Math.random() * 3, speed: 0.5 + Math.random() });
+            }
+        }
+
+        function drawSimulation() {
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const leftCell = HALF_CELLS[state.leftKey];
+            const rightCell = HALF_CELLS[state.rightKey];
+            const cellData = computeElectrochemicalState();
+
+            // Beaker Layout Geometry
+            const beakerW = width * 0.33;
+            const beakerH = height * 0.52;
+            const beakerY = height * 0.40;
+            const leftX = width * 0.10;
+            const rightX = width * 0.57;
+
+            // 1. Draw Solution Liquids
+            ctx.fillStyle = leftCell.solColor;
+            ctx.fillRect(leftX + 4, beakerY + beakerH * 0.22, beakerW - 8, beakerH * 0.76);
+
+            ctx.fillStyle = rightCell.solColor;
+            ctx.fillRect(rightX + 4, beakerY + beakerH * 0.22, beakerW - 8, beakerH * 0.76);
+
+            // 2. Draw Beaker Glasses
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+
+            ctx.beginPath();
+            ctx.roundRect(leftX, beakerY, beakerW, beakerH, [0, 0, 14, 14]);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.roundRect(rightX, beakerY, beakerW, beakerH, [0, 0, 14, 14]);
+            ctx.stroke();
+
+            // Liquid Surfaces
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(leftX + 4, beakerY + beakerH * 0.22);
+            ctx.lineTo(leftX + beakerW - 4, beakerY + beakerH * 0.22);
+            ctx.moveTo(rightX + 4, beakerY + beakerH * 0.22);
+            ctx.lineTo(rightX + beakerW - 4, beakerY + beakerH * 0.22);
+            ctx.stroke();
+
+            // 3. Draw Electrodes
+            const elW = 26;
+            const elH = beakerH * 0.85;
+            const leftElX = leftX + beakerW / 2 - elW / 2;
+            const rightElX = rightX + beakerW / 2 - elW / 2;
+            const elY = beakerY - 18;
+
+            // Left Electrode
+            ctx.fillStyle = leftCell.metalColor;
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 6;
+            ctx.fillRect(leftElX, elY, elW, elH);
+            ctx.shadowBlur = 0;
+
+            // Right Electrode
+            ctx.fillStyle = rightCell.metalColor;
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 6;
+            ctx.fillRect(rightElX, elY, elW, elH);
+            ctx.shadowBlur = 0;
+
+            // Electrode Text Labels
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(leftCell.electrode === 'Pt' ? 'Pt' : leftCell.id, leftElX + elW / 2, elY + 22);
+            ctx.fillText(rightCell.electrode === 'Pt' ? 'Pt' : rightCell.id, rightElX + elW / 2, elY + 22);
+
+            // 4. Gas Bubbles Animation for Pt Electrodes
+            if (state.isPlaying && cellData.eCell > 0) {
+                // Left Gas
+                if (leftCell.gas) {
+                    state.bubblesLeft.forEach(b => {
+                        b.y -= 0.01 * b.speed * state.speed;
+                        if (b.y < 0) b.y = 1;
+                        const bx = leftElX + 4 + b.x * (elW - 8);
+                        const by = (beakerY + beakerH - 10) - b.y * (beakerH * 0.7);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(bx, by, b.r, 0, Math.PI * 2);
+                        ctx.stroke();
+                    });
+                }
+                // Right Gas
+                if (rightCell.gas) {
+                    state.bubblesRight.forEach(b => {
+                        b.y -= 0.01 * b.speed * state.speed;
+                        if (b.y < 0) b.y = 1;
+                        const bx = rightElX + 4 + b.x * (elW - 8);
+                        const by = (beakerY + beakerH - 10) - b.y * (beakerH * 0.7);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(bx, by, b.r, 0, Math.PI * 2);
+                        ctx.stroke();
+                    });
+                }
+            }
+
+            // 5. Draw External Circuit Wires & Digital Voltmeter
+            const topWireY = height * 0.09;
+            const meterRadius = 24;
+            const meterX = width / 2;
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#94a3b8';
+
+            // Left Wire
+            ctx.beginPath();
+            ctx.moveTo(leftElX + elW / 2, elY);
+            ctx.lineTo(leftElX + elW / 2, topWireY);
+            ctx.lineTo(meterX - meterRadius, topWireY);
+            ctx.stroke();
+
+            // Right Wire
+            ctx.beginPath();
+            ctx.moveTo(rightElX + elW / 2, elY);
+            ctx.lineTo(rightElX + elW / 2, topWireY);
+            ctx.lineTo(meterX + meterRadius, topWireY);
+            ctx.stroke();
+
+            // Digital Voltmeter Center Dial
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(meterX, topWireY, meterRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 11px Inter';
+            ctx.fillText('V', meterX, topWireY - 5);
+            ctx.fillStyle = cellData.eCell > 0 ? '#4ade80' : '#f43f5e';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText(`${cellData.eCell.toFixed(2)}V`, meterX, topWireY + 10);
+
+            // 6. Draw Salt Bridge (Inverted U-Tube)
+            const sbW = width * 0.22;
+            const sbX = width / 2 - sbW / 2;
+            const sbY = beakerY + 12;
+            const sbH = 70;
+            const sbR = 12;
+
+            ctx.lineWidth = sbR * 2;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            ctx.beginPath();
+            ctx.moveTo(sbX, sbY + sbH);
+            ctx.lineTo(sbX, sbY);
+            ctx.lineTo(sbX + sbW, sbY);
+            ctx.lineTo(sbX + sbW, sbY + sbH);
+            ctx.stroke();
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '10px Inter';
+            ctx.fillText(currentLang === 'zh' ? '鹽橋 (Salt Bridge)' : 'Salt Bridge', width / 2, sbY - 7);
+
+            // 7. Particle Animations (Electrons & Salt Bridge Ions)
+            if (state.isPlaying && cellData.eCell > 0) {
+                state.animFrame += state.speed;
+            }
+
+            // Wire Electrons Animation
+            state.particles.forEach(p => {
+                if (state.isPlaying && cellData.eCell > 0) {
+                    p.progress += 0.006 * state.speed;
+                    if (p.progress > 1) p.progress = 0;
+                }
+
+                let t = cellData.isLeftAnode ? p.progress : (1 - p.progress);
+
+                let px, py;
+                const pathL = 0.35;
+                const pathT = 0.65;
+
+                if (t < pathL) {
+                    const ratio = t / pathL;
+                    px = leftElX + elW / 2;
+                    py = elY - ratio * (elY - topWireY);
+                } else if (t < pathT) {
+                    const ratio = (t - pathL) / (pathT - pathL);
+                    px = (leftElX + elW / 2) + ratio * ((rightElX + elW / 2) - (leftElX + elW / 2));
+                    py = topWireY;
+                } else {
+                    const ratio = (t - pathT) / (1 - pathT);
+                    px = rightElX + elW / 2;
+                    py = topWireY + ratio * (elY - topWireY);
+                }
+
+                if (Math.abs(px - meterX) < meterRadius) return;
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.shadowColor = '#f59e0b';
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+
+            // Salt Bridge Ion Flow
+            state.saltParticles.forEach(sp => {
+                if (state.isPlaying && cellData.eCell > 0) {
+                    sp.progress += 0.004 * state.speed;
+                    if (sp.progress > 1) sp.progress = 0;
+                }
+
+                let t = sp.progress;
+                const isCation = sp.type === 'cation';
+                const goLeft = isCation ? !cellData.isLeftAnode : cellData.isLeftAnode;
+
+                let progress = goLeft ? t : (1 - t);
+                let px, py;
+
+                if (progress < 0.4) {
+                    const r = progress / 0.4;
+                    px = sbX;
+                    py = (sbY + sbH) - r * sbH;
+                } else if (progress < 0.6) {
+                    const r = (progress - 0.4) / 0.2;
+                    px = sbX + r * sbW;
+                    py = sbY;
+                } else {
+                    const r = (progress - 0.6) / 0.4;
+                    px = sbX + sbW;
+                    py = sbY + r * sbH;
+                }
+
+                ctx.font = 'bold 9px monospace';
+                ctx.textAlign = 'center';
+                if (isCation) {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillText('K⁺', px, py + 3);
+                } else {
+                    ctx.fillStyle = '#f43f5e';
+                    ctx.fillText('NO₃⁻', px, py + 3);
+                }
+            });
+
+            requestAnimationFrame(drawSimulation);
+        }
+
+        // Event Handlers & Controls
+        function updateUIState() {
+            state.leftKey = document.getElementById('leftMetalSelect').value;
+            state.rightKey = document.getElementById('rightMetalSelect').value;
+            state.leftConc = parseFloat(document.getElementById('leftConcSlider').value);
+            state.rightConc = parseFloat(document.getElementById('rightConcSlider').value);
+
+            document.getElementById('leftConcVal').innerText = `${state.leftConc.toFixed(2)} M`;
+            document.getElementById('rightConcVal').innerText = `${state.rightConc.toFixed(2)} M`;
+
+            const leftM = HALF_CELLS[state.leftKey];
+            const rightM = HALF_CELLS[state.rightKey];
+
+            document.getElementById('leftE0').innerText = `${leftM.e0 >= 0 ? '+' : ''}${leftM.e0.toFixed(2)} V`;
+            document.getElementById('rightE0').innerText = `${rightM.e0 >= 0 ? '+' : ''}${rightM.e0.toFixed(2)} V`;
+
+            updateEquationDisplays();
+        }
+
+        window.presetCell = function(left, right, cLeft = 1.0, cRight = 1.0) {
+            document.getElementById('leftMetalSelect').value = left;
+            document.getElementById('rightMetalSelect').value = right;
+            document.getElementById('leftConcSlider').value = cLeft;
+            document.getElementById('rightConcSlider').value = cRight;
+            updateUIState();
+        };
+
+        document.getElementById('leftMetalSelect').addEventListener('change', updateUIState);
+        document.getElementById('rightMetalSelect').addEventListener('change', updateUIState);
+        document.getElementById('leftConcSlider').addEventListener('input', updateUIState);
+        document.getElementById('rightConcSlider').addEventListener('input', updateUIState);
+
+        document.getElementById('btnLangToggle').addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        });
+
+        document.getElementById('btnPlayPause').addEventListener('click', () => {
+            state.isPlaying = !state.isPlaying;
+            const playIcon = document.getElementById('playIcon');
+            const playText = document.getElementById('playText');
+            const t = I18N[currentLang];
+            if (state.isPlaying) {
+                playIcon.className = 'fa-solid fa-pause';
+                playText.innerText = t.pause;
+            } else {
+                playIcon.className = 'fa-solid fa-play';
+                playText.innerText = t.play;
+            }
+        });
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            state.animFrame = 0;
+            initParticles();
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            state.speed = parseFloat(e.target.value);
+            document.getElementById('speedVal').innerText = `${state.speed.toFixed(1)}x`;
+        });
+
+        window.switchTab = function(tabIdx) {
+            for (let i = 1; i <= 3; i++) {
+                const btn = document.getElementById(`tabBtn${i}`);
+                const content = document.getElementById(`tabContent${i}`);
+                if (i === tabIdx) {
+                    btn.className = 'pb-3 text-xs sm:text-sm font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 whitespace-nowrap';
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = 'pb-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap';
+                    content.classList.add('hidden');
+                }
+            }
+        };
+
+        // Quiz System
+        const QUIZ_DATA = {
+            zh: [
+                {
+                    q: "在鋅-銅 (Zn-Cu) 原電池中，哪一個半電池作為陽極 (Anode) 並發生氧化反應？",
+                    options: [
+                        "鋅半電池 (Zn)，因為 Zn 的標準還原電位較負 (-0.76V)",
+                        "銅半電池 (Cu)，因為 Cu 的標準還原電位較正 (+0.34V)",
+                        "兩者皆可，視溶液濃度而定",
+                        "鹽橋，因為鹽橋負責傳導電荷"
+                    ],
+                    answer: 0,
+                    explain: "正確！鋅 (Zn) 的標準還原電位 (-0.76V) 小於銅 (+0.34V)，較易失去電子發生氧化反應，故作為陽極 (Anode/負極)。"
+                },
+                {
+                    q: "原電池放電時，鹽橋中的陽離子 (如 K⁺) 會向哪一個半電池移動？",
+                    options: [
+                        "陽極半電池 (Anode)",
+                        "陰極半電池 (Cathode)",
+                        "留在鹽橋內部不移動",
+                        "經外導線流向正極"
+                    ],
+                    answer: 1,
+                    explain: "正確！口訣「陽隨陽，陰隨陰」。陰極半電池正離子不斷析出消耗，需由鹽橋移入陽離子 (K⁺) 來補充電荷，維持電中性。"
+                },
+                {
+                    q: "根據 Nernst 方程式，若增加陽極生成物離子的濃度，電池輸出電位 E_cell 會如何變化？",
+                    options: [
+                        "電位 E_cell 會升高",
+                        "電位 E_cell 會降低",
+                        "電位保持不變",
+                        "電位立即變為負值"
+                    ],
+                    answer: 1,
+                    explain: "正確！反應商 Q = [陽極離子] / [陰極離子]。陽極離子濃度增加時 Q 增大，導致 - (0.0592/n)log(Q) 減小，故電池電位下降。"
+                },
+                {
+                    q: "在外電路金屬導線中，電子的真實移動方向為何？",
+                    options: [
+                        "從陰極 (Cathode) 流向 陽極 (Anode)",
+                        "從陽極 (Anode/負極) 流向 陰極 (Cathode/正極)",
+                        "經由鹽橋內部直接跨越",
+                        "在溶液中由離子攜帶"
+                    ],
+                    answer: 1,
+                    explain: "正確！陽極反應物失去電子，電子經由外部導線流向獲得電子的陰極。"
+                }
+            ],
+            en: [
+                {
+                    q: "In a Zinc-Copper (Zn-Cu) Galvanic Cell, which half-cell acts as the Anode and undergoes oxidation?",
+                    options: [
+                        "Zinc half-cell (Zn), because Zn has a more negative standard potential (-0.76V)",
+                        "Copper half-cell (Cu), because Cu has a more positive standard potential (+0.34V)",
+                        "Either one, depending on solution concentrations",
+                        "The salt bridge, because it carries electrons"
+                    ],
+                    answer: 0,
+                    explain: "Correct! Zinc (-0.76V) has a lower reduction potential than Copper (+0.34V), so it oxidizes more readily and serves as the Anode."
+                },
+                {
+                    q: "During Galvanic cell discharge, in which direction do salt bridge cations (e.g. K⁺) migrate?",
+                    options: [
+                        "Towards the Anode half-cell",
+                        "Towards the Cathode half-cell",
+                        "They remain stationary inside the salt bridge",
+                        "Along the external wire"
+                    ],
+                    answer: 1,
+                    explain: "Correct! Rule: Cations to Cathode. As positive ions are consumed at the Cathode, K⁺ ions enter to maintain electrical neutrality."
+                },
+                {
+                    q: "According to the Nernst Equation, how does increasing the Anode product ion concentration affect cell voltage E_cell?",
+                    options: [
+                        "E_cell increases",
+                        "E_cell decreases",
+                        "E_cell remains completely unchanged",
+                        "E_cell immediately turns negative"
+                    ],
+                    answer: 1,
+                    explain: "Correct! Reaction quotient Q = [Anode] / [Cathode]. Increasing [Anode] raises Q, which reduces the E_cell value."
+                },
+                {
+                    q: "What is the direction of electron flow in the external circuit wire?",
+                    options: [
+                        "From Cathode to Anode",
+                        "From Anode (-) to Cathode (+)",
+                        "Directly through the salt bridge",
+                        "Carried by ions in solution"
+                    ],
+                    answer: 1,
+                    explain: "Correct! Oxidation at the Anode releases electrons, which travel along the external wire to the Cathode."
+                }
+            ]
+        };
+
+        let currentQuizIdx = 0;
+        let score = 0;
+
+        function loadQuizQuestion() {
+            const list = QUIZ_DATA[currentLang];
+            if (!list || currentQuizIdx >= list.length) currentQuizIdx = 0;
+            const q = list[currentQuizIdx];
+
+            document.getElementById('quizIndex').innerText = currentQuizIdx + 1;
+            document.getElementById('quizQuestion').innerText = q.q;
+
+            const optsContainer = document.getElementById('quizOptions');
+            optsContainer.innerHTML = '';
+
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 transition flex items-center gap-2';
+                btn.innerHTML = `<span class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">${String.fromCharCode(65 + idx)}</span> ${opt}`;
+                btn.onclick = () => selectQuizOption(idx);
+                optsContainer.appendChild(btn);
+            });
+
+            document.getElementById('quizFeedback').className = 'hidden mt-3 p-3 rounded-lg text-xs leading-relaxed';
+            document.getElementById('btnNextQuiz').classList.add('hidden');
+        }
+
+        function selectQuizOption(selectedIdx) {
+            const list = QUIZ_DATA[currentLang];
+            const q = list[currentQuizIdx];
+            const feedback = document.getElementById('quizFeedback');
+            const optsBtns = document.getElementById('quizOptions').children;
+
+            for (let btn of optsBtns) {
+                btn.disabled = true;
+                btn.classList.add('opacity-70');
+            }
+
+            if (selectedIdx === q.answer) {
+                score++;
+                optsBtns[selectedIdx].className = 'w-full text-left p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500 text-xs text-emerald-200 flex items-center gap-2';
+                feedback.className = 'mt-3 p-3 rounded-lg text-xs leading-relaxed bg-emerald-950/60 border border-emerald-700 text-emerald-200';
+                feedback.innerHTML = `<strong class="font-bold"><i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i>${currentLang === 'zh' ? '回答正確！' : 'Correct!'}</strong> ${q.explain}`;
+            } else {
+                optsBtns[selectedIdx].className = 'w-full text-left p-2.5 rounded-lg bg-rose-950/80 border border-rose-500 text-xs text-rose-200 flex items-center gap-2';
+                optsBtns[q.answer].className = 'w-full text-left p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500 text-xs text-emerald-200 flex items-center gap-2';
+                feedback.className = 'mt-3 p-3 rounded-lg text-xs leading-relaxed bg-rose-950/60 border border-rose-700 text-rose-200';
+                feedback.innerHTML = `<strong class="font-bold"><i class="fa-solid fa-circle-xmark text-rose-400 mr-1"></i>${currentLang === 'zh' ? '回答錯誤！' : 'Incorrect!'}</strong> ${q.explain}`;
+            }
+
+            document.getElementById('quizScoreBadge').innerText = `${currentLang === 'zh' ? '得分' : 'Score'}: ${score}/${list.length}`;
+            document.getElementById('btnNextQuiz').classList.remove('hidden');
+        }
+
+        window.nextQuestion = function() {
+            const list = QUIZ_DATA[currentLang];
+            currentQuizIdx++;
+            if (currentQuizIdx < list.length) {
+                loadQuizQuestion();
+            } else {
+                document.getElementById('quizQuestion').innerText = currentLang === 'zh'
+                    ? `🎉 測驗完成！您的總得分為 ${score} / ${list.length} 分`
+                    : `🎉 Quiz Completed! Your total score is ${score} / ${list.length}`;
+                document.getElementById('quizOptions').innerHTML = '';
+                document.getElementById('quizFeedback').className = 'p-3 bg-indigo-950/60 border border-indigo-700 text-indigo-200 rounded-lg text-xs';
+                document.getElementById('quizFeedback').innerText = currentLang === 'zh'
+                    ? '太棒了！您可以隨時切換不同半電池組合，深化對電化學與 Nernst 方程式的理解。'
+                    : 'Great job! You can experiment with different half-cell combinations to master Electrochemistry and Nernst Equation.';
+                document.getElementById('btnNextQuiz').classList.add('hidden');
+            }
+        };
+
+        // Window Init
+        window.addEventListener('load', () => {
+            applyLanguage();
+            resizeCanvas();
+            initParticles();
+            drawSimulation();
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>

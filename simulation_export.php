@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/simulations_lib.php';
+require_once __DIR__ . '/includes/simulation_files.php';
 
 bootstrap_public();
 
@@ -26,10 +27,16 @@ if (!$sim || $sim['status'] !== 'published') {
     exit;
 }
 
+$body = sim_body_from_row($sim);
+if (trim($body) === '') {
+    http_response_code(404);
+    exit;
+}
+
 $filename = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $slug) . '.html';
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
 
-echo $sim['html'];
+echo $body;

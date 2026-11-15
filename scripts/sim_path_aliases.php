@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * Map disk-relative simulation HTML paths → existing DB slug (when basename slugify alone is insufficient).
- * Used by scripts/sync_simulations_to_db.php after Phase 6 renames.
+ * Used when resolving simulations.html_path (export and save).
  *
  * @return array<string, string> relative path (forward slashes) => simulations.slug
  */
