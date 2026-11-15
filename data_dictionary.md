@@ -9,7 +9,7 @@ php update_data_dictionary.php
 
 > **注意**：本專案不使用 FOREIGN KEY；關聯由 PHP 應用層維護。
 
-**最後更新**：2026-11-15 13:29 HKT
+**最後更新**：2026-11-15 14:06 HKT
 
 ## 目錄 | Table of contents
 
@@ -96,7 +96,7 @@ php update_data_dictionary.php
 | `role_permissions` | 角色與權限的多對多關聯 | InnoDB |
 | `subjects` | 模擬／內容科目（slug、雙語名稱、排序） | InnoDB |
 | `topics` | 科目下的課題／單元 | InnoDB |
-| `simulations` | 互動模擬程式目錄與 HTML 路徑 | InnoDB |
+| `simulations` | 互動模擬程式目錄（標題、科目、狀態、標籤）；HTML 內文存於磁碟 html_path，不存於資料庫 | InnoDB |
 | `tags` | 模擬標籤 | InnoDB |
 | `simulation_tags` | 模擬與標籤的多對多關聯 | InnoDB |
 | `api_rate_limits` | API 速率限制（如登入嘗試） | InnoDB |
@@ -290,7 +290,7 @@ php update_data_dictionary.php
 
 ### `simulations`
 
-互動模擬程式目錄與 HTML 路徑
+互動模擬程式目錄（標題、科目、狀態、標籤）；HTML 內文存於磁碟 html_path，不存於資料庫
 
 **引擎**：`InnoDB` · **欄位數**：20
 
@@ -303,8 +303,8 @@ php update_data_dictionary.php
 | `title_en` | `VARCHAR(512)` | NO | `''` | — | — |
 | `summary_zh` | `VARCHAR(500)` | NO | `''` | — | — |
 | `summary_en` | `VARCHAR(500)` | NO | `''` | — | — |
-| `html_path` | `VARCHAR(512)` | YES | — | — | — |
-| `screenshot_path` | `VARCHAR(512)` | YES | — | — | — |
+| `html_path` | `VARCHAR(512)` | YES | — | — | 模擬 HTML 相對專案根路徑（如 physics/03a/0301_how_we_see.html）；內文以檔案為準 |
+| `screenshot_path` | `VARCHAR(512)` | YES | — | — | 預覽截圖相對路徑（如 physics/screenshots/…） |
 | `subject_id` | `SMALLINT UNSIGNED` | YES | — | — | subjects.id |
 | `topic_id` | `INT UNSIGNED` | YES | — | — | topics.id |
 | `list_sort_order` | `INT` | NO | `0` | — | — |

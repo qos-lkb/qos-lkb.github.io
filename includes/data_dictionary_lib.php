@@ -11,7 +11,7 @@ const DD_TABLE_DESCRIPTIONS = [
     'role_permissions' => '角色與權限的多對多關聯',
     'subjects' => '模擬／內容科目（slug、雙語名稱、排序）',
     'topics' => '科目下的課題／單元',
-    'simulations' => '互動模擬程式目錄與 HTML 路徑',
+    'simulations' => '互動模擬程式目錄（標題、科目、狀態、標籤）；HTML 內文存於磁碟 html_path，不存於資料庫',
     'tags' => '模擬標籤',
     'simulation_tags' => '模擬與標籤的多對多關聯',
     'api_rate_limits' => 'API 速率限制（如登入嘗試）',
@@ -82,6 +82,8 @@ const DD_COLUMN_HINTS = [
     'invite_code' => '班級邀請／註冊碼',
     'due_at' => '呈交／截止時間（HK 時區語意）',
     'allow_late_submit' => '截止後是否仍可呈交（1=可遲交，0=封鎖）',
+    'html_path' => '模擬 HTML 相對專案根路徑（如 physics/03a/0301_how_we_see.html）；內文以檔案為準',
+    'screenshot_path' => '預覽截圖相對路徑（如 physics/screenshots/…）',
     'submitted_at' => '實際呈交時間',
     'pass_percent' => '及格百分比門檻',
 ];
