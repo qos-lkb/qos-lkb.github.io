@@ -354,6 +354,7 @@ const LANG_KEY = 'science_sims_ui_lang';
         const canWorksheet = perms.includes('worksheet.manage_own') || perms.includes('worksheet.manage_any');
         const canAssignWorksheet = perms.includes('worksheet.assign_own') || perms.includes('class.manage_any');
         const canSim = perms.includes('simulation.manage_own') || perms.includes('simulation.manage_any');
+        const canExportSimHtml = perms.includes('simulation.manage_any') || perms.includes('user.manage');
         const canAdmin = perms.includes('simulation.manage_any') || perms.includes('user.manage');
         const canContent = canSim
             || canWorksheet
@@ -404,6 +405,7 @@ const LANG_KEY = 'science_sims_ui_lang';
                 </button>
                 <div class="user-menu-divider"></div>
                 ${canSim ? `<a href="${escapeHtml(spaHref('/admin/simulations'))}" data-spa-nav="/admin/simulations" class="user-menu-item" role="menuitem">${t('我的模擬', 'My simulations')}</a>` : ''}
+                ${canExportSimHtml ? `<a href="${escapeHtml(spaHref('/admin/export-sim-html'))}" data-spa-nav="/admin/export-sim-html" class="user-menu-item" role="menuitem">${t('模擬 HTML 匯出', 'Export simulation HTML')}</a>` : ''}
                 ${canClass ? `<a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
                 ${canWorksheet ? `<a href="${escapeHtml(spaHref('/admin/worksheets'))}" data-spa-nav="/admin/worksheets" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
                 ${canAssignWorksheet ? `<a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}

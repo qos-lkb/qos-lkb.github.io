@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/includes/simulation_files.php';
 
 bootstrap_public();
 $login = rtrim(admin_site_base(), '/') . '/login.php';
-require_permission('simulation.manage_any', $login);
+require_any_permission(['simulation.manage_any', 'user.manage'], $login);
 
 $pdo = db();
 $error = '';

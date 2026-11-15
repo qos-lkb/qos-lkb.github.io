@@ -91,6 +91,9 @@ const global = window;
                 <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                 <a href="${escapeHtml(codespaceUrl())}" target="_blank" rel="noopener" class="text-slate-600 hover:underline">Code Space ↗</a>
                 ${link('/admin/db', t('資料庫管理', 'Database'), 'db')}
+                ${global.ScienceApi.hasPermission('simulation.manage_any') || global.ScienceApi.hasPermission('user.manage')
+        ? link('/admin/export-sim-html', t('模擬 HTML 匯出', 'Sim HTML export'), 'sim-export')
+        : ''}
                 ${link('/admin/qsis-import', 'QSIS', 'qsis')}
                 ${link('/admin/data-dictionary', t('資料字典', 'Dictionary'), 'dict')}
             </div>`;

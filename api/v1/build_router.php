@@ -43,6 +43,7 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('GET', '/teacher/inbox', static fn () => api_handle_teacher_inbox($pdo));
 
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/simulations', static fn () => api_handle_admin_simulations($pdo, $method()));
+    $router->addMethods(['GET', 'POST'], '/admin/simulations/export-html', static fn () => api_handle_admin_simulations_export_html($pdo, $method()));
     $router->addExact('POST', '/admin/simulations/upload-html', static fn () => api_handle_admin_simulation_upload($pdo, 'html'));
     $router->addExact('POST', '/admin/simulations/upload-screenshot', static fn () => api_handle_admin_simulation_upload($pdo, 'screenshot'));
     $router->addMethods(['GET', 'POST'], '/admin/simulations/preview-html', static fn () => api_handle_admin_simulation_preview($pdo, $method()));

@@ -78,6 +78,11 @@
                 { route: '/admin/users', label: { zh: '使用者', en: 'Users' } },
                 { route: '/admin/permissions', label: { zh: '權限', en: 'Permissions' } },
                 { route: '/admin/nav-menu', label: { zh: '導覽選單', en: 'Nav menu' } },
+                {
+                    route: '/admin/export-sim-html',
+                    label: { zh: '模擬 HTML 匯出', en: 'Sim HTML export' },
+                    anyPerm: ['simulation.manage_any', 'user.manage'],
+                },
                 { route: '/admin/db', label: { zh: '資料庫', en: 'Database' } },
                 { route: '/admin/qsis-import', label: { zh: 'QSIS 匯入', en: 'QSIS import' } },
                 { route: '/admin/data-dictionary', label: { zh: '資料字典', en: 'Data dictionary' } },
@@ -359,6 +364,12 @@
         });
     }
 
+    function adminNavItemVisible(item) {
+        const perms = item.anyPerm;
+        if (!Array.isArray(perms) || !perms.length) return true;
+        return perms.some((p) => window.ScienceApi && ScienceApi.hasPermission(p));
+    }
+
     function renderAdminNav(activePath) {
         const nav = document.getElementById('admin-nav');
         if (!nav) return;
@@ -367,7 +378,7 @@
             || (window.AppRouter && typeof AppRouter.getPath === 'function' ? AppRouter.getPath() : '');
         nav.innerHTML = ADMIN_NAV.map((section) => {
             const label = lang === 'zh' ? section.label.zh : section.label.en;
-            const links = section.items.map((item) => {
+            const links = section.items.filter(adminNavItemVisible).map((item) => {
                 const text = lang === 'zh' ? item.label.zh : item.label.en;
                 const exact = item.route === '/admin';
                 const active = exact
@@ -458,6 +469,16 @@
         // Wait for /auth/me before deciding login redirect (cold deep-links).
         if (window.AppAuth && typeof AppAuth.whenReady === 'function') {
             await AppAuth.whenReady();
+        }
+        if (window.ScienceApi && typeof ScienceApi.loadSession === 'function') {
+            try {
+                await ScienceApi.loadSession();
+                if (window.AppAuth && typeof AppAuth.updateAuthNav === 'function') {
+                    AppAuth.updateAuthNav();
+                }
+            } catch (e) {
+                console.warn('Admin session refresh failed', e);
+            }
         }
         try {
             if (window.AppAdminLoader) {
@@ -1029,6 +1050,11 @@
             '/admin/permissions': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminPermissions();
+                });
+            },
+            '/admin/export-sim-html': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimHtmlExport();
                 });
             },
             '/admin/db': async () => {

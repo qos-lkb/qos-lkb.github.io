@@ -6,7 +6,47 @@ require_once dirname(__DIR__, 3) . '/includes/api_response.php';
 require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_save.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_security.php';
+require_once dirname(__DIR__, 3) . '/includes/simulation_files.php';
 require_once dirname(__DIR__, 3) . '/includes/web_base.php';
+
+/**
+ * @return array{id:int,email:string,display_name:string}
+ */
+function api_require_sim_html_export(): array
+{
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('simulation.manage_any') && !user_has_permission('user.manage')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+    return $user;
+}
+
+function api_handle_admin_simulations_export_html(PDO $pdo, string $method): void
+{
+    api_require_sim_html_export();
+    if ($method === 'GET') {
+        api_json_ok(sim_export_plan($pdo));
+        return;
+    }
+    if ($method === 'POST') {
+        api_verify_csrf_or_fail();
+        $body = api_read_json_body();
+        $mode = (string) ($body['mode'] ?? 'apply');
+        $result = sim_export_execute($pdo, $mode);
+        if (!$result['ok']) {
+            api_json_error('export_failed', (string) ($result['error'] ?? '匯出失敗。'), 422);
+        }
+        api_json_ok([
+            'written' => $result['written'],
+            'linked' => $result['linked'],
+            'skipped' => $result['skipped'],
+            'plan' => $result['plan'],
+        ]);
+        return;
+    }
+    api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+}
 
 function api_handle_simulation_get(PDO $pdo, string $slug): void
 {

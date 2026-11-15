@@ -131,7 +131,9 @@ function admin_menu_sections(): array
     }
     if (user_has_permission('simulation.manage_any')) {
         $contentItems[] = ['key' => 'simulations', 'label' => '模擬程式', 'href' => '../app/admin/simulations'];
-        $contentItems[] = ['key' => 'export_sim_html', 'label' => '模擬 HTML 匯出', 'href' => 'export_sim_html.php'];
+    }
+    if (user_has_permission('simulation.manage_any') || user_has_permission('user.manage')) {
+        $contentItems[] = ['key' => 'export_sim_html', 'label' => '模擬 HTML 匯出', 'href' => '../app/admin/export-sim-html'];
     }
     if (user_has_permission('article.manage_any')) {
         $contentItems[] = ['key' => 'articles', 'label' => '科學文章', 'href' => '../app/admin/articles'];

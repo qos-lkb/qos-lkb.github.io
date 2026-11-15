@@ -238,6 +238,8 @@ const global = window;
             || global.ScienceApi.hasPermission('user.manage');
         const canCodespace = canUsers
             || global.ScienceApi.hasPermission('simulation.manage_any');
+        const canExportSimHtml = global.ScienceApi.hasPermission('simulation.manage_any')
+            || global.ScienceApi.hasPermission('user.manage');
 
         const teachingCards = [
             canCourses ? {
@@ -325,6 +327,13 @@ const global = window;
                 label: t('模擬程式', 'Simulations'),
                 desc: t('檢視、編輯與排序互動模擬。', 'View, edit, and order simulations.'),
                 tone: 'violet',
+                icon: 'sim',
+            } : null,
+            canExportSimHtml ? {
+                route: '/admin/export-sim-html',
+                label: t('模擬 HTML 匯出', 'Export simulation HTML'),
+                desc: t('檢查 html_path，並以資料庫覆蓋磁碟上的模擬 HTML。', 'Check html_path and overwrite on-disk simulation HTML from the database.'),
+                tone: 'amber',
                 icon: 'sim',
             } : null,
             canReview ? {

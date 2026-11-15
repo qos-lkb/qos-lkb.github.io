@@ -48,6 +48,7 @@ const GROUP_LOADERS = {
         await import('./markdown.js');
         await import('./admin-danger-ops.js');
     },
+    'sim-export': () => import('./admin-sim-export.js'),
     users: () => import('./admin-users.js'),
 };
 
@@ -91,6 +92,7 @@ function resolveAdminGroup(path) {
     if (/^\/admin\/flashcard-sets\/(new|\d+\/edit)$/.test(p)) return 'fc-edit';
     if (p.startsWith('/admin/course-curriculum')) return 'curriculum';
     if (p.startsWith('/admin/nav-menu') || p.startsWith('/admin/permissions')) return 'ops';
+    if (p.startsWith('/admin/export-sim-html')) return 'sim-export';
     if (/^\/admin\/(db|db-export|db-import|qsis-import|data-dictionary)$/.test(p)) return 'danger-ops';
     if (p.startsWith('/admin/users')) return 'users';
     return 'home';

@@ -57,6 +57,7 @@ const global = window;
         { re: /^\/admin\/simulations\/new\/?$/, name: '/admin/simulations/new' },
         { re: /^\/admin\/simulations\/(\d+)\/edit\/?$/, name: '/admin/simulations/:id/edit', keys: [1] },
         { re: /^\/admin\/simulations\/?$/, name: '/admin/simulations' },
+        { re: /^\/admin\/export-sim-html\/?$/, name: '/admin/export-sim-html' },
         { re: /^\/admin\/question-banks\/new\/?$/, name: '/admin/question-banks/new' },
         { re: /^\/admin\/question-banks\/(\d+)\/edit\/?$/, name: '/admin/question-banks/:id/edit', keys: [1] },
         { re: /^\/admin\/question-banks\/?$/, name: '/admin/question-banks' },

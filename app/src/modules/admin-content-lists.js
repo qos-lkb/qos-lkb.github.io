@@ -17,6 +17,11 @@ const global = window;
             : String(route || '');
     }
 
+    function canExportSimHtml() {
+        return global.ScienceApi.hasPermission('simulation.manage_any')
+            || global.ScienceApi.hasPermission('user.manage');
+    }
+
 
     function setShell() {
         const sidebar = document.getElementById('sidebar');
@@ -670,6 +675,7 @@ const global = window;
                     <a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a>
                     <a href="${escapeHtml(newHref)}" data-spa-nav="/admin/simulations/new" class="text-sm rounded-lg bg-brand-700 text-white px-3 py-1.5 font-semibold hover:bg-brand-800">${escapeHtml(t('新增', 'New'))}</a>
                     ${showReview ? `<a href="${escapeHtml(spaHref('/admin/review-queue'))}" data-spa-nav="/admin/review-queue" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('審核佇列', 'Review queue'))}</a>` : ''}
+                    ${canExportSimHtml() ? `<a href="${escapeHtml(spaHref('/admin/export-sim-html'))}" data-spa-nav="/admin/export-sim-html" class="text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-900 hover:bg-amber-50">${escapeHtml(t('模擬 HTML 匯出', 'Export simulation HTML'))}</a>` : ''}
                     <label class="text-sm text-slate-600 flex items-center gap-2">
                         <span>${escapeHtml(t('科目', 'Subject'))}</span>
                         <select id="sim-filter-subject" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white">${subjectFilterOpts.join('')}</select>
