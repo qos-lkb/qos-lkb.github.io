@@ -1,6 +1,51 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>光伏板原理 | Photovoltaic Panel</title>
@@ -68,6 +113,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                 <span data-i18n="btnPrinciple">原理解說</span>
             </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-800 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+
             <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
@@ -314,6 +363,20 @@
                 <button type="button" id="steps-confirm" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
             </div>
         </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center shrink-0 gap-2 flex-wrap">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 border border-white/40 text-xs font-semibold" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end shrink-0">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
     </div>
 
 <script>
@@ -334,7 +397,35 @@ const PRESETS = {
 const i18n = {
     zh: {
         title: '光伏板原理', badge: '物理', subtitle: 'PN 接面、入射角與大氣視寧度',
-        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟',
+        btnQuiz: "課堂問題",
+        quizTitle: "課堂問題",
+        quizShowAnswers: "顯示參考答案",
+        quizHideAnswers: "隱藏參考答案",
+        quizRef: "參考答案",
+        quizQ1: "PN 接面在光照下，主要產生什麼載流子對？",
+        quizQ2: "只把「入射角」從 0° 增大（晴天、正午不變）。先預測電流讀數，再操作核對。",
+        quizQ3: "變薄或降低大氣寧視度時，照射到面板的光強通常：",
+        quizQ4: "比較「馬達」與「喇叭」負載接在輸出端：電流方向或功率消耗有何差異？先預測再按按鈕切換。",
+        quizQ5: "光電池輸出端短接（負載很小）時，端電壓趨向：",
+        quizQ1a: "電子–空穴",
+        quizQ1b: "僅質子",
+        quizQ1c: "僅中子",
+        quizQ1d: "自由中子",
+        quizQ3a: "減弱",
+        quizQ3b: "增強",
+        quizQ3c: "不變",
+        quizQ3d: "變成零",
+        quizQ5a: "接近 0 V（短路電流大）",
+        quizQ5b: "開路電壓",
+        quizQ5c: "負無限",
+        quizQ5d: "與光無關",
+        quizQ1Ans: "A。光子激發電子–空穴對，內建電場驅使其分離。",
+        quizQ2Ans: "大角度時有效垂直分量減少，光生電流下降（餘弦效應）。",
+        quizQ3Ans: "A。雲／霧或低太陽高度減少到達電池的輻照度。",
+        quizQ4Ans: "兩者均消耗電能；馬達示機械能轉換、喇叭示聲能，讀數隨負載而變。",
+        quizQ5Ans: "A。短路時 V≈0、電流近 I_sc。",
+ controlTitle: '實驗控制',
         pause: '暫停', resume: '恢復', reset: '重置',
         presets: '教學情境',
         preSunny: '☀ 正午晴空', preMorning: '🌅 清晨斜照', preHaze: '🌫 霧霾（低視寧度）', preRed: '🔴 紅光（能量偏低）',
@@ -385,7 +476,35 @@ const i18n = {
     },
     en: {
         title: 'Photovoltaic Panel', badge: 'Physics', subtitle: 'PN junction, incidence angle & atmospheric seeing',
-        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls',
+        btnPrinciple: 'Theory', btnSteps: 'Steps',
+        btnQuiz: "Quiz",
+        quizTitle: "Classroom Quiz",
+        quizShowAnswers: "Show reference answers",
+        quizHideAnswers: "Hide reference answers",
+        quizRef: "Reference",
+        quizQ1: "Under light on a p–n junction, which charge carriers are mainly produced?",
+        quizQ2: "Increase incidence angle only (clear noon). Predict current, then check.",
+        quizQ3: "Cloudier air or lower sun usually means irradiance on the panel:",
+        quizQ4: "Compare motor vs speaker loads: predict how current/power differ, then switch loads.",
+        quizQ5: "Near short-circuit (very small load), terminal voltage tends toward:",
+        quizQ1a: "Electrons and holes",
+        quizQ1b: "Protons only",
+        quizQ1c: "Neutrons only",
+        quizQ1d: "Free neutrons",
+        quizQ3a: "Decreases",
+        quizQ3b: "Increases",
+        quizQ3c: "Unchanged",
+        quizQ3d: "Zero always",
+        quizQ5a: "~0 V (high I_sc)",
+        quizQ5b: "Open-circuit V_oc",
+        quizQ5c: "Negative infinity",
+        quizQ5d: "Independent of light",
+        quizQ1Ans: "A. Photons create e–h pairs separated by the built-in field.",
+        quizQ2Ans: "Oblique light lowers the normal component — current drops (cosine effect).",
+        quizQ3Ans: "A. Haze/cloud or low elevation reduces received power.",
+        quizQ4Ans: "Both draw power; motor→mechanical, speaker→sound; meters reflect load.",
+        quizQ5Ans: "A. Short circuit: V≈0, current near I_sc.",
+ controlTitle: 'Controls',
         pause: 'Pause', resume: 'Resume', reset: 'Reset',
         presets: 'Scenarios',
         preSunny: '☀ Clear noon', preMorning: '🌅 Low morning sun', preHaze: '🌫 Haze (poor seeing)', preRed: '🔴 Red light (low energy)',
@@ -529,6 +648,83 @@ function getSunPos() {
     return { x, y };
 }
 
+
+let quizAnswersVisible = false;
+function quizTxt(k) {
+    if (typeof t === "function") {
+        if (t.length === 0) return (t()[k]) ?? k;
+        return t(k);
+    }
+    const L = typeof lang !== "undefined" ? lang : (typeof state !== "undefined" && state.lang) ? state.lang : "zh";
+    if (typeof i18n !== "undefined" && i18n[L]) return i18n[L][k] ?? k;
+    return k;
+}
+function renderQuiz() {
+    const box = document.getElementById("quiz-list");
+    if (!box) return;
+    const mk = (n) => ["A","B","C","D"].map(L =>
+        `<label class="flex items-start gap-2 rounded-xl border border-slate-200 p-2 cursor-pointer hover:bg-rose-50/60"><input type="radio" name="q${n}" class="mt-0.5 accent-rose-600"><span>${L}. ${quizTxt("quizQ"+n+L.toLowerCase())}</span></label>`
+    ).join("");
+    const ans = (n) => quizAnswersVisible
+        ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${quizTxt("quizRef")}：</strong> ${quizTxt("quizQ"+n+"Ans")}</div>` : "";
+    box.innerHTML = [1,2,3,4,5].map(n => {
+        const open = n === 2 || n === 4;
+        return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-rose-800 mb-2">Q${n}. ${quizTxt("quizQ"+n)}</p>${open ? "" : `<div class="grid gap-1.5">${mk(n)}</div>`}${ans(n)}</div>`;
+    }).join("");
+    const ab = document.getElementById("btn-quiz-answers");
+    if (ab) ab.textContent = quizAnswersVisible ? quizTxt("quizHideAnswers") : quizTxt("quizShowAnswers");
+}
+function openQuizModal() {
+    const mq = document.getElementById("modal-quiz");
+    if (!mq) return;
+    const mc = mq.querySelector(".modal-content");
+    ["modal-principle","modal-steps"].forEach(id => {
+        const m = document.getElementById(id);
+        if (!m) return;
+        if (typeof closeModal === "function" && !m.classList.contains("pointer-events-none")) closeModal(m);
+        if (typeof setModal === "function") setModal(id, false);
+        if (typeof closePrinciple === "function" && id === "modal-principle") closePrinciple();
+        if (typeof closeSteps === "function" && id === "modal-steps") closeSteps();
+    });
+    mq.classList.remove("opacity-0", "pointer-events-none");
+    if (mc) mc.classList.remove("scale-95", "opacity-0");
+    quizAnswersVisible = false;
+    renderQuiz();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([mq]).catch(() => {});
+}
+function closeQuizModal() {
+    const mq = document.getElementById("modal-quiz");
+    if (!mq) return;
+    const mc = mq.querySelector(".modal-content");
+    mq.classList.add("opacity-0", "pointer-events-none");
+    if (mc) mc.classList.add("scale-95", "opacity-0");
+}
+function bindQuizHandlers() {
+    const bq = document.getElementById("btn-quiz");
+    if (!bq || bq.dataset.quizBound) return;
+    bq.dataset.quizBound = "1";
+    bq.addEventListener("click", openQuizModal);
+    const mq = document.getElementById("modal-quiz");
+    ["quiz-close","quiz-confirm"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("click", closeQuizModal);
+    });
+    if (mq) mq.addEventListener("click", ev => { if (ev.target === mq) closeQuizModal(); });
+    const ba = document.getElementById("btn-quiz-answers");
+    if (ba && !ba.dataset.quizBound) {
+        ba.dataset.quizBound = "1";
+        ba.addEventListener("click", () => {
+            quizAnswersVisible = !quizAnswersVisible;
+            renderQuiz();
+            if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([mq]).catch(() => {});
+        });
+    }
+    document.addEventListener("keydown", function quizEsc(ev) {
+        if (ev.key !== "Escape" || !mq) return;
+        if (!mq.classList.contains("pointer-events-none")) closeQuizModal();
+    });
+}
+
 function applyLang() {
     document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
     document.title = t('pageTitle');
@@ -542,6 +738,7 @@ function applyLang() {
     if (window.MathJax && MathJax.typesetPromise) {
         MathJax.typesetPromise([els['modal-principle'], document.querySelector('aside')]).catch(() => {});
     }
+    renderQuiz();
 }
 
 function syncSliders() {
@@ -1187,5 +1384,10 @@ setLoadButtons();
 setFlowButtons();
 loop();
 </script>
+
+if (typeof bindQuizHandlers === 'function') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindQuizHandlers);
+  else bindQuizHandlers();
+}
 </body>
 </html>

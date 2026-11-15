@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>溶解速率因素 | Dissolution Rate Factors</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+        /* 自定義動畫：攪拌 */
+        @keyframes stir-slow {
+            0% { transform: rotate(-10deg) translateX(0); }
+            50% { transform: rotate(10deg) translateX(20px); }
+            100% { transform: rotate(-10deg) translateX(0); }
+        }
+        @keyframes stir-fast {
+            0% { transform: rotate(-15deg) translateX(-10px); }
+            25% { transform: rotate(0deg) translateX(25px); }
+            50% { transform: rotate(15deg) translateX(-10px); }
+            75% { transform: rotate(0deg) translateX(-25px); }
+            100% { transform: rotate(-15deg) translateX(-10px); }
+        }
+        .animate-stir-slow {
+            animation: stir-slow 1.5s ease-in-out infinite;
+        }
+        .animate-stir-fast {
+            animation: stir-fast 0.5s linear infinite;
+        }
+
+        /* 蒸氣動畫 (高溫時顯示) */
+        @keyframes steam {
+            0% { transform: translateY(0) scale(1); opacity: 0.6; }
+            50% { transform: translateY(-20px) scale(1.5); opacity: 0.3; }
+            100% { transform: translateY(-40px) scale(2); opacity: 0; }
+        }
+        .animate-steam {
+            animation: steam 2s ease-out infinite;
+        }
+
+        /* 溶解過程中的粒子微動 */
+        @keyframes jiggle {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(1px, -1px); }
+            50% { transform: translate(-1px, 1px); }
+            75% { transform: translate(-1px, -1px); }
+            100% { transform: translate(0, 0); }
+        }
+        .jiggling {
+            animation: jiggle 0.2s infinite;
+        }
+
+        /* 隱藏預設的 Range Input 樣式並自定義 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 999px;
+        }
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        /* 禁用狀態 */
+        .disabled-layer {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    
+        
+
+            body { font-family: 'Noto Sans TC', sans-serif; }
+    
+        .modal-backdrop { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal-content { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+</style>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10 flex flex-col">
+<header class="w-full max-w-7xl mx-auto bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 z-20 sticky top-2 shrink-0">
+<div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 text-white flex items-center justify-center shadow-md shrink-0">
+<svg fill="none" height="22" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="22" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+</div>
+<div class="min-w-0">
+<h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-800 flex items-center gap-2 flex-wrap">
+<span data-i18n="title">溶解速率因素</span>
+<span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold border border-slate-200" data-i18n="badge">中一科學</span>
+</h1>
+<p class="text-xs text-slate-500 truncate" data-i18n="subtitle">溫度、攪拌、粒徑</p>
+</div>
+</div>
+<button class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+</div>
+<div class="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+<button class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2" id="btn-steps" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M9 5h12"></path><path d="M9 12h12"></path><path d="M9 19h12"></path><circle cx="4" cy="5" fill="currentColor" r="1"></circle><circle cx="4" cy="12" fill="currentColor" r="1"></circle><circle cx="4" cy="19" fill="currentColor" r="1"></circle></svg>
+<span data-i18n="btnSteps">觀察步驟</span>
+</button>
+<button class="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-sky-400 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2" id="btn-principle" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+<span data-i18n="btnPrinciple">原理解說</span>
+</button>
+<button class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2" id="btn-quiz" type="button"><span data-i18n="btnQuiz">課堂問題</span></button>
+<button class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300" id="btn-lang" type="button">中 / EN</button>
+</div>
+</header>
+<main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto lg:overflow-hidden"><aside class="lg:col-span-4 xl:col-span-4 order-2 lg:order-1 space-y-3 shrink-0 min-h-0"><div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200" id="controls-panel">
+<h2 class="text-lg font-bold flex items-center gap-2 mb-4 text-indigo-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                    設定實驗變因
+                </h2>
+<div class="space-y-5">
+<!-- 溫度控制 -->
+<div>
+<label class="flex justify-between text-sm font-medium text-slate-700 mb-1">
+<span>溶劑溫度 (Temperature)</span>
+<span class="text-red-500 font-bold" id="val-temp">20 °C</span>
+</label>
+<input class="w-full" id="input-temp" max="90" min="10" oninput="updateUI()" step="5" type="range" value="20"/>
+</div>
+<!-- 溶劑體積控制 -->
+<div>
+<label class="flex justify-between text-sm font-medium text-slate-700 mb-1">
+<span>溶劑體積/質量 (Solvent Volume)</span>
+<span class="text-blue-500 font-bold" id="val-vol">100 mL</span>
+</label>
+<input class="w-full" id="input-vol" max="150" min="50" oninput="updateUI()" step="25" type="range" value="100"/>
+</div>
+<!-- 顆粒大小控制 (Radio) -->
+<div>
+<label class="block text-sm font-medium text-slate-700 mb-2">溶質顆粒大小 (Particle Size)</label>
+<div class="grid grid-cols-3 gap-2">
+<label class="cursor-pointer">
+<input class="peer sr-only" name="size" type="radio" value="chunk"/>
+<div class="text-center px-2 py-2 border rounded-lg peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 hover:bg-slate-50 transition">
+<div class="w-4 h-4 bg-slate-600 mx-auto mb-1"></div>
+<span class="text-xs font-bold">塊狀</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input checked="" class="peer sr-only" name="size" type="radio" value="granule"/>
+<div class="text-center px-2 py-2 border rounded-lg peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 hover:bg-slate-50 transition">
+<div class="flex flex-wrap justify-center gap-[2px] w-4 mx-auto mb-1">
+<div class="w-1.5 h-1.5 bg-slate-600"></div><div class="w-1.5 h-1.5 bg-slate-600"></div><div class="w-1.5 h-1.5 bg-slate-600"></div><div class="w-1.5 h-1.5 bg-slate-600"></div>
+</div>
+<span class="text-xs font-bold">粗顆粒</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input class="peer sr-only" name="size" type="radio" value="powder"/>
+<div class="text-center px-2 py-2 border rounded-lg peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 hover:bg-slate-50 transition">
+<div class="flex flex-wrap justify-center gap-[1px] w-4 mx-auto mb-1">
+<!-- dots -->
+<div class="w-1 h-1 bg-slate-600"></div><div class="w-1 h-1 bg-slate-600"></div><div class="w-1 h-1 bg-slate-600"></div><div class="w-1 h-1 bg-slate-600"></div>
+<div class="w-1 h-1 bg-slate-600"></div><div class="w-1 h-1 bg-slate-600"></div><div class="w-1 h-1 bg-slate-600"></div>
+</div>
+<span class="text-xs font-bold">粉末</span>
+</div>
+</label>
+</div>
+</div>
+<!-- 攪拌速率控制 (Radio) -->
+<div>
+<label class="block text-sm font-medium text-slate-700 mb-2">攪拌速率 (Stirring Rate)</label>
+<div class="grid grid-cols-3 gap-2">
+<label class="cursor-pointer">
+<input checked="" class="peer sr-only" name="stir" onchange="updateUI()" type="radio" value="none"/>
+<div class="text-center px-2 py-2 border rounded-lg peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 hover:bg-slate-50 transition">
+<span class="text-sm font-bold">不攪拌</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input class="peer sr-only" name="stir" onchange="updateUI()" type="radio" value="slow"/>
+<div class="text-center px-2 py-2 border rounded-lg peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 hover:bg-slate-50 transition">
+<span class="text-sm font-bold">慢速攪拌</span>
+</div>
+</label>
+<label class="cursor-pointer">
+<input class="peer sr-only" name="stir" onchange="updateUI()" type="radio" value="fast"/>
+<div class="text-center px-2 py-2 border rounded-lg peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 hover:bg-slate-50 transition">
+<span class="text-sm font-bold">快速攪拌</span>
+</div>
+</label>
+</div>
+</div>
+<!-- 行動按鈕 -->
+<div class="pt-4 flex gap-3">
+<button class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex justify-center items-center gap-2" id="btn-start" onclick="startExperiment()">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="20"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            開始實驗
+                        </button>
+<button class="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition" id="btn-reset" onclick="resetApp()" title="重置實驗室">
+<svg fill="none" height="20" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="20"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+</button>
+</div>
+</div>
+</div></aside><section class="lg:col-span-8 xl:col-span-8 order-1 lg:order-2 flex flex-col gap-4 min-w-0 min-h-0"><div class="space-y-6">
+<!-- 模擬視覺化區域 -->
+<div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+<h2 class="text-lg font-bold flex items-center gap-2 mb-4 text-indigo-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                    實驗觀察區
+                </h2>
+<div class="relative h-72 bg-blue-50/30 rounded-xl border-2 border-slate-200 flex justify-center items-end overflow-hidden">
+<!-- 蒸氣效果 (高溫時顯示) -->
+<div class="absolute top-10 flex gap-4 opacity-0 transition-opacity duration-500" id="steam-effect">
+<svg class="text-slate-400 animate-steam" fill="none" height="40" stroke="currentColor" stroke-width="2" style="animation-delay: 0s;" viewbox="0 0 24 24" width="24"><path d="M12 2c0 5-4 7-4 12s4 7 4 12"></path></svg>
+<svg class="text-slate-400 animate-steam" fill="none" height="40" stroke="currentColor" stroke-width="2" style="animation-delay: 0.5s;" viewbox="0 0 24 24" width="24"><path d="M8 2c0 5 4 7 4 12s-4 7-4 12"></path></svg>
+<svg class="text-slate-400 animate-steam" fill="none" height="40" stroke="currentColor" stroke-width="2" style="animation-delay: 1s;" viewbox="0 0 24 24" width="24"><path d="M16 2c0 5-4 7-4 12s4 7 4 12"></path></svg>
+</div>
+<!-- 溫度計指示 -->
+<div class="absolute left-4 top-4 flex items-center gap-2 bg-white/80 px-2 py-1 rounded shadow-sm backdrop-blur-sm z-10">
+<div class="w-2 h-8 bg-slate-200 rounded-full relative overflow-hidden">
+<div class="absolute bottom-0 w-full bg-red-500 transition-all duration-300" id="thermometer-level" style="height: 20%;"></div>
+</div>
+<span class="text-sm font-bold text-slate-600" id="temp-display-overlay">20°C</span>
+</div>
+<!-- 燒杯 -->
+<div class="relative w-48 h-56 border-x-4 border-b-4 border-slate-300 rounded-b-2xl bg-transparent z-10 flex flex-col justify-end overflow-hidden shadow-[inset_0_-10px_20px_rgba(0,0,0,0.05)]">
+<!-- 水位線刻度 -->
+<div class="absolute left-0 bottom-[33%] w-2 border-b-2 border-slate-400"></div>
+<div class="absolute left-0 bottom-[66%] w-2 border-b-2 border-slate-400"></div>
+<div class="absolute left-0 bottom-[95%] w-2 border-b-2 border-slate-400"></div>
+<!-- 攪拌棒 -->
+<div class="absolute left-1/2 -top-10 w-2 h-64 bg-slate-400/80 rounded-full origin-top transform -translate-x-1/2 z-20 transition-transform duration-300" id="stirrer"></div>
+<!-- 溶劑 (水) -->
+<div class="w-full bg-blue-400/40 transition-all duration-500 relative" id="solvent" style="height: 50%;">
+<!-- 溶質粒子容器 -->
+<div class="absolute bottom-1 w-full flex flex-wrap justify-center content-end gap-1 p-2" id="solute-container">
+<!-- 粒子由 JS 動態生成 -->
+</div>
+</div>
+</div>
+</div>
+<!-- 實驗狀態與時間 -->
+<div class="mt-6 text-center">
+<div class="text-4xl font-mono font-bold text-indigo-600" id="timer-display">00.00 s</div>
+<div class="text-sm text-slate-500 mt-1" id="status-text">準備就緒，請設定變因後點擊開始。</div>
+</div>
+</div>
+<!-- 控制面板 -->
+</div><div class="space-y-6 flex flex-col">
+<!-- 實驗記錄表 -->
+<div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex-1">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-lg font-bold flex items-center gap-2 text-indigo-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                        實驗記錄簿
+                    </h2>
+<button class="text-sm text-red-500 hover:text-red-700 font-medium" onclick="clearData()">清除所有紀錄</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-sm text-left">
+<thead class="bg-slate-100 text-slate-600 uppercase font-semibold">
+<tr>
+<th class="px-4 py-3 rounded-tl-lg">次數</th>
+<th class="px-4 py-3">溫度 (°C)</th>
+<th class="px-4 py-3">顆粒大小</th>
+<th class="px-4 py-3">攪拌</th>
+<th class="px-4 py-3">體積 (mL)</th>
+<th class="px-4 py-3 text-right text-indigo-600 rounded-tr-lg">時間 (s)</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100" id="data-table-body">
+<!-- 數據列將由 JS 插入 -->
+<tr id="empty-row">
+<td class="px-4 py-8 text-center text-slate-400" colspan="6">尚無實驗數據，請進行實驗。</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- 圖表分析區 -->
+<div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+<div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+<h2 class="text-lg font-bold flex items-center gap-2 text-indigo-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                        數據視覺化分析
+                    </h2>
+<div class="flex items-center gap-2">
+<label class="text-sm font-medium text-slate-600">X軸變因：</label>
+<select class="text-sm border-slate-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-1" id="chart-x-axis" onchange="updateChart()">
+<option value="temp">溫度 (°C)</option>
+<option value="vol">體積 (mL)</option>
+</select>
+</div>
+</div>
+<div class="h-64 w-full relative">
+<canvas id="analysisChart"></canvas>
+</div>
+<p class="text-xs text-slate-400 mt-2 text-center">提示：請固定其他變因，僅改變一項變因進行多次實驗，以觀察趨勢。</p>
+</div>
+</div></section></main>
+<script>
+        // --- 狀態管理 ---
+        let isSimulating = false;
+        let experimentData = [];
+        let expCounter = 1;
+        let chartInstance = null;
+        let animationFrameId = null;
+
+        const sizeMap = {
+            'chunk': '塊狀',
+            'granule': '粗顆粒',
+            'powder': '粉末'
+        };
+        const stirMap = {
+            'none': '無',
+            'slow': '慢速',
+            'fast': '快速'
+        };
+
+        // --- 初始化 ---
+        window.onload = () => {
+            updateUI();
+            initChart();
+        };
+
+        // --- UI 更新與綁定 ---
+        function updateUI() {
+            if(isSimulating) return; // 模擬中不更新視覺預覽
+
+            const temp = document.getElementById('input-temp').value;
+            const vol = document.getElementById('input-vol').value;
+            const stir = document.querySelector('input[name="stir"]:checked').value;
+            const size = document.querySelector('input[name="size"]:checked').value;
+
+            // 更新文字標籤
+            document.getElementById('val-temp').innerText = `${temp} °C`;
+            document.getElementById('val-vol').innerText = `${vol} mL`;
+
+            // 更新溫度計外觀
+            const tempPercent = (temp / 100) * 100;
+            document.getElementById('thermometer-level').style.height = `${tempPercent}%`;
+            document.getElementById('temp-display-overlay').innerText = `${temp}°C`;
+
+            // 高溫蒸氣效果 (> 60度)
+            const steam = document.getElementById('steam-effect');
+            if(temp >= 60) {
+                steam.style.opacity = (temp - 50) / 50; // 逐漸明顯
+            } else {
+                steam.style.opacity = 0;
+            }
+
+            // 更新水位 (50ml -> 33%, 100ml -> 66%, 150ml -> 95%)
+            const heightPercent = (vol / 150) * 95;
+            document.getElementById('solvent').style.height = `${Math.max(30, heightPercent)}%`;
+
+            // 繪製初始溶質
+            renderSolute(size);
+
+            // 更新攪拌棒動畫預覽
+            const stirrer = document.getElementById('stirrer');
+            stirrer.className = 'absolute left-1/2 -top-10 w-2 h-64 bg-slate-400/80 rounded-full origin-top transform -translate-x-1/2 z-20 transition-transform duration-300';
+            if(stir === 'slow') stirrer.classList.add('animate-stir-slow');
+            if(stir === 'fast') stirrer.classList.add('animate-stir-fast');
+        }
+
+        // 渲染溶質粒子
+        function renderSolute(sizeType) {
+            const container = document.getElementById('solute-container');
+            container.innerHTML = '';
+            
+            let count = 0;
+            let cssClass = '';
+
+            if(sizeType === 'chunk') {
+                count = 3;
+                cssClass = 'w-8 h-8 bg-slate-700 rounded-sm border border-slate-900 shadow-sm';
+            } else if (sizeType === 'granule') {
+                count = 12;
+                cssClass = 'w-4 h-4 bg-slate-600 rounded-sm shadow-sm';
+            } else {
+                count = 40;
+                cssClass = 'w-2 h-2 bg-slate-500 rounded-full opacity-80';
+            }
+
+            for(let i=0; i<count; i++) {
+                const el = document.createElement('div');
+                el.className = `solute-particle ${cssClass} transform transition-transform duration-75`;
+                // 隨機微微旋轉以增加真實感
+                el.style.transform = `rotate(${Math.random() * 45}deg)`;
+                container.appendChild(el);
+            }
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Simulation Engine ---
+        // 核心物理引擎：計算溶解所需時間
+        function calculateDissolveTime(temp, vol, size, stir) {
+            // 基礎時間 15秒
+            let time = 15.0;
+
+            // 1. 溫度影響 (溫度越高，時間越短)
+            // 假設 20度為基準 (Multiplier ~ 1.5), 80度 (Multiplier ~ 0.5)
+            const tempMultiplier = 120 / (parseFloat(temp) + 40); 
+            time *= tempMultiplier;
+
+            // 2. 顆粒大小影響 (表面積)
+            if(size === 'chunk') time *= 1.8;
+            else if(size === 'granule') time *= 1.0;
+            else if(size === 'powder') time *= 0.4;
+
+            // 3. 攪拌影響 (對流)
+            if(stir === 'none') time *= 1.6;
+            else if(stir === 'slow') time *= 1.0;
+            else if(stir === 'fast') time *= 0.5;
+
+            // 4. 溶劑體積影響 (濃度梯度)
+            // 體積越大，濃度上升越慢，越容易溶解
+            if(vol == 50) time *= 1.2;
+            else if(vol == 100) time *= 1.0;
+            else if(vol == 150) time *= 0.85;
+
+            return Math.max(1.5, Math.min(time, 90)); // 限制在 1.5s ~ 90s 之間
+        }
+
+        function startExperiment() {
+            if(isSimulating) return;
+            
+            // 讀取參數
+            const temp = document.getElementById('input-temp').value;
+            const vol = document.getElementById('input-vol').value;
+            const stir = document.querySelector('input[name="stir"]:checked').value;
+            const size = document.querySelector('input[name="size"]:checked').value;
+
+            const targetTime = calculateDissolveTime(temp, vol, size, stir);
+            
+            // 鎖定UI
+            isSimulating = true;
+            document.getElementById('controls-panel').classList.add('disabled-layer');
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('status-text').innerText = '實驗進行中...';
+            document.getElementById('status-text').classList.add('text-indigo-600');
+            
+            // 讓粒子開始微震動 (如果水溫高或有攪拌)
+            const particles = document.querySelectorAll('.solute-particle');
+            if(stir !== 'none' || temp > 40) {
+                particles.forEach(p => p.classList.add('jiggling'));
+            }
+
+            // 動畫與計時器循環
+            let startTime = performance.now();
+            
+            function loop(currentTime) {
+                let elapsedTime = (currentTime - startTime) / 1000; // 秒
+                
+                // 加速模擬：如果目標時間太長(>20秒)，我們在視覺上加速，但顯示理論時間
+                let visualSpeedRatio = 1.0;
+                if(targetTime > 15) visualSpeedRatio = targetTime / 15.0; // 視覺上最多跑15秒
+                
+                let visualElapsedTime = elapsedTime * visualSpeedRatio;
+                let progress = Math.min(visualElapsedTime / targetTime, 1.0);
+                
+                // 更新時間顯示 (顯示理論經過時間)
+                let displayTime = Math.min(elapsedTime * visualSpeedRatio, targetTime);
+                document.getElementById('timer-display').innerText = displayTime.toFixed(2) + ' s';
+
+                // 更新粒子大小 (縮小)
+                particles.forEach(p => {
+                    // 根據進度縮小，加上一點點隨機差異讓它看起來自然
+                    let scale = Math.max(0, 1 - progress - (Math.random()*0.1));
+                    p.style.transform = `scale(${scale})`;
+                    p.style.opacity = scale;
+                });
+
+                if(progress < 1.0) {
+                    animationFrameId = requestAnimationFrame(loop);
+                } else {
+                    finishExperiment(temp, size, stir, vol, targetTime);
+                }
+            }
+            
+            animationFrameId = requestAnimationFrame(loop);
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Data and Charting ---
+        function finishExperiment(temp, size, stir, vol, time) {
+            isSimulating = false;
+            document.getElementById('controls-panel').classList.remove('disabled-layer');
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('status-text').innerText = '溶解完成！數據已記錄。';
+            document.getElementById('status-text').classList.remove('text-indigo-600');
+            document.getElementById('status-text').classList.add('text-green-600');
+
+            // 移除震動
+            document.querySelectorAll('.solute-particle').forEach(p => p.classList.remove('jiggling'));
+
+            // 儲存數據
+            const record = {
+                id: expCounter++,
+                temp: parseFloat(temp),
+                sizeRaw: size,
+                size: sizeMap[size],
+                stirRaw: stir,
+                stir: stirMap[stir],
+                vol: parseFloat(vol),
+                time: time.toFixed(2)
+            };
+            experimentData.push(record);
+
+            updateTable();
+            updateChart();
+            
+            // 3秒後恢復提示文字
+            setTimeout(() => {
+                if(!isSimulating) {
+                    document.getElementById('status-text').innerText = '請調整變因進行下一次實驗。';
+                    document.getElementById('status-text').classList.remove('text-green-600');
+                }
+            }, 3000);
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('data-table-body');
+            const emptyRow = document.getElementById('empty-row');
+            
+            if(emptyRow) emptyRow.remove();
+
+            // 取得最新一筆
+            const latest = experimentData[experimentData.length - 1];
+            
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-100 hover:bg-slate-50 transition bg-green-50/30'; // Highlight new row
+            tr.innerHTML = `
+                <td class="px-4 py-2 font-medium">${latest.id}</td>
+                <td class="px-4 py-2">${latest.temp}</td>
+                <td class="px-4 py-2">${latest.size}</td>
+                <td class="px-4 py-2">${latest.stir}</td>
+                <td class="px-4 py-2">${latest.vol}</td>
+                <td class="px-4 py-2 text-right font-mono font-bold text-indigo-600">${latest.time}</td>
+            `;
+            tbody.appendChild(tr);
+
+            // 滾動到底部
+            tbody.parentElement.parentElement.scrollTop = tbody.parentElement.parentElement.scrollHeight;
+        }
+
+        function clearData() {
+            if(isSimulating) return;
+            experimentData = [];
+            expCounter = 1;
+            document.getElementById('data-table-body').innerHTML = `
+                <tr id="empty-row">
+                    <td colspan="6" class="px-4 py-8 text-center text-slate-400">尚無實驗數據，請進行實驗。</td>
+                </tr>
+            `;
+            updateChart();
+            document.getElementById('timer-display').innerText = '00.00 s';
+        }
+
+        function resetApp() {
+            if(isSimulating) cancelAnimationFrame(animationFrameId);
+            isSimulating = false;
+            
+            // Reset Inputs
+            document.getElementById('input-temp').value = 20;
+            document.getElementById('input-vol').value = 100;
+            document.querySelector('input[name="size"][value="granule"]').checked = true;
+            document.querySelector('input[name="stir"][value="none"]').checked = true;
+            
+            document.getElementById('controls-panel').classList.remove('disabled-layer');
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('timer-display').innerText = '00.00 s';
+            document.getElementById('status-text').innerText = '準備就緒，請設定變因後點擊開始。';
+            document.getElementById('status-text').className = 'text-sm text-slate-500 mt-1';
+            
+            updateUI();
+        }
+
+        // --- Chart.js 視覺化 ---
+        function initChart() {
+            const ctx = document.getElementById('analysisChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: '溶解時間 (s)',
+                        data: [],
+                        borderColor: '#4f46e5', // indigo-600
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        pointBackgroundColor: '#ef4444',
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3 // 曲線平滑度
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `時間: ${context.parsed.y} s`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: '溫度 (°C)' }
+                        },
+                        y: {
+                            title: { display: true, text: '溶解時間 (s)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if(!chartInstance) return;
+
+            const xAxisVar = document.getElementById('chart-x-axis').value;
+            
+            // 整理數據給圖表
+            let chartData = [];
+            
+            if (xAxisVar === 'temp') {
+                chartInstance.options.scales.x.title.text = '溫度 (°C)';
+                chartData = experimentData.map(d => ({ x: d.temp, y: parseFloat(d.time) }));
+            } else if (xAxisVar === 'vol') {
+                chartInstance.options.scales.x.title.text = '溶劑體積 (mL)';
+                chartData = experimentData.map(d => ({ x: d.vol, y: parseFloat(d.time) }));
+            }
+
+            // 依據 X 軸大小排序，讓折線圖正確連接
+            chartData.sort((a, b) => a.x - b.x);
+
+            chartInstance.data.datasets[0].data = chartData;
+            chartInstance.update();
+        }
+
+    </script>
+<div aria-labelledby="modal-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-principle" role="dialog">
+<div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-blue-600 to-sky-400 p-5 text-white flex justify-between items-center shrink-0">
+<div>
+<h2 class="text-lg font-bold" data-i18n="modalTitle" id="modal-title">原理解說</h2>
+<p class="text-xs opacity-80" data-i18n="modalSub">Principle</p>
+</div>
+<button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" id="modal-close" type="button">✕</button>
+</div>
+<div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+<div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+<h3 class="font-bold text-slate-900 mb-1" data-i18n="m1t">1. 溶解速率</h3>
+<p class="text-xs" data-i18n="m1d">溶質進入溶劑的快慢；≠ 溶解度（最大量）。</p>
+</div>
+<div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+<h3 class="font-bold text-slate-900 mb-1" data-i18n="m2t">2. 因素</h3>
+<p class="text-xs" data-i18n="m2d">T↑、攪拌↑、粒徑↓ → 速率↑（接觸面積大）。</p>
+</div>
+<div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+<h3 class="font-bold text-emerald-900 mb-1" data-i18n="m5t">3. 應用</h3>
+<p class="text-xs text-emerald-800" data-i18n="m5d">沖即溶飲、製糖、藥片設計、實驗室配溶液。</p>
+</div>
+</div>
+<div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+<button class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="modal-confirm" type="button">關閉</button>
+</div>
+</div>
+</div>
+<div aria-labelledby="steps-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-steps" role="dialog">
+<div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-blue-600 to-sky-400 p-5 text-white flex justify-between items-center shrink-0">
+<h2 class="text-lg font-bold" data-i18n="stepsTitle" id="steps-title">觀察步驟</h2>
+<button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" id="steps-close" type="button">✕</button>
+</div>
+<div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s1">1. 只改溫度。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s2">2. 開關攪拌。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s3">3. 大塊 vs 粉末。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s4">4. 計時溶解。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s5">5. 歸納因素。</div>
+</div>
+<div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+<button class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="steps-confirm" type="button">關閉</button>
+</div>
+</div>
+</div>
+<div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+<div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-rose-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center gap-3 flex-wrap">
+<h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+<button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+<button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15" aria-label="Close">✕</button>
+</div>
+<div id="quiz-list" class="p-5 overflow-y-auto text-sm text-slate-700"></div>
+<div class="p-4 border-t flex justify-end"><button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button></div>
+</div>
+</div>
+<script>
+(function() {
+    const platformI18n = {
+        zh: {
+        title: "溶解速率因素",
+        subtitle: "溫度、攪拌、粒徑",
+        badge: "中一科學",
+        btnSteps: "觀察步驟",
+        btnPrinciple: "原理解說",
+        stepsTitle: "觀察步驟",
+        modalTitle: "原理解說",
+        modalSub: "概念、機制與應用",
+        modalClose: "關閉",
+        m1t: "1. 溶解速率",
+        m1d: "溶質進入溶劑的快慢；≠ 溶解度（最大量）。",
+        m2t: "2. 因素",
+        m2d: "T↑、攪拌↑、粒徑↓ → 速率↑（接觸面積大）。",
+        m5t: "3. 應用",
+        m5d: "沖即溶飲、製糖、藥片設計、實驗室配溶液。",
+        s1: "1. 只改溫度。",
+        s2: "2. 開關攪拌。",
+        s3: "3. 大塊 vs 粉末。",
+        s4: "4. 計時溶解。",
+        s5: "5. 歸納因素。",
+        btnQuiz: "課堂問題", quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案",
+        quizQ1: "升高溶劑溫度對蔗糖溶解速率？", quizQ1a: "變慢", quizQ1b: "加快", quizQ1c: "無影響", quizQ1d: "只改變顏色",
+        quizQ1ans: "溫度升高粒子運動加快，溶解更快。", quizQ2: "只開啟攪拌：預測溶解曲線再操作。", quizQ2ans: "攪拌減少擴散層，速率上升。",
+        quizQ3: "較細糖粒溶解速率？", quizQ3a: "較慢", quizQ3b: "較快", quizQ3c: "不變", quizQ3d: "停止", quizQ3ans: "表面積大，溶解更快。",
+        quizQ4: "比較高溫+攪拌與低溫不攪拌：預測完全溶解時間。", quizQ4ans: "高溫加攪拌最快。", quizQ5: "溶解速率指？", quizQ5a: "單位時間溶入溶劑的溶質量", quizQ5b: "pH", quizQ5c: "沸點", quizQ5d: "燒杯質量", quizQ5ans: "速率是溶質進入溶液的快慢。"
+        },
+        en: {
+        title: "Factors affecting dissolution rate",
+        subtitle: "Rate vs solubility",
+        badge: "Junior Science",
+        btnSteps: "Steps",
+        btnPrinciple: "Principle",
+        stepsTitle: "Observation Steps",
+        modalTitle: "Principle",
+        modalSub: "Concepts, mechanism & applications",
+        modalClose: "Close",
+        m1t: "1. Dissolution rate",
+        m1d: "How fast solute dissolves.",
+        m2t: "2. Factors",
+        m2d: "T, stirring, particle size.",
+        m5t: "3. Applications",
+        m5d: "Instant drinks, tablet design.",
+        s1: "1. Temperature.",
+        s2: "2. Stirring.",
+        s3: "3. Particle size.",
+        s4: "4. Time.",
+        s5: "5. Summary.",
+        btnQuiz: "Quiz", quizTitle: "Classroom Quiz", quizShowAnswers: "Show reference answers", quizHideAnswers: "Hide reference answers", quizRef: "Reference",
+        quizQ1: "Raising temperature makes dissolution:", quizQ1a: "Slower", quizQ1b: "Faster", quizQ1c: "No change", quizQ1d: "Colour only",
+        quizQ1ans: "Higher T → faster motion → faster dissolution.", quizQ2: "Stirring on only: predict curve then run.", quizQ2ans: "Stirring reduces diffusion layer.",
+        quizQ3: "Finer grains dissolve:", quizQ3a: "Slower", quizQ3b: "Faster", quizQ3c: "Same", quizQ3d: "Stops", quizQ3ans: "More surface area.",
+        quizQ4: "Hot+stir vs cold+still: predict time to dissolve.", quizQ4ans: "Hot and stirred is fastest.", quizQ5: "Dissolution rate means:", quizQ5a: "Mass dissolving per unit time", quizQ5b: "pH", quizQ5c: "Boiling point", quizQ5d: "Beaker mass", quizQ5ans: "How fast solute enters solution."
+        }
+    };
+    let quizAnswersVisible = false;
+    function renderQuiz() {
+        const box = document.getElementById('quiz-list'); if (!box) return;
+        const lang = getLang(); const pack = Object.assign({}, platformI18n.zh, platformI18n[lang] || platformI18n.zh);
+        const mk = (n) => ['A','B','C','D'].map(ch => `<label class="flex gap-2 border rounded-lg p-2"><input type="radio" name="q${n}"><span>${ch}. ${pack['quizQ'+n+ch.toLowerCase()]||''}</span></label>`).join('');
+        const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs bg-emerald-50 border border-emerald-200 p-2 rounded-lg"><strong>${pack.quizRef}：</strong> ${pack['quizQ'+n+'ans']}</div>` : '';
+        box.innerHTML = [1,2,3,4,5].map(n => { const open = n===2||n===4; return `<div class="border rounded-xl p-3 mb-2"><p class="font-semibold text-rose-700">Q${n}. ${pack['quizQ'+n]}</p>${open?'':`<div>${mk(n)}</div>`}${ans(n)}</div>`; }).join('');
+        const ab = document.getElementById('btn-quiz-answers'); if (ab) ab.textContent = quizAnswersVisible ? pack.quizHideAnswers : pack.quizShowAnswers;
+    }
+    function openQuiz(){ quizAnswersVisible=false; closePrinciple(); closeSteps(); const ms=document.getElementById('modal-quiz'); const sc=ms&&ms.querySelector('.modal-content'); if(ms&&sc){ms.classList.remove('opacity-0','pointer-events-none'); sc.classList.remove('scale-95','opacity-0'); sc.classList.add('scale-100','opacity-100');} renderQuiz(); }
+    function closeQuiz(){ const ms=document.getElementById('modal-quiz'); const sc=ms&&ms.querySelector('.modal-content'); if(!ms||!sc) return; sc.classList.remove('scale-100','opacity-100'); sc.classList.add('scale-95','opacity-0'); ms.classList.add('opacity-0','pointer-events-none'); }
+
+    function getLang() {
+        if (typeof currentLang !== 'undefined') return currentLang;
+        if (typeof window.currentLang !== 'undefined') return window.currentLang;
+        return 'zh';
+    }
+
+    function setLangVar(lang) {
+        if (typeof currentLang !== 'undefined') currentLang = lang;
+        window.currentLang = lang;
+    }
+
+    function mergeInto(dict) {
+        if (!dict) return;
+        ['zh','en'].forEach(function(lang) {
+            if (!dict[lang]) dict[lang] = {};
+            Object.assign(dict[lang], platformI18n[lang]);
+            if (dict[lang].appTitle && !dict[lang].title) dict[lang].title = dict[lang].appTitle;
+            if (dict[lang].appSubtitle && !dict[lang].subtitle) dict[lang].subtitle = dict[lang].appSubtitle;
+        });
+    }
+
+    mergeInto(typeof i18n !== 'undefined' ? i18n : null);
+    mergeInto(typeof translations !== 'undefined' ? translations : null);
+    mergeInto(typeof i18nData !== 'undefined' ? i18nData : null);
+    mergeInto(typeof TRANSLATIONS !== 'undefined' ? TRANSLATIONS : null);
+
+    function applyPlatformI18n() {
+        const lang = getLang();
+        document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+        let pack = platformI18n[lang];
+        if (typeof i18n !== 'undefined' && i18n[lang]) pack = Object.assign({}, platformI18n[lang], i18n[lang]);
+        else if (typeof translations !== 'undefined' && translations[lang]) pack = Object.assign({}, platformI18n[lang], translations[lang]);
+        else if (typeof i18nData !== 'undefined' && i18nData[lang]) pack = Object.assign({}, platformI18n[lang], i18nData[lang]);
+        else if (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[lang]) pack = Object.assign({}, platformI18n[lang], TRANSLATIONS[lang]);
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+            const key = el.getAttribute('data-i18n');
+            if (pack[key] != null) {
+                if (/<[a-z][\s\S]*>/i.test(pack[key])) el.innerHTML = pack[key];
+                else el.textContent = pack[key];
+            }
+        });
+        renderQuiz();
+    }
+
+    function platformToggleLang() {
+        const next = getLang() === 'zh' ? 'en' : 'zh';
+        if (typeof toggleLanguage === 'function') toggleLanguage();
+        else if (typeof setLanguage === 'function') setLanguage(next);
+        else {
+            setLangVar(next);
+            if (typeof updateI18n === 'function') updateI18n();
+        }
+        applyPlatformI18n();
+    }
+
+    function openPrinciple() {
+        const mp = document.getElementById('modal-principle');
+        const mc = mp && mp.querySelector('.modal-content');
+        if (!mp || !mc) return;
+        mp.classList.remove('opacity-0', 'pointer-events-none');
+        mc.classList.remove('scale-95', 'opacity-0');
+        mc.classList.add('scale-100', 'opacity-100');
+    }
+    function closePrinciple() {
+        const mp = document.getElementById('modal-principle');
+        const mc = mp && mp.querySelector('.modal-content');
+        if (!mp || !mc) return;
+        mc.classList.remove('scale-100', 'opacity-100');
+        mc.classList.add('scale-95', 'opacity-0');
+        mp.classList.add('opacity-0', 'pointer-events-none');
+    }
+    function openSteps() {
+        const ms = document.getElementById('modal-steps');
+        const sc = ms && ms.querySelector('.modal-content');
+        if (!ms || !sc) return;
+        ms.classList.remove('opacity-0', 'pointer-events-none');
+        sc.classList.remove('scale-95', 'opacity-0');
+        sc.classList.add('scale-100', 'opacity-100');
+    }
+    function closeSteps() {
+        const ms = document.getElementById('modal-steps');
+        const sc = ms && ms.querySelector('.modal-content');
+        if (!ms || !sc) return;
+        sc.classList.remove('scale-100', 'opacity-100');
+        sc.classList.add('scale-95', 'opacity-0');
+        ms.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function bindPlatformUI() {
+        const bs = document.getElementById('btn-steps');
+        const bp = document.getElementById('btn-principle');
+        const bl = document.getElementById('btn-lang');
+        const bm = document.getElementById('btn-lang-mobile');
+        if (bs) bs.onclick = function() { closePrinciple(); openSteps(); };
+        if (bp) bp.onclick = function() { closeSteps(); openPrinciple(); };
+        if (bl) bl.onclick = platformToggleLang;
+        if (bm) bm.onclick = platformToggleLang;
+        ['modal-close','modal-confirm'].forEach(function(id) {
+            const b = document.getElementById(id);
+            if (b) b.onclick = closePrinciple;
+        });
+        ['steps-close','steps-confirm'].forEach(function(id) {
+            const b = document.getElementById(id);
+            if (b) b.onclick = closeSteps;
+        });
+        const mp = document.getElementById('modal-principle');
+        const ms = document.getElementById('modal-steps');
+        if (mp) mp.addEventListener('click', function(e) { if (e.target === mp) closePrinciple(); });
+        if (ms) ms.addEventListener('click', function(e) { if (e.target === ms) closeSteps(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') { closePrinciple(); closeSteps(); }
+        });
+        const bq = document.getElementById('btn-quiz');
+        if (bq) bq.onclick = function() { openQuiz(); };
+        document.getElementById('btn-quiz-answers')?.addEventListener('click', function() { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+        document.getElementById('quiz-close')?.addEventListener('click', closeQuiz);
+        document.getElementById('quiz-confirm')?.addEventListener('click', closeQuiz);
+        document.getElementById('modal-quiz')?.addEventListener('click', function(e) { if (e.target.id === 'modal-quiz') closeQuiz(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeQuiz();
+        });
+        applyPlatformI18n();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindPlatformUI);
+    else bindPlatformUI();
+})();
+</script>
+</body>
+</html>

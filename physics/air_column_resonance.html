@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空氣柱共鳴 | Air Column Resonance</title>
+<script>
+        MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+<script async id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<link href="../css/sim-mathjax.css" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* 自訂拉桿樣式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        .canvas-container {
+            position: relative;
+            background: linear-gradient(to bottom, #1e293b, #0f172a);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .resonance-glow {
+            animation: pulse-glow 1s infinite alternate;
+        }
+        .modal-backdrop { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease, opacity 0.3s ease; }
+        @keyframes pulse-glow {
+            from { text-shadow: 0 0 5px #ef4444, 0 0 10px #ef4444; }
+            to { text-shadow: 0 0 20px #ef4444, 0 0 30px #ef4444; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+
+    <header class="w-full max-w-6xl mb-4 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center justify-between w-full md:w-auto gap-3 min-w-0">
+        <div class="text-center md:text-left min-w-0">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2 flex-wrap justify-center md:justify-start">
+                <span data-i18n="title">空氣柱共鳴</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-bold border border-cyan-200" data-i18n="badge">物理</span>
+            </h1>
+            <p class="text-gray-600 text-sm" data-i18n="subtitle">調整水位尋找共鳴點，量度波長並核對聲速</p>
+        </div>
+        <button class="md:hidden px-2.5 py-1.5 bg-white text-xs font-bold text-gray-700 rounded-lg border border-gray-300 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-sm border border-gray-300"><span data-i18n="btnSteps">觀察步驟</span></button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm"><span data-i18n="btnPrinciple">原理解說</span></button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm border border-rose-200"><span data-i18n="btnQuiz">課堂問題</span></button>
+            <button class="hidden md:flex px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-sm border border-gray-300" id="btn-lang" type="button">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl flex flex-col lg:flex-row gap-6">
+        <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-2 lg:order-1 flex flex-col gap-4">
+            <!-- 數據儀表板 -->
+            <div class="bg-white p-5 rounded-xl shadow-md border border-gray-100">
+                <h2 class="text-lg font-bold text-gray-800 border-b pb-2 mb-3" data-i18n="secData">實驗數據</h2>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500" data-i18n="lblSpeed">聲速 (假設環境室溫)</span>
+                        <span class="font-medium text-gray-800 text-right"><span id="valSpeed">343</span> m/s</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500" data-i18n="lblLambda">理論波長 ($\lambda$)</span>
+                        <span class="font-medium text-blue-600 text-right"><span id="valWavelength">0.00</span> cm</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500" data-i18n="lblL">空氣柱長度 ($L$)</span>
+                        <span class="font-medium text-purple-600 text-right"><span id="valAirLength">0.00</span> cm</span>
+                    </div>
+                    <div class="mt-2 p-2 bg-gray-50 rounded-lg text-xs text-gray-600 border border-gray-200" data-i18n="hintRes">
+                        提示：當 $L \approx \frac{\lambda}{4}, \frac{3\lambda}{4}, \frac{5\lambda}{4}...$ 時發生共鳴。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 控制介面 -->
+            <div class="bg-white p-5 rounded-xl shadow-md border border-gray-100 flex-1">
+                <h2 class="text-lg font-bold text-gray-800 border-b pb-2 mb-4" data-i18n="secCtrl">操作控制</h2>
+                
+                <!-- 音叉頻率控制 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2 flex justify-between">
+                        <span data-i18n="lblF">音叉頻率 ($f$)</span>
+                        <span class="text-blue-600 font-bold"><span id="labelFreq">512</span> Hz</span>
+                    </label>
+                    <input type="range" id="freqSlider" min="256" max="1024" step="8" value="512">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span data-i18n="freqLow">256 (低音)</span>
+                        <span data-i18n="freqHigh">1024 (高音)</span>
+                    </div>
+                </div>
+
+                <!-- 水位控制 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2 flex justify-between">
+                        <span data-i18n="lblWater">水位調節 (管長100cm)</span>
+                        <span class="text-purple-600 font-bold"><span data-i18n="lblAirCol">空管</span> <span id="labelAirLength">50</span> cm</span>
+                    </label>
+                    <!-- 拉桿值代表空氣柱長度，0 = 全滿水，100 = 沒水 -->
+                    <input type="range" id="airSlider" min="5" max="100" step="0.5" value="50">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span data-i18n="waterFull">水滿 (短空氣柱)</span>
+                        <span data-i18n="waterEmpty">水空 (長空氣柱)</span>
+                    </div>
+                </div>
+
+                <!-- 敲擊音叉按鈕 -->
+                <button id="btnStrike" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-lg hover:shadow-xl active:transform active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9a2.5 2.5 0 0 0-5 0v7a2.5 2.5 0 0 0 5 0V9z"/><path d="M12 18.5v4"/><path d="M8 22h8"/><path d="M7 6a5 5 0 0 1 10 0"/></svg>
+                    <span id="btnText" data-i18n="btnStrike">敲擊音叉 (開始實驗)</span>
+                </button>
+                <p class="text-xs text-center text-gray-400 mt-3" data-i18n="audioHint">請先開啟裝置音量以聆聽共鳴效果</p>
+            </div>
+        </aside>
+        <section class="flex-1 order-1 lg:order-2 canvas-container relative min-h-[420px] lg:min-h-[560px] border-4 border-slate-700">
+            <canvas id="simCanvas"></canvas>
+            <div id="resonanceAlert" class="absolute top-4 left-0 w-full text-center opacity-0 transition-opacity duration-300 pointer-events-none">
+                <span class="text-red-400 font-bold text-2xl resonance-glow border-2 border-red-500 bg-black bg-opacity-50 px-4 py-1 rounded-full">
+                    <span data-i18n="resAlert">產生共鳴！</span>
+                </span>
+                <p id="resonanceType" class="text-white text-sm mt-1 drop-shadow-md">第一次共鳴 (基頻)</p>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl scale-95 opacity-0">
+            <div class="flex justify-between items-center mb-3"><h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2><button type="button" id="steps-close" class="text-2xl text-slate-500" aria-label="關閉">×</button></div>
+            <ol class="list-decimal pl-5 space-y-2 text-sm text-gray-700">
+                <li data-i18n="s1">先選音叉頻率，記下理論波長。</li>
+                <li data-i18n="s2">慢慢拉動水位，改變空氣柱長度 L。</li>
+                <li data-i18n="s3">按「敲擊音叉」，當 L 接近 λ/4、3λ/4 時會出現共鳴提示，聲音也變響。</li>
+                <li data-i18n="s4">換一個頻率再找共鳴，比較波長變短時共鳴位置如何上移。</li>
+            </ol>
+        </div>
+    </div>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl scale-95 opacity-0 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-3"><h2 id="principle-title" class="text-lg font-bold" data-i18n="modalTitle">原理解說</h2><button type="button" id="modal-close" class="text-2xl text-slate-500" aria-label="關閉">×</button></div>
+            <div class="space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p data-i18n="m1d"><strong>概念：</strong>閉管（水面是閉端）裡的空氣柱會形成駐波。聲速、頻率與波長的關係是 v = f × λ。</p>
+                <p data-i18n="m2d"><strong>機制：</strong>水面是位移波節，管口附近是波腹。第一次共鳴約在 L = λ/4，其後是 3λ/4、5λ/4。頻率愈高，波長愈短，共鳴所需的空氣柱愈短。</p>
+                <p data-i18n="m5d"><strong>生活例子：</strong>管風琴、汽水瓶吹氣，管內空氣柱長度決定音高。</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white rounded-2xl max-w-2xl w-full shadow-xl scale-95 opacity-0 flex flex-col max-h-[88vh] overflow-hidden">
+            <div class="bg-rose-600 p-5 text-white flex justify-between items-center gap-3">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/15 text-white text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                    <button type="button" id="quiz-close" class="text-xl text-white/90" aria-label="關閉">×</button>
+                </div>
+            </div>
+            <div id="quiz-list" class="p-6 overflow-y-auto text-sm text-gray-700 space-y-3"></div>
+            <div class="p-4 border-t text-right"><button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white text-sm font-bold rounded-xl" data-i18n="modalClose">關閉</button></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 物理常數與狀態變數 ---
+        const SPEED_OF_SOUND = 343; // 聲速 m/s
+        const TUBE_LENGTH_M = 1.0;  // 水管實際總長度 1 公尺 (100 cm)
+        
+        let state = {
+            frequency: 512,      // Hz
+            airLength_m: 0.5,    // 單位：公尺
+            wavelength_m: 0,     // 單位：公尺
+            isPlaying: false,
+            resonanceFactor: 0,  // 0 到 1，表示目前多接近共鳴點
+            resonanceN: 0        // 記錄是第幾次共鳴 (1, 3, 5...)
+        };
+
+        // DOM 元素參考
+        const ui = {
+            canvas: document.getElementById('simCanvas'),
+            valSpeed: document.getElementById('valSpeed'),
+            valWavelength: document.getElementById('valWavelength'),
+            valAirLength: document.getElementById('valAirLength'),
+            labelFreq: document.getElementById('labelFreq'),
+            labelAirLength: document.getElementById('labelAirLength'),
+            freqSlider: document.getElementById('freqSlider'),
+            airSlider: document.getElementById('airSlider'),
+            btnStrike: document.getElementById('btnStrike'),
+            btnText: document.getElementById('btnText'),
+            resonanceAlert: document.getElementById('resonanceAlert'),
+            resonanceType: document.getElementById('resonanceType')
+        };
+
+        const ctx = ui.canvas.getContext('2d');
+        let animationId;
+        let time = 0; // 用於動畫相位
+
+        // --- Web Audio API 變數 ---
+        let audioCtx = null;
+        let oscillator = null;
+        let masterGain = null;
+        let resonanceGain = null;
+
+        // --- 物理運算 ---
+        function calculatePhysics() {
+            // 波長 = 聲速 / 頻率
+            state.wavelength_m = SPEED_OF_SOUND / state.frequency;
+            
+            // 判斷共鳴程度
+            // 共鳴發生在 L = n * (lambda / 4)，其中 n 為奇數 (1, 3, 5...)
+            const targetQuarterWaves = state.airLength_m / (state.wavelength_m / 4);
+            
+            // 尋找最接近的奇數整數
+            const closestOddNumber = Math.max(1, Math.round((targetQuarterWaves - 1) / 2) * 2 + 1);
+            state.resonanceN = closestOddNumber;
+            
+            const targetLength = closestOddNumber * (state.wavelength_m / 4);
+            const diff = Math.abs(state.airLength_m - targetLength);
+            
+            // 容差設定：距離共鳴點幾公分內算是有反應 (例如 0.05m = 5cm)
+            const tolerance = 0.04;
+            
+            if (diff < tolerance) {
+                // 越接近 diff=0，factor 越接近 1
+                // 使用 cosine 曲線讓過渡更平滑
+                state.resonanceFactor = Math.cos((diff / tolerance) * (Math.PI / 2));
+            } else {
+                state.resonanceFactor = 0;
+            }
+
+            updateUI();
+            updateAudio();
+        }
+
+        function updateUI() {
+            ui.valSpeed.innerText = SPEED_OF_SOUND;
+            ui.valWavelength.innerText = (state.wavelength_m * 100).toFixed(1);
+            ui.valAirLength.innerText = (state.airLength_m * 100).toFixed(1);
+            ui.labelFreq.innerText = state.frequency;
+            ui.labelAirLength.innerText = (state.airLength_m * 100).toFixed(1);
+
+            // 顯示/隱藏共鳴警告
+            if (state.isPlaying && state.resonanceFactor > 0.5) {
+                ui.resonanceAlert.style.opacity = state.resonanceFactor;
+                let typeName = "";
+                if (state.resonanceN === 1) typeName = "第一次共鳴 (基頻)";
+                else if (state.resonanceN === 3) typeName = "第二次共鳴 (第一泛音)";
+                else if (state.resonanceN === 5) typeName = "第三次共鳴 (第二泛音)";
+                else typeName = `第 ${(state.resonanceN+1)/2} 次共鳴`;
+                ui.resonanceType.innerText = typeName;
+            } else {
+                ui.resonanceAlert.style.opacity = 0;
+            }
+        }
+
+        // --- 聲音控制 ---
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function toggleSound() {
+            if (state.isPlaying) {
+                stopSound();
+            } else {
+                startSound();
+            }
+        }
+
+        function startSound() {
+            initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sine'; // 音叉的聲音最接近純粹的 sine wave
+            oscillator.frequency.value = state.frequency;
+
+            // 基礎音量控制
+            masterGain = audioCtx.createGain();
+            
+            // 共鳴增益控制 (動態變化)
+            resonanceGain = audioCtx.createGain();
+            
+            // 串接: Oscillator -> ResonanceGain -> MasterGain -> Destination
+            oscillator.connect(resonanceGain);
+            resonanceGain.connect(masterGain);
+            masterGain.connect(audioCtx.destination);
+
+            oscillator.start();
+            state.isPlaying = true;
+            
+            ui.btnStrike.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            ui.btnStrike.classList.add('bg-red-500', 'hover:bg-red-600');
+            ui.btnText.innerText = "停止震動";
+
+            calculatePhysics(); // 觸發音量更新
+        }
+
+        function stopSound() {
+            if (oscillator) {
+                oscillator.stop();
+                oscillator.disconnect();
+                oscillator = null;
+            }
+            state.isPlaying = false;
+            
+            ui.btnStrike.classList.remove('bg-red-500', 'hover:bg-red-600');
+            ui.btnStrike.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            ui.btnText.innerText = "敲擊音叉 (開始實驗)";
+            
+            ui.resonanceAlert.style.opacity = 0;
+        }
+
+        function updateAudio() {
+            if (!state.isPlaying || !oscillator) return;
+            
+            // 即時更新頻率 (加上一點點震音效果讓聲音不那麼生硬)
+            oscillator.frequency.setTargetAtTime(state.frequency, audioCtx.currentTime, 0.05);
+
+            // 音量邏輯：
+            // 基礎音量很小 (模擬音叉本身聲音不大)
+            // 發生共鳴時，音量大幅增加
+            const baseVolume = 0.05; 
+            const maxResonanceVolume = 0.8;
+            
+            // 利用 resonanceFactor 調整音量
+            const currentVol = baseVolume + (maxResonanceVolume * state.resonanceFactor);
+            
+            resonanceGain.gain.setTargetAtTime(currentVol, audioCtx.currentTime, 0.1);
+        }
+
+        // --- 畫布繪圖 ---
+        function resizeCanvas() {
+            const container = ui.canvas.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            if (w < 1 || h < 1) return;
+            ui.canvas.width = Math.floor(w * dpr);
+            ui.canvas.height = Math.floor(h * dpr);
+            ui.canvas.style.width = w + 'px';
+            ui.canvas.style.height = h + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // 事件監聽器
+        ui.freqSlider.addEventListener('input', (e) => {
+            state.frequency = parseFloat(e.target.value);
+            calculatePhysics();
+        });
+
+        ui.airSlider.addEventListener('input', (e) => {
+            // value 是公分，轉換成公尺
+            state.airLength_m = parseFloat(e.target.value) / 100;
+            calculatePhysics();
+        });
+
+        ui.btnStrike.addEventListener('click', toggleSound);
+
+        // --- 繪製循環 ---
+        function draw() {
+            const cw = ui.canvas.clientWidth;
+            const ch = ui.canvas.clientHeight;
+            if (!cw || !ch) {
+                requestAnimationFrame(draw);
+                return;
+            }
+            ctx.clearRect(0, 0, cw, ch);
+            
+            // 定義版面比例與位置
+            const tubeWidth = Math.min(cw * 0.15, 80); // 水管寬度
+            const tubeX = (cw - tubeWidth) / 2; // 置中
+            const paddingY = 100; // 上下留白
+            const tubeHeight = ch - paddingY * 1.5; // 水管繪圖高度
+            const tubeY = paddingY;
+            
+            // 換算比例 (1公尺對應到 tubeHeight 的像素)
+            const pixelsPerMeter = tubeHeight / TUBE_LENGTH_M;
+            const airHeightPx = state.airLength_m * pixelsPerMeter;
+            const waterHeightPx = tubeHeight - airHeightPx;
+            const waterY = tubeY + airHeightPx;
+
+            // 1. 繪製背景格線 (代表尺規)
+            drawRuler(cw, ch, tubeX, tubeY, tubeHeight, pixelsPerMeter);
+
+            // 2. 繪製水 (下半部)
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.6)'; // 淡藍色
+            ctx.fillRect(tubeX, waterY, tubeWidth, waterHeightPx);
+            // 水面反光
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fillRect(tubeX, waterY, tubeWidth, 4);
+
+            // 3. 繪製玻璃管 (外框)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(tubeX, tubeY);
+            ctx.lineTo(tubeX, tubeY + tubeHeight);
+            ctx.lineTo(tubeX + tubeWidth, tubeY + tubeHeight);
+            ctx.lineTo(tubeX + tubeWidth, tubeY);
+            ctx.stroke();
+            
+            // 玻璃反光特效
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(tubeX + 5, tubeY, tubeWidth * 0.2, tubeHeight);
+
+            // 4. 繪製音叉 (管口上方)
+            drawTuningFork(cw/2, tubeY - 30, state.isPlaying);
+
+            // 5. 繪製駐波 (如果是播放中)
+            if (state.isPlaying) {
+                drawStandingWave(tubeX, tubeY, tubeWidth, airHeightPx, pixelsPerMeter);
+                drawParticles(tubeX, tubeY, tubeWidth, airHeightPx, pixelsPerMeter);
+            }
+
+            time += 0.05; // 推進時間
+            animationId = requestAnimationFrame(draw);
+        }
+
+        function drawStandingWave(tubeX, tubeY, tubeWidth, airHeightPx, pixelsPerMeter) {
+            // 駐波圖形代表位移量
+            // 在水面 (y = airHeightPx) 處為波節 (位移 0)
+            // 公式: Amplitude * sin(k * distance_from_water)
+            
+            const k = (2 * Math.PI) / state.wavelength_m; // 波数
+            
+            // 決定波形的震幅。
+            // 基礎震幅小，共鳴時震幅劇增。
+            const baseAmp = tubeWidth * 0.1;
+            const maxAmp = tubeWidth * 0.45;
+            const currentMaxAmp = baseAmp + (maxAmp * state.resonanceFactor);
+
+            // 繪製波形封包 (Envelope)
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(239, 68, 68, ${0.3 + 0.5 * state.resonanceFactor})`; // 共鳴時變紅且清晰
+            ctx.lineWidth = 2;
+            ctx.fillStyle = `rgba(239, 68, 68, ${0.1 + 0.2 * state.resonanceFactor})`;
+
+            const centerX = tubeX + tubeWidth / 2;
+            
+            // 右側包絡線
+            ctx.moveTo(centerX, tubeY + airHeightPx); // 起點在水面中心
+            for (let y = airHeightPx; y >= 0; y -= 2) {
+                const distanceFromWater_m = (airHeightPx - y) / pixelsPerMeter;
+                // 位移量 (純空間分佈)
+                const displacement = Math.sin(k * distanceFromWater_m);
+                // 動畫：隨時間上下震盪的實時波
+                const currentAmp = currentMaxAmp * displacement * Math.cos(time);
+                ctx.lineTo(centerX + currentAmp, tubeY + y);
+            }
+            
+            // 左側包絡線
+            for (let y = 0; y <= airHeightPx; y += 2) {
+                const distanceFromWater_m = (airHeightPx - y) / pixelsPerMeter;
+                const displacement = Math.sin(k * distanceFromWater_m);
+                const currentAmp = currentMaxAmp * displacement * Math.cos(time);
+                ctx.lineTo(centerX - currentAmp, tubeY + y);
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 繪製波節標示線 (Node)
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            
+            // 尋找波節 (sin(kx) = 0)
+            let nodeN = 0;
+            while(true) {
+                const nodeDist_m = nodeN * (state.wavelength_m / 2);
+                if (nodeDist_m > state.airLength_m) break;
+                const nodeY = tubeY + airHeightPx - (nodeDist_m * pixelsPerMeter);
+                
+                ctx.beginPath();
+                ctx.moveTo(tubeX, nodeY);
+                ctx.lineTo(tubeX + tubeWidth, nodeY);
+                ctx.stroke();
+                
+                // 標示文字
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.font = '10px sans-serif';
+                ctx.fillText('N', tubeX + tubeWidth + 5, nodeY + 4);
+                
+                nodeN++;
+            }
+            ctx.setLineDash([]);
+        }
+
+        // 簡單的空氣分子震動視覺化
+        const particles = Array.from({length: 100}, () => ({
+            xRatio: Math.random(), // 0~1
+            yRatio: Math.random(), // 0~1 (相對於空氣柱高度)
+            baseSize: Math.random() * 2 + 1
+        }));
+
+        function drawParticles(tubeX, tubeY, tubeWidth, airHeightPx, pixelsPerMeter) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            const k = (2 * Math.PI) / state.wavelength_m;
+            
+            // 粒子最大位移受共鳴程度影響
+            const particleMaxDisplacement = (10 + 30 * state.resonanceFactor);
+
+            particles.forEach(p => {
+                const baseY = p.yRatio * airHeightPx;
+                const distFromWater_m = (airHeightPx - baseY) / pixelsPerMeter;
+                
+                // 分子的位移量 = 波的空間振幅 * 時間函數
+                const spatialAmp = Math.sin(k * distFromWater_m);
+                const displacement = spatialAmp * Math.cos(time) * particleMaxDisplacement;
+                
+                // 畫在管子內，加上位移
+                // x 軸位移，因為縱波在管內是沿著管軸(y)震動，但為了視覺化，我們讓它在視覺上橫向震動(橫波表示法)，或者真實模擬縱波(上下移動)
+                // 這裡真實模擬縱波(上下移動)會更符合物理
+                
+                // 縱波模擬：粒子上下移動
+                const finalY = tubeY + baseY + displacement;
+                const finalX = tubeX + p.xRatio * tubeWidth;
+                
+                // 確保粒子不出界
+                if (finalY > tubeY && finalY < tubeY + airHeightPx) {
+                    ctx.beginPath();
+                    ctx.arc(finalX, finalY, p.baseSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function drawTuningFork(cx, cy, vibrating) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            
+            // 音叉震動特效
+            let vibrationOffset = 0;
+            if (vibrating) {
+                // 根據共鳴程度，震動看起來更劇烈
+                const amp = 1 + 2 * state.resonanceFactor;
+                vibrationOffset = Math.sin(time * 3) * amp;
+            }
+
+            ctx.fillStyle = '#94a3b8'; // 金屬銀色
+            
+            // 手柄
+            ctx.fillRect(-4, -10, 8, 30);
+            // U型底部
+            ctx.beginPath();
+            ctx.arc(0, -10, 15, 0, Math.PI, true);
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = '#94a3b8';
+            ctx.stroke();
+            
+            // 左側分支
+            ctx.fillRect(-19 - vibrationOffset, -50, 8, 40);
+            // 右側分支
+            ctx.fillRect(11 + vibrationOffset, -50, 8, 40);
+
+            ctx.restore();
+        }
+
+        function drawRuler(cw, ch, tubeX, tubeY, tubeHeight, pixelsPerMeter) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.lineWidth = 1;
+
+            const startX = tubeX - 10;
+            
+            ctx.beginPath();
+            // 每 10cm 畫一個刻度
+            for (let i = 0; i <= 100; i += 10) {
+                const y = tubeY + (i / 100) * tubeHeight;
+                ctx.moveTo(startX, y);
+                ctx.lineTo(startX - 10, y);
+                ctx.fillText(i.toString(), startX - 15, y + 4);
+            }
+            ctx.stroke();
+            
+            // 標示頂部 (0cm) 與底部 (100cm)
+            ctx.textAlign = 'center';
+            ctx.fillText("0 cm", startX - 20, tubeY - 15);
+            ctx.fillText("100 cm", startX - 20, tubeY + tubeHeight + 20);
+        }
+
+        // 初始化
+        resizeCanvas();
+        calculatePhysics();
+        requestAnimationFrame(draw);
+
+    </script>
+<script>
+const i18n={zh:{title:"空氣柱共鳴",badge:"物理",subtitle:"調整水位尋找共鳴點，量度波長並核對聲速",btnSteps:"觀察步驟",btnPrinciple:"原理解說",secData:"實驗數據",lblSpeed:"聲速 (假設環境室溫)",lblLambda:"理論波長 ($\\lambda$)",lblL:"空氣柱長度 ($L$)",hintRes:"提示：當 $L \\approx \\frac{\\lambda}{4}, \\frac{3\\lambda}{4}, \\frac{5\\lambda}{4}...$ 時發生共鳴。",secCtrl:"操作控制",lblF:"音叉頻率 ($f$)",freqLow:"256 (低音)",freqHigh:"1024 (高音)",lblWater:"水位調節 (管長100cm)",lblAirCol:"空管",waterFull:"水滿 (短空氣柱)",waterEmpty:"水空 (長空氣柱)",btnStrike:"敲擊音叉 (開始實驗)",audioHint:"請先開啟裝置音量以聆聽共鳴效果",resAlert:"產生共鳴！",stepsTitle:"觀察步驟",modalTitle:"原理解說",s1:"先選音叉頻率，記下理論波長。",s2:"慢慢拉動水位，改變空氣柱長度 L。",s3:"按「敲擊音叉」，當 L 接近 λ/4、3λ/4 時會出現共鳴提示，聲音也變響。",s4:"換一個頻率再找共鳴，比較波長變短時共鳴位置如何上移。",m1d:"<strong>概念：</strong>閉管（水面是閉端）裡的空氣柱會形成駐波。聲速、頻率與波長的關係是 v = f × λ。",m2d:"<strong>機制：</strong>水面是位移波節，管口附近是波腹。第一次共鳴約在 L = λ/4，其後是 3λ/4、5λ/4。頻率愈高，波長愈短，共鳴所需的空氣柱愈短。",m5d:"<strong>生活例子：</strong>管風琴、汽水瓶吹氣，管內空氣柱長度決定音高。",btnQuiz:"課堂問題",modalClose:"關閉",quizTitle:"課堂問題",quizShowAnswers:"顯示參考答案",quizHideAnswers:"隱藏參考答案",quizRef:"參考答案",quizQ1:"閉管第一次共鳴時，空氣柱長 L 約等於？",quizQ1a:"λ/4",quizQ1b:"λ/2",quizQ1c:"λ",quizQ1d:"2λ",quizQ1ans:"A。閉管基頻 L ≈ λ/4。",quizQ2:"固定 freqSlider=512 Hz，慢慢拖 airSlider 並按 btnStrike：先預測何時出現「產生共鳴」，再核對。",quizQ2ans:"L 接近 λ/4、3λ/4… 時 resonanceAlert 亮起、聲音變響。",quizQ3:"v = fλ 且 v 不變時，頻率 f 加倍，波長 λ？",quizQ3a:"縮短一半",quizQ3b:"加長一倍",quizQ3c:"不變",quizQ3d:"變為零",quizQ3ans:"A。λ = v/f。",quizQ4:"把 f 由 256 Hz 改為 1024 Hz：預測共鳴所需 L 變長或變短，再調水位尋找共鳴。",quizQ4ans:"波長變短 → 共鳴 L 變短（水位較高、空氣柱較短）。",quizQ5:"本實驗閉管中，水面代表駐波的？",quizQ5a:"位移波節",quizQ5b:"位移波腹",quizQ5c:"只有開口端有駐波",quizQ5d:"與駐波無關",quizQ5ans:"A。水面為閉端，約為位移波節。"},en:{title:"Air Column Resonance",badge:"Physics",subtitle:"Find resonance by water level; check λ and v",btnSteps:"Steps",btnPrinciple:"Principle",secData:"Readings",lblSpeed:"Speed of sound (room temp.)",lblLambda:"Wavelength ($\\lambda$)",lblL:"Air column length ($L$)",hintRes:"Resonance when $L \\approx \\lambda/4, 3\\lambda/4, 5\\lambda/4, \\ldots$",secCtrl:"Controls",lblF:"Tuning fork ($f$)",freqLow:"256 (low)",freqHigh:"1024 (high)",lblWater:"Water level (100 cm tube)",lblAirCol:"Air:",waterFull:"Full water (short L)",waterEmpty:"Empty (long L)",btnStrike:"Strike fork (start)",audioHint:"Turn on volume to hear resonance",resAlert:"Resonance!",stepsTitle:"Observation Steps",modalTitle:"Principle",s1:"Set frequency; note λ.",s2:"Slide water level to change L.",s3:"Strike the fork; alerts at λ/4, 3λ/4, …",s4:"Try another f; see shorter λ → higher resonance positions.",m1d:"<strong>Concept.</strong> Closed tube standing waves; v = fλ.",m2d:"<strong>Mechanism.</strong> Water = displacement node; mouth ≈ antinode. First resonance L ≈ λ/4, then 3λ/4, 5λ/4…",m5d:"<strong>Examples.</strong> Organ pipes, bottle blowing—column length sets pitch.",btnQuiz:"Quiz",modalClose:"Close",quizTitle:"Classroom questions",quizShowAnswers:"Show reference answers",quizHideAnswers:"Hide reference answers",quizRef:"Reference answer",quizQ1:"First resonance in a closed tube: L is about —",quizQ1a:"λ/4",quizQ1b:"λ/2",quizQ1c:"λ",quizQ1d:"2λ",quizQ1ans:"A. Fundamental L ≈ λ/4.",quizQ2:"Fix freqSlider at 512 Hz, drag airSlider and strike: predict when “Resonance!” appears.",quizQ2ans:"Near L ≈ λ/4, 3λ/4 … the alert and sound peak.",quizQ3:"With v constant, doubling f makes λ —",quizQ3a:"half as long",quizQ3b:"twice as long",quizQ3c:"unchanged",quizQ3d:"zero",quizQ3ans:"A. λ = v/f.",quizQ4:"Raise f from 256 to 1024 Hz: predict shorter or longer L for resonance, then adjust water level.",quizQ4ans:"Shorter λ → shorter resonant L (higher water, shorter air column).",quizQ5:"The water surface in this closed tube acts as a displacement —",quizQ5a:"node",quizQ5b:"antinode",quizQ5c:"open end only",quizQ5d:"no role in the wave",quizQ5ans:"A. Closed end ≈ displacement node."}};
+(function(){
+    let quizAnswersVisible = false;
+    function getLang(){ return window.currentLang || 'zh'; }
+    function setLangVar(l){ window.currentLang = l; }
+    function renderQuiz(){
+        const box = document.getElementById('quiz-list');
+        if (!box) return;
+        const pack = i18n[getLang()];
+        const choice = function(name, n){
+            return ['A','B','C','D'].map(function(L){
+                return '<label class="flex items-start gap-2 rounded-lg border border-gray-200 p-2"><input type="radio" name="'+name+'" class="mt-0.5 accent-rose-600"><span>'+L+'. '+pack['quizQ'+n+L.toLowerCase()]+'</span></label>';
+            }).join('');
+        };
+        const ans = function(n){
+            return quizAnswersVisible ? '<div class="quiz-answer mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 p-2"><strong>'+pack.quizRef+'：</strong> '+pack['quizQ'+n+'ans']+'</div>' : '';
+        };
+        box.innerHTML = [1,2,3,4,5].map(function(n){
+            const open = n === 2 || n === 4;
+            return '<div class="rounded-xl border border-gray-200 p-3"><p class="font-semibold text-rose-700 mb-2">Q'+n+'. '+pack['quizQ'+n]+'</p>'+(open?'':'<div class="grid gap-1.5">'+choice('q'+n,n)+'</div>')+ans(n)+'</div>';
+        }).join('');
+        var bqa = document.getElementById('btn-quiz-answers');
+        if (bqa) bqa.textContent = quizAnswersVisible ? pack.quizHideAnswers : pack.quizShowAnswers;
+        typesetModal(document.getElementById('modal-quiz'));
+    }
+    function applyPlatformI18n(){
+        const lang = getLang();
+        document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+        const pack = i18n[lang];
+        document.querySelectorAll('[data-i18n]').forEach(function(el){
+            const key = el.getAttribute('data-i18n');
+            if (pack[key] != null) {
+                if (/<[a-z][\s\S]*>/i.test(pack[key])) el.innerHTML = pack[key];
+                else el.textContent = pack[key];
+            }
+        });
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise().catch(function(){});
+        var mq = document.getElementById('modal-quiz');
+        if (mq && !mq.classList.contains('opacity-0')) renderQuiz();
+    }
+    function platformToggleLang(){ setLangVar(getLang() === 'zh' ? 'en' : 'zh'); applyPlatformI18n(); }
+    function typesetModal(el){ if (el && window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]).catch(function(){}); }
+    function openPrinciple(){ const mp = document.getElementById('modal-principle'), mc = mp && mp.querySelector('.modal-content'); if (!mp || !mc) return; mp.classList.remove('opacity-0','pointer-events-none'); mc.classList.remove('scale-95','opacity-0'); mc.classList.add('scale-100','opacity-100'); typesetModal(mp); }
+    function closePrinciple(){ const mp = document.getElementById('modal-principle'), mc = mp && mp.querySelector('.modal-content'); if (!mp || !mc) return; mc.classList.add('scale-95','opacity-0'); mc.classList.remove('scale-100','opacity-100'); mp.classList.add('opacity-0','pointer-events-none'); }
+    function openSteps(){ const ms = document.getElementById('modal-steps'), sc = ms && ms.querySelector('.modal-content'); if (!ms || !sc) return; ms.classList.remove('opacity-0','pointer-events-none'); sc.classList.remove('scale-95','opacity-0'); sc.classList.add('scale-100','opacity-100'); typesetModal(ms); }
+    function closeSteps(){ const ms = document.getElementById('modal-steps'), sc = ms && ms.querySelector('.modal-content'); if (!ms || !sc) return; sc.classList.add('scale-95','opacity-0'); sc.classList.remove('scale-100','opacity-100'); ms.classList.add('opacity-0','pointer-events-none'); }
+    function openQuiz(){ closePrinciple(); closeSteps(); quizAnswersVisible = false; const mq = document.getElementById('modal-quiz'), mc = mq && mq.querySelector('.modal-content'); if (!mq || !mc) return; mq.classList.remove('opacity-0','pointer-events-none'); mc.classList.remove('scale-95','opacity-0'); mc.classList.add('scale-100','opacity-100'); renderQuiz(); }
+    function closeQuiz(){ const mq = document.getElementById('modal-quiz'), mc = mq && mq.querySelector('.modal-content'); if (!mq || !mc) return; mc.classList.add('scale-95','opacity-0'); mc.classList.remove('scale-100','opacity-100'); mq.classList.add('opacity-0','pointer-events-none'); }
+    function bindPlatformUI(){
+        const bl = document.getElementById('btn-lang'), bm = document.getElementById('btn-lang-mobile');
+        document.getElementById('btn-steps').onclick = function(){ closePrinciple(); closeQuiz(); openSteps(); };
+        document.getElementById('btn-principle').onclick = function(){ closeSteps(); closeQuiz(); openPrinciple(); };
+        var bq = document.getElementById('btn-quiz');
+        if (bq) bq.onclick = openQuiz;
+        var bqa = document.getElementById('btn-quiz-answers');
+        if (bqa) bqa.onclick = function(){ quizAnswersVisible = !quizAnswersVisible; renderQuiz(); };
+        var qc = document.getElementById('quiz-close'), qcf = document.getElementById('quiz-confirm');
+        if (qc) qc.onclick = closeQuiz;
+        if (qcf) qcf.onclick = closeQuiz;
+        var mqz = document.getElementById('modal-quiz');
+        if (mqz) mqz.addEventListener('click', function(e){ if (e.target === mqz) closeQuiz(); });
+        if (bl) bl.onclick = platformToggleLang;
+        if (bm) bm.onclick = platformToggleLang;
+        const mc = document.getElementById('modal-close');
+        if (mc) mc.onclick = closePrinciple;
+        const sc = document.getElementById('steps-close');
+        if (sc) sc.onclick = closeSteps;
+        ['modal-principle','modal-steps'].forEach(function(id){
+            const m = document.getElementById(id);
+            if (m) m.addEventListener('click', function(e){ if (e.target === m) (id === 'modal-principle' ? closePrinciple : closeSteps)(); });
+        });
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape'){ closePrinciple(); closeSteps(); closeQuiz(); } });
+        applyPlatformI18n();
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise().catch(function(){});
+        else document.getElementById('MathJax-script')?.addEventListener('load', function(){ if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise().catch(function(){}); });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindPlatformUI);
+    else bindPlatformUI();
+})();
+</script>
+</body>
+</html>

@@ -4,31 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>水的電解模擬 / Electrolysis of Water</title>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- MathJax for Physics/Chemistry Formulas -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
         window.MathJax = {
             tex: {
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
                 displayMath: [['$$', '$$'], ['\\[', '\\]']]
             },
-            svg: { fontCache: 'global' }
+            chtml: { scale: 1.05 }
         };
     </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { font-family: 'Noto Sans TC', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
-        canvas { 
+        canvas {
             touch-action: none;
             box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.2);
             border-radius: 0.5rem;
         }
-        /* Range slider styling */
         input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -44,45 +41,51 @@
             cursor: pointer; background: #cbd5e1;
             border-radius: 3px;
         }
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
         .hide { display: none !important; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- Navbar -->
-    <header class="bg-white shadow-sm p-4 flex justify-between items-center z-10">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold">🧪</div>
-            <h1 id="app-title" class="text-xl font-bold text-slate-700">水的電解模擬實驗</h1>
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold shrink-0">🧪</div>
+            <div class="min-w-0">
+                <h1 id="app-title" class="text-lg sm:text-xl font-bold text-slate-700 truncate">水的電解模擬實驗</h1>
+                <p id="app-subtitle" class="text-xs text-slate-500 truncate">外加直流電 · 陰極 H₂ / 陽極 O₂ · 體積比 2:1</p>
+            </div>
+            <span id="badge-subject" class="text-xs bg-indigo-600 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">化學</span>
         </div>
-        <div class="flex gap-2">
-            <button onclick="toggleLang()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-md font-semibold text-sm transition-colors">中 / EN</button>
-            <button onclick="openModal()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-semibold text-sm transition-colors" id="btn-info">物理原理</button>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6 items-start">
-        
-        <!-- Canvas Container -->
-        <div class="flex-1 bg-white p-4 rounded-xl shadow-md flex flex-col items-center justify-center w-full">
-            <!-- 使用 aspect-ratio 容器確保比例完美縮放，不會被裁切 -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Viz: Scheme A col-span-8, order-1 on narrow -->
+        <section class="order-1 lg:order-2 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col items-center justify-center w-full">
             <div id="canvas-wrapper" class="relative w-full aspect-[4/3] max-w-[600px] mx-auto overflow-hidden rounded-lg shadow-inner bg-slate-50">
                 <canvas id="simCanvas" class="absolute inset-0 w-full h-full touch-none"></canvas>
             </div>
-            <p id="canvas-hint" class="text-sm text-slate-500 mt-3 font-semibold">氫氣與氧氣體積比 = 2 : 1</p>
-        </div>
+            <p id="canvas-hint" class="text-sm text-slate-500 mt-3 font-semibold text-center">收集法：向下排水法 | 體積比 (H₂ : O₂) = 2 : 1</p>
+        </section>
 
-        <!-- Control Panel -->
-        <div class="w-full md:w-80 flex-shrink-0 flex flex-col gap-4">
+        <!-- Controls: Scheme A col-span-4, order-2 on narrow -->
+        <aside class="order-2 lg:order-1 lg:col-span-4 w-full flex flex-col gap-4">
             <div class="bg-white p-5 rounded-xl shadow-md">
                 <h2 id="ctrl-title" class="text-lg font-bold border-b pb-2 mb-4 text-slate-700">控制面板</h2>
-                
-                <!-- Voltage Control -->
+
                 <div class="mb-6">
                     <label class="flex justify-between text-sm font-semibold mb-2">
                         <span id="label-voltage">電源電壓 (V)</span>
-                        <span id="val-voltage" class="text-blue-600 font-bold">0 V</span>
+                        <span id="val-voltage" class="text-blue-600 font-bold">0.0 V</span>
                     </label>
                     <input type="range" id="slider-voltage" min="0" max="24" step="0.5" value="0" class="w-full" oninput="updateControls()">
                     <div class="flex justify-between text-xs text-slate-400 mt-1">
@@ -90,150 +93,285 @@
                     </div>
                 </div>
 
-                <!-- Simulation Status -->
                 <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-6 space-y-2 text-sm">
                     <div class="flex justify-between">
-                        <span id="label-h2-vol" class="font-semibold text-slate-600">氫氣體積 (陰極):</span>
+                        <span id="label-h2-vol" class="font-semibold text-slate-600">氫氣體積 (陰極 −):</span>
                         <span id="val-h2-vol" class="font-mono text-blue-600 font-bold">0.0 mL</span>
                     </div>
                     <div class="flex justify-between">
-                        <span id="label-o2-vol" class="font-semibold text-slate-600">氧氣體積 (陽極):</span>
+                        <span id="label-o2-vol" class="font-semibold text-slate-600">氧氣體積 (陽極 ＋):</span>
                         <span id="val-o2-vol" class="font-mono text-red-500 font-bold">0.0 mL</span>
                     </div>
                     <div class="flex justify-between border-t pt-2 mt-2">
-                        <span id="label-current" class="font-semibold text-slate-600">迴路電流:</span>
-                        <span id="val-current" class="font-mono text-slate-800">0.0 A</span>
+                        <span id="label-current" class="font-semibold text-slate-600">相對電流:</span>
+                        <span id="val-current" class="font-mono text-slate-800">0.00 A</span>
                     </div>
                 </div>
 
-                <!-- Buttons -->
                 <div class="flex gap-2">
-                    <button id="btn-toggle" onclick="toggleSim()" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold transition-colors">啟動電源</button>
-                    <button id="btn-reset" onclick="resetSim()" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold transition-colors">重置排氣</button>
+                    <button type="button" id="btn-toggle" onclick="toggleSim()" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold transition-colors">啟動電源</button>
+                    <button type="button" id="btn-reset-panel" onclick="resetAll()" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold transition-colors">重置</button>
                 </div>
             </div>
-            
+
             <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl shadow-sm">
                 <h3 id="tip-title" class="text-sm font-bold text-blue-800 mb-2">觀察重點</h3>
-                <ul id="tip-content" class="text-xs text-blue-700 space-y-1 list-disc pl-4">
-                    <li>電壓必須超過約 2.0V (含超電勢) 才會開始產生明顯氣泡。</li>
-                    <li>負極(陰極)產生氫氣，正極(陽極)產生氧氣。</li>
-                    <li>注意兩邊氣泡上升的速度與累積體積的差異。</li>
-                </ul>
+                <ul id="tip-content" class="text-xs text-blue-700 space-y-1 list-disc pl-4"></ul>
             </div>
-        </div>
+        </aside>
     </main>
 
-    <!-- Modal for Physics Explanation -->
-    <dialog id="info-modal" class="bg-transparent p-0 w-full max-w-2xl backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl w-full p-6 m-4 max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4 border-b pb-3">
-                <h2 id="modal-title" class="text-2xl font-bold text-slate-800">物理與化學原理：水的電解</h2>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
-            </div>
-            <div id="modal-content" class="space-y-4 text-slate-600 text-sm leading-relaxed">
-                <!-- Content injected by JS -->
-            </div>
-            <div class="mt-6 flex justify-end">
-                <button onclick="closeModal()" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">了解 / Got it</button>
-            </div>
+    <!-- Teaching Modals -->
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
         </div>
-    </dialog>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-emerald-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
+    </div>
 
     <script>
-        // --- 1. Language Translation Dictionary ---
         const i18n = {
             zh: {
                 appTitle: "水的電解模擬實驗",
-                btnInfo: "物理原理",
+                appSubtitle: "外加直流電 · 陰極 H₂ / 陽極 O₂ · 體積比 2:1",
+                badge: "化學",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnLang: "中 / EN",
+                btnReset: "重置",
                 canvasHint: "收集法：向下排水法 | 體積比 (H₂ : O₂) = 2 : 1",
                 ctrlTitle: "控制面板",
                 lblVoltage: "電源電壓 (V)",
-                lblH2Vol: "氫氣體積 (陰極 -):",
-                lblO2Vol: "氧氣體積 (陽極 +):",
+                lblH2Vol: "氫氣體積 (陰極 −):",
+                lblO2Vol: "氧氣體積 (陽極 ＋):",
                 lblCurrent: "相對電流:",
                 btnStart: "啟動電源",
                 btnStop: "關閉電源",
-                btnReset: "重置收集",
                 tipTitle: "觀察重點",
                 tipContent: `
-                    <li>電壓必須超過約 2.0V 才會開始產生氣泡 (克服分解電壓與超電勢)。</li>
-                    <li>連接電池負極的鉑電極(陰極)產生氫氣。</li>
-                    <li>連接電池正極的鉑電極(陽極)產生氧氣。</li>
-                    <li>觀察氣泡數量與試管頂部累積的氣體體積比例。</li>
+                    <li>電壓必須超過約 2.0 V 才會開始產生氣泡（克服分解電壓與超電勢）。</li>
+                    <li>連接電池負極的鉑電極（陰極）產生氫氣。</li>
+                    <li>連接電池正極的鉑電極（陽極）產生氧氣。</li>
+                    <li>觀察氣泡數量與試管頂部累積的氣體體積比例（約 2:1）。</li>
                 `,
-                modalTitle: "物理與化學原理：水的電解",
-                modalContent: `
-                    <p>在純水中加入少許電解質（如稀硫酸或氫氧化鈉）以增加導電性，通入直流電即可將水分解。</p>
-                    <h3 class="font-bold text-blue-600 mt-4">化學反應方程式</h3>
-                    <div class="bg-slate-50 p-3 rounded my-2">
-                        <p><strong>陰極 (Cathode, 連接電池負極):</strong> 發生還原反應，產生氫氣。</p>
-                        $$ 4H_2O(l) + 4e^- \rightarrow 2H_2(g) + 4OH^-(aq) $$
-                        
-                        <p class="mt-2"><strong>陽極 (Anode, 連接電池正極):</strong> 發生氧化反應，產生氧氣。</p>
-                        $$ 2H_2O(l) \rightarrow O_2(g) + 4H^+(aq) + 4e^- $$
-
-                        <p class="mt-2 border-t pt-2"><strong>總反應 (Overall Reaction):</strong></p>
-                        $$ 2H_2O(l) \rightarrow 2H_2(g) + O_2(g) $$
-                    </div>
-                    <p>由總反應式可知，消耗 2 莫耳的水，會產生 2 莫耳的氫氣與 1 莫耳的氧氣。在相同溫度與壓力下，氣體的體積比等於莫耳數比，因此 <strong>$V_{H_2} : V_{O_2} = 2 : 1$</strong>。</p>
-                    
-                    <h3 class="font-bold text-blue-600 mt-4">法拉第電解定律與電流</h3>
-                    <p>產氣速率與通過系統的<strong>電流 ($I$)</strong> 成正比。根據歐姆定律的近似，當施加的電壓 ($V$) 超過啟動閾值 ($V_{th} \approx 2.0V$) 時，電流 $I \propto (V - V_{th})$。</p>
-                `
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案"
             },
             en: {
                 appTitle: "Electrolysis of Water Simulation",
-                btnInfo: "Physics Theory",
+                appSubtitle: "External DC · Cathode H₂ / Anode O₂ · Volume ratio 2:1",
+                badge: "Chemistry",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnLang: "中 / EN",
+                btnReset: "Reset",
                 canvasHint: "Collection: Downward Displacement of Water | Volume Ratio (H₂ : O₂) = 2 : 1",
                 ctrlTitle: "Control Panel",
                 lblVoltage: "Power Supply Voltage (V)",
-                lblH2Vol: "Hydrogen Vol (Cathode -):",
+                lblH2Vol: "Hydrogen Vol (Cathode −):",
                 lblO2Vol: "Oxygen Vol (Anode +):",
                 lblCurrent: "Relative Current:",
                 btnStart: "Power ON",
                 btnStop: "Power OFF",
-                btnReset: "Reset Gas",
                 tipTitle: "Key Observations",
                 tipContent: `
-                    <li>Voltage must exceed approx 2.0V to generate bubbles (overcoming decomposition voltage & overpotential).</li>
-                    <li>Cathode (- terminal) generates Hydrogen gas.</li>
-                    <li>Anode (+ terminal) generates Oxygen gas.</li>
-                    <li>Observe the 2:1 ratio in bubble generation rate and collected gas volume.</li>
+                    <li>Voltage must exceed approx 2.0 V to generate bubbles (decomposition voltage & overpotential).</li>
+                    <li>Cathode (− terminal) generates hydrogen gas.</li>
+                    <li>Anode (+ terminal) generates oxygen gas.</li>
+                    <li>Observe the ~2:1 ratio in bubble rate and collected gas volume.</li>
                 `,
-                modalTitle: "Physics & Chemistry: Electrolysis of Water",
-                modalContent: `
-                    <p>By adding a small amount of electrolyte to pure water to increase conductivity and applying direct current, water decomposes.</p>
-                    <h3 class="font-bold text-blue-600 mt-4">Chemical Reactions</h3>
-                    <div class="bg-slate-50 p-3 rounded my-2">
-                        <p><strong>Cathode (Negative Terminal):</strong> Reduction occurs, producing Hydrogen.</p>
-                        $$ 4H_2O(l) + 4e^- \rightarrow 2H_2(g) + 4OH^-(aq) $$
-                        
-                        <p class="mt-2"><strong>Anode (Positive Terminal):</strong> Oxidation occurs, producing Oxygen.</p>
-                        $$ 2H_2O(l) \rightarrow O_2(g) + 4H^+(aq) + 4e^- $$
-
-                        <p class="mt-2 border-t pt-2"><strong>Overall Reaction:</strong></p>
-                        $$ 2H_2O(l) \rightarrow 2H_2(g) + O_2(g) $$
-                    </div>
-                    <p>According to the overall reaction, decomposing 2 moles of water yields 2 moles of $H_2$ and 1 mole of $O_2$. Under identical temperature and pressure, volume ratio equals mole ratio, hence <strong>$V_{H_2} : V_{O_2} = 2 : 1$</strong>.</p>
-                    
-                    <h3 class="font-bold text-blue-600 mt-4">Faraday's Laws & Current</h3>
-                    <p>The rate of gas production is proportional to the <strong>current ($I$)</strong>. Approximated by Ohm's Law, when applied voltage ($V$) exceeds the threshold ($V_{th} \approx 2.0V$), current $I \propto (V - V_{th})$.</p>
-                `
+                stepsTitle: "Observation steps",
+                principleTitle: "Principles",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers"
             }
         };
 
         let currentLang = 'zh';
+        let quizReveal = false;
+        let modalTimer = null;
+
+        const STEPS = [
+          {
+            zh: '按頁首<strong>重置</strong>（電壓應回 <strong>0 V</strong>、電源<strong>關</strong>、兩氣體 <strong>0.0 mL</strong>、氣泡清空）。把電壓調到約 <strong>1.0 V</strong>，按<strong>啟動電源</strong>。觀察：相對電流應為 <strong>0</strong>（0.00 A），倒立管內<strong>沒有</strong>明顯持續氣泡與體積上升——因為未超過本模擬分解／超電勢閾值約 <strong>2.0 V</strong>。',
+            en: 'Header <strong>Reset</strong> (voltage <strong>0 V</strong>, power <strong>OFF</strong>, both gases <strong>0.0 mL</strong>, bubbles cleared). Set about <strong>1.0 V</strong>, press <strong>Power ON</strong>. Check: relative current <strong>0</strong>; no sustained bubbles／volume rise—below this sim’s ~<strong>2.0 V</strong> threshold.'
+          },
+          {
+            zh: '把電壓調到約 <strong>8–12 V</strong>（保持電源開）。觀察：左側（標 H₂、接電源 <strong>−</strong>）冒泡並累積氣體較快；右側（標 O₂、接 <strong>＋</strong>）較慢。狀態卡「氫氣體積（陰極）」應上升快於「氧氣體積（陽極）」。',
+            en: 'Raise voltage to about <strong>8–12 V</strong> (power still ON). Left tube (<strong>H₂</strong>, battery <strong>−</strong>) bubbles／fills faster; right (<strong>O₂</strong>, <strong>＋</strong>) slower. Status <strong>H₂ (cathode)</strong> should rise faster than <strong>O₂ (anode)</strong>.'
+          },
+          {
+            zh: '讓模擬跑一段時間（勿立即 Reset），讀氫氣與氧氣體積。當兩邊都有明顯讀數時，氫氣約為氧氣的 <strong>兩倍</strong>（允許動畫離散造成的小誤差）。對照畫布提示與總反應 $$2\\mathrm{H_2O}\\rightarrow 2\\mathrm{H_2}+\\mathrm{O_2}$$。可短暫<strong>關閉電源</strong>：氣泡應停止產生，已收集體積<strong>保留</strong>。',
+            en: 'Run for a while (do not Reset yet). Read H₂ and O₂ volumes—H₂ should be about <strong>twice</strong> O₂ (small discrete-bubble error OK). Match the canvas hint and $$2\\mathrm{H_2O}\\rightarrow 2\\mathrm{H_2}+\\mathrm{O_2}$$. Briefly <strong>Power OFF</strong>: bubbling stops; collected volumes <strong>remain</strong>.'
+          },
+          {
+            zh: '隨意改電壓／開關後按頁首<strong>重置</strong>：應回 0 V、電源關、體積與氣泡清空；<strong>語言不變</strong>。打開原理解說與課堂問題——確認本模擬主軸是<strong>水的電解＋2:1 收集＋閾值電壓</strong>，不是多電解質 E.C.S.／濃鹽產氯、不是原電池鹽橋、不是金屬–酸置換、不是金屬與水專檔。',
+            en: 'Change voltage／power, then header <strong>Reset</strong>: back to 0 V, power off, volumes／bubbles cleared; <strong>language unchanged</strong>. Open Principles and Quiz—focus is <strong>water electrolysis＋2:1 collection＋threshold voltage</strong>, not multi-electrolyte E.C.S.／conc. brine chlorine, not galvanic salt-bridge cells, not metal–acid displacement, not metals–water labs.'
+          }
+        ];
+
+        const PRINCIPLE = {
+          zh: {
+            conceptTitle: '概念',
+            concept: '水的電解用<strong>外加直流電</strong>把水分解成氫氣與氧氣，屬<strong>非自發</strong>氧化還原。課室通常加入少許電解質（如稀硫酸）以增加導電性。連接電源負極的鉑電極是<strong>陰極</strong>，發生還原並放出 <strong>H₂</strong>；連接正極的是<strong>陽極</strong>，發生氧化並放出 <strong>O₂</strong>。真實課室須注意氫氣易燃，需教師指導與通風。',
+            mechTitle: '機制',
+            mech: [
+              '<strong>半反應（本檔示意）</strong>：陰極（還原）$$4\\mathrm{H_2O}(l)+4e^-\\rightarrow 2\\mathrm{H_2}(g)+4\\mathrm{OH}^-(aq)$$；陽極（氧化）$$2\\mathrm{H_2O}(l)\\rightarrow\\mathrm{O_2}(g)+4\\mathrm{H}^+(aq)+4e^-$$。',
+              '<strong>總反應</strong>：$$2\\mathrm{H_2O}(l)\\rightarrow 2\\mathrm{H_2}(g)+\\mathrm{O_2}(g)$$。同溫同壓下氣體體積比等於莫耳比，故 $$V_{\\mathrm{H_2}}:V_{\\mathrm{O_2}}=2:1$$。本檔以倒立試管<strong>向下排水法</strong>收集並顯示體積。',
+              '<strong>閾值與電流</strong>：實際需克服分解電壓與超電勢；本模擬以 $$V_{\\mathrm{th}}\\approx 2.0\\,\\mathrm{V}$$ 簡化。當電源開啟且 $$V>V_{\\mathrm{th}}$$ 時，相對電流 $$I\\propto(V-V_{\\mathrm{th}})$$，產氣速率隨電流增大。',
+              '<strong>範圍</strong>：本檔<strong>固定</strong>水電解產 H₂／O₂ 故事，<strong>不</strong>提供多種電解質選單、<strong>不</strong>教濃 NaCl 優先放 Cl₂ 的 E.C.S. 例外、<strong>不</strong>做法拉第精確定量考題、<strong>不是</strong>原電池。'
+            ],
+            egTitle: '日常例子',
+            eg: '氫氧燃料電池的「逆過程」是 H₂ 與 O₂ 化合發電；工業製氫亦可走電解路徑（需大量電能）。課室霍夫曼電解器／倒立試管演示，正是本模擬的視覺原型。勿把本檔控件當成「換電解質看誰先放電」的虛擬電解實驗室。'
+          },
+          en: {
+            conceptTitle: 'Concept',
+            concept: 'Electrolysis of water uses an <strong>external DC supply</strong> to split water into hydrogen and oxygen—a <strong>non-spontaneous</strong> redox process. A little electrolyte (e.g. dilute sulfuric acid) is usually added for conductivity. The platinum electrode on the battery <strong>negative</strong> terminal is the <strong>cathode</strong> (reduction → <strong>H₂</strong>); the <strong>positive</strong> side is the <strong>anode</strong> (oxidation → <strong>O₂</strong>). In a real lab, hydrogen is flammable—use teacher supervision and ventilation.',
+            mechTitle: 'Mechanism',
+            mech: [
+              '<strong>Half-reactions</strong> (as shown here): cathode reduction $$4\\mathrm{H_2O}(l)+4e^-\\rightarrow 2\\mathrm{H_2}(g)+4\\mathrm{OH}^-(aq)$$; anode oxidation $$2\\mathrm{H_2O}(l)\\rightarrow\\mathrm{O_2}(g)+4\\mathrm{H}^+(aq)+4e^-$$.',
+              '<strong>Overall</strong>: $$2\\mathrm{H_2O}(l)\\rightarrow 2\\mathrm{H_2}(g)+\\mathrm{O_2}(g)$$. At the same $$T,P$$, $$V_{\\mathrm{H_2}}:V_{\\mathrm{O_2}}=2:1$$. This sim collects gas by <strong>downward displacement of water</strong> in inverted tubes.',
+              '<strong>Threshold &amp; current</strong>: a teaching threshold $$V_{\\mathrm{th}}\\approx 2.0\\,\\mathrm{V}$$; with power ON and $$V>V_{\\mathrm{th}}$$, $$I\\propto(V-V_{\\mathrm{th}})$$ and gas evolves faster at higher current.',
+              '<strong>Scope</strong>: fixed water → H₂＋O₂ story; <strong>not</strong> multi-electrolyte preferential discharge／E.C.S.; <strong>not</strong> precise Faraday stoichiometry exams; <strong>not</strong> a galvanic cell.'
+            ],
+            egTitle: 'Everyday example',
+            eg: 'A hydrogen–oxygen fuel cell runs the reverse idea (chemical energy → electricity). School Hofmann voltameters／inverted-tube demos match this canvas. Keep separate from the multi-electrolyte virtual electrolysis lab.'
+          }
+        };
+
+        const QUIZ = [
+          {
+            q: {
+              zh: '重置後將電壓設為約 1.0 V 並啟動電源。哪項觀察最合理？',
+              en: 'After Reset, set about 1.0 V and turn Power ON. Which observation is best?'
+            },
+            choices: [
+              { zh: '相對電流約為 0，倒立管內沒有明顯持續產氣——未超過本模擬約 2.0 V 的閾值', en: 'Relative current ≈ 0 and no sustained gas evolution—below this sim’s ~2.0 V threshold' },
+              { zh: '即使 1 V 也會立刻充滿兩管氣體且體積比變成 1:2', en: 'Even at 1 V both tubes instantly fill with a 1:2 volume ratio' },
+              { zh: '1 V 時只在陽極產生氫氣', en: 'At 1 V only the anode produces hydrogen' },
+              { zh: '本模擬沒有電壓滑桿', en: 'This sim has no voltage slider' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。對應 THRESHOLD_V = 2.0；須 powerOn 且 voltage > 2.0 才有電流。',
+              en: 'A. Matches THRESHOLD_V = 2.0; current only when powerOn and voltage > 2.0.'
+            }
+          },
+          {
+            q: {
+              zh: '重置後將電壓調到約 10 V，啟動電源並觀察兩管。哪項正確？',
+              en: 'After Reset, set about 10 V, Power ON, and watch both tubes. Which is correct?'
+            },
+            choices: null,
+                ans: null,
+            explain: {
+              zh: 'A。本檔左＝陰極 H₂、右＝陽極 O₂；與 DC 盒「−」「＋」標示一致。',
+              en: 'A. Left = cathode H₂, right = anode O₂; matches the DC box −／+ labels.'
+            }
+          },
+          {
+            q: {
+              zh: '在約 8–12 V、電源開啟下讓氣體累積一段時間，比較氫氣與氧氣體積讀數。哪項最合理？',
+              en: 'At about 8–12 V with Power ON, let gas accumulate, then compare H₂ and O₂ volume readouts. Which is most reasonable?'
+            },
+            choices: [
+              { zh: '氫氣體積約為氧氣的兩倍，對應總反應 2H₂O → 2H₂ + O₂ 的莫耳／體積比 2:1', en: 'H₂ volume is about twice O₂, matching 2H₂O → 2H₂ + O₂ (2:1)' },
+              { zh: '氧氣體積一定精確為氫氣的四倍', en: 'O₂ volume must be exactly four times H₂' },
+              { zh: '體積比與化學方程式無關，只由電壓數字直接等於毫升數', en: 'The ratio is unrelated to the equation; voltage in volts equals millilitres directly' },
+              { zh: '本模擬不顯示任何體積讀數', en: 'This sim shows no volume readouts' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。氣泡 pending 以 2:1 產率維持；允許離散氣泡造成的小偏差。',
+              en: 'A. Bubble pending keeps a 2:1 rate; small discrete-bubble error is OK.'
+            }
+          },
+          {
+            q: {
+              zh: '先調高電壓、啟動電源並讓兩管有一些氣體，再按頁首重置。用自己的話寫：（1）重置後電壓、電源、兩氣體體積、氣泡應如何；（2）重置會不會切換中／EN。',
+              en: 'Raise voltage, Power ON, collect some gas, then press header Reset. In your own words: (1) expected voltage／power／volumes／bubbles after Reset; (2) whether Reset switches zh／EN.'
+            },
+            choices: null,
+            ans: null,
+            explain: {
+              zh: '（1）電壓 0 V；電源關；H₂／O₂ 0.0 mL；氣泡清空；電流 0。（2）不切換語言。',
+              en: '(1) Voltage 0 V; power OFF; H₂／O₂ 0.0 mL; bubbles cleared; current 0. (2) Reset must not switch language.'
+            }
+          },
+          {
+            q: {
+              zh: '根據本模擬控件與設計，哪項最正確？',
+              en: 'Using this sim’s controls and design, which is most correct?'
+            },
+            choices: [
+              { zh: '可調直流電壓、開關電源、觀察倒立管收集的 H₂／O₂ 與約 2:1 體積比、讀相對電流，並有步驟／原理／五題／中EN／重置——主軸是水的電解實況，不是多電解質 E.C.S.／濃鹽產氯實驗室、不是原電池鹽橋／Nernst、不是金屬–酸置換試管、也不是金屬與水專檔', en: 'You set DC voltage, toggle power, watch inverted-tube H₂／O₂ near 2:1, read relative current, with steps／principle／five quiz items／zh-EN／Reset—focus water electrolysis, not multi-electrolyte E.C.S.／brine chlorine lab, not galvanic salt-bridge／Nernst, not metal–acid tubes, not metals–water labs' },
+              { zh: '主要靠選 NaCl／CuSO₄ 等電解質並查陽極 Cl₂／陰極鍍銅規則', en: 'It mainly picks NaCl／CuSO₄ electrolytes and teaches anode Cl₂／cathode copper-plating rules' },
+              { zh: '重置會強制改成英文並刪除 2:1 產氣邏輯', en: 'Reset always switches to English and deletes the 2:1 gas logic' },
+              { zh: '這是自發原電池：電子由鋅流向銅且無需外加電源', en: 'It is a spontaneous galvanic cell: electrons flow Zn→Cu with no external supply' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。隔離 chem-electrolysis／原電池／金屬–酸／金屬–水；Reset 不改語言、不刪物理常數。',
+              en: 'A. Separates chem-electrolysis／galvanic／metal–acid／metals–water; Reset does not change language or delete constants.'
+            }
+          }
+        ];
 
         function toggleLang() {
             currentLang = currentLang === 'zh' ? 'en' : 'zh';
             updateUI();
         }
 
+        function typesetMath(root) {
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                const nodes = root ? [root] : undefined;
+                MathJax.typesetPromise(nodes).catch(function(err) { console.log(err); });
+            }
+        }
+
         function updateUI() {
             const t = i18n[currentLang];
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
             document.getElementById('app-title').innerText = t.appTitle;
-            document.getElementById('btn-info').innerText = t.btnInfo;
+            document.getElementById('app-subtitle').innerText = t.appSubtitle;
+            document.getElementById('badge-subject').innerText = t.badge;
+            document.getElementById('btn-steps').innerText = t.btnSteps;
+            document.getElementById('btn-principle').innerText = t.btnPrinciple;
+            document.getElementById('btn-quiz').innerText = t.btnQuiz;
+            document.getElementById('btn-lang').innerText = t.btnLang;
+            document.getElementById('btn-reset').innerText = t.btnReset;
+            const panelReset = document.getElementById('btn-reset-panel');
+            if (panelReset) panelReset.innerText = t.btnReset;
             document.getElementById('canvas-hint').innerText = t.canvasHint;
             document.getElementById('ctrl-title').innerText = t.ctrlTitle;
             document.getElementById('label-voltage').innerText = t.lblVoltage;
@@ -241,29 +379,20 @@
             document.getElementById('label-o2-vol').innerText = t.lblO2Vol;
             document.getElementById('label-current').innerText = t.lblCurrent;
             document.getElementById('btn-toggle').innerText = state.powerOn ? t.btnStop : t.btnStart;
-            document.getElementById('btn-reset').innerText = t.btnReset;
             document.getElementById('tip-title').innerText = t.tipTitle;
             document.getElementById('tip-content').innerHTML = t.tipContent;
-            
-            document.getElementById('modal-title').innerText = t.modalTitle;
-            document.getElementById('modal-content').innerHTML = t.modalContent;
-
-            // Re-render MathJax (Fix: 加入 typesetPromise 檢查，避免非同步載入造成的腳本中斷)
-            if (window.MathJax && window.MathJax.typesetPromise) {
-                MathJax.typesetPromise([document.getElementById('modal-content')]).catch(err => console.log(err));
-            }
+            refreshOpenTeachModals();
         }
 
-        // --- 2. Simulation State & Physics Variables ---
+        // --- Simulation State ---
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const canvasWrapper = document.getElementById('canvas-wrapper');
 
         const BASE_W = 600;
         const BASE_H = 450;
-
-        const THRESHOLD_V = 2.0; // Minimum voltage to start electrolysis
-        const MAX_TUBE_VOL = 100; // arbitrary max volume units for the test tubes
+        const THRESHOLD_V = 2.0;
+        const MAX_TUBE_VOL = 100;
 
         let state = {
             voltage: 0,
@@ -272,11 +401,10 @@
             h2Vol: 0,
             o2Vol: 0,
             bubbles: [],
-            h2Pending: 0, // 新增：用於精準計算氣泡生成的累加器
-            o2Pending: 0  // 新增：用於精準計算氣泡生成的累加器
+            h2Pending: 0,
+            o2Pending: 0
         };
 
-        // UI Controls Interaction
         const sliderV = document.getElementById('slider-voltage');
         const valV = document.getElementById('val-voltage');
         const valH2 = document.getElementById('val-h2-vol');
@@ -287,10 +415,9 @@
         function updateControls() {
             state.voltage = parseFloat(sliderV.value);
             valV.innerText = state.voltage.toFixed(1) + ' V';
-            
-            // Calculate Current (Simple model: I = (V - Vth) * k)
+
             if (state.powerOn && state.voltage > THRESHOLD_V) {
-                state.current = (state.voltage - THRESHOLD_V) * 0.2; // 調整常數 k=0.2 讓24V時的反應速率較適中
+                state.current = (state.voltage - THRESHOLD_V) * 0.2;
             } else {
                 state.current = 0;
             }
@@ -299,8 +426,8 @@
 
         function toggleSim() {
             state.powerOn = !state.powerOn;
-            updateControls(); // recalculate current
-            
+            updateControls();
+
             if (state.powerOn) {
                 btnToggle.className = "flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-bold transition-colors";
                 btnToggle.innerText = i18n[currentLang].btnStop;
@@ -310,80 +437,157 @@
             }
         }
 
-        function resetSim() {
+        function resetAll() {
+            closeAllModals(null);
+            state.voltage = 0;
+            state.powerOn = false;
+            state.current = 0;
             state.h2Vol = 0;
             state.o2Vol = 0;
-            state.h2Pending = 0; // 重置累加器
-            state.o2Pending = 0; // 重置累加器
+            state.h2Pending = 0;
+            state.o2Pending = 0;
             state.bubbles = [];
-            valH2.innerText = "0.0 mL";
-            valO2.innerText = "0.0 mL";
+            sliderV.value = 0;
+            valV.innerText = '0.0 V';
+            valH2.innerText = '0.0 mL';
+            valO2.innerText = '0.0 mL';
+            valI.innerText = '0.00 A';
+            btnToggle.className = "flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold transition-colors";
+            btnToggle.innerText = i18n[currentLang].btnStart;
+            quizReveal = false;
+            updateControls();
+        }
+        // Alias for any leftover callers
+        function resetSim() { resetAll(); }
+
+        // --- Teaching modals ---
+        function closeAllModals(exceptId) {
+            if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+            ['modal-steps','modal-principle','modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                var el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+        function openTeachModal(id) {
+            closeAllModals(id);
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        }
+        function renderSteps() {
+            var t = i18n[currentLang];
+            document.getElementById('steps-title').textContent = t.stepsTitle;
+            var body = document.getElementById('steps-body');
+            body.innerHTML = STEPS.map(function(s, i) {
+                return '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200"><div class="font-bold text-indigo-600 mb-1">' + (i+1) + '</div><div class="leading-relaxed">' + (currentLang==='en'?s.en:s.zh) + '</div></div>';
+            }).join('');
+            typesetMath(body);
+        }
+        function renderPrinciple() {
+            var p = PRINCIPLE[currentLang] || PRINCIPLE.zh;
+            var t = i18n[currentLang];
+            document.getElementById('principle-title').textContent = t.principleTitle;
+            var mech = p.mech.map(function(m){ return '<li class="mb-2 leading-relaxed">'+m+'</li>'; }).join('');
+            var body = document.getElementById('principle-body');
+            body.innerHTML =
+              '<div><h3 class="font-bold text-emerald-700 mb-1">'+p.conceptTitle+'</h3><p class="leading-relaxed">'+p.concept+'</p></div>' +
+              '<div><h3 class="font-bold text-emerald-700 mb-1">'+p.mechTitle+'</h3><ol class="list-decimal pl-5">'+mech+'</ol></div>' +
+              '<div><h3 class="font-bold text-emerald-700 mb-1">'+p.egTitle+'</h3><p class="leading-relaxed">'+p.eg+'</p></div>';
+            typesetMath(body);
+        }
+        function renderQuiz() {
+            var t = i18n[currentLang];
+            document.getElementById('quiz-title').textContent = t.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? t.hideAns : t.showAns;
+            var body = document.getElementById('quiz-body');
+            body.innerHTML = QUIZ.map(function(item, qi) {
+                var qtext = currentLang==='en' ? item.q.en : item.q.zh;
+                var html = '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 mb-3"><div class="font-bold text-violet-700 mb-2">Q'+(qi+1)+'. '+qtext+'</div>';
+                var qNum = qi + 1;
+                var isOpen = (qNum === 2 || qNum === 4);
+                if (!isOpen && item.choices) {
+                  var qName = 'q' + qNum;
+                  html += '<div class="grid gap-1.5 text-sm">';
+                  item.choices.forEach(function(c, ci) {
+                    var label = String.fromCharCode(65+ci);
+                    var txt = currentLang==='en' ? c.en : c.zh;
+                    html += '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="'+qName+'" class="mt-0.5 accent-violet-600"><span>'+label+'. '+txt+'</span></label>';
+                  });
+                  html += '</div>';
+                } else if (isOpen) {
+                  html += '<p class="text-xs text-slate-500 italic">'+(currentLang==='en'?'Predict, then use the sim controls to check. Write in your own words.':'先預測，再操作畫面控件核對，用自己的話作答。')+'</p>';
+                }
+                if (quizReveal && item.explain) {
+                  var ex = currentLang==='en' ? item.explain.en : item.explain.zh;
+                  var ref = currentLang==='en' ? 'Reference answer' : '參考答案';
+                  html += '<div class="mt-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>'+ref+'：</strong> '+ex+'</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+            typesetMath(body);
+        }
+        function refreshOpenTeachModals() {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+        }
+        function wireTeachingUI() {
+            document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', toggleLang);
+            document.getElementById('btn-reset').addEventListener('click', resetAll);
+            document.getElementById('btn-quiz-answers').addEventListener('click', function() { quizReveal = !quizReveal; renderQuiz(); });
+            document.querySelectorAll('.modal-close').forEach(function(btn) {
+                btn.addEventListener('click', function() { closeAllModals(null); });
+            });
+            document.querySelectorAll('.teach-modal').forEach(function(el) {
+                el.addEventListener('click', function(e) { if (e.target === el) closeAllModals(null); });
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
         }
 
-        // --- 3. Modal Functions ---
-        const modal = document.getElementById('info-modal');
-        function openModal() {
-            modal.showModal();
-        }
-        function closeModal() {
-            modal.close();
-        }
-
-        // --- 4. Canvas Animation Engine ---
-        
-        // 響應式畫布縮放設定 (Responsive Canvas)
+        // --- Canvas ---
         function resizeCanvas() {
             const rect = canvasWrapper.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return; // 防呆：避免容器未渲染時寬高為 0 的縮放錯誤
-            
+            if (rect.width === 0 || rect.height === 0) return;
             const dpr = window.devicePixelRatio || 1;
-            
-            // 設定實際像素大小
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
-            
-            // 重置並重新縮放繪製上下文，確保 600x450 的邏輯座標能完美適應任何螢幕大小
             ctx.resetTransform();
             ctx.scale(dpr * (rect.width / BASE_W), dpr * (rect.height / BASE_H));
-            
             drawScene();
         }
-        
-        // 使用 ResizeObserver 精準監聽容器大小變化，取代單純的 window resize，解決初始空白問題
         const resizeObserver = new ResizeObserver(() => resizeCanvas());
         resizeObserver.observe(canvasWrapper);
 
-        // Coordinates setup (Base internal resolution)
         const W = BASE_W;
         const H = BASE_H;
         const beaker = { x: 150, y: 150, w: 300, h: 250 };
         const waterLvl = 170;
-        
-        // Cathode (Left) & Anode (Right)
         const tubes = {
             H2: { x: 220, y: 80, w: 40, h: 280, color: 'rgba(59, 130, 246, 0.1)' },
             O2: { x: 340, y: 80, w: 40, h: 280, color: 'rgba(239, 68, 68, 0.1)' }
         };
-
         const electrodes = {
-            Cathode: { x: 235, y: 320, w: 10, h: 40 }, // Under H2
-            Anode:   { x: 355, y: 320, w: 10, h: 40 }  // Under O2
+            Cathode: { x: 235, y: 320, w: 10, h: 40 },
+            Anode:   { x: 355, y: 320, w: 10, h: 40 }
         };
 
         function drawScene() {
             ctx.clearRect(0, 0, W, H);
 
-            // 1. Draw Power Supply & Wires
             ctx.strokeStyle = '#475569';
             ctx.lineWidth = 4;
             ctx.beginPath();
-            // Left wire (-)
             ctx.moveTo(electrodes.Cathode.x + 5, electrodes.Cathode.y + 40);
             ctx.lineTo(electrodes.Cathode.x + 5, 420);
             ctx.lineTo(100, 420);
             ctx.lineTo(100, 50);
             ctx.lineTo(260, 50);
-            // Right wire (+)
             ctx.moveTo(electrodes.Anode.x + 5, electrodes.Anode.y + 40);
             ctx.lineTo(electrodes.Anode.x + 5, 420);
             ctx.lineTo(500, 420);
@@ -391,21 +595,18 @@
             ctx.lineTo(340, 50);
             ctx.stroke();
 
-            // DC Power Box
             ctx.fillStyle = '#cbd5e1';
             ctx.fillRect(260, 30, 80, 40);
             ctx.fillStyle = '#0f172a';
             ctx.font = '16px sans-serif';
             ctx.fillText("DC", 290, 55);
-            
-            // Labels for + and -
-            ctx.fillStyle = '#ef4444'; // Red for +
+
+            ctx.fillStyle = '#ef4444';
             ctx.font = 'bold 20px sans-serif';
             ctx.fillText("+", 325, 25);
-            ctx.fillStyle = '#3b82f6'; // Blue for -
+            ctx.fillStyle = '#3b82f6';
             ctx.fillText("-", 265, 25);
 
-            // 2. Draw Beaker
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -415,16 +616,13 @@
             ctx.lineTo(beaker.x + beaker.w, beaker.y);
             ctx.stroke();
 
-            // 3. Draw Water in Beaker
             ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
             ctx.fillRect(beaker.x + 2, waterLvl, beaker.w - 4, beaker.y + beaker.h - waterLvl - 2);
 
-            // 4. Draw Platinum Electrodes
-            ctx.fillStyle = '#64748b'; // Platinum color
+            ctx.fillStyle = '#64748b';
             ctx.fillRect(electrodes.Cathode.x, electrodes.Cathode.y, electrodes.Cathode.w, electrodes.Cathode.h);
             ctx.fillRect(electrodes.Anode.x, electrodes.Anode.y, electrodes.Anode.w, electrodes.Anode.h);
 
-            // 5. Draw Inverted Test Tubes
             ctx.strokeStyle = '#cbd5e1';
             ctx.lineWidth = 2;
             ['H2', 'O2'].forEach(key => {
@@ -432,25 +630,20 @@
                 ctx.beginPath();
                 ctx.moveTo(t.x, t.y + t.h);
                 ctx.lineTo(t.x, t.y + 10);
-                ctx.arc(t.x + t.w/2, t.y + 10, t.w/2, Math.PI, 0); // rounded top
+                ctx.arc(t.x + t.w/2, t.y + 10, t.w/2, Math.PI, 0);
                 ctx.lineTo(t.x + t.w, t.y + t.h);
                 ctx.stroke();
-
-                // Gas label
                 ctx.fillStyle = '#64748b';
                 ctx.font = '14px sans-serif';
                 ctx.fillText(key === 'H2' ? 'H₂' : 'O₂', t.x + 12, t.y - 10);
             });
 
-            // 6. Draw Gas/Water level inside tubes (Downward displacement of water)
             const fillTube = (tubeKey, vol) => {
                 const t = tubes[tubeKey];
-                const maxH = t.h - 20; 
-                // volume determines how far DOWN the water is pushed
+                const maxH = t.h - 20;
                 const gasH = (vol / MAX_TUBE_VOL) * maxH;
-                const innerWaterY = t.y + 10 + gasH; 
-                
-                // Draw Gas Region (slightly tinted)
+                const innerWaterY = t.y + 10 + gasH;
+
                 ctx.fillStyle = t.color;
                 ctx.beginPath();
                 ctx.moveTo(t.x + 2, innerWaterY);
@@ -459,73 +652,60 @@
                 ctx.lineTo(t.x + t.w - 2, innerWaterY);
                 ctx.fill();
 
-                // Draw Water Region in tube
                 ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
                 ctx.fillRect(t.x + 2, innerWaterY, t.w - 4, (t.y + t.h) - innerWaterY);
-                
-                // Draw water meniscus line
+
                 ctx.strokeStyle = 'rgba(14, 165, 233, 0.8)';
                 ctx.beginPath();
                 ctx.moveTo(t.x + 2, innerWaterY);
                 ctx.lineTo(t.x + t.w - 2, innerWaterY);
                 ctx.stroke();
-                
+
                 return innerWaterY;
             };
 
             const h2WaterY = fillTube('H2', state.h2Vol);
             const o2WaterY = fillTube('O2', state.o2Vol);
 
-            // 7. Update & Draw Bubbles
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.strokeStyle = 'rgba(148, 163, 184, 0.8)';
             ctx.lineWidth = 1;
 
             for (let i = state.bubbles.length - 1; i >= 0; i--) {
                 const b = state.bubbles[i];
-                
-                // Move bubble up
                 b.y -= b.speed;
-                b.x += Math.sin(b.y * 0.1) * 0.5; // slight wobble
+                b.x += Math.sin(b.y * 0.1) * 0.5;
 
-                // Draw
                 ctx.beginPath();
                 ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                // Check collision with water interface inside tube
                 const targetY = b.type === 'H2' ? h2WaterY : o2WaterY;
                 if (b.y - b.r <= targetY) {
-                    // Bubble pops and adds volume
-                    // 修正：每顆氣泡代表相同體積 (0.1)，單純靠 H2 氣泡數量為 O2 的兩倍來維持 2:1 比例
                     if (b.type === 'H2' && state.h2Vol < MAX_TUBE_VOL) {
-                        state.h2Vol += 0.1; 
+                        state.h2Vol += 0.1;
                     } else if (b.type === 'O2' && state.o2Vol < MAX_TUBE_VOL) {
-                        state.o2Vol += 0.1; 
+                        state.o2Vol += 0.1;
                     }
                     state.bubbles.splice(i, 1);
                 }
             }
 
-            // Update UI volume text
             valH2.innerText = state.h2Vol.toFixed(1) + " mL";
             valO2.innerText = state.o2Vol.toFixed(1) + " mL";
         }
 
-        // Logic Loop
         let lastTime = 0;
         function loop(timestamp) {
-            if (!lastTime) lastTime = timestamp; // 初始化 lastTime，避免第一幀出現巨大的時間差
+            if (!lastTime) lastTime = timestamp;
             const dt = timestamp - lastTime;
-            
-            if (dt > 50) { // Limit bubble generation rate
-                if (state.current > 0) {
-                    // 修正：使用小數累加器，確保生成數量在任何時間點都絕對是 2 : 1
-                    state.h2Pending += state.current * 0.4;
-                    state.o2Pending += state.current * 0.2; // 剛好是 H2 的一半
 
-                    // Generate H2 bubbles (Cathode)
+            if (dt > 50) {
+                if (state.current > 0) {
+                    state.h2Pending += state.current * 0.4;
+                    state.o2Pending += state.current * 0.2;
+
                     while(state.h2Pending >= 1) {
                         if(state.h2Vol < MAX_TUBE_VOL) {
                             state.bubbles.push({
@@ -539,14 +719,13 @@
                         state.h2Pending -= 1;
                     }
 
-                    // Generate O2 bubbles (Anode)
                     while(state.o2Pending >= 1) {
                         if(state.o2Vol < MAX_TUBE_VOL) {
                             state.bubbles.push({
                                 type: 'O2',
                                 x: electrodes.Anode.x + Math.random() * electrodes.Anode.w,
                                 y: electrodes.Anode.y - 2,
-                                r: 2.5 + Math.random() * 2, // 氧氣泡視覺上可稍微大一點點，但不影響體積計算
+                                r: 2.5 + Math.random() * 2,
                                 speed: 1.5 + Math.random() * 1
                             });
                         }
@@ -560,12 +739,11 @@
             requestAnimationFrame(loop);
         }
 
-        // --- 5. Init ---
+        // Init
+        wireTeachingUI();
         updateUI();
         updateControls();
-        // resizeCanvas() 現在交由 ResizeObserver 自動監聽並觸發
         requestAnimationFrame(loop);
-
     </script>
 </body>
 </html>

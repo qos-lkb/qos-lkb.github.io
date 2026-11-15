@@ -1,68 +1,150 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chladni Plate Simulator</title>
+    <!-- Scheme C approx (custom CSS sidebar ~300px); Tailwind CDN present for shared shell; Noto Sans TC -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
         :root { --bg-color: #1a1a1a; --panel-bg: #2a2a2a; --text-color: #f0f0f0; --accent: #4CAF50; }
-        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        body { margin: 0; font-family: 'Noto Sans TC', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
         
-        /* Header Bar */
-        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background-color: #111; box-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 10; }
-        h1 { margin: 0; font-size: 1.2rem; }
-        .header-btns button { background-color: var(--accent); color: white; border: none; padding: 8px 12px; margin-left: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background-color: #111; box-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 10; gap: 12px; flex-wrap: wrap; }
+        h1 { margin: 0; font-size: 1.15rem; }
+        .header-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .header-btns button { background-color: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; font-family: inherit; font-size: 0.85rem; }
         .header-btns button:hover { background-color: #45a049; }
+        .header-btns button.btn-secondary { background-color: #374151; }
+        .header-btns button.btn-secondary:hover { background-color: #4b5563; }
+        .header-btns button.btn-quiz { background-color: #7c3aed; }
+        .header-btns button.btn-quiz:hover { background-color: #6d28d9; }
+        .subject-badge { font-size: 0.7rem; background: #1e3a5f; color: #93c5fd; border: 1px solid #3b82f6; padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle; white-space: nowrap; }
 
-        /* Main Content */
-        .container { display: flex; flex: 1; position: relative; overflow: hidden; flex-wrap: wrap;}
-        .controls { width: 300px; padding: 20px; background-color: var(--panel-bg); display: flex; flex-direction: column; gap: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 5; overflow-y: auto;}
-        
-        /* Responsive Canvas Container */
-        .canvas-container { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; padding: 20px; min-width: 320px;}
+        .container { display: flex; flex: 1; position: relative; overflow: hidden; flex-wrap: wrap; }
+        /* Scheme C semantic: sidebar ~300px (custom CSS, not Tailwind lg:w-[300px]) */
+        .controls { width: 300px; max-width: 320px; padding: 20px; background-color: var(--panel-bg); display: flex; flex-direction: column; gap: 16px; box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 5; overflow-y: auto; order: 2; }
+        .canvas-container { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; padding: 20px; min-width: 320px; order: 1; }
         canvas { background-color: #000; box-shadow: 0 0 20px rgba(255,255,255,0.1); max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; }
 
-        /* Control Elements */
         label { font-weight: bold; margin-bottom: 5px; display: block; font-size: 0.95rem; color: #ddd; }
-        select, input[type="range"] { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; box-sizing: border-box; }
-        .status-box { background: #111; padding: 10px; border-radius: 4px; text-align: center; font-family: monospace; font-size: 1.1rem; color: #00ffcc;}
+        select, input[type="range"] { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; box-sizing: border-box; font-family: inherit; }
+        .status-box { background: #111; padding: 10px; border-radius: 4px; text-align: center; font-family: monospace; font-size: 1.05rem; color: #00ffcc; }
         .status-box.chaos { color: #ff5555; }
         .hints { font-size: 0.85rem; color: #999; line-height: 1.4; background: #222; padding: 10px; border-radius: 4px; border-left: 3px solid var(--accent); }
 
-        /* Modal */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; }
-        .modal-content { background: #222; padding: 30px; border-radius: 8px; width: 90%; max-width: 700px; line-height: 1.6; position: relative; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .close-btn { position: absolute; top: 15px; right: 20px; font-size: 1.5rem; cursor: pointer; color: #aaa; transition: 0.2s;}
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; padding: 16px; box-sizing: border-box; }
+        .modal.open { display: flex; }
+        .modal-content { background: #222; padding: 28px; border-radius: 8px; width: 90%; max-width: 720px; line-height: 1.6; position: relative; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .close-btn { position: absolute; top: 12px; right: 16px; font-size: 1.5rem; cursor: pointer; color: #aaa; transition: 0.2s; background: none; border: none; line-height: 1; }
         .close-btn:hover { color: white; transform: scale(1.1); }
 
-        h2 { color: var(--accent); margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        h2 { color: var(--accent); margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; padding-right: 28px; }
         p { color: #ccc; }
-        
-        /* Switch Toggle UI */
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;}
+        .principle-section { margin-bottom: 1rem; }
+        .principle-section h3 { color: #81c784; font-size: 1rem; margin: 0.8rem 0 0.4rem; }
+        .principle-section ol { color: #ccc; padding-left: 1.25rem; }
+        .principle-math { margin-top: 1.2rem; padding-top: 0.8rem; border-top: 1px dashed #444; font-size: 0.92rem; }
+
+        .quiz-item { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+        .quiz-item .q-stem { color: #e5e5e5; margin-bottom: 8px; }
+        .quiz-options { list-style: none; padding: 0; margin: 0; }
+        .quiz-options li { margin: 4px 0; }
+        .quiz-options button { display: block; width: 100%; text-align: left; background: #2a2a2a; border: 1px solid #444; color: #ddd; padding: 8px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 0.9rem; }
+        .quiz-options button:hover { border-color: var(--accent); }
+        .quiz-options button.selected { border-color: #60a5fa; background: #1e3a5f; }
+        .quiz-options button.correct { border-color: #4CAF50; background: #1b3a1b; }
+        .quiz-options button.wrong { border-color: #ef4444; background: #3a1b1b; }
+        .quiz-answer { display: none; margin-top: 8px; padding: 8px; background: #111; border-left: 3px solid #fbbf24; color: #e5e5e5; font-size: 0.9rem; }
+        .quiz-answer.show { display: block; }
+        .quiz-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .quiz-toolbar button { background: #374151; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }
+        .quiz-toolbar button:hover { background: #4b5563; }
+
+        .steps-list { color: #ccc; padding-left: 1.25rem; }
+        .steps-list li { margin-bottom: 0.75rem; }
+
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 24px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);}
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.3);}
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 24px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
         input:checked + .slider { background-color: var(--accent); }
         input:checked + .slider:before { transform: translateX(20px); }
         .flex-row-between { display: flex; justify-content: space-between; align-items: center; }
-        .control-group { background: #222; padding: 12px; border-radius: 6px; border-left: 3px solid #ff9800; margin-bottom: 5px;}
+        .control-group { background: #222; padding: 12px; border-radius: 6px; border-left: 3px solid #ff9800; margin-bottom: 5px; }
+        .action-row { display: flex; flex-direction: column; gap: 8px; }
+        .action-row button { width: 100%; padding: 10px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }
+        #btn-scatter { background: #333; color: white; border: 1px solid #555; }
+        #btn-scatter:hover { background: #3f3f3f; }
+        #btn-reset { background: #b45309; color: white; border: 1px solid #d97706; }
+        #btn-reset:hover { background: #c2410c; }
 
         @media (max-width: 768px) {
             .container { flex-direction: column; }
-            .controls { width: 100%; box-sizing: border-box; flex: none;}
+            .canvas-container { order: 1; width: 100%; min-height: 45vh; }
+            .controls { order: 2; width: 100%; max-width: none; box-sizing: border-box; flex: none; }
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1 id="app-title">克拉尼圖形振動模擬器 (Chladni Plate)</h1>
+        <h1 id="app-title">克拉尼圖形振動模擬器<span class="subject-badge" id="subject-badge">物理</span></h1>
         <div class="header-btns">
-            <button id="btn-explain" onclick="toggleModal()">原理解說</button>
-            <button id="btn-lang" onclick="toggleLanguage()">中 / EN</button>
+            <button type="button" id="btn-steps">觀察步驟</button>
+            <button type="button" id="btn-principle">原理解說</button>
+            <button type="button" id="btn-quiz" class="btn-quiz">課堂問題</button>
+            <button type="button" id="btn-lang" class="btn-secondary">中 / EN</button>
         </div>
     </header>
 
@@ -111,9 +193,10 @@
                 <span id="hint-desc">打開訊號產生器，拖動滑桿尋找共振點。當達到特定頻率時，粒子會聚集在波節上形成圖案。<br><br>方形板提示: 120, 260, 380...<br>圓形板提示: 150, 300, 450...<br>三角形提示: 180, 320, 450...</span>
             </div>
 
-            <button onclick="scatterParticles()" style="background: #333; color: white; border: 1px solid #555; padding: 10px; border-radius: 4px; cursor: pointer;" id="btn-scatter">
-                🔄 重新撒沙 (Scatter Sand)
-            </button>
+            <div class="action-row">
+                <button type="button" id="btn-scatter" onclick="scatterParticles()">🔄 重新撒沙</button>
+                <button type="button" id="btn-reset" onclick="resetSimulation()">↺ 重設參數</button>
+            </div>
         </div>
 
         <div class="canvas-container">
@@ -121,52 +204,51 @@
         </div>
     </div>
 
-    <div id="explain-modal" class="modal">
+    <!-- Observation steps -->
+    <div id="modal-steps" class="modal" role="dialog" aria-modal="true" aria-labelledby="steps-title">
         <div class="modal-content">
-            <span class="close-btn" onclick="toggleModal()">&times;</span>
-            <h2 id="modal-title">克拉尼圖形 (Chladni Figures) 原理</h2>
-            
-            <div id="modal-body-zh" style="display: block;">
-                <p>克拉尼圖形是由德國物理學家 Ernst Chladni 發現的聲學現象。當金屬板受到特定頻率的振動時，波在板的邊界反射，形成<strong>駐波 (Standing Waves)</strong>。</p>
-                <p>駐波產生兩種區域：</p>
-                <ul>
-                    <li><strong>波腹 (Antinodes)</strong>：振動最劇烈的地方，沙粒會被彈開。</li>
-                    <li><strong>波節 (Nodes / Nodal Lines)</strong>：完全不振動的區域。</li>
-                </ul>
-                <p>沙粒最終會沉澱聚集在「波節」上，形成美麗的幾何圖案。其數學方程式可近似表示為：</p>
-                <p><strong>方形板方程式：</strong></p>
-                <p>$$ W(x,y) = \cos\left(\frac{n\pi x}{L}\right) \cos\left(\frac{m\pi y}{L}\right) - \cos\left(\frac{m\pi x}{L}\right) \cos\left(\frac{n\pi y}{L}\right) = 0 $$</p>
-                <p><strong>圓形板方程式：</strong></p>
-                <p>$$ W(r,\theta) = \sin(n\theta) \cdot J_n(k_m r) = 0 $$</p>
-                <p>其中 \(n, m\) 為模態階數，決定了節線的數量與形狀。頻率越高，圖案越複雜！</p>
-            </div>
+            <button type="button" class="close-btn" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+            <h2 id="steps-title">觀察步驟</h2>
+            <ol class="steps-list" id="steps-body"></ol>
+        </div>
+    </div>
 
-            <div id="modal-body-en" style="display: none;">
-                <p>Chladni figures are an acoustic phenomenon discovered by German physicist Ernst Chladni. When a metal plate is vibrated at specific frequencies, waves reflect at the boundaries to form <strong>Standing Waves</strong>.</p>
-                <p>Standing waves create two distinct regions:</p>
-                <ul>
-                    <li><strong>Antinodes</strong>: Areas of maximum vibration where sand gets bounced away.</li>
-                    <li><strong>Nodes (Nodal Lines)</strong>: Areas that remain completely stationary.</li>
-                </ul>
-                <p>The sand eventually settles on the "Nodes", forming beautiful geometric patterns. The mathematical equations can be approximated as:</p>
-                <p><strong>Square Plate Equation:</strong></p>
+    <!-- Principle modal -->
+    <div id="modal-principle" class="modal" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content">
+            <button type="button" class="close-btn" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            <h2 id="principle-title">原理解說</h2>
+            <div id="principle-body"></div>
+            <div class="principle-math" id="principle-math">
+                <p id="math-intro"></p>
+                <p><strong id="math-square-label"></strong></p>
                 <p>$$ W(x,y) = \cos\left(\frac{n\pi x}{L}\right) \cos\left(\frac{m\pi y}{L}\right) - \cos\left(\frac{m\pi x}{L}\right) \cos\left(\frac{n\pi y}{L}\right) = 0 $$</p>
-                <p><strong>Circular Plate Equation:</strong></p>
+                <p><strong id="math-circle-label"></strong></p>
                 <p>$$ W(r,\theta) = \sin(n\theta) \cdot J_n(k_m r) = 0 $$</p>
-                <p>Where \(n, m\) represent the mode integers, determining the number and shape of nodal lines. Higher frequencies result in more complex patterns!</p>
+                <p id="math-outro"></p>
             </div>
         </div>
     </div>
 
+    <!-- Quiz: exactly 5 -->
+    <div id="modal-quiz" class="modal" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content">
+            <button type="button" class="close-btn" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+            <h2 id="quiz-title">課堂問題</h2>
+            <div class="quiz-toolbar">
+                <button type="button" id="btn-quiz-answers"></button>
+            </div>
+            <div id="quiz-body"></div>
+        </div>
+    </div>
+
     <script>
-        // Data Structures and Configurations
         const CONFIG = {
             maxParticles: 8000,
-            resonanceThreshold: 8, // +/- Hz to trigger resonance
+            resonanceThreshold: 8,
             canvasSize: 600
         };
 
-        // Resonance Modes Definitions
         const RESONANCES = {
             square: [
                 { freq: 120, n: 1, m: 2, name: "(1, 2) Mode" },
@@ -193,7 +275,7 @@
         };
 
         let state = {
-            shape: 'square', // 'square', 'circle', 'triangle'
+            shape: 'square',
             frequency: 100,
             activeResonance: null,
             particles: [],
@@ -201,18 +283,17 @@
             isGeneratorOn: false,
             power: 1.0,
             friction: 0.88,
-            numParticles: 4000
+            numParticles: 4000,
+            quizAnswersVisible: false
         };
 
         let audioCtx;
         let oscillator;
         let gainNode;
 
-        // DOM Elements
         const canvas = document.getElementById('plateCanvas');
         const ctx = canvas.getContext('2d');
         const freqSlider = document.getElementById('freq-slider');
-        const freqVal = document.getElementById('freq-val');
         const statusBox = document.getElementById('resonance-status');
         const genSwitch = document.getElementById('gen-switch');
         const powerSlider = document.getElementById('power-slider');
@@ -221,7 +302,10 @@
         const i18n = {
             zh: {
                 title: "克拉尼圖形振動模擬器",
-                explainBtn: "原理解說",
+                badge: "物理",
+                stepsBtn: "觀察步驟",
+                principleBtn: "原理解說",
+                quizBtn: "課堂問題",
                 generatorLabel: "訊號產生器 (Generator)",
                 shapeLabel: "金屬板形狀 :",
                 freqLabel: "目前頻率 (Hz) : ",
@@ -231,13 +315,62 @@
                 hintTitle: "💡 尋找共振頻率:",
                 hintDesc: "打開訊號產生器，拖動滑桿尋找共振點。當達到特定頻率時，粒子會聚集在波節上形成圖案。<br><br>方形板提示: 120, 260, 380...<br>圓形板提示: 150, 300, 450...<br>三角形提示: 180, 320, 450...",
                 scatterBtn: "🔄 重新撒沙",
-                modalTitle: "克拉尼圖形 (Chladni Figures) 原理",
+                resetBtn: "↺ 重設參數",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
                 chaos: "未共振 (雜亂)",
-                resonanceObj: " 共振!"
+                resonanceObj: " 共振!",
+                conceptLabel: "概念",
+                mechanismLabel: "機制",
+                exampleLabel: "日常例子",
+                principleConcept: "克拉尼圖形（Chladni figures）把<strong>板的駐波振動</strong>變成可見圖案：在共振頻率下，板上同時存在幾乎不動的<strong>波節（節線）</strong>與振動最大的<strong>波腹</strong>。細沙被腹點彈開，最終停在節線上，因此「沙的幾何＝節線的幾何」。",
+                principleMechanism: "<ol><li>訊號產生器以接近正弦的驅動強迫金屬板振動；波傳到邊界再反射，與入射波疊加。</li><li>當驅動頻率接近某模態的固有頻率時發生<strong>共振</strong>，該模態振幅特別大，節線圖案穩定；偏離則各處亂振（模擬中的 Chaos）。</li><li>允許的模態取決於<strong>邊界形狀與固定方式</strong>（本模擬中央有固定點示意），故方形、圓形、三角形的共振頻率與節線樣式不同；模態指數 \\(n,m\\)（或角向／徑向階數）愈高，節線通常愈多。</li><li>振動強度影響沙被彈開的力量；阻力影響粒子減速與圖案清晰／形成速度。</li></ol>",
+                principleExample: "提琴、吉他面板的「共振與節線」影響音色；揚聲器紙盆在某些頻率會出現分割振動；用小提琴弓摩擦金屬板撒沙的課堂演示，正是經典 Chladni 實驗。手機震動馬達若碰到鬆散細屑，有時也會看到碎屑往較少震動的縫隙聚集——概念類似「離開腹點、留在相對靜止處」。",
+                mathIntro: "延伸數學（節線近似方程式）：",
+                mathSquare: "方形板方程式：",
+                mathCircle: "圓形板方程式：",
+                mathOutro: "其中 \\(n, m\\) 為模態階數，決定節線數量與形狀。頻率愈高，圖案通常愈複雜。",
+                step1: "確認金屬板為「方形」。開啟「訊號產生器」，將頻率滑到約 <strong>120 Hz</strong>，等待數秒。觀察沙粒是否逐漸聚成線狀圖案，且狀態列顯示共振（例如 (1, 2) Mode）。",
+                step2: "在方形板、產生器開啟下，把頻率改到約 <strong>200 Hz</strong>（非提示共振點）。比較沙粒是否變得雜亂、狀態是否「未共振」。再說一次：沙線對應什麼？（波節／節線）",
+                step3: "調到方形另一共振點（如 <strong>260 Hz</strong> 或 <strong>380 Hz</strong>）。比較節線數量／複雜度是否比 120 Hz 更高。可按「重新撒沙」再觀察圖案重新形成。",
+                step4: "改為「圓形」板，用提示頻率（約 <strong>150</strong> 或 <strong>300 Hz</strong>）找共振；再改「三角形」試 <strong>180</strong> 或 <strong>320 Hz</strong>。寫下：形狀／邊界改變後，同一頻率是否仍共振？圖案是否不同？最後按 <strong>重設參數</strong> 回到預設。",
+                showAnswers: "顯示參考答案",
+                hideAnswers: "隱藏參考答案",
+                shortHint: "（先預測，再操作模擬核對，然後用筆記作答）",
+                q1: "方形板、開啟訊號產生器，調到約 120 Hz 並等到狀態顯示共振。沙粒主要聚集的位置最接近哪一項？",
+                q1a: "A. 振動最大的波腹",
+                q1b: "B. 幾乎不振動的波節（節線）",
+                q1c: "C. 只會全部掉出板外",
+                q1d: "D. 只聚集在板的正中心固定點",
+                q1ans: "B。駐波節線振幅近零，沙留下；腹點把沙彈走。",
+                q2: "在方形板上比較約 120 Hz 與約 380 Hz（兩者皆調到出現共振）。先預測節線複雜度差異，再操作後描述。",
+                q2a: "A. 仍顯示同一共振模態，圖案不變",
+                q2b: "B. 變為未共振（Chaos），沙較雜亂",
+                q2c: "C. 頻率愈偏離，圖案一定愈清楚",
+                q2d: "D. 一定自動跳到 260 Hz 共振",
+                q2ans: "380 Hz 對應較高模態（如 (3,3)），節線通常比 120 Hz 的 (1,2) 更多／更複雜。",
+                q3a: "A. 仍顯示同一共振模態，圖案不變",
+                q3b: "B. 變為未共振（Chaos），沙較雜亂",
+                q3c: "C. 頻率愈偏離，圖案一定愈清楚",
+                q3d: "D. 一定自動跳到 260 Hz 共振",
+                                q3: "保持方形與產生器開啟。先在 ~120 Hz 看清楚圖案，再把頻率改到 ~200 Hz。預期狀態列與沙的分布如何？",
+                q3ans: "380 Hz 對應較高模態（如 (3,3)），節線通常比 120 Hz 的 (1,2) 更多／更複雜；頻率愈高（在共振模態上）圖案往往愈細密。",
+                q4: "先在方形找到一個共振頻率並記住該 Hz 數字。不改頻率，只把形狀改成「圓形」（必要時重新撒沙）。預測：狀態是否仍顯示共振？圖案是否與方形相同？操作後寫下觀察。",
+                q4ans: "多數情況下<strong>不再共振</strong>（圓形共振列不同，如 150／300…）；即使偶然數值接近，節線幾何也因邊界不同而異。說明<strong>邊界條件改變允許模態</strong>。",
+                q5: "在某一共振頻率下形成清楚圖案後：先把「振動強度」明顯調低，觀察圖案形成／維持；再調回並把「阻力」調高或調低做對照。哪一項描述最合理？",
+                q5a: "A. Power 與 Friction 完全不影響沙的運動",
+                q5b: "B. Power 影響彈開力度／驅動感，Friction 影響粒子減速與圖案清晰或形成快慢",
+                q5c: "C. 只有改形狀才會改變任何東西，滑桿無效",
+                q5d: "D. 調高 Power 一定會把共振頻率本身改成兩倍",
+                q5ans: "B。本模擬踢力 ∝ power；速度每次乘上 friction。共振頻率由形狀模態表決定，不由 Power 直接改寫。"
             },
             en: {
                 title: "Chladni Plate Simulator",
-                explainBtn: "Theory & Math",
+                badge: "Physics",
+                stepsBtn: "Steps",
+                principleBtn: "Principle",
+                quizBtn: "Quiz",
                 generatorLabel: "Signal Generator",
                 shapeLabel: "Plate Shape :",
                 freqLabel: "Frequency (Hz) : ",
@@ -247,22 +380,82 @@
                 hintTitle: "💡 Find Resonances:",
                 hintDesc: "Turn ON the generator and drag the slider. Particles gather at nodal lines at specific frequencies.<br><br>Square Hints: ~120, 260, 380...<br>Circle Hints: ~150, 300, 450...<br>Triangle Hints: ~180, 320, 450...",
                 scatterBtn: "🔄 Scatter Sand",
-                modalTitle: "Chladni Figures Principles",
+                resetBtn: "↺ Reset Parameters",
+                stepsTitle: "Observation Steps",
+                principleTitle: "Principle",
+                quizTitle: "Class Quiz",
                 chaos: "No Resonance (Chaos)",
-                resonanceObj: " Resonating!"
+                resonanceObj: " Resonating!",
+                conceptLabel: "Concept",
+                mechanismLabel: "Mechanism",
+                exampleLabel: "Everyday example",
+                principleConcept: "Chladni figures make a plate’s <strong>standing-wave vibration</strong> visible. At a resonant frequency the plate has nearly still <strong>nodes (nodal lines)</strong> and strongly moving <strong>antinodes</strong>. Fine sand is kicked away from antinodes and settles on nodes, so the sand geometry maps the nodal geometry.",
+                principleMechanism: "<ol><li>A signal generator drives the plate (near-sinusoidal); waves reflect at boundaries and interfere with the outgoing wave.</li><li>When the drive frequency is near a modal natural frequency, <strong>resonance</strong> amplifies that mode and a stable nodal pattern appears; off resonance the motion is chaotic (this sim’s Chaos state).</li><li>Allowed modes depend on <strong>boundary shape and supports</strong> (this sim shows a centre fixture). Square, circular and triangular plates therefore have different resonant frequencies and patterns; higher mode indices \\(n,m\\) (or angular/radial orders) usually mean more nodal lines.</li><li>Drive power sets how hard sand is kicked; friction sets how quickly grains slow and how sharp the pattern becomes.</li></ol>",
+                principleExample: "Violin/guitar soundboards have resonant modes and nodal lines that colour the tone; loudspeaker cones show breakup modes at some frequencies; the classic demo bows a metal plate sprinkled with sand. Loose grit near a vibrating phone can drift toward quieter gaps—the same “leave antinodes, stay where motion is smaller” idea.",
+                mathIntro: "Extension math (approximate nodal equations):",
+                mathSquare: "Square plate equation:",
+                mathCircle: "Circular plate equation:",
+                mathOutro: "Where \\(n, m\\) are mode integers that set nodal count and shape. Higher frequencies usually give more complex patterns.",
+                step1: "Set plate shape to Square. Turn the Signal Generator ON and set frequency near <strong>120 Hz</strong>. Wait a few seconds. Check whether sand gathers into line patterns and the status shows resonance (e.g. (1, 2) Mode).",
+                step2: "Still on Square with generator ON, move frequency near <strong>200 Hz</strong> (off the hint resonances). Compare: does the sand look chaotic and status show no resonance? State again: sand lines mark what? (nodes / nodal lines)",
+                step3: "Tune to another Square resonance (e.g. <strong>260 Hz</strong> or <strong>380 Hz</strong>). Compare whether nodal patterns look more complex than at 120 Hz. Optionally press Scatter Sand and watch the pattern reform.",
+                step4: "Switch to Circular and find resonance near <strong>150</strong> or <strong>300 Hz</strong>; then Triangle near <strong>180</strong> or <strong>320 Hz</strong>. Note: after changing shape/boundary, does the same frequency still resonate? Do patterns differ? Finish with <strong>Reset Parameters</strong> to defaults.",
+                showAnswers: "Show reference answers",
+                hideAnswers: "Hide reference answers",
+                shortHint: "(Predict first, operate the sim, then answer in your notes.)",
+                q1: "On a Square plate, generator ON, tune near 120 Hz until status shows resonance. Where does the sand mainly gather?",
+                q1a: "A. Antinodes (maximum vibration)",
+                q1b: "B. Nodes (nodal lines)",
+                q1c: "C. Only falls off the plate",
+                q1d: "D. Only at the centre fixture",
+                q1ans: "B. Nodal lines have near-zero amplitude so sand stays; antinodes kick sand away.",
+                q2: "On Square, compare ~120 Hz and ~380 Hz (both at resonance). Predict how nodal complexity differs, then observe and describe.",
+                q2a: "A. Same resonance mode, pattern unchanged",
+                q2b: "B. No resonance (Chaos), sand more chaotic",
+                q2c: "C. Farther from resonance always sharpens the pattern",
+                q2d: "D. Must auto-jump to 260 Hz resonance",
+                q2ans: "380 Hz is a higher mode (e.g. (3,3)) with more/finer nodal structure than (1,2) at 120 Hz.",
+                q3a: "A. Same resonance mode, pattern unchanged",
+                q3b: "B. No resonance (Chaos), sand more chaotic",
+                q3c: "C. Farther from resonance always sharpens the pattern",
+                q3d: "D. Must auto-jump to 260 Hz resonance",
+                                q3: "Keep Square and generator ON. After a clear pattern near ~120 Hz, move to ~200 Hz. What should status and sand distribution do?",
+                q3ans: "B. Resonance window is about ±8 Hz; 200 Hz is not on the Square hint list, so Chaos.",
+                q4: "Find a Square resonance and remember that Hz. Without changing frequency, switch shape to Circular (scatter if needed). Predict: still resonating? Same pattern as Square? Then observe and write what you see.",
+                q4ans: "Usually <strong>no longer resonant</strong> (circle list differs, e.g. 150／300…). Even if Hz is close by chance, nodal geometry differs with boundary—<strong>boundaries set allowed modes</strong>.",
+                q5: "At a clear resonance: lower Vibration Power and watch the pattern; then restore and compare higher vs lower Friction. Which statement is most reasonable?",
+                q5a: "A. Power and Friction never affect sand motion",
+                q5b: "B. Power affects kick strength; Friction affects slowing and how sharply/quickly the pattern forms",
+                q5c: "C. Only shape matters; sliders do nothing",
+                q5d: "D. Raising Power always doubles the resonant frequency",
+                q5ans: "B. Kick force ∝ power; velocity is multiplied by friction each step. Resonant frequencies come from the shape mode table, not from Power alone."
             }
         };
 
-        function toggleModal() {
-            const modal = document.getElementById('explain-modal');
-            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.add('open');
+            modal.style.display = 'flex';
+            if (id === 'modal-principle' || id === 'modal-quiz') {
+                typesetMath(modal);
+            }
         }
 
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('explain-modal');
-            if (event.target == modal) {
-                modal.style.display = "none";
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('open');
+            modal.style.display = 'none';
+        }
+
+        function closeAllModals() {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+        }
+
+        function typesetMath(root) {
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise([root]).catch(function () {});
             }
         }
 
@@ -273,67 +466,104 @@
 
         function applyLanguage() {
             const t = i18n[state.lang];
-            document.getElementById('app-title').innerText = t.title;
-            document.getElementById('btn-explain').innerText = t.explainBtn;
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+            document.title = t.title;
+            document.getElementById('app-title').innerHTML = t.title + '<span class="subject-badge" id="subject-badge">' + t.badge + '</span>';
+            document.getElementById('btn-steps').innerText = t.stepsBtn;
+            document.getElementById('btn-principle').innerText = t.principleBtn;
+            document.getElementById('btn-quiz').innerText = t.quizBtn;
             document.getElementById('label-generator').innerText = t.generatorLabel;
             document.getElementById('label-shape').innerText = t.shapeLabel;
-            document.getElementById('label-freq').innerHTML = t.freqLabel + `<span id="freq-val">${state.frequency}</span>`;
-            document.getElementById('label-power').innerHTML = t.powerLabel + `<span id="power-val">${state.power * 100}%</span>`;
-            document.getElementById('label-friction').innerHTML = t.frictionLabel + `<span id="friction-val">${Math.round(state.friction * 100)}%</span>`;
+            document.getElementById('label-freq').innerHTML = t.freqLabel + '<span id="freq-val">' + state.frequency + '</span>';
+            document.getElementById('label-power').innerHTML = t.powerLabel + '<span id="power-val">' + Math.round(state.power * 100) + '%</span>';
+            document.getElementById('label-friction').innerHTML = t.frictionLabel + '<span id="friction-val">' + Math.round(state.friction * 100) + '%</span>';
             document.getElementById('label-status').innerText = t.statusLabel;
             document.getElementById('hint-title').innerText = t.hintTitle;
             document.getElementById('hint-desc').innerHTML = t.hintDesc;
             document.getElementById('btn-scatter').innerText = t.scatterBtn;
-            document.getElementById('modal-title').innerText = t.modalTitle;
+            document.getElementById('btn-reset').innerText = t.resetBtn;
+            document.getElementById('steps-title').innerText = t.stepsTitle;
+            document.getElementById('principle-title').innerText = t.principleTitle;
+            document.getElementById('quiz-title').innerText = t.quizTitle;
+            document.getElementById('btn-quiz-answers').innerText = state.quizAnswersVisible ? t.hideAnswers : t.showAnswers;
 
-            document.getElementById('modal-body-zh').style.display = state.lang === 'zh' ? 'block' : 'none';
-            document.getElementById('modal-body-en').style.display = state.lang === 'en' ? 'block' : 'none';
-            
+            document.getElementById('steps-body').innerHTML =
+                '<li>' + t.step1 + '</li>' +
+                '<li>' + t.step2 + '</li>' +
+                '<li>' + t.step3 + '</li>' +
+                '<li>' + t.step4 + '</li>';
+
+            document.getElementById('principle-body').innerHTML =
+                '<div class="principle-section"><h3>' + t.conceptLabel + '</h3><p>' + t.principleConcept + '</p></div>' +
+                '<div class="principle-section"><h3>' + t.mechanismLabel + '</h3>' + t.principleMechanism + '</div>' +
+                '<div class="principle-section"><h3>' + t.exampleLabel + '</h3><p>' + t.principleExample + '</p></div>';
+
+            document.getElementById('math-intro').innerText = t.mathIntro;
+            document.getElementById('math-square-label').innerText = t.mathSquare;
+            document.getElementById('math-circle-label').innerText = t.mathCircle;
+            document.getElementById('math-outro').innerHTML = t.mathOutro;
+
+            renderQuiz();
             updateStatusUI();
+
+            const openPrinciple = document.getElementById('modal-principle').classList.contains('open');
+            if (openPrinciple) typesetMath(document.getElementById('modal-principle'));
         }
 
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                gainNode = audioCtx.createGain();
-                gainNode.connect(audioCtx.destination);
-                
-                oscillator = audioCtx.createOscillator();
-                oscillator.type = 'sine'; // 正弦波最適合模擬純音訊號
-                oscillator.frequency.value = state.frequency;
-                oscillator.connect(gainNode);
-                oscillator.start();
-                gainNode.gain.value = 0; // 初始靜音
-            }
+        function renderQuiz() {
+            const texts = i18n[state.lang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const langIsZh = (state.lang === 'zh');
+            const ref = texts.quizRef || (langIsZh ? '參考答案' : 'Reference answer');
+            const optKey = (qid, L) => {
+                const lower = qid + L.toLowerCase();
+                const upper = qid + L.toUpperCase();
+                return texts[lower] != null ? lower : upper;
+            };
+            const mkChoice = (qid) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = optKey(qid, L);
+                return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span>' + (texts[key] || '') + '</span></label>';
+            }).join('');
+            const vis = state.quizAnswersVisible;
+            const ans = (key) => vis
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+            const openHint = texts.shortHint || texts.openHint || '';
+            const block = (n, qid, mc) => {
+                let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
+                if (mc) h += '<div class="grid gap-1.5">' + mkChoice(qid) + '</div>';
+                else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
+                return h + ans(qid + 'ans') + '</div>';
+            };
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = vis ? texts.hideAnswers : texts.showAnswers;
+            const modal = document.getElementById('modal-quiz');
+            if (vis && typeof typesetMath === 'function' && modal) typesetMath(modal);
         }
+
 
         function toggleGenerator() {
             state.isGeneratorOn = genSwitch.checked;
-            
             if (state.isGeneratorOn) {
                 initAudio();
                 if (audioCtx.state === 'suspended') {
-                    audioCtx.resume(); // 喚醒被瀏覽器暫停的 AudioContext
+                    audioCtx.resume();
                 }
                 oscillator.frequency.setValueAtTime(state.frequency, audioCtx.currentTime);
-                // 根據 Power 調整音量 (限制在最大 0.15 左右，避免高頻音量過大刺耳)
                 gainNode.gain.setTargetAtTime(state.power * 0.15, audioCtx.currentTime, 0.05);
             } else {
                 if (gainNode) {
-                    // 平滑靜音避免產生爆音 (Pop sound)
                     gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
                 }
             }
         }
 
         function updateVariables() {
-            state.power = parseInt(powerSlider.value) / 100;
-            state.friction = parseInt(frictionSlider.value) / 100;
-            
-            document.getElementById('power-val').innerText = `${parseInt(powerSlider.value)}%`;
-            document.getElementById('friction-val').innerText = `${parseInt(frictionSlider.value)}%`;
-            
-            // 若產生器開啟，同步更新音量
+            state.power = parseInt(powerSlider.value, 10) / 100;
+            state.friction = parseInt(frictionSlider.value, 10) / 100;
+            document.getElementById('power-val').innerText = parseInt(powerSlider.value, 10) + '%';
+            document.getElementById('friction-val').innerText = parseInt(frictionSlider.value, 10) + '%';
             if (state.isGeneratorOn && gainNode) {
                 gainNode.gain.setTargetAtTime(state.power * 0.15, audioCtx.currentTime, 0.05);
             }
@@ -346,22 +576,19 @@
         }
 
         function updateFrequency() {
-            state.frequency = parseInt(freqSlider.value);
+            state.frequency = parseInt(freqSlider.value, 10);
             document.getElementById('freq-val').innerText = state.frequency;
-            
-            // 即時更新播放頻率
             if (oscillator && state.isGeneratorOn) {
                 oscillator.frequency.setValueAtTime(state.frequency, audioCtx.currentTime);
             }
-            
             checkResonance();
         }
 
         function checkResonance() {
             const targetResonances = RESONANCES[state.shape];
             state.activeResonance = null;
-
-            for (let res of targetResonances) {
+            for (let i = 0; i < targetResonances.length; i++) {
+                const res = targetResonances[i];
                 if (Math.abs(state.frequency - res.freq) <= CONFIG.resonanceThreshold) {
                     state.activeResonance = res;
                     break;
@@ -373,7 +600,7 @@
         function updateStatusUI() {
             const t = i18n[state.lang];
             if (state.activeResonance) {
-                statusBox.innerText = `[ ${state.activeResonance.freq} Hz ] ` + state.activeResonance.name + t.resonanceObj;
+                statusBox.innerText = '[ ' + state.activeResonance.freq + ' Hz ] ' + state.activeResonance.name + t.resonanceObj;
                 statusBox.classList.remove('chaos');
                 statusBox.style.color = '#4CAF50';
             } else {
@@ -383,33 +610,62 @@
             }
         }
 
-        // Mathematical Amplitude Functions
+        function resetSimulation() {
+            state.shape = 'square';
+            state.frequency = 100;
+            state.power = 1.0;
+            state.friction = 0.88;
+            state.isGeneratorOn = false;
+            state.activeResonance = null;
+
+            document.getElementById('shape-select').value = 'square';
+            freqSlider.value = 100;
+            powerSlider.value = 100;
+            frictionSlider.value = 88;
+            genSwitch.checked = false;
+
+            document.getElementById('freq-val').innerText = '100';
+            document.getElementById('power-val').innerText = '100%';
+            document.getElementById('friction-val').innerText = '88%';
+
+            if (gainNode && audioCtx) {
+                gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+            }
+            if (oscillator && audioCtx) {
+                oscillator.frequency.setValueAtTime(100, audioCtx.currentTime);
+            }
+
+            scatterParticles();
+            checkResonance();
+            // do not reset language
+            const t = i18n[state.lang];
+            document.getElementById('label-freq').innerHTML = t.freqLabel + '<span id="freq-val">100</span>';
+            document.getElementById('label-power').innerHTML = t.powerLabel + '<span id="power-val">100%</span>';
+            document.getElementById('label-friction').innerHTML = t.frictionLabel + '<span id="friction-val">88%</span>';
+        }
+
         function getAmplitudeSquare(nx, ny, n, m) {
-            // nx, ny are mapped from -1 to 1
             const term1 = Math.cos(n * Math.PI * nx) * Math.cos(m * Math.PI * ny);
             const term2 = Math.cos(m * Math.PI * nx) * Math.cos(n * Math.PI * ny);
             return term1 - term2;
         }
 
         function getAmplitudeCircle(nx, ny, angularN, radialM) {
-            const r = Math.sqrt(nx*nx + ny*ny);
-            if (r > 1) return 0; // Outside the circle plate
+            const r = Math.sqrt(nx * nx + ny * ny);
+            if (r > 1) return 0;
             const theta = Math.atan2(ny, nx);
-            // Approximation using sine and cosine for Chladni circular modes
             return Math.sin(angularN * theta) * Math.sin(radialM * Math.PI * r);
         }
 
         function getAmplitudeTriangle(nx, ny, n, m) {
-            // Approximation for visual interest on a triangular bounds
             const term1 = Math.sin(n * Math.PI * nx) * Math.cos(m * Math.PI * ny);
             const term2 = Math.cos(m * Math.PI * nx) * Math.sin(n * Math.PI * ny);
-            return term1 + term2; 
+            return term1 + term2;
         }
 
         function initParticles() {
             state.particles = [];
             scatterParticles();
-            // Sync UI state with variables
             genSwitch.checked = state.isGeneratorOn;
         }
 
@@ -417,7 +673,7 @@
             for (let i = 0; i < state.numParticles; i++) {
                 let px, py;
                 if (state.shape === 'square') {
-                    px = (Math.random() * 2) - 1; // -1 to 1
+                    px = (Math.random() * 2) - 1;
                     py = (Math.random() * 2) - 1;
                 } else if (state.shape === 'circle') {
                     let r = Math.sqrt(Math.random());
@@ -425,19 +681,17 @@
                     px = r * Math.cos(theta);
                     py = r * Math.sin(theta);
                 } else if (state.shape === 'triangle') {
-                    // Rejection sampling for a triangle pointing up
                     let valid = false;
-                    while(!valid) {
-                        px = (Math.random() * 1.6) - 0.8; // -0.8 to 0.8
+                    while (!valid) {
+                        px = (Math.random() * 1.6) - 0.8;
                         py = (Math.random() * 1.6) - 0.8;
-                        // Triangle bounds check: Base y=0.8, Tip y=-0.8
-                        if (py <= 0.8 && 2*px + py + 0.8 >= 0 && -2*px + py + 0.8 >= 0) {
+                        if (py <= 0.8 && 2 * px + py + 0.8 >= 0 && -2 * px + py + 0.8 >= 0) {
                             valid = true;
                         }
                     }
                 }
 
-                if(!state.particles[i]) {
+                if (!state.particles[i]) {
                     state.particles[i] = { x: px, y: py, vx: 0, vy: 0 };
                 } else {
                     state.particles[i].x = px;
@@ -449,46 +703,43 @@
         }
 
         function drawPlateBackground() {
-            ctx.fillStyle = '#0f141e'; // Dark metallic blue
+            ctx.fillStyle = '#0f141e';
             ctx.fillRect(0, 0, CONFIG.canvasSize, CONFIG.canvasSize);
 
-            ctx.fillStyle = '#1c2433'; // Plate color
+            ctx.fillStyle = '#1c2433';
             if (state.shape === 'square') {
                 ctx.fillRect(10, 10, CONFIG.canvasSize - 20, CONFIG.canvasSize - 20);
             } else if (state.shape === 'circle') {
                 ctx.beginPath();
-                ctx.arc(CONFIG.canvasSize/2, CONFIG.canvasSize/2, (CONFIG.canvasSize/2) - 10, 0, Math.PI * 2);
+                ctx.arc(CONFIG.canvasSize / 2, CONFIG.canvasSize / 2, (CONFIG.canvasSize / 2) - 10, 0, Math.PI * 2);
                 ctx.fill();
             } else if (state.shape === 'triangle') {
                 ctx.beginPath();
                 const s = (CONFIG.canvasSize / 2) - 10;
                 const cx = CONFIG.canvasSize / 2;
                 const cy = CONFIG.canvasSize / 2;
-                ctx.moveTo(cx, cy - 0.8 * s); // Tip (Top)
-                ctx.lineTo(cx - 0.8 * s, cy + 0.8 * s); // Bottom Left
-                ctx.lineTo(cx + 0.8 * s, cy + 0.8 * s); // Bottom Right
+                ctx.moveTo(cx, cy - 0.8 * s);
+                ctx.lineTo(cx - 0.8 * s, cy + 0.8 * s);
+                ctx.lineTo(cx + 0.8 * s, cy + 0.8 * s);
                 ctx.closePath();
                 ctx.fill();
             }
 
-            // Draw center node (fixed point)
             ctx.fillStyle = '#888';
             ctx.beginPath();
-            ctx.arc(CONFIG.canvasSize/2, CONFIG.canvasSize/2, 4, 0, Math.PI * 2);
+            ctx.arc(CONFIG.canvasSize / 2, CONFIG.canvasSize / 2, 4, 0, Math.PI * 2);
             ctx.fill();
         }
 
         function updateAndDrawParticles() {
             const halfSize = CONFIG.canvasSize / 2;
-            ctx.fillStyle = '#eab308'; // Sand color (golden yellow)
-
+            ctx.fillStyle = '#eab308';
             const res = state.activeResonance;
 
             for (let i = 0; i < state.numParticles; i++) {
                 let p = state.particles[i];
                 let amp = 0;
 
-                // 1. Calculate Amplitude based on position, mode, and generator state
                 if (state.isGeneratorOn) {
                     if (res) {
                         if (state.shape === 'square') {
@@ -499,35 +750,30 @@
                             amp = getAmplitudeTriangle(p.x, p.y, res.n, res.m);
                         }
                     } else {
-                        // Chaos mode (No resonance) - particles bounce everywhere constantly
-                        amp = 1.0; 
+                        amp = 1.0;
                     }
                 }
 
-                // 2. Physics / Movement (Kick particles proportional to amplitude & power)
                 const absAmp = Math.abs(amp);
                 if (absAmp > 0.05 && state.isGeneratorOn) {
-                    // Random vibration kick modified by Power
-                    const force = (res ? absAmp * 0.04 : 0.03) * state.power; 
+                    const force = (res ? absAmp * 0.04 : 0.03) * state.power;
                     p.vx += (Math.random() - 0.5) * force;
                     p.vy += (Math.random() - 0.5) * force;
                 }
 
-                // Apply velocity & friction dynamically
                 p.x += p.vx;
                 p.y += p.vy;
                 p.vx *= state.friction;
                 p.vy *= state.friction;
 
-                // 3. Boundary Collisions
                 if (state.shape === 'square') {
                     if (p.x < -0.96) { p.x = -0.96; p.vx *= -1; }
                     if (p.x > 0.96) { p.x = 0.96; p.vx *= -1; }
                     if (p.y < -0.96) { p.y = -0.96; p.vy *= -1; }
                     if (p.y > 0.96) { p.y = 0.96; p.vy *= -1; }
                 } else if (state.shape === 'circle') {
-                    const rSq = p.x*p.x + p.y*p.y;
-                    if (rSq > 0.92) { // R^2 boundary
+                    const rSq = p.x * p.x + p.y * p.y;
+                    if (rSq > 0.92) {
                         const r = Math.sqrt(rSq);
                         p.x = (p.x / r) * 0.96;
                         p.y = (p.y / r) * 0.96;
@@ -535,28 +781,22 @@
                         p.vy *= -0.5;
                     }
                 } else if (state.shape === 'triangle') {
-                    // Base boundary
-                    if (p.y > 0.8) { 
-                        p.y = 0.8; 
-                        p.vy *= -0.5; 
+                    if (p.y > 0.8) {
+                        p.y = 0.8;
+                        p.vy *= -0.5;
                     }
-                    // Left edge check (2x + y + 0.8 = 0)
-                    if (2*p.x + p.y + 0.8 < 0) {
-                        p.x += 0.02; p.y += 0.02; 
+                    if (2 * p.x + p.y + 0.8 < 0) {
+                        p.x += 0.02; p.y += 0.02;
                         p.vx *= -0.5; p.vy *= -0.5;
                     }
-                    // Right edge check (-2x + y + 0.8 = 0)
-                    if (-2*p.x + p.y + 0.8 < 0) {
-                        p.x -= 0.02; p.y += 0.02; 
+                    if (-2 * p.x + p.y + 0.8 < 0) {
+                        p.x -= 0.02; p.y += 0.02;
                         p.vx *= -0.5; p.vy *= -0.5;
                     }
                 }
 
-                // 4. Rendering (Map -1..1 coordinates to canvas pixels)
                 const screenX = halfSize + p.x * (halfSize - 10);
                 const screenY = halfSize + p.y * (halfSize - 10);
-                
-                // Draw sand grains
                 ctx.fillRect(screenX, screenY, 2, 2);
             }
         }
@@ -567,8 +807,36 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Initialize Application
-        window.onload = function() {
+        function wireUi() {
+            document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+            document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+                state.quizAnswersVisible = !state.quizAnswersVisible;
+                renderQuiz();
+            });
+
+            document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    closeModal(btn.getAttribute('data-close-modal'));
+                });
+            });
+
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+                const modal = document.getElementById(id);
+                modal.addEventListener('click', function (event) {
+                    if (event.target === modal) closeModal(id);
+                });
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') closeAllModals();
+            });
+        }
+
+        window.onload = function () {
+            wireUi();
             applyLanguage();
             initParticles();
             checkResonance();

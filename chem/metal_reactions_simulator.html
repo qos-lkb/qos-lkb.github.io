@@ -1,10 +1,61 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>金屬反應綜合模擬器</title>
-    <style>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金屬反應模擬器｜Metal Reactions Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ["Noto Sans TC", "system-ui", "sans-serif"] } } } };</script>
+<style>
+
         :root {
             --bg: #0f172a;
             --card-bg: #1e293b;
@@ -521,157 +572,765 @@
             background: #ef4444;
             color: #fff;
         }
-    </style>
+    
+
+html, body { height: 100%; }
+body {
+  font-family: "Noto Sans TC", system-ui, sans-serif !important;
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 100vh !important;
+  display: block !important;
+  align-items: stretch !important;
+  overflow-x: hidden;
+}
+.top-nav { display: none !important; }
+.tab-content {
+  display: none !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+.tab-content.active {
+  display: block !important;
+  align-items: stretch !important;
+}
+#view-tab1.active { padding: 0.5rem 1rem 1.25rem; }
+#view-tab2 {
+  position: relative;
+  height: calc(100vh - 7.5rem);
+  max-width: none !important;
+}
+#view-tab2.active { display: block !important; }
+.container-tab1 {
+  width: 100% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+.container-tab1 > h1,
+.container-tab1 > .subtitle { display: none !important; }
+.stage {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  grid-template-columns: none !important;
+  margin-top: 0 !important;
+}
+.lab-view { width: 100% !important; min-height: 300px; }
+.info-panel { width: 100% !important; }
+.glass-panel {
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.teach-modal { z-index: 80; }
+.teach-modal.hidden { display: none !important; }
+.nav-tab-teach {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 2px solid #38bdf8;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.nav-tab-teach.active {
+  background: #38bdf8;
+  color: #0f172a;
+  box-shadow: 0 0 12px rgba(56,189,248,0.45);
+}
+.controls-aside .control-group { flex-direction: column; align-items: stretch; width: 100%; }
+.controls-aside label { width: auto !important; }
+.controls-aside select { width: 100%; }
+.eq-word-row.hidden-lang { display: none !important; }
+.aside-card {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid #334155;
+}
+
+</style>
 </head>
-<body>
+<body class="font-sans">
 
-    <!-- 頂部切換導航 -->
-    <div class="top-nav">
-        <button class="nav-tab active" id="btn-tab1" onclick="switchTab('tab1')">🧪 不同金屬的反應</button>
-        <button class="nav-tab" id="btn-tab2" onclick="switchTab('tab2')">💥 第 I、II 族金屬水反應</button>
+<!-- Teaching header -->
+<header class="w-full px-3 sm:px-4 pt-3 pb-2 sticky top-0 z-40 bg-slate-950/90 backdrop-blur border-b border-slate-700/60">
+  <div class="flex flex-wrap justify-between items-start gap-2">
+    <div class="glass-panel p-2.5 sm:p-3 rounded-xl text-white max-w-xl">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h1 id="title" class="text-lg sm:text-xl font-bold text-sky-300">金屬反應模擬器</h1>
+        <span id="badge-subject" class="text-xs bg-indigo-700/80 px-2.5 py-1 rounded-full whitespace-nowrap">化學</span>
+      </div>
+      <p id="subtitle" class="text-xs sm:text-sm opacity-80 mt-0.5">金屬與酸／置換為主軸；輔以冷水、水蒸汽與第 I／II 族水缸</p>
     </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" id="btn-steps" class="glass-panel px-3 py-2 rounded-lg text-white text-xs sm:text-sm font-bold hover:bg-white/20 transition bg-indigo-700/60 border border-indigo-400/40">觀察步驟</button>
+      <button type="button" id="btn-principle" class="glass-panel px-3 py-2 rounded-lg text-white text-xs sm:text-sm font-bold hover:bg-white/20 transition bg-emerald-700/60 border border-emerald-400/40">原理解說</button>
+      <button type="button" id="btn-quiz" class="glass-panel px-3 py-2 rounded-lg text-white text-xs sm:text-sm font-bold hover:bg-white/20 transition bg-violet-700/60 border border-violet-400/40">課堂問題</button>
+      <span class="hidden sm:inline text-white/40 self-center">|</span>
+      <button type="button" id="btn-lang" class="glass-panel px-3 py-2 rounded-lg text-amber-200 text-xs sm:text-sm font-bold hover:bg-white/20 transition">中 / EN</button>
+      <button type="button" id="btn-reset" class="glass-panel px-3 py-2 rounded-lg text-white text-xs sm:text-sm font-bold hover:bg-red-500/40 transition bg-red-600/50 border border-red-400/40">重置</button>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-2 mt-2">
+    <button type="button" class="nav-tab-teach active" id="btn-tab1" onclick="switchTab('tab1')">🧪 不同金屬的反應</button>
+    <button type="button" class="nav-tab-teach" id="btn-tab2" onclick="switchTab('tab2')">💥 第 I、II 族金屬水反應</button>
+  </div>
+</header>
 
-    <!-- 介面一：不同金屬的反應 -->
-    <div id="view-tab1" class="tab-content active">
-        <div class="container-tab1">
-            <h1>金屬反應模擬器 5.0</h1>
-            <div class="subtitle">金屬與水、水蒸汽、酸及鹽溶液反應模擬觀察</div>
-
-            <div class="series-bar">
-                <span>活性強 ➔</span>
-                <span class="high">K</span><span class="high">Na</span><span class="high">Ca</span>
-                <span class="med">Mg</span><span class="med">Al</span><span class="med">Zn</span><span class="med">Fe</span><span class="med">Pb</span>
-                <span class="low">Cu</span><span class="low">Hg</span><span class="low">Ag</span><span class="low">Au</span>
-                <span>➔ 活性弱</span>
+<!-- Tab1: Scheme A -->
+<div id="view-tab1" class="tab-content active">
+  <div class="container-tab1">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full max-w-6xl mx-auto">
+      <!-- aside controls: order-2 on narrow -->
+      <aside class="order-2 lg:order-1 lg:col-span-4 space-y-3 controls-aside">
+        <div class="aside-card">
+          <div class="series-bar" style="margin-bottom:10px;">
+            <span id="series-strong">活性強 ➔</span>
+            <span class="high">K</span><span class="high">Na</span><span class="high">Ca</span>
+            <span class="med">Mg</span><span class="med">Al</span><span class="med">Zn</span><span class="med">Fe</span><span class="med">Pb</span>
+            <span class="low">Cu</span><span class="low">Hg</span><span class="low">Ag</span><span class="low">Au</span>
+            <span id="series-weak">➔ 活性弱</span>
+          </div>
+          <div class="controls" style="flex-direction:column;align-items:stretch;">
+            <div class="control-group">
+              <label id="label-reactionType" for="reactionType">1. 選擇反應類別：</label>
+              <select id="reactionType" onchange="onReactionTypeChange()">
+                <option value="water">與冷水反應（試管）</option>
+                <option value="steam">與水蒸汽反應（高溫加熱）</option>
+                <option value="acid" selected>與酸反應</option>
+                <option value="displacement">置換反應</option>
+              </select>
             </div>
-
-            <div class="controls">
-                <div class="control-group">
-                    <label for="reactionType">1. 選擇反應類別：</label>
-                    <select id="reactionType" onchange="onReactionTypeChange()">
-                        <option value="water">與冷水反應 (Cold Water - 試管)</option>
-                        <option value="steam">與水蒸汽反應 (Steam - 高溫加熱)</option>
-                        <option value="acid">與酸反應 (Acid)</option>
-                        <option value="displacement">置換反應 (Displacement Reaction)</option>
-                    </select>
-                </div>
-
-                <div class="control-group" id="acidGroup" style="display: none;">
-                    <label for="acidSelect">2. 選擇酸的種類：</label>
-                    <select id="acidSelect" onchange="resetExperiment()">
-                        <option value="hcl">稀氫氯酸 (Dilute hydrochloric acid)</option>
-                        <option value="hno3">極稀硝酸 (Very dilute nitric acid)</option>
-                        <option value="h2so4">稀硫酸 (Dilute sulphuric acid)</option>
-                    </select>
-                </div>
-
-                <div class="control-group" id="solutionGroup" style="display: none;">
-                    <label for="solutionSelect">2. 選擇鹽溶液：</label>
-                    <select id="solutionSelect" onchange="resetExperiment()"></select>
-                </div>
-
-                <div class="control-group">
-                    <label class="toggle-box">
-                        <input type="checkbox" id="continuousToggle" onchange="toggleContinuous()">
-                        <span>♾️ 持續反應 (不自動停止)</span>
-                    </label>
-                </div>
-
-                <div class="control-group">
-                    <button class="reset-btn" onclick="resetExperiment()">🧹 重置實驗</button>
-                </div>
+            <div class="control-group" id="acidGroup" style="display:flex;">
+              <label id="label-acidSelect" for="acidSelect">2. 選擇酸的種類：</label>
+              <select id="acidSelect" onchange="resetExperiment()">
+                <option value="hcl" selected>稀氫氯酸</option>
+                <option value="hno3">極稀硝酸</option>
+                <option value="h2so4">稀硫酸</option>
+              </select>
             </div>
-
-            <div class="metal-tray-container">
-                <div class="tray-title" id="trayTitle">👇 點擊選擇金屬加入試管：</div>
-                <div class="metal-tray" id="metalTray"></div>
+            <div class="control-group" id="solutionGroup" style="display:none;">
+              <label id="label-solutionSelect" for="solutionSelect">2. 選擇鹽溶液：</label>
+              <select id="solutionSelect" onchange="resetExperiment()"></select>
             </div>
-
-            <div class="stage">
-                <div class="lab-view" id="dropZone">
-                    <div class="status-badge" id="statusBadge">⚪ 準備就緒</div>
-                    <div class="drop-hint" id="dropHint">點擊上方金屬開始實驗</div>
-                    
-                    <div class="test-tube" id="testTubeContainer">
-                        <div class="steam-cloud" id="steamCloud"></div>
-                        <div class="liquid" id="liquid">
-                            <div class="precipitate" id="precipitate"></div>
-                        </div>
-                        <div class="sample-metal" id="sampleMetal" style="display: none;">
-                            <div class="flame" id="flame"></div>
-                            <div class="coating" id="coating"></div>
-                        </div>
-                        <div id="bubbleContainer"></div>
-                    </div>
-
-                    <div class="burner" id="burner">🔥 酒精燈持續加熱中</div>
-                </div>
-
-                <div class="info-panel">
-                    <div class="info-card">
-                        <div class="info-title">👀 視覺與實驗觀察現象</div>
-                        <ul class="obs-list" id="obsList">
-                            <li>請點擊上方金屬開始實驗。</li>
-                        </ul>
-                    </div>
-                    <div class="info-card">
-                        <div class="info-title">📝 方程式對照 (Word, Chemical & Ionic Equations)</div>
-                        <div class="eq-table">
-                            <div class="eq-label">中文提示:</div>
-                            <div class="eq-val-zh" id="wordEqZH">-</div>
-                            <div class="eq-label">English:</div>
-                            <div class="eq-val-en" id="wordEqEN">-</div>
-                            <div class="eq-label">化學方程式:</div>
-                            <div class="eq-val-chem" id="chemEq">-</div>
-                            <div class="eq-label">離子方程式:</div>
-                            <div class="eq-val-ionic" id="ionicEq">-</div>
-                        </div>
-                    </div>
-                    <div class="info-card">
-                        <div class="info-title">💡 化學原理說明</div>
-                        <div class="lab-note" id="labNote">-</div>
-                    </div>
-                </div>
+            <div class="control-group">
+              <label class="toggle-box">
+                <input type="checkbox" id="continuousToggle" onchange="toggleContinuous()">
+                <span id="label-continuous">♾️ 持續反應（不自動停止）</span>
+              </label>
             </div>
+            <div class="control-group">
+              <button type="button" class="reset-btn" id="btn-reset-tab1" onclick="resetExperiment()">🧹 重置實驗</button>
+            </div>
+          </div>
         </div>
-    </div>
-
-    <!-- 介面二：第 I、II 族金屬反應 (Canvas) -->
-    <div id="view-tab2" class="tab-content">
-        <div class="container-tab2">
-            <div class="ui-panel">
-                <div class="element-group">
-                    <span class="group-label">第 I 族：</span>
-                    <div class="btn-container">
-                        <button class="element-btn group-1" onclick="dropMetalTab2('Li')">Li (鋰)</button>
-                        <button class="element-btn group-1" onclick="dropMetalTab2('Na')">Na (鈉)</button>
-                        <button class="element-btn group-1" onclick="dropMetalTab2('K')">K (鉀)</button>
-                        <button class="element-btn group-1" onclick="dropMetalTab2('Rb')">Rb (銣)</button>
-                        <button class="element-btn group-1" onclick="dropMetalTab2('Cs')">Cs (銫)</button>
-                    </div>
-                </div>
-                <div class="element-group">
-                    <span class="group-label">第 II 族：</span>
-                    <div class="btn-container">
-                        <button class="element-btn group-2" onclick="dropMetalTab2('Be')">Be (鈹)</button>
-                        <button class="element-btn group-2" onclick="dropMetalTab2('Mg')">Mg (鎂)</button>
-                        <button class="element-btn group-2" onclick="dropMetalTab2('Ca')">Ca (鈣)</button>
-                        <button class="element-btn group-2" onclick="dropMetalTab2('Sr')">Sr (鍶)</button>
-                        <button class="element-btn group-2" onclick="dropMetalTab2('Ba')">Ba (鋇)</button>
-                    </div>
-                    <button class="element-btn tab2-reset-btn" onclick="resetTankTab2()">🧹 清空水缸</button>
-                </div>
-            </div>
-
-            <canvas id="simCanvas"></canvas>
+        <div class="aside-card">
+          <div class="tray-title" id="trayTitle">👇 點擊選擇金屬加入試管：</div>
+          <div class="metal-tray" id="metalTray"></div>
         </div>
+      </aside>
+
+      <!-- viz: order-1 on narrow -->
+      <section class="order-1 lg:order-2 lg:col-span-8">
+        <div class="stage">
+          <div class="lab-view" id="dropZone">
+            <div class="status-badge" id="statusBadge">⚪ 準備就緒</div>
+            <div class="drop-hint" id="dropHint">點擊上方金屬開始實驗</div>
+            <div class="test-tube" id="testTubeContainer">
+              <div class="steam-cloud" id="steamCloud"></div>
+              <div class="liquid" id="liquid">
+                <div class="precipitate" id="precipitate"></div>
+              </div>
+              <div class="sample-metal" id="sampleMetal" style="display:none;">
+                <div class="flame" id="flame"></div>
+                <div class="coating" id="coating"></div>
+              </div>
+              <div id="bubbleContainer"></div>
+            </div>
+            <div class="burner" id="burner">🔥 酒精燈持續加熱中</div>
+          </div>
+          <div class="info-panel">
+            <div class="info-card">
+              <div class="info-title" id="obs-title">👀 視覺與實驗觀察現象</div>
+              <ul class="obs-list" id="obsList"><li>請點擊上方金屬開始實驗。</li></ul>
+            </div>
+            <div class="info-card">
+              <div class="info-title" id="eq-title">📝 方程式</div>
+              <div class="eq-table">
+                <div class="eq-word-row" id="eq-row-zh">
+                  <div class="eq-label" id="label-word">字詞方程式：</div>
+                  <div class="eq-val-zh" id="wordEqZH">-</div>
+                </div>
+                <div class="eq-word-row hidden-lang" id="eq-row-en">
+                  <div class="eq-label">Word equation:</div>
+                  <div class="eq-val-en" id="wordEqEN">-</div>
+                </div>
+                <div class="eq-label" id="label-chem">化學方程式：</div>
+                <div class="eq-val-chem" id="chemEq">-</div>
+                <div class="eq-label" id="label-ionic">離子方程式：</div>
+                <div class="eq-val-ionic" id="ionicEq">-</div>
+              </div>
+            </div>
+            <div class="info-card">
+              <div class="info-title" id="note-title">💡 實驗短註（詳見原理解說）</div>
+              <div class="lab-note" id="labNote">-</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
+  </div>
+</div>
+
+<!-- Tab2: Canvas fullscreen overlay (exempt) -->
+<div id="view-tab2" class="tab-content">
+  <div class="container-tab2">
+    <div class="ui-panel">
+      <div class="element-group">
+        <span class="group-label" id="label-g1">第 I 族：</span>
+        <div class="btn-container">
+          <button type="button" class="element-btn group-1" id="btn-t2-Li" onclick="dropMetalTab2('Li')">Li</button>
+          <button type="button" class="element-btn group-1" id="btn-t2-Na" onclick="dropMetalTab2('Na')">Na</button>
+          <button type="button" class="element-btn group-1" id="btn-t2-K" onclick="dropMetalTab2('K')">K</button>
+          <button type="button" class="element-btn group-1" id="btn-t2-Rb" onclick="dropMetalTab2('Rb')">Rb</button>
+          <button type="button" class="element-btn group-1" id="btn-t2-Cs" onclick="dropMetalTab2('Cs')">Cs</button>
+        </div>
+      </div>
+      <div class="element-group">
+        <span class="group-label" id="label-g2">第 II 族：</span>
+        <div class="btn-container">
+          <button type="button" class="element-btn group-2" id="btn-t2-Be" onclick="dropMetalTab2('Be')">Be</button>
+          <button type="button" class="element-btn group-2" id="btn-t2-Mg" onclick="dropMetalTab2('Mg')">Mg</button>
+          <button type="button" class="element-btn group-2" id="btn-t2-Ca" onclick="dropMetalTab2('Ca')">Ca</button>
+          <button type="button" class="element-btn group-2" id="btn-t2-Sr" onclick="dropMetalTab2('Sr')">Sr</button>
+          <button type="button" class="element-btn group-2" id="btn-t2-Ba" onclick="dropMetalTab2('Ba')">Ba</button>
+        </div>
+        <button type="button" class="element-btn tab2-reset-btn" id="btn-clear-tank" onclick="resetTankTab2()">🧹 清空水缸</button>
+      </div>
+    </div>
+    <canvas id="simCanvas"></canvas>
+  </div>
+</div>
+
+<!-- Modals -->
+<div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-white">
+    <div class="flex justify-between items-center p-4 border-b border-slate-700">
+      <h2 id="steps-title" class="text-lg font-bold text-indigo-300">觀察步驟</h2>
+      <button type="button" class="modal-close text-slate-400 hover:text-white text-2xl leading-none px-2" aria-label="Close">&times;</button>
+    </div>
+    <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+  </div>
+</div>
+
+<div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-white">
+    <div class="flex justify-between items-center p-4 border-b border-slate-700">
+      <h2 id="principle-title" class="text-lg font-bold text-emerald-300">原理解說</h2>
+      <button type="button" class="modal-close text-slate-400 hover:text-white text-2xl leading-none px-2" aria-label="Close">&times;</button>
+    </div>
+    <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm"></div>
+  </div>
+</div>
+
+<div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-white">
+    <div class="flex justify-between items-center p-4 border-b border-slate-700 gap-2">
+      <h2 id="quiz-title" class="text-lg font-bold text-violet-300">課堂問題</h2>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-700/50 border border-violet-400/40">顯示參考答案</button>
+        <button type="button" class="modal-close text-slate-400 hover:text-white text-2xl leading-none px-2" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+  </div>
+</div>
 
 <script>
+    // ========== Teaching shell / i18n (Optimize) ==========
+    let currentLang = 'zh';
+    let lastObs = [];
+    let lastNote = '';
+    let lastStatusKey = '⚪ 準備就緒';
+    let quizReveal = false;
+    let modalTimer = null;
+
+    const OBS_EN = {"不溶塗層緊密包覆金屬表面，反應迅速中止！": "An insoluble coating tightly covers the metal surface; the reaction stops quickly!", "反應僅在剛開始時產生極少量氣泡": "Only a few bubbles form at the very start", "反應結束後金屬完全消失": "The metal disappears completely after the reaction", "反應開始時有少量無色氣泡": "A few colourless bubbles appear at the start", "反應非常劇烈，迅速產生大量氫氣氣泡": "Very vigorous; large amounts of H₂ bubbles form rapidly", "在冷水中反應極為緩慢": "Extremely slow in cold water", "塗層包覆表面阻斷酸液接觸，反應迅速中斷！": "The coating blocks acid contact; the reaction stops quickly!", "極度危險！在酸液中發生爆炸性反應": "Extremely dangerous! Explosive reaction in acid", "溶液原有的藍色隨著金屬溶解逐漸褪去，恢復無色透明": "The blue colour fades as the metal dissolves; the solution becomes colourless", "溶液由藍色轉變為淡綠色": "The solution turns from blue to pale green", "無任何反應現象": "No reaction observed", "無反應": "No reaction", "無明顯變化": "No obvious change", "無氣泡產生": "No bubbles", "生成 Fe²⁺ 離子，溶液隨著金屬溶解逐漸轉變為【淡綠色】": "Fe²⁺ forms; the solution gradually turns pale green as the metal dissolves", "生成可溶性硝酸鉛(II)，金屬最終完全溶解": "Soluble lead(II) nitrate forms; the metal eventually dissolves completely", "生成氧化鋅 (ZnO，高溫黃色，冷卻變白色)": "Zinc oxide forms (ZnO: yellow when hot, white when cool)", "生成白色粉末狀固體氧化鎂 (MgO)，金屬鎂條徹底反應": "White powdery MgO forms; the magnesium is fully consumed", "產生大量無色氫氣 (H₂) 氣泡，金屬漸漸變細並完全消失": "Lots of colourless H₂ bubbles; the metal thins and disappears", "產生強烈火焰與白色氧化物煙霧，金屬完全消耗": "Strong flame and white oxide smoke; metal fully consumed", "穩步產生大量氫氣氣泡": "Steady large amounts of H₂ bubbles", "緩慢而穩步地產生氫氣氣泡": "Slow, steady H₂ bubbles", "置換反應成功！": "Displacement succeeds!", "表面生成氧化物層，金屬持續轉化": "An oxide layer forms on the surface; the metal keeps converting", "金屬不溶解，無化學反應": "Metal does not dissolve; no chemical reaction", "金屬在液面劇烈燃燒並瞬間完全溶解消失": "Metal burns vigorously on the surface and vanishes instantly", "金屬沉於水底，無氣泡生成": "Metal sinks; no bubbles", "金屬漸漸變細並同步溶解": "Metal gradually thins and dissolves", "金屬表面僅附著極少量微細氫氣氣泡": "Only tiny H₂ bubbles cling to the metal surface", "金屬表面結締出銀白色晶體 (金屬銀 Ag)": "Silvery-white crystals of silver (Ag) deposit on the surface", "金屬表面逐漸被置換出來的【紅棕色金屬銅 (Cu)】覆蓋": "Surface gradually covered by displaced reddish-brown copper (Cu)", "金屬迅速完全溶解消失": "Metal dissolves and disappears rapidly", "鈣沉入水底並迅速產生大量無色氣泡": "Calcium sinks and rapidly produces many colourless bubbles", "鈣表面迅速生成【微溶硫酸鈣 (CaSO₄)】阻隔層": "Sparingly soluble CaSO₄ coating quickly forms on calcium", "鎂帶劇烈燃燒並發出耀眼的強烈白光": "Magnesium ribbon burns with a dazzling white light", "高溫加熱下亦不與水蒸汽反應": "Still no reaction with steam under strong heating", "高溫持續加熱下穩步與水蒸汽反應": "Steady reaction with steam under continuous heating"};
+    const NOTE_EN = {"": "", "鹼金屬密度小於水，反應極度放熱，熔化成球狀並徹底反應消失。": "Alkali metals are less dense than water; the reaction is highly exothermic; they melt into balls and disappear.", "氫氧化鈣微溶於水，故溶液呈白色渾濁。": "Calcium hydroxide is sparingly soluble, so the mixture looks milky/white turbid.", "鎂在冷水中反應微弱，熱水中反應較顯著。": "Magnesium reacts only weakly in cold water; more noticeable in hot water.", "金屬活性較低，不與冷水反應。": "Less reactive metals do not react with cold water.", "水蒸汽為氣態 H₂O(g)，極活潑金屬反應劇烈且發光發熱。": "Steam is H₂O(g); very reactive metals react vigorously with light and heat.", "高溫下與水蒸汽反應生成氧化物 (MgO) 而非氫氧化物。": "With steam at high temperature, oxide (e.g. MgO) forms rather than hydroxide.", "紅熱的鐵與水蒸汽反應生成黑色的四氧化三鐵 (Fe₃O₄)。": "Red-hot iron with steam forms black Fe₃O₄.", "活性較低的金屬無法奪取水蒸汽中的氧。": "Less reactive metals cannot take oxygen from steam.", "鉀和鈉絕對不可直接投入酸中實驗。": "Never drop potassium or sodium directly into acid in a real lab.", "Ca 與稀 H₂SO₄ 反應會被微溶的 CaSO₄ 塗層阻斷。": "Ca with dilute H₂SO₄ is blocked by a sparingly soluble CaSO₄ coating.", "鈣與 HCl/HNO₃ 可生成可溶性鹽並持續反應至完全溶解。": "Calcium with HCl/HNO₃ forms soluble salts and can dissolve completely.", "排在氫 (H) 之前的金屬能置換出酸中的氫氣。": "Metals above hydrogen can displace H₂ from dilute acids.", "Pb 與 HCl 或 H₂SO₄ 反應會被不溶性鉛鹽塗層阻斷。": "Pb with HCl or H₂SO₄ is blocked by insoluble lead-salt coatings.", "硝酸鉛(II) 可溶於水，故硝酸可與鉛持續反應至完全溶解。": "Lead(II) nitrate is soluble, so dilute HNO₃ can keep reacting with lead.", "活性排在氫 (H) 之後的金屬無法置換酸中的氫。": "Metals below hydrogen cannot displace H₂ from dilute acids.", "鉀和鈉無法直接置換出金屬，因其會優先與水反應生成 OH⁻ 離子產生沉澱。": "K/Na do not cleanly displace metals; they react with water first, making OH⁻ and hydroxide precipitates.", "活性較高的金屬能將活性較低的金屬離子從化合物溶液中置換為單質固體。": "A more reactive metal can displace a less reactive metal ion from solution as the free metal.", "活性較低的金屬無法置換出較活潑的金屬。": "A less reactive metal cannot displace a more reactive metal."};
+    const STATUS_EN = {"⚪ 準備就緒": "⚪ Ready", "⚪ 無反應": "⚪ No reaction", "🟢 反應進行中": "🟢 Reaction in progress", "♾️ 持續反應中": "♾️ Continuous reaction", "⛔ 反應中斷 (不溶塗層阻隔)": "⛔ Reaction interrupted (insoluble coating)", "🔴 反應完成 (金屬完全溶解)": "🔴 Reaction complete (metal fully dissolved)"};
+
+    const i18n = {
+      zh: {
+        title: '金屬反應模擬器',
+        subtitle: '金屬與酸／置換為主軸；輔以冷水、水蒸汽與第 I／II 族水缸',
+        badge: '化學',
+        btnSteps: '觀察步驟',
+        btnPrinciple: '原理解說',
+        btnQuiz: '課堂問題',
+        btnReset: '重置',
+        tab1: '🧪 不同金屬的反應',
+        tab2: '💥 第 I、II 族金屬水反應',
+        seriesStrong: '活性強 ➔',
+        seriesWeak: '➔ 活性弱',
+        labelType: '1. 選擇反應類別：',
+        optWater: '與冷水反應（試管）',
+        optSteam: '與水蒸汽反應（高溫加熱）',
+        optAcid: '與酸反應',
+        optDisp: '置換反應',
+        labelAcid: '2. 選擇酸的種類：',
+        optHcl: '稀氫氯酸',
+        optHno3: '極稀硝酸',
+        optH2so4: '稀硫酸',
+        labelSol: '2. 選擇鹽溶液：',
+        continuous: '♾️ 持續反應（不自動停止）',
+        resetExp: '🧹 重置實驗',
+        trayTitle: '👇 點擊選擇金屬加入試管：',
+        dropHint: '點擊上方金屬開始實驗',
+        burner: '🔥 酒精燈持續加熱中',
+        obsTitle: '👀 視覺與實驗觀察現象',
+        obsEmpty: '請點擊上方金屬開始實驗。',
+        eqTitle: '📝 方程式',
+        labelWord: '字詞方程式：',
+        labelChem: '化學方程式：',
+        labelIonic: '離子方程式：',
+        noteTitle: '💡 實驗短註（詳見原理解說）',
+        g1: '第 I 族：',
+        g2: '第 II 族：',
+        clearTank: '🧹 清空水缸',
+        stepsTitle: '觀察步驟',
+        principleTitle: '原理解說',
+        quizTitle: '課堂問題',
+        showAns: '顯示參考答案',
+        hideAns: '隱藏參考答案',
+        ready: '⚪ 準備就緒'
+      },
+      en: {
+        title: 'Metal Reactions Simulator',
+        subtitle: 'Focus: metals with acids／displacement; plus cold water, steam & Group I／II tank',
+        badge: 'Chemistry',
+        btnSteps: 'Steps',
+        btnPrinciple: 'Principles',
+        btnQuiz: 'Quiz',
+        btnReset: 'Reset',
+        tab1: '🧪 Metal reactions',
+        tab2: '💥 Group I／II in water',
+        seriesStrong: 'More reactive ➔',
+        seriesWeak: '➔ Less reactive',
+        labelType: '1. Reaction type:',
+        optWater: 'Cold water (test tube)',
+        optSteam: 'Steam (heated)',
+        optAcid: 'Acid',
+        optDisp: 'Displacement',
+        labelAcid: '2. Acid:',
+        optHcl: 'Dilute hydrochloric acid',
+        optHno3: 'Very dilute nitric acid',
+        optH2so4: 'Dilute sulphuric acid',
+        labelSol: '2. Salt solution:',
+        continuous: '♾️ Continuous (do not auto-stop)',
+        resetExp: '🧹 Clear tube',
+        trayTitle: '👇 Click a metal to add to the tube:',
+        dropHint: 'Click a metal above to start',
+        burner: '🔥 Spirit lamp heating',
+        obsTitle: '👀 Observations',
+        obsEmpty: 'Click a metal above to begin.',
+        eqTitle: '📝 Equations',
+        labelWord: 'Word equation:',
+        labelChem: 'Chemical equation:',
+        labelIonic: 'Ionic equation:',
+        noteTitle: '💡 Lab note (see Principles for full explanation)',
+        g1: 'Group I:',
+        g2: 'Group II:',
+        clearTank: '🧹 Clear tank',
+        stepsTitle: 'Observation steps',
+        principleTitle: 'Principles',
+        quizTitle: 'Quiz',
+        showAns: 'Show answers',
+        hideAns: 'Hide answers',
+        ready: '⚪ Ready'
+      }
+    };
+
+    const STEPS = [
+      {
+        zh: '按頁首<strong>重置</strong>（應回到 Tab1、反應類別<strong>與酸</strong>、酸種<strong>稀氫氯酸</strong>、持續關閉）。點選 <strong>Zn</strong>，觀察試管氣泡、金屬變細，以及方程式是否顯示產 <strong>H₂</strong>。再重置後選 <strong>Cu</strong>——應<strong>無氣泡、無反應</strong>。對照活動序：Zn 在 H 前、Cu 在 H 後。',
+        en: 'Header <strong>Reset</strong> (Tab1, type <strong>Acid</strong>, <strong>dilute HCl</strong>, continuous off). Click <strong>Zn</strong>; watch bubbles, shrinking metal, and equations showing <strong>H₂</strong>. Reset and try <strong>Cu</strong> — <strong>no bubbles／no reaction</strong>. Zn is above H; Cu is below H.'
+      },
+      {
+        zh: '維持「與酸反應」。選 <strong>Pb</strong>＋<strong>稀氫氯酸</strong>（或稀硫酸）：觀察初期少量氣泡後出現<strong>不溶塗層</strong>、反應中斷。改選<strong>極稀硝酸</strong>再投 Pb：應可持續溶解。可另試 <strong>Ca</strong>＋<strong>稀硫酸</strong>看 CaSO₄ 阻斷。讀右側觀察列表與短註。',
+        en: 'Stay on <strong>Acid</strong>. Try <strong>Pb</strong> + <strong>dilute HCl</strong> (or H₂SO₄): brief bubbles then an <strong>insoluble coating</strong> stops the reaction. Switch to <strong>very dilute HNO₃</strong> and add Pb again — dissolution should continue. Optionally try <strong>Ca</strong> + <strong>dilute H₂SO₄</strong>. Read the observation list and lab note.'
+      },
+      {
+        zh: '改反應類別為<strong>置換反應</strong>；鹽溶液選預設 <strong>Cu(NO₃)₂</strong>。投入 <strong>Zn</strong>（或 Fe／Mg）：觀察金屬表面<strong>紅棕色銅</strong>鍍層、溶液藍色褪去。再試 <strong>Cu</strong> 投入同一 Cu 鹽——應<strong>無置換</strong>。注意：K／Na 會優先與水反應並沉澱氫氧化物，勿當「簡單置換」示範。',
+        en: 'Switch to <strong>Displacement</strong>; keep default <strong>Cu(NO₃)₂</strong>. Add <strong>Zn</strong> (or Fe／Mg): watch a <strong>reddish-brown Cu</strong> coating and the blue solution fade. Try <strong>Cu</strong> into the same solution — <strong>no displacement</strong>. Do not use K／Na here for simple displacement (they react with water first).'
+      },
+      {
+        zh: '可切至 Tab2 快速比較 <strong>Na</strong>（浮、火花）與 <strong>Ca</strong>（沉、乳濁），再按頁首<strong>重置</strong>：應回 Tab1＋酸／HCl 預設、清試管與 Tab2 水缸；<strong>語言不變</strong>。打開原理解說與課堂問題——確認主軸是<strong>金屬–酸／置換與活動序</strong>，不是 sibling 金屬與水 3D 專檔、不是電解、不是原電池、不是離子遷移。',
+        en: 'Optionally open Tab2 and compare <strong>Na</strong> (floats／sparks) vs <strong>Ca</strong> (sinks／milky), then header <strong>Reset</strong>: back to Tab1＋Acid／HCl, clear tube and Tab2 tank; <strong>language unchanged</strong>. Open Principles and Quiz—focus is <strong>metal–acid／displacement＋reactivity series</strong>, not the sibling metals–water 3D lab, electrolysis, galvanic cells, or ion migration.'
+      }
+    ];
+
+    const PRINCIPLE = {
+      zh: {
+        conceptTitle: '概念',
+        concept: '金屬活動序排列金屬失去電子（被氧化）的難易。排在氫之前的金屬可與稀酸反應放出氫氣；活性較高的金屬可把活性較低的金屬離子從鹽溶液中<strong>置換</strong>為單質。冷水／水蒸汽反應是同一活動序在不同試劑下的延伸對照。',
+        mechTitle: '機制',
+        mech: [
+          '<strong>與酸</strong>：金屬原子被氧化、H⁺ 被還原為 H₂。若生成<strong>不溶鹽塗層</strong>（如 PbCl₂、PbSO₄、CaSO₄）貼在表面，酸無法繼續接觸金屬 → 反應中斷。',
+          '<strong>置換</strong>：若金屬 A 活性＞金屬 B，則 A(s)+Bⁿ⁺(aq)→Aⁿ⁺(aq)+B(s)。本檔以陣列索引比較（索引愈小愈活潑）。K／Na 遇水溶液時優先與水反應生成 OH⁻，再沉澱其他金屬氫氧化物——<strong>不是</strong>乾淨的單質置換。',
+          '<strong>冷水／蒸汽</strong>：極活潑金屬與冷水劇烈；Mg 等在蒸汽中更明顯並生成氧化物。Tab2 以浮沉／火花／乳濁示意族 I／II 差異。',
+          '<strong>範圍</strong>：本檔不處理電極優先放電、法拉第定量、原電池電動勢，也不取代 chem-reactive_metals_water 的水溫／質量 3D 專題。真實課室<strong>切勿</strong>把鹼金屬直接投入酸中。'
+        ],
+        egTitle: '日常例子',
+        eg: '鐵釘投入硫酸銅溶液鍍銅；鋅粒與稀鹽酸製氫；鉛與硫酸塗層解釋「為何有時反應一下子就停」。勿與電解槽產氯、原電池鹽橋、濾紙離子遷移實驗混為同一操作目標。'
+      },
+      en: {
+        conceptTitle: 'Concept',
+        concept: 'The reactivity series ranks how readily metals lose electrons. Metals above hydrogen react with dilute acids to give H₂; a more reactive metal can <strong>displace</strong> a less reactive metal ion from solution. Cold-water／steam behaviour is the same series with different reagents.',
+        mechTitle: 'Mechanism',
+        mech: [
+          '<strong>Acids</strong>: metal oxidised, H⁺ reduced to H₂. An <strong>insoluble salt coat</strong> (PbCl₂, PbSO₄, CaSO₄) can stop further contact.',
+          '<strong>Displacement</strong>: if A is above B, A(s)+Bⁿ⁺(aq)→Aⁿ⁺(aq)+B(s). This file compares array indices. K／Na in aqueous salt solutions react with <strong>water first</strong>, then OH⁻ may precipitate hydroxides—not a clean metal displacement.',
+          '<strong>Water／steam</strong>: very reactive metals with cold water; Mg etc. clearer with steam → oxides. Tab2 shows Group I float／sparks vs Group II sink／milky cues.',
+          '<strong>Scope</strong>: not preferential discharge, Faraday stoichiometry, or galvanic E°, and not a replacement for chem-reactive_metals_water. Never drop alkali metals into acid in a real lab.'
+        ],
+        egTitle: 'Everyday example',
+        eg: 'Iron in copper(II) sulphate plating copper; zinc＋dilute HCl for hydrogen; lead＋sulphuric acid coating explaining a reaction that stops. Keep separate from electrolysis, galvanic cells, and ion-migration labs.'
+      }
+    };
+
+    const QUIZ = [
+      {
+        q: {
+          zh: '重置後確認反應類別為「與酸反應」、酸為稀氫氯酸。先投入 Zn，再重置後投入 Cu。哪項觀察最合理？',
+          en: 'After Reset, confirm Acid＋dilute HCl. Add Zn, then Reset and add Cu. Which observation is best?'
+        },
+        choices: [
+          { zh: 'Zn 產生氫氣氣泡並逐漸溶解；Cu 無明顯氣泡／不溶解', en: 'Zn gives H₂ bubbles and dissolves; Cu shows no clear reaction' },
+          { zh: '兩者都立刻鍍出金屬銀', en: 'Both instantly plate silver metal' },
+          { zh: '只有 Cu 會產生大量 H₂，Zn 完全無反應', en: 'Only Cu gives lots of H₂; Zn never reacts' },
+          { zh: '本模擬沒有「與酸反應」選項', en: 'This sim has no Acid option' }
+        ],
+        ans: 0,
+        explain: {
+          zh: 'A。Zn 在 H 前、Cu 在 H 後（本檔活動序）。',
+          en: 'A. Zn is above H; Cu is below H in this series.'
+        }
+      },
+      {
+        q: {
+          zh: '在「與酸反應」下，將 Pb 分別與稀氫氯酸（或稀硫酸）以及極稀硝酸比較。哪項正確？',
+          en: 'Under Acid, compare Pb with dilute HCl (or H₂SO₄) versus very dilute HNO₃. Which is correct?'
+        },
+        choices: null,
+                ans: null,
+        explain: {
+          zh: 'A。對應本檔 Pb 分支與短註。',
+          en: 'A. Matches the Pb branches and lab notes in this sim.'
+        }
+      },
+      {
+        q: {
+          zh: '改為置換反應，鹽溶液選 Cu(NO₃)₂。投入 Zn，觀察後再投入 Cu（可先重置試管）。哪項最合理？',
+          en: 'Switch to Displacement with Cu(NO₃)₂. Add Zn, then try Cu (reset the tube if needed). Which is most reasonable?'
+        },
+        choices: [
+          { zh: 'Zn 可置換出銅（表面紅棕鍍層／藍色減退）；Cu 投入 Cu²⁺ 溶液無置換', en: 'Zn displaces copper (reddish-brown coat／blue fades); Cu in Cu²⁺ shows no displacement' },
+          { zh: '只有 Cu 能把 Zn²⁺ 置換成 Zn 塊', en: 'Only Cu can displace Zn²⁺ to zinc metal' },
+          { zh: '置換成敗與活動序無關', en: 'Displacement success does not depend on the reactivity series' },
+          { zh: '本模擬沒有鹽溶液選單', en: 'This sim has no salt-solution menu' }
+        ],
+        ans: 0,
+        explain: {
+          zh: 'A。mIdx(Zn)=5 < solIdx(Cu)=8；mIdx(Cu)=8 不小於 8 → 無反應。',
+          en: 'A. mIdx(Zn)=5 < solIdx(Cu)=8; mIdx(Cu)=8 is not less than 8 → no reaction.'
+        }
+      },
+      {
+        q: {
+          zh: '隨意改動反應類別／酸種／投入金屬（可切 Tab2 投一顆金屬），再按頁首重置。用自己的話寫：（1）重置後 Tab、反應類別、酸種、持續勾選、試管與 Tab2 水缸應如何；（2）重置會不會切換中／EN。',
+          en: 'Change reaction type／acid／metal (optionally drop a metal in Tab2), then press header Reset. In your own words: (1) expected Tab／reaction type／acid／continuous／tube／Tab2 tank after Reset; (2) whether Reset switches zh／EN.'
+        },
+        choices: null,
+        ans: null,
+        explain: {
+          zh: '（1）回 Tab1；類別「與酸反應」；酸「稀氫氯酸」；持續關；試管清空；Tab2 水缸清空。（2）不切換語言。',
+          en: '(1) Tab1; type Acid; acid dilute HCl; continuous off; clear tube; clear Tab2 tank. (2) Reset must not switch language.'
+        }
+      },
+      {
+        q: {
+          zh: '根據本模擬控件與設計，哪項最正確？',
+          en: 'Using this sim’s controls and design, which is most correct?'
+        },
+        choices: [
+          { zh: '可在 Tab1 選擇冷水／水蒸汽／酸／置換並點選活動序金屬觀察試管現象與方程式，輔以 Tab2 族 I／II 水缸，並有步驟／原理／五題／中EN／重置——主軸是金屬–酸與置換及活動序，不是電解、不是原電池、不是離子遷移，也不是去改 sibling chem-reactive_metals_water', en: 'Tab1 offers water／steam／acid／displacement with series metals, plus Tab2 Group I／II tank, with steps／principle／five quiz items／zh-EN／Reset—focus metal–acid／displacement＋series, not electrolysis, not galvanic cells, not ion migration, and not editing sibling chem-reactive_metals_water' },
+          { zh: '主要計算原電池 E°_cell 與鹽橋離子流向', en: 'It mainly computes galvanic E°_cell and salt-bridge ion flow' },
+          { zh: '重置會強制改成英文並刪除 metals 活動序陣列', en: 'Reset always switches to English and deletes the metals array' },
+          { zh: '只能做濾紙上的陰陽離子相向顯色', en: 'It only does opposite-ion colour meetings on filter paper' }
+        ],
+        ans: 0,
+        explain: {
+          zh: 'A。隔離電解／原電池／離子遷移／sibling 金屬–水專檔；Reset 不改語言、不刪資料核。',
+          en: 'A. Separates electrolysis／galvanic／ion-migration／sibling metals–water; Reset does not change language or delete core data.'
+        }
+      }
+    ];
+
+    function t() { return i18n[currentLang] || i18n.zh; }
+
+    function trObs(s) {
+      if (currentLang !== 'en') return s;
+      return OBS_EN[s] || s;
+    }
+    function trNote(s) {
+      if (currentLang !== 'en') return s;
+      return NOTE_EN[s] !== undefined ? NOTE_EN[s] : s;
+    }
+    function trStatus(s) {
+      if (currentLang !== 'en') return s;
+      return STATUS_EN[s] || s;
+    }
+
+    function closeAllModals(exceptId) {
+      if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+      ['modal-steps','modal-principle','modal-quiz'].forEach(function(id) {
+        if (exceptId && id === exceptId) return;
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+    }
+    function openTeachModal(id) {
+      closeAllModals(id);
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    }
+
+    function renderSteps() {
+      var body = document.getElementById('steps-body');
+      var tt = t();
+      document.getElementById('steps-title').textContent = tt.stepsTitle;
+      body.innerHTML = STEPS.map(function(s, i) {
+        return '<div class="p-3 rounded-xl bg-slate-800/80 border border-slate-600"><div class="font-bold text-indigo-300 mb-1">' + (i+1) + '</div><div class="leading-relaxed">' + (currentLang==='en'?s.en:s.zh) + '</div></div>';
+      }).join('');
+    }
+    function renderPrinciple() {
+      var p = PRINCIPLE[currentLang] || PRINCIPLE.zh;
+      var tt = t();
+      document.getElementById('principle-title').textContent = tt.principleTitle;
+      var mech = p.mech.map(function(m){ return '<li class="mb-2 leading-relaxed">'+m+'</li>'; }).join('');
+      document.getElementById('principle-body').innerHTML =
+        '<div><h3 class="font-bold text-emerald-300 mb-1">'+p.conceptTitle+'</h3><p class="leading-relaxed">'+p.concept+'</p></div>' +
+        '<div><h3 class="font-bold text-emerald-300 mb-1">'+p.mechTitle+'</h3><ol class="list-decimal pl-5">'+mech+'</ol></div>' +
+        '<div><h3 class="font-bold text-emerald-300 mb-1">'+p.egTitle+'</h3><p class="leading-relaxed">'+p.eg+'</p></div>';
+    }
+    function renderQuiz() {
+      var body = document.getElementById('quiz-body');
+      var tt = t();
+      document.getElementById('quiz-title').textContent = tt.quizTitle;
+      document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+      body.innerHTML = QUIZ.map(function(item, qi) {
+        var qtext = currentLang==='en' ? item.q.en : item.q.zh;
+        var html = '<div class="p-3 rounded-xl bg-slate-800/80 border border-slate-600 mb-3"><div class="font-bold text-violet-300 mb-2">Q'+(qi+1)+'. '+qtext+'</div>';
+        var qNum = qi + 1;
+        var isOpen = (qNum === 2 || qNum === 4);
+        if (!isOpen && item.choices) {
+          var qName = 'q' + qNum;
+          html += '<div class="grid gap-1.5 text-sm">';
+          item.choices.forEach(function(c, ci) {
+            var label = String.fromCharCode(65+ci);
+            var txt = currentLang==='en' ? c.en : c.zh;
+            html += '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer hover:bg-slate-800/50"><input type="radio" name="'+qName+'" class="mt-0.5"><span>'+label+'. '+txt+'</span></label>';
+          });
+          html += '</div>';
+        } else if (isOpen) {
+          html += '<p class="text-xs text-slate-400 italic">'+(currentLang==='en'?'Predict, then use the sim controls to check. Write in your own words.':'先預測，再操作畫面控件核對，用自己的話作答。')+'</p>';
+        }
+        if (quizReveal && item.explain) {
+          var ex = currentLang==='en' ? item.explain.en : item.explain.zh;
+          var ref = currentLang==='en' ? 'Reference answer' : '參考答案';
+          html += '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>'+ref+'：</strong> '+ex+'</div>';
+        }
+        html += '</div>';
+        return html;
+      }).join('');
+    }
+
+    function refreshObsUI() {
+      var ul = document.getElementById('obsList');
+      if (!ul) return;
+      if (!lastObs || !lastObs.length) {
+        ul.innerHTML = '<li>'+t().obsEmpty+'</li>';
+      } else {
+        ul.innerHTML = '';
+        lastObs.forEach(function(line) {
+          var li = document.createElement('li');
+          li.textContent = trObs(line);
+          ul.appendChild(li);
+        });
+      }
+      var noteEl = document.getElementById('labNote');
+      if (noteEl) noteEl.textContent = lastNote ? trNote(lastNote) : '-';
+      var badge = document.getElementById('statusBadge');
+      if (badge && lastStatusKey) badge.textContent = trStatus(lastStatusKey);
+      // word equation: show current language only
+      var wzh = document.getElementById('wordEqZH');
+      var wen = document.getElementById('wordEqEN');
+      var rowZh = document.getElementById('eq-row-zh');
+      var rowEn = document.getElementById('eq-row-en');
+      if (rowZh && rowEn) {
+        if (currentLang === 'en') {
+          rowZh.classList.add('hidden-lang');
+          rowEn.classList.remove('hidden-lang');
+        } else {
+          rowEn.classList.add('hidden-lang');
+          rowZh.classList.remove('hidden-lang');
+        }
+      }
+    }
+
+    function setResultDisplay(obs, note, wordZH, wordEN, chem, ionic) {
+      lastObs = obs || [];
+      lastNote = note || '';
+      document.getElementById('wordEqZH').textContent = wordZH || '-';
+      document.getElementById('wordEqEN').textContent = wordEN || '-';
+      document.getElementById('chemEq').textContent = chem || '-';
+      document.getElementById('ionicEq').textContent = ionic || '-';
+      refreshObsUI();
+    }
+
+    function applyLang() {
+      var tt = t();
+      document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+      document.getElementById('title').textContent = tt.title;
+      document.getElementById('subtitle').textContent = tt.subtitle;
+      document.getElementById('badge-subject').textContent = tt.badge;
+      document.getElementById('btn-steps').textContent = tt.btnSteps;
+      document.getElementById('btn-principle').textContent = tt.btnPrinciple;
+      document.getElementById('btn-quiz').textContent = tt.btnQuiz;
+      document.getElementById('btn-reset').textContent = tt.btnReset;
+      document.getElementById('btn-tab1').textContent = tt.tab1;
+      document.getElementById('btn-tab2').textContent = tt.tab2;
+      var ss = document.getElementById('series-strong'); if (ss) ss.textContent = tt.seriesStrong;
+      var sw = document.getElementById('series-weak'); if (sw) sw.textContent = tt.seriesWeak;
+      document.getElementById('label-reactionType').textContent = tt.labelType;
+      var rt = document.getElementById('reactionType');
+      if (rt) {
+        rt.options[0].textContent = tt.optWater;
+        rt.options[1].textContent = tt.optSteam;
+        rt.options[2].textContent = tt.optAcid;
+        rt.options[3].textContent = tt.optDisp;
+      }
+      document.getElementById('label-acidSelect').textContent = tt.labelAcid;
+      var ac = document.getElementById('acidSelect');
+      if (ac) {
+        ac.options[0].textContent = tt.optHcl;
+        ac.options[1].textContent = tt.optHno3;
+        ac.options[2].textContent = tt.optH2so4;
+      }
+      document.getElementById('label-solutionSelect').textContent = tt.labelSol;
+      document.getElementById('label-continuous').textContent = tt.continuous;
+      document.getElementById('btn-reset-tab1').textContent = tt.resetExp;
+      document.getElementById('trayTitle').textContent = tt.trayTitle;
+      document.getElementById('dropHint').textContent = tt.dropHint;
+      document.getElementById('burner').textContent = tt.burner;
+      document.getElementById('obs-title').textContent = tt.obsTitle;
+      document.getElementById('eq-title').textContent = tt.eqTitle;
+      document.getElementById('label-word').textContent = tt.labelWord;
+      document.getElementById('label-chem').textContent = tt.labelChem;
+      document.getElementById('label-ionic').textContent = tt.labelIonic;
+      document.getElementById('note-title').textContent = tt.noteTitle;
+      document.getElementById('label-g1').textContent = tt.g1;
+      document.getElementById('label-g2').textContent = tt.g2;
+      document.getElementById('btn-clear-tank').textContent = tt.clearTank;
+      // refresh metal chips + solution options
+      rebuildTrayAndSolutions();
+      refreshObsUI();
+      if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+      if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+      if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+    }
+
+    function rebuildTrayAndSolutions() {
+      var tray = document.getElementById('metalTray');
+      if (!tray || typeof metals === 'undefined') return;
+      tray.innerHTML = '';
+      metals.forEach(function(m, idx) {
+        var chip = document.createElement('div');
+        chip.className = 'metal-chip';
+        chip.id = 'chip-' + idx;
+        chip.textContent = m.symbol + ' (' + (currentLang==='en' ? m.nameEN : m.nameZH) + ')';
+        chip.onclick = function() { addMetalToExperiment(idx); };
+        tray.appendChild(chip);
+      });
+      var solSelect = document.getElementById('solutionSelect');
+      var prev = solSelect.value || '8';
+      solSelect.innerHTML = '';
+      metals.forEach(function(m, idx) {
+        var opt = document.createElement('option');
+        opt.value = idx;
+        if (currentLang === 'en') {
+          opt.textContent = getNitrateFormula(m) + ' (' + m.saltEN + ' nitrate)';
+        } else {
+          opt.textContent = getNitrateFormula(m) + '（硝酸' + m.saltZH + '）';
+        }
+        solSelect.appendChild(opt);
+      });
+      solSelect.value = prev;
+    }
+
+    function resetAll() {
+      closeAllModals(null);
+      switchTab('tab1');
+      document.getElementById('reactionType').value = 'acid';
+      document.getElementById('acidSelect').value = 'hcl';
+      document.getElementById('solutionSelect').value = '8';
+      document.getElementById('continuousToggle').checked = false;
+      isContinuous = false;
+      onReactionTypeChange();
+      resetTankTab2();
+      lastObs = [];
+      lastNote = '';
+      lastStatusKey = '⚪ 準備就緒';
+      refreshObsUI();
+    }
+
+    function wireTeachingUI() {
+      document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+      document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+      document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+      document.getElementById('btn-lang').addEventListener('click', function() {
+        currentLang = currentLang === 'zh' ? 'en' : 'zh';
+        applyLang();
+      });
+      document.getElementById('btn-reset').addEventListener('click', resetAll);
+      document.getElementById('btn-quiz-answers').addEventListener('click', function() {
+        quizReveal = !quizReveal;
+        renderQuiz();
+      });
+      document.querySelectorAll('.modal-close').forEach(function(btn) {
+        btn.addEventListener('click', function() { closeAllModals(null); });
+      });
+      document.querySelectorAll('.teach-modal').forEach(function(el) {
+        el.addEventListener('click', function(e) { if (e.target === el) closeAllModals(null); });
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeAllModals(null);
+      });
+    }
+
+
+
     // ================= 分頁切換邏輯 =================
     function switchTab(tabId) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-tab, .nav-tab-teach').forEach(el => el.classList.remove('active'));
 
         if (tabId === 'tab1') {
             document.getElementById('view-tab1').classList.add('active');
@@ -729,28 +1388,15 @@
         return `rgba(${r}, ${g}, ${b}, ${a})`;
     }
 
+    
     function initTab1() {
-        const tray = document.getElementById('metalTray');
-        tray.innerHTML = '';
-        metals.forEach((m, idx) => {
-            const chip = document.createElement('div');
-            chip.className = 'metal-chip';
-            chip.id = `chip-${idx}`;
-            chip.textContent = `${m.symbol} (${m.nameZH})`;
-            chip.onclick = () => addMetalToExperiment(idx);
-            tray.appendChild(chip);
-        });
-
-        const solSelect = document.getElementById('solutionSelect');
-        solSelect.innerHTML = '';
-        metals.forEach((m, idx) => {
-            let opt = document.createElement('option');
-            opt.value = idx;
-            opt.textContent = `${getNitrateFormula(m)} 溶液 (硝酸${m.saltZH} / ${m.saltEN} nitrate)`;
-            solSelect.appendChild(opt);
-        });
-        solSelect.value = 8;
-
+        const rt = document.getElementById('reactionType');
+        rt.value = 'acid';
+        document.getElementById('acidSelect').value = 'hcl';
+        document.getElementById('continuousToggle').checked = false;
+        isContinuous = false;
+        rebuildTrayAndSolutions();
+        document.getElementById('solutionSelect').value = 8;
         onReactionTypeChange();
     }
 
@@ -760,7 +1406,7 @@
         document.getElementById('solutionGroup').style.display = (type === 'displacement') ? 'flex' : 'none';
 
         document.getElementById('testTubeContainer').style.display = 'block';
-        document.getElementById('trayTitle').textContent = "👇 點擊選擇金屬加入試管：";
+        document.getElementById('trayTitle').textContent = t().trayTitle;
 
         resetExperiment();
     }
@@ -800,7 +1446,7 @@
 
         document.getElementById('dropZone').classList.remove('shake');
         document.getElementById('dropHint').style.display = 'block';
-        document.getElementById('statusBadge').textContent = "⚪ 準備就緒";
+        lastStatusKey = "⚪ 準備就緒"; document.getElementById('statusBadge').textContent = trStatus(lastStatusKey);
 
         const type = document.getElementById('reactionType').value;
         const liquid = document.getElementById('liquid');
@@ -828,12 +1474,12 @@
             liquid.style.backgroundColor = interpolateColor(startColor, startColor, 0);
         }
 
-        document.getElementById('obsList').innerHTML = '<li>請點擊上方金屬開始實驗。</li>';
+        lastObs = []; lastNote = '';
         document.getElementById('wordEqZH').textContent = '-';
         document.getElementById('wordEqEN').textContent = '-';
         document.getElementById('chemEq').textContent = '-';
         document.getElementById('ionicEq').textContent = '-';
-        document.getElementById('labNote').textContent = '-';
+        refreshObsUI();
     }
 
     function setSolutionBaseColor(solMetalIdx) {
@@ -1162,12 +1808,7 @@
             }
         }
 
-        document.getElementById('obsList').innerHTML = obs.map(i => `<li>${i}</li>`).join('');
-        document.getElementById('wordEqZH').innerText = wordZH;
-        document.getElementById('wordEqEN').innerText = wordEN;
-        document.getElementById('chemEq').innerText = chem;
-        document.getElementById('ionicEq').innerText = ionic;
-        document.getElementById('labNote').innerText = note;
+        setResultDisplay(obs, note, wordZH, wordEN, chem, ionic);
 
         startReactionProgress(isReacting, stopsEarlyDueToCoating);
     }
@@ -1183,12 +1824,12 @@
         const liquid = document.getElementById('liquid');
 
         if (!isReacting && !stopsEarly) {
-            badge.textContent = "⚪ 無反應";
+            lastStatusKey = "⚪ 無反應"; badge.textContent = trStatus(lastStatusKey);
             liquid.style.backgroundColor = interpolateColor(startColor, startColor, 0);
             return;
         }
 
-        badge.textContent = isContinuous ? "♾️ 持續反應中" : "🟢 反應進行中";
+        lastStatusKey = isContinuous ? "♾️ 持續反應中" : "🟢 反應進行中"; badge.textContent = trStatus(lastStatusKey);
 
         timerInterval = setInterval(() => {
             reactionTime += 0.1;
@@ -1197,7 +1838,7 @@
                 if (reactionTime >= 2.5 && !isContinuous) {
                     stopTimers();
                     document.getElementById('bubbleContainer').innerHTML = '';
-                    badge.textContent = "⛔ 反應中斷 (不溶塗層阻隔)";
+                    lastStatusKey = "⛔ 反應中斷 (不溶塗層阻隔)"; badge.textContent = trStatus(lastStatusKey);
                 }
             } else if (isReacting) {
                 if (isContinuous) {
@@ -1216,7 +1857,7 @@
                     mElem.style.display = 'none';
                     stopTimers();
                     document.getElementById('bubbleContainer').innerHTML = '';
-                    badge.textContent = "🔴 反應完成 (金屬完全溶解)";
+                    lastStatusKey = "🔴 反應完成 (金屬完全溶解)"; badge.textContent = trStatus(lastStatusKey);
                 } else {
                     mElem.style.transform = `scale(${metalScale})`;
                 }
@@ -1468,10 +2109,13 @@
 
     // 初始化載入
     window.onload = () => {
+        wireTeachingUI();
         initTab1();
+        applyLang();
         resizeTab2();
         loopTab2();
     };
+
 </script>
 </body>
 </html>

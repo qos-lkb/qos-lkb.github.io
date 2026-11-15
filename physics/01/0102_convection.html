@@ -54,6 +54,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                 <span data-i18n="btnPrinciple">原理解說</span>
             </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-800 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+
             <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300 items-center gap-1.5">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 <span>中 / EN</span>
@@ -204,6 +208,20 @@
                 <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s3">3. 改加熱位置（中央／左側），比較雙環流與單環流。勾選隔熱，看 ΔT 如何改變。</div>
                 <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s4">4. 用暫停凍結畫面，再注入示蹤劑；關火後應看到緩慢冷卻，而不是加熱時溫度無故下降。</div>
             </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center shrink-0 gap-2 flex-wrap">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 border border-white/40 text-xs font-semibold" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end shrink-0">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
             <div class="p-4 border-t border-slate-100 flex justify-end">
                 <button type="button" id="steps-confirm" class="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl" data-i18n="modalBtnClose">關閉</button>
             </div>
@@ -211,10 +229,115 @@
     </div>
 
     <script>
+
+let quizAnswersVisible = false;
+function quizTxt(k) {
+    if (typeof t === "function") {
+        if (t.length === 0) return (t()[k]) ?? k;
+        return t(k);
+    }
+    const L = typeof lang !== "undefined" ? lang : (typeof state !== "undefined" && state.lang) ? state.lang : "zh";
+    if (typeof i18n !== "undefined" && i18n[L]) return i18n[L][k] ?? k;
+    return k;
+}
+function renderQuiz() {
+    const box = document.getElementById("quiz-list");
+    if (!box) return;
+    const mk = (n) => ["A","B","C","D"].map(L =>
+        `<label class="flex items-start gap-2 rounded-xl border border-slate-200 p-2 cursor-pointer hover:bg-rose-50/60"><input type="radio" name="q${n}" class="mt-0.5 accent-rose-600"><span>${L}. ${quizTxt("quizQ"+n+L.toLowerCase())}</span></label>`
+    ).join("");
+    const ans = (n) => quizAnswersVisible
+        ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${quizTxt("quizRef")}：</strong> ${quizTxt("quizQ"+n+"Ans")}</div>` : "";
+    box.innerHTML = [1,2,3,4,5].map(n => {
+        const open = n === 2 || n === 4;
+        return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-rose-800 mb-2">Q${n}. ${quizTxt("quizQ"+n)}</p>${open ? "" : `<div class="grid gap-1.5">${mk(n)}</div>`}${ans(n)}</div>`;
+    }).join("");
+    const ab = document.getElementById("btn-quiz-answers");
+    if (ab) ab.textContent = quizAnswersVisible ? quizTxt("quizHideAnswers") : quizTxt("quizShowAnswers");
+}
+function openQuizModal() {
+    const mq = document.getElementById("modal-quiz");
+    if (!mq) return;
+    const mc = mq.querySelector(".modal-content");
+    ["modal-principle","modal-steps"].forEach(id => {
+        const m = document.getElementById(id);
+        if (!m) return;
+        if (typeof closeModal === "function" && !m.classList.contains("pointer-events-none")) closeModal(m);
+        if (typeof setModal === "function") setModal(id, false);
+        if (typeof closePrinciple === "function" && id === "modal-principle") closePrinciple();
+        if (typeof closeSteps === "function" && id === "modal-steps") closeSteps();
+    });
+    mq.classList.remove("opacity-0", "pointer-events-none");
+    if (mc) mc.classList.remove("scale-95", "opacity-0");
+    quizAnswersVisible = false;
+    renderQuiz();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([mq]).catch(() => {});
+}
+function closeQuizModal() {
+    const mq = document.getElementById("modal-quiz");
+    if (!mq) return;
+    const mc = mq.querySelector(".modal-content");
+    mq.classList.add("opacity-0", "pointer-events-none");
+    if (mc) mc.classList.add("scale-95", "opacity-0");
+}
+function bindQuizHandlers() {
+    const bq = document.getElementById("btn-quiz");
+    if (!bq || bq.dataset.quizBound) return;
+    bq.dataset.quizBound = "1";
+    bq.addEventListener("click", openQuizModal);
+    const mq = document.getElementById("modal-quiz");
+    ["quiz-close","quiz-confirm"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("click", closeQuizModal);
+    });
+    if (mq) mq.addEventListener("click", ev => { if (ev.target === mq) closeQuizModal(); });
+    const ba = document.getElementById("btn-quiz-answers");
+    if (ba && !ba.dataset.quizBound) {
+        ba.dataset.quizBound = "1";
+        ba.addEventListener("click", () => {
+            quizAnswersVisible = !quizAnswersVisible;
+            renderQuiz();
+            if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([mq]).catch(() => {});
+        });
+    }
+    document.addEventListener("keydown", function quizEsc(ev) {
+        if (ev.key !== "Escape" || !mq) return;
+        if (!mq.classList.contains("pointer-events-none")) closeQuizModal();
+    });
+}
+
         const i18n = {
             zh: {
                 title: '熱對流', badge: '中一科學', subtitle: '燒杯中的溫場與對流循環',
-                btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+                btnPrinciple: '原理解說', btnSteps: '觀察步驟',
+        btnQuiz: "課堂問題",
+        quizTitle: "課堂問題",
+        quizShowAnswers: "顯示參考答案",
+        quizHideAnswers: "隱藏參考答案",
+        quizRef: "參考答案",
+        quizQ1: "底部加熱且開啟「顯示對流循環」時，熱水主要如何流動？",
+        quizQ2: "功率固定，只把加熱位置由「中央底部」改為「左側底部」。先預測環流形狀，再操作。",
+        quizQ3: "勾選「隔熱壺壁」後，平均水溫變化一般會：",
+        quizQ4: "比較功率≈2 與≈9（剛觸發加熱數秒）。哪項讀數變化最明顯？",
+        quizQ5: "關火後注入示蹤劑，粒子應跟隨什麼運動？",
+        quizQ1a: "加熱處上升，遠處下沉成環流",
+        quizQ1b: "全部下沉",
+        quizQ1c: "僅水平流動",
+        quizQ1d: "靜止",
+        quizQ3a: "升得較快／維持較高",
+        quizQ3b: "立即變 0°C",
+        quizQ3c: "與未勾選完全相同",
+        quizQ3d: "停止加熱",
+        quizQ5a: "既有對流環路",
+        quizQ5b: "僅布朗直線",
+        quizQ5c: "向上單向",
+        quizQ5d: "隨機消失",
+        quizQ1Ans: "A。熱水密度較低上升，周圍冷水下沉。",
+        quizQ2Ans: "左側加熱時環流偏單側；中央加熱常見雙環流。",
+        quizQ3Ans: "A。減少散熱，ΔT 上升較快。",
+        quizQ4Ans: "高功率時底部色圖更快轉黃紅，平均水溫上升斜率更大。",
+        quizQ5Ans: "A。示蹤劑可見對流路徑。",
+ controlTitle: '實驗控制',
                 labelPower: '電功率', powerOff: '關閉', powerMax: '最大火力',
                 heaterPos: '加熱位置', heatCenter: '中央底部', heatLeft: '左側底部',
                 simSpeed: '模擬速率',
@@ -249,7 +372,35 @@
             },
             en: {
                 title: 'Thermal Convection', badge: 'S1 Science', subtitle: 'Temperature field and convection cells in a beaker',
-                btnPrinciple: 'Principles', btnSteps: 'Steps', controlTitle: 'Controls',
+                btnPrinciple: 'Principles', btnSteps: 'Steps',
+        btnQuiz: "Quiz",
+        quizTitle: "Classroom Quiz",
+        quizShowAnswers: "Show reference answers",
+        quizHideAnswers: "Hide reference answers",
+        quizRef: "Reference",
+        quizQ1: "With bottom heating and convection loops on, hot water mainly:",
+        quizQ2: "Same power, switch heater from centre to left-bottom. Predict loop shape, then test.",
+        quizQ3: "Insulated walls ON usually make average temperature:",
+        quizQ4: "Compare power ≈2 vs ≈9 for a few seconds: which readout changes most?",
+        quizQ5: "After heating stops, injected dye should follow:",
+        quizQ1a: "Rises at heater, sinks elsewhere in a cell",
+        quizQ1b: "All sinks",
+        quizQ1c: "Only horizontal",
+        quizQ1d: "Stays still",
+        quizQ3a: "Rise faster / stay higher",
+        quizQ3b: "Drop to 0°C",
+        quizQ3c: "Identical",
+        quizQ3d: "Stop heating",
+        quizQ5a: "Existing convection loops",
+        quizQ5b: "Only random walk",
+        quizQ5c: "Up only",
+        quizQ5d: "Vanish",
+        quizQ1Ans: "A. Buoyant hot water rises; cooler water sinks.",
+        quizQ2Ans: "Left heating biases the cell; centre often shows twin cells.",
+        quizQ3Ans: "A. Less heat loss so ΔT climbs faster.",
+        quizQ4Ans: "Higher power turns the base yellow/red faster and raises average T quicker.",
+        quizQ5Ans: "A. Dye traces the flow path.",
+ controlTitle: 'Controls',
                 labelPower: 'Electric power', powerOff: 'Off', powerMax: 'Max heat',
                 heaterPos: 'Heater position', heatCenter: 'Bottom centre', heatLeft: 'Bottom left',
                 simSpeed: 'Sim speed',
@@ -1003,7 +1154,7 @@
         document.getElementById('modal-principle').addEventListener('click', (e) => { if (e.target.id === 'modal-principle') setModal('modal-principle', false); });
         document.getElementById('modal-steps').addEventListener('click', (e) => { if (e.target.id === 'modal-steps') setModal('modal-steps', false); });
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { setModal('modal-principle', false); setModal('modal-steps', false); }
+            if (e.key === 'Escape') { setModal('modal-principle', false); setModal('modal-steps', false); setModal('modal-quiz', false); }
             if (e.key === ' ' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
                 e.preventDefault(); togglePause();
             }
@@ -1046,6 +1197,7 @@
         initParcels();
         gatherStats();
         applyI18n();
+        bindQuizHandlers();
         requestAnimationFrame(animate);
     </script>
 </body>

@@ -10,6 +10,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- OrbitControls -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Noto Sans TC (P2) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- MathJax -->
@@ -26,7 +30,9 @@
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        /* Layout: Three.js fullscreen mass-spectrometer lab exemption (not A/B/C).
+           Teaching controls (steps / principle / quiz / zh-EN / Reset) are NOT exempt. */
+        body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: 'Noto Sans TC', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #canvas-container { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
         
         /* Header Bar */
@@ -72,15 +78,21 @@
             appearance: none;
         }
 
-        /* Modal Transitions */
+        /* Modal Transitions — z-50+ covers canvas / floating panels */
         .modal {
             transition: opacity 0.3s ease-in-out;
             opacity: 0;
             pointer-events: none;
+            z-index: 50;
         }
         .modal.active {
             opacity: 1;
             pointer-events: auto;
+        }
+        #header-bar .header-actions { flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
+        #header-bar .header-actions button { font-size: 0.75rem; }
+        @media (min-width: 768px) {
+            #header-bar .header-actions button { font-size: 0.875rem; }
         }
         
         /* Pulse animation for active button */
@@ -102,19 +114,24 @@
             <i class="fa-solid fa-atom text-sky-400 text-xl"></i>
             <h1 class="font-bold text-lg text-slate-100 hidden md:block" data-i18n="appTitle">質譜儀模擬器</h1>
         </div>
-        <div class="flex items-center gap-4">
-            <!-- Controls Button -->
-            <button id="btn-controls" class="text-sm font-medium text-slate-300 hover:text-white transition flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700">
-                <i class="fa-solid fa-gamepad"></i>
-                <span data-i18n="btnControls">操作說明</span>
+        <div class="flex items-center gap-2 header-actions">
+            <button type="button" id="btn-steps" class="text-sm font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 hover:border-amber-500">
+                <i class="fa-solid fa-list-ol"></i>
+                <span data-i18n="btnSteps">觀察步驟</span>
             </button>
-            <!-- Info Button -->
-            <button id="btn-info" class="text-sm font-medium text-slate-300 hover:text-white transition flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700">
+            <button type="button" id="btn-principle" class="text-sm font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 hover:border-indigo-500">
                 <i class="fa-regular fa-circle-question"></i>
                 <span data-i18n="btnExplain">原理解說</span>
             </button>
-            <!-- Language Button -->
-            <button id="btn-lang" class="text-sm font-bold text-sky-400 hover:text-sky-300 transition bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 w-20 text-center">
+            <button type="button" id="btn-quiz" class="text-sm font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 hover:border-rose-500">
+                <i class="fa-solid fa-graduation-cap"></i>
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+            <button type="button" id="btn-controls" class="text-sm font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700">
+                <i class="fa-solid fa-gamepad"></i>
+                <span data-i18n="btnControls">操作說明</span>
+            </button>
+            <button type="button" id="btn-lang" class="text-sm font-bold text-sky-400 hover:text-sky-300 transition bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 w-20 text-center">
                 中 / EN
             </button>
         </div>
@@ -237,67 +254,98 @@
         </div>
     </div>
 
-    <!-- Info Modal (Explanation) -->
-    <div id="info-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="bg-slate-800 border border-slate-600 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-fade-in-up">
-            <button id="btn-close-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+    <!-- Steps Modal (observation steps — NOT camera help) -->
+    <div id="modal-steps" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative">
+            <button type="button" class="modal-close absolute top-4 right-4 text-slate-400 hover:text-white transition" data-close="modal-steps" aria-label="Close">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
-            
             <div class="p-8">
-                <h2 class="text-2xl font-bold text-sky-400 mb-6 flex items-center gap-3">
-                    <i class="fa-solid fa-book-open"></i> <span data-i18n="modalTitle">質譜儀原理</span>
+                <h2 id="steps-title" class="text-2xl font-bold text-amber-400 mb-6 flex items-center gap-3">
+                    <i class="fa-solid fa-list-ol"></i> <span data-i18n="stepsTitle">觀察步驟</span>
                 </h2>
-                
-                <div class="space-y-6 text-slate-300 leading-relaxed">
-                    <div>
-                        <h3 class="text-lg font-semibold text-white mb-2" data-i18n="modalSec1Title">1. 離子化與加速</h3>
-                        <div data-i18n="modalSec1Desc">
-                            首先，樣品原子被游離成帶正電的離子。接著，它們進入電場（由電壓 $V$ 控制），獲得動能。
-                            <div class="bg-slate-900/50 p-2 my-2 rounded text-center">
-                                $$ qV = \frac{1}{2}mv^2 $$
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 class="text-lg font-semibold text-white mb-2" data-i18n="modalSec2Title">2. 磁場偏轉</h3>
-                        <div data-i18n="modalSec2Desc">
-                            當帶電粒子進入垂直的磁場（$B$）時，會受到洛倫茲力作用而進行圓周運動。
-                            <div class="bg-slate-900/50 p-2 my-2 rounded text-center">
-                                $$ F = qvB = \frac{mv^2}{r} $$
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-slate-900/50 p-4 rounded-lg border-l-4 border-sky-500">
-                        <h3 class="text-md font-bold text-sky-400 mb-1" data-i18n="modalSec3Title">關鍵公式：半徑</h3>
-                        <div class="text-lg text-white text-center py-2">
-                            $$ r = \frac{1}{B} \sqrt{\frac{2Vm}{q}} $$
-                        </div>
-                        <p class="text-sm mt-2 text-slate-400" data-i18n="modalSec3Desc">
-                            這表明半徑 $r$ 取決於質量 $m$。因此，不同質量的同位素會分開並擊中偵測器的不同位置。
-                        </p>
-                    </div>
-                </div>
-
+                <ol class="space-y-4 text-slate-300 leading-relaxed list-decimal list-inside">
+                    <li data-i18n="step1">確認離子源為 <strong>Neon (Ne)</strong>，電壓約 <strong>2000 V</strong>、磁場約 <strong>1.00 T</strong>。按<strong>開啟離子源</strong>，切到<strong>俯視圖</strong>觀察粒子路徑：先沿加速區前進，再在磁場區彎曲打上偵測器。看右欄圖譜是否逐漸出現多個峰。按<strong>重置</strong>可清空並回到預設參數。</li>
+                    <li data-i18n="step2">保持 Ne 與發射開啟。把<strong>磁場強度 $B$</strong> 明顯調高（例如接近 2.0 T），觀察彎曲是否更急、圖譜峰是否整體移向「<strong>質量小／$r$ 小</strong>」一側；再把 $B$ 調低，看峰是否移向大 $r$。用一句話連到 $r \propto 1/B$。</li>
+                    <li data-i18n="step3">重置後改選 <strong>Chlorine (Cl)</strong>，開啟離子源。對照左下豐度表：Cl-35 與 Cl-37 約 3:1。觀察圖譜是否出現<strong>兩個</strong>主要峰，且較輕同位素（較小 $r$）峰較高。可再試 Lithium 或 Boron 比較峰數。</li>
+                    <li data-i18n="step4">固定元素，改<strong>加速電壓 $V$</strong>（例如升到接近 5000 V）：路徑彎曲半徑整體變大（峰移向大 $r$）。總結本模擬假設：單電荷 $q=1$、教學標度加速係數、理想垂直 $\vec{B}$、真空管碰撞即消失、圖譜為統計直方圖非精確解析解、豐度為隨機取樣近似天然比例。</li>
+                </ol>
                 <div class="mt-8 text-center">
-                    <button id="btn-close-modal-bottom" class="bg-sky-600 hover:bg-sky-500 text-white py-2 px-6 rounded-lg transition font-medium" data-i18n="btnClose">
-                        關閉
-                    </button>
+                    <button type="button" class="modal-close bg-amber-600 hover:bg-amber-500 text-white py-2 px-6 rounded-lg transition font-medium" data-close="modal-steps" data-i18n="btnClose">關閉</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Controls Modal (New) -->
-    <div id="controls-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="bg-slate-800 border border-slate-600 rounded-xl max-w-sm w-full shadow-2xl relative animate-fade-in-up">
-            <button id="btn-close-controls" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+    <!-- Principle Modal (standardised from soft info modal) -->
+    <div id="modal-principle" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative">
+            <button type="button" class="modal-close absolute top-4 right-4 text-slate-400 hover:text-white transition" data-close="modal-principle" aria-label="Close">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="p-8">
+                <h2 id="principle-title" class="text-2xl font-bold text-sky-400 mb-6 flex items-center gap-3">
+                    <i class="fa-solid fa-book-open"></i> <span data-i18n="principleTitle">質譜儀原理</span>
+                </h2>
+                <div class="space-y-5 text-slate-300 leading-relaxed">
+                    <div>
+                        <h3 class="text-sm font-bold text-sky-300 uppercase tracking-wider mb-2" data-i18n="principleConceptH">概念</h3>
+                        <p data-i18n="principleConcept">質譜儀把樣品原子游離成離子，先用電場加速，再讓它們進入垂直磁場做圓周運動。不同質量的同位素因彎曲半徑不同而分開，落在偵測器不同位置，形成「質量／豐度」圖譜。本模擬以 3D 粒子流演示 $r$ 如何隨 $m$、$V$、$B$ 改變。</p>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-sky-300 uppercase tracking-wider mb-2" data-i18n="principleMechH">機制</h3>
+                        <p class="mb-2" data-i18n="principleMech1">1. <strong>加速</strong>：$qV=\frac{1}{2}mv^2$（理想）；離開加速區後動能由 $V$ 與 $m$ 決定。</p>
+                        <div class="bg-slate-900/50 p-2 my-2 rounded text-center">$$ qV = \frac{1}{2}mv^2 $$</div>
+                        <p class="mb-2" data-i18n="principleMech2">2. <strong>偏轉</strong>：垂直磁場中 $qvB=mv^2/r$，整理得 $r=\frac{mv}{qB}$，或 $r=\frac{1}{B}\sqrt{\frac{2Vm}{q}}$（單電荷、理想情況）。</p>
+                        <div class="bg-slate-900/50 p-2 my-2 rounded text-center">$$ F = qvB = \frac{mv^2}{r} \quad\Rightarrow\quad r = \frac{mv}{qB} $$</div>
+                        <div class="bg-slate-900/50 p-4 rounded-lg border-l-4 border-sky-500 my-3">
+                            <div class="text-lg text-white text-center py-1">$$ r = \frac{1}{B} \sqrt{\frac{2Vm}{q}} $$</div>
+                        </div>
+                        <p class="mb-2" data-i18n="principleMech3">3. <strong>分離</strong>：固定 $q$、$V$、$B$ 時，$m$ 愈大 → $r$ 愈大 → 擊中偵測器愈靠「質量大」一側。</p>
+                        <p class="mb-2" data-i18n="principleMech4">4. <strong>豐度</strong>：發射時依天然豐度隨機抽樣同位素；長時間累積後峰高比例應 qualitatively 接近表列百分比。</p>
+                        <p data-i18n="principleMech5">5. <strong>假設</strong>：教學數值積分（非嚴格 SI 軌跡）、單一電荷態、無空間電荷／邊緣場、管壁碰撞即移除、直方圖 binning 有限解析度。</p>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-sky-300 uppercase tracking-wider mb-2" data-i18n="principleExH">日常例子</h3>
+                        <p data-i18n="principleExample">地質定年與同位素比、環保檢測污染物、醫學／藥物質譜鑑定（真實儀器更複雜，常含四極／飛行時間等）。勿把本檔與「磁力線實驗室」「螺線管勻強場」或有機化學碎片解譜課混為同一套控件。</p>
+                    </div>
+                </div>
+                <div class="mt-8 text-center">
+                    <button type="button" class="modal-close bg-sky-600 hover:bg-sky-500 text-white py-2 px-6 rounded-lg transition font-medium" data-close="modal-principle" data-i18n="btnClose">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Modal — exactly 5 bilingual items -->
+    <div id="modal-quiz" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative">
+            <button type="button" class="modal-close absolute top-4 right-4 text-slate-400 hover:text-white transition" data-close="modal-quiz" aria-label="Close">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="p-8">
+                <div class="flex items-center justify-between gap-3 mb-6 pr-8 flex-wrap">
+                    <h2 id="quiz-title" class="text-2xl font-bold text-rose-400 flex items-center gap-3">
+                        <i class="fa-solid fa-graduation-cap"></i> <span data-i18n="quizTitle">課堂問題</span>
+                    </h2>
+                    <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-semibold transition" data-i18n="quizShowAnswers">顯示參考答案</button>
+                </div>
+                <div id="quiz-list" class="space-y-5 text-slate-300"></div>
+                <div class="mt-8 text-center">
+                    <button type="button" class="modal-close bg-slate-700 hover:bg-slate-600 text-white py-2 px-6 rounded-lg transition font-medium" data-close="modal-quiz" data-i18n="btnClose">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls Modal (camera gestures — does NOT replace steps) -->
+    <div id="controls-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="controls-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl max-w-sm w-full shadow-2xl relative">
+            <button type="button" class="modal-close absolute top-4 right-4 text-slate-400 hover:text-white transition" data-close="controls-modal" aria-label="Close">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
             <div class="p-6">
-                <h2 class="text-xl font-bold text-sky-400 mb-4 flex items-center gap-2">
+                <h2 id="controls-title" class="text-xl font-bold text-sky-400 mb-4 flex items-center gap-2">
                     <i class="fa-solid fa-gamepad"></i> <span data-i18n="btnControls">操作說明</span>
                 </h2>
                 <ul class="space-y-4 text-slate-300 text-sm">
@@ -321,9 +369,7 @@
                     </li>
                 </ul>
                 <div class="mt-6 text-center">
-                    <button id="btn-close-controls-bottom" class="bg-slate-700 hover:bg-slate-600 text-white py-2 px-6 rounded-lg transition font-medium w-full" data-i18n="btnClose">
-                        關閉
-                    </button>
+                    <button type="button" class="modal-close bg-slate-700 hover:bg-slate-600 text-white py-2 px-6 rounded-lg transition font-medium w-full" data-close="controls-modal" data-i18n="btnClose">關閉</button>
                 </div>
             </div>
         </div>
@@ -336,9 +382,10 @@
                 appTitle: "質譜儀模擬器",
                 btnControls: "操作說明",
                 btnExplain: "原理解說",
+                btnSteps: "觀察步驟",
+                btnQuiz: "課堂問題",
                 panelTitle: "即時模擬",
                 panelDesc: "模擬帶電粒子如何在電場中加速並在磁場中偏轉。",
-                // mouseInstructions: "<i class='fa-solid fa-mouse mr-1'></i> 左鍵旋轉視角 / 右鍵平移 / 滾輪縮放", // Removed from bottom left
                 ctrlLeft: "左鍵拖曳：旋轉視角",
                 ctrlRight: "右鍵拖曳：平移視角",
                 ctrlScroll: "滑鼠滾輪：縮放",
@@ -358,13 +405,26 @@
                 tableColIsotope: "同位素",
                 tableColMass: "質量 (u)",
                 tableColAbundance: "豐度 (%)",
-                modalTitle: "質譜儀原理",
-                modalSec1Title: "1. 離子化與加速",
-                modalSec1Desc: "首先，樣品原子被游離成帶正電的離子。接著，它們進入電場（由電壓 $V$ 控制），獲得動能。<div class='bg-slate-900/50 p-2 my-2 rounded text-center'>$$ qV = \\frac{1}{2}mv^2 $$</div>",
-                modalSec2Title: "2. 磁場偏轉",
-                modalSec2Desc: "當帶電粒子進入垂直的磁場（$B$）時，會受到洛倫茲力作用而進行圓周運動。<div class='bg-slate-900/50 p-2 my-2 rounded text-center'>$$ F = qvB = \\frac{mv^2}{r} $$</div>",
-                modalSec3Title: "關鍵公式：半徑",
-                modalSec3Desc: "這表明半徑 $r$ 取決於質量 $m$。因此，不同質量的同位素會分開並擊中偵測器的不同位置。",
+                principleTitle: "質譜儀原理",
+                principleConceptH: "概念",
+                principleConcept: "質譜儀把樣品原子游離成離子，先用電場加速，再讓它們進入垂直磁場做圓周運動。不同質量的同位素因彎曲半徑不同而分開，落在偵測器不同位置，形成「質量／豐度」圖譜。本模擬以 3D 粒子流演示 $r$ 如何隨 $m$、$V$、$B$ 改變。",
+                principleMechH: "機制",
+                principleMech1: "1. <strong>加速</strong>：$qV=\\frac{1}{2}mv^2$（理想）；離開加速區後動能由 $V$ 與 $m$ 決定。",
+                principleMech2: "2. <strong>偏轉</strong>：垂直磁場中 $qvB=mv^2/r$，整理得 $r=\\frac{mv}{qB}$，或 $r=\\frac{1}{B}\\sqrt{\\frac{2Vm}{q}}$（單電荷、理想情況）。",
+                principleMech3: "3. <strong>分離</strong>：固定 $q$、$V$、$B$ 時，$m$ 愈大 → $r$ 愈大 → 擊中偵測器愈靠「質量大」一側。",
+                principleMech4: "4. <strong>豐度</strong>：發射時依天然豐度隨機抽樣同位素；長時間累積後峰高比例應 qualitatively 接近表列百分比。",
+                principleMech5: "5. <strong>假設</strong>：教學數值積分（非嚴格 SI 軌跡）、單一電荷態、無空間電荷／邊緣場、管壁碰撞即移除、直方圖 binning 有限解析度。",
+                principleExH: "日常例子",
+                principleExample: "地質定年與同位素比、環保檢測污染物、醫學／藥物質譜鑑定（真實儀器更複雜，常含四極／飛行時間等）。勿把本檔與「磁力線實驗室」「螺線管勻強場」或有機化學碎片解譜課混為同一套控件。",
+                stepsTitle: "觀察步驟",
+                step1: "確認離子源為 <strong>Neon (Ne)</strong>，電壓約 <strong>2000 V</strong>、磁場約 <strong>1.00 T</strong>。按<strong>開啟離子源</strong>，切到<strong>俯視圖</strong>觀察粒子路徑：先沿加速區前進，再在磁場區彎曲打上偵測器。看右欄圖譜是否逐漸出現多個峰。按<strong>重置</strong>可清空並回到預設參數。",
+                step2: "保持 Ne 與發射開啟。把<strong>磁場強度 $B$</strong> 明顯調高（例如接近 2.0 T），觀察彎曲是否更急、圖譜峰是否整體移向「<strong>質量小／$r$ 小</strong>」一側；再把 $B$ 調低，看峰是否移向大 $r$。用一句話連到 $r \\propto 1/B$。",
+                step3: "重置後改選 <strong>Chlorine (Cl)</strong>，開啟離子源。對照左下豐度表：Cl-35 與 Cl-37 約 3:1。觀察圖譜是否出現<strong>兩個</strong>主要峰，且較輕同位素（較小 $r$）峰較高。可再試 Lithium 或 Boron 比較峰數。",
+                step4: "固定元素，改<strong>加速電壓 $V$</strong>（例如升到接近 5000 V）：路徑彎曲半徑整體變大（峰移向大 $r$）。總結本模擬假設：單電荷 $q=1$、教學標度加速係數、理想垂直 $\\vec{B}$、真空管碰撞即消失、圖譜為統計直方圖非精確解析解、豐度為隨機取樣近似天然比例。",
+                quizTitle: "課堂問題",
+                quizShowAnswers: "顯示參考答案",
+                quizHideAnswers: "隱藏參考答案",
+                quizAnswerLabel: "參考答案",
                 btnClose: "關閉",
                 sceneIonSource: "離子源",
                 sceneEField: "電場 E",
@@ -374,10 +434,11 @@
             en: {
                 appTitle: "Mass Spectrometer Simulator",
                 btnControls: "Controls",
-                btnExplain: "Explanation",
+                btnExplain: "Principle",
+                btnSteps: "Steps",
+                btnQuiz: "Quiz",
                 panelTitle: "Live Simulation",
                 panelDesc: "Simulating how charged particles accelerate in an electric field and deflect in a magnetic field.",
-                // mouseInstructions: "<i class='fa-solid fa-mouse mr-1'></i> Left Click: Rotate / Right Click: Pan / Scroll: Zoom", // Removed
                 ctrlLeft: "Left Drag: Rotate Camera",
                 ctrlRight: "Right Drag: Pan Camera",
                 ctrlScroll: "Scroll: Zoom In/Out",
@@ -397,13 +458,26 @@
                 tableColIsotope: "Isotope",
                 tableColMass: "Mass (u)",
                 tableColAbundance: "Abundance (%)",
-                modalTitle: "How it Works",
-                modalSec1Title: "1. Ionization & Acceleration",
-                modalSec1Desc: "First, atoms are ionized into positive ions. They enter an electric field (controlled by Voltage $V$) and gain kinetic energy.<div class='bg-slate-900/50 p-2 my-2 rounded text-center'>$$ qV = \\frac{1}{2}mv^2 $$</div>",
-                modalSec2Title: "2. Magnetic Deflection",
-                modalSec2Desc: "Entering a perpendicular magnetic field ($B$), the ions undergo circular motion due to Lorentz Force.<div class='bg-slate-900/50 p-2 my-2 rounded text-center'>$$ F = qvB = \\frac{mv^2}{r} $$</div>",
-                modalSec3Title: "Key Formula: Radius",
-                modalSec3Desc: "The radius $r$ depends on mass $m$. Thus, isotopes of different masses separate and hit the detector at different locations.",
+                principleTitle: "Mass Spectrometer Principle",
+                principleConceptH: "Concept",
+                principleConcept: "A mass spectrometer ionizes sample atoms, accelerates them in an electric field, then bends them in a perpendicular magnetic field. Different isotopic masses follow different radii and strike different detector positions, building an abundance spectrum. This sim shows in 3D how $r$ depends on $m$, $V$, and $B$.",
+                principleMechH: "Mechanism",
+                principleMech1: "1. <strong>Acceleration</strong>: $qV=\\frac{1}{2}mv^2$ (ideal); exit speed depends on $V$ and $m$.",
+                principleMech2: "2. <strong>Deflection</strong>: $qvB=mv^2/r$ ⇒ $r=\\frac{mv}{qB}$, or $r=\\frac{1}{B}\\sqrt{\\frac{2Vm}{q}}$ for unit charge.",
+                principleMech3: "3. <strong>Separation</strong>: at fixed $q$, $V$, $B$, larger $m$ ⇒ larger $r$ ⇒ hits farther on the “high-mass” side.",
+                principleMech4: "4. <strong>Abundance</strong>: ions are sampled by natural abundances; long runs give peak-height ratios qualitatively like the table.",
+                principleMech5: "5. <strong>Idealizations</strong>: teaching-scale integrator (not strict SI orbits), single charge state, no space charge／fringe fields, wall hits remove particles, finite histogram bins.",
+                principleExH: "Everyday example",
+                principleExample: "Isotope dating, pollutant screening, and pharma identification use mass spectrometry (real instruments often use quadrupoles／TOF, etc.). Do not merge this file with the magnetic-field-lines lab, a solenoid uniform-field lab, or organic fragment-peak interpretation worksheets.",
+                stepsTitle: "Observation Steps",
+                step1: "Set source to <strong>Neon (Ne)</strong>, voltage ≈ <strong>2000 V</strong>, $B$ ≈ <strong>1.00 T</strong>. <strong>Turn On Source</strong>, switch to <strong>Top View</strong>, and watch ions accelerate then curve in the $B$ region onto the detector. Check that the abundance graph grows peaks. <strong>Reset</strong> clears counts and restores defaults.",
+                step2: "Keep Ne firing. Raise <strong>$B$</strong> clearly (e.g. toward 2.0 T): paths bend tighter and peaks shift toward the <strong>low-mass／small-$r$</strong> side; lower $B$ and peaks move toward larger $r$. Link this to $r \\propto 1/B$.",
+                step3: "After Reset, select <strong>Chlorine (Cl)</strong> and turn the source on. Compare the abundance table (~3:1 for Cl-35:Cl-37). Check for <strong>two</strong> main peaks with the lighter isotope (smaller $r$) taller. Optionally try Lithium or Boron for different peak counts.",
+                step4: "Keep the element fixed and raise <strong>$V$</strong> (e.g. toward 5000 V): bend radii grow (peaks shift toward larger $r$). Idealizations: unit charge $q=1$, teaching-scale acceleration, ideal perpendicular $\\vec{B}$, tube-wall hits remove particles, histogram ≠ exact spectrum, abundances are random draws approximating natural ratios.",
+                quizTitle: "Classroom Quiz",
+                quizShowAnswers: "Show answers",
+                quizHideAnswers: "Hide answers",
+                quizAnswerLabel: "Answer",
                 btnClose: "Close",
                 sceneIonSource: "Ion Source",
                 sceneEField: "Electric Field E",
@@ -411,6 +485,111 @@
                 sceneDetector: "Detector"
             }
         };
+
+        const QUIZ = [
+            {
+                type: 'mc',
+                correct: 'A',
+                q: {
+                    zh: '重置後選 Neon，電壓與磁場維持預設附近，開啟離子源並觀察圖譜。關於 Ne-20 與 Ne-22，哪項最合理？',
+                    en: 'Reset, select Neon, keep $V$／$B$ near defaults, turn the source on, and watch the graph. About Ne-20 vs Ne-22, which is most reasonable?'
+                },
+                opts: {
+                    zh: {
+                        A: '較輕的 Ne-20 彎曲半徑較小，峰較靠「質量小／$r$ 小」一側',
+                        B: '較重的 Ne-22 一定打在加速極板上，永遠不進磁場',
+                        C: '所有同位素共用同一個偵測位置，圖譜永遠只有單峰',
+                        D: '本模擬沒有 Neon 選項'
+                    },
+                    en: {
+                        A: 'Lighter Ne-20 has smaller $r$ and peaks toward the low-mass／small-$r$ side',
+                        B: 'Heavier Ne-22 always hits the accelerator plates and never enters $B$',
+                        C: 'All isotopes share one detector bin so the graph is always a single peak',
+                        D: 'This sim has no Neon option'
+                    }
+                },
+                ans: {
+                    zh: 'A。$r\\propto m$（$q$、$V$、$B$ 固定時）。',
+                    en: 'A. $r\\propto m$ (at fixed $q$, $V$, $B$).'
+                }
+            },
+            {
+                type: 'short',
+                q: {
+                    zh: '保持同一元素與發射開啟，先把磁場 $B$ 維持在約 1.0 T 記下峰位置；再把 $B$ 明顯調高。先預測路徑彎曲與圖譜峰向哪側移動，再操作驗證。',
+                    en: 'Keep the same element firing with $B$ near ~1.0 T and note peak positions; raise $B$ clearly. Predict how paths bend and peaks shift, then verify.'
+                },
+                ans: {
+                    zh: '路徑彎曲更急，峰移向較小 $r$（質量小一側）；$r\\propto 1/B$。',
+                    en: 'Paths bend more sharply; peaks shift toward smaller $r$ (low-mass side); $r\\propto 1/B$.'
+                }
+            },
+            {
+                type: 'mc',
+                correct: 'A',
+                q: {
+                    zh: '重置後選 Chlorine，開啟離子源，對照豐度表。哪項最正確？',
+                    en: 'Reset, select Chlorine, turn the source on, and use the abundance table. Which is most correct?'
+                },
+                opts: {
+                    zh: {
+                        A: '應看到約兩個主峰；Cl-35（較輕、豐度較高）峰通常較高且靠較小 $r$',
+                        B: '氯只有一種同位素，圖譜必然單一尖峰且與表無關',
+                        C: '選氯會刪除偵測器物件',
+                        D: '豐度表只在英文模式顯示'
+                    },
+                    en: {
+                        A: 'About two main peaks; Cl-35 (lighter, higher abundance) is usually taller and at smaller $r$',
+                        B: 'Chlorine has only one isotope so the graph must be one spike unrelated to the table',
+                        C: 'Choosing chlorine deletes the detector',
+                        D: 'The abundance table appears only in English mode'
+                    }
+                },
+                ans: {
+                    zh: 'A。表列約 75.8% : 24.2% 與雙峰分離。',
+                    en: 'A. Table ≈ 75.8% : 24.2% with two separated peaks.'
+                }
+            },
+            {
+                type: 'short',
+                q: {
+                    zh: '先重置回 Neon 預設，開啟離子源記下峰大致位置；再把電壓明顯調高，觀察峰移動；最後按重置。用自己的話寫：（1）升高 $V$ 時 $r$／峰大致如何變；（2）重置後計數與（建議）參數應如何；（3）重置應否改變中／EN（本設計預期）。',
+                    en: 'Reset to Neon defaults, fire and note peak positions; raise $V$ clearly and watch peaks; then Reset. In your own words: (1) how $r$／peaks change when $V$ rises; (2) what Reset should restore about counts and (recommended) parameters; (3) should Reset change zh／EN (per this design)?'
+                },
+                ans: {
+                    zh: '（1）$V$ 升高 → 速率增 → $r$ 增大，峰移向大 $r$／質量大一側；（2）計數歸零、粒子清除；建議同時關發射並還原 $V=2000$、$B=1.0$、Neon；（3）重置<strong>不</strong>應切換語言。',
+                    en: '(1) Higher $V$ ⇒ faster ions ⇒ larger $r$, peaks shift high-mass／large-$r$; (2) counts／particles clear; recommended also stop firing and restore $V=2000$, $B=1.0$, Neon; (3) Reset should <strong>not</strong> switch language.'
+                }
+            },
+            {
+                type: 'mc',
+                correct: 'A',
+                q: {
+                    zh: '根據本模擬控件與設計，哪項最正確？',
+                    en: 'Using this sim’s controls and design, which is most correct?'
+                },
+                opts: {
+                    zh: {
+                        A: '可選元素源、調 $V$ 與 $B$、開關離子源，用 3D 路徑與豐度圖看同位素分離；有步驟／原理／五題／中EN／重置——主題是質譜質量分析，不是磁力線實驗室、螺線管或有機碎片解譜',
+                        B: '本檔提供拖曳多塊磁鐵並顯示鐵粉場線',
+                        C: '重置會強制改成英文並移除 MathJax',
+                        D: '主要展示氣體定律 $PV=nRT$'
+                    },
+                    en: {
+                        A: 'You can pick an element, tune $V$ and $B$, fire ions, and read 3D paths plus an abundance graph for isotope separation; steps／principle／five quiz items／zh-EN／reset—this is mass analysis, not a field-lines lab, solenoid lab, or organic fragment worksheet',
+                        B: 'This file lets you drag multiple bar magnets and show iron-filing field lines',
+                        C: 'Reset always switches to English and removes MathJax',
+                        D: 'It mainly shows the ideal-gas law $PV=nRT$'
+                    }
+                },
+                ans: {
+                    zh: 'A。隔離 magnetic-field-lines／solenoid／dc-motor／gas_laws／有機解譜；Reset 不改語言。',
+                    en: 'A. Isolated from magnetic-field-lines／solenoid／dc-motor／gas_laws／organic fragment worksheets; Reset does not change language.'
+                }
+            }
+        ];
+
+        let quizAnswersVisible = false;
 
         let currentLang = 'zh';
 
@@ -420,6 +599,7 @@
         function updateLanguage(lang) {
             currentLang = lang;
             const data = I18N[lang];
+            document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
             
             // Update DOM Elements
             document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -430,6 +610,15 @@
             // Keep button text constant as requested
             const btnLang = document.getElementById('btn-lang');
             // btnLang.textContent = lang === 'zh' ? 'EN' : '中'; // Removed dynamic change
+
+            // Refresh quiz list if open
+            if (document.getElementById('modal-quiz')?.classList.contains('active')) {
+                renderQuiz();
+            }
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) {
+                ansBtn.innerHTML = quizAnswersVisible ? data.quizHideAnswers : data.quizShowAnswers;
+            }
 
             // Update Camera Button if necessary
             const btnCam = document.getElementById('btn-toggle-cam');
@@ -980,6 +1169,46 @@
             STATE.particles = [];
         }
 
+        /** Full Reset per §10: clear particles/counts, stop fire, restore V/B/Neon/camera; does NOT reset language. */
+        function fullReset() {
+            clearSimulation();
+
+            // Stop ion source
+            STATE.isFiring = false;
+            const btnFire = document.getElementById('btn-toggle-fire');
+            const data = I18N[currentLang];
+            btnFire.classList.remove('btn-active');
+            btnFire.classList.remove('bg-green-600', 'hover:bg-green-500', 'border-green-500');
+            btnFire.classList.add('bg-slate-700', 'hover:bg-slate-600', 'border-slate-500');
+            btnFire.innerHTML = `<i class="fa-solid fa-power-off mr-2"></i> ${data.btnFireOn}`;
+
+            // Restore V / B defaults
+            STATE.voltage = 2000;
+            STATE.magneticField = 1.0;
+            const voltageEl = document.getElementById('voltage');
+            const magneticEl = document.getElementById('magnetic');
+            voltageEl.value = 2000;
+            magneticEl.value = 1.0;
+            document.getElementById('val-voltage').innerText = '2000 V';
+            document.getElementById('val-magnetic').innerText = '1.00 T';
+
+            // Restore Neon source
+            STATE.sourceType = 'neon';
+            document.getElementById('source-select').value = 'neon';
+            updateLegend();
+            updateAbundanceTable();
+
+            // Camera back to perspective default
+            STATE.cameraMode = 'ortho';
+            camera.position.set(90, 160, 240);
+            camera.lookAt(60, 0, 50);
+            controls.target.set(60, 0, 50);
+            controls.update();
+            const btnCam = document.getElementById('btn-toggle-cam');
+            btnCam.innerHTML = `<i class="fa-solid fa-video mr-2"></i> ${data.btnCamTop}`;
+            // Language intentionally NOT reset
+        }
+
         // --- 7. ANIMATION LOOP ---
         let frame = 0;
 
@@ -1025,7 +1254,7 @@
             updateAbundanceTable();
         });
 
-        document.getElementById('btn-reset').addEventListener('click', clearSimulation);
+        document.getElementById('btn-reset').addEventListener('click', fullReset);
 
         document.getElementById('btn-toggle-fire').addEventListener('click', () => {
             STATE.isFiring = !STATE.isFiring;
@@ -1065,45 +1294,92 @@
         });
 
         // -- Modal & Lang Events --
-        const modal = document.getElementById('info-modal');
-        const btnInfo = document.getElementById('btn-info');
-        const btnClose = document.getElementById('btn-close-modal');
-        const btnCloseBtm = document.getElementById('btn-close-modal-bottom');
-        const btnLang = document.getElementById('btn-lang');
-
-        // Controls Modal
-        const controlsModal = document.getElementById('controls-modal');
-        const btnControls = document.getElementById('btn-controls');
-        const btnCloseControls = document.getElementById('btn-close-controls');
-        const btnCloseControlsBottom = document.getElementById('btn-close-controls-bottom');
+        const MODAL_IDS = ['modal-steps', 'modal-principle', 'modal-quiz', 'controls-modal'];
 
         function toggleModal(targetModal, show) {
+            if (!targetModal) return;
             if (show) {
                 targetModal.classList.add('active');
+                if (targetModal.id === 'modal-quiz') renderQuiz();
                 if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-                    MathJax.typesetPromise().catch(err => console.log('MathJax error:', err));
+                    MathJax.typesetPromise([targetModal]).catch(err => console.log('MathJax error:', err));
                 }
             } else {
                 targetModal.classList.remove('active');
             }
         }
 
-        // Info Modal Listeners
-        btnInfo.addEventListener('click', () => toggleModal(modal, true));
-        btnClose.addEventListener('click', () => toggleModal(modal, false));
-        btnCloseBtm.addEventListener('click', () => toggleModal(modal, false));
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) toggleModal(modal, false);
+        function closeAllModals() {
+            MODAL_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            });
+        }
+
+        function openModalById(id) {
+            closeAllModals();
+            toggleModal(document.getElementById(id), true);
+        }
+
+        function renderQuiz() {
+            const list = document.getElementById('quiz-list');
+            if (!list) return;
+            const lang = currentLang;
+            const data = I18N[lang];
+            const shortNote = lang === 'zh' ? '先預測，再操作本模擬核對。' : 'Predict first, then verify on the sim.';
+            const mkChoice = (name, item) => ['A', 'B', 'C', 'D'].map(L =>
+                `<label class="flex items-start gap-2 rounded-lg border border-slate-600/60 px-3 py-2 cursor-pointer hover:bg-slate-800/50">
+                    <input type="radio" name="${name}" class="mt-1 accent-rose-500">
+                    <span class="text-sm"><span class="font-mono text-sky-400 mr-1">${L}.</span>${item.opts[lang][L]}</span>
+                </label>`
+            ).join('');
+            const ansBlock = (text) => quizAnswersVisible
+                ? `<div class="mt-3 text-sm text-emerald-300/90 bg-emerald-950/30 border border-emerald-800/40 rounded-lg p-2"><span class="font-semibold text-emerald-400">${data.quizAnswerLabel}：</span> ${text}</div>`
+                : '';
+            list.innerHTML = QUIZ.map((item, idx) => {
+                const n = idx + 1;
+                const name = 'q' + n;
+                const open = item.type === 'short';
+                return `<div class="rounded-lg border border-slate-600/60 bg-slate-900/40 p-4">
+                    <div class="font-semibold text-rose-200 mb-2">Q${n}. ${item.q[lang]}</div>
+                    ${open ? `<p class="text-xs text-slate-500 mb-1">${shortNote}</p>` : `<div class="space-y-1.5 mt-2">${mkChoice(name, item)}</div>`}
+                    ${ansBlock(item.ans[lang])}
+                </div>`;
+            }).join('');
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? data.quizHideAnswers : data.quizShowAnswers;
+            if (window.MathJax?.typesetPromise) MathJax.typesetPromise([list]).catch(() => {});
+        }
+
+        document.getElementById('btn-steps').addEventListener('click', () => openModalById('modal-steps'));
+        document.getElementById('btn-principle').addEventListener('click', () => openModalById('modal-principle'));
+        document.getElementById('btn-quiz').addEventListener('click', () => openModalById('modal-quiz'));
+        document.getElementById('btn-controls').addEventListener('click', () => openModalById('controls-modal'));
+
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-close');
+                toggleModal(document.getElementById(id), false);
+            });
+        });
+        MODAL_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('click', (e) => {
+                if (e.target === el) toggleModal(el, false);
+            });
         });
 
-        // Controls Modal Listeners
-        btnControls.addEventListener('click', () => toggleModal(controlsModal, true));
-        btnCloseControls.addEventListener('click', () => toggleModal(controlsModal, false));
-        btnCloseControlsBottom.addEventListener('click', () => toggleModal(controlsModal, false));
-        controlsModal.addEventListener('click', (e) => {
-            if (e.target === controlsModal) toggleModal(controlsModal, false);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAllModals();
         });
 
+        document.getElementById('btn-quiz-answers').addEventListener('click', () => {
+            quizAnswersVisible = !quizAnswersVisible;
+            renderQuiz();
+        });
+
+        const btnLang = document.getElementById('btn-lang');
         btnLang.addEventListener('click', () => {
             const newLang = currentLang === 'zh' ? 'en' : 'zh';
             updateLanguage(newLang);
@@ -1118,7 +1394,7 @@
         // Init
         updateLegend();
         updateAbundanceTable();
-        updateLanguage('zh'); // Initialize text and labels
+        updateLanguage('zh'); // Initialize text, labels, and document.documentElement.lang
         animate();
 
     </script>

@@ -1,11 +1,60 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>物理模型：升降機中的表觀重量</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Noto Sans TC (P2) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&display=swap" rel="stylesheet">
     <!-- MathJax 用於數學公式 -->
     <script>
         window.MathJax = {
@@ -15,7 +64,12 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        /*
+         * Layout exemption: fullscreen elevator dual-float layout exemption
+         * (full-viewport #sim-canvas + absolute left control-panel 340px + right data-panel 340px).
+         * Teaching controls (steps / principle / quiz / lang / reset) are NOT exempt.
+         */
+        body { margin: 0; overflow: hidden; font-family: 'Noto Sans TC', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
         #sim-canvas { display: block; width: 100%; height: 100vh; }
         
         /* UI 面板樣式 */
@@ -45,6 +99,7 @@
             width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);
             backdrop-filter: blur(4px); align-items: center; justify-content: center;
         }
+        .modal.is-open { display: flex; }
         .modal-content {
             background-color: white; padding: 32px; border-radius: 20px;
             max-width: 650px; width: 90%; max-height: 85vh; overflow-y: auto;
@@ -70,6 +125,20 @@
         .btn-mode { @apply flex-1 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 border-2 outline-none; }
         .btn-mode.active { @apply border-blue-600 bg-blue-600 text-white shadow-md transform scale-[1.02]; }
         .btn-mode.inactive { @apply border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 hover:border-slate-300; }
+
+        .teach-btn {
+            @apply flex-1 py-2 rounded-lg font-bold text-xs transition duration-200 border;
+        }
+        .quiz-opt {
+            display: block; width: 100%; text-align: left; padding: 0.6rem 0.75rem;
+            margin-top: 0.4rem; border-radius: 0.5rem; border: 1px solid #e2e8f0;
+            background: #f8fafc; font-size: 0.9rem; cursor: pointer;
+        }
+        .quiz-opt:hover { background: #eef2ff; border-color: #a5b4fc; }
+        .quiz-opt.correct { background: #ecfdf5; border-color: #34d399; }
+        .quiz-opt.wrong { background: #fef2f2; border-color: #f87171; }
+        .quiz-ans { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f1f5f9; border-radius: 0.5rem; font-size: 0.875rem; color: #334155; }
+        .quiz-ans.show { display: block; }
     </style>
 </head>
 <body>
@@ -81,6 +150,13 @@
     <div class="control-panel space-y-5">
         <h1 class="text-2xl font-extrabold text-slate-800 border-b-2 border-slate-200 pb-3" id="title">升降機物理實驗室</h1>
         
+        <!-- 教學控件列 -->
+        <div class="flex flex-wrap gap-2">
+            <button type="button" id="btn-steps" class="teach-btn border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">觀察步驟</button>
+            <button type="button" id="btn-principle" class="teach-btn border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100">原理解說</button>
+            <button type="button" id="btn-quiz" class="teach-btn border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100">課堂問題</button>
+        </div>
+
         <!-- 模式切換 -->
         <div>
             <label class="block text-sm font-bold text-slate-700 mb-2" id="label-mode">操作模式</label>
@@ -124,16 +200,15 @@
         <div>
             <label class="block text-sm font-bold text-slate-700 mb-1" id="label-g">重力環境 (g):</label>
             <select id="input-g" class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 outline-none font-medium text-slate-700">
-                <option value="9.81">地球 (g = 9.81 m/s²)</option>
-                <option value="1.62">月球 (g = 1.62 m/s²)</option>
-                <option value="3.71">火星 (g = 3.71 m/s²)</option>
-                <option value="0">深空無重力 (g = 0 m/s²)</option>
+                <option value="9.81" data-g-key="earth">地球 (g = 9.81 m/s²)</option>
+                <option value="1.62" data-g-key="moon">月球 (g = 1.62 m/s²)</option>
+                <option value="3.71" data-g-key="mars">火星 (g = 3.71 m/s²)</option>
+                <option value="0" data-g-key="space">深空無重力 (g = 0 m/s²)</option>
             </select>
         </div>
 
         <div class="flex gap-3 pt-2">
             <button id="reset-btn" class="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-300 transition duration-200">重置</button>
-            <button id="theory-btn" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-lg hover:bg-blue-700 shadow-md hover:shadow-lg transition duration-200">原理解說</button>
         </div>
     </div>
 
@@ -167,71 +242,155 @@
         </div>
     </div>
 
-    <!-- 語言切換 -->
-    <button id="lang-btn" class="lang-btn bg-white px-5 py-2.5 rounded-full shadow-lg border border-slate-200 hover:bg-slate-50 font-bold text-slate-700 transition transform hover:scale-105">中 / EN</button>
+    <!-- 語言切換：#btn-lang 標準 id；#lang-btn 相容別名 -->
+    <button id="btn-lang" class="lang-btn bg-white px-5 py-2.5 rounded-full shadow-lg border border-slate-200 hover:bg-slate-50 font-bold text-slate-700 transition transform hover:scale-105">中 / EN</button>
 
-    <!-- 彈出視窗 (原理說明) -->
-    <div id="theory-modal" class="modal">
+    <!-- 觀察步驟 -->
+    <div id="modal-steps" class="modal" role="dialog" aria-modal="true" aria-labelledby="steps-title">
         <div class="modal-content">
-            <h2 class="text-2xl font-extrabold mb-5 text-slate-800 border-b pb-3" id="modal-title">升降機內的力學原理</h2>
-            <div id="modal-body" class="text-slate-700 leading-relaxed space-y-4 text-lg">
-                <p>在升降機中，我們站在磅秤上時，磅秤測量的是<strong>地板對我們的向上支持力（法向力 $R$）</strong>，這被稱為「<strong>表觀重量</strong>」。</p>
-                <p>根據牛頓第二運動定律 $\sum F = ma$，考慮垂直方向受力：</p>
-                <ul class="list-disc pl-6 space-y-2">
-                    <li>向下的真實重力：$W = mg$</li>
-                    <li>向上的法向力（表觀重量）：$R$</li>
-                </ul>
-                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 my-4 text-center">
-                    $$R - mg = ma \implies R = m(g + a)$$
-                </div>
-                
-                <h3 class="font-bold text-xl text-blue-700 mt-6">自動模式的運動過程：</h3>
-                <div class="space-y-3">
-                    <div class="p-3 border-l-4 border-red-500 bg-red-50">
-                        <strong>1. 起步加速 (a > 0)</strong><br>
-                        升降機向上啟動時，需要向上的淨力。此時 $R > mg$，發生「<strong>超重</strong>」。在 $a-t$ 圖和 $R-t$ 圖中會看到突起的方波。
-                    </div>
-                    <div class="p-3 border-l-4 border-gray-400 bg-gray-50">
-                        <strong>2. 中段巡航 (a = 0)</strong><br>
-                        升降機達到最大速度後等速上升。此時 $R = mg$，人感覺恢復正常體重。$v-t$ 圖呈現水平線。
-                    </div>
-                    <div class="p-3 border-l-4 border-blue-500 bg-blue-50">
-                        <strong>3. 煞車減速 (a < 0)</strong><br>
-                        接近目標樓層時減速。此時 $R < mg$，發生「<strong>失重</strong>」。$R-t$ 圖會看見向下的方波。
-                    </div>
-                </div>
+            <h2 class="text-2xl font-extrabold mb-5 text-indigo-700 border-b pb-3" id="steps-title">觀察步驟</h2>
+            <ol id="steps-body" class="list-decimal pl-5 space-y-3 text-slate-700 leading-relaxed"></ol>
+            <button type="button" id="close-steps" class="mt-8 w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition text-lg" data-close-modal="modal-steps">關閉</button>
+        </div>
+    </div>
+
+    <!-- 原理解說（標準 id；取代 soft #theory-modal） -->
+    <div id="modal-principle" class="modal" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content">
+            <h2 class="text-2xl font-extrabold mb-5 text-blue-700 border-b pb-3" id="principle-title">原理解說</h2>
+            <div id="principle-body" class="text-slate-700 leading-relaxed space-y-4 text-base"></div>
+            <button type="button" id="close-principle" class="mt-8 w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition text-lg" data-close-modal="modal-principle">關閉</button>
+        </div>
+    </div>
+
+    <!-- 課堂問題 -->
+    <div id="modal-quiz" class="modal" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content">
+            <h2 class="text-2xl font-extrabold mb-5 text-violet-700 border-b pb-3" id="quiz-title">課堂問題</h2>
+            <div class="mb-3">
+                <button type="button" id="btn-quiz-answers" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold py-2 px-4 rounded">顯示參考答案</button>
             </div>
-            <button id="close-modal" class="mt-8 w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition text-lg">關閉 / Close</button>
+            <div id="quiz-body" class="space-y-5"></div>
+            <button type="button" id="close-quiz" class="mt-8 w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition text-lg" data-close-modal="modal-quiz">關閉</button>
         </div>
     </div>
 
     <script>
-        // --- 語言包設定 ---
+        // --- 語言包設定（保留 i18n + currentLang + updateLang 家族） ---
         let currentLang = 'zh';
+        let quizAnswersVisible = false;
         const i18n = {
             zh: {
                 title: "升降機物理實驗室", mass: "乘客質量 (m)", acc: "加速度 (a)",
                 hintAcc: "正值向上加速，負值向下加速", gEnv: "重力環境 (g):",
-                reset: "重置", theory: "原理解說", dataTitle: "實時受力分析",
+                reset: "重置", theory: "原理解說", stepsBtn: "觀察步驟", quizBtn: "課堂問題",
+                dataTitle: "實時受力分析",
                 realW: "真實重量 (W)", appW: "表觀重量 (R)", state: "當前狀態:",
                 stIdle: "表觀重量等於實際重量", stHeavy: "表觀重量高於實際重量",
                 stLight: "表觀重量低於實際重量",
-                modalTitle: "升降機內的力學原理", close: "關閉",
+                modalTitle: "原理解說", stepsTitle: "觀察步驟", quizTitle: "課堂問題",
+                close: "關閉", showAnswers: "顯示參考答案", hideAnswers: "隱藏參考答案",
                 mode: "操作模式", manual: "手動控制", auto: "自動導航",
                 targetFloor: "目標樓層 (1-50)", go: "前往", currFloor: "當前預估樓層:",
-                graphs: "動力學圖表 (過去10秒)"
+                graphs: "動力學圖表 (過去10秒)",
+                gEarth: "地球 (g = 9.81 m/s²)", gMoon: "月球 (g = 1.62 m/s²)",
+                gMars: "火星 (g = 3.71 m/s²)", gSpace: "深空無重力 (g = 0 m/s²)",
+                conceptLabel: "概念", mechanismLabel: "機制", exampleLabel: "日常例子",
+                shortHint: "（短答：請在筆記本作答，再對照參考答案）",
+                step1: "保持<strong>手動控制</strong>、地球重力、質量約 <strong>60 kg</strong>。把加速度滑到約 <strong>+2 m/s²</strong>（向上加速）。觀察：(1) 表觀重量 R 是否明顯大於真實重量 W；(2) 狀態徽章是否顯示「高於實際」；(3) 綠箭頭 R 是否長於黃箭頭 W。用一句話寫出 $R = m(g + a)$。按重置可回靜止。",
+                step2: "同一質量與地球 g，改設加速度約 <strong>−2 m/s²</strong>（向下加速／向上減速）。對照 R 與 W、狀態徽章、箭頭。再試接近 <strong>a = −g</strong>（或可達下限），觀察 R 是否趨近 0、人物是否略離磅秤（完全失重示意）。",
+                step3: "切換<strong>自動導航</strong>，目標樓層設為較高樓（如 <strong>10</strong>），按「前往」。觀察右側圖表與讀數：起步時 a>0、R 突起（超重）→ 巡航 a≈0、R≈W → 接近目標 a<0、R 下降（失重）。說明這三段對應日常電梯「起動沉／途中正常／將到輕」。",
+                step4: "改重力為<strong>月球</strong>（或火星），手動設同一數值 a（注意滑桿上限隨 g 縮小）。比較 W 與 R 的絕對值變化；再試<strong>深空 g=0</strong>。指出本模擬假設：一維垂直、$R = \\max(0, m(g+a))$、自動限速／限加速度、樓高固定 3 m、無纜繩張力細部／無空氣阻力橫向。",
+                principleConcept: "在升降機（電梯）裡站在磅秤上，磅秤顯示的是地板對人的<strong>向上支持力（法向力）</strong>，稱為<strong>表觀重量</strong> $R$。人的<strong>真實重量</strong>是重力 $W = mg$。當電梯有加速度時，$R$ 不必等於 $W$——這就是課堂上的「超重」與「失重」。本實驗室可用手動設定 $a$，或以自動導航體驗起步—巡航—煞車，並在地球／月球／火星／深空切換 $g$，對照力箭頭與 v／a／R／W 圖。",
+                principleMechanism: "<ol class='list-decimal pl-5 space-y-2'><li><strong>牛頓第二定律（向上為正）</strong>：$\\sum F = ma$ ⇒ $R - mg = ma$ ⇒ <strong>$R = m(g + a)$</strong>。</li><li><strong>符號約定</strong>：本檔 $a > 0$ 為向上加速；$a < 0$ 為向下加速（含向上減速）。</li><li><strong>三種常見情況</strong>：$a = 0$ → $R = mg$；$a > 0$ → $R > mg$（超重）；$a < 0$ → $R < mg$（失重）。若 $g + a \\le 0$，模擬將 $R$ 夾為 0（完全失重示意）。</li><li><strong>自動模式</strong>：以有限最大速度與加速度接近目標樓層，因而出現加速方波 → 等速 → 減速方波，R–t 隨之起伏。</li><li><strong>本模擬假設</strong>：點質量／剛體乘客示意、一維運動、法向力不為負、樓高恆定、自動控制器為簡化梯形速度規劃，非真實變頻電梯曲線。</li></ol>",
+                principleExample: "電梯剛起動上升時膝蓋「變沉」、將到站減速時「變輕」；過山車或自由落體塔接近 $a = -g$ 時短暫完全失重；月球上同一身體的 $W$ 與可感 $R$ 都變小。勿把本檔與「自由落體＋空氣阻力終端速度」或斜面／拋體公式混為同一控件故事。",
+                q1: "手動、地球 g、質量約 60 kg，設加速度約 <strong>+2 m/s²</strong>。最可能观察到？",
+                q1a: "A. 表觀重量 R 大於真實重量 W，狀態偏向「高於實際」",
+                q1b: "B. R 必須永遠等於 0",
+                q1c: "C. 向上加速時真實重量 W 會變成負數",
+                q1d: "D. 本模擬沒有顯示 R",
+                q1ans: "參考答案：A。$R = m(g+a)$，$a>0$ ⇒ $R>mg$；W 仍為 $mg$。",
+                q1correct: "A",
+                q2: "手動、地球 g，把加速度調到明顯負值（接近 −g）。先預測表觀重量 R、真實重量 W 與狀態徽章，再操作核對。",
+                q2a: "A. R 會低於 W；若 g+a≤0，R 可被夾成 0（完全失重示意）",
+                q2b: "B. 負加速度會讓質量 m 自動變成 0",
+                q2c: "C. 失重時圖表一定只剩溫度曲線",
+                q2d: "D. R 永遠大於 W",
+                q2ans: "參考答案：A。失重對應 $a<0$；完全失重對應 $R=0$ 夾制。",
+                q2correct: "A",
+                q3: "切換自動導航，從低樓前往較高目標樓層並觀察圖表。最合理的描述是？",
+                q3a: "A. 起步常出現 a>0 與 R 升高，中段近 a=0 且 R≈W，接近目標常 a<0 與 R 降低",
+                q3b: "B. 自動模式全程強制 a 恆等於 +9.81",
+                q3c: "C. 自動模式不會改變樓層讀數",
+                q3d: "D. 按「前往」會刪除質量滑桿",
+                q3ans: "參考答案：A。對應自動梯形速度規劃的三段與 R 隨 a 變化。",
+                q3correct: "A",
+                q4: "手動模式下任選一組 m、g、a（例如 60 kg、地球、+1.5 m/s²），讀取 W 與 R。用自己的話寫出兩者關係，並核對是否約符合 $R = m(g+a)$、$W = mg$。",
+                q4ans: "參考答案：W 只取決於 m 與 g；R 還隨 a 變。向上加速時 R>W；數值應接近公式（允許顯示四捨五入誤差）。",
+                q4short: true,
+                q5: "根據本模擬控件與設計，哪項最正確？",
+                q5a: "A. 可手動設 a 或自動前往樓層；可改 m 與 g；讀 R／W 與四圖；標準五題離線可答——主題是電梯表觀重量，不是空氣阻力終端速度或碰撞",
+                q5b: "B. 深空 g=0 時真實重量仍固定為地球 588.6 N",
+                q5c: "C. 重置會強制改成英文介面",
+                q5d: "D. 本模擬主要展示氣體定律 PV=nRT",
+                q5ans: "參考答案：A。g=0 ⇒ W=0；Reset 不改語言；勿與 gas_laws／freefall-drag／collision 混淆。",
+                q5correct: "A"
             },
             en: {
                 title: "Elevator Physics Lab", mass: "Passenger Mass (m)", acc: "Acceleration (a)",
                 hintAcc: "Positive: Upward, Negative: Downward", gEnv: "Gravity Env (g):",
-                reset: "Reset", theory: "Theory", dataTitle: "Real-time Force Analysis",
+                reset: "Reset", theory: "Principle", stepsBtn: "Observation Steps", quizBtn: "Quiz",
+                dataTitle: "Real-time Force Analysis",
                 realW: "True Weight (W)", appW: "Apparent Weight (R)", state: "Status:",
                 stIdle: "Apparent = Actual", stHeavy: "Apparent > Actual",
                 stLight: "Apparent < Actual",
-                modalTitle: "Mechanics in an Elevator", close: "Close",
+                modalTitle: "Principle", stepsTitle: "Observation Steps", quizTitle: "Quiz",
+                close: "Close", showAnswers: "Show answers", hideAnswers: "Hide answers",
                 mode: "Control Mode", manual: "Manual", auto: "Auto Navigation",
                 targetFloor: "Target Floor (1-50)", go: "Go", currFloor: "Est. Current Floor:",
-                graphs: "Kinematics Graphs (Last 10s)"
+                graphs: "Kinematics Graphs (Last 10s)",
+                gEarth: "Earth (g = 9.81 m/s²)", gMoon: "Moon (g = 1.62 m/s²)",
+                gMars: "Mars (g = 3.71 m/s²)", gSpace: "Deep space (g = 0 m/s²)",
+                conceptLabel: "Concept", mechanismLabel: "Mechanism", exampleLabel: "Everyday example",
+                shortHint: "(Short answer: write in your notebook, then compare with the reference.)",
+                step1: "Stay in <strong>Manual</strong>, Earth g, mass ≈ <strong>60 kg</strong>. Set acceleration ≈ <strong>+2 m/s²</strong> (upward). Check: (1) apparent weight R clearly above true weight W; (2) status shows heavier-than-actual; (3) green R arrow longer than yellow W. State $R = m(g + a)$. <strong>Reset</strong> to return to rest.",
+                step2: "Same mass and Earth g, set a ≈ <strong>−2 m/s²</strong>. Compare R vs W, badge, and arrows. Then approach <strong>a = −g</strong> (or the slider floor) and watch R → 0 and a slight lift off the scale (full weightlessness sketch).",
+                step3: "Switch to <strong>Auto</strong>, target a higher floor (e.g. <strong>10</strong>), press <strong>Go</strong>. Watch graphs/readouts: start a>0 and R spike (heavier) → cruise a≈0 and R≈W → approach a<0 and R drop (lighter). Link the three phases to everyday elevator feel.",
+                step4: "Set gravity to <strong>Moon</strong> (or Mars), manually use a comparable a (slider limits shrink with g). Compare absolute W and R; then try <strong>deep space g=0</strong>. State idealizations: 1D vertical, $R = \\max(0, m(g+a))$, auto speed/accel caps, fixed 3 m floors, no detailed cable tension or sideways drag.",
+                principleConcept: "On a scale inside an elevator, the reading is the <strong>upward normal／support force</strong>—the <strong>apparent weight</strong> $R$. <strong>True weight</strong> is $W = mg$. With elevator acceleration, $R$ need not equal $W$—classroom “heavier” and “lighter” sensations. This lab sets $a$ manually or runs auto start–cruise–brake, and switches Earth／Moon／Mars／deep-space $g$, with force arrows and v／a／R／W graphs.",
+                principleMechanism: "<ol class='list-decimal pl-5 space-y-2'><li><strong>Newton’s second law (up positive)</strong>: $\\sum F = ma$ ⇒ $R - mg = ma$ ⇒ <strong>$R = m(g + a)$</strong>.</li><li><strong>Sign convention</strong>: here $a > 0$ means upward acceleration; $a < 0$ means downward acceleration (including slowing while going up).</li><li><strong>Three cases</strong>: $a = 0$ → $R = mg$; $a > 0$ → $R > mg$; $a < 0$ → $R < mg$. If $g + a \\le 0$, the sim clamps $R$ to 0 (full weightlessness sketch).</li><li><strong>Auto mode</strong>: capped max speed／accel toward the target floor yields accel plateau → coast → brake, so R–t rises and falls.</li><li><strong>Idealizations</strong>: schematic passenger, 1D motion, non-negative normal force, fixed floor height, simplified trapezoid speed profile—not a real VVVF elevator curve.</li></ol>",
+                principleExample: "Knees feel heavier at upward start and lighter when braking into a floor; free-fall rides near $a = -g$ feel briefly weightless; on the Moon both $W$ and typical $R$ shrink. Do not confuse this file with free-fall＋quadratic-drag terminal-speed labs or incline／projectile sims.",
+                q1: "Manual mode, Earth g, mass ≈ 60 kg, set a ≈ <strong>+2 m/s²</strong>. What is most likely?",
+                q1a: "A. Apparent weight R exceeds true weight W; status leans “heavier than actual”",
+                q1b: "B. R must always be 0",
+                q1c: "C. True weight W becomes negative when accelerating upward",
+                q1d: "D. This sim never shows R",
+                q1ans: "Answer: A. $R = m(g+a)$, $a>0$ ⇒ $R>mg$; W remains $mg$.",
+                q1correct: "A",
+                q2: "Manual, Earth g, set a clearly negative (near −g). Predict R, W, and the status badge, then verify.",
+                q2a: "A. R falls below W; if g+a≤0, R may clamp to 0 (full weightlessness sketch)",
+                q2b: "B. Negative a automatically sets mass m to 0",
+                q2c: "C. When lighter, graphs show only a temperature curve",
+                q2d: "D. R is always greater than W",
+                q2ans: "Answer: A. Lighter corresponds to $a<0$; full weightlessness clamps $R=0$.",
+                q2correct: "A",
+                q3: "Switch to Auto, go from a low floor to a higher target, and watch the graphs. Which description is most reasonable?",
+                q3a: "A. Start often shows a>0 and higher R; mid cruise near a=0 with R≈W; approach often a<0 with lower R",
+                q3b: "B. Auto forces a = +9.81 the whole trip",
+                q3c: "C. Auto never changes the floor readout",
+                q3d: "D. Go removes the mass slider",
+                q3ans: "Answer: A. Matches the three phases of the trapezoid speed plan and R following a.",
+                q3correct: "A",
+                q4: "In Manual, pick m, g, a (e.g. 60 kg, Earth, +1.5 m/s²) and read W and R. In your own words relate them and check they roughly match $R = m(g+a)$ and $W = mg$.",
+                q4ans: "Answer: W depends only on m and g; R also depends on a. With upward a, R>W; values should match the formulas within display rounding.",
+                q4short: true,
+                q5: "Using this sim’s controls and design, which is most correct?",
+                q5a: "A. You can set a manually or auto-go to a floor; change m and g; read R／W and four graphs; five quiz items work offline—this is elevator apparent weight, not drag terminal speed or collisions",
+                q5b: "B. With deep-space g=0, true weight stays fixed at Earth 588.6 N",
+                q5c: "C. Reset always switches the UI to English",
+                q5d: "D. This sim mainly shows the ideal-gas law PV=nRT",
+                q5ans: "Answer: A. g=0 ⇒ W=0; Reset does not change language; do not confuse with gas_laws／freefall-drag／collision.",
+                q5correct: "A"
             }
         };
 
@@ -293,7 +452,7 @@
             ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
             ctx.fill();
 
-            ctx.font = "bold 18px 'Segoe UI', sans-serif";
+            ctx.font = "bold 18px 'Noto Sans TC', 'Segoe UI', sans-serif";
             ctx.fillStyle = color;
             
             // 智能配置文字位置避免遮擋
@@ -470,7 +629,7 @@
             const eleFloorScreenY = height/2 + eleHeight/2; 
             
             ctx.lineWidth = 4;
-            ctx.font = "bold 24px 'Segoe UI'";
+            ctx.font = "bold 24px 'Noto Sans TC', 'Segoe UI'";
             ctx.textBaseline = "bottom";
             
             for (let i = 1; i <= TOTAL_FLOORS; i++) {
@@ -535,7 +694,7 @@
             ctx.fill();
             
             ctx.fillStyle = "white";
-            ctx.font = "bold 18px 'Segoe UI'";
+            ctx.font = "bold 18px 'Noto Sans TC', 'Segoe UI'";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(`${state.m} kg`, width/2, personY + personHeight/2);
@@ -561,19 +720,15 @@
             }
             
             // 3. 系統加速度 (a)
-            // 將長度映射，係數為 12px per m/s²，這樣最大 ~9.81 時箭頭長度約 118px，剛好在電梯內
             const aScale = 12; 
             const aLength = Math.abs(state.a) * aScale;
             
             if (aLength > 2) {
-                // 將加速度箭頭放置在人物右側，車廂內
                 const aX = cmX + 85; 
-                // 畫布 Y 軸向下為正。a>0 代表向上(Y減少)，a<0 代表向下(Y增加)
                 const aDir = state.a > 0 ? -1 : 1; 
                 const aStartY = cmY; 
                 const aEndY = cmY + aDir * aLength;
                 
-                // 使用紅色繪製，與 UI 中的加速度顏色對應
                 drawArrow(ctx, aX, aStartY, aX, aEndY, "#ef4444", "a", 6);
             }
 
@@ -614,20 +769,92 @@
             stateBadge.className = `px-3 py-1 rounded-full font-bold text-sm ${statusColor}`;
         }
 
+        function typesetMath(root) {
+            if (window.MathJax && MathJax.typesetPromise) {
+                const nodes = root ? [root] : undefined;
+                MathJax.typesetPromise(nodes).catch(() => {});
+            }
+        }
+
+        function renderSteps() {
+            const t = i18n[currentLang];
+            const body = document.getElementById('steps-body');
+            body.innerHTML = [t.step1, t.step2, t.step3, t.step4].map(s => `<li>${s}</li>`).join('');
+            typesetMath(body);
+        }
+
+        function renderPrinciple() {
+            const t = i18n[currentLang];
+            const body = document.getElementById('principle-body');
+            body.innerHTML = `
+                <h3 class="font-bold text-lg text-blue-700">${t.conceptLabel}</h3>
+                <p>${t.principleConcept}</p>
+                <h3 class="font-bold text-lg text-blue-700 mt-4">${t.mechanismLabel}</h3>
+                ${t.principleMechanism}
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 my-4 text-center">
+                    $$R - mg = ma \\implies R = m(g + a)$$
+                </div>
+                <h3 class="font-bold text-lg text-blue-700 mt-4">${t.exampleLabel}</h3>
+                <p>${t.principleExample}</p>
+            `;
+            typesetMath(body);
+        }
+
+        function renderQuiz() {
+            const t = i18n[currentLang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+            const mkChoice = (qid) => ['a', 'b', 'c', 'd'].map(L => {
+                const key = qid + L;
+                return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer"><input type="radio" name="${qid}" class="mt-1 accent-violet-600"><span>${t[key]}</span></label>`;
+            }).join('');
+            const ans = (key) => quizAnswersVisible
+                ? `<div class="mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-900"><strong>${ref}：</strong> ${t[key]}</div>` : '';
+            const block = (n, qid, mc) => {
+                let h = `<div class="quiz-item border border-slate-200 rounded-xl p-4 mb-3"><p class="font-bold text-slate-800 mb-1">Q${n}. ${t[qid]}</p>`;
+                if (mc) h += `<div class="grid gap-1.5">${mkChoice(qid)}</div>`;
+                else h += `<p class="text-sm text-slate-500 mt-1">${t.shortHint}</p>`;
+                return h + ans(qid + 'ans') + '</div>';
+            };
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t.hideAnswers : t.showAnswers;
+            if (quizAnswersVisible) typesetMath(document.getElementById('modal-quiz'));
+        }
+
+        function updateGOptions() {
+            const t = i18n[currentLang];
+            const map = { earth: t.gEarth, moon: t.gMoon, mars: t.gMars, space: t.gSpace };
+            document.querySelectorAll('#input-g option').forEach(opt => {
+                const key = opt.getAttribute('data-g-key');
+                if (key && map[key]) opt.textContent = map[key];
+            });
+        }
+
         function updateLang() {
             const t = i18n[currentLang];
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+            document.title = currentLang === 'zh' ? '物理模型：升降機中的表觀重量' : 'Physics model: Apparent weight in an elevator';
             document.getElementById('title').innerText = t.title;
             document.getElementById('label-mass').innerText = t.mass;
             document.getElementById('label-acc').innerText = t.acc;
             document.getElementById('label-g').innerText = t.gEnv;
             document.getElementById('reset-btn').innerText = t.reset;
-            document.getElementById('theory-btn').innerText = t.theory;
+            document.getElementById('btn-principle').innerText = t.theory;
+            document.getElementById('btn-steps').innerText = t.stepsBtn;
+            document.getElementById('btn-quiz').innerText = t.quizBtn;
             document.getElementById('data-title').innerText = t.dataTitle;
             document.getElementById('data-real-w-label').innerText = t.realW;
             document.getElementById('data-app-w-label').innerText = t.appW;
             document.getElementById('data-state-label').innerText = t.state;
-            document.getElementById('modal-title').innerText = t.modalTitle;
-            document.getElementById('close-modal').innerText = t.close;
+            document.getElementById('principle-title').innerText = t.modalTitle;
+            document.getElementById('steps-title').innerText = t.stepsTitle;
+            document.getElementById('quiz-title').innerText = t.quizTitle;
+            document.getElementById('close-principle').innerText = t.close;
+            document.getElementById('close-steps').innerText = t.close;
+            document.getElementById('close-quiz').innerText = t.close;
+            document.getElementById('btn-quiz-answers').innerText = quizAnswersVisible ? t.hideAnswers : t.showAnswers;
             document.getElementById('label-mode').innerText = t.mode;
             document.getElementById('btn-mode-manual').innerText = t.manual;
             document.getElementById('btn-mode-auto').innerText = t.auto;
@@ -637,8 +864,32 @@
             document.getElementById('label-graphs').innerText = t.graphs;
             
             document.getElementById('hint-acc').innerText = `${t.hintAcc} (Max: ±${state.g} m/s²)`;
-            
+            updateGOptions();
+            renderSteps();
+            renderPrinciple();
+            renderQuiz();
             updateUIData();
+        }
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('is-open');
+            el.style.display = 'flex';
+            if (id === 'modal-principle') typesetMath(document.getElementById('principle-body'));
+            if (id === 'modal-steps') typesetMath(document.getElementById('steps-body'));
+            if (id === 'modal-quiz') typesetMath(document.getElementById('quiz-body'));
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('is-open');
+            el.style.display = 'none';
+        }
+
+        function closeAllModals() {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
         }
 
         window.setMode = function(mode) {
@@ -680,6 +931,7 @@
             state.targetFloor = f;
         });
 
+        // Reset: #reset-btn ≡ Reset（不重置語言／質量／g／模式）
         document.getElementById('reset-btn').addEventListener('click', () => {
             state.a = 0;
             state.v = 0;
@@ -690,15 +942,49 @@
             state.history = []; 
         });
 
-        document.getElementById('lang-btn').addEventListener('click', () => {
+        document.getElementById('btn-lang').addEventListener('click', () => {
             currentLang = currentLang === 'zh' ? 'en' : 'zh';
             updateLang();
         });
 
-        const modal = document.getElementById('theory-modal');
-        document.getElementById('theory-btn').onclick = () => modal.style.display = "flex";
-        document.getElementById('close-modal').onclick = () => modal.style.display = "none";
-        window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
+        document.getElementById('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+        document.getElementById('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+        document.getElementById('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+
+        document.querySelectorAll('[data-close-modal]').forEach(btn => {
+            btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
+        });
+
+        ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(id => {
+            const modal = document.getElementById(id);
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) closeModal(id);
+            });
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAllModals();
+        });
+
+        document.getElementById('btn-quiz-answers').addEventListener('click', () => {
+            quizAnswersVisible = !quizAnswersVisible;
+            renderQuiz();
+        });
+
+        // Checklist notes: #reset-btn ≡ Reset (optional #btn-reset alias); #btn-lang ≡ 中/EN (optional #lang-btn).
+        const resetEl = document.getElementById('reset-btn');
+        if (resetEl && !document.getElementById('btn-reset')) {
+            resetEl.setAttribute('data-also', 'btn-reset');
+        }
+        if (!document.getElementById('lang-btn')) {
+            const alias = document.createElement('button');
+            alias.id = 'lang-btn';
+            alias.type = 'button';
+            alias.style.display = 'none';
+            alias.setAttribute('aria-hidden', 'true');
+            alias.addEventListener('click', () => document.getElementById('btn-lang').click());
+            document.body.appendChild(alias);
+        }
 
         window.onload = () => {
             updateLang();

@@ -1,14 +1,64 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>量子物理：氫原子躍遷與玻爾公設模擬</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- MathJax 配置 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
         window.MathJax = {
-            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
             svg: { fontCache: 'global' },
             startup: {
                 pageReady: () => {
@@ -23,7 +73,7 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        body { background-color: #0f172a; color: #f8fafc; overflow-x: hidden; font-family: 'Noto Sans TC', system-ui, sans-serif; }
         .canvas-container { background: radial-gradient(circle, #1e293b 0%, #0f172a 100%); }
         .control-panel { background-color: rgba(30, 41, 59, 0.8); backdrop-filter: blur(8px); }
         .photon-btn { transition: all 0.2s; border: 1px solid #475569; background: #1e293b; }
@@ -32,52 +82,72 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
         .tab-btn.active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
+        .teach-btn {
+            font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.7rem; border-radius: 0.5rem;
+            border: 1px solid; transition: background-color 0.15s, color 0.15s;
+        }
+        .modal-panel { transition: opacity 0.2s ease; }
+        .quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #334155; }
+        .quiz-item .q-stem { font-weight: 600; color: #e2e8f0; margin-bottom: 0.5rem; }
+        .quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+        .quiz-options button {
+            text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid #475569; background: #1e293b; font-size: 0.875rem; color: #e2e8f0; transition: all 0.15s;
+        }
+        .quiz-options button:hover { border-color: #818cf8; background: #312e81; }
+        .quiz-options button.selected { border-color: #818cf8; background: #3730a3; }
+        .quiz-options button.correct { border-color: #16a34a; background: #14532d; }
+        .quiz-options button.wrong { border-color: #dc2626; background: #7f1d1d; }
+        .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #0f172a; border-radius: 0.5rem; font-size: 0.85rem; color: #cbd5e1; }
+        .quiz-answer.show { display: block; }
     </style>
 </head>
 <body class="min-h-screen">
 
-    <nav class="w-full bg-slate-900/90 border-b border-slate-700 p-4 sticky top-0 z-50 backdrop-blur-md">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center font-bold text-white">H</div>
-                <span class="font-bold text-xl tracking-tight" id="nav-title">氫原子物理實驗室 v2.6</span>
+    <nav class="w-full bg-slate-900/90 border-b border-slate-700 p-3 sm:p-4 sticky top-0 z-50 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 shrink-0 bg-blue-500 rounded-full flex items-center justify-center font-bold text-white">H</div>
+                <span class="font-bold text-lg sm:text-xl tracking-tight truncate" id="nav-title">氫原子物理實驗室 v2.6</span>
             </div>
-            <div class="flex gap-3">
-                <button onclick="openModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-sm" id="btn-theory">原理解說</button>
-                <button onclick="toggleLang()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-bold">中 / EN</button>
+            <div class="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+                <button type="button" id="btn-reset" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded font-medium transition border border-slate-500 text-sm">重置</button>
+                <span class="hidden sm:inline text-slate-600 mx-0.5">|</span>
+                <button type="button" id="btn-steps" class="teach-btn border-indigo-400 bg-indigo-900/40 text-indigo-200 hover:bg-indigo-800/60">觀察步驟</button>
+                <button type="button" id="btn-principle" class="teach-btn border-blue-400 bg-blue-900/40 text-blue-200 hover:bg-blue-800/60">原理解說</button>
+                <button type="button" id="btn-quiz" class="teach-btn border-violet-400 bg-violet-900/40 text-violet-200 hover:bg-violet-800/60">課堂問題</button>
+                <button type="button" id="btn-lang" class="teach-btn border-slate-500 bg-slate-700 text-slate-200 hover:bg-slate-600">中 / EN</button>
             </div>
         </div>
     </nav>
 
     <main class="max-w-7xl mx-auto p-4 md:p-8">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            <div class="control-panel p-6 rounded-2xl border border-slate-700 shadow-xl space-y-6 h-fit">
+
+            <div class="control-panel p-6 rounded-2xl border border-slate-700 shadow-xl space-y-6 h-fit order-2">
                 <div>
                     <h2 class="text-xl font-semibold mb-4 text-blue-300" id="ui-select-particle">1. 選擇入射粒子</h2>
                     <div class="flex gap-2">
-                        <button id="btn-electron" onclick="setParticle('electron')" class="flex-1 py-2 rounded-lg bg-blue-600 font-bold">電子</button>
-                        <button id="btn-photon" onclick="setParticle('photon')" class="flex-1 py-2 rounded-lg bg-slate-700 font-bold border border-slate-500">光子</button>
+                        <button type="button" id="btn-electron" onclick="setParticle('electron')" class="flex-1 py-2 rounded-lg bg-blue-600 font-bold">電子</button>
+                        <button type="button" id="btn-photon" onclick="setParticle('photon')" class="flex-1 py-2 rounded-lg bg-slate-700 font-bold border border-slate-500">光子</button>
                     </div>
                 </div>
 
                 <div id="energy-controls">
                     <h2 class="text-xl font-semibold mb-2 text-blue-300" id="ui-set-energy">2. 設定能量</h2>
-                    
+
                     <div id="ev-input-group" class="space-y-4">
                         <label class="block text-sm text-slate-400"><span id="ui-energy-label">能量</span> (eV): <span id="ev-display" class="text-white font-mono">10.20</span> eV</label>
                         <input type="range" id="energy-slider" min="0" max="20.0" step="0.01" value="10.20" class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer">
                     </div>
-                    
+
                     <div id="photon-input-group" class="hidden space-y-3">
                         <label class="block text-sm text-slate-400" id="ui-photon-label">選擇共振躍遷 (All Series):</label>
-                        <div class="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar" id="photon-btns-container">
-                            <!-- JS 生成按鈕 -->
-                        </div>
+                        <div class="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar" id="photon-btns-container"></div>
                     </div>
                 </div>
 
-                <button onclick="fire()" class="w-full py-4 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-black text-xl shadow-lg transition-all" id="ui-fire">發射粒子！</button>
+                <button type="button" onclick="fire()" class="w-full py-4 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-black text-xl shadow-lg transition-all" id="ui-fire">發射粒子！</button>
 
                 <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
                     <h3 class="text-xs font-bold text-slate-500 uppercase mb-2" id="ui-log-title">實驗紀錄</h3>
@@ -87,11 +157,11 @@
                 </div>
             </div>
 
-            <div class="lg:col-span-2 space-y-6">
+            <div class="lg:col-span-2 space-y-6 order-1">
                 <div class="canvas-container relative rounded-2xl border border-slate-700 shadow-2xl overflow-hidden aspect-video w-full flex items-center justify-center">
                     <canvas id="mainCanvas" class="absolute inset-0 w-full h-full"></canvas>
                     <div id="ionization-alert" class="hidden absolute top-10 bg-red-600/90 px-6 py-2 rounded-full font-bold text-white border border-red-400 animate-bounce">
-                        原子電離！ IONIZATION
+                        原子電離！
                     </div>
                 </div>
                 <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-sm text-slate-400" id="ui-hint">
@@ -101,36 +171,54 @@
         </div>
     </main>
 
-    <!-- 原理解說 Modal -->
-    <div id="theory-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-        <div class="bg-slate-800 border border-slate-700 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <!-- 觀察步驟 -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" data-modal-panel>
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900">
-                <div class="flex gap-4">
-                    <button onclick="switchTab('mechanism')" id="tab-mechanism" class="tab-btn px-2 py-1 font-bold active">實驗機制</button>
-                    <button onclick="switchTab('bohr')" id="tab-bohr" class="tab-btn px-2 py-1 font-bold">玻爾模型公設</button>
-                </div>
-                <button onclick="closeModal()" class="text-slate-400 text-2xl hover:text-white">&times;</button>
+                <h2 id="steps-title" class="text-lg font-bold text-indigo-300">觀察步驟</h2>
+                <button type="button" class="text-slate-400 text-2xl hover:text-white leading-none" data-close-modal="modal-steps" aria-label="Close">&times;</button>
             </div>
-            
-            <div class="p-8 overflow-y-auto custom-scrollbar space-y-6 text-slate-300">
-                
-                <!-- 中文內容區塊 -->
+            <div class="p-6 overflow-y-auto custom-scrollbar space-y-4 text-slate-300 text-sm" id="steps-body"></div>
+            <div class="p-4 bg-slate-900 border-t border-slate-700 text-right">
+                <button type="button" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold" data-close-modal="modal-steps" id="btn-steps-close">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 原理解說 modal-principle -->
+    <div id="modal-principle" class="modal-panel fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" data-modal-panel>
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900 gap-2 flex-wrap">
+                <div class="flex gap-4 items-center">
+                    <h2 id="principle-title" class="text-lg font-bold text-blue-300 sr-only">原理解說</h2>
+                    <button type="button" onclick="switchTab('mechanism')" id="tab-mechanism" class="tab-btn px-2 py-1 font-bold active">概念與機制</button>
+                    <button type="button" onclick="switchTab('bohr')" id="tab-bohr" class="tab-btn px-2 py-1 font-bold">玻爾公設</button>
+                </div>
+                <button type="button" class="text-slate-400 text-2xl hover:text-white leading-none" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="p-6 sm:p-8 overflow-y-auto custom-scrollbar space-y-6 text-slate-300">
                 <div id="lang-zh-content">
                     <div id="content-mechanism-zh" class="tab-content space-y-6">
                         <section>
-                            <h3 class="text-xl font-bold text-blue-400 mb-2">能量吸收與激發</h3>
-                            <p>氫原子中的電子平時處於能量最低的「基態」($n=1$)。當外界粒子與其碰撞時：</p>
-                            <ul class="list-disc ml-6 mt-2 space-y-2">
-                                <li><span class="text-yellow-400 font-bold">光子碰撞：</span> 必須具備「精確」的能量差（$\Delta E = E_f - E_i$）才會被吸收。誤差容許度極低，能量不符則直接穿透（透明）。</li>
-                                <li><span class="text-blue-400 font-bold">電子碰撞：</span> 屬於非彈性碰撞。只要入射電子動能大於能階差，就能將能量傳遞給原子使其躍遷，剩餘動能繼續由入射電子攜帶。</li>
-                            </ul>
+                            <h3 class="text-xl font-bold text-blue-400 mb-2">概念</h3>
+                            <p>氫原子電子只能處在離散<strong>定態</strong>能階 $E_n=-13.6/n^2\,\mathrm{eV}$。外界以<strong>光子</strong>或<strong>電子</strong>供給能量時，原子可被<strong>激發</strong>到較高 $n$，或在能量足夠時<strong>電離</strong>；自激發態回落時放出光子（<strong>發射</strong>）。</p>
                         </section>
                         <section>
-                            <h3 class="text-xl font-bold text-red-400 mb-2">電離作用 (Ionization)</h3>
-                            <p>當電子獲得的總能量足以使其能量大於 $0$ 時，電子將脫離原子核的束縛成為自由電子。對於光子，若能量大於電離能（光電效應），也能造成電離。</p>
-                            <div class="bg-slate-900 p-3 rounded mt-2 border-l-4 border-red-500 italic">
+                            <h3 class="text-xl font-bold text-yellow-400 mb-2">機制</h3>
+                            <ul class="list-disc ml-6 mt-2 space-y-2">
+                                <li><span class="text-yellow-400 font-bold">光子：</span>必須幾乎精確等於兩能階差 $\Delta E=E_f-E_i$（本模擬容差 0.01 eV）才吸收；否則穿透。</li>
+                                <li><span class="text-blue-400 font-bold">電子：</span>非彈性碰撞——動能 $\ge\Delta E$ 即可激發，剩餘動能由入射電子帶走；不足則彈性。</li>
+                                <li><span class="text-red-400 font-bold">電離：</span>使電子能量 $\ge 0$（基態約需 13.6 eV）。</li>
+                                <li><span class="text-slate-300 font-bold">假設：</span>僅氫；圓軌道示意；隨機自發發射；非多元素譜線庫、非點箭頭量測 sibling。</li>
+                            </ul>
+                            <div class="bg-slate-900 p-3 rounded mt-3 border-l-4 border-red-500 italic text-sm">
                                 註：若電子已在 $n=2$ ($-3.4\text{ eV}$)，只需額外 $3.4\text{ eV}$ 即可電離。
                             </div>
+                        </section>
+                        <section>
+                            <h3 class="text-xl font-bold text-emerald-400 mb-2">日常例子</h3>
+                            <p>氣體放電管／霓虹燈的激發概念（細節指紋見 sibling 發射線模擬）；熒光燈起動時電子碰撞激發；光譜管實驗中「共振波長才吸收」的定性對照。勿與「點能階箭頭讀 ΔE／λ」或「選多氣體看整條發射指紋」混為同一套操作。</p>
                         </section>
                     </div>
                     <div id="content-bohr-zh" class="tab-content hidden space-y-6">
@@ -139,7 +227,7 @@
                         </div>
                         <section>
                             <h3 class="text-lg font-bold text-white border-b border-slate-600 mb-2">一、定態公設 (Stationary States)</h3>
-                            <p>電子在特定的軌道上繞核運動時，具有固定的能量，且**不會**輻射電磁波。</p>
+                            <p>電子在特定的軌道上繞核運動時，具有固定的能量，且<strong>不會</strong>輻射電磁波。</p>
                             <p class="mt-2 text-blue-300">$$r_n = n^2 \cdot a_0 \quad (a_0 \approx 0.529 \text{\AA})$$</p>
                         </section>
                         <section>
@@ -155,23 +243,27 @@
                     </div>
                 </div>
 
-                <!-- 英文內容區塊 -->
                 <div id="lang-en-content" class="hidden">
                     <div id="content-mechanism-en" class="tab-content space-y-6">
                         <section>
-                            <h3 class="text-xl font-bold text-blue-400 mb-2">Energy Absorption & Excitation</h3>
-                            <p>The electron in a Hydrogen atom usually resides in the lowest energy "Ground State" ($n=1$). When external particles collide with it:</p>
-                            <ul class="list-disc ml-6 mt-2 space-y-2">
-                                <li><span class="text-yellow-400 font-bold">Photon Collision:</span> Must have the <span class="italic">exact</span> energy difference ($\Delta E = E_f - E_i$) to be absorbed. If the energy doesn't match, it passes through (transparent).</li>
-                                <li><span class="text-blue-400 font-bold">Electron Collision:</span> This is an inelastic collision. As long as the incident kinetic energy is greater than or equal to the energy level difference ($\ge \Delta E$), it can transfer energy to the atom causing a transition, retaining the remaining kinetic energy.</li>
-                            </ul>
+                            <h3 class="text-xl font-bold text-blue-400 mb-2">Concept</h3>
+                            <p>In hydrogen, the electron occupies discrete <strong>stationary</strong> levels $E_n=-13.6/n^2\,\mathrm{eV}$. An incident <strong>photon</strong> or <strong>electron</strong> can <strong>excite</strong> the atom to higher $n$, or <strong>ionize</strong> it if enough energy is supplied; falling back emits a photon (<strong>emission</strong>).</p>
                         </section>
                         <section>
-                            <h3 class="text-xl font-bold text-red-400 mb-2">Ionization</h3>
-                            <p>When the electron gains enough total energy to exceed $0\text{ eV}$, it escapes the nucleus's binding to become a free electron. For a Hydrogen atom, ionizing from the ground state requires at least $13.6\text{ eV}$.</p>
-                            <div class="bg-slate-900 p-3 rounded mt-2 border-l-4 border-red-500 italic">
+                            <h3 class="text-xl font-bold text-yellow-400 mb-2">Mechanism</h3>
+                            <ul class="list-disc ml-6 mt-2 space-y-2">
+                                <li><span class="text-yellow-400 font-bold">Photon:</span> must nearly match $\Delta E=E_f-E_i$ (0.01 eV tolerance here) or it passes through.</li>
+                                <li><span class="text-blue-400 font-bold">Electron:</span> inelastic if KE $\ge\Delta E$; leftover KE stays with the projectile; else elastic.</li>
+                                <li><span class="text-red-400 font-bold">Ionization:</span> electron energy $\ge 0$ (~13.6 eV from ground).</li>
+                                <li><span class="text-slate-300 font-bold">Idealizations:</span> H only; circular orbits; random spontaneous emission; not a multi-element line library, not the click-arrow sibling.</li>
+                            </ul>
+                            <div class="bg-slate-900 p-3 rounded mt-3 border-l-4 border-red-500 italic text-sm">
                                 Note: If the electron is already at $n=2$ ($-3.4\text{ eV}$), only an additional $3.4\text{ eV}$ is needed to ionize.
                             </div>
+                        </section>
+                        <section>
+                            <h3 class="text-xl font-bold text-emerald-400 mb-2">Everyday example</h3>
+                            <p>Discharge／neon excitation intuition (full fingerprints → sibling emission-line sim); electron-impact excitation in fluorescent starters; “only resonant wavelengths absorb” as a qualitative classroom cue. Do not merge with “click transition arrows for one $\Delta E$／λ” or “pick many gases for a full emission fingerprint.”</p>
                         </section>
                     </div>
                     <div id="content-bohr-en" class="tab-content hidden space-y-6">
@@ -180,26 +272,42 @@
                         </div>
                         <section>
                             <h3 class="text-lg font-bold text-white border-b border-slate-600 mb-2">1. Stationary States</h3>
-                            <p>Electrons orbit the nucleus in specific orbits with fixed energy without radiating electromagnetic waves. These orbits are called Stationary States. This solved the classical problem where accelerating charges should radiate energy.</p>
+                            <p>Electrons orbit the nucleus in specific orbits with fixed energy without radiating electromagnetic waves. These orbits are called Stationary States.</p>
                             <p class="mt-2 text-blue-300">$$r_n = n^2 \cdot a_0 \quad (a_0 \approx 0.529 \text{\AA})$$</p>
                         </section>
                         <section>
                             <h3 class="text-lg font-bold text-white border-b border-slate-600 mb-2">2. Frequency Condition</h3>
-                            <p>When an electron transitions between energy levels $E_i$ and $E_f$, it must absorb or emit a photon of a specific frequency, where the energy equals the difference between the levels:</p>
+                            <p>When an electron transitions between energy levels $E_i$ and $E_f$, it must absorb or emit a photon of a specific frequency:</p>
                             <p class="mt-2 text-yellow-400">$$\Delta E = |E_f - E_i| = h\nu$$</p>
                         </section>
                         <section>
                             <h3 class="text-lg font-bold text-white border-b border-slate-600 mb-2">3. Angular Momentum Quantization</h3>
-                            <p>The angular momentum $L$ of the electron orbiting the nucleus can only be integer multiples of $\hbar$ ($h/2\pi$). This is the core assumption of the model:</p>
+                            <p>The angular momentum $L$ of the electron orbiting the nucleus can only be integer multiples of $\hbar$ ($h/2\pi$):</p>
                             <p class="mt-2 text-green-300">$$L = mvr = n\hbar \quad (n=1, 2, 3 \dots)$$</p>
                         </section>
                     </div>
                 </div>
-
             </div>
-            
+
             <div class="p-4 bg-slate-900 border-t border-slate-700 text-right">
-                <button onclick="closeModal()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold" id="btn-modal-start">開始實驗</button>
+                <button type="button" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold" data-close-modal="modal-principle" id="btn-modal-start">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 課堂問題 -->
+    <div id="modal-quiz" class="modal-panel fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" data-modal-panel>
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center gap-2 flex-wrap bg-slate-900">
+                <h2 id="quiz-title" class="text-lg font-bold text-violet-300">課堂問題</h2>
+                <div class="flex items-center gap-2 ml-auto">
+                    <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-violet-600/30 text-violet-200 border border-violet-500/40 text-xs font-semibold">顯示參考答案</button>
+                    <button type="button" class="text-slate-400 text-2xl hover:text-white leading-none" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar" id="quiz-body"></div>
+            <div class="p-4 bg-slate-900 border-t border-slate-700 text-right">
+                <button type="button" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold" data-close-modal="modal-quiz" id="btn-quiz-close">關閉</button>
             </div>
         </div>
     </div>
@@ -208,24 +316,30 @@
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d');
         const logBox = document.getElementById('log-box');
-        
+
         const HC = 1239.84;
-        const R1 = 8; 
-        const ENERGY_LEVELS = [0]; 
-        for(let n=1; n<=10; n++) ENERGY_LEVELS.push(-13.6 / (n * n));
+        const R1 = 8;
+        const ENERGY_LEVELS = [0];
+        for (let n = 1; n <= 10; n++) ENERGY_LEVELS.push(-13.6 / (n * n));
 
         let lang = 'zh';
+        let quizAnswersVisible = false;
         let particleType = 'electron';
         let currentEnergy = 10.20;
-        let nState = 1; 
+        let nState = 1;
         let particles = [];
         let emittedPhotons = [];
         let currentTab = 'mechanism';
+        let ionizationTimer = null;
+        let animationFrame = null;
 
         const i18n = {
             zh: {
                 navTitle: "氫原子物理實驗室 v2.6",
-                btnTheory: "原理解說",
+                btnReset: "重置",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
                 selectP: "1. 選擇入射粒子",
                 electron: "電子",
                 photon: "光子",
@@ -236,9 +350,15 @@
                 logTitle: "實驗紀錄",
                 wait: "等待實驗開始...",
                 hint: "提示：光子必須具有特定的共振能量才能被原子吸收，否則會直接穿透。",
-                tabMech: "實驗機制",
-                tabBohr: "玻爾模型公設",
-                btnStart: "開始實驗",
+                tabMech: "概念與機制",
+                tabBohr: "玻爾公設",
+                btnClose: "關閉",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                ionAlert: "原子電離！",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
                 impact_p_abs: "共振吸收！躍遷至 n=",
                 impact_e_inel: "非彈性碰撞！剩餘能量 ",
                 impact_e_el: "能量不足，發生彈性碰撞。",
@@ -248,7 +368,10 @@
             },
             en: {
                 navTitle: "Hydrogen Atom Physics Lab v2.6",
-                btnTheory: "Theory",
+                btnReset: "Reset",
+                btnSteps: "Steps",
+                btnPrinciple: "Principle",
+                btnQuiz: "Quiz",
                 selectP: "1. Select Particle",
                 electron: "Electron",
                 photon: "Photon",
@@ -259,9 +382,15 @@
                 logTitle: "Experiment Log",
                 wait: "Waiting to start...",
                 hint: "Hint: Photons must match the exact resonance energy to be absorbed, otherwise they pass through.",
-                tabMech: "Mechanism",
+                tabMech: "Concept & Mechanism",
                 tabBohr: "Bohr Postulates",
-                btnStart: "Start Experiment",
+                btnClose: "Close",
+                stepsTitle: "Observation Steps",
+                principleTitle: "Principle",
+                quizTitle: "Quiz",
+                ionAlert: "IONIZATION!",
+                showAns: "Show answer",
+                hideAns: "Hide answer",
                 impact_p_abs: "Resonance Absorption! Jump to n=",
                 impact_e_inel: "Inelastic! Remaining E: ",
                 impact_e_el: "Insufficient energy, elastic collision.",
@@ -270,6 +399,124 @@
                 emission: "Emission: n={f} to n={t}, photon released."
             }
         };
+
+        const STEPS = {
+            zh: [
+                "確認選<strong>電子</strong>，能量約 <strong>10.20 eV</strong>（預設）。按<strong>發射粒子</strong>。觀察：實驗紀錄出現非彈性碰撞／躍遷訊息，右側能階高亮移向約 <strong>$n=2$</strong>（$\\Delta E\\approx 10.2\\,\\mathrm{eV}$）。稍候可看到自發輻射回落與放出光子。",
+                "改選<strong>光子</strong>，點共振鈕 <strong>$n=1\\to n=2$</strong>（約 10.20 eV），再發射。應見<strong>共振吸收</strong>躍遷。然後選一個<strong>明顯不符</strong>當前能階差的能量再發射：應見「能量不符／穿透」類訊息，電子能階不變。",
+                "改回<strong>電子</strong>，把能量調到約 <strong>14 eV</strong>（$\\ge 13.6$）從基態發射：應觸發<strong>電離</strong>警示，之後回到 $n=1$。再按<strong>重置</strong>：應回電子、10.20 eV、基態、清空粒子與 log 初始句；<strong>語言不變</strong>。",
+                "對照原理：光子要精確 $\\Delta E$，電子只要 $\\ge\\Delta E$；本模擬是氫原子碰撞激發／玻爾公設示意——不是放電管整條發射指紋，也不是點能階箭頭讀單次躍遷。"
+            ],
+            en: [
+                "Keep <strong>Electron</strong> selected at about <strong>10.20 eV</strong> (default). Click <strong>Fire</strong>. Log should show an inelastic／transition message and the level highlight moves toward <strong>$n=2$</strong> ($\\Delta E\\approx 10.2\\,\\mathrm{eV}$). Wait to see spontaneous emission back down with a photon.",
+                "Switch to <strong>Photon</strong>, pick resonance <strong>$n=1\\to n=2$</strong> (~10.20 eV), fire: <strong>resonance absorption</strong>. Then fire a clearly <strong>off-resonance</strong> energy: log should show mismatch／pass-through and $n$ unchanged.",
+                "Back to <strong>Electron</strong>, set ~<strong>14 eV</strong> ($\\ge 13.6$) from ground and fire: <strong>ionization</strong> alert, then back to $n=1$. <strong>Reset</strong>: electron, 10.20 eV, ground state, clear particles／log wait line; <strong>language unchanged</strong>.",
+                "Link to the principle: photons need exact $\\Delta E$, electrons only $\\ge\\Delta E$. This sim is H-atom collision excitation／Bohr postulates—not a discharge-tube full fingerprint, nor clicking level-transition arrows for one $\\Delta E$."
+            ]
+        };
+
+        const QUIZ = [
+            {
+                type: 'mc',
+                zh: {
+                    stem: '選電子、能量約 <strong>10.20 eV</strong>，從基態發射。哪項最符合本模擬？',
+                    options: [
+                        '可發生非彈性激發，電子能階升至約 $n=2$（$\\Delta E\\approx 10.2\\,\\mathrm{eV}$）',
+                        '一定立刻電離且永不回 $n=1$',
+                        '電子模式完全不能改變 $n$',
+                        '本模擬沒有實驗紀錄'
+                    ],
+                    answer: 'A。$E_2-E_1=10.2\\,\\mathrm{eV}$；預設滑桿即此值。'
+                },
+                en: {
+                    stem: 'Select Electron at about <strong>10.20 eV</strong> and fire from the ground state. Which best matches this sim?',
+                    options: [
+                        'Inelastic excitation can raise the level to about $n=2$ ($\\Delta E\\approx 10.2\\,\\mathrm{eV}$)',
+                        'It must ionize immediately and never return to $n=1$',
+                        'Electron mode can never change $n$',
+                        'This sim has no experiment log'
+                    ],
+                    answer: 'A. $E_2-E_1=10.2\\,\\mathrm{eV}$; the default slider is this value.'
+                },
+                correct: 0
+            },
+            {
+                type: 'sa',
+                zh: {
+                    stem: '改選光子：先用共振 <strong>$n=1\\to n=2$</strong> 發射，再用明顯非共振能量發射。先預測兩次實驗紀錄與能階變化有何不同，再操作驗證。',
+                    answer: '共振可被吸收並躍遷；非共振傾向穿透（log 出現能量不符／穿透類訊息）。容差 0.01 eV。'
+                },
+                en: {
+                    stem: 'Switch to Photon: fire resonant <strong>$n=1\\to n=2$</strong>, then a clearly off-resonance energy. Predict how log and level change differ, then verify.',
+                    answer: 'Resonance can absorb and jump; off-resonance tends to pass through (mismatch／pass-through log). Tolerance 0.01 eV.'
+                }
+            },
+            {
+                type: 'mc',
+                zh: {
+                    stem: '電子模式、基態附近，把能量調到約 <strong>14 eV</strong> 再發射。預期？',
+                    options: [
+                        '可觸發電離警示（總能量足以使束縛電子 ≥0），稍後狀態回到 $n=1$',
+                        '14 eV 一定只躍到 $n=3$ 且永不電離',
+                        '電離後語言會強制改成英文',
+                        '本模擬沒有電離相關顯示'
+                    ],
+                    answer: 'A。基態電離能 13.6 eV；電離警示約 2 s 後回 $n=1$。'
+                },
+                en: {
+                    stem: 'In Electron mode near the ground state, set about <strong>14 eV</strong> and fire. What is expected?',
+                    options: [
+                        'Ionization alert can appear (enough energy for ≥0), then state returns to $n=1$',
+                        '14 eV always jumps only to $n=3$ and never ionizes',
+                        'Ionization forces the UI into English',
+                        'This sim has no ionization UI'
+                    ],
+                    answer: 'A. Ground-state ionization energy 13.6 eV; alert returns to $n=1$ after ~2 s.'
+                },
+                correct: 0
+            },
+            {
+                type: 'sa',
+                zh: {
+                    stem: '先完成一次光子共振吸收或電子激發後：用自己的話寫（1）本模擬中「光子」與「電子」激發條件有何不同；（2）按重置後，粒子類型、能量、能階、$n$、log 與語言應如何（本設計預期）。',
+                    answer: '（1）光子要幾乎精確 $\\Delta E$；電子只要動能 $\\ge\\Delta E$。（2）回電子、10.20 eV、基態、清粒子／log 初始句；<strong>不</strong>切換中／EN。'
+                },
+                en: {
+                    stem: 'After one photon resonance absorption or electron excitation, in your own words: (1) how photon vs electron excitation conditions differ here; (2) after Reset, what should happen to particle type, energy, level／$n$, log, and language (per this design).',
+                    answer: '(1) Photons need near-exact $\\Delta E$; electrons only need KE $\\ge\\Delta E$. (2) Back to electron, 10.20 eV, ground state, clear particles／wait log; Reset must <strong>not</strong> switch language.'
+                }
+            },
+            {
+                type: 'mc',
+                zh: {
+                    stem: '根據本模擬控件與設計，哪項最正確？',
+                    options: [
+                        '可選入射電子／光子、設能量或共振躍遷、發射做激發／穿透／電離，並有步驟／原理／五題／中EN——主題是氫原子碰撞激發與玻爾公設，不是點能階箭頭讀單次 ΔE，也不是多氣體放電管整條發射指紋',
+                        '主要用來量雙縫條紋間距求波長',
+                        '重置會強制改成英文並刪除能階公式常數',
+                        '主要展示 α 粒子金箔散射與核式結構'
+                    ],
+                    answer: 'A。隔離 electron_transition／emission_line_spectra／Rutherford／雙縫；Reset 不改語言、不刪 ENERGY_LEVELS。'
+                },
+                en: {
+                    stem: 'Using this sim’s controls and design, which is most correct?',
+                    options: [
+                        'You can pick incident electron／photon, set energy or resonance, fire for excitation／pass-through／ionization, with steps／principle／five quiz items／zh-EN—this is H collision excitation＋Bohr postulates, not clicking level-transition arrows for one $\\Delta E$, nor multi-gas discharge emission fingerprints',
+                        'It is mainly for measuring double-slit fringe spacing to find λ',
+                        'Reset always switches to English and deletes the ENERGY_LEVELS constants',
+                        'It mainly shows α gold-foil scattering and the nuclear atom'
+                    ],
+                    answer: 'A. Isolates electron_transition／emission_line_spectra／Rutherford／double-slit; Reset does not change language or delete ENERGY_LEVELS.'
+                },
+                correct: 0
+            }
+        ];
+
+        function typeset(el) {
+            if (window.MathJax && MathJax.typesetPromise && el) {
+                return MathJax.typesetPromise([el]).catch(function () {});
+            }
+        }
 
         function initPhotonButtons() {
             const container = document.getElementById('photon-btns-container');
@@ -280,71 +527,69 @@
                     const deltaE = ENERGY_LEVELS[j] - ENERGY_LEVELS[i];
                     const wl = HC / deltaE;
                     const btn = document.createElement('button');
-                    btn.className = `photon-btn p-2 rounded text-left text-xs mb-1`;
-                    if(i===1 && j===2) btn.classList.add('active');
-                    btn.innerHTML = `
-                        <div class="font-bold text-yellow-400">n=${i} → n=${j}</div>
-                        <div>$E = ${deltaE.toFixed(2)}$ eV, $\\lambda = ${wl.toFixed(1)}$ nm</div>
-                    `;
-                    btn.onclick = () => {
+                    btn.type = 'button';
+                    btn.className = 'photon-btn p-2 rounded text-left text-xs mb-1';
+                    if (i === 1 && j === 2) btn.classList.add('active');
+                    btn.innerHTML =
+                        '<div class="font-bold text-yellow-400">n=' + i + ' → n=' + j + '</div>' +
+                        '<div>$E = ' + deltaE.toFixed(2) + '$ eV, $\\lambda = ' + wl.toFixed(1) + '$ nm</div>';
+                    btn.onclick = function () {
                         currentEnergy = deltaE;
-                        document.querySelectorAll('.photon-btn').forEach(b => b.classList.remove('active'));
+                        document.querySelectorAll('.photon-btn').forEach(function (b) { b.classList.remove('active'); });
                         btn.classList.add('active');
                     };
                     container.appendChild(btn);
                 }
             }
-            if (window.MathJax?.typesetPromise) MathJax.typesetPromise([container]);
+            typeset(container);
         }
 
-        function addLog(msg, color='text-green-400') {
+        function addLog(msg, color) {
+            color = color || 'text-green-400';
             const div = document.createElement('div');
             div.className = color;
-            div.innerText = `> ${msg}`;
+            div.innerText = '> ' + msg;
             logBox.prepend(div);
         }
 
         function fire() {
             particles.push({
-                x: -50, y: canvas.height/2,
+                x: -50, y: canvas.height / 2,
                 type: particleType, energy: currentEnergy,
-                active: true, speed: particleType==='electron'?4:7,
-                color: particleType==='electron'?'#60a5fa':'#fbbf24'
+                active: true, speed: particleType === 'electron' ? 4 : 7,
+                color: particleType === 'electron' ? '#60a5fa' : '#fbbf24'
             });
         }
 
         function handlePhotonImpact(p) {
             let absorbed = false;
-            // 嚴格檢查共振吸收 (Tolerance = 0.01 eV)
             for (let n = nState + 1; n <= 10; n++) {
                 const deltaE = ENERGY_LEVELS[n] - ENERGY_LEVELS[nState];
                 if (Math.abs(p.energy - deltaE) < 0.01) {
                     nState = n;
-                    addLog(`${i18n[lang].impact_p_abs}${n}`, "text-yellow-400");
+                    addLog(i18n[lang].impact_p_abs + n, 'text-yellow-400');
                     absorbed = true;
                     break;
                 }
             }
-            // 檢查光電效應 (電離)
             if (!absorbed && (p.energy + ENERGY_LEVELS[nState] >= 0)) {
                 triggerIonization();
                 absorbed = true;
             }
-            
-            if(!absorbed) {
-                p.active = true; // Pass through
-                addLog(i18n[lang].impact_p_pass, "text-slate-500");
+            if (!absorbed) {
+                p.active = true;
+                addLog(i18n[lang].impact_p_pass, 'text-slate-500');
             } else {
-                p.active = false; // Kill particle
+                p.active = false;
             }
         }
 
         function handleElectronImpact(p) {
             const currentE = ENERGY_LEVELS[nState];
             const totalE = p.energy + currentE;
-            
+
             if (totalE >= 0) {
-                addLog(i18n[lang].impact_ion, "text-red-400");
+                addLog(i18n[lang].impact_ion, 'text-red-400');
                 triggerIonization();
                 p.energy = totalE;
                 p.active = true;
@@ -354,14 +599,13 @@
                     const cost = ENERGY_LEVELS[n] - currentE;
                     if (p.energy >= cost) targetN = n;
                 }
-                
                 if (targetN > nState) {
                     const loss = ENERGY_LEVELS[targetN] - currentE;
                     nState = targetN;
                     p.energy -= loss;
-                    addLog(`${i18n[lang].impact_e_inel}${p.energy.toFixed(2)}eV`, "text-blue-300");
+                    addLog(i18n[lang].impact_e_inel + p.energy.toFixed(2) + 'eV', 'text-blue-300');
                 } else {
-                    addLog(i18n[lang].impact_e_el, "text-slate-500");
+                    addLog(i18n[lang].impact_e_el, 'text-slate-500');
                 }
                 p.active = true;
             }
@@ -370,16 +614,18 @@
         function triggerIonization() {
             nState = 11;
             document.getElementById('ionization-alert').classList.remove('hidden');
-            setTimeout(() => {
+            if (ionizationTimer) clearTimeout(ionizationTimer);
+            ionizationTimer = setTimeout(function () {
                 document.getElementById('ionization-alert').classList.add('hidden');
                 nState = 1;
+                ionizationTimer = null;
             }, 2000);
         }
 
         function emitPhoton(fromN, toN) {
             const deltaE = ENERGY_LEVELS[fromN] - ENERGY_LEVELS[toN];
-            const cx = canvas.width/2 - 80;
-            const cy = canvas.height/2;
+            const cx = canvas.width / 2 - 80;
+            const cy = canvas.height / 2;
             emittedPhotons.push({
                 x: cx, y: cy,
                 energy: deltaE,
@@ -402,158 +648,217 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const cx = canvas.width/2 - 80;
-            const cy = canvas.height/2;
+            const cx = canvas.width / 2 - 80;
+            const cy = canvas.height / 2;
 
-            // 1. 原子核
             ctx.beginPath();
-            ctx.arc(cx, cy, 6, 0, Math.PI*2);
+            ctx.arc(cx, cy, 6, 0, Math.PI * 2);
             ctx.fillStyle = '#f87171'; ctx.fill();
 
-            // 2. 軌道
-            for(let i=1; i<=6; i++) {
+            for (let i = 1; i <= 6; i++) {
                 const r = getRadius(i);
                 ctx.beginPath();
-                ctx.arc(cx, cy, r, 0, Math.PI*2);
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
                 ctx.setLineDash([2, 4]);
                 ctx.strokeStyle = (nState === i) ? '#fde047' : 'rgba(100, 116, 139, 0.2)';
                 ctx.stroke();
             }
 
-            // 3. 電子
             if (nState <= 6) {
                 const r = getRadius(nState);
                 const angle = Date.now() * (0.002 / Math.sqrt(nState));
                 ctx.beginPath();
-                ctx.arc(cx + Math.cos(angle)*r, cy + Math.sin(angle)*r, 4, 0, Math.PI*2);
+                ctx.arc(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r, 4, 0, Math.PI * 2);
                 ctx.fillStyle = '#38bdf8'; ctx.fill();
             }
 
-            // 4. 粒子運動與碰撞檢測
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 let oldX = p.x;
                 p.x += p.speed;
-                
+
                 if (p.active && oldX < (cx - 5) && p.x >= (cx - 5)) {
-                    if(p.type === 'photon') handlePhotonImpact(p);
+                    if (p.type === 'photon') handlePhotonImpact(p);
                     else handleElectronImpact(p);
                 }
 
                 ctx.beginPath();
-                if(p.type === 'photon') {
+                if (p.type === 'photon') {
                     ctx.strokeStyle = p.color; ctx.lineWidth = 2;
-                    ctx.moveTo(p.x-20, p.y);
-                    for(let j=0; j<20; j++) ctx.lineTo(p.x-20+j, p.y + Math.sin(j*0.5 + Date.now()*0.02)*4);
+                    ctx.moveTo(p.x - 20, p.y);
+                    for (let j = 0; j < 20; j++) ctx.lineTo(p.x - 20 + j, p.y + Math.sin(j * 0.5 + Date.now() * 0.02) * 4);
                     ctx.stroke();
                 } else {
                     ctx.fillStyle = p.color;
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
                 }
-                
+
                 if (p.x > canvas.width) {
                     particles.splice(i, 1);
                 }
             }
 
-            // 5. 釋放光子
-            emittedPhotons.forEach((p, idx) => {
+            emittedPhotons.forEach(function (p, idx) {
                 p.x += p.vx; p.y += p.vy; p.life -= 0.01;
                 ctx.globalAlpha = p.life;
                 ctx.beginPath();
                 ctx.strokeStyle = p.color;
-                ctx.moveTo(p.x-10, p.y);
-                for(let i=0; i<15; i++) ctx.lineTo(p.x-10+i, p.y + Math.sin(i*0.8 + Date.now()*0.05)*3);
+                ctx.moveTo(p.x - 10, p.y);
+                for (let i = 0; i < 15; i++) ctx.lineTo(p.x - 10 + i, p.y + Math.sin(i * 0.8 + Date.now() * 0.05) * 3);
                 ctx.stroke();
                 ctx.globalAlpha = 1.0;
-                if(p.life <= 0) emittedPhotons.splice(idx, 1);
+                if (p.life <= 0) emittedPhotons.splice(idx, 1);
             });
 
-            // 6. 能階圖
             const gx = canvas.width - 100;
             const bY = canvas.height - 50;
             const chartH = canvas.height - 100;
             ctx.beginPath(); ctx.moveTo(gx, bY); ctx.lineTo(gx, bY - chartH - 20);
             ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.stroke();
 
-            ENERGY_LEVELS.slice(1, 8).forEach((ev, i) => {
-                const n = i+1;
+            ENERGY_LEVELS.slice(1, 8).forEach(function (ev, i) {
+                const n = i + 1;
                 const y = bY - ((ev - (-13.6)) / 13.6 * chartH);
-                ctx.beginPath(); ctx.moveTo(gx-30, y); ctx.lineTo(gx+30, y);
+                ctx.beginPath(); ctx.moveTo(gx - 30, y); ctx.lineTo(gx + 30, y);
                 ctx.strokeStyle = (nState === n) ? '#fbbf24' : '#475569';
                 ctx.lineWidth = (nState === n) ? 3 : 1; ctx.stroke();
-                
+
                 ctx.fillStyle = (nState === n) ? '#fbbf24' : '#94a3b8';
                 ctx.font = '11px monospace';
-                ctx.textAlign = 'left'; ctx.fillText(`n=${n}`, gx+35, y+4);
-                ctx.textAlign = 'right'; ctx.fillText(`${ev.toFixed(2)} eV`, gx-35, y+4);
+                ctx.textAlign = 'left'; ctx.fillText('n=' + n, gx + 35, y + 4);
+                ctx.textAlign = 'right'; ctx.fillText(ev.toFixed(2) + ' eV', gx - 35, y + 4);
             });
 
             animationFrame = requestAnimationFrame(draw);
         }
 
-        setInterval(() => {
+        setInterval(function () {
             if (nState > 1 && nState <= 10) {
                 if (Math.random() > 0.7) {
                     const targetN = Math.floor(Math.random() * (nState - 1)) + 1;
-                    addLog(i18n[lang].emission.replace('{f}', nState).replace('{t}', targetN), "text-purple-400");
+                    addLog(i18n[lang].emission.replace('{f}', nState).replace('{t}', targetN), 'text-purple-400');
                     emitPhoton(nState, targetN);
                     nState = targetN;
                 }
             }
         }, 4000);
 
-        function openModal() {
-            document.getElementById('theory-modal').classList.remove('hidden');
-            switchTab(currentTab);
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('hidden');
+            if (id === 'modal-principle') switchTab(currentTab);
+            if (id === 'modal-steps') renderSteps();
+            if (id === 'modal-quiz') renderQuiz();
         }
 
-        function closeModal() {
-            document.getElementById('theory-modal').classList.add('hidden');
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
         }
 
         function switchTab(tab) {
             currentTab = tab;
-            // 按鈕狀態更新
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab-' + tab).classList.add('active');
-            
-            // 隱藏所有 tab-content (包括中英文)
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            
-            // 顯示當前語言 + 當前 tab 的內容
-            const contentId = `content-${tab}-${lang}`;
+            document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+            const tabBtn = document.getElementById('tab-' + tab);
+            if (tabBtn) tabBtn.classList.add('active');
+
+            document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.add('hidden'); });
+            const contentId = 'content-' + tab + '-' + lang;
             const el = document.getElementById(contentId);
-            if(el) {
+            if (el) {
                 el.classList.remove('hidden');
-                if (window.MathJax?.typesetPromise) MathJax.typesetPromise([el]);
+                typeset(el);
             }
         }
 
         function setParticle(t) {
             particleType = t;
-            document.getElementById('btn-electron').className = t==='electron' ? 'flex-1 py-2 rounded-lg bg-blue-600 font-bold' : 'flex-1 py-2 rounded-lg bg-slate-700 font-bold border border-slate-500';
-            document.getElementById('btn-photon').className = t==='photon' ? 'flex-1 py-2 rounded-lg bg-blue-600 font-bold' : 'flex-1 py-2 rounded-lg bg-slate-700 font-bold border border-slate-500';
-            document.getElementById('ev-input-group').classList.toggle('hidden', t==='photon');
-            document.getElementById('photon-input-group').classList.toggle('hidden', t==='electron');
+            document.getElementById('btn-electron').className = t === 'electron'
+                ? 'flex-1 py-2 rounded-lg bg-blue-600 font-bold'
+                : 'flex-1 py-2 rounded-lg bg-slate-700 font-bold border border-slate-500';
+            document.getElementById('btn-photon').className = t === 'photon'
+                ? 'flex-1 py-2 rounded-lg bg-blue-600 font-bold'
+                : 'flex-1 py-2 rounded-lg bg-slate-700 font-bold border border-slate-500';
+            document.getElementById('ev-input-group').classList.toggle('hidden', t === 'photon');
+            document.getElementById('photon-input-group').classList.toggle('hidden', t === 'electron');
         }
 
-        document.getElementById('energy-slider').addEventListener('input', (e) => {
+        document.getElementById('energy-slider').addEventListener('input', function (e) {
             currentEnergy = parseFloat(e.target.value);
             document.getElementById('ev-display').innerText = currentEnergy.toFixed(2);
         });
 
-        function toggleLang() { 
+        function toggleLang() {
             lang = lang === 'zh' ? 'en' : 'zh';
+            document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
             updateUI();
+        }
+
+        function renderSteps() {
+            const body = document.getElementById('steps-body');
+            const steps = STEPS[lang];
+            body.innerHTML = steps.map(function (s, i) {
+                return '<div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4">' +
+                    '<div class="text-indigo-300 font-bold mb-2">' + (lang === 'zh' ? '步驟' : 'Step') + ' ' + (i + 1) + '</div>' +
+                    '<div class="leading-relaxed">' + s + '</div></div>';
+            }).join('');
+            typeset(body);
+        }
+
+        function renderQuiz() {
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const ref = lang === 'zh' ? '參考答案' : 'Reference answer';
+            const shortNote = lang === 'zh' ? '先預測，再操作本模擬核對。' : 'Predict first, then verify on the sim.';
+            body.innerHTML = QUIZ.map(function (q, idx) {
+                const n = idx + 1;
+                const name = 'q' + n;
+                const loc = q[lang];
+                let opts = '';
+                if (q.type === 'mc') {
+                    opts = '<div class="grid gap-1.5 mt-1">' + loc.options.map(function (opt, oi) {
+                        const L = String.fromCharCode(65 + oi);
+                        return '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer"><input type="radio" name="' + name + '" class="mt-0.5"><span>' + L + '. ' + opt + '</span></label>';
+                    }).join('') + '</div>';
+                } else {
+                    opts = '<p class="text-xs text-slate-500 mb-2">' + shortNote + '</p>';
+                }
+                const ans = quizAnswersVisible ? '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + loc.answer + '</div>' : '';
+                return '<div class="quiz-item mb-4"><div class="q-stem font-semibold mb-2">Q' + n + '. ' + loc.stem + '</div>' + opts + ans + '</div>';
+            }).join('');
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? i18n[lang].hideAns : i18n[lang].showAns;
+            typeset(body);
+        }
+
+        function doReset() {
+            nState = 1;
+            particles = [];
+            emittedPhotons = [];
+            if (ionizationTimer) {
+                clearTimeout(ionizationTimer);
+                ionizationTimer = null;
+            }
+            document.getElementById('ionization-alert').classList.add('hidden');
+            setParticle('electron');
+            currentEnergy = 10.20;
+            const slider = document.getElementById('energy-slider');
+            slider.value = '10.20';
+            document.getElementById('ev-display').innerText = '10.20';
+            initPhotonButtons();
+            logBox.innerHTML = '';
+            addLog(i18n[lang].wait, 'text-green-400');
+            // language intentionally unchanged
         }
 
         function updateUI() {
             const t = i18n[lang];
-            
-            // 文字更新
             document.getElementById('nav-title').innerText = t.navTitle;
-            document.getElementById('btn-theory').innerText = t.btnTheory;
+            document.getElementById('btn-reset').innerText = t.btnReset;
+            document.getElementById('btn-steps').innerText = t.btnSteps;
+            document.getElementById('btn-principle').innerText = t.btnPrinciple;
+            document.getElementById('btn-quiz').innerText = t.btnQuiz;
             document.getElementById('ui-select-particle').innerText = t.selectP;
             document.getElementById('btn-electron').innerText = t.electron;
             document.getElementById('btn-photon').innerText = t.photon;
@@ -565,20 +870,72 @@
             document.getElementById('ui-hint').innerText = t.hint;
             document.getElementById('tab-mechanism').innerText = t.tabMech;
             document.getElementById('tab-bohr').innerText = t.tabBohr;
-            document.getElementById('btn-modal-start').innerText = t.btnStart;
+            document.getElementById('btn-modal-start').innerText = t.btnClose;
+            document.getElementById('btn-steps-close').innerText = t.btnClose;
+            document.getElementById('btn-quiz-close').innerText = t.btnClose;
+            document.getElementById('steps-title').innerText = t.stepsTitle;
+            document.getElementById('principle-title').innerText = t.principleTitle;
+            document.getElementById('quiz-title').innerText = t.quizTitle;
+            document.getElementById('ionization-alert').innerText = t.ionAlert;
 
-            // 關鍵修正：切換父容器的可見性
             document.getElementById('lang-zh-content').classList.toggle('hidden', lang !== 'zh');
             document.getElementById('lang-en-content').classList.toggle('hidden', lang !== 'en');
 
-            // 如果 Modal 是開啟的，重新執行 switchTab 以確保內容顯示正確
-            if (!document.getElementById('theory-modal').classList.contains('hidden')) {
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) {
                 switchTab(currentTab);
+            }
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) {
+                renderSteps();
+            }
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) {
+                renderQuiz();
             }
         }
 
-        window.onload = () => { resize(); initPhotonButtons(); draw(); };
-        function resize() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+        function wireModals() {
+            document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+            document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+                quizAnswersVisible = !quizAnswersVisible;
+                renderQuiz();
+            });
+            document.getElementById('btn-lang').addEventListener('click', toggleLang);
+            document.getElementById('btn-reset').addEventListener('click', doReset);
+
+            document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    closeModal(btn.getAttribute('data-close-modal'));
+                });
+            });
+
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+                const modal = document.getElementById(id);
+                modal.addEventListener('click', function (e) {
+                    if (e.target === modal) closeModal(id);
+                });
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+                }
+            });
+        }
+
+        function resize() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+
+        window.onload = function () {
+            document.documentElement.lang = 'zh-Hant';
+            wireModals();
+            resize();
+            initPhotonButtons();
+            draw();
+            updateUI();
+        };
         window.onresize = resize;
     </script>
 </body>

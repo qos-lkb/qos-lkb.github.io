@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>磁場中的帶電粒子 | Charged Particle in a Magnetic Field</title>
+    <!-- Google Tag -->
+    
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-ENZ6QD5K5Y');
+    </script>
+    <!-- Tailwind CSS with Dark Mode config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
+    <!-- MathJax for formula rendering -->
+  
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        canvas { display: block; }
+        /* Custom Scrollbar for panels */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
+        .dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+        
+        /* Range Slider Styling */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #3b82f6; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #cbd5e1; border-radius: 2px; }
+        .dark input[type=range]::-webkit-slider-runnable-track { background: #475569; }
+        
+        /* Glass Panels */
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(0, 0, 0, 0.1); }
+        .dark .glass-panel { background: rgba(30, 41, 59, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        .math-text { font-family: 'Times New Roman', Times, serif; font-style: italic; }
+        
+        /* Checkbox toggle styling */
+        .toggle-bg { background-color: #cbd5e1; }
+        .dark .toggle-bg { background-color: #475569; }
+        #vectorToggle:checked ~ .toggle-bg { background-color: #3b82f6; }
+        #vectorToggle:checked ~ .toggle-dot { transform: translateX(100%); }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white transition-colors duration-300">
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "磁場中的帶電粒子", "en": "Charged Particle in a Magnetic Field"}, "grade": {"zh": "物理", "en": "Physics"}, "steps": {"zh": ["選質子，磁場設為入紙，按播放，看軌跡彎向哪一側。", "只改成電子，初速度和 B 不變，比較彎曲方向。", "加大 B 或减小 v，看圓半徑如何變。", "打開力與速度向量，再按重設。"], "en": ["Choose a proton, set B into the page, and watch which way the path bends.", "Switch only to an electron and compare the direction.", "Increase B or decrease v and watch the radius.", "Show the force and velocity vectors, then reset."]}, "principle": {"zh": ["磁力是勞侖茲力 F = qvB sinθ。v 與 B 垂直時，力永遠垂直速度，所以速率不變，只改方向。", "圓半徑 r = mv / (|q|B)。質量大、速度大或電荷小、磁場弱，半徑就大。", "α 粒子電荷較大但質量也大；電子很輕，所以同樣 B、v 下彎得更厲害。雲室和質譜儀都用這個原理。"], "en": ["The magnetic force is F = qvB sinθ. When v is perpendicular to B the speed stays constant and only the direction changes.", "The radius is r = mv / (|q|B).", "An electron is very light, so it curves more tightly than a proton at the same speed and field."]}, "quiz": [{"zh": "速度與磁場垂直時，磁力會改變？", "en": "When velocity is perpendicular to B, the magnetic force changes?", "azh": "B。力與速度垂直，不做功。", "aen": "B. The force is perpendicular to the velocity, so it does no work.", "czh": ["速率，但不改方向", "方向，但速率不變", "質量", "電荷正負"], "cen": ["The speed but not the direction", "The direction but not the speed", "The mass", "The sign of the charge"], "ans": 1}, {"zh": "先預測把 B 加強而 v 不變時半徑變小，再調磁場強度。", "en": "Predict a smaller radius when B increases at the same speed, then raise B.", "azh": "r = mv/(|q|B)，B 愈大半徑愈小。", "aen": "r = mv/(|q|B), so a stronger field means a smaller radius."}, {"zh": "同一 B 與 v，電子和質子的彎曲方向？", "en": "At the same B and v, the electron and proton curve?", "azh": "B。", "aen": "B.", "czh": ["完全相同", "相反，因為電荷正負相反", "都不彎", "只有質子彎"], "cen": ["Exactly the same way", "Opposite ways, because their charges have opposite signs", "Neither curves", "Only the proton curves"], "ans": 1}, {"zh": "比較初速度較大和較小：先預測較快的粒子半徑較大，再調 v。", "en": "Compare a faster and a slower particle. Predict a larger radius for the faster one, then change v.", "azh": "v 愈大，r 愈大。", "aen": "A larger speed gives a larger radius."}, {"zh": "磁場由入紙改成出紙，其他不變，軌跡會？", "en": "If B is reversed from into the page to out of the page, the path?", "azh": "B。力的方向隨 B 反向。", "aen": "B. The force reverses with B.", "czh": ["半徑一定變成零", "彎曲方向相反", "粒子停止", "電荷改變"], "cen": ["The radius must become zero", "Bends the other way", "The particle stops", "The charge changes"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+
+    <!-- Main Canvas -->
+    <canvas id="simCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center p-4 pointer-events-auto w-full z-20">
+            <div class="flex items-center gap-3">
+                <h1 class="text-xl md:text-2xl font-bold tracking-wide text-slate-900 dark:text-white transition-colors" data-i18n="title">磁場中帶電粒子運動模擬器</h1>
+                <!-- Gear Button After Title -->
+                <button id="btn-gear" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition" onclick="togglePanel('control-panel')" title="Toggle Control Panel">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white transition-transform hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- Theme Toggle -->
+                <button id="btn-theme" class="p-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-yellow-400 border border-slate-300 dark:border-slate-600 transition shadow-inner hover:bg-slate-300 dark:hover:bg-slate-600" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                    <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+
+                <!-- Language Toggle -->
+                <div class="flex bg-slate-200 dark:bg-slate-800 rounded-full p-1 shadow-inner border border-slate-300 dark:border-slate-700">
+                    <button id="btn-zh" class="px-3 py-1 text-sm font-medium rounded-full bg-blue-600 text-white transition-all shadow-sm" onclick="setLanguage('zh')">中</button>
+                    <button id="btn-en" class="px-3 py-1 text-sm font-medium rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-all" onclick="setLanguage('en')">EN</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 relative">
+            <!-- Left Control Panel -->
+            <div id="control-panel" class="absolute top-2 left-4 w-72 md:w-80 glass-panel rounded-xl flex flex-col pointer-events-auto transition-transform duration-300 origin-top-left shadow-2xl">
+                <div class="p-4 border-b border-slate-300 dark:border-white/10 flex justify-between items-center bg-slate-200/50 dark:bg-white/5 rounded-t-xl transition-colors">
+                    <h2 class="font-bold text-lg text-slate-900 dark:text-white" data-i18n="controlPanel">控制面板 Control Panel</h2>
+                </div>
+                
+                <div class="p-4 space-y-4 overflow-y-auto max-h-[75vh]">
+                    <!-- Particle Selection -->
+                    <div>
+                        <label class="block text-sm text-slate-700 dark:text-slate-300 mb-1 transition-colors" data-i18n="particleType">粒子種類 (Particle)</label>
+                        <select id="particleSelect" class="w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm rounded-lg px-3 py-2 border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-blue-500 transition-colors">
+                            <option value="proton" data-i18n="optProton">質子 Proton (p⁺)</option>
+                            <option value="electron" data-i18n="optElectron">電子 Electron (e⁻)</option>
+                            <option value="alpha" data-i18n="optAlpha">阿爾法粒子 Alpha (α²⁺)</option>
+                            <option value="positron" data-i18n="optPositron">正電子 Positron (e⁺)</option>
+                            <option value="li_ion" data-i18n="optLiIon">鋰離子 Li⁺</option>
+                        </select>
+                    </div>
+
+                    <!-- B Field Direction -->
+                    <div>
+                        <label class="block text-sm text-slate-700 dark:text-slate-300 mb-2 transition-colors" data-i18n="bDir">磁場方向 (B-Field Dir.)</label>
+                        <div class="flex rounded-lg bg-slate-200 dark:bg-slate-800 p-1 border border-slate-300 dark:border-slate-600 transition-colors">
+                            <button id="btn-b-in" class="flex-1 py-1 text-sm font-medium rounded-md bg-blue-600 text-white transition-all shadow-sm" onclick="setBDirection(-1)" data-i18n="bInto">入紙 (⊗)</button>
+                            <button id="btn-b-out" class="flex-1 py-1 text-sm font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all" onclick="setBDirection(1)" data-i18n="bOut">出紙 (⊙)</button>
+                        </div>
+                    </div>
+
+                    <!-- B Field Strength -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <label class="text-slate-700 dark:text-slate-300 transition-colors" data-i18n="bStrength">磁場強度 <span class="math-text">B</span></label>
+                            <span class="text-blue-600 dark:text-blue-400 font-mono transition-colors"><span id="val-b-slider">1.00</span> T</span>
+                        </div>
+                        <input type="range" id="bSlider" min="0.01" max="2.0" step="0.01" value="1.0">
+                    </div>
+
+                    <!-- Velocity -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <label class="text-slate-700 dark:text-slate-300 transition-colors" data-i18n="velocity">初速度 <span class="math-text">v</span></label>
+                            <span class="text-green-600 dark:text-green-400 font-mono transition-colors"><span id="val-v-slider">5.0</span> ×10⁶ m/s</span>
+                        </div>
+                        <input type="range" id="vSlider" min="1" max="20" step="0.1" value="5.0">
+                    </div>
+                    
+                    <!-- Playback Speed -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <label class="text-slate-700 dark:text-slate-300 transition-colors" data-i18n="playSpeed">播放速度 (Play Speed)</label>
+                            <span class="text-yellow-600 dark:text-yellow-400 font-mono transition-colors"><span id="val-speed-slider">1.0</span>x</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1.0">
+                    </div>
+
+                    <!-- Vector Toggle -->
+                    <div class="pt-2 border-t border-slate-300 dark:border-white/10 transition-colors">
+                        <label class="flex items-center cursor-pointer gap-3">
+                            <div class="relative">
+                                <input type="checkbox" id="vectorToggle" class="sr-only" checked>
+                                <div class="block w-10 h-6 rounded-full transition-colors toggle-bg"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform toggle-dot transform translate-x-4"></div>
+                            </div>
+                            <span class="text-sm text-slate-700 dark:text-slate-300 transition-colors" data-i18n="showVectors">顯示力與速度向量</span>
+                        </label>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2 pt-2">
+                        <button class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-medium transition shadow-md" onclick="resetSim(false)" data-i18n="reset">重設 Reset</button>
+                        <button id="btn-play" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition shadow-md" onclick="togglePlay()" data-i18n="pause">暫停 Pause</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panels Container -->
+            <div class="absolute top-2 right-4 flex flex-col gap-3 pointer-events-none z-10 w-72 md:w-80">
+                
+                <!-- 1. Calculation Panel -->
+                <div id="calc-panel" class="glass-panel rounded-xl flex flex-col pointer-events-auto transition-all shadow-2xl w-full">
+                    <div class="p-3 border-b border-slate-300 dark:border-white/10 flex justify-between items-center bg-slate-200/50 dark:bg-white/5 rounded-t-xl cursor-pointer hover:bg-slate-300/50 dark:hover:bg-white/10 transition-colors" onclick="toggleCalcContent()">
+                        <h2 class="font-bold text-md text-blue-600 dark:text-blue-300 flex items-center gap-2 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            <span data-i18n="calcPanel">實時運算 Calculations</span>
+                        </h2>
+                        <button id="btn-calc-toggle" class="text-slate-500 dark:text-gray-400 font-mono text-xl transition-transform">-</button>
+                    </div>
+                    
+                    <div id="calc-content" class="p-4 space-y-4 overflow-hidden transition-all duration-300">
+                        <div class="text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 p-3 rounded-lg border border-slate-300 dark:border-slate-700 transition-colors">
+                            <div class="flex justify-between mb-1"><span data-i18n="calcParticle">粒子 Particle:</span> <span class="font-bold text-slate-900 dark:text-white" id="calc-pname"></span></div>
+                            <div class="flex justify-between mb-1"><span data-i18n="calcMass">質量 <span class="math-text">m</span>:</span> <span class="font-mono text-slate-900 dark:text-white"><span id="calc-m"></span> kg</span></div>
+                            <div class="flex justify-between mb-1"><span data-i18n="calcCharge">電荷 <span class="math-text">q</span>:</span> <span class="font-mono text-slate-900 dark:text-white"><span id="calc-q"></span> C</span></div>
+                            <div class="flex justify-between mb-1"><span data-i18n="calcVel">速度 <span class="math-text">v</span>:</span> <span class="font-mono text-slate-900 dark:text-white"><span id="calc-v"></span> m/s</span></div>
+                            <div class="flex justify-between mb-1"><span data-i18n="calcBField">磁場 <span class="math-text">B</span>:</span> <span class="font-mono text-slate-900 dark:text-white"><span id="calc-b"></span> T</span></div>
+                        </div>
+
+                        <div class="text-center text-sm md:text-base overflow-x-auto my-2 text-slate-800 dark:text-slate-200 transition-colors">
+                            \[ r = \frac{mv}{B|q|} \quad ; \quad T = \frac{2\pi m}{B|q|} \]
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Radius Window (Red) -->
+                            <div class="text-center bg-red-100 dark:bg-red-900/30 p-2 rounded-lg border border-red-300 dark:border-red-500/30 transition-colors">
+                                <span class="text-xs text-red-700 dark:text-red-300" data-i18n="radius">圓周半徑 Radius:</span><br>
+                                <span class="text-lg font-mono font-bold text-slate-900 dark:text-white transition-colors" id="calc-r">0.00</span> 
+                                <span class="text-xs text-red-600 dark:text-red-200">m</span>
+                            </div>
+                            <!-- Period Window (Yellow) -->
+                            <div class="text-center bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-lg border border-yellow-300 dark:border-yellow-500/30 transition-colors">
+                                <span class="text-xs text-yellow-700 dark:text-yellow-300" data-i18n="calcPeriod">週期 Period T:</span><br>
+                                <span class="text-lg font-mono font-bold text-slate-900 dark:text-white transition-colors" id="calc-t">0.00</span> 
+                                <span class="text-xs text-yellow-600 dark:text-yellow-200">s</span>
+                            </div>
+                        </div>
+
+                        <div class="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center transition-colors" id="scale-indicator">
+                            (網格比例 Grid Scale: 1格 = <span id="grid-size-text"></span> m)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Formula Derivation Panel -->
+                <div id="deriv-panel" class="glass-panel rounded-xl flex flex-col pointer-events-auto transition-all shadow-2xl w-full">
+                    <div class="p-3 border-b border-slate-300 dark:border-white/10 flex justify-between items-center bg-slate-200/50 dark:bg-white/5 rounded-t-xl cursor-pointer hover:bg-slate-300/50 dark:hover:bg-white/10 transition-colors" onclick="toggleDerivContent()">
+                        <h2 class="font-bold text-md text-green-600 dark:text-green-300 flex items-center gap-2 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                            <span data-i18n="derivPanel">公式推導 Derivations</span>
+                        </h2>
+                        <button id="btn-deriv-toggle" class="text-slate-500 dark:text-gray-400 font-mono text-xl transition-transform">+</button>
+                    </div>
+                    
+                    <div id="deriv-content" class="space-y-4 overflow-hidden transition-all duration-300" style="max-height: 0px; opacity: 0; padding: 0 1rem;">
+                        <div class="text-center text-sm overflow-x-auto text-slate-800 dark:text-slate-200 mt-2 mb-2 transition-colors">
+                            
+                            <!-- Radius Derivation -->
+                            <div class="text-left text-xs text-slate-600 dark:text-slate-400 mb-1 transition-colors" data-i18n="derivRadius">1. 圓周半徑 (Radius <span class="math-text">r</span>) 推導</div>
+                            <div class="bg-slate-100 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-300 dark:border-slate-700 mb-4 text-sm md:text-base transition-colors">
+                                \[ \begin{aligned} Bqv &= \frac{mv^2}{r} \\[1.5ex] r &= \frac{mv}{Bq} \end{aligned} \]
+                            </div>
+                            
+                            <!-- Period Derivation -->
+                            <div class="text-left text-xs text-slate-600 dark:text-slate-400 mb-1 transition-colors" data-i18n="derivPeriod">2. 週期 (Period <span class="math-text">T</span>) 推導</div>
+                            <div class="bg-slate-100 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-300 dark:border-slate-700 mb-2 text-sm md:text-base transition-colors">
+                                \[ \begin{aligned} T &= \frac{2\pi r}{v} \\[1ex] T &= \frac{2\pi}{v} \left( \frac{mv}{Bq} \right) \\[1ex] T &= \frac{2\pi m}{Bq} \end{aligned} \]
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scale Indicator Bottom Left -->
+    <div class="absolute bottom-4 left-4 pointer-events-none z-10 bg-white/80 dark:bg-slate-900/50 p-2 rounded-lg backdrop-blur-sm border border-slate-300 dark:border-white/10 transition-colors">
+        <div class="flex items-end gap-2 text-slate-700 dark:text-slate-300 font-mono text-xs transition-colors">
+            <div class="border-b-2 border-l-2 border-slate-600 dark:border-slate-400 w-16 h-2 transition-colors"></div>
+            <span id="canvas-scale-display">1 cm</span>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Physics Data & Constants ---
+        const CONSTANTS = {
+            e: 1.602e-19,     // Elementary charge (C)
+            mp: 1.672e-27,    // Proton mass (kg)
+            me: 9.109e-31     // Electron mass (kg)
+        };
+
+        const PARTICLES = {
+            proton:   { name: 'Proton',   q: 1,  m: CONSTANTS.mp / CONSTANTS.mp, color: '#ef4444', trail: '#fca5a5' }, // Red
+            electron: { name: 'Electron', q: -1, m: CONSTANTS.me / CONSTANTS.mp, color: '#3b82f6', trail: '#93c5fd' }, // Blue
+            alpha:    { name: 'Alpha',    q: 2,  m: 4.0015,                      color: '#eab308', trail: '#fef08a' }, // Yellow
+            positron: { name: 'Positron', q: 1,  m: CONSTANTS.me / CONSTANTS.mp, color: '#ec4899', trail: '#fbcfe8' }, // Pink
+            li_ion:   { name: 'Li+',      q: 1,  m: 6.941,                       color: '#10b981', trail: '#6ee7b7' }  // Green
+        };
+
+        // --- 2. State Variables ---
+        let state = {
+            particleKey: 'proton',
+            B: 1.0,           // Tesla (T)
+            B_dir: -1,        // -1: Into page (x), 1: Out of page (.)
+            v0: 5e6,          // Initial speed (m/s)
+            
+            x: 0, y: 0,       // Simulation coordinates (m)
+            vx: 0, vy: 5e6,   // Velocity (m/s)
+            
+            isPlaying: true,
+            showVectors: true,
+            playbackSpeed: 1.0, // Added speed control
+            lang: 'zh',
+            theme: 'dark',      // Dark/Light mode tracking
+            
+            // Rendering specifics
+            pixelsPerMeter: 1000, 
+            timeScale: 1e-8,    // Fixed time step mapped to particle to preserve physics scaling
+            trail: [],
+            maxTrail: 300,
+            simTime: 0
+        };
+
+        // --- 3. DOM Elements & Canvas Context ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let cw, ch, cx, cy;
+
+        const uiElements = {
+            pSelect: document.getElementById('particleSelect'),
+            bSlider: document.getElementById('bSlider'),
+            vSlider: document.getElementById('vSlider'),
+            speedSlider: document.getElementById('speedSlider'),
+            vToggle: document.getElementById('vectorToggle'),
+            valB: document.getElementById('val-b-slider'),
+            valV: document.getElementById('val-v-slider'),
+            valSpeed: document.getElementById('val-speed-slider'),
+            btnPlay: document.getElementById('btn-play'),
+            btnBIn: document.getElementById('btn-b-in'),
+            btnBOut: document.getElementById('btn-b-out'),
+            calcPName: document.getElementById('calc-pname'),
+            calcM: document.getElementById('calc-m'),
+            calcQ: document.getElementById('calc-q'),
+            calcV: document.getElementById('calc-v'),
+            calcB: document.getElementById('calc-b'),
+            calcR: document.getElementById('calc-r'),
+            calcT: document.getElementById('calc-t'),
+            gridText: document.getElementById('grid-size-text'),
+            canvasScale: document.getElementById('canvas-scale-display')
+        };
+
+        // --- 4. i18n Dictionary ---
+        const i18n = {
+            zh: {
+                title: "磁場中帶電粒子運動模擬器",
+                controlPanel: "控制面板 Control Panel",
+                particleType: "粒子種類 (Particle)",
+                optProton: "質子 Proton (p⁺)",
+                optElectron: "電子 Electron (e⁻)",
+                optAlpha: "阿爾法粒子 Alpha (α²⁺)",
+                optPositron: "正電子 Positron (e⁺)",
+                optLiIon: "鋰離子 Li⁺",
+                bDir: "磁場方向 (B-Field Dir.)",
+                bInto: "入紙 (⊗)",
+                bOut: "出紙 (⊙)",
+                bStrength: "磁場強度 <span class='math-text'>B</span>",
+                velocity: "初速度 <span class='math-text'>v</span>",
+                playSpeed: "播放速度 (Play Speed)",
+                showVectors: "顯示力與速度向量",
+                reset: "重設 Reset",
+                pause: "暫停 Pause",
+                play: "播放 Play",
+                calcPanel: "實時運算 Calculations",
+                calcParticle: "粒子 Particle:",
+                calcMass: "質量 <span class='math-text'>m</span>:",
+                calcCharge: "電荷 <span class='math-text'>q</span>:",
+                calcVel: "速度 <span class='math-text'>v</span>:",
+                calcBField: "磁場 <span class='math-text'>B</span>:",
+                nameProton: "質子 p⁺",
+                nameElectron: "電子 e⁻",
+                nameAlpha: "阿爾法 α²⁺",
+                namePositron: "正電子 e⁺",
+                nameLiIon: "鋰離子 Li⁺",
+                radius: "圓周半徑 Radius:",
+                calcPeriod: "週期 Period T:",
+                derivPanel: "公式推導 Derivations",
+                derivRadius: "1. 圓周半徑 (Radius <span class='math-text'>r</span>) 推導",
+                derivPeriod: "2. 週期 (Period <span class='math-text'>T</span>) 推導"
+            },
+            en: {
+                title: "Charged Particle in Magnetic Field",
+                controlPanel: "Control Panel",
+                particleType: "Particle Type",
+                optProton: "Proton (p⁺)",
+                optElectron: "Electron (e⁻)",
+                optAlpha: "Alpha Particle (α²⁺)",
+                optPositron: "Positron (e⁺)",
+                optLiIon: "Lithium Ion (Li⁺)",
+                bDir: "B-Field Direction",
+                bInto: "Into Page (⊗)",
+                bOut: "Out of Page (⊙)",
+                bStrength: "B-Field Strength <span class='math-text'>B</span>",
+                velocity: "Initial Velocity <span class='math-text'>v</span>",
+                playSpeed: "Play Speed",
+                showVectors: "Show Force & Vel. Vectors",
+                reset: "Reset",
+                pause: "Pause",
+                play: "Play",
+                calcPanel: "Calculations",
+                calcParticle: "Particle:",
+                calcMass: "Mass <span class='math-text'>m</span>:",
+                calcCharge: "Charge <span class='math-text'>q</span>:",
+                calcVel: "Velocity <span class='math-text'>v</span>:",
+                calcBField: "B-Field <span class='math-text'>B</span>:",
+                nameProton: "Proton p⁺",
+                nameElectron: "Electron e⁻",
+                nameAlpha: "Alpha α²⁺",
+                namePositron: "Positron e⁺",
+                nameLiIon: "Li⁺ Ion",
+                radius: "Radius:",
+                calcPeriod: "Period T:",
+                derivPanel: "Formula Derivations",
+                derivRadius: "1. Radius (<span class='math-text'>r</span>) Derivation",
+                derivPeriod: "2. Period (<span class='math-text'>T</span>) Derivation"
+            }
+        };
+
+        // --- 5. Core Functions ---
+        function resizeCanvas() {
+            cw = canvas.width = window.innerWidth;
+            ch = canvas.height = window.innerHeight;
+            cx = cw / 2;
+            cy = ch / 2;
+        }
+
+        function formatScientific(num, fractionDigits = 2) {
+            if (num === 0) return "0";
+            let exponent = Math.floor(Math.log10(Math.abs(num)));
+            let mantissa = num / Math.pow(10, exponent);
+            return `${mantissa.toFixed(fractionDigits)} × 10<sup>${exponent}</sup>`;
+        }
+
+        function calculatePhysics() {
+            const p = PARTICLES[state.particleKey];
+            const m_kg = p.m * CONSTANTS.mp;
+            const q_c = p.q * CONSTANTS.e;
+            const v = state.v0;
+            const B = state.B;
+            
+            // r = mv / |q|B
+            const r = (m_kg * v) / (Math.abs(q_c) * B);
+            
+            // T = 2pi * m / (|q|B)
+            const T = (2 * Math.PI * m_kg) / (Math.abs(q_c) * B);
+            
+            return { m_kg, q_c, v, B, r, T };
+        }
+
+        function updateCalculationsPanel(autoScale = false) {
+            const phys = calculatePhysics();
+            
+            const nameMap = {
+                proton: 'nameProton',
+                electron: 'nameElectron',
+                alpha: 'nameAlpha',
+                positron: 'namePositron',
+                li_ion: 'nameLiIon'
+            };
+            uiElements.calcPName.innerHTML = i18n[state.lang][nameMap[state.particleKey]];
+            
+            uiElements.calcM.innerHTML = formatScientific(phys.m_kg, 2);
+            let q_str = (phys.q_c < 0 ? "-" : "+") + formatScientific(Math.abs(phys.q_c), 1);
+            uiElements.calcQ.innerHTML = q_str;
+            uiElements.calcV.innerHTML = formatScientific(phys.v, 1).replace(" × 10<sup>6</sup>", " ×10⁶"); 
+            uiElements.calcB.innerHTML = phys.B.toFixed(2);
+            
+            uiElements.calcR.innerHTML = formatScientific(phys.r, 3);
+            uiElements.calcT.innerHTML = formatScientific(phys.T, 3);
+
+            // FIX: Only auto scale when particle is changed or explicitly reset.
+            if (autoScale) {
+                const targetVisualRadius = Math.min(cw, ch) * 0.25; 
+                state.pixelsPerMeter = targetVisualRadius / phys.r;
+                
+                // Set a fixed animation time scale per particle (so changing B alters rotational speed visually)
+                const nominal_T = (2 * Math.PI * phys.m_kg) / (Math.abs(phys.q_c) * 1.0); // T at B=1.0T
+                const orbitsPerSecond = 0.5; // Base visual speed at 1.0T
+                state.timeScale = nominal_T * orbitsPerSecond; 
+            }
+
+            const approxGridMeters = 50 / state.pixelsPerMeter;
+            const exp = Math.floor(Math.log10(approxGridMeters));
+            const gridScaleMeters = Math.pow(10, exp);
+            
+            uiElements.gridText.innerHTML = formatScientific(gridScaleMeters, 0);
+            
+            const realWorldScale = 64 / state.pixelsPerMeter;
+            uiElements.canvasScale.innerHTML = formatScientific(realWorldScale, 1) + " m";
+        }
+
+        function resetParticleState(autoScale = false) {
+            state.x = 0;
+            state.y = 0;
+            state.vx = 0;
+            state.vy = state.v0; 
+            state.trail = [];
+            state.simTime = 0;
+            updateCalculationsPanel(autoScale);
+        }
+
+        // Only scale the canvas when particles change. Sliders just reset the position to origin.
+        function resetSim(autoScale = false) {
+            state.particleKey = uiElements.pSelect.value;
+            state.B = parseFloat(uiElements.bSlider.value);
+            state.v0 = parseFloat(uiElements.vSlider.value) * 1e6;
+            resetParticleState(autoScale);
+        }
+
+        function togglePlay() {
+            state.isPlaying = !state.isPlaying;
+            const key = state.isPlaying ? 'pause' : 'play';
+            uiElements.btnPlay.innerHTML = i18n[state.lang][key];
+            uiElements.btnPlay.className = state.isPlaying 
+                ? "flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition shadow-md"
+                : "flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition shadow-md";
+        }
+
+        function toggleTheme() {
+            state.theme = state.theme === 'dark' ? 'light' : 'dark';
+            if (state.theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function setBDirection(dir) {
+            state.B_dir = dir;
+            
+            // Shared inactive style supporting light/dark
+            const inactiveClass = "flex-1 py-1 text-sm font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all";
+            const activeClass = "flex-1 py-1 text-sm font-medium rounded-md bg-blue-600 text-white transition-all shadow-sm";
+
+            if (dir === -1) {
+                uiElements.btnBIn.className = activeClass;
+                uiElements.btnBOut.className = inactiveClass;
+            } else {
+                uiElements.btnBOut.className = activeClass;
+                uiElements.btnBIn.className = inactiveClass;
+            }
+            resetParticleState(false);
+        }
+
+        function togglePanel(id) {
+            const panel = document.getElementById(id);
+            if (panel.style.transform === "scale(0)" || panel.classList.contains("scale-0")) {
+                panel.style.transform = "scale(1)";
+                panel.style.opacity = "1";
+            } else {
+                panel.style.transform = "scale(0)";
+                panel.style.opacity = "0";
+            }
+        }
+
+        function toggleCalcContent() {
+            const content = document.getElementById('calc-content');
+            const btn = document.getElementById('btn-calc-toggle');
+            if (content.style.maxHeight === "0px" || content.classList.contains("hidden")) {
+                content.style.maxHeight = "500px";
+                content.style.opacity = "1";
+                content.style.padding = "1rem";
+                btn.innerText = "-";
+            } else {
+                content.style.maxHeight = "0px";
+                content.style.opacity = "0";
+                content.style.padding = "0 1rem";
+                btn.innerText = "+";
+            }
+        }
+
+        function toggleDerivContent() {
+            const content = document.getElementById('deriv-content');
+            const btn = document.getElementById('btn-deriv-toggle');
+            if (content.style.maxHeight === "0px" || content.style.maxHeight === "") {
+                content.style.maxHeight = "500px";
+                content.style.opacity = "1";
+                content.style.padding = "1rem";
+                btn.innerText = "-";
+            } else {
+                content.style.maxHeight = "0px";
+                content.style.opacity = "0";
+                content.style.padding = "0 1rem";
+                btn.innerText = "+";
+            }
+        }
+
+        function setLanguage(lang) {
+            state.lang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[lang][key]) {
+                    el.innerHTML = i18n[lang][key];
+                }
+            });
+            const playKey = state.isPlaying ? 'pause' : 'play';
+            uiElements.btnPlay.innerHTML = i18n[state.lang][playKey];
+
+            const activeClass = "px-3 py-1 text-sm font-medium rounded-full bg-blue-600 text-white transition-all shadow-sm";
+            const inactiveClass = "px-3 py-1 text-sm font-medium rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-all";
+
+            document.getElementById('btn-zh').className = lang === 'zh' ? activeClass : inactiveClass;
+            document.getElementById('btn-en').className = lang === 'en' ? activeClass : inactiveClass;
+            
+            updateCalculationsPanel(false); 
+        }
+
+        // --- 6. Event Listeners ---
+        window.addEventListener('resize', resizeCanvas);
+        
+        uiElements.pSelect.addEventListener('change', () => resetSim(true));
+        
+        uiElements.bSlider.addEventListener('input', (e) => {
+            uiElements.valB.innerText = parseFloat(e.target.value).toFixed(2);
+            state.B = parseFloat(e.target.value);
+            // DO NOT auto-scale here, letting the circle visibly shrink/grow
+            updateCalculationsPanel(false);
+        });
+        
+        uiElements.vSlider.addEventListener('input', (e) => {
+            const newV = parseFloat(e.target.value) * 1e6;
+            
+            // Adjust instantaneous velocity vectors to keep the same direction mid-flight
+            const vMag = Math.sqrt(state.vx*state.vx + state.vy*state.vy);
+            if(vMag > 0) {
+                state.vx = (state.vx / vMag) * newV;
+                state.vy = (state.vy / vMag) * newV;
+            } else {
+                state.vy = newV;
+            }
+            state.v0 = newV;
+
+            uiElements.valV.innerText = parseFloat(e.target.value).toFixed(1);
+            // DO NOT auto-scale here, letting the circle visibly expand/shrink
+            updateCalculationsPanel(false);
+        });
+
+        // Speed Slider Listener
+        uiElements.speedSlider.addEventListener('input', (e) => {
+            state.playbackSpeed = parseFloat(e.target.value);
+            uiElements.valSpeed.innerText = state.playbackSpeed.toFixed(1);
+        });
+
+        uiElements.vToggle.addEventListener('change', (e) => {
+            state.showVectors = e.target.checked;
+        });
+
+        // --- 7. Animation Loop & Physics ---
+        function drawBField() {
+            const approxGridMeters = 50 / state.pixelsPerMeter;
+            const exp = Math.floor(Math.log10(approxGridMeters));
+            const gridSizePixels = Math.pow(10, exp) * state.pixelsPerMeter;
+            
+            const step = Math.max(gridSizePixels, 40); 
+            
+            // Light/Dark mode colors for Grid
+            ctx.strokeStyle = state.theme === 'dark' ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)";
+            ctx.lineWidth = 1;
+
+            ctx.beginPath();
+            const offsetX = cx % step;
+            const offsetY = cy % step;
+
+            for (let x = offsetX; x < cw; x += step) {
+                for (let y = offsetY; y < ch; y += step) {
+                    if (state.B_dir === -1) {
+                        ctx.moveTo(x - 5, y - 5); ctx.lineTo(x + 5, y + 5);
+                        ctx.moveTo(x + 5, y - 5); ctx.lineTo(x - 5, y + 5);
+                    } else {
+                        ctx.arc(x, y, 2, 0, Math.PI * 2);
+                        ctx.moveTo(x,y); 
+                    }
+                }
+            }
+            ctx.stroke();
+
+            // Central axes
+            ctx.strokeStyle = state.theme === 'dark' ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.25)";
+            ctx.beginPath();
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, ch);
+            ctx.moveTo(0, cy); ctx.lineTo(cw, cy);
+            ctx.stroke();
+        }
+
+        function drawVectors(canvasX, canvasY, vx, vy, Fx, Fy, pColor) {
+            if (!state.showVectors) return;
+
+            const vMag = Math.sqrt(vx*vx + vy*vy);
+            const fMag = Math.sqrt(Fx*Fx + Fy*Fy);
+            
+            // Dynamically scale lengths based on value (Capped between 20px and 120px)
+            const vDrawLen = Math.max(20, Math.min((vMag / 5e6) * 78, 120)); 
+            const fDrawLen = Math.max(20, Math.min((fMag / 8.01e-13) * 78, 120));
+
+            const n_vx = vx / vMag;
+            const n_vy = vy / vMag;
+            
+            const n_fx = fMag > 0 ? Fx / fMag : 0;
+            const n_fy = fMag > 0 ? Fy / fMag : 0;
+
+            // Align text properly avoiding overlap
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Draw Velocity Vector (Green)
+            ctx.strokeStyle = "#4ade80"; // green-400
+            ctx.fillStyle = "#4ade80";
+            ctx.lineWidth = 2.5; 
+            ctx.font = "bold 14px sans-serif";
+            drawArrow(canvasX, canvasY, canvasX + n_vx * vDrawLen, canvasY - n_vy * vDrawLen); 
+            // Push the label 15px past the tip of the vector
+            ctx.fillText("v", canvasX + n_vx * (vDrawLen + 15), canvasY - n_vy * (vDrawLen + 15));
+
+            // Draw Force Vector (Pink/Red)
+            ctx.strokeStyle = "#f43f5e"; // rose-500
+            ctx.fillStyle = "#f43f5e";
+            drawArrow(canvasX, canvasY, canvasX + n_fx * fDrawLen, canvasY - n_fy * fDrawLen);
+            // Push the label 15px past the tip of the vector
+            ctx.fillText("F", canvasX + n_fx * (fDrawLen + 15), canvasY - n_fy * (fDrawLen + 15));
+        }
+
+        function drawArrow(fromx, fromy, tox, toy) {
+            const headlen = 10; // Increased arrowhead size
+            const dx = tox - fromx;
+            const dy = toy - fromy;
+            const angle = Math.atan2(dy, dx);
+            ctx.beginPath();
+            ctx.moveTo(fromx, fromy);
+            ctx.lineTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        let lastTime = performance.now();
+
+        function animate(currentTime) {
+            const dt_real = (currentTime - lastTime) / 1000; 
+            lastTime = currentTime;
+
+            // Light/Dark mode Canvas Background
+            ctx.fillStyle = state.theme === 'dark' ? "#0f172a" : "#f8fafc";
+            ctx.fillRect(0, 0, cw, ch);
+
+            drawBField();
+
+            if (state.isPlaying) {
+                const phys = calculatePhysics();
+                
+                // Fixed time scale logic so varying B visibly speeds up/slows down the orbit
+                const dt_sim = dt_real * state.timeScale * state.playbackSpeed; 
+
+                const q_over_m = phys.q_c / phys.m_kg;
+                const Bz = state.B * state.B_dir; 
+                
+                const omega = q_over_m * Bz; 
+                const theta = omega * dt_sim;
+                
+                const cosT = Math.cos(theta);
+                const sinT = Math.sin(theta);
+                
+                const new_vx = state.vx * cosT + state.vy * sinT;
+                const new_vy = -state.vx * sinT + state.vy * cosT;
+                
+                if (omega !== 0) {
+                    state.x += (state.vx * sinT + state.vy * (1 - cosT)) / omega;
+                    state.y += (-state.vx * (1 - cosT) + state.vy * sinT) / omega;
+                } else {
+                    state.x += state.vx * dt_sim;
+                    state.y += state.vy * dt_sim;
+                }
+
+                state.vx = new_vx;
+                state.vy = new_vy;
+
+                state.trail.push({x: state.x, y: state.y});
+                if (state.trail.length > state.maxTrail) state.trail.shift();
+            }
+
+            // Draw Trail
+            const pData = PARTICLES[state.particleKey];
+            ctx.strokeStyle = pData.trail;
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            
+            ctx.beginPath();
+            for (let i = 0; i < state.trail.length; i++) {
+                const px = cx + state.trail[i].x * state.pixelsPerMeter;
+                const py = cy - state.trail[i].y * state.pixelsPerMeter;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Draw Particle
+            const canvasX = cx + state.x * state.pixelsPerMeter;
+            const canvasY = cy - state.y * state.pixelsPerMeter;
+
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = pData.color;
+            ctx.fillStyle = pData.color;
+            ctx.beginPath();
+            ctx.arc(canvasX, canvasY, 7, 0, Math.PI * 2); // slightly larger particle
+            ctx.fill();
+            ctx.shadowBlur = 0; 
+            
+            // Text color inside particle (Ensure contrast for bright colors like Yellow Alpha)
+            ctx.fillStyle = pData.name === 'Alpha' ? "#000" : "#fff";
+            ctx.font = "bold 11px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(pData.q > 0 ? "+" : "-", canvasX, canvasY);
+
+            // Calculate actual Force components
+            const q_over_m = (pData.q * CONSTANTS.e) / (pData.m * CONSTANTS.mp);
+            const Bz = state.B * state.B_dir;
+            const ax = q_over_m * state.vy * Bz;
+            const ay = -q_over_m * state.vx * Bz;
+            
+            const m_kg = pData.m * CONSTANTS.mp;
+            const Fx = m_kg * ax;
+            const Fy = m_kg * ay;
+
+            drawVectors(canvasX, canvasY, state.vx, state.vy, Fx, Fy, pData.color);
+
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize
+        resizeCanvas();
+        resetSim(true); // Auto scale on initial load
+        setLanguage('zh');
+        requestAnimationFrame(animate);
+
+    </script>
+</body>
+</html>

@@ -1,265 +1,209 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frits Went's Auxin Investigation</title>
+    <title>文特的生長素探究 / Frits Went's Auxin Investigation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f4f7f6;
-            --panel-bg: #ffffff;
-            --primary: #2c3e50;
-            --accent: #27ae60;
+        body { font-family: 'Noto Sans TC', "PingFang TC", "Microsoft JhengHei", 'Segoe UI', sans-serif; }
+        canvas {
+            background-color: #0f172a;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            max-width: 100%;
+            height: auto;
         }
-
-        body {
-            font-family: "PingFang TC", "Microsoft JhengHei", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
-
-        .header-container {
-            width: 100%;
-            max-width: 1000px;
-            margin-bottom: 20px;
-            padding-right: 120px;
-            box-sizing: border-box;
-        }
-
-        h1 {
-            color: var(--primary);
-            margin: 0 0 5px 0;
-        }
-
-        p.subtitle {
-            color: #666;
-            margin: 0;
-            max-width: 800px;
-        }
-
-        .lang-btn {
-            position: absolute;
-            top: 15px;
-            right: 60px;
-            background-color: #ffffff;
-            color: #34495e;
-            border: 1px solid #cbd5e1;
-            padding: 5px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            width: auto;
-            z-index: 10;
-        }
-
-        .lang-btn:hover {
-            background-color: #f8fafc;
-            border-color: #94a3b8;
-            color: #1e293b;
-        }
-
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            max-width: 1000px;
-            width: 100%;
-        }
-
-        .controls-panel {
-            flex: 1;
-            min-width: 320px;
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .simulation-panel {
-            flex: 2;
-            min-width: 400px;
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: var(--primary);
-        }
-
-        select, button {
-            width: 100%;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-        }
-
-        button.action-btn {
-            background-color: var(--accent);
-            color: white;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            transition: background 0.2s;
-            margin-top: 10px;
-        }
-
-        button.action-btn:hover {
-            background-color: #219150;
-        }
-
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
         button.action-btn:disabled {
-            background-color: #bdc3c7;
+            background-color: #bdc3c7 !important;
             cursor: not-allowed;
         }
-
-        canvas {
-            background-color: #0f172a; /* Darkroom setting */
-            border-radius: 4px;
-            border: 1px solid #334155;
-        }
-
-        .info-box {
-            margin-top: 20px;
-            background: #e8f4f8;
-            border-left: 4px solid #3498db;
-            padding: 10px 15px;
-            font-size: 0.9em;
-            border-radius: 0 4px 4px 0;
-            line-height: 1.5;
-        }
-
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 12px;
-            font-size: 0.82em;
-            justify-content: center;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-
         .diagram-preview {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 15px;
+            border-radius: 0.5rem;
+            padding: 0.625rem;
+            margin-bottom: 1rem;
             font-size: 0.85em;
+            line-height: 1.5;
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- Language Toggle Button -->
-    <button id="langToggleBtn" class="lang-btn">繁體中文</button>
-
-    <div class="header-container">
-        <h1 id="title">Frits Went's Auxin Investigation</h1>
-        <p class="subtitle" id="subtitle">Interactive simulation exploring Frits Went's experiment proving lateral redistribution of auxin under unilateral light into separate agar blocks (X and Y), causing differential curvature in darkness.</p>
-    </div>
-
-    <div class="container">
-        <!-- Controls Panel -->
-        <div class="controls-panel">
-            <h2 id="setupHeading">Setup Experiment</h2>
-
-            <div class="diagram-preview" id="prepDescription">
-                <!-- Auxin extraction context -->
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">🌱</div>
+            <div class="min-w-0">
+                <h1 id="title" class="text-lg sm:text-xl font-bold text-slate-800 truncate">文特的生長素探究</h1>
+                <p id="subtitle" class="text-xs text-slate-500 truncate max-w-xl">分側瓊脂塊 X／Y · 偏置放置 · 暗室彎曲定量</p>
             </div>
-            
-            <div class="form-group">
-                <label for="blockType" id="labelBlockType">Agar Block Type (Plant B):</label>
-                <select id="blockType">
-                    <option value="block-Y" id="optBlockY">Block Y (From Shaded Side - High Auxin Concentration)</option>
-                    <option value="block-X" id="optBlockX">Block X (From Illuminated Side - Low Auxin Concentration)</option>
-                    <option value="block-equal" id="optBlockEqual">Control Block (Unilluminated Uniform Tip)</option>
-                    <option value="block-plain" id="optBlockPlain">Plain Agar Block (No Auxin)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="placement" id="labelPlacement">Block Placement Position:</label>
-                <select id="placement">
-                    <option value="left" id="optPlaceLeft">Left Side of Cut Shoot</option>
-                    <option value="right" id="optPlaceRight">Right Side of Cut Shoot</option>
-                    <option value="center" id="optPlaceCenter">Centered Across Whole Shoot</option>
-                </select>
-            </div>
-
-            <button id="startBtn" class="action-btn">Run Experiment (In Darkness)</button>
-            <button id="resetBtn" class="action-btn" style="background-color: #e74c3c;">Reset</button>
-
-            <div class="info-box" id="infoBox">
-                <!-- Dynamic text updated via JS -->
-            </div>
+            <span id="badge-subject" class="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">生物</span>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
+        </div>
+    </header>
 
-        <!-- Canvas Panel -->
-        <div class="simulation-panel">
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <section class="order-1 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col items-center w-full">
             <canvas id="simCanvas" width="500" height="440"></canvas>
-            
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #00e5ff;"></div>
-                    <span id="legendAgarY">Block Y (High Auxin)</span>
+            <div class="legend flex flex-wrap gap-3 mt-3 text-xs text-slate-600 justify-center">
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm border border-slate-300" style="background:#00e5ff;"></div>
+                    <span id="legendAgarY">瓊脂塊 Y (高濃度)</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #c084fc;"></div>
-                    <span id="legendAgarX">Block X (Low Auxin)</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm border border-slate-300" style="background:#c084fc;"></div>
+                    <span id="legendAgarX">瓊脂塊 X (低濃度)</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ff6600;"></div>
-                    <span id="legendAgarControl">Control Block (Uniform)</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm border border-slate-300" style="background:#ff6600;"></div>
+                    <span id="legendAgarControl">對照瓊脂塊 (均勻)</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #94a3b8;"></div>
-                    <span id="legendAgarPlain">Plain Agar Block</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm border border-slate-300" style="background:#94a3b8;"></div>
+                    <span id="legendAgarPlain">空白瓊脂塊</span>
                 </div>
             </div>
+        </section>
+
+        <aside class="order-2 lg:col-span-4 w-full flex flex-col gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 id="setupHeading" class="text-lg font-bold border-b pb-2 mb-4 text-slate-700">實驗設定</h2>
+
+                <div class="diagram-preview" id="prepDescription"></div>
+
+                <div class="mb-4">
+                    <label for="blockType" id="labelBlockType" class="block text-sm font-semibold mb-1.5 text-slate-700">選擇瓊脂塊處理條件：</label>
+                    <select id="blockType" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="block-Y" id="optBlockY" selected>瓊脂塊 Y（來自背光側 - 生長素濃度高）</option>
+                        <option value="block-X" id="optBlockX">瓊脂塊 X（來自向光側 - 生長素濃度低）</option>
+                        <option value="block-equal" id="optBlockEqual">對照瓊脂塊（來自未受光均勻尖端）</option>
+                        <option value="block-plain" id="optBlockPlain">空白瓊脂塊（無生長素）</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label for="placement" id="labelPlacement" class="block text-sm font-semibold mb-1.5 text-slate-700">瓊脂塊放置位置 (植物 B)：</label>
+                    <select id="placement" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="left" id="optPlaceLeft" selected>去尖端切口左側</option>
+                        <option value="right" id="optPlaceRight">去尖端切口右側</option>
+                        <option value="center" id="optPlaceCenter">去尖端切口中央</option>
+                    </select>
+                </div>
+
+                <button type="button" id="startBtn" class="action-btn w-full py-2.5 rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors mb-2">開始實驗 (暗室環境)</button>
+                <button type="button" id="btn-reset-panel" class="w-full py-2.5 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">重置</button>
+
+                <div class="info-box mt-4 bg-sky-50 border-l-4 border-sky-500 p-3 text-sm leading-relaxed rounded-r-lg" id="infoBox"></div>
+            </div>
+        </aside>
+    </main>
+
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
         </div>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-teal-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
     </div>
 
     <script>
-        // Language Dictionary
         const i18n = {
             en: {
-                langBtn: "繁體中文",
+                langBtn: "中 / EN",
                 title: "Frits Went's Auxin Investigation",
-                subtitle: "Interactive simulation exploring Frits Went's experiment proving lateral redistribution of auxin under unilateral light into separate agar blocks (X and Y), causing differential curvature in darkness.",
+                subtitle: "Split agar X／Y · offset placement · dark-curvature assay",
+                badge: "Biology",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                stepsTitle: "Observation steps",
+                principleTitle: "Principles",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
                 setupHeading: "Setup Experiment",
                 prepDesc: "<strong>Auxin Extraction Setup:</strong> The top diagram shows how light causes lateral auxin redistribution into Blocks X and Y, alongside an unilluminated tip producing a uniform Control agar block.",
                 labelBlockType: "Select Agar Block Treatment:",
@@ -272,7 +216,6 @@
                 optPlaceRight: "Right Side of Cut Shoot",
                 optPlaceCenter: "Centered Across Cut Shoot",
                 startBtn: "Run Experiment (In Darkness)",
-                resetBtn: "Reset",
                 legendAgarY: "Block Y (High Auxin)",
                 legendAgarX: "Block X (Low Auxin)",
                 legendAgarControl: "Control Block (Uniform)",
@@ -293,9 +236,19 @@
                 expPlain: "<strong>Result:</strong> Plain agar contains no auxin. No cell elongation occurs, and the shoot remains unbent."
             },
             zh: {
-                langBtn: "English",
+                langBtn: "中 / EN",
                 title: "文特的生長素探究",
-                subtitle: "互動式模擬：重現 1926 年溫特實驗，證實單側光引發生長素橫向轉移至背光側，並透過將瓊脂塊 X 與 Y 置於去尖端胚芽鞘上，在暗室中引發不同程度之向光彎曲。",
+                subtitle: "分側瓊脂塊 X／Y · 偏置放置 · 暗室彎曲定量",
+                badge: "生物",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
                 setupHeading: "實驗設定",
                 prepDesc: "<strong>生長素收集前置：</strong>上方獨立視窗展示單側光引發向光側與背光側生長素差異分配（瓊脂塊 X 與 Y），以及未受光尖端產生的均勻對照瓊脂塊。",
                 labelBlockType: "選擇瓊脂塊處理條件：",
@@ -308,7 +261,6 @@
                 optPlaceRight: "去尖端切口右側",
                 optPlaceCenter: "去尖端切口中央",
                 startBtn: "開始實驗 (暗室環境)",
-                resetBtn: "重置",
                 legendAgarY: "瓊脂塊 Y (高濃度)",
                 legendAgarX: "瓊脂塊 X (低濃度)",
                 legendAgarControl: "對照瓊脂塊 (均勻)",
@@ -330,31 +282,165 @@
             }
         };
 
-        let currentLang = 'en';
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalTimer = null;
 
-        // DOM Elements
+        const STEPS = [
+          {
+            zh: '按頁首<strong>重置</strong>（塊類型應回<strong>瓊脂塊 Y（背光側／高濃度）</strong>、位置<strong>左側</strong>、動畫歸零、結果卡回假設提示；<strong>語言不變</strong>）。確認左為<strong>對照組（去尖未處理）</strong>、右為<strong>實驗組</strong>；注意暗室橫幅。按<strong>開始實驗 (暗室環境)</strong>。觀察：左株不彎；右株因 Y 高濃度在左側刺激左側伸長 → <strong>向右大幅彎曲</strong>。',
+            en: 'Header <strong>Reset</strong> (block <strong>Y high-auxin／shaded</strong>, placement <strong>Left</strong>, progress cleared, info back to hypothesis; <strong>language unchanged</strong>). Left＝<strong>Control (decapitated, no block)</strong>; right＝<strong>Test</strong>. Note the <strong>total darkness</strong> banner. Press <strong>Run Experiment (In Darkness)</strong>. Control stays unbent; test with high-auxin Y on the left elongates on the left → <strong>strong bend to the RIGHT</strong>.'
+          },
+          {
+            zh: 'Reset 後改選<strong>瓊脂塊 X（向光側／低濃度）</strong>、位置左側 → Run：僅<strong>輕微向右彎</strong>。再改<strong>對照瓊脂塊（均勻）</strong>＋左側 → Run：<strong>中等／標準向右彎</strong>（介於 Y 與 X 之間）。再試<strong>空白瓊脂</strong>或任意塊＋<strong>中央</strong>：應<strong>不彎曲</strong>（空白無 auxin；中央則兩側均勻）。對照組全程去尖不彎。',
+            en: 'After Reset, set <strong>Block X (lit side, low auxin)</strong> on the <strong>left</strong> → Run: only a <strong>slight bend right</strong>. Then <strong>Control Block (uniform)</strong>＋left → <strong>moderate／standard bend right</strong> (between Y and X). Then <strong>Plain agar</strong> or any block＋<strong>Centered</strong>: <strong>no curvature</strong> (plain＝no auxin; center＝even diffusion). Control stays decapitated／unbent.'
+          },
+          {
+            zh: '選<strong>瓊脂塊 Y</strong>、位置改<strong>右側</strong> → Run：高濃度在右側 → <strong>向左大幅彎曲</strong>。可再試 X／對照塊在右側，確認方向同理、幅度仍依濃度：Y＞對照＞X。結論：彎曲方向由<strong>塊偏置側</strong>決定；幅度由<strong>塊內 auxin 相對量</strong>決定；測試在<strong>黑暗</strong>中進行。',
+            en: 'Set <strong>Block Y</strong> on the <strong>right</strong> → Run: <strong>strong bend to the LEFT</strong>. Repeat with X／Control on the right—same direction rule, magnitude still Y＞Control＞X. Direction follows <strong>offset side</strong>; magnitude follows <strong>relative auxin</strong>; assay runs in <strong>darkness</strong>.'
+          },
+          {
+            zh: '再按頁首<strong>重置</strong>：應回 <strong>Y＋左側</strong>、進度 0、結果卡假設提示；<strong>語言不變</strong>。對照 Canvas 頂部前置窗：單側光製備 X／Y 與未受光對照塊——那是<strong>製備</strong>，正式測試在暗室。打開原理解說與課堂問題——確認主軸是 <strong>Went：分側瓊脂塊 X／Y／對照／空白＋偏置放置＋黑暗彎曲定量</strong>，不是 Darwin 帽／套管感光，也不是 Boysen-Jensen 瓊脂／雲母阻隔主控件。',
+            en: 'Header <strong>Reset</strong> again: back to <strong>Y＋left</strong>, progress 0, default info; <strong>language unchanged</strong>. The top prep window shows unilateral-light making of X／Y and the uniform control—that is <strong>preparation</strong>; the assay is in darkness. Open Principles／Quiz—focus is <strong>Went: split agar X／Y／control／plain＋offset placement＋dark curvature</strong>, not Darwin tip caps／sleeves, not Boysen-Jensen agar／mica barrier controls.'
+          }
+        ];
+
+        const PRINCIPLE = {
+          zh: {
+            conceptTitle: '概念',
+            concept: '荷蘭植物生理學家 <strong>Frits Went（1926）</strong> 把胚芽鞘 tip 的分泌物收集到<strong>瓊脂塊</strong>，再放回去尖鞘，證明引起彎曲的是<strong>可擴散化學物質</strong>（他命名為 <strong>auxin／生長素</strong>），且彎曲程度與物質量相關。在單側光下 tip 內生長素會<strong>橫向再分配</strong>到背光側；本模擬以分側塊 <strong>X（向光／低）</strong>、<strong>Y（背光／高）</strong>、<strong>未受光均勻對照塊</strong>與<strong>空白瓊脂</strong>，在<strong>暗室</strong>中偏置回接，把「濃度差異 → 差異伸長 → 彎曲」可視化。',
+            mechTitle: '機制',
+            mech: [
+              '<strong>製備（前置窗）</strong>：單側光＋雲母分側 → 向光側收集 <strong>X（低 auxin）</strong>、背光側收集 <strong>Y（高 auxin）</strong>；未受光 tip → <strong>均勻對照塊</strong>；純瓊脂 → <strong>空白（無 auxin）</strong>。',
+              '<strong>暗室測試</strong>：去尖鞘失去 tip 來源；外加塊提供已知相對量的 auxin。<strong>無方向光</strong>，故彎曲不是當下向光性，而是外加物質量差異。',
+              '<strong>偏置效應</strong>：塊在<strong>左</strong> → 左側伸長快 → 向<strong>右</strong>彎；在<strong>右</strong> → 向<strong>左</strong>彎；在<strong>中央</strong> → 兩側均勻 → <strong>直立</strong>。',
+              '<strong>定量示意（本模擬）</strong>：同一側放置時，彎曲幅度 <strong>Y（強）＞對照（中）＞X（弱）＞空白（零）</strong>；伸長 scale 亦大致 Y＞對照＞X＞空白。',
+              '<strong>對照株</strong>：左株去尖、無塊 → 基線不伸不彎。',
+              '<strong>範圍</strong>：控件是<strong>塊型＋放置位置＋暗室彎曲</strong>；<strong>不是</strong> Darwin 的感光部位（帽／套管／光照方向主控件）；<strong>不是</strong> Boysen-Jensen 的可透／不透阻隔位置主控件。真實課室切割與化學操作須教師指導與安全規範。'
+            ],
+            egTitle: '日常例子',
+            eg: '窗邊盆栽朝光彎曲是向光性的日常版；Went 的貢獻是把「看不見的化學信使」變成可收集、可轉移、可比較量的瓊脂塊實驗——銜接 Darwin（感光在尖端）與 Boysen-Jensen（信號可擴散通過瓊脂）之後，正式命名並定量思路化 <strong>auxin</strong>。'
+          },
+          en: {
+            conceptTitle: 'Concept',
+            concept: '<strong>Frits Went (1926)</strong> collected tip secretions into <strong>agar blocks</strong> and replaced them on decapitated coleoptiles, showing a <strong>diffusible chemical</strong> (<strong>auxin</strong>) causes bending in amounts that match curvature. Under unilateral light, auxin is <strong>laterally redistributed</strong> toward the shaded side. This sim uses split blocks <strong>X (lit／low)</strong>, <strong>Y (shaded／high)</strong>, a <strong>uniform control</strong> from an unilluminated tip, and <strong>plain agar</strong>, offset onto a cut shoot and assayed in <strong>darkness</strong>.',
+            mechTitle: 'Mechanism',
+            mech: [
+              '<strong>Preparation (top window)</strong>: unilateral light＋mica split → <strong>X low</strong>／<strong>Y high</strong>; unilluminated tip → <strong>uniform control</strong>; plain agar → <strong>no auxin</strong>.',
+              '<strong>Dark assay</strong>: the cut shoot has no tip source; the block supplies a known relative auxin dose. <strong>No directional light</strong>, so bending is not “live” phototropism but dose-driven differential elongation.',
+              '<strong>Offset</strong>: block on <strong>left</strong> → elongate left → bend <strong>right</strong>; on <strong>right</strong> → bend <strong>left</strong>; <strong>center</strong> → even → <strong>upright</strong>.',
+              '<strong>Magnitude (this sim)</strong>: same side, <strong>Y (strong)＞control (moderate)＞X (slight)＞plain (none)</strong>; growth scales roughly match.',
+              '<strong>Control plant</strong>: left shoot decapitated, no block → baseline no bend.',
+              '<strong>Scope</strong>: block type＋placement＋dark curvature only—<strong>not</strong> Darwin tip-sensing caps／sleeves／light-direction controls; <strong>not</strong> Boysen-Jensen agar／mica barrier-position controls. Real coleoptile cutting needs teacher supervision and lab safety.'
+            ],
+            egTitle: 'Everyday example',
+            eg: 'Plants leaning toward a window are everyday phototropism. Went turns the invisible messenger into transferable agar doses—after Darwin (tip sensing) and Boysen-Jensen (diffusible signal)—naming and quantifying the <strong>auxin</strong> idea.'
+          }
+        };
+
+        const QUIZ = [
+          {
+            q: {
+              zh: '重置後維持預設瓊脂塊 Y 與左側放置，按開始實驗（暗室）。哪項觀察最合理？',
+              en: 'After Reset, keep default Block Y and Left placement, then Run (in darkness). Which observation is best?'
+            },
+            choices: [
+              { zh: '對照組（去尖無塊）不彎；實驗組因高濃度 Y 在左側而向右大幅彎曲', en: 'Control (decapitated, no block) stays unbent; test with high-auxin Y on the left shows a strong bend to the right' },
+              { zh: '兩株都向左側光源大幅彎曲，因為測試區有單側光', en: 'Both plants bend strongly toward a left light source because the assay uses unilateral light' },
+              { zh: '實驗組永遠直立，只有對照組彎曲', en: 'The test plant always stays upright; only the control bends' },
+              { zh: '本模擬沒有瓊脂塊 Y 選項', en: 'This sim has no Block Y option' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。對應 block-Y＋left → 正角幅度 Math.PI/5.5；左株 none 角 0。測試在黑暗中（無 live 單側光控件）。',
+              en: 'A. block-Y＋left → strong positive angle (Math.PI/5.5); left plant none → 0. Assay is in darkness (no live unilateral-light control).'
+            }
+          },
+          {
+            q: {
+              zh: '在暗室、左側放置下，分別跑瓊脂塊 X、對照瓊脂塊、再試空白瓊脂或中央放置。哪項描述最合理？',
+              en: 'In darkness with Left placement, run Block X, then Control Block, then try Plain agar or Centered placement. Which description is most reasonable?'
+            },
+            choices: null,
+                ans: null,
+            explain: {
+              zh: 'A。block-X 弱角／block-equal 中角／block-plain 或 center → 0；且同一側時 Y＞equal＞X。',
+              en: 'A. block-X weak／block-equal moderate／block-plain or center → 0; same side Y＞equal＞X.'
+            }
+          },
+          {
+            q: {
+              zh: '選瓊脂塊 Y，先放左側跑一次，再改右側跑一次（可 Reset 清進度後再跑）。哪項正確？',
+              en: 'Choose Block Y, run once on the Left, then once on the Right (Reset between runs if needed). Which is correct?'
+            },
+            choices: [
+              { zh: '左側放置 → 向右大幅彎；右側放置 → 向左大幅彎——方向由偏置側決定，幅度仍大（高濃度）', en: 'Left → strong bend right; Right → strong bend left—direction follows offset side; magnitude stays large (high auxin)' },
+              { zh: '無論左或右放置，Y 都只會向右彎', en: 'Y always bends only to the right regardless of placement' },
+              { zh: '改放置位置不會改變動畫，必須先開頂光', en: 'Changing placement never changes the animation; you must turn on overhead light first' },
+              { zh: '右側放置會把塊自動換成空白瓊脂', en: 'Right placement automatically swaps the block to plain agar' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。left → 正角；right → 負角；block-Y 幅度同為 Math.PI/5.5。',
+              en: 'A. left → positive angle; right → negative; block-Y magnitude Math.PI/5.5 both ways.'
+            }
+          },
+          {
+            q: {
+              zh: '先把塊改成 X 或空白、位置改成右側或中央並 Run 一次，再按頁首重置。用自己的話寫：（1）重置後塊類型、放置位置、動畫進度／結果卡應如何（本設計預期）；（2）重置會不會切換中／EN。',
+              en: 'Change the block to X or plain and placement to right or center, Run once, then press header Reset. In your own words: (1) expected block／placement／progress／info after Reset; (2) whether Reset switches zh／EN.'
+            },
+            choices: null,
+            ans: null,
+            explain: {
+              zh: '（1）塊類型回 block-Y（瓊脂塊 Y）；放置回 left（左側）；progress=0（未彎狀態）；結果卡回假設提示；開始鈕可用。（2）不切換語言。',
+              en: '(1) Block back to block-Y; placement back to left; progress 0 (unbent); info = default hypothesis; Run enabled. (2) Reset must not switch language.'
+            }
+          },
+          {
+            q: {
+              zh: '根據本模擬控件與設計，哪項最正確？',
+              en: 'Using this sim’s controls and design, which is most correct?'
+            },
+            choices: [
+              { zh: '可選瓊脂塊 Y／X／對照／空白與左／右／中央放置，在暗室比較彎曲幅度與方向，並有步驟／原理／五題／中EN／重置——主軸是 Went 分側塊與 auxin 定量彎曲，不是 Darwin 帽／套管感光，也不是 Boysen-Jensen 瓊脂／雲母阻隔主控件', en: 'You choose agar Y／X／control／plain and left／right／center placement, compare dark curvature magnitude and direction, with steps／principle／five quiz items／zh-EN／Reset—focus Went split-block auxin assay, not Darwin tip caps／sleeves, not Boysen-Jensen agar／mica barriers' },
+              { zh: '主要控件是不透明帽／透明帽／基部套管與單側／頂光，用來證明感光在尖端', en: 'Main controls are opaque／transparent caps／basal sleeve and uni-/overhead light to prove tip light-sensing' },
+              { zh: '重置會強制改成英文並刪除塊 Y 選項', en: 'Reset always switches to English and deletes Block Y' },
+              { zh: '必須先在伸長區插入雲母片（背光／向光／完全貫穿）才能操作本模擬', en: 'You must first insert mica (shaded／lit／full) in the elongation zone before this sim works' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。隔離 darwin-s-phototropism-experiment／boysen-jensen-s-phototropism-experiment；Reset 不改語言、不刪 #blockType 選項。',
+              en: 'A. Separates Darwin／Boysen-Jensen siblings; Reset does not change language or delete #blockType options.'
+            }
+          }
+        ];
+
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const langToggleBtn = document.getElementById('langToggleBtn');
         const blockTypeSelect = document.getElementById('blockType');
         const placementSelect = document.getElementById('placement');
         const infoBox = document.getElementById('infoBox');
 
-        // Simulation State
-        let progress = 0; // 0 to 1
+        let progress = 0;
         let animationFrame = null;
         let isRunning = false;
-
         const BASE_Y = 380;
 
         function updateLanguageUI() {
             const t = i18n[currentLang];
-            
-            langToggleBtn.textContent = t.langBtn;
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            document.getElementById('btn-lang').textContent = t.langBtn;
             document.getElementById('title').textContent = t.title;
             document.getElementById('subtitle').textContent = t.subtitle;
+            document.getElementById('badge-subject').textContent = t.badge;
+            document.getElementById('btn-steps').textContent = t.btnSteps;
+            document.getElementById('btn-principle').textContent = t.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = t.btnQuiz;
+            document.getElementById('btn-reset').textContent = t.btnReset;
+            const rp = document.getElementById('btn-reset-panel');
+            if (rp) rp.textContent = t.btnReset;
             document.getElementById('setupHeading').textContent = t.setupHeading;
             document.getElementById('prepDescription').innerHTML = t.prepDesc;
             document.getElementById('labelBlockType').textContent = t.labelBlockType;
@@ -367,7 +453,6 @@
             document.getElementById('optPlaceRight').textContent = t.optPlaceRight;
             document.getElementById('optPlaceCenter').textContent = t.optPlaceCenter;
             document.getElementById('startBtn').textContent = t.startBtn;
-            document.getElementById('resetBtn').textContent = t.resetBtn;
             document.getElementById('legendAgarY').textContent = t.legendAgarY;
             document.getElementById('legendAgarX').textContent = t.legendAgarX;
             document.getElementById('legendAgarControl').textContent = t.legendAgarControl;
@@ -378,31 +463,26 @@
             } else if (progress === 0 && !isRunning) {
                 infoBox.innerHTML = t.defaultInfo;
             }
-
+            refreshOpenTeachModals();
             render();
         }
 
         function drawHeaderExtractionWindow() {
             const t = i18n[currentLang];
-
-            // Dedicated Top Window Box Frame for Agar Preparation
             ctx.save();
             ctx.translate(250, 70);
 
-            // Separate Window Box Container
             ctx.fillStyle = '#1e293b';
             ctx.strokeStyle = '#475569';
             ctx.lineWidth = 1.5;
             ctx.fillRect(-235, -58, 470, 115);
             ctx.strokeRect(-235, -58, 470, 115);
 
-            // Window Header Label
             ctx.fillStyle = '#cbd5e1';
-            ctx.font = 'bold 13px "PingFang TC", "Microsoft JhengHei", sans-serif';
+            ctx.font = 'bold 13px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(t.prepWindowTitle, 0, -40);
 
-            // Divider Line inside window
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -410,11 +490,9 @@
             ctx.lineTo(0, 48);
             ctx.stroke();
 
-            // --- LEFT SECTION: Unilateral Light Experiment (Blocks X and Y) ---
             ctx.save();
             ctx.translate(-118, 5);
 
-            // Light Ray from Left
             ctx.fillStyle = '#f1c40f';
             ctx.beginPath();
             ctx.arc(-82, -10, 7, 0, Math.PI * 2);
@@ -427,13 +505,11 @@
             ctx.lineTo(-38, -10);
             ctx.stroke();
 
-            // Light Label Text
             ctx.fillStyle = '#f1c40f';
-            ctx.font = 'bold 12px Arial, "PingFang TC", "Microsoft JhengHei"';
+            ctx.font = 'bold 12px "Noto Sans TC", Arial, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(currentLang === 'en' ? "Light" : "單側光", -82, 12);
 
-            // Coleoptile tip
             ctx.fillStyle = '#27ae60';
             ctx.beginPath();
             ctx.arc(0, -14, 13, Math.PI, 0, false);
@@ -442,7 +518,6 @@
             ctx.closePath();
             ctx.fill();
 
-            // Mica Plate Divider
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -450,9 +525,8 @@
             ctx.lineTo(0, 20);
             ctx.stroke();
 
-            // Mica Plate Label Pointer
             ctx.fillStyle = '#e2e8f0';
-            ctx.font = 'bold 11px Arial, "PingFang TC", "Microsoft JhengHei"';
+            ctx.font = 'bold 11px "Noto Sans TC", Arial, sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText(currentLang === 'en' ? "mica plate" : "雲母片", 32, -16);
 
@@ -463,21 +537,17 @@
             ctx.lineTo(4, -14);
             ctx.stroke();
 
-            // Agar Blocks X (Lavender) and Y (Cyan)
-            // Block X (Left - Lit Side - Low Auxin)
             ctx.fillStyle = '#c084fc';
             ctx.strokeStyle = '#9333ea';
             ctx.lineWidth = 1;
             ctx.fillRect(-13, 8, 12, 8);
             ctx.strokeRect(-13, 8, 12, 8);
 
-            // Block Y (Right - Shaded Side - High Auxin)
             ctx.fillStyle = '#00e5ff';
             ctx.strokeStyle = '#0284c7';
             ctx.fillRect(1, 8, 12, 8);
             ctx.strokeRect(1, 8, 12, 8);
 
-            // Text Labels X and Y
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
@@ -486,17 +556,14 @@
 
             ctx.restore();
 
-            // --- RIGHT SECTION: Control Tip Experiment (Uniform Control Block) ---
             ctx.save();
             ctx.translate(118, 12);
 
-            // Unilluminated Tip Label
             ctx.fillStyle = '#e2e8f0';
-            ctx.font = 'bold 12px "PingFang TC", "Microsoft JhengHei", sans-serif';
+            ctx.font = 'bold 12px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(t.unilluminatedLabel, 0, -28);
 
-            // Coleoptile tip
             ctx.fillStyle = '#27ae60';
             ctx.beginPath();
             ctx.arc(0, -12, 12, Math.PI, 0, false);
@@ -505,21 +572,18 @@
             ctx.closePath();
             ctx.fill();
 
-            // ORANGE Control Agar Block
             ctx.fillStyle = '#ff6600';
             ctx.strokeStyle = '#cc5200';
             ctx.lineWidth = 1.5;
             ctx.fillRect(-12, 6, 24, 8);
             ctx.strokeRect(-12, 6, 24, 8);
 
-            // Text Label Control Block
             ctx.fillStyle = '#ff6600';
-            ctx.font = 'bold 11px "PingFang TC", "Microsoft JhengHei", Arial';
+            ctx.font = 'bold 11px "Noto Sans TC", "PingFang TC", Arial';
             ctx.textAlign = 'center';
             ctx.fillText(currentLang === 'en' ? "Control Block" : "對照塊", 0, 26);
 
             ctx.restore();
-
             ctx.restore();
         }
 
@@ -528,16 +592,14 @@
             ctx.save();
             ctx.translate(250, 150);
 
-            // Banner Frame
             ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
             ctx.strokeStyle = '#fbbf24';
             ctx.lineWidth = 1;
             ctx.fillRect(-160, -12, 320, 24);
             ctx.strokeRect(-160, -12, 320, 24);
 
-            // Text
             ctx.fillStyle = '#fbbf24';
-            ctx.font = 'bold 12px "PingFang TC", "Microsoft JhengHei", sans-serif';
+            ctx.font = 'bold 12px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(t.darkBanner, 0, 4);
 
@@ -555,8 +617,8 @@
             ctx.save();
             ctx.translate(x, BASE_Y);
 
-            const lowerStemLen = 30 * growthScale;    
-            const bendZoneLen = 65 * growthScale;     
+            const lowerStemLen = 30 * growthScale;
+            const bendZoneLen = 65 * growthScale;
 
             const lowerEndX = 0;
             const lowerEndY = -lowerStemLen;
@@ -566,7 +628,6 @@
             const midEndX = lowerEndX + Math.sin(bendAngle) * bendZoneLen;
             const midEndY = lowerEndY - Math.cos(bendAngle) * bendZoneLen;
 
-            // Stem Drawing
             ctx.strokeStyle = '#27ae60';
             ctx.lineWidth = 14;
             ctx.lineCap = 'butt';
@@ -577,31 +638,28 @@
             ctx.quadraticCurveTo(ctrlPointX, ctrlPointY, midEndX, midEndY);
             ctx.stroke();
 
-            // Inner Core
             ctx.strokeStyle = '#4ade80';
             ctx.lineWidth = 6;
             ctx.stroke();
 
-            // Flat Decapitated Cut Top Surface
             ctx.save();
             ctx.translate(midEndX, midEndY);
             ctx.rotate(bendAngle);
             ctx.fillStyle = '#15803d';
             ctx.fillRect(-7, -2, 14, 2);
 
-            // Draw Agar Block Placement on Top Surface
             if (blockType !== 'none') {
                 if (blockType === 'block-Y') {
-                    ctx.fillStyle = '#00e5ff'; // Bright Cyan Blue
+                    ctx.fillStyle = '#00e5ff';
                     ctx.strokeStyle = '#0284c7';
                 } else if (blockType === 'block-X') {
-                    ctx.fillStyle = '#c084fc'; // Soft Lavender Purple
+                    ctx.fillStyle = '#c084fc';
                     ctx.strokeStyle = '#9333ea';
                 } else if (blockType === 'block-equal') {
-                    ctx.fillStyle = '#ff6600'; // BRIGHT ORANGE CONTROL
+                    ctx.fillStyle = '#ff6600';
                     ctx.strokeStyle = '#cc5200';
-                } else { // plain agar
-                    ctx.fillStyle = '#94a3b8'; // Medium Grey Solid Block
+                } else {
+                    ctx.fillStyle = '#94a3b8';
                     ctx.strokeStyle = '#64748b';
                 }
 
@@ -626,7 +684,7 @@
         function drawLabels() {
             const t = i18n[currentLang];
             ctx.fillStyle = '#f3f4f6';
-            ctx.font = 'bold 14px "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif';
+            ctx.font = 'bold 14px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(t.controlLabel, 120, BASE_Y + 30);
             ctx.fillText(t.testLabel, 380, BASE_Y + 30);
@@ -634,13 +692,10 @@
 
         function calculateBendingAngle(blockType, placement) {
             if (placement === 'center' || blockType === 'block-plain') return 0;
-
-            // Base direction: left placement causes right curvature (+)
             let magnitude = 0;
-            if (blockType === 'block-Y') magnitude = (Math.PI / 5.5);      // Strong bend
-            else if (blockType === 'block-X') magnitude = (Math.PI / 11);   // Weak bend
-            else if (blockType === 'block-equal') magnitude = (Math.PI / 7); // Normal/Moderate bend
-
+            if (blockType === 'block-Y') magnitude = (Math.PI / 5.5);
+            else if (blockType === 'block-X') magnitude = (Math.PI / 11);
+            else if (blockType === 'block-equal') magnitude = (Math.PI / 7);
             return (placement === 'left') ? magnitude : -magnitude;
         }
 
@@ -653,7 +708,6 @@
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             drawHeaderExtractionWindow();
             drawDarknessIndicator();
             drawSoil();
@@ -661,17 +715,12 @@
 
             const blockType = blockTypeSelect.value;
             const placement = placementSelect.value;
-
             const targetAngle = calculateBendingAngle(blockType, placement);
             const targetGrowth = calculateGrowthScale(blockType);
-
             const currentAngle = targetAngle * progress;
             const currentGrowth = 1.0 + (targetGrowth - 1.0) * progress;
 
-            // Plant A: Control (Decapitated, no block)
             drawPlant(120, 'none', 'none', 0, 1.0);
-
-            // Plant B: Test Condition
             drawPlant(380, blockType, placement, currentAngle, currentGrowth);
         }
 
@@ -696,12 +745,10 @@
                 infoBox.innerHTML = t.expPlain;
                 return;
             }
-
             if (placement === 'center') {
                 infoBox.innerHTML = t.expCenter;
                 return;
             }
-
             if (blockType === 'block-Y') {
                 infoBox.innerHTML = (placement === 'left') ? t.expBlockYLeft : t.expBlockYRight;
             } else if (blockType === 'block-X') {
@@ -711,11 +758,105 @@
             }
         }
 
-        // Event Listeners
-        langToggleBtn.addEventListener('click', () => {
-            currentLang = (currentLang === 'en') ? 'zh' : 'en';
-            updateLanguageUI();
-        });
+        function resetAll() {
+            closeAllModals(null);
+            cancelAnimationFrame(animationFrame);
+            isRunning = false;
+            startBtn.disabled = false;
+            progress = 0;
+            blockTypeSelect.value = 'block-Y';
+            placementSelect.value = 'left';
+            infoBox.innerHTML = i18n[currentLang].defaultInfo;
+            quizReveal = false;
+            render();
+        }
+
+        function closeAllModals(exceptId) {
+            if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+            ['modal-steps','modal-principle','modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                var el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+        function openTeachModal(id) {
+            closeAllModals(id);
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        }
+        function renderSteps() {
+            var t = i18n[currentLang];
+            document.getElementById('steps-title').textContent = t.stepsTitle;
+            document.getElementById('steps-body').innerHTML = STEPS.map(function(s, i) {
+                return '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200"><div class="font-bold text-indigo-600 mb-1">' + (i+1) + '</div><div class="leading-relaxed">' + (currentLang==='en'?s.en:s.zh) + '</div></div>';
+            }).join('');
+        }
+        function renderPrinciple() {
+            var p = PRINCIPLE[currentLang] || PRINCIPLE.zh;
+            var t = i18n[currentLang];
+            document.getElementById('principle-title').textContent = t.principleTitle;
+            var mech = p.mech.map(function(m){ return '<li class="mb-2 leading-relaxed">'+m+'</li>'; }).join('');
+            document.getElementById('principle-body').innerHTML =
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.conceptTitle+'</h3><p class="leading-relaxed">'+p.concept+'</p></div>' +
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.mechTitle+'</h3><ol class="list-decimal pl-5">'+mech+'</ol></div>' +
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.egTitle+'</h3><p class="leading-relaxed">'+p.eg+'</p></div>';
+        }
+        function renderQuiz() {
+            var t = i18n[currentLang];
+            document.getElementById('quiz-title').textContent = t.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? t.hideAns : t.showAns;
+            document.getElementById('quiz-body').innerHTML = QUIZ.map(function(item, qi) {
+                var qtext = currentLang==='en' ? item.q.en : item.q.zh;
+                var html = '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 mb-3"><div class="font-bold text-violet-700 mb-2">Q'+(qi+1)+'. '+qtext+'</div>';
+                var qNum = qi + 1;
+                var isOpen = (qNum === 2 || qNum === 4);
+                if (!isOpen && item.choices) {
+                  var qName = 'q' + qNum;
+                  html += '<div class="grid gap-1.5 text-sm">';
+                  item.choices.forEach(function(c, ci) {
+                    var label = String.fromCharCode(65+ci);
+                    var txt = currentLang==='en' ? c.en : c.zh;
+                    html += '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="'+qName+'" class="mt-0.5 accent-violet-600"><span>'+label+'. '+txt+'</span></label>';
+                  });
+                  html += '</div>';
+                } else if (isOpen) {
+                  html += '<p class="text-xs text-slate-500 italic">'+(currentLang==='en'?'Predict, then use the sim controls to check. Write in your own words.':'先預測，再操作畫面控件核對，用自己的話作答。')+'</p>';
+                }
+                if (quizReveal && item.explain) {
+                  var ex = currentLang==='en' ? item.explain.en : item.explain.zh;
+                  var ref = currentLang==='en' ? 'Reference answer' : '參考答案';
+                  html += '<div class="mt-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>'+ref+'：</strong> '+ex+'</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+        }
+        function refreshOpenTeachModals() {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+        }
+        function wireTeachingUI() {
+            document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', function() {
+                currentLang = (currentLang === 'en') ? 'zh' : 'en';
+                updateLanguageUI();
+            });
+            document.getElementById('btn-reset').addEventListener('click', resetAll);
+            document.getElementById('btn-reset-panel').addEventListener('click', resetAll);
+            document.getElementById('btn-quiz-answers').addEventListener('click', function() { quizReveal = !quizReveal; renderQuiz(); });
+            document.querySelectorAll('.modal-close').forEach(function(btn) {
+                btn.addEventListener('click', function() { closeAllModals(null); });
+            });
+            document.querySelectorAll('.teach-modal').forEach(function(el) {
+                el.addEventListener('click', function(e) { if (e.target === el) closeAllModals(null); });
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
+        }
 
         startBtn.addEventListener('click', () => {
             if (isRunning) return;
@@ -723,15 +864,6 @@
             startBtn.disabled = true;
             progress = 0;
             animate();
-        });
-
-        resetBtn.addEventListener('click', () => {
-            cancelAnimationFrame(animationFrame);
-            isRunning = false;
-            startBtn.disabled = false;
-            progress = 0;
-            render();
-            infoBox.innerHTML = i18n[currentLang].defaultInfo;
         });
 
         blockTypeSelect.addEventListener('change', () => {
@@ -746,7 +878,7 @@
             if (!isRunning) infoBox.innerHTML = i18n[currentLang].defaultInfo;
         });
 
-        // Initialize UI
+        wireTeachingUI();
         updateLanguageUI();
     </script>
 </body>

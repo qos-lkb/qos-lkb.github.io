@@ -1,6 +1,51 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>火箭登月軌道切換 | Lunar Orbit Transfer</title>
@@ -40,6 +85,7 @@
         <div class="flex items-center gap-2 flex-wrap justify-end">
             <button type="button" id="btn-steps" class="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm font-bold hover:bg-slate-600"><span data-i18n="btnSteps">觀察步驟</span></button>
             <button type="button" id="btn-principle" class="px-3 py-1.5 rounded-lg bg-blue-600 text-sm font-bold hover:bg-blue-500"><span data-i18n="btnPrinciple">原理解說</span></button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-sm font-bold"><span data-i18n="btnQuiz">課堂問題</span></button>
             <button type="button" id="btn-lang" onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm font-bold hover:bg-slate-600">中 / EN</button>
         </div>
     </header>
@@ -110,12 +156,40 @@
         </div>
     </div>
 
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-950/70 z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-slate-800 text-slate-100 w-full max-w-2xl rounded-2xl border border-rose-500/40 scale-95 opacity-0 max-h-[90vh] flex flex-col">
+            <div class="p-4 flex justify-between items-center border-b border-slate-700 gap-3 flex-wrap bg-gradient-to-r from-rose-600/80 to-pink-600/80">
+                <h2 id="quiz-title" class="font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-semibold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm flex-1"></div>
+            <div class="p-4 border-t border-slate-700 flex justify-end">
+                <button type="button" id="quiz-close" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 font-bold text-sm" data-i18n="quizClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let quizAnswersVisible = false;
         const I18N = {
             zh: {
                 title: "火箭登月軌道切換", badge: "物理",
                 subtitle: "平面圖：只把航向略為外傾並加速，沿螺旋爬上更大的圓軌道",
-                btnSteps: "觀察步驟", btnPrinciple: "原理解說", stepsTitle: "觀察步驟", principleTitle: "原理解說",
+                btnSteps: "觀察步驟", btnPrinciple: "原理解說", btnQuiz: "課堂問題", stepsTitle: "觀察步驟", principleTitle: "原理解說",
+                quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案", quizClose: "關閉",
+                quizQ1: "當航向偏角 γ = 0° 時，俯視圖中火箭軌道會怎樣？",
+                quizQ1a: "半徑不變，維持圓軌道", quizQ1b: "半徑立刻變為零", quizQ1c: "立刻飛離太陽系", quizQ1d: "速度變為零",
+                quizQ1ans: "γ 是速度與切線夾角；γ = 0 時 dr/dθ = 0，半徑不變，即圓軌道（讀數區 γ 顯示 0°）。",
+                quizQ2: "在近地圓軌道完成後按「2. 略為外傾並抬高軌道」，預測 γ 與速率 v 會如何變化，再操作並對照左上角讀數。",
+                quizQ2ans: "抬高階段 γ 會短暫偏離 0°（狀態點變琥珀色），加速時 v 上升；接入更高圓後 γ 回到 0°，v 降至較大圓的圓軌道速率。",
+                quizQ3: "同一軌道中心下，較大的圓軌道與較小圓的圓軌道速率 v 哪個較大？",
+                quizQ3a: "較小圓的 v 較大", quizQ3b: "較大圓的 v 較大", quizQ3c: "兩者相同", quizQ3d: "與半徑無關",
+                quizQ3ans: "v = √(GM/r)：半徑 r 愈大，圓軌道速率愈低（高軌較慢）。",
+                quizQ4: "比較完成按鈕 1 與 3 後左上角「軌道中心」讀數：會有何變化？說明為何。",
+                quizQ4ans: "階段 1–2 以地球為中心；接入繞月圓後中心讀數變為月球，表示圓心切換但位置與航向連續。",
+                quizQ5: "本模擬用小幅 γ 螺旋抬高圓軌，與理想霍曼轉移的主要差別是？",
+                quizQ5a: "霍曼轉移用單次切向加速沿半橢圓，本模擬用小 γ 多圈螺旋抬高", quizQ5b: "霍曼轉移只適用於月球", quizQ5c: "本模擬不用萬有引力", quizQ5d: "兩者完全相同",
+                quizQ5ans: "霍曼轉移是一次性切向加速的半橢圓；本演示用連續小角度外傾（γ）逐圈增大 r，教學上較易看見半徑變化。",
                 s1: "按 1，看火箭轉入最小的圓，之後整圈都貼在這條圓上。",
                 s2: "按 2，看它用半圈轉移先接到中間圓、繞完，再接到外面的高軌圓。兩端都與圓相切。",
                 s3: "按 3，等月球走到對面，再看半圈轉移接到繞月小圓。",
@@ -139,7 +213,21 @@
             en: {
                 title: "Lunar orbit transfer", badge: "Physics",
                 subtitle: "Plan view: a few degrees of pitch and a burn spiral the craft up to a larger circle",
-                btnSteps: "Steps", btnPrinciple: "Principle", stepsTitle: "Steps", principleTitle: "Principle",
+                btnSteps: "Steps", btnPrinciple: "Principle", btnQuiz: "Quiz", stepsTitle: "Steps", principleTitle: "Principle",
+                quizTitle: "Classroom questions", quizShowAnswers: "Show reference answers", quizHideAnswers: "Hide reference answers", quizRef: "Answer", quizClose: "Close",
+                quizQ1: "When pitch angle γ = 0°, what happens to the orbit in this plan view?",
+                quizQ1a: "Radius stays constant — a circular orbit", quizQ1b: "Radius instantly becomes zero", quizQ1c: "The craft escapes the Solar System", quizQ1d: "Speed becomes zero",
+                quizQ1ans: "γ is the angle to the tangent; γ = 0 gives dr/dθ = 0, so radius is constant (circular orbit).",
+                quizQ2: "After the low Earth circle, press button 2. Predict γ and speed v, then check the HUD.",
+                quizQ2ans: "During the raise, γ briefly leaves 0° (amber dot) and v increases; on the higher circle γ returns to 0° and v drops to the slower circular speed.",
+                quizQ3: "For the same centre, which circular orbit has the higher speed v?",
+                quizQ3a: "The smaller circle", quizQ3b: "The larger circle", quizQ3c: "They are equal", quizQ3d: "Independent of radius",
+                quizQ3ans: "v = √(GM/r): larger r gives lower circular speed.",
+                quizQ4: "Compare the Centre readout after stages 1 and 3. What changes and why?",
+                quizQ4ans: "Stages 1–2 use Earth as centre; after lunar capture the centre shows the Moon — the origin switches with continuous position and heading.",
+                quizQ5: "This sim raises orbits with small γ spirals. How does that differ from an ideal Hohmann transfer?",
+                quizQ5a: "Hohmann uses one tangential burn on a half-ellipse; this sim uses many small γ spirals", quizQ5b: "Hohmann only works for the Moon", quizQ5c: "This sim ignores gravity", quizQ5d: "They are identical",
+                quizQ5ans: "Hohmann is a single tangential burn on a half-ellipse; here small outward pitch raises r gradually for teaching clarity.",
                 s1: "Press 1 and watch the craft settle onto the inner circle and stay on it.",
                 s2: "Press 2. A half-ellipse meets the middle circle, completes a lap, then meets the high circle. Both ends are tangent.",
                 s3: "Press 3. After the Moon moves opposite, a half-ellipse joins the small lunar circle.",
@@ -453,10 +541,30 @@
             return { c: 'earth', r: r, vv: Math.sqrt(GM_E / Math.max(r, 1)) };
         }
 
+        function renderQuiz() {
+            const box = document.getElementById('quiz-list');
+            if (!box) return;
+            const dict = I18N[lang];
+            const t = (k) => dict[k] || k;
+            const mkChoice = (qid, n) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = 'quizQ' + n + L.toLowerCase();
+                return '<label class="flex items-start gap-2 rounded-lg border border-slate-600 bg-slate-900/60 p-2 cursor-pointer hover:bg-slate-700/50"><input type="radio" name="' + qid + '" class="mt-0.5 accent-rose-500"><span>' + L + '. ' + t(key) + '</span></label>';
+            }).join('');
+            const ans = (n) => quizAnswersVisible
+                ? '<div class="mt-2 text-[11px] text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + t('quizRef') + '：</strong> ' + t('quizQ' + n + 'ans') + '</div>' : '';
+            box.innerHTML = [1, 2, 3, 4, 5].map(n => {
+                const open = n === 2 || n === 4;
+                return '<div class="rounded-xl border border-slate-600 bg-slate-900/50 p-3"><p class="font-semibold text-rose-300 mb-2">Q' + n + '. ' + t('quizQ' + n) + '</p>' + (open ? '' : '<div class="grid gap-1.5">' + mkChoice('q' + n, n) + '</div>') + ans(n) + '</div>';
+            }).join('');
+            const btn = document.getElementById('btn-quiz-answers');
+            if (btn) btn.textContent = quizAnswersVisible ? t('quizHideAnswers') : t('quizShowAnswers');
+        }
         function openM(id) {
+            ['modal-principle', 'modal-steps', 'modal-quiz'].forEach(mid => { if (mid !== id) closeM(mid); });
             const m = document.getElementById(id), c = m.querySelector('.modal-content');
             m.classList.remove('opacity-0', 'pointer-events-none');
             c.classList.remove('scale-95', 'opacity-0');
+            if (id === 'modal-quiz') renderQuiz();
             if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([m]);
         }
         function closeM(id) {
@@ -495,6 +603,7 @@
             document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
             shownKey = '';
             updateUI();
+            renderQuiz();
         }
         function resizeCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
@@ -659,15 +768,18 @@
         function init() {
             window.addEventListener('resize', resizeCanvas);
             document.documentElement.lang = 'zh-Hant';
-            document.getElementById('btn-steps').onclick = function () { closeM('modal-principle'); openM('modal-steps'); };
-            document.getElementById('btn-principle').onclick = function () { closeM('modal-steps'); openM('modal-principle'); };
+            document.getElementById('btn-steps').onclick = function () { openM('modal-steps'); };
+            document.getElementById('btn-principle').onclick = function () { openM('modal-principle'); };
+            document.getElementById('btn-quiz').onclick = function () { openM('modal-quiz'); };
             document.getElementById('steps-close').onclick = function () { closeM('modal-steps'); };
             document.getElementById('modal-close').onclick = function () { closeM('modal-principle'); };
-            ['modal-steps', 'modal-principle'].forEach(function (id) {
+            document.getElementById('quiz-close').onclick = function () { closeM('modal-quiz'); };
+            document.getElementById('btn-quiz-answers').onclick = function () { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([document.getElementById('modal-quiz')]); };
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
                 document.getElementById(id).addEventListener('click', function (e) { if (e.target.id === id) closeM(id); });
             });
             document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') { closeM('modal-steps'); closeM('modal-principle'); }
+                if (e.key === 'Escape') { closeM('modal-steps'); closeM('modal-principle'); closeM('modal-quiz'); }
             });
             resizeCanvas();
             resetSimulation();

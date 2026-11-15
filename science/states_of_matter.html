@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>物質三態模型 | States of Matter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; overscroll-behavior: none; background: #f1f5f9; }
+        body { overflow: hidden; }
+        #canvas-container { position: relative; width: 100%; height: 100%; border-radius: 12px; background: #0a0f18; overflow: hidden; }
+        #renderCanvas, #canvas2d { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; display: block; }
+        #canvas2d { cursor: crosshair; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: linear-gradient(90deg, #3b82f6 0%, #22c55e 45%, #ef4444 100%); border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #fff; border: 2px solid #334155; margin-top: -6px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.25);
+        }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #93c5fd; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #93c5fd !important; }
+        .phase-btn.active, .view-btn.active, .preset-btn:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .temp-marker { position: absolute; top: 50%; width: 2px; height: 10px; background: rgba(255,255,255,.85); transform: translate(-50%, -50%); border-radius: 1px; pointer-events: none; }
+        .temp-marker::after { content: attr(data-label); position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #64748b; white-space: nowrap; font-weight: 700; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #2563eb; cursor: pointer; }
+        #phaseToast { transition: opacity .35s ease, transform .35s ease; }
+        #phaseToast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-full flex flex-col overflow-hidden">
+
+    <header class="shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col md:flex-row justify-between items-center gap-2 sm:gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-violet-600 text-white flex items-center justify-center shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="2"/><circle cx="16" cy="8" r="2"/><circle cx="12" cy="16" r="2"/><path d="M8 8l4 8M16 8l-4 8"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2 flex-wrap">
+                        <span data-i18n="title">物質三態模型</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">粒子排列、運動與溫度的關係</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto shrink-0">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-700 rounded-xl font-bold text-sm shadow-sm border border-sky-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-violet-600 hover:from-sky-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm border border-rose-200 flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto overflow-x-hidden">
+
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+
+                <div class="mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1.5 block" data-i18n="labelView">展示模式</span>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button type="button" class="view-btn py-2 rounded-xl border border-slate-300 text-xs font-extrabold bg-white" data-view="2d" data-i18n="view2d">2D 平面</button>
+                        <button type="button" class="view-btn active py-2 rounded-xl border border-slate-300 text-xs font-extrabold" data-view="3d" data-i18n="view3d">3D 立體</button>
+                    </div>
+                </div>
+
+                <label class="block mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1 block" data-i18n="labelSubstance">示範物質</span>
+                    <select id="substanceSelect" class="w-full text-sm border rounded-lg p-2 bg-white">
+                        <option value="water" data-i18n-opt="subWater">水（H₂O）</option>
+                        <option value="oxygen" data-i18n-opt="subOxygen">氧氣（O₂）</option>
+                        <option value="nitrogen" data-i18n-opt="subNitrogen">氮氣（N₂）</option>
+                        <option value="co2" data-i18n-opt="subCO2">二氧化碳（CO₂）</option>
+                        <option value="ethanol" data-i18n-opt="subEthanol">酒精（C₂H₅OH）</option>
+                        <option value="generic" data-i18n-opt="subGeneric">一般粒子（教學用）</option>
+                    </select>
+                    <p id="substancePoints" class="text-[10px] text-sky-700 font-bold mt-1.5 bg-sky-50 border border-sky-100 rounded-lg px-2 py-1">熔點 0°C · 沸點 100°C</p>
+                </label>
+
+                <div class="mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1.5 block" data-i18n="labelState">物質形態（隨溫度）</span>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" class="phase-btn active py-2 rounded-xl border border-slate-300 text-xs font-extrabold pointer-events-none opacity-90" data-state="solid" data-i18n="stateSolid">固體</button>
+                        <button type="button" class="phase-btn py-2 rounded-xl border border-slate-300 text-xs font-extrabold bg-white pointer-events-none opacity-90" data-state="liquid" data-i18n="stateLiquid">液體</button>
+                        <button type="button" class="phase-btn py-2 rounded-xl border border-slate-300 text-xs font-extrabold bg-white pointer-events-none opacity-90" data-state="gas" data-i18n="stateGas">氣體</button>
+                    </div>
+                    <p class="text-[10px] text-violet-700 mt-1.5 font-semibold" data-i18n="labelPhaseHint">調整溫度即改變形態；過渡時播放相變動畫</p>
+                </div>
+
+                <div class="mb-3 space-y-2">
+                    <label class="check-row"><input type="checkbox" id="showBonds" checked><span data-i18n="labelBonds">顯示粒子間引力（固體）</span></label>
+                    <label class="check-row"><input type="checkbox" id="showVelocity"><span data-i18n="labelVelocity">顯示速度矢量</span></label>
+                </div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[11px] font-bold text-slate-600" data-i18n="labelTemp">溫度</span>
+                        <span id="tempValue" class="text-sm font-black text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">−10°C</span>
+                    </div>
+                    <div class="relative pt-1 pb-5">
+                        <div id="tempMarkers" class="absolute inset-x-0 top-[calc(50%-3px)] h-0 pointer-events-none"></div>
+                        <input type="range" id="tempSlider" min="-50" max="150" value="-10" step="1">
+                    </div>
+                    <div class="flex justify-between text-[10px] text-slate-400 font-medium -mt-3">
+                        <span>-50°C</span>
+                        <span>150°C</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <span class="text-[11px] font-bold text-slate-600 mb-1.5 block" data-i18n="labelPresets">快速示範</span>
+                    <div id="presetRow" class="grid grid-cols-3 gap-1.5">
+                        <button type="button" class="preset-btn py-1.5 rounded-lg border border-slate-300 text-[10px] font-extrabold bg-white" data-temp="-10" data-i18n="presetIce">冰 −10°C</button>
+                        <button type="button" class="preset-btn py-1.5 rounded-lg border border-slate-300 text-[10px] font-extrabold bg-white" data-temp="20" data-i18n="presetWater">水 20°C</button>
+                        <button type="button" class="preset-btn py-1.5 rounded-lg border border-slate-300 text-[10px] font-extrabold bg-white" data-temp="110" data-i18n="presetSteam">蒸氣 110°C</button>
+                    </div>
+                </div>
+
+                <button type="button" id="resetBtn" class="w-full py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-sky-800 mb-2" data-i18n="liveTitle">即時觀察</div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statPhase">預期形態</span><b id="statPhase">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statMotion">粒子運動</span><b id="statMotion">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statArrange">排列</span><b id="statArrange">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statEnergy">相對動能</span><b id="statEnergy">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statSpacing">平均間距</span><b id="statSpacing">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statCompress">可壓縮性</span><b id="statCompress">—</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="labelTransition">相變過程</span><b id="statTransition" class="text-violet-700">—</b></div>
+            </div>
+
+            <div class="bg-violet-50 p-3 rounded-2xl border border-violet-100 text-[11px] text-violet-900">
+                <p class="font-bold mb-1.5" data-i18n="macroTitle">宏觀性質對照</p>
+                <div class="grid grid-cols-3 gap-1 text-center text-[10px]">
+                    <div class="bg-white/70 rounded-lg p-1.5 border border-violet-100">
+                        <div class="font-black text-blue-700" data-i18n="stateSolid">固體</div>
+                        <div data-i18n="macroSolidShape">固定形狀</div>
+                        <div data-i18n="macroSolidVol">固定體積</div>
+                    </div>
+                    <div class="bg-white/70 rounded-lg p-1.5 border border-violet-100">
+                        <div class="font-black text-emerald-700" data-i18n="stateLiquid">液體</div>
+                        <div data-i18n="macroLiqShape">無固定形狀</div>
+                        <div data-i18n="macroLiqVol">固定體積</div>
+                    </div>
+                    <div class="bg-white/70 rounded-lg p-1.5 border border-violet-100">
+                        <div class="font-black text-orange-700" data-i18n="stateGas">氣體</div>
+                        <div data-i18n="macroGasShape">無固定形狀</div>
+                        <div data-i18n="macroGasVol">無固定體積</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-sky-50 p-3 rounded-2xl border border-sky-100 text-[11px] text-sky-900 leading-relaxed hidden lg:block">
+                <p class="font-bold mb-1" data-i18n="quickTipTitle">操作提示</p>
+                <p id="quickTipText" data-i18n="quickTip3d">3D：拖曳旋轉視角、滾輪縮放。2D：課本式平面剖面，適合比較粒子間距。</p>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-2 flex flex-col gap-3 min-h-0 lg:overflow-hidden">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col flex-1 min-h-[280px] lg:min-h-0 relative">
+                <div class="flex justify-between items-center mb-2 px-1 shrink-0 flex-wrap gap-2">
+                    <h2 class="text-sm font-bold text-slate-700"><span data-i18n="viewTitle">粒子模型</span> · <span id="viewModeLabel" data-i18n="view3d">3D 立體</span></h2>
+                    <p id="renderEngineNote" class="text-[10px] text-slate-400 w-full sm:w-auto" data-i18n="note3d">3D：Babylon.js｜2D：HTML Canvas（非 Three.js）</p>
+                    <div class="text-[10px] sm:text-xs text-slate-500 flex flex-wrap gap-x-3">
+                        <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 mr-1 align-middle"></span><span data-i18n="legendCold">低溫偏藍</span></span>
+                        <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-red-400 mr-1 align-middle"></span><span data-i18n="legendHot">高溫偏紅</span></span>
+                    </div>
+                </div>
+                <div id="canvas-container" class="flex-1 min-h-[260px]">
+                    <canvas id="canvas2d"></canvas>
+                    <canvas id="renderCanvas"></canvas>
+                </div>
+                <div id="phaseToast" class="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold shadow-lg opacity-0 pointer-events-none translate-y-2"></div>
+                <p id="phaseBanner" class="mt-2 text-center text-xs font-bold text-violet-700 bg-violet-50 border border-violet-100 rounded-xl py-2 px-3" data-i18n="bannerSolid">固體：粒子緊密排列，僅在固定位置附近振動</p>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-violet-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">物質的三態</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">微觀粒子排列與宏觀性質</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m1t">1. 核心概念</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">一切物質由大量微粒子（原子或分子）組成。粒子間有吸引力；溫度愈高，粒子熱運動（動能）愈大，排列與宏觀性質因而改變。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 三態比較</h3>
+                    <div class="grid sm:grid-cols-3 gap-2 text-[11px]">
+                        <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                            <h4 class="font-bold text-blue-800 mb-1" data-i18n="mSolidT">固體</h4>
+                            <p class="text-slate-600" data-i18n="mSolidD">粒子緊密、有序排列；僅在平衡位置附近振動。有固定形狀與體積。</p>
+                        </div>
+                        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                            <h4 class="font-bold text-emerald-800 mb-1" data-i18n="mLiquidT">液體</h4>
+                            <p class="text-slate-600" data-i18n="mLiquidD">粒子較近但可滑動；無固定形狀，有固定體積，會填滿容器底部。</p>
+                        </div>
+                        <div class="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                            <h4 class="font-bold text-orange-800 mb-1" data-i18n="mGasT">氣體</h4>
+                            <p class="text-slate-600" data-i18n="mGasD">粒子間距大、運動快且無序；無固定形狀與體積，可充滿整個容器。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m3t">3. 相變與溫度</h3>
+                    <p class="text-xs text-violet-800 mb-2" data-i18n="m3d">以水為例：0°C 熔化（固→液）、100°C 沸騰（液→氣）。加熱提供能量，使粒子克服分子間引力而改變排列。</p>
+                    <div class="mj-box">\( \text{動能} \propto \text{溫度（開爾文）},\quad \bar{v} \propto \sqrt{T} \)</div>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m4t">4. 生活例子</h3>
+                    <p class="text-xs text-amber-800" data-i18n="m4d">冰（固）受熱熔成水（液），再沸騰成水蒸氣（氣）；乾冰昇華直接由固變氣。理解三態有助解釋天氣、煮食與工業蒸餾。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-violet-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-sky-100" data-i18n="stepsSub">如何使用這個三態模型</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="close">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="step1">切換 2D／3D：2D 像課本剖面圖，3D 可旋轉觀察立體排列；再選固／液／氣比較差異。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="step2">拖曳溫度滑桿或按快速示範（冰／水／蒸氣），觀察粒子顏色與運動如何隨溫度改變。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="step3">勾選「自動切換形態」與「顯示引力／速度矢量」，理解固體振動、液體流動與氣體高速運動。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="step4">閱讀左欄即時數據與宏觀性質對照表，把微觀模型連結到形狀、體積與可壓縮性。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-black flex items-center justify-center shrink-0">5</span><span data-i18n="step5">對水從 −10°C 升至 110°C，留意 0°C、100°C 附近相變提示與粒子排列的突變。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-rose-600 p-5 text-white flex justify-between items-center gap-3 shrink-0">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                    <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="close">✕</button>
+                </div>
+            </div>
+            <div id="quiz-list" class="p-6 overflow-y-auto text-sm text-slate-700 space-y-3"></div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const H2O_ANGLE = 104.5 * Math.PI / 180;
+const H2O_BOND = 0.52;
+const DIATOMIC_ATOM_D = 0.4;
+const DIATOMIC_ATOM_R = DIATOMIC_ATOM_D / 2;
+const DIATOMIC_CENTER_OFFSET = DIATOMIC_ATOM_R;
+
+const SUBSTANCES = {
+    water: {
+        melt: 0, boil: 100, min: -30, max: 120, molecule: 'h2o', defaultTemp: 20,
+        presets: [{ t: -10, key: 'presetIce' }, { t: 20, key: 'presetWater' }, { t: 110, key: 'presetSteam' }]
+    },
+    oxygen: {
+        melt: -218, boil: -183, min: -230, max: -170, molecule: 'diatomic', defaultTemp: -190,
+        presets: [{ t: -225, key: 'presetOSolid' }, { t: -190, key: 'presetOLiquid' }, { t: -175, key: 'presetOGas' }]
+    },
+    nitrogen: {
+        melt: -210, boil: -196, min: -220, max: -180, molecule: 'diatomic', defaultTemp: -200,
+        presets: [{ t: -215, key: 'presetNSolid' }, { t: -200, key: 'presetNLiquid' }, { t: -185, key: 'presetNGas' }]
+    },
+    co2: {
+        sublimes: true, sublime: -78.5, min: -95, max: -60, molecule: 'co2', defaultTemp: -85,
+        presets: [{ t: -90, key: 'presetCO2Solid' }, { t: -78, key: 'presetCO2Sub' }, { t: -65, key: 'presetCO2Gas' }]
+    },
+    ethanol: {
+        melt: -114, boil: 78, min: -30, max: 100, molecule: 'sphere', defaultTemp: 25,
+        presets: [{ t: -20, key: 'presetEthCold' }, { t: 25, key: 'presetEthLiq' }, { t: 85, key: 'presetEthGas' }]
+    },
+    generic: {
+        melt: -20, boil: 80, min: -50, max: 150, molecule: 'sphere', defaultTemp: 20,
+        presets: [{ t: -10, key: 'presetIce' }, { t: 20, key: 'presetWater' }, { t: 110, key: 'presetSteam' }]
+    }
+};
+
+const i18n = {
+    zh: {
+        title: '物質三態模型', badge: '中一科學', subtitle: '粒子排列、運動與溫度的關係',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟',
+        btnQuiz: "課堂問題",
+        quizTitle: "課堂問題",
+        quizShowAnswers: "顯示參考答案",
+        quizHideAnswers: "隱藏參考答案",
+        quizRef: "參考答案",
+        quizQ1: "示範物質選「水」，溫度約 −10°C 時，左欄「預期形態」與「粒子運動」應顯示？",
+        quizQ1a: "液體；可自由流動",
+        quizQ1b: "固體；定點振動",
+        quizQ1c: "氣體；高速直線運動",
+        quizQ1d: "無固定形態且間距最大",
+        quizQ1ans: "B。低於 0°C 為固體，粒子在固定位置附近振動。",
+        quizQ2: "仍選水：先把溫度滑桿調向 110°C，預測經過 100°C 時「相變過程」欄會顯示什麼，再拖曳滑桿核對。",
+        quizQ2ans: "約在沸點出現「沸騰（液→氣）」；粒子間距變大、運動加快，宏觀為氣體。",
+        quizQ3: "同一溫度下，比較 2D 平面與 3D 立體展示模式，下列何者正確？",
+        quizQ3a: "2D 用 Babylon.js 旋轉",
+        quizQ3b: "3D 用 Babylon.js；2D 為 Canvas 剖面",
+        quizQ3c: "兩者都不能顯示速度矢量",
+        quizQ3d: "只有氣體可看引力線",
+        quizQ3ans: "B。3D 為 Babylon.js；2D 為 HTML Canvas 剖面圖。",
+        quizQ4: "固定物質為水、溫度 20°C：分別勾選與取消「顯示粒子間引力（固體）」及「顯示速度矢量」，比較固體與液體畫面差異。",
+        quizQ4ans: "固體可見粒子間引力（鍵結示意）；液體運動較活躍。速度矢量勾選後可見運動方向與快慢。",
+        quizQ5: "選「二氧化碳（CO₂）」並用快速示範調溫，常壓下較符合課本說法的是？",
+        quizQ5a: "必有液態區間",
+        quizQ5b: "可見固→氣昇華，無穩定液態區",
+        quizQ5c: "只在 100°C 沸騰",
+        quizQ5d: "溫度與形態無關",
+        quizQ5ans: "B。本模擬 CO₂ 以昇華為主，常壓下強調固體直接變氣體。",
+        controlTitle: '實驗控制',
+        labelView: '展示模式', view2d: '2D 平面', view3d: '3D 立體',
+        labelSubstance: '示範物質', subWater: '水（H₂O）', subOxygen: '氧氣（O₂）', subNitrogen: '氮氣（N₂）',
+        subCO2: '二氧化碳（CO₂）', subEthanol: '酒精（C₂H₅OH）', subGeneric: '一般粒子（教學用）',
+        pointsWater: '熔點 0°C · 沸點 100°C', pointsOxygen: '熔點 −218°C · 沸點 −183°C',
+        pointsNitrogen: '熔點 −210°C · 沸點 −196°C', pointsCO2: '昇華點 −78.5°C（常壓下無液態）',
+        pointsEthanol: '熔點 −114°C · 沸點 78°C', pointsGeneric: '熔點 −20°C · 沸點 80°C（示意）',
+        presetOSolid: '固 −225°C', presetOLiquid: '液 −190°C', presetOGas: '氣 −175°C',
+        presetNSolid: '固 −215°C', presetNLiquid: '液 −200°C', presetNGas: '氣 −185°C',
+        presetCO2Solid: '乾冰 −90°C', presetCO2Sub: '昇華 −78°C', presetCO2Gas: '氣 −65°C',
+        presetEthCold: '低溫 −20°C', presetEthLiq: '液 25°C', presetEthGas: '氣 85°C',
+        note2d: '2D：HTML Canvas 繪圖（非 Three.js）', note3d: '3D：Babylon.js｜2D 為 HTML Canvas',
+        markerSublime: '昇華點',
+        toastSublime: '▲ 達到昇華點 — 固體 → 氣體（昇華）',
+        toastDeposit: '▼ 低於凝華點 — 氣體 → 固體（凝華）',
+        labelState: '物質形態（隨溫度）', stateSolid: '固體', stateLiquid: '液體', stateGas: '氣體',
+        labelPhaseHint: '調整溫度即改變形態；過渡時播放相變動畫',
+        labelBonds: '顯示粒子間引力（固體）', labelVelocity: '顯示速度矢量',
+        labelTransition: '相變過程', transIdle: '—',
+        transMelt: '熔化（固→液）', transBoil: '沸騰（液→氣）', transFreeze: '凝固（液→固）',
+        transCondense: '凝結（氣→液）', transSublime: '昇華（固→氣）', transDeposit: '凝華（氣→固）',
+        labelTemp: '溫度', labelPresets: '快速示範', presetIce: '冰 −10°C', presetWater: '水 20°C', presetSteam: '蒸氣 110°C',
+        reset: '重置',
+        liveTitle: '即時觀察', statPhase: '預期形態', statMotion: '粒子運動', statArrange: '排列',
+        statEnergy: '相對動能', statSpacing: '平均間距', statCompress: '可壓縮性',
+        compressLow: '難壓縮', compressMid: '略可壓縮', compressHigh: '易壓縮',
+        spacingTight: '緊密', spacingMid: '中等', spacingWide: '寬鬆',
+        macroTitle: '宏觀性質對照',
+        macroSolidShape: '固定形狀', macroSolidVol: '固定體積',
+        macroLiqShape: '無固定形狀', macroLiqVol: '固定體積',
+        macroGasShape: '無固定形狀', macroGasVol: '無固定體積',
+        quickTipTitle: '操作提示',
+        quickTip2d: '2D：課本式平面剖面，適合比較粒子間距與速度方向。可勾選引力線與速度矢量。',
+        quickTip3d: '3D：拖曳旋轉視角、滾輪縮放。2D 模式可切換至平面剖面觀察。',
+        viewTitle: '粒子模型', legendCold: '低溫偏藍', legendHot: '高溫偏紅',
+        bannerSolid: '固體：粒子在容器底部緊密排列，於固定位置附近振動',
+        bannerLiquid: '液體：粒子較近，可滑動；受容器限制並傾向填滿底部',
+        bannerGas: '氣體：粒子間距大、高速運動，可充滿整個容器',
+        toastMelt: '▲ 達到熔點 — 固體 → 液體', toastBoil: '▲ 達到沸點 — 液體 → 氣體',
+        toastFreeze: '▼ 低於熔點 — 液體 → 固體', toastCondense: '▼ 低於沸點 — 氣體 → 液體',
+        phaseSolid: '固體', phaseLiquid: '液體', phaseGas: '氣體',
+        motionVibrate: '定點振動', motionSlide: '滑動／碰撞', motionFast: '高速無序',
+        arrangeOrder: '緊密有序', arrangeNear: '較近可流動', arrangeFar: '稀疏分散',
+        energyLow: '低', energyMid: '中', energyHigh: '高',
+        markerMelt: '熔點', markerBoil: '沸點',
+        modalTitle: '物質的三態', modalSub: '微觀粒子排列與宏觀性質', modalClose: '關閉',
+        stepsTitle: '觀察步驟', stepsSub: '如何使用這個三態模型',
+        step1: '切換 2D／3D（2D 為 HTML Canvas，非 Three.js）；選水時觀察 H₂O 折線形分子（O 在中、兩 H 成 104.5°）。',
+        step2: '拖曳溫度滑桿或按快速示範（冰／水／蒸氣），觀察粒子顏色與運動如何隨溫度改變。',
+        step3: '升溫／降溫時留意相變提示與粒子過渡動畫（熔化、沸騰、凝固、凝結、昇華、凝華）。',
+        step4: '閱讀左欄即時數據與宏觀性質對照表，把微觀模型連結到形狀、體積與可壓縮性。',
+        step5: '對水從 −10°C 升至 110°C，留意 0°C、100°C 附近相變提示與粒子排列的突變。',
+        m1t: '1. 核心概念', m1d: '一切物質由大量微粒子（原子或分子）組成。粒子間有吸引力；溫度愈高，粒子熱運動（動能）愈大，排列與宏觀性質因而改變。',
+        m2t: '2. 三態比較', mSolidT: '固體', mSolidD: '粒子緊密、有序排列；僅在平衡位置附近振動。有固定形狀與體積。',
+        mLiquidT: '液體', mLiquidD: '粒子較近但可滑動；無固定形狀，有固定體積，會填滿容器底部。',
+        mGasT: '氣體', mGasD: '粒子間距大、運動快且無序；無固定形狀與體積，可充滿整個容器。',
+        m3t: '3. 相變與溫度', m3d: '以水為例：0°C 熔化（固→液）、100°C 沸騰（液→氣）。加熱提供能量，使粒子克服分子間引力而改變排列。',
+        m4t: '4. 生活例子', m4d: '冰（固）受熱熔成水（液），再沸騰成水蒸氣（氣）；乾冰昇華直接由固變氣。理解三態有助解釋天氣、煮食與工業蒸餾。'
+    },
+    en: {
+        title: 'States of Matter', badge: 'Junior Science', subtitle: 'Particle arrangement, motion & temperature',
+        btnPrinciple: 'Theory', btnSteps: 'Steps',
+        btnQuiz: 'Quiz', quizTitle: 'Classroom questions', quizShowAnswers: 'Show reference answers', quizHideAnswers: 'Hide reference answers', quizRef: 'Reference answer',
+        quizQ1: 'With substance “water” at about −10°C, “Expected phase” and particle motion should read —',
+        quizQ1a: 'liquid; free flow', quizQ1b: 'solid; vibrating in place', quizQ1c: 'gas; fast random motion', quizQ1d: 'no fixed shape, widest spacing',
+        quizQ1ans: 'B. Below 0°C it is solid; particles vibrate about fixed positions.',
+        quizQ2: 'Still water: move the temperature slider toward 110°C. Predict what “Phase change” shows near 100°C, then check.',
+        quizQ2ans: 'Near boiling you see boiling (liquid→gas); spacing grows and motion speeds up — gas macroscopically.',
+        quizQ3: 'At the same temperature, comparing 2D and 3D display modes —',
+        quizQ3a: '2D uses Babylon.js rotation', quizQ3b: '3D uses Babylon.js; 2D is a Canvas cross-section', quizQ3c: 'neither can show velocity vectors', quizQ3d: 'only gas shows attraction lines',
+        quizQ3ans: 'B. 3D is Babylon.js; 2D is an HTML Canvas section.',
+        quizQ4: 'Water at 20°C: toggle “Show intermolecular attraction (solid)” and “Show velocity vectors”. Compare solid vs liquid views.',
+        quizQ4ans: 'Solids show attraction links; liquids move more. Vectors show direction and relative speed when enabled.',
+        quizQ5: 'Choose CO₂ and use presets. At atmospheric pressure the model best matches —',
+        quizQ5a: 'a definite liquid range', quizQ5b: 'solid→gas sublimation, no stable liquid', quizQ5c: 'boiling only at 100°C', quizQ5d: 'temperature unrelated to phase',
+        quizQ5ans: 'B. This sim stresses CO₂ sublimation: solid turns to gas without a liquid stage at atmospheric pressure.',
+        controlTitle: 'Controls',
+        labelView: 'Display mode', view2d: '2D flat', view3d: '3D view',
+        labelSubstance: 'Substance', subWater: 'Water (H₂O)', subOxygen: 'Oxygen (O₂)', subNitrogen: 'Nitrogen (N₂)',
+        subCO2: 'Carbon dioxide (CO₂)', subEthanol: 'Ethanol (C₂H₅OH)', subGeneric: 'Generic particles',
+        pointsWater: 'Melt 0°C · Boil 100°C', pointsOxygen: 'Melt −218°C · Boil −183°C',
+        pointsNitrogen: 'Melt −210°C · Boil −196°C', pointsCO2: 'Sublimes −78.5°C (no liquid at 1 atm)',
+        pointsEthanol: 'Melt −114°C · Boil 78°C', pointsGeneric: 'Melt −20°C · Boil 80°C (demo)',
+        presetOSolid: 'Solid −225°C', presetOLiquid: 'Liq −190°C', presetOGas: 'Gas −175°C',
+        presetNSolid: 'Solid −215°C', presetNLiquid: 'Liq −200°C', presetNGas: 'Gas −185°C',
+        presetCO2Solid: 'Dry ice −90°C', presetCO2Sub: 'Sublime −78°C', presetCO2Gas: 'Gas −65°C',
+        presetEthCold: 'Cold −20°C', presetEthLiq: 'Liq 25°C', presetEthGas: 'Gas 85°C',
+        note2d: '2D: HTML Canvas (not Three.js)', note3d: '3D: Babylon.js | 2D: HTML Canvas',
+        markerSublime: 'Sublime',
+        toastSublime: '▲ Sublimation point — solid → gas',
+        toastDeposit: '▼ Deposition — gas → solid',
+        labelState: 'State (from T)', stateSolid: 'Solid', stateLiquid: 'Liquid', stateGas: 'Gas',
+        labelPhaseHint: 'Changing temperature changes state; transitions are animated',
+        labelBonds: 'Show bonds (solid)', labelVelocity: 'Show velocity vectors',
+        labelTransition: 'Transition', transIdle: '—',
+        transMelt: 'Melting (solid→liquid)', transBoil: 'Boiling (liquid→gas)', transFreeze: 'Freezing (liquid→solid)',
+        transCondense: 'Condensing (gas→liquid)', transSublime: 'Sublimation (solid→gas)', transDeposit: 'Deposition (gas→solid)',
+        labelTemp: 'Temperature', labelPresets: 'Quick demo', presetIce: 'Ice −10°C', presetWater: 'Water 20°C', presetSteam: 'Steam 110°C',
+        reset: 'Reset',
+        liveTitle: 'Live view', statPhase: 'Expected phase', statMotion: 'Particle motion', statArrange: 'Arrangement',
+        statEnergy: 'Relative KE', statSpacing: 'Mean spacing', statCompress: 'Compressibility',
+        compressLow: 'Hard to compress', compressMid: 'Slightly compressible', compressHigh: 'Easily compressed',
+        spacingTight: 'Tight', spacingMid: 'Medium', spacingWide: 'Wide',
+        macroTitle: 'Macroscopic properties',
+        macroSolidShape: 'Fixed shape', macroSolidVol: 'Fixed volume',
+        macroLiqShape: 'No fixed shape', macroLiqVol: 'Fixed volume',
+        macroGasShape: 'No fixed shape', macroGasVol: 'No fixed volume',
+        quickTipTitle: 'Tips',
+        quickTip2d: '2D: textbook cross-section — compare spacing and velocity arrows. Toggle bonds and vectors.',
+        quickTip3d: '3D: drag to rotate, scroll to zoom. Switch to 2D for a flat cross-section view.',
+        viewTitle: 'Particle model', legendCold: 'Cool → blue', legendHot: 'Hot → red',
+        bannerSolid: 'Solid: tightly packed at the container bottom; particles vibrate in place',
+        bannerLiquid: 'Liquid: close but mobile; slides and collides; fills the bottom of the container',
+        bannerGas: 'Gas: widely spaced, fast random motion; fills the whole container',
+        toastMelt: '▲ Melting point — solid → liquid', toastBoil: '▲ Boiling point — liquid → gas',
+        toastFreeze: '▼ Below melting — liquid → solid', toastCondense: '▼ Below boiling — gas → liquid',
+        phaseSolid: 'Solid', phaseLiquid: 'Liquid', phaseGas: 'Gas',
+        motionVibrate: 'Vibrating in place', motionSlide: 'Sliding / colliding', motionFast: 'Fast & random',
+        arrangeOrder: 'Ordered & dense', arrangeNear: 'Close, flowing', arrangeFar: 'Sparse & spread',
+        energyLow: 'Low', energyMid: 'Medium', energyHigh: 'High',
+        markerMelt: 'Melt', markerBoil: 'Boil',
+        modalTitle: 'States of matter', modalSub: 'Microscopic particles & macroscopic properties', modalClose: 'Close',
+        stepsTitle: 'What to watch', stepsSub: 'How to use this model',
+        step1: 'Switch 2D / 3D (2D uses HTML Canvas, not Three.js). For water, see bent H₂O (O centre, H at ~104.5°).',
+        step2: 'Drag temperature or use quick presets (ice / water / steam). Watch colour and motion change.',
+        step3: 'Watch phase toasts and transition animations when heating or cooling (melt, boil, freeze, condense, sublime, deposit).',
+        step4: 'Read the live panel and macro table — link the model to shape, volume and compressibility.',
+        step5: 'For water, sweep −10°C to 110°C and note phase toasts near 0°C and 100°C.',
+        m1t: '1. Core idea', m1d: 'Matter consists of many particles. Interparticle forces bind them; higher temperature means more kinetic energy and different arrangement.',
+        m2t: '2. Three states', mSolidT: 'Solid', mSolidD: 'Tightly ordered lattice; vibration only. Fixed shape and volume.',
+        mLiquidT: 'Liquid', mLiquidD: 'Close but can slide; no fixed shape, fixed volume; fills container bottom.',
+        mGasT: 'Gas', mGasD: 'Large spacing, fast random motion; no fixed shape or volume; fills container.',
+        m3t: '3. Phase changes', m3d: 'For water: melt at 0°C (solid→liquid), boil at 100°C (liquid→gas). Heating supplies energy to overcome attractions.',
+        m4t: '4. Everyday examples', m4d: 'Ice melts to water then boils to steam; dry ice sublimes solid→gas. Explains weather, cooking and distillation.'
+    }
+};
+
+let lang = 'zh';
+const config = {
+    boxHalf: 5,
+    particleRadius: 0.38,
+    substance: 'water',
+    currentState: 'solid',
+    currentTemp: -10,
+    viewMode: '3d',
+    showBonds: true,
+    showVelocity: false
+};
+
+let pdata = [];
+let engine, scene, bMolecules = [], bMaterials = {}, bFloor, bMasterHidden = [];
+let molOMat, molHMat, molCMat, molDiMat, particleMat;
+let ctx2d, canvas2d, raf2d = null;
+let toastTimer = null, statsTick = 0;
+let phaseTransition = null;
+let phaseQueue = [];
+const TRANSITION_MS = 1400;
+const tmpMove = new BABYLON.Vector3();
+
+
+let quizAnswersVisible = false;
+function quizT(k) {
+    return (i18n[lang] && i18n[lang][k] != null) ? i18n[lang][k] : ((i18n.zh && i18n.zh[k]) || k);
+}
+function renderQuiz() {
+    const box = document.getElementById('quiz-list');
+    if (!box) return;
+    const choice = (name, n) => ['A','B','C','D'].map(L => {
+        const opt = quizT('quizQ' + n + L.toLowerCase());
+        return '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="' + name + '" class="mt-0.5 accent-rose-600"><span>' + L + '. ' + opt + '</span></label>';
+    }).join('');
+    const ans = (n) => quizAnswersVisible
+        ? '<div class="quiz-answer mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 p-2"><strong>' + quizT('quizRef') + '：</strong> ' + quizT('quizQ' + n + 'ans') + '</div>' : '';
+    box.innerHTML = [1,2,3,4,5].map(n => {
+        const open = n === 2 || n === 4;
+        return '<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-rose-700 mb-2">Q' + n + '. ' + quizT('quizQ' + n) + '</p>' + (open ? '' : '<div class="grid gap-1.5">' + choice('q'+n, n) + '</div>') + ans(n) + '</div>';
+    }).join('');
+    const btn = document.getElementById('btn-quiz-answers');
+    if (btn) btn.textContent = quizAnswersVisible ? quizT('quizHideAnswers') : quizT('quizShowAnswers');
+    const mq = document.getElementById('modal-quiz');
+    if (mq && window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([mq]).catch(function(){});
+}
+function wireQuizModals() {
+    const modalQ = document.getElementById('modal-quiz');
+    if (!modalQ) return;
+    document.getElementById('btn-quiz').addEventListener('click', () => { quizAnswersVisible = false; openModal(modalQ); renderQuiz(); });
+    document.getElementById('btn-quiz-answers').addEventListener('click', () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+    ['quiz-close','quiz-confirm'].forEach(id => { const el = document.getElementById(id); if (el) el.onclick = () => closeModal(modalQ); });
+    modalQ.addEventListener('click', e => { if (e.target === modalQ) closeModal(modalQ); });
+}
+
+function openModal(el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+}
+function closeModal(el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function getSubstance() { return SUBSTANCES[config.substance]; }
+
+const VIEW_2D_ZOOM = 0.58;
+
+function particleCountForSubstance() {
+    const m = getSubstance().molecule;
+    return m === 'sphere' ? 300 : 240;
+}
+
+function moleculeExtent() {
+    const mol = getSubstance().molecule;
+    const pr = config.particleRadius;
+    if (mol === 'h2o') {
+        const half = H2O_ANGLE / 2;
+        const hr = 0.13;
+        const or = 0.22;
+        const hx = Math.sin(half) * H2O_BOND + hr;
+        const hy = Math.cos(half) * H2O_BOND + hr;
+        return Math.max(hx, hy, or) + 0.06;
+    }
+    if (mol === 'diatomic') return DIATOMIC_CENTER_OFFSET + DIATOMIC_ATOM_R + 0.06;
+    if (mol === 'co2') return 0.38 + 0.18 + 0.06;
+    return pr + 0.06;
+}
+
+function containerBounds() {
+    const h = config.boxHalf;
+    const ext = moleculeExtent();
+    return {
+        h,
+        inner: h - ext,
+        floorY: -h + ext,
+        yTop: h - ext,
+        ext
+    };
+}
+
+function clampInContainer(p) {
+    const { inner, floorY, yTop } = containerBounds();
+    p.x = Math.max(-inner, Math.min(inner, p.x));
+    p.y = Math.max(floorY, Math.min(yTop, p.y));
+    p.z = Math.max(-inner, Math.min(inner, p.z));
+}
+
+function layoutSolidBottom(particles) {
+    const { inner, floorY, yTop } = containerBounds();
+    const n = particles.length;
+    const maxLayers = 3;
+    const solidHeight = Math.min(2.8, yTop - floorY);
+    let ny = maxLayers;
+    let perLayer = Math.ceil(n / ny);
+    let nz = Math.max(2, Math.round(Math.sqrt(perLayer * 1.2)));
+    let nx = Math.max(2, Math.ceil(perLayer / nz));
+    while (nx * nz * ny < n) nx++;
+
+    const spacingX = nx > 1 ? (inner * 2) / (nx - 1) : inner * 2;
+    const spacingZ = nz > 1 ? (inner * 2) / (nz - 1) : inner * 2;
+    const spacingY = ny > 1 ? solidHeight / (ny - 1) : 0;
+    let spacing = Math.min(spacingX, spacingZ, spacingY, 1.05);
+
+    const extentX = ((nx - 1) / 2) * spacing;
+    const extentZ = ((nz - 1) / 2) * spacing;
+    const topY = floorY + (ny - 1) * spacing;
+    if (extentX > inner || extentZ > inner || topY > yTop) {
+        spacing = Math.min(
+            nx > 1 ? inner / ((nx - 1) / 2) : spacing,
+            nz > 1 ? inner / ((nz - 1) / 2) : spacing,
+            ny > 1 ? (yTop - floorY) / (ny - 1) : spacing
+        );
+    }
+
+    let idx = 0;
+    for (let layer = 0; layer < ny; layer++) {
+        for (let iz = 0; iz < nz; iz++) {
+            for (let ix = 0; ix < nx; ix++) {
+                if (idx >= n) return;
+                const p = particles[idx++];
+                p.bx = (ix - (nx - 1) / 2) * spacing;
+                p.by = floorY + layer * spacing;
+                p.bz = (iz - (nz - 1) / 2) * spacing;
+                p.x = p.bx;
+                p.y = p.by;
+                p.z = p.bz;
+                p.vx = p.vy = p.vz = 0;
+                clampInContainer(p);
+                p.bx = p.x; p.by = p.y; p.bz = p.z;
+            }
+        }
+    }
+}
+
+function phaseFromTemp(temp) {
+    const s = getSubstance();
+    if (s.sublimes) return temp < s.sublime ? 'solid' : 'gas';
+    if (temp < s.melt) return 'solid';
+    if (temp < s.boil) return 'liquid';
+    return 'gas';
+}
+
+function h2oAtomOffsets() {
+    const half = H2O_ANGLE / 2;
+    return {
+        o: [0, 0],
+        h1: [Math.sin(half) * H2O_BOND, Math.cos(half) * H2O_BOND],
+        h2: [Math.sin(half) * H2O_BOND, -Math.cos(half) * H2O_BOND]
+    };
+}
+
+function drawRadiusPx(worldPerPx) {
+    const ext = moleculeExtent();
+    const mol = getSubstance().molecule;
+    if (mol === 'h2o') return ext / worldPerPx / (H2O_BOND / 0.34 + 0.34);
+    if (mol === 'diatomic') return ext / worldPerPx / (DIATOMIC_CENTER_OFFSET / DIATOMIC_ATOM_R * 0.48 + 0.48);
+    if (mol === 'co2') return ext / worldPerPx / 1.23;
+    return ext / worldPerPx;
+}
+
+function drawMolecule2D(ctx, type, cx, cy, radius, rot, heat, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+
+    if (type === 'h2o') {
+        const off = h2oAtomOffsets();
+        const s = radius / 0.34;
+        ctx.strokeStyle = `rgba(190, 220, 255, ${0.45 + heat.a * 0.35})`;
+        ctx.lineWidth = Math.max(0.8, radius * 0.22);
+        [off.h1, off.h2].forEach(p => {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(p[0] * s, p[1] * s);
+            ctx.stroke();
+        });
+        const oCol = `rgb(${Math.min(255, 200 + heat.r * 0.2)}, ${Math.max(50, 70 + heat.g * 0.15)}, ${Math.max(50, 80 + heat.b * 0.1)})`;
+        ctx.fillStyle = oCol;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(248, 250, 255, 0.95)';
+        [[off.h1, 0.34], [off.h2, 0.34]].forEach(([p, rr]) => {
+            ctx.beginPath();
+            ctx.arc(p[0] * s, p[1] * s, radius * rr, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    } else if (type === 'diatomic') {
+        const atomR = radius * 0.48;
+        const d = atomR * (DIATOMIC_CENTER_OFFSET / DIATOMIC_ATOM_R);
+        [-d, d].forEach(x => {
+            const g = ctx.createRadialGradient(x - atomR * 0.25, -atomR * 0.25, atomR * 0.1, x, 0, atomR);
+            g.addColorStop(0, `rgba(${Math.min(255, heat.r + 50)},${Math.min(255, heat.g + 50)},${Math.min(255, heat.b + 50)},1)`);
+            g.addColorStop(1, heat.css);
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.arc(x, 0, atomR, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    } else if (type === 'co2') {
+        const d = radius * 0.85;
+        ctx.strokeStyle = 'rgba(140, 140, 140, 0.65)';
+        ctx.lineWidth = Math.max(0.7, radius * 0.16);
+        ctx.beginPath(); ctx.moveTo(-d, 0); ctx.lineTo(d, 0); ctx.stroke();
+        [[-d, heat.css, 0.38], [0, '#777', 0.32], [d, heat.css, 0.38]].forEach(([x, col, rr]) => {
+            ctx.beginPath();
+            ctx.arc(x, 0, radius * rr, 0, Math.PI * 2);
+            ctx.fillStyle = col;
+            ctx.fill();
+        });
+    } else {
+        const g = ctx.createRadialGradient(-radius * 0.25, -radius * 0.25, radius * 0.1, 0, 0, radius);
+        g.addColorStop(0, `rgba(${Math.min(255, heat.r + 50)},${Math.min(255, heat.g + 50)},${Math.min(255, heat.b + 50)},1)`);
+        g.addColorStop(1, heat.css);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function activityLevel(temp) {
+    return Math.max(0.15, Math.sqrt((temp + 273.15) / 273.15));
+}
+
+function heatRGB(temp) {
+    const s = getSubstance();
+    const lo = s.min, hi = s.max;
+    const t = Math.max(lo, Math.min(hi, temp));
+    const melt = s.sublimes ? s.sublime : s.melt;
+    const boil = s.sublimes ? s.sublime + 15 : s.boil;
+    let r, g, b;
+    if (t <= melt) {
+        const span = Math.max(1, melt - lo);
+        const k = (t - lo) / span;
+        r = Math.round(38 + k * 26); g = Math.round(89 + k * 115); b = Math.round(242 - k * 64);
+    } else if (t <= boil) {
+        const span = Math.max(1, boil - melt);
+        const k = (t - melt) / span;
+        r = Math.round(64 + k * 140); g = Math.round(204 - k * 64); b = Math.round(179 - k * 166);
+    } else {
+        const span = Math.max(1, hi - boil);
+        const k = (t - boil) / span;
+        r = Math.round(204 + k * 51); g = Math.round(140 - k * 115); b = Math.round(13);
+    }
+    return { r, g, b, css: `rgb(${r},${g},${b})`, a: (t - lo) / Math.max(1, hi - lo) };
+}
+
+function getHeatColor3(temp) {
+    const c = heatRGB(temp);
+    return new BABYLON.Color3(c.r / 255, c.g / 255, c.b / 255);
+}
+
+function initParticleData() {
+    const n = particleCountForSubstance();
+    pdata = [];
+    for (let i = 0; i < n; i++) {
+        pdata.push({ x: 0, y: 0, z: 0, bx: 0, by: 0, bz: 0, vx: 0, vy: 0, vz: 0, phase: Math.random() * Math.PI * 2 });
+    }
+}
+
+function transitionKind(from, to) {
+    if (from === 'solid' && to === 'liquid') return 'melt';
+    if (from === 'liquid' && to === 'gas') return 'boil';
+    if (from === 'liquid' && to === 'solid') return 'freeze';
+    if (from === 'gas' && to === 'liquid') return 'condense';
+    if (from === 'solid' && to === 'gas') return 'sublime';
+    if (from === 'gas' && to === 'solid') return 'deposit';
+    return 'none';
+}
+
+function transitionLabelKey(kind) {
+    return { melt: 'transMelt', boil: 'transBoil', freeze: 'transFreeze', condense: 'transCondense', sublime: 'transSublime', deposit: 'transDeposit' }[kind] || 'transIdle';
+}
+
+function layoutParticlesForState(state, particles) {
+    const h = config.boxHalf;
+
+    if (state === 'solid') {
+        layoutSolidBottom(particles);
+    } else if (state === 'liquid') {
+        const { inner, floorY, yTop } = containerBounds();
+        const liqH = Math.min(3.0, yTop - floorY - 0.1);
+        particles.forEach(p => {
+            p.bx = (Math.random() * 2 - 1) * (inner - 0.12);
+            p.by = floorY + Math.random() * liqH;
+            p.bz = (Math.random() * 2 - 1) * (inner - 0.12);
+            p.x = p.bx; p.y = p.by; p.z = p.bz;
+            const spd = 0.4 + Math.random() * 0.6;
+            p.vx = (Math.random() - 0.5) * spd;
+            p.vy = (Math.random() - 0.5) * spd * 0.3;
+            p.vz = (Math.random() - 0.5) * spd;
+        });
+    } else {
+        const { inner, floorY, yTop } = containerBounds();
+        particles.forEach(p => {
+            p.x = (Math.random() * 2 - 1) * (inner - 0.08);
+            p.y = floorY + Math.random() * (yTop - floorY - 0.08);
+            p.z = (Math.random() * 2 - 1) * (inner - 0.08);
+            p.vx = Math.random() - 0.5;
+            p.vy = Math.random() - 0.5;
+            p.vz = Math.random() - 0.5;
+            const len = Math.hypot(p.vx, p.vy, p.vz);
+            if (len > 1e-6) { p.vx /= len; p.vy /= len; p.vz /= len; } else { p.vx = 1; p.vy = p.vz = 0; }
+        });
+    }
+}
+
+function layoutParticles() {
+    layoutParticlesForState(config.currentState, pdata);
+}
+
+function computeTargetLayout(state) {
+    const temp = pdata.map(p => ({
+        x: p.x, y: p.y, z: p.z, bx: p.bx, by: p.by, bz: p.bz,
+        vx: p.vx, vy: p.vy, vz: p.vz, phase: p.phase
+    }));
+    layoutParticlesForState(state, temp);
+    return temp;
+}
+
+function easeInOut(u) {
+    return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+}
+
+function phaseSteps(from, to) {
+    const s = getSubstance();
+    if (from === to) return [];
+    if (s.sublimes) return [to];
+    const order = ['solid', 'liquid', 'gas'];
+    const fi = order.indexOf(from), ti = order.indexOf(to);
+    if (fi < ti) return order.slice(fi + 1, ti + 1);
+    return order.slice(ti, fi).reverse();
+}
+
+function beginPhaseTransition(from, to, showToast) {
+    if (from === to) return;
+    const kind = transitionKind(from, to);
+    phaseTransition = {
+        from, to, kind,
+        t0: performance.now(),
+        duration: TRANSITION_MS,
+        starts: pdata.map(p => ({ x: p.x, y: p.y, z: p.z })),
+        targets: computeTargetLayout(to),
+        showToast
+    };
+    config.currentState = to;
+    setPhaseButtons(to);
+    if (showToast) showPhaseToast(from, to);
+    document.getElementById('statTransition').textContent = i18n[lang][transitionLabelKey(kind)];
+}
+
+function finishPhaseTransition() {
+    if (!phaseTransition) return;
+    const tr = phaseTransition;
+    pdata.forEach((p, i) => Object.assign(p, tr.targets[i]));
+    phaseTransition = null;
+    if (phaseQueue.length > 0) {
+        const next = phaseQueue.shift();
+        beginPhaseTransition(config.currentState, next.to, next.showToast);
+    } else {
+        document.getElementById('statTransition').textContent = i18n[lang].transIdle;
+    }
+}
+
+function stepPhaseTransition(time) {
+    const tr = phaseTransition;
+    if (!tr) return false;
+    const u = Math.min(1, (performance.now() - tr.t0) / tr.duration);
+    const e = easeInOut(u);
+    const w = 1 - e;
+    const act = activityLevel(config.currentTemp);
+
+    pdata.forEach((p, i) => {
+        const s = tr.starts[i], tg = tr.targets[i];
+        let px = s.x + (tg.x - s.x) * e;
+        let py = s.y + (tg.y - s.y) * e;
+        let pz = s.z + (tg.z - s.z) * e;
+
+        if (tr.kind === 'melt') {
+            px += Math.sin(time * 14 + p.phase) * w * 0.28;
+            pz += Math.cos(time * 12 + p.phase) * w * 0.22;
+            px += (tg.x - s.x) * w * 0.12;
+            pz += (tg.z - s.z) * w * 0.12;
+        } else if (tr.kind === 'boil' || tr.kind === 'sublime') {
+            const burst = w * w * 2.2;
+            px += (tg.x - s.x) * burst * 0.35 + Math.sin(time * 18 + p.phase) * w * 0.2;
+            py += w * 1.4 + Math.sin(time * 16 + p.phase) * w * 0.15;
+            pz += (tg.z - s.z) * burst * 0.35;
+        } else if (tr.kind === 'freeze' || tr.kind === 'deposit') {
+            px += Math.sin(time * 20 + p.phase) * w * 0.18 * (1 - e);
+            py += Math.cos(time * 18 + p.phase) * w * 0.12 * (1 - e);
+            pz += Math.sin(time * 16 + p.phase * 1.2) * w * 0.18 * (1 - e);
+        } else if (tr.kind === 'condense') {
+            px += Math.sin(time * 10 + p.phase) * w * 0.22;
+            py -= w * 0.75;
+            pz += Math.cos(time * 9 + p.phase) * w * 0.22;
+        }
+
+        p.x = px; p.y = py; p.z = pz;
+        clampInContainer(p);
+        p.vx = (tg.x - s.x) * act * 0.5;
+        p.vy = (tg.y - s.y) * act * 0.5;
+        p.vz = (tg.z - s.z) * act * 0.5;
+    });
+
+    if (u >= 1) finishPhaseTransition();
+    return true;
+}
+
+function stepSimulation(dt, time) {
+    if (stepPhaseTransition(time)) return;
+
+    const act = activityLevel(config.currentTemp);
+
+    if (config.currentState === 'solid') {
+        const amp = 0.035 + act * 0.1;
+        const ampY = amp * 0.45;
+        const freq = 6 + act * 10;
+        pdata.forEach(p => {
+            p.x = p.bx + Math.sin(time * freq + p.phase) * amp;
+            p.y = p.by + Math.cos(time * (freq * 1.1) + p.phase) * ampY;
+            p.z = p.bz + Math.sin(time * (freq * 0.9) + p.phase * 1.3) * amp;
+            clampInContainer(p);
+            p.vx = Math.cos(time * freq + p.phase) * amp * freq;
+            p.vy = -Math.sin(time * (freq * 1.1) + p.phase) * ampY * freq * 1.1;
+            p.vz = Math.cos(time * (freq * 0.9) + p.phase * 1.3) * amp * freq * 0.9;
+        });
+    } else if (config.currentState === 'liquid') {
+        const speed = (0.8 + act * 2.2) * dt;
+        const { inner, floorY, yTop } = containerBounds();
+        const ceilY = floorY + Math.min(3.0, yTop - floorY);
+        pdata.forEach(p => {
+            p.vx += (Math.random() - 0.5) * speed * 0.4;
+            p.vz += (Math.random() - 0.5) * speed * 0.4;
+            p.vy += (Math.random() - 0.5) * speed * 0.15 - 0.02 * act * dt;
+            const vlen = Math.hypot(p.vx, p.vy, p.vz);
+            const maxV = 1.2 + act * 2.5;
+            if (vlen > maxV) { p.vx = p.vx / vlen * maxV; p.vy = p.vy / vlen * maxV; p.vz = p.vz / vlen * maxV; }
+
+            p.x += p.vx * speed * 3;
+            p.y += p.vy * speed * 3;
+            p.z += p.vz * speed * 3;
+
+            if (p.x < -inner) { p.x = -inner; p.vx *= -0.6; }
+            if (p.x > inner) { p.x = inner; p.vx *= -0.6; }
+            if (p.z < -inner) { p.z = -inner; p.vz *= -0.6; }
+            if (p.z > inner) { p.z = inner; p.vz *= -0.6; }
+            if (p.y < floorY) { p.y = floorY; p.vy = Math.abs(p.vy) * 0.35; }
+            if (p.y > ceilY) { p.y = ceilY; p.vy *= -0.5; }
+        });
+    } else {
+        const speed = (2.5 + act * 6) * dt;
+        const { inner, floorY, yTop } = containerBounds();
+        pdata.forEach(p => {
+            p.x += p.vx * speed;
+            p.y += p.vy * speed;
+            p.z += p.vz * speed;
+            if (p.x < -inner) { p.x = -inner; p.vx = Math.abs(p.vx); }
+            if (p.x > inner) { p.x = inner; p.vx = -Math.abs(p.vx); }
+            if (p.y < floorY) { p.y = floorY; p.vy = Math.abs(p.vy); }
+            if (p.y > yTop) { p.y = yTop; p.vy = -Math.abs(p.vy); }
+            if (p.z < -inner) { p.z = -inner; p.vz = Math.abs(p.vz); }
+            if (p.z > inner) { p.z = inner; p.vz = -Math.abs(p.vz); }
+        });
+    }
+}
+
+function meanSpacing() {
+    if (pdata.length < 2) return 0;
+    let sum = 0, n = 0;
+    const step = Math.max(1, Math.floor(pdata.length / 20));
+    for (let i = 0; i < pdata.length; i += step) {
+        for (let j = i + step; j < pdata.length; j += step) {
+            sum += Math.hypot(pdata[i].x - pdata[j].x, pdata[i].y - pdata[j].y, pdata[i].z - pdata[j].z);
+            n++;
+        }
+    }
+    return n ? sum / n : 0;
+}
+
+function applyHeatToMaterials(temp) {
+    const c = getHeatColor3(temp);
+    if (particleMat) {
+        particleMat.emissiveColor = c;
+        particleMat.diffuseColor = c.scale(0.85);
+    }
+    if (molDiMat) { molDiMat.emissiveColor = c; molDiMat.diffuseColor = c.scale(0.85); }
+    if (molOMat) {
+        molOMat.emissiveColor = new BABYLON.Color3(Math.min(1, c.r + 0.15), c.g * 0.5, c.b * 0.5);
+        molOMat.diffuseColor = molOMat.emissiveColor.scale(0.9);
+    }
+}
+
+function syncToBabylon() {
+    pdata.forEach((p, i) => {
+        const m = bMolecules[i];
+        if (!m) return;
+        m.root.position.set(p.x, p.y, p.z);
+        m.root.rotation.y = p.phase;
+        if (m.spin) m.root.rotation.z = Math.sin(p.phase) * 0.08;
+    });
+}
+
+function get2DViewport() {
+    const container = document.getElementById('canvas-container');
+    const rect = container.getBoundingClientRect();
+    const pad = { t: 22, r: 18, b: 30, l: 36 };
+    const W = rect.width;
+    const H = rect.height;
+    const boxW = W - pad.l - pad.r;
+    const boxH = H - pad.t - pad.b;
+    const worldHalf = config.boxHalf / VIEW_2D_ZOOM;
+    const toSX = x => pad.l + ((x + worldHalf) / (worldHalf * 2)) * boxW;
+    const toSY = y => pad.t + boxH - ((y + worldHalf) / (worldHalf * 2)) * boxH;
+    const worldPerPx = (worldHalf * 2) / boxW;
+    return { W, H, pad, boxW, boxH, worldHalf, toSX, toSY, worldPerPx };
+}
+
+function render2DFrame(time) {
+    if (!ctx2d || config.viewMode !== '2d') return;
+    const vp = get2DViewport();
+    const { W, H, pad, boxW, boxH, worldHalf, toSX, toSY, worldPerPx } = vp;
+    const half = config.boxHalf;
+    const floorWorldY = -half;
+    const col = heatRGB(config.currentTemp);
+    const molType = getSubstance().molecule;
+    const displayState = phaseTransition ? phaseTransition.to : config.currentState;
+
+    ctx2d.clearRect(0, 0, W, H);
+
+    const sky = ctx2d.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#0f172a');
+    sky.addColorStop(1, '#070b14');
+    ctx2d.fillStyle = sky;
+    ctx2d.fillRect(0, 0, W, H);
+
+    const cLeft = toSX(-half);
+    const cRight = toSX(half);
+    const cTop = toSY(half);
+    const cBottom = toSY(-half);
+    const cW = cRight - cLeft;
+    const cH = cBottom - cTop;
+    const floorSY = cBottom;
+
+    ctx2d.fillStyle = 'rgba(15, 23, 42, 0.92)';
+    ctx2d.fillRect(cLeft, cTop, cW, cH);
+
+    if (displayState === 'solid' || (phaseTransition && phaseTransition.from === 'solid')) {
+        let maxPY = -Infinity;
+        pdata.forEach(p => { maxPY = Math.max(maxPY, p.y); });
+        const { ext } = containerBounds();
+        const solidTopWorld = Math.min(maxPY + ext, half - ext);
+        const solidTopSY = toSY(solidTopWorld);
+        const iceGrad = ctx2d.createLinearGradient(0, solidTopSY, 0, floorSY);
+        iceGrad.addColorStop(0, 'rgba(56, 100, 180, 0.22)');
+        iceGrad.addColorStop(1, 'rgba(30, 58, 110, 0.38)');
+        ctx2d.fillStyle = iceGrad;
+        ctx2d.fillRect(cLeft, solidTopSY, cW, Math.max(0, floorSY - solidTopSY));
+    }
+    if (displayState === 'liquid' || (phaseTransition && (phaseTransition.to === 'liquid' || phaseTransition.from === 'liquid'))) {
+        const liqTop = toSY(Math.min(0.8, half - 0.5));
+        const liqGrad = ctx2d.createLinearGradient(0, liqTop, 0, floorSY);
+        liqGrad.addColorStop(0, 'rgba(34, 120, 200, 0.18)');
+        liqGrad.addColorStop(1, 'rgba(20, 70, 140, 0.32)');
+        ctx2d.fillStyle = liqGrad;
+        ctx2d.fillRect(cLeft, liqTop, cW, floorSY - liqTop);
+        ctx2d.strokeStyle = 'rgba(96, 165, 250, 0.45)';
+        ctx2d.lineWidth = 1.5;
+        ctx2d.beginPath();
+        ctx2d.moveTo(cLeft, liqTop);
+        for (let x = cLeft; x <= cRight; x += 8) {
+            ctx2d.lineTo(x, liqTop + Math.sin(x * 0.08 + time * 2) * 2);
+        }
+        ctx2d.stroke();
+    }
+
+    ctx2d.strokeStyle = 'rgba(148, 163, 184, 0.9)';
+    ctx2d.lineWidth = 2.5;
+    ctx2d.strokeRect(cLeft, cTop, cW, cH);
+    ctx2d.strokeStyle = 'rgba(100, 116, 139, 0.55)';
+    ctx2d.lineWidth = 3;
+    ctx2d.beginPath();
+    ctx2d.moveTo(cLeft, cBottom);
+    ctx2d.lineTo(cRight, cBottom);
+    ctx2d.stroke();
+
+    const bondDist = 1.45;
+    if (config.showBonds && displayState === 'solid') {
+        ctx2d.save();
+        ctx2d.beginPath();
+        ctx2d.rect(cLeft, cTop, cW, cH);
+        ctx2d.clip();
+        ctx2d.strokeStyle = 'rgba(147, 197, 253, 0.28)';
+        ctx2d.lineWidth = 0.8;
+        for (let i = 0; i < pdata.length; i++) {
+            for (let j = i + 1; j < pdata.length; j++) {
+                const a = pdata[i], b = pdata[j];
+                const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+                if (dx * dx + dy * dy + dz * dz < bondDist * bondDist) {
+                    ctx2d.beginPath();
+                    ctx2d.moveTo(toSX(a.x), toSY(a.y));
+                    ctx2d.lineTo(toSX(b.x), toSY(b.y));
+                    ctx2d.stroke();
+                }
+            }
+        }
+        ctx2d.restore();
+    }
+
+    const baseRadius = Math.max(2.0, drawRadiusPx(worldPerPx));
+    const sorted = pdata.map((p, i) => ({ p, i, z: p.z })).sort((a, b) => a.z - b.z);
+
+    ctx2d.save();
+    ctx2d.beginPath();
+    ctx2d.rect(cLeft, cTop, cW, cH);
+    ctx2d.clip();
+
+    sorted.forEach(({ p }) => {
+        const depth = (p.z + worldHalf) / (worldHalf * 2);
+        const alpha = displayState === 'solid' ? 0.92 : 0.55 + depth * 0.45;
+        const radius = displayState === 'solid'
+            ? baseRadius
+            : baseRadius * (0.82 + depth * 0.28);
+        const sx = toSX(p.x);
+        const sy = toSY(p.y);
+        const rot = displayState === 'solid'
+            ? 0
+            : Math.atan2(p.vy, p.vx || 0.001);
+        drawMolecule2D(ctx2d, molType, sx, sy, radius, rot, col, alpha);
+    });
+    ctx2d.restore();
+
+    if (config.showVelocity && displayState !== 'solid') {
+        ctx2d.strokeStyle = 'rgba(250, 204, 21, 0.75)';
+        ctx2d.lineWidth = 1;
+        const vScale = displayState === 'gas' ? 14 : 10;
+        pdata.forEach(p => {
+            const vlen = Math.hypot(p.vx, p.vy);
+            if (vlen < 0.02) return;
+            const sx = toSX(p.x), sy = toSY(p.y);
+            const ex = sx + (p.vx / vlen) * vScale;
+            const ey = sy - (p.vy / vlen) * vScale;
+            ctx2d.beginPath();
+            ctx2d.moveTo(sx, sy);
+            ctx2d.lineTo(ex, ey);
+            ctx2d.stroke();
+        });
+    }
+
+    ctx2d.fillStyle = 'rgba(148, 163, 184, 0.75)';
+    ctx2d.font = '600 10px "Noto Sans TC", sans-serif';
+    ctx2d.fillText('X →', cRight - 18, cBottom + 16);
+    ctx2d.fillText('Y ↑', cLeft - 28, cTop + 4);
+    ctx2d.fillStyle = 'rgba(100, 116, 139, 0.65)';
+    ctx2d.font = '500 9px "Noto Sans TC", sans-serif';
+    ctx2d.fillText('2D · Canvas · zoom out', cLeft + 4, cBottom + 16);
+}
+
+function loop2D() {
+    const dt = 0.016;
+    const time = performance.now() / 1000;
+    stepSimulation(dt, time);
+    render2DFrame(time);
+    if (++statsTick % 20 === 0) updateStatsUI();
+    raf2d = requestAnimationFrame(loop2D);
+}
+
+function buildMoleculeMaterials(sc) {
+    molOMat = new BABYLON.StandardMaterial('molO', sc);
+    molOMat.diffuseColor = new BABYLON.Color3(0.85, 0.15, 0.15);
+    molOMat.emissiveColor = new BABYLON.Color3(0.7, 0.1, 0.1);
+    molOMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+
+    molHMat = new BABYLON.StandardMaterial('molH', sc);
+    molHMat.diffuseColor = new BABYLON.Color3(0.92, 0.94, 0.98);
+    molHMat.emissiveColor = new BABYLON.Color3(0.35, 0.38, 0.42);
+    molHMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+
+    molCMat = new BABYLON.StandardMaterial('molC', sc);
+    molCMat.diffuseColor = new BABYLON.Color3(0.45, 0.45, 0.45);
+    molCMat.emissiveColor = new BABYLON.Color3(0.15, 0.15, 0.15);
+
+    molDiMat = new BABYLON.StandardMaterial('molDi', sc);
+    molDiMat.specularColor = new BABYLON.Color3(0.12, 0.12, 0.12);
+
+    particleMat = new BABYLON.StandardMaterial('pMat', sc);
+    particleMat.specularColor = new BABYLON.Color3(0.15, 0.15, 0.15);
+}
+
+function disposeMolecules() {
+    bMolecules.forEach(m => {
+        m.parts.forEach(part => part.dispose());
+        m.root.dispose();
+    });
+    bMolecules = [];
+    bMasterHidden.forEach(m => m.dispose());
+    bMasterHidden = [];
+}
+
+function createMoleculeNode(sc, type, index) {
+    const root = new BABYLON.TransformNode('mol' + index, sc);
+    const parts = [];
+    const half = H2O_ANGLE / 2;
+
+    if (type === 'h2o') {
+        const o = BABYLON.MeshBuilder.CreateSphere('o', { diameter: 0.44, segments: 8 }, sc);
+        o.material = molOMat; o.parent = root; parts.push(o);
+        const h1 = BABYLON.MeshBuilder.CreateSphere('h1', { diameter: 0.26, segments: 8 }, sc);
+        h1.material = molHMat; h1.parent = root;
+        h1.position.set(Math.sin(half) * H2O_BOND, Math.cos(half) * H2O_BOND, 0);
+        parts.push(h1);
+        const h2 = BABYLON.MeshBuilder.CreateSphere('h2', { diameter: 0.26, segments: 8 }, sc);
+        h2.material = molHMat; h2.parent = root;
+        h2.position.set(Math.sin(half) * H2O_BOND, -Math.cos(half) * H2O_BOND, 0);
+        parts.push(h2);
+        return { root, parts, spin: true };
+    }
+    if (type === 'diatomic') {
+        [-DIATOMIC_CENTER_OFFSET, DIATOMIC_CENTER_OFFSET].forEach((x, j) => {
+            const a = BABYLON.MeshBuilder.CreateSphere('d' + j, { diameter: DIATOMIC_ATOM_D, segments: 10 }, sc);
+            a.material = molDiMat; a.parent = root; a.position.x = x; parts.push(a);
+        });
+        return { root, parts, spin: false };
+    }
+    if (type === 'co2') {
+        const d = 0.38;
+        const o1 = BABYLON.MeshBuilder.CreateSphere('o1', { diameter: 0.36, segments: 10 }, sc);
+        o1.material = molOMat; o1.parent = root; o1.position.x = -d; parts.push(o1);
+        const c = BABYLON.MeshBuilder.CreateSphere('c', { diameter: 0.3, segments: 8 }, sc);
+        c.material = molCMat; c.parent = root; parts.push(c);
+        const o2 = BABYLON.MeshBuilder.CreateSphere('o2', { diameter: 0.36, segments: 10 }, sc);
+        o2.material = molOMat; o2.parent = root; o2.position.x = d; parts.push(o2);
+        return { root, parts, spin: false };
+    }
+    const s = BABYLON.MeshBuilder.CreateSphere('s', { diameter: config.particleRadius * 2, segments: 8 }, sc);
+    s.material = particleMat; s.parent = root; parts.push(s);
+    return { root, parts, spin: false };
+}
+
+function buildMolecules(sc) {
+    disposeMolecules();
+    const type = getSubstance().molecule;
+    for (let i = 0; i < pdata.length; i++) {
+        bMolecules.push(createMoleculeNode(sc, type, i));
+    }
+}
+
+function createScene() {
+    const sc = new BABYLON.Scene(engine);
+    sc.clearColor = new BABYLON.Color4(0.04, 0.06, 0.1, 1);
+
+    const camera = new BABYLON.ArcRotateCamera('cam', -Math.PI / 2.2, Math.PI / 2.35, 24, new BABYLON.Vector3(0, -1.2, 0), sc);
+    camera.attachControl(document.getElementById('renderCanvas'), true);
+    camera.lowerRadiusLimit = 14;
+    camera.upperRadiusLimit = 45;
+    camera.wheelPrecision = 40;
+    sc.activeCamera = camera;
+
+    new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(0, 1, 0), sc).intensity = 0.45;
+    new BABYLON.PointLight('pl', new BABYLON.Vector3(4, 6, 2), sc).intensity = 0.75;
+
+    const box = BABYLON.MeshBuilder.CreateBox('box', { size: config.boxHalf * 2 }, sc);
+    box.isPickable = false;
+    const boxMat = new BABYLON.StandardMaterial('boxMat', sc);
+    boxMat.wireframe = true;
+    boxMat.emissiveColor = new BABYLON.Color3(0.25, 0.35, 0.55);
+    boxMat.alpha = 0.35;
+    box.material = boxMat;
+
+    bFloor = BABYLON.MeshBuilder.CreateGround('floor', { width: config.boxHalf * 2, height: config.boxHalf * 2 }, sc);
+    bFloor.position.y = -config.boxHalf;
+    bFloor.isPickable = false;
+    const floorMat = new BABYLON.StandardMaterial('floorMat', sc);
+    floorMat.emissiveColor = new BABYLON.Color3(0.08, 0.12, 0.2);
+    floorMat.alpha = 0.25;
+    bFloor.material = floorMat;
+
+    buildMoleculeMaterials(sc);
+    buildMolecules(sc);
+
+    sc.registerBeforeRender(() => {
+        const dt = Math.min(engine.getDeltaTime() / 1000, 0.033);
+        const time = performance.now() / 1000;
+        stepSimulation(dt, time);
+        applyHeatToMaterials(config.currentTemp);
+        bFloor.setEnabled(config.currentState === 'liquid');
+        syncToBabylon();
+    });
+
+    sc.resetLayout = layoutParticles;
+    return sc;
+}
+
+function rebuildSimulation() {
+    initParticleData();
+    layoutParticles();
+    if (scene) {
+        buildMolecules(scene);
+        scene.resetLayout = layoutParticles;
+    }
+}
+
+function setViewMode(mode) {
+    config.viewMode = mode;
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        const on = btn.dataset.view === mode;
+        btn.classList.toggle('active', on);
+        btn.classList.toggle('bg-white', !on);
+    });
+    const canvas3d = document.getElementById('renderCanvas');
+    const label = document.getElementById('viewModeLabel');
+    const tip = document.getElementById('quickTipText');
+    label.textContent = i18n[lang][mode === '2d' ? 'view2d' : 'view3d'];
+    tip.textContent = i18n[lang][mode === '2d' ? 'quickTip2d' : 'quickTip3d'];
+    document.getElementById('renderEngineNote').textContent = i18n[lang][mode === '2d' ? 'note2d' : 'note3d'];
+
+    if (mode === '2d') {
+        canvas3d.style.display = 'none';
+        canvas2d.style.display = 'block';
+        engine.stopRenderLoop();
+        if (scene && scene.activeCamera) scene.activeCamera.detachControl();
+        if (!raf2d) loop2D();
+    } else {
+        canvas2d.style.display = 'none';
+        canvas3d.style.display = 'block';
+        if (raf2d) { cancelAnimationFrame(raf2d); raf2d = null; }
+        if (scene && scene.activeCamera) scene.activeCamera.attachControl(canvas3d, true);
+        engine.runRenderLoop(() => scene.render());
+    }
+    resizeCanvases();
+}
+
+function resizeCanvases() {
+    engine.resize();
+    const container = document.getElementById('canvas-container');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = container.getBoundingClientRect();
+    canvas2d.width = Math.floor(rect.width * dpr);
+    canvas2d.height = Math.floor(rect.height * dpr);
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (config.viewMode === '2d') render2DFrame(performance.now() / 1000);
+}
+
+function showPhaseToast(from, to) {
+    const t = i18n[lang];
+    let msg = '';
+    if (from === 'solid' && to === 'liquid') msg = t.toastMelt;
+    else if (from === 'liquid' && to === 'gas') msg = t.toastBoil;
+    else if (from === 'liquid' && to === 'solid') msg = t.toastFreeze;
+    else if (from === 'gas' && to === 'liquid') msg = t.toastCondense;
+    else if (from === 'solid' && to === 'gas') msg = t.toastSublime;
+    else if (from === 'gas' && to === 'solid') msg = t.toastDeposit;
+    else return;
+    const el = document.getElementById('phaseToast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function setPhaseButtons(state) {
+    document.querySelectorAll('.phase-btn').forEach(btn => {
+        const on = btn.dataset.state === state;
+        btn.classList.toggle('active', on);
+        btn.classList.toggle('bg-white', !on);
+    });
+}
+
+function updateTempMarkers() {
+    const s = getSubstance();
+    const slider = document.getElementById('tempSlider');
+    const wrap = document.getElementById('tempMarkers');
+    wrap.innerHTML = '';
+    const range = s.max - s.min;
+    const markers = s.sublimes
+        ? [{ v: s.sublime, label: 'markerSublime' }]
+        : [{ v: s.melt, label: 'markerMelt' }, { v: s.boil, label: 'markerBoil' }];
+    markers.forEach(({ v, label }) => {
+        const pct = ((v - s.min) / range) * 100;
+        const m = document.createElement('div');
+        m.className = 'temp-marker';
+        m.style.left = pct + '%';
+        m.dataset.label = i18n[lang][label] + ' ' + v + '°C';
+        wrap.appendChild(m);
+    });
+    slider.min = s.min;
+    slider.max = s.max;
+    const pointKeys = { water: 'pointsWater', oxygen: 'pointsOxygen', nitrogen: 'pointsNitrogen', co2: 'pointsCO2', ethanol: 'pointsEthanol', generic: 'pointsGeneric' };
+    document.getElementById('substancePoints').textContent = i18n[lang][pointKeys[config.substance]] || '';
+}
+
+function updatePresetsUI() {
+    const s = getSubstance();
+    const row = document.getElementById('presetRow');
+    row.innerHTML = '';
+    s.presets.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preset-btn py-1.5 rounded-lg border border-slate-300 text-[10px] font-extrabold bg-white';
+        btn.dataset.temp = p.t;
+        btn.textContent = i18n[lang][p.key];
+        btn.addEventListener('click', () => onTempChange(p.t, true));
+        row.appendChild(btn);
+    });
+}
+
+function applySubstanceChange() {
+    const s = getSubstance();
+    config.currentTemp = Math.max(s.min, Math.min(s.max, s.defaultTemp));
+    document.getElementById('tempSlider').value = config.currentTemp;
+    updateTempMarkers();
+    updatePresetsUI();
+    rebuildSimulation();
+    phaseTransition = null;
+    phaseQueue = [];
+    const ph = phaseFromTemp(config.currentTemp);
+    config.currentState = ph;
+    layoutParticlesForState(ph, pdata);
+    setPhaseButtons(ph);
+    onTempChange(config.currentTemp, false);
+}
+
+function updateStatsUI() {
+    const expected = phaseFromTemp(config.currentTemp);
+    const act = activityLevel(config.currentTemp);
+    const t = i18n[lang];
+    const displayState = phaseFromTemp(config.currentTemp);
+    document.getElementById('statPhase').textContent = t['phase' + displayState.charAt(0).toUpperCase() + displayState.slice(1)];
+    const motion = { solid: t.motionVibrate, liquid: t.motionSlide, gas: t.motionFast };
+    const arrange = { solid: t.arrangeOrder, liquid: t.arrangeNear, gas: t.arrangeFar };
+    const compress = { solid: t.compressLow, liquid: t.compressMid, gas: t.compressHigh };
+    document.getElementById('statMotion').textContent = motion[displayState];
+    document.getElementById('statArrange').textContent = arrange[displayState];
+    document.getElementById('statEnergy').textContent = act < 0.6 ? t.energyLow : act < 1.1 ? t.energyMid : t.energyHigh;
+    document.getElementById('statCompress').textContent = compress[displayState];
+    document.getElementById('phaseBanner').textContent = t['banner' + displayState.charAt(0).toUpperCase() + displayState.slice(1)];
+    if (!phaseTransition) {
+        document.getElementById('statTransition').textContent = t.transIdle;
+    }
+    document.getElementById('tempValue').textContent = config.currentTemp + '°C';
+
+    const sp = meanSpacing();
+    document.getElementById('statSpacing').textContent =
+        sp < 1.8 ? t.spacingTight + ` (${sp.toFixed(1)})` :
+        sp < 3.5 ? t.spacingMid + ` (${sp.toFixed(1)})` :
+        t.spacingWide + ` (${sp.toFixed(1)})`;
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    document.querySelectorAll('[data-i18n-opt]').forEach(el => {
+        const k = el.getAttribute('data-i18n-opt');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    document.getElementById('viewModeLabel').textContent = i18n[lang][config.viewMode === '2d' ? 'view2d' : 'view3d'];
+    document.getElementById('quickTipText').textContent = i18n[lang][config.viewMode === '2d' ? 'quickTip2d' : 'quickTip3d'];
+    document.getElementById('renderEngineNote').textContent = i18n[lang][config.viewMode === '2d' ? 'note2d' : 'note3d'];
+    updateTempMarkers();
+    updatePresetsUI();
+    updateStatsUI();
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([document.getElementById('modal-principle')]).catch(() => {});
+    }
+    const mq = document.getElementById('modal-quiz');
+    if (mq && !mq.classList.contains('opacity-0')) renderQuiz();
+}
+
+function syncPhaseToTemp(temp, showToast) {
+    const target = phaseFromTemp(temp);
+    let from = config.currentState;
+    if (phaseTransition) {
+        from = phaseTransition.to;
+        phaseTransition = null;
+        phaseQueue = [];
+    }
+    if (from === target) return;
+    const steps = phaseSteps(from, target);
+    if (!steps.length) return;
+    const first = steps.shift();
+    phaseQueue = steps.map((st, i) => ({ to: st, showToast: false }));
+    beginPhaseTransition(from, first, showToast);
+}
+
+function onTempChange(temp, showToast = true) {
+    config.currentTemp = temp;
+    document.getElementById('tempSlider').value = temp;
+    document.getElementById('tempValue').textContent = temp + '°C';
+    syncPhaseToTemp(temp, showToast);
+    updateStatsUI();
+}
+
+function resetAll() {
+    config.substance = 'water';
+    config.showBonds = true;
+    config.showVelocity = false;
+    document.getElementById('substanceSelect').value = 'water';
+    document.getElementById('showBonds').checked = true;
+    document.getElementById('showVelocity').checked = false;
+    phaseTransition = null;
+    phaseQueue = [];
+    applySubstanceChange();
+    onTempChange(-10, false);
+}
+
+function initUI() {
+    const modalP = document.getElementById('modal-principle');
+    const modalS = document.getElementById('modal-steps');
+    document.getElementById('btn-principle').onclick = () => openModal(modalP);
+    document.getElementById('btn-steps').onclick = () => openModal(modalS);
+    ['modal-close', 'modal-confirm'].forEach(id => document.getElementById(id).onclick = () => closeModal(modalP));
+    ['steps-close', 'steps-confirm'].forEach(id => document.getElementById(id).onclick = () => closeModal(modalS));
+    [modalP, modalS].forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m); }));
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeModal(modalP); closeModal(modalS); closeModal(document.getElementById('modal-quiz')); }
+    });
+
+    const toggleLang = () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); };
+    document.getElementById('btn-lang').onclick = toggleLang;
+    document.getElementById('btn-lang-mobile').onclick = toggleLang;
+
+    document.querySelectorAll('.view-btn').forEach(btn => btn.addEventListener('click', () => setViewMode(btn.dataset.view)));
+    document.getElementById('substanceSelect').addEventListener('change', e => {
+        config.substance = e.target.value;
+        applySubstanceChange();
+    });
+
+    document.getElementById('showBonds').addEventListener('change', e => { config.showBonds = e.target.checked; });
+    document.getElementById('showVelocity').addEventListener('change', e => { config.showVelocity = e.target.checked; });
+    document.getElementById('tempSlider').addEventListener('input', e => onTempChange(parseInt(e.target.value, 10), true));
+    document.getElementById('resetBtn').onclick = resetAll;
+    wireQuizModals();
+}
+
+initParticleData();
+config.currentState = phaseFromTemp(config.currentTemp);
+layoutParticles();
+setPhaseButtons(config.currentState);
+updatePresetsUI();
+
+canvas2d = document.getElementById('canvas2d');
+ctx2d = canvas2d.getContext('2d');
+canvas2d.style.display = 'none';
+
+const canvas3d = document.getElementById('renderCanvas');
+engine = new BABYLON.Engine(canvas3d, true, { preserveDrawingBuffer: true, stencil: true });
+scene = createScene();
+initUI();
+applyLang();
+setViewMode('3d');
+window.addEventListener('resize', resizeCanvases);
+</script>
+</body>
+</html>

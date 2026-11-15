@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太陽系 3D 教學 | Solar System 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background-color: #000; font-family: 'Noto Sans TC', sans-serif; }
+        #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; }
+        /* 自定義滾動條 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Modal 動畫 */
+        .modal-enter { opacity: 0; transform: scale(0.9); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 300ms, transform 300ms; }
+        .modal-exit { opacity: 1; transform: scale(1); }
+        .modal-exit-active { opacity: 0; transform: scale(0.9); transition: opacity 300ms, transform 300ms; }
+
+        /* 星體標籤樣式 - 無外框 */
+        .planet-label {
+            color: rgba(255, 255, 255, 0.95);
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 2px 8px;
+            background: rgba(0, 0, 0, 0.4); 
+            border-radius: 12px;
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 0 0 4px #000;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+        }
+        
+        /* Loading 畫面 */
+        #loading { position: absolute; inset: 0; background: black; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s; }
+    </style>
+    <!-- Import Map for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body class="text-white antialiased overflow-hidden">
+
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-blue-400 font-mono tracking-widest text-sm">載入遠端紋理… / LOADING REMOTE TEXTURES…</p>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Layer -->
+    <div class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between">
+        
+        <!-- Header Bar -->
+        <header class="pointer-events-auto bg-black/60 backdrop-blur-md border-b border-gray-700 px-4 md:px-6 py-3 flex justify-between items-center shadow-lg gap-2">
+            <div class="flex items-center gap-2 md:gap-3 min-w-0">
+                <div class="w-3 h-3 shrink-0 rounded-full bg-blue-500 animate-pulse"></div>
+                <h1 id="app-title" class="text-lg md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 truncate">
+                    太陽系 3D 教學
+                </h1>
+                <span id="badge-subject" class="hidden sm:inline text-[11px] px-2 py-0.5 rounded-full bg-violet-900/80 text-violet-200 font-bold border border-violet-700/50 shrink-0">天文</span>
+                <span id="badge-grade" class="hidden sm:inline text-[11px] px-2 py-0.5 rounded-full bg-indigo-900/80 text-indigo-200 font-bold border border-indigo-700/50 shrink-0">中一科學</span>
+            </div>
+            
+            <div class="flex items-center gap-1.5 md:gap-3 shrink-0 flex-wrap justify-end">
+                <button type="button" id="btn-steps" class="flex items-center gap-1.5 px-2.5 py-1.5 md:px-4 bg-gray-800 hover:bg-gray-700 rounded-full text-xs md:text-sm font-bold shadow transition border border-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h12"/><path d="M9 12h12"/><path d="M9 19h12"/><circle cx="4" cy="5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="19" r="1" fill="currentColor"/></svg>
+                    <span id="txt-steps">觀察步驟</span>
+                </button>
+                <button type="button" id="btn-principle" class="flex items-center gap-1.5 px-2.5 py-1.5 md:px-4 bg-blue-600 hover:bg-blue-500 rounded-full text-xs md:text-sm font-bold shadow transition border border-blue-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                    <span id="txt-principle">原理解說</span>
+                </button>
+                <button type="button" id="btn-quiz" class="flex items-center gap-1.5 px-2.5 py-1.5 md:px-4 bg-violet-600 hover:bg-violet-500 rounded-full text-xs md:text-sm font-bold shadow transition border border-violet-400">
+                    <span id="txt-quiz">課堂問題</span>
+                </button>
+                <button type="button" id="btn-help" class="hidden md:flex items-center gap-2 px-3 py-1.5 md:px-4 bg-gray-700 hover:bg-gray-600 rounded-full text-sm font-bold shadow transition border border-gray-600">
+                    <span id="txt-help">說明</span>
+                </button>
+                <button type="button" id="btn-lang" class="px-2.5 py-1.5 rounded-full border border-gray-500 hover:bg-gray-700 text-xs md:text-sm font-mono transition whitespace-nowrap">
+                    中 / EN
+                </button>
+            </div>
+        </header>
+
+        <!-- Current Planet Info (Expanded with Data Table) -->
+        <div id="planet-info" class="pointer-events-none transition-opacity duration-500 opacity-0 absolute top-20 left-4 md:left-6 w-[min(100vw-2rem,22rem)] md:w-96 z-20 max-h-[calc(100vh-8rem)] overflow-y-auto no-scrollbar">
+             <div class="bg-black/70 backdrop-blur-md p-4 rounded-lg border-l-4 border-blue-500 shadow-2xl">
+                <div class="flex items-baseline gap-2 mb-2">
+                    <h2 id="info-name" class="text-xl md:text-2xl font-bold text-white"></h2>
+                    <span id="info-type" class="text-xs font-mono px-2 py-0.5 rounded bg-gray-700 text-gray-300"></span>
+                </div>
+                <p id="info-desc" class="text-sm text-gray-300 leading-relaxed mb-3 min-h-[36px]"></p>
+                
+                <div id="info-data" class="grid grid-cols-2 gap-x-2 gap-y-1.5 text-xs border-t border-gray-600 pt-3">
+                    <div class="text-gray-400" id="lbl-semi">軌道半長軸:</div>
+                    <div class="text-right font-mono text-cyan-200" id="val-semi">-</div>
+                    <div class="text-gray-400" id="lbl-ecc">離心率:</div>
+                    <div class="text-right font-mono text-cyan-200" id="val-ecc">-</div>
+                    <div class="text-gray-400" id="lbl-incl">軌道傾角:</div>
+                    <div class="text-right font-mono text-cyan-200" id="val-incl">-</div>
+                    <div class="text-gray-400" id="lbl-period">公轉週期:</div>
+                    <div class="text-right font-mono text-blue-200" id="val-period">-</div>
+                    <div class="text-gray-400" id="lbl-spin">自轉週期:</div>
+                    <div class="text-right font-mono text-emerald-200" id="val-spin">-</div>
+                    <div class="text-gray-400" id="lbl-axial">自轉軸傾角:</div>
+                    <div class="text-right font-mono text-emerald-200" id="val-axial">-</div>
+                    <div class="text-gray-400" id="lbl-spindir">自轉方向:</div>
+                    <div class="text-right font-mono text-emerald-200" id="val-spindir">-</div>
+                    <div class="text-gray-400" id="lbl-moons">已知衛星:</div>
+                    <div class="text-right font-mono text-violet-200" id="val-moons">-</div>
+                    <div class="text-gray-400" id="lbl-mass">質量:</div>
+                    <div class="text-right font-mono text-blue-200" id="val-mass">-</div>
+                    <div class="text-gray-400" id="lbl-dia">直徑:</div>
+                    <div class="text-right font-mono text-blue-200" id="val-dia">-</div>
+                    <div class="text-gray-400" id="lbl-dens">平均密度:</div>
+                    <div class="text-right font-mono text-blue-200" id="val-dens">-</div>
+                </div>
+             </div>
+        </div>
+
+        <!-- 比例附註（教學用） -->
+        <div class="pointer-events-none absolute top-16 right-4 z-20 max-w-[220px] text-right">
+            <p id="disclaimer-zh" class="text-[11px] md:text-xs text-gray-400/90 leading-snug drop-shadow-md">天體大小不按比例；軌道為 J2000 克卜勒橢圓（含離心率、傾角、升交點／近日點黃經）；距離按 AU 壓縮。古柏帶與歐特雲為示意粒子。</p>
+            <p id="disclaimer-en" class="hidden text-[11px] md:text-xs text-gray-400/90 leading-snug drop-shadow-md">Sizes not to scale; J2000 Keplerian orbits (e, i, Ω, ω); distances scaled in AU. Kuiper Belt &amp; Oort Cloud are schematic.</p>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="pointer-events-auto bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-4 px-4 flex flex-col items-center gap-4">
+            
+            <!-- Playback Controls -->
+            <div class="flex items-center gap-6 bg-gray-900/80 backdrop-blur rounded-full px-6 py-2 border border-gray-700 shadow-xl">
+                <button id="btn-pause" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-400 text-white transition">
+                    <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <svg id="icon-play" class="hidden" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+                
+                <div class="flex items-center gap-3">
+                    <label for="speed-slider" id="txt-speed" class="text-xs text-gray-400 font-bold uppercase tracking-wider">速度</label>
+                    <input type="range" id="speed-slider" min="0" max="5" step="0.1" value="1" class="w-32 cursor-pointer accent-blue-500 h-1.5 bg-gray-700 rounded-lg appearance-none">
+                    <span id="speed-display" class="text-xs font-mono text-blue-300 w-8">1.0x</span>
+                </div>
+                <button type="button" id="btn-reset" class="px-3 py-1 rounded-full bg-slate-700 hover:bg-slate-600 text-xs font-bold border border-slate-500 transition inline-flex items-center gap-1" title="重置"><span aria-hidden="true">↺</span><span id="txt-reset">重置</span></button>
+            </div>
+
+            <!-- Planet Navigation Strip -->
+            <div class="w-full max-w-6xl flex flex-col gap-1 px-2 pb-2">
+                <div id="nav-planets" class="w-full overflow-x-auto no-scrollbar flex justify-start md:justify-center gap-2 py-1"></div>
+                <div id="nav-others" class="w-full overflow-x-auto no-scrollbar flex justify-start md:justify-center gap-2 py-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steps Modal -->
+    <div id="modal-steps" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-gray-900 border border-gray-600 rounded-xl max-w-2xl w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-6 overflow-y-auto">
+                <div class="flex justify-between items-start mb-4">
+                    <h2 id="steps-title" class="text-2xl font-bold text-emerald-400">觀察步驟</h2>
+                    <button type="button" class="btn-close-steps text-gray-400 hover:text-white transition" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <ol class="space-y-3 text-gray-300 text-sm leading-relaxed list-decimal pl-5">
+                    <li id="step-s1"></li>
+                    <li id="step-s2"></li>
+                    <li id="step-s3"></li>
+                    <li id="step-s4"></li>
+                    <li id="step-s5"></li>
+                </ol>
+                <div class="mt-6 text-right">
+                    <button type="button" class="btn-ok-steps px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition">了解</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="modal-help" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <div class="bg-gray-900 border border-gray-600 rounded-xl max-w-md w-full shadow-2xl overflow-hidden transform transition-all duration-300">
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <h2 id="help-title" class="text-2xl font-bold text-blue-400">模擬說明</h2>
+                    <button class="btn-close text-gray-400 hover:text-white transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                
+                <div class="space-y-4 text-gray-300 text-sm leading-relaxed">
+                    <div class="bg-blue-900/30 p-3 rounded border border-blue-800">
+                        <p id="help-tip"><span class="font-bold text-yellow-400">教學重點：</span> 本模型包含 <span class="text-white font-bold">小行星帶</span>、<span class="text-white font-bold">古柏帶</span>、<span class="text-white font-bold">歐特雲</span>（示意）、<span class="text-white font-bold">矮行星</span>與彗星軌道。天體大小不按比例。行星貼圖自 <a class="text-blue-300 underline hover:text-blue-200" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a> 遠端載入（CC BY 4.0）。點擊星體可鎖定並顯示標示。</p>
+                    </div>
+                    <ul class="list-disc pl-5 space-y-2">
+                        <li id="help-ctrl-1">點擊星體：聚焦並查看資訊</li>
+                        <li id="help-ctrl-2">拖曳滑鼠：旋轉視角</li>
+                        <li id="help-ctrl-3">滾輪滑動：縮放遠近</li>
+                    </ul>
+                </div>
+                <div class="mt-6 text-right">
+                    <button class="btn-ok px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold transition">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Principle Modal -->
+    <div id="modal-principle" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-gray-800 border border-gray-500 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col max-h-[90vh]">
+            <div class="p-6 border-b border-gray-700 flex justify-between items-center bg-gray-900">
+                <h2 id="principle-title" class="text-2xl font-bold text-yellow-400">原理解說</h2>
+                <button type="button" class="btn-close-principle text-gray-400 hover:text-white transition" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="principle-body" class="p-6 overflow-y-auto text-gray-200 space-y-6 text-sm md:text-base leading-relaxed"></div>
+            <div class="p-4 bg-gray-900 text-right border-t border-gray-700">
+                <button type="button" class="btn-ok-principle px-6 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-bold transition">了解</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Modal -->
+    <div id="modal-quiz" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-gray-800 border border-gray-500 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col max-h-[90vh]">
+            <div class="p-4 md:p-6 border-b border-gray-700 flex justify-between items-center bg-gray-900 gap-2">
+                <h2 id="quiz-title" class="text-xl md:text-2xl font-bold text-violet-300">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-900/60 text-violet-100 border border-violet-500 font-semibold">顯示參考答案</button>
+                    <button type="button" class="btn-close-quiz text-gray-400 hover:text-white transition" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="quiz-body" class="p-4 md:p-6 overflow-y-auto text-gray-200 text-sm space-y-4"></div>
+            <div class="p-4 bg-gray-900 text-right border-t border-gray-700">
+                <button type="button" class="btn-ok-quiz px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold transition">了解</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+        // --- 多語言資料 (Translations) ---
+        const translations = {
+            zh: {
+                title: "太陽系 3D 教學",
+                badge: "中一科學",
+                badgeSubject: "天文",
+                help: "說明",
+                steps: "觀察步驟",
+                principle: "原理解說",
+                quiz: "課堂問題",
+                reset: "重置",
+                speed: "速度",
+                stepsTitle: "觀察步驟",
+                s1: "按底欄重置（應回速度 1×、取消鎖定、相機俯瞰；語言不變）。拖曳旋轉、滾輪縮放，先從整體鳥瞰太陽系。確認本檔是 only_sims 太陽系（slug `solar-system`），不是 qos／Drive 的 `astronomy-solar-system-model` 另一檔。",
+                s2: "點擊舞台上的地球或底欄導航「地球」，觀察鎖定環與左上資訊面板：類型應為「行星」，並讀取軌道半長軸（約 1 AU）與公轉週期。再點太陽，確認類型為恆星、半長軸 0 AU。",
+                s3: "將速度滑桿調高（例如 3×–5×），交替點選水星與海王星（或木星），比較公轉快慢——半長軸愈大，公轉愈慢（克卜勒示意）。可暫停凍結畫面讀數。",
+                s4: "在「其他」導航列點冥王星，確認類型為矮行星，並留意較大的軌道傾角。再點哈雷彗星，觀察高離心率與傾角＞90°（逆行公轉）。縮放時可留意小行星帶／古柏帶示意粒子（大小仍不按比例）。",
+                s5: "用自己的話複述：日心、內外公轉快慢、行星／矮行星差異。再按重置：語言不變；回到俯瞰未鎖定狀態。打開原理解說與課堂問題——確認主軸是本 only_sims 太陽系 3D 模型，不是 HR 圖、火箭登月或 sibling `astronomy-solar-system-model`。",
+                
+                // Labels
+                lblSemi: "軌道半長軸:",
+                lblEcc: "離心率:",
+                lblIncl: "軌道傾角:",
+                lblPeriod: "公轉週期:",
+                lblSpin: "自轉週期:",
+                lblAxial: "自轉軸傾角:",
+                lblSpindir: "自轉方向:",
+                lblMoons: "已知衛星:",
+                lblMass: "質量:",
+                lblDia: "直徑:",
+                lblDens: "平均密度:",
+                unitMass: " 倍地球",
+                spinPrograde: "順行",
+                spinRetrograde: "逆行",
+                moonsNone: "0",
+                sunMoons: "—",
+                
+                // Help Modal
+                modalTitle: "模擬說明",
+                modalTip: `<span class="font-bold text-yellow-400">教學重點：</span> 本模型包含 <span class="text-white font-bold">小行星帶</span>、<span class="text-white font-bold">古柏帶</span>、<span class="text-white font-bold">歐特雲</span>（示意粒子）、<span class="text-white font-bold">矮行星</span>與<span class="text-white font-bold">彗星軌道</span>。天體大小不按比例。行星／太陽／背景星野貼圖經 jsDelivr（KyleGough／homer-jay）及 Wikimedia 直鏈自 <a class="text-blue-300 underline hover:text-blue-200" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a> 遠端載入（CC BY 4.0；冥王星為新視野號合成球面圖）。點擊星體可鎖定並顯示詳細數據。`,
+                modalCtrl1: "點擊星體：聚焦並查看詳細物理數據",
+                modalCtrl2: "拖曳滑鼠：旋轉視角",
+                modalCtrl3: "滾輪滑動：縮放遠近",
+                
+                // Principle Modal
+                principleTitle: "原理解說",
+                conceptTitle: "概念",
+                conceptHtml: "<strong>太陽系模型</strong>（only_sims <code>solar-system</code>）以太陽為中心（日心說），展示行星、矮行星、彗星沿軌道公轉，並可觀察自轉與基本物理數據。本模擬用 3D 克卜勒橢圓示意（含離心率與傾角），幫助初中／高中建立「日心結構＋軌道參數＋天體分類」的課堂圖像；天體大小刻意不按比例，以免外行星在螢幕上過小而無法操作。",
+                mechTitle: "機制／流程",
+                mechHtml: "<ol class='list-decimal pl-5 space-y-2'><li><strong>日心結構</strong>：太陽提供光照；所有列舉天體繞太陽公轉（地球不作為中心）。</li><li><strong>軌道</strong>：以半長軸 <em>a</em>（AU）、離心率 <em>e</em>、傾角 <em>i</em> 等參數繪製橢圓；平均角速度大致 ∝ <em>a</em><sup>−3/2</sup>，故水星遠快於海王星。</li><li><strong>自轉</strong>：各體有自轉週期與軸傾角；逆行自轉（如金星、天王星、冥王星）會在資訊面板顯示。土星環位於赤道面，隨軸傾呈現。</li><li><strong>IAU 分類</strong>：行星＝繞日＋近球體＋清除鄰近區域；矮行星缺第三項（冥王星、穀神星等）。彗星常有高離心率；哈雷彗星傾角＞90° 為逆行公轉。</li><li><strong>分帶示意</strong>：小行星帶（火星—木星間，含穀神星）、古柏帶（海王星外）、歐特雲（極遠示意粒子）——皆為教學示意，非完整星曆目錄。</li><li><strong>範圍</strong>：本檔是課堂示意，不是精確星曆推算，不是真實尺寸比例，不是 HR 圖／火箭軌跡；亦不是 qos <code>astronomy-solar-system-model</code> 那一份 HTML（即使目前原始碼可能相同，優化後仍須分檔維護）。</li></ol>",
+                egTitle: "日常／課堂例子",
+                egHtml: "晚上看到的「行星」相對恆星緩慢移動，是因為它們與地球都在繞日；古代地心說難以簡潔解釋逆行視運動，日心說＋橢圓軌道提供更簡潔模型。課堂用模擬加速時間，才能在一節課內對照內外行星的公轉節奏。",
+
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
+                ansLabel: "參考答案",
+
+                btnOk: "了解",
+                typePlanet: "行星",
+                typeDwarf: "矮行星",
+                typeComet: "彗星",
+                typeStar: "恆星"
+            },
+            en: {
+                title: "Solar System 3D",
+                badge: "S1 Science",
+                badgeSubject: "Astronomy",
+                help: "Help",
+                steps: "Steps",
+                principle: "Principles",
+                quiz: "Quiz",
+                reset: "Reset",
+                speed: "SPEED",
+                stepsTitle: "Observation Steps",
+                s1: "Bottom-bar Reset (speed 1×／clear focus／overview camera; language unchanged). Drag to rotate and scroll to zoom for a wide view. Confirm this file is the only_sims Solar System (slug `solar-system`), not the qos sibling `astronomy-solar-system-model`.",
+                s2: "Click Earth (scene or nav strip). Check the info panel: type Planet, semi-major axis ≈ 1 AU, and orbital period. Then click Sun: type Star, semi-major axis 0 AU.",
+                s3: "Raise the speed slider (e.g. 3×–5×). Alternate Mercury and Neptune (or Jupiter) and compare orbital rates—larger semi-major axis → slower orbit (Keplerian schematic). Pause if you need to read values.",
+                s4: "In the others strip, click Pluto (type Dwarf Planet, larger inclination). Then Halley: high eccentricity and inclination > 90° (retrograde orbit). Zoom to notice asteroid／Kuiper belt particles (sizes still not to scale).",
+                s5: "Restate heliocentrism, inner vs outer rates, and planet vs dwarf planet. Reset again: language unchanged; overview, no focus. Open Principles／Quiz—focus this only_sims Solar System 3D model, not HR diagrams, moon rockets, or sibling `astronomy-solar-system-model`.",
+
+                // Labels
+                lblSemi: "Semi-major axis:",
+                lblEcc: "Eccentricity:",
+                lblIncl: "Orbital incl.:",
+                lblPeriod: "Orbital period:",
+                lblSpin: "Rotation period:",
+                lblAxial: "Axial tilt:",
+                lblSpindir: "Rotation:",
+                lblMoons: "Known moons:",
+                lblMass: "Mass:",
+                lblDia: "Diameter:",
+                lblDens: "Density:",
+                unitMass: " x Earths",
+                spinPrograde: "Prograde",
+                spinRetrograde: "Retrograde",
+                moonsNone: "0",
+                sunMoons: "—",
+
+                // Help Modal
+                modalTitle: "Simulation Guide",
+                modalTip: `<span class="font-bold text-yellow-400">Key Features:</span> Includes <span class="text-white font-bold">Asteroid Belt</span>, <span class="text-white font-bold">Kuiper Belt</span>, <span class="text-white font-bold">Oort Cloud</span> (schematic particles), <span class="text-white font-bold">Dwarf Planets</span>, and a <span class="text-white font-bold">comet orbit</span>. Sizes are not to scale. Planet / Sun / sky textures load via jsDelivr (KyleGough / homer-jay) and Wikimedia direct links from <a class="text-blue-300 underline hover:text-blue-200" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a> (CC BY 4.0; Pluto uses a New Horizons-based map). Click a body to focus and view data.`,
+                modalCtrl1: "Click Planet: Focus & View Data",
+                modalCtrl2: "Drag: Rotate View",
+                modalCtrl3: "Scroll: Zoom In/Out",
+
+                // Principle Modal
+                principleTitle: "Principles",
+                conceptTitle: "Concept",
+                conceptHtml: "This <strong>Solar System model</strong> (only_sims slug <code>solar-system</code>) is heliocentric: planets, dwarf planets, and a comet orbit the Sun, with spin and basic physical data in the info panel. The 3D Keplerian ellipses (with eccentricity and inclination) build a classroom picture of structure, orbital parameters, and classification. Body sizes are intentionally <strong>not to scale</strong> so outer worlds remain clickable.",
+                mechTitle: "Mechanism／workflow",
+                mechHtml: "<ol class='list-decimal pl-5 space-y-2'><li><strong>Heliocentric layout</strong>: the Sun lights the scene; listed bodies orbit the Sun (Earth is not the center).</li><li><strong>Orbits</strong>: ellipses from semi-major axis <em>a</em> (AU), eccentricity <em>e</em>, inclination <em>i</em>, etc.; mean motion roughly ∝ <em>a</em><sup>−3/2</sup>, so Mercury orbits much faster than Neptune.</li><li><strong>Spin</strong>: each body has a rotation period and axial tilt; retrograde spin (e.g. Venus, Uranus, Pluto) is shown in the info panel. Saturn’s rings lie in the equatorial plane and tilt with the spin axis.</li><li><strong>IAU classes</strong>: a planet orbits the Sun, is nearly round, and has <strong>cleared its neighborhood</strong>; dwarf planets fail the third criterion (Pluto, Ceres, …). Comets often have high eccentricity; Halley’s inclination &gt; 90° means a retrograde orbit.</li><li><strong>Belts (schematic)</strong>: asteroid belt (Mars–Jupiter, including Ceres), Kuiper belt (beyond Neptune), Oort cloud (distant particles)—teaching sketches, not a full ephemeris catalog.</li><li><strong>Scope</strong>: classroom schematic—not precise ephemerides, true scale, HR diagrams, or rocket trajectories; and not the qos <code>astronomy-solar-system-model</code> HTML sibling (even if sources once matched byte-for-byte, keep separate optimized deliverables).</li></ol>",
+                egTitle: "Everyday／class example",
+                egHtml: "Night-sky “planets” drift against the stars because both they and Earth orbit the Sun. Geocentrism struggled with retrograde loops; heliocentrism plus ellipses is cleaner. Speeding up time in the sim lets a class compare inner vs outer orbital rates in one lesson.",
+
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
+                ansLabel: "Answer",
+
+                btnOk: "Got it",
+                typePlanet: "Planet",
+                typeDwarf: "Dwarf Planet",
+                typeComet: "Comet",
+                typeStar: "Star"
+            }
+        };
+
+
+        // --- 課堂問題（正好五題；雙語） ---
+        const QUIZ = [
+            {
+                zh: {
+                    q: "重置後，用導航或點擊鎖定地球，讀左上資訊面板。哪項最符合本模擬（only_sims `solar-system`）？",
+                    opts: [
+                        "A. 類型為行星；軌道半長軸約 1 AU",
+                        "B. 類型為矮行星；半長軸約 39 AU",
+                        "C. 類型為彗星；離心率接近 0.97",
+                        "D. 鎖定地球會自動打開 HR 圖並顯示主序帶"
+                    ],
+                    ans: "A。對應 celestialData Earth（planet，a＝1）；B 像冥王星；C 像哈雷；D 為 HR 圖 sibling 離題。"
+                },
+                en: {
+                    q: "After Reset, focus Earth via nav or click and read the info panel. Which best matches this only_sims `solar-system` sim?",
+                    opts: [
+                        "A. Type is Planet; semi-major axis ≈ 1 AU",
+                        "B. Type is Dwarf Planet; semi-major axis ≈ 39 AU",
+                        "C. Type is Comet; eccentricity ≈ 0.97",
+                        "D. Focusing Earth opens an HR diagram on the main sequence"
+                    ],
+                    ans: "A. Matches celestialData Earth (planet, a＝1); B is Pluto-like; C is Halley-like; D is an HR-diagram sibling distraction."
+                }
+            },
+            {
+                zh: {
+                    q: "將速度調高，分別觀察水星與海王星（或木星）的公轉。先預測哪一顆公轉較快及原因，再操作核對。",
+                    opts: [],
+                    ans: "水星半長軸較小，公轉應明顯快於海王星（meanMotionRad ∝ a^(−1.5)）；海王星質量更大≠轉得更快；速度滑桿同時加快公轉示意。"
+                },
+                en: {
+                    q: "Raise the speed and compare Mercury vs Neptune (or Jupiter). Predict which orbits faster and why, then check in the sim.",
+                    opts: [],
+                    ans: "Mercury’s smaller semi-major axis → clearly faster orbit than Neptune (meanMotionRad ∝ a^(−1.5)); more massive Neptune does not mean faster orbit; the speed slider scales orbital motion."
+                }
+            },
+            {
+                zh: {
+                    q: "在導航「其他」列點選冥王星，看類型標籤與原理中的 IAU 定義。哪項正確？",
+                    opts: [
+                        "A. 本模擬標為矮行星——繞日、近球體，但未清除軌道鄰近區域",
+                        "B. 本模擬仍把它標成第八大行星",
+                        "C. 點冥王星會切換到火箭登月軌跡頁",
+                        "D. 矮行星定義與行星完全相同，只是顏色較暗"
+                    ],
+                    ans: "A。對應 type＝dwarf＋principle IAU 第三條件；B／C／D 錯誤或離題。"
+                },
+                en: {
+                    q: "From the others strip, select Pluto and check its type plus the IAU idea in Principles. Which is correct?",
+                    opts: [
+                        "A. Labeled dwarf planet—orbits Sun, nearly round, but has not cleared its neighborhood",
+                        "B. This sim still labels it the eighth major planet",
+                        "C. Clicking Pluto switches into a moon-rocket trajectory page",
+                        "D. Dwarf planets use the exact same definition as planets; they are only dimmer"
+                    ],
+                    ans: "A. Matches type＝dwarf plus the IAU third criterion; B／C／D are wrong or off-topic."
+                }
+            },
+            {
+                zh: {
+                    q: "先任意鎖定一顆外行星並把速度拉高，再按重置。用自己的話寫：（1）重置後速度／鎖定／相機大致應如何；（2）重置會不會切換中／EN；（3）本模擬主軸是什麼（一句，並說明不是 sibling `astronomy-solar-system-model` 那一檔即可）。",
+                    opts: [],
+                    ans: "（1）速度回 1×、取消鎖定／隱藏資訊面板、相機回到俯瞰；（2）不切換語言；（3）only_sims 太陽系 3D 日心模型（軌道參數＋行星／矮行星／彗星，slug `solar-system`）——不是 qos `astronomy-solar-system-model`、也不是 HR／火箭模擬。"
+                },
+                en: {
+                    q: "Focus an outer planet and raise speed, then press Reset. In your own words: (1) expected speed／focus／camera after Reset; (2) whether Reset switches zh／EN; (3) one sentence on this sim’s focus (and that it is not the sibling `astronomy-solar-system-model` file).",
+                    opts: [],
+                    ans: "(1) Speed back to 1×, clear focus／hide info, overview camera; (2) Reset must not switch language; (3) only_sims heliocentric Solar System 3D model (orbits＋planet／dwarf／comet, slug `solar-system`)—not qos `astronomy-solar-system-model`, nor HR／rocket sims."
+                }
+            },
+            {
+                zh: {
+                    q: "根據本模擬控件與設計，哪項最正確？",
+                    opts: [
+                        "A. 3D 日心系、可鎖定行星／矮行星／彗星、讀軌道參數與速度滑桿，並有步驟／原理／五題／中EN／重置——不是 HR 圖、不是火箭登月軌道、也不是 qos `astronomy-solar-system-model` 的地球–月球開普勒頁",
+                        "B. 點任何行星都會開啟酸鹼滴定曲線",
+                        "C. 重置會強制刪除所有行星貼圖並切英文",
+                        "D. 主要教學目標是測定離子遷移速率"
+                    ],
+                    ans: "A。隔離滴定／離子遷移／HR／火箭 sibling；Reset 不改語言。"
+                },
+                en: {
+                    q: "Using this sim’s controls and design, which is most correct?",
+                    opts: [
+                        "A. 3D heliocentric view, focus planets／dwarfs／comets, read orbital params and speed slider, with steps／principle／five quiz items／zh-EN／Reset—not an HR diagram, moon-rocket trajectory, or the qos `astronomy-solar-system-model` Earth–Moon Kepler page",
+                        "B. Clicking any planet opens an acid–base titration curve",
+                        "C. Reset deletes all planet textures and forces English",
+                        "D. The main goal is measuring ion-migration rates"
+                    ],
+                    ans: "A. Separates titration／ion-migration／HR／rocket siblings; Reset does not switch language."
+                }
+            }
+        ];
+        if (QUIZ.length !== 5) throw new Error('QUIZ must have exactly 5 items');
+
+        let quizReveal = false;
+        const modalCloseTimers = {};
+
+        // --- 全域變數 ---
+        let scene, camera, renderer, labelRenderer, controls;
+        let sun, sunLight;
+        let asteroidBelt;
+        let kuiperBelt;
+        let oortCloud;
+        const orbitLineMaterials = [];
+        let selectionIndicator; 
+        const planets = []; 
+        let moonPivot; 
+        let isPaused = false;
+        let speedMultiplier = 1;
+        
+        let targetObject = null;
+        let targetSize = 10; 
+        let currentLang = 'zh';
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const loadingManager = new THREE.LoadingManager();
+        const textureLoader = new THREE.TextureLoader(loadingManager);
+        textureLoader.crossOrigin = 'anonymous';
+        const textureCache = new Map();
+
+        /** 遠端貼圖（Solar System Scope CC BY 4.0；KyleGough / homer-jay jsDelivr + Wikimedia 直鏈） */
+        const TEX_CDN = 'https://cdn.jsdelivr.net/gh/KyleGough/solar-system@master/static/textures/';
+        const TEX = {
+            sun: TEX_CDN + 'sun.jpg',
+            stars: 'https://cdn.jsdelivr.net/gh/homer-jay/solar-system-textures@master/stars_milky_way.jpg',
+            mercury: TEX_CDN + 'mercury.jpg',
+            venus: TEX_CDN + 'venus-clouds.jpg',
+            earth: TEX_CDN + 'earth.jpg',
+            mars: TEX_CDN + 'mars.jpg',
+            jupiter: TEX_CDN + 'jupiter.jpg',
+            saturn: TEX_CDN + 'saturn.jpg',
+            uranus: TEX_CDN + 'uranus.jpg',
+            neptune: TEX_CDN + 'neptune.jpg',
+            moon: TEX_CDN + 'moon.jpg',
+            earthClouds: TEX_CDN + 'earth-clouds.jpg',
+            saturnRing: TEX_CDN + 'saturn-ring.png',
+            ceres: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Solarsystemscope_texture_2k_ceres_fictional.jpg',
+            haumea: 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Solarsystemscope_texture_2k_haumea_fictional.jpg',
+            eris: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Solarsystemscope_texture_4k_eris_fictional.jpg',
+            pluto: 'https://upload.wikimedia.org/wikipedia/commons/8/8c/Pluto_map.jpg'
+        };
+
+        function loadTex(path) {
+            if (!textureCache.has(path)) {
+                const tex = textureLoader.load(
+                    path,
+                    (t) => { t.colorSpace = THREE.SRGBColorSpace; },
+                    undefined,
+                    () => { textureCache.delete(path); console.warn('Texture failed:', path); }
+                );
+                tex.colorSpace = THREE.SRGBColorSpace;
+                textureCache.set(path, tex);
+            }
+            return textureCache.get(path);
+        }
+
+        function hexStr(color) {
+            return '#' + color.toString(16).padStart(6, '0');
+        }
+
+        /** 依天體類型建立 PBR 材質（僅受太陽光照，不自發光） */
+        function makeBodyMaterial(data) {
+            if (data.tex) {
+                const isGas = ['Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Venus'].includes(data.name);
+                const isIce = data.type === 'dwarf' || data.type === 'comet';
+                return new THREE.MeshStandardMaterial({
+                    map: loadTex(data.tex),
+                    color: 0xffffff,
+                    roughness: isGas ? 0.48 : (isIce ? 0.95 : 0.88),
+                    metalness: isGas ? 0.02 : 0.03,
+                    emissive: 0x000000,
+                    emissiveIntensity: 0
+                });
+            }
+            return new THREE.MeshStandardMaterial({
+                color: data.color,
+                roughness: 0.9,
+                metalness: 0.02,
+                emissive: 0x000000,
+                emissiveIntensity: 0
+            });
+        }
+
+        loadingManager.onLoad = hideLoadingScreen;
+        loadingManager.onError = (url) => console.warn('Texture load error:', url);
+        function hideLoadingScreen() {
+            const loadingScreen = document.getElementById('loading');
+            if (loadingScreen) {
+                loadingScreen.style.opacity = 0;
+                setTimeout(() => loadingScreen.remove(), 500);
+            }
+        }
+        setTimeout(hideLoadingScreen, 8000);
+
+        // --- 軌道力學（J2000 近似軌道根數；a 單位 AU）---
+        // 公轉週期 T ∝ a^(3/2)（克卜勒第三定律）；自轉 obliquityDeg / spinSign 為近似值
+        const DEG2RAD = Math.PI / 180;
+        const AU_SCALE = 45; // 1 AU → 場景單位（地球約 45）
+
+        /** 求偏近點角 E：M = E − e sin E */
+        function solveKepler(M, e) {
+            let m = ((M % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+            let E = e > 0.85 ? Math.PI : m;
+            for (let k = 0; k < 14; k++) {
+                const f = E - e * Math.sin(E) - m;
+                const fp = 1 - e * Math.cos(E);
+                const dE = f / fp;
+                E -= dE;
+                if (Math.abs(dE) < 1e-8) break;
+            }
+            return E;
+        }
+
+        /** 軌道平面 (xp, yp) → 場景座標（黃道 x–y → Three.js x–z 水平面） */
+        function orbitPlaneToScene(orb, xp, yp) {
+            const i = orb.i * DEG2RAD;
+            const Om = orb.Omega * DEG2RAD;
+            const w = orb.omega * DEG2RAD;
+            const cosO = Math.cos(Om), sinO = Math.sin(Om);
+            const cosw = Math.cos(w), sinw = Math.sin(w);
+            const cosi = Math.cos(i), sini = Math.sin(i);
+            const ex = (cosO * cosw - sinO * sinw * cosi) * xp + (-cosO * sinw - sinO * cosw * cosi) * yp;
+            const ey = (sinO * cosw + cosO * sinw * cosi) * xp + (-sinO * sinw + cosO * cosw * cosi) * yp;
+            const ez = (sini * sinw) * xp + (sini * cosw) * yp;
+            return { x: ex, y: ez, z: ey };
+        }
+
+        /** 由平均近點角 M（弧度）求場景座標（公轉動畫用） */
+        function orbitPositionFromM(orb, M) {
+            const a = orb.a * AU_SCALE;
+            const e = orb.e;
+            const E = solveKepler(M, e);
+            const sinE = Math.sin(E);
+            const cosE = Math.cos(E);
+            const r = a * (1 - e * cosE);
+            const nu = Math.atan2(Math.sqrt(1 - e * e) * sinE, cosE - e);
+            return orbitPlaneToScene(orb, r * Math.cos(nu), r * Math.sin(nu));
+        }
+
+        /** 由真近點角 ν 求場景座標（繪製軌道線用） */
+        function orbitPositionFromNu(orb, nu) {
+            const a = orb.a * AU_SCALE;
+            const e = orb.e;
+            const r = a * (1 - e * e) / (1 + e * Math.cos(nu));
+            return orbitPlaneToScene(orb, r * Math.cos(nu), r * Math.sin(nu));
+        }
+
+        /** 繪製軌道：均勻取樣真近點角（高離心率天體若用 M 取樣會失真成折線） */
+        function sampleOrbitPoints(orb, segments = 128) {
+            const pts = [];
+            for (let k = 0; k <= segments; k++) {
+                const nu = (k / segments) * Math.PI * 2;
+                const p = orbitPositionFromNu(orb, nu);
+                pts.push(new THREE.Vector3(p.x, p.y, p.z));
+            }
+            return pts;
+        }
+
+        /** 軌道平面法線（場景座標） */
+        function orbitNormalInScene(orb) {
+            const i = orb.i * DEG2RAD;
+            const Om = orb.Omega * DEG2RAD;
+            const nx = Math.sin(i) * Math.sin(Om);
+            const ny = Math.cos(i);
+            const nz = -Math.sin(i) * Math.cos(Om);
+            return new THREE.Vector3(nx, ny, nz).normalize();
+        }
+
+        /** 選取彗星時，將視角對準軌道平面以看見完整橢圓 */
+        function frameCometOrbitView(orb) {
+            const normal = orbitNormalInScene(orb);
+            const ap = orb.a * (1 + orb.e) * AU_SCALE;
+            const dist = ap * 1.25;
+            const camPos = normal.clone().multiplyScalar(dist);
+            camPos.add(new THREE.Vector3(dist * 0.08, dist * 0.05, dist * 0.06));
+            camera.position.copy(camPos);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        /** 平均角速度 ∝ a^(-3/2)（地球 = 1） */
+        function meanMotionRad(orb) {
+            return Math.pow(orb.a, -1.5);
+        }
+
+        const celestialData = [
+            { 
+                name: "Mercury", zhName: "水星", type: "planet",
+                size: 1.2, a: 0.387098, e: 0.205630, i: 7.005, Omega: 48.331, omega: 29.124, M0: 174.796,
+                color: 0xA5A5A5, obliquityDeg: 0.03, spinSign: 1,
+                tex: TEX.mercury,
+                descZH: "離太陽最近，軌道離心率最大(最扁)。", 
+                descEN: "Closest to Sun, highest orbital eccentricity.",
+                mass: "0.055", dia: "4,879 km", dens: "5.43", period: "88 天", periodEN: "88 days",
+                spinZH: "58.6 天", spinEN: "58.6 days", moons: 0
+            },
+            { 
+                name: "Venus", zhName: "金星", type: "planet",
+                size: 1.8, a: 0.723332, e: 0.006772, i: 3.395, Omega: 76.680, omega: 54.884, M0: 50.115,
+                color: 0xE3BB76, obliquityDeg: 177.36, spinSign: -1,
+                tex: TEX.venus,
+                descZH: "最亮的行星，逆行自轉；自轉軸幾乎「倒轉」。", 
+                descEN: "Brightest planet; retrograde rotation and extreme axial tilt.",
+                mass: "0.815", dia: "12,104 km", dens: "5.24", period: "225 天", periodEN: "225 days",
+                spinZH: "243 天", spinEN: "243 days", moons: 0
+            },
+            { 
+                name: "Earth", zhName: "地球", type: "planet",
+                size: 2.0, a: 1.000000, e: 0.016708, i: 0.00005, Omega: 0.0, omega: 102.947, M0: 357.517,
+                color: 0x2233FF, obliquityDeg: 23.44, spinSign: 1,
+                tex: TEX.earth,
+                descZH: "我們的家園，擁有液態水與生命。", 
+                descEN: "Our home, with liquid water and life.",
+                mass: "1.000", dia: "12,742 km", dens: "5.51", period: "365 天", periodEN: "365 days",
+                spinZH: "23 時 56 分", spinEN: "23 h 56 min", moons: 1
+            },
+            { 
+                name: "Mars", zhName: "火星", type: "planet",
+                size: 1.5, a: 1.523679, e: 0.093400, i: 1.850, Omega: 49.558, omega: 286.502, M0: 19.373,
+                color: 0xDD4124, obliquityDeg: 25.19, spinSign: 1,
+                tex: TEX.mars,
+                descZH: "紅色星球，表面富含氧化鐵。", 
+                descEN: "The Red Planet, surface rich in iron oxide.",
+                mass: "0.107", dia: "6,779 km", dens: "3.93", period: "687 天", periodEN: "687 days",
+                spinZH: "24 時 37 分", spinEN: "24 h 37 min", moons: 2
+            },
+            {
+                name: "Ceres", zhName: "穀神星", type: "dwarf",
+                size: 0.8, a: 2.7659, e: 0.0758, i: 10.593, Omega: 80.327, omega: 73.597, M0: 95.0,
+                color: 0x888888, obliquityDeg: 4.0, spinSign: 1,
+                tex: TEX.ceres,
+                descZH: "位於小行星帶中唯一的矮行星。",
+                descEN: "The only dwarf planet located in the asteroid belt.",
+                mass: "0.00015", dia: "946 km", dens: "2.16", period: "4.6 年", periodEN: "4.6 years",
+                spinZH: "9 小時", spinEN: "9 hours", moons: 0
+            },
+            { 
+                name: "Jupiter", zhName: "木星", type: "planet",
+                size: 6.0, a: 5.2044, e: 0.0489, i: 1.303, Omega: 100.492, omega: 275.066, M0: 20.020,
+                color: 0xD9A066, obliquityDeg: 3.13, spinSign: 1,
+                tex: TEX.jupiter,
+                descZH: "太陽系最大的行星，巨大的氣體巨行星。", 
+                descEN: "Largest planet, a massive gas giant.",
+                mass: "317.8", dia: "139,820 km", dens: "1.33", period: "11.9 年", periodEN: "11.9 years",
+                spinZH: "9 時 56 分", spinEN: "9 h 56 min", moons: "95+"
+            },
+            { 
+                name: "Saturn", zhName: "土星", type: "planet",
+                size: 5.0, a: 9.5826, e: 0.0565, i: 2.485, Omega: 113.665, omega: 336.046, M0: 317.020,
+                color: 0xEAD6B8, obliquityDeg: 26.73, spinSign: 1,
+                tex: TEX.saturn,
+                descZH: "擁有最壯觀的行星環系統（環在赤道面，隨自轉軸傾斜）。", 
+                descEN: "Famous for its rings in the equatorial plane, tilted with the spin axis.",
+                mass: "95.2", dia: "116,460 km", dens: "0.69", period: "29.5 年", periodEN: "29.5 years",
+                spinZH: "10 時 33 分", spinEN: "10 h 33 min", moons: "146+",
+                hasRing: true 
+            },
+            { 
+                name: "Uranus", zhName: "天王星", type: "planet",
+                size: 3.5, a: 19.19126, e: 0.04717, i: 0.772, Omega: 74.006, omega: 96.998, M0: 142.241,
+                color: 0xA0DDE0, obliquityDeg: 97.77, spinSign: -1,
+                tex: TEX.uranus,
+                descZH: "躺著自轉的冰巨星（逆行自轉）。", 
+                descEN: "Ice giant rotating on its side (retrograde rotation).",
+                mass: "14.5", dia: "50,724 km", dens: "1.27", period: "84 年", periodEN: "84 years",
+                spinZH: "17 時 14 分", spinEN: "17 h 14 min", moons: 28
+            },
+            { 
+                name: "Neptune", zhName: "海王星", type: "planet",
+                size: 3.4, a: 30.069, e: 0.00859, i: 1.770, Omega: 131.785, omega: 273.249, M0: 259.912,
+                color: 0x3F54BA, obliquityDeg: 28.32, spinSign: 1,
+                tex: TEX.neptune,
+                descZH: "太陽系最外圍的行星之一，風暴強烈的深藍色星球。", 
+                descEN: "Outer ice giant, deep blue with strong storms.",
+                mass: "17.1", dia: "49,244 km", dens: "1.64", period: "165 年", periodEN: "165 years",
+                spinZH: "16 時 6 分", spinEN: "16 h 6 min", moons: 16
+            },
+            {
+                name: "Pluto", zhName: "冥王星", type: "dwarf",
+                size: 0.9, a: 39.482, e: 0.2488, i: 17.140, Omega: 110.287, omega: 113.834, M0: 14.862,
+                color: 0xE3D2B4, obliquityDeg: 122.53, spinSign: -1,
+                tex: TEX.pluto,
+                descZH: "曾經是第九大行星；軌道傾角大、逆行自轉。",
+                descEN: "Once the ninth planet; high orbital inclination, retrograde rotation.",
+                mass: "0.002", dia: "2,377 km", dens: "1.85", period: "248 年", periodEN: "248 years",
+                spinZH: "6.4 天", spinEN: "6.4 days", moons: 5
+            },
+            {
+                name: "Haumea", zhName: "妊神星", type: "dwarf",
+                size: 0.8, a: 43.13, e: 0.1887, i: 28.19, Omega: 122.10, omega: 238.71, M0: 205.0,
+                color: 0xAAAAAA, obliquityDeg: 126.0, spinSign: 1,
+                tex: TEX.haumea,
+                descZH: "形狀像橢圓形的橄欖球，自轉速度極快。",
+                descEN: "Shaped like an oval football, rotates very fast.",
+                mass: "0.0007", dia: "~1,632 km", dens: "1.89", period: "285 年", periodEN: "285 years",
+                spinZH: "3.9 小時", spinEN: "3.9 hours", moons: 2
+            },
+            {
+                name: "Makemake", zhName: "鳥神星", type: "dwarf",
+                size: 0.85, a: 45.79, e: 0.1559, i: 28.96, Omega: 79.44, omega: 154.89, M0: 160.0,
+                color: 0xCD853F, obliquityDeg: 29.0, spinSign: 1,
+                descZH: "古柏帶中第二亮的矮行星，呈現紅棕色。",
+                descEN: "Second brightest dwarf planet in the Kuiper belt, reddish-brown.",
+                mass: "0.0005", dia: "1,430 km", dens: "1.7", period: "310 年", periodEN: "310 years",
+                spinZH: "22.5 小時", spinEN: "22.5 hours", moons: 1
+            },
+            {
+                name: "Eris", zhName: "鬩神星", type: "dwarf",
+                size: 0.9, a: 67.78, e: 0.4407, i: 44.04, Omega: 35.95, omega: 151.72, M0: 35.0,
+                color: 0xEEEEEE, obliquityDeg: 78.0, spinSign: 1,
+                tex: TEX.eris,
+                descZH: "質量比冥王星還大，軌道非常傾斜且扁長。",
+                descEN: "More massive than Pluto, highly inclined and eccentric orbit.",
+                mass: "0.0028", dia: "2,326 km", dens: "2.52", period: "558 年", periodEN: "558 years",
+                spinZH: "≈25.9 小時", spinEN: "≈25.9 hours", moons: 1
+            },
+            {
+                name: "Halley", zhName: "哈雷彗星", type: "comet",
+                size: 0.35, a: 17.834, e: 0.96714, i: 162.26, Omega: 58.420, omega: 111.33, M0: 0.0,
+                color: 0xC5C5C5, obliquityDeg: 0, spinSign: 1,
+                descZH: "著名週期彗星；高離心率軌道，傾角 > 90° 故為逆行公轉。",
+                descEN: "Famous periodic comet; highly eccentric orbit, retrograde (inclination > 90°).",
+                mass: "~2.2×10⁻¹⁰ M⊕", dia: "核 ~15×8 km", dens: "~0.6 g/cm³", period: "~76 年", periodEN: "~76 yr",
+                spinZH: "—", spinEN: "—", moons: 0
+            }
+        ];
+
+        const sunFacts = {
+            spinZH: "約 25 天（赤道）", spinEN: "≈25 days (equator)",
+            periodZH: "—", periodEN: "—"
+        };
+
+        function formatMoons(data, t) {
+            if (data.moons === 0 || data.moons === '0') return t.moonsNone;
+            return String(data.moons);
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20000);
+            camera.position.set(0, 150, 350);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.12;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            if ('useLegacyLights' in renderer) renderer.useLegacyLights = true;
+            container.appendChild(renderer.domElement);
+
+            labelRenderer = new CSS2DRenderer();
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0px';
+            labelRenderer.domElement.style.pointerEvents = 'none'; 
+            container.appendChild(labelRenderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement); 
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 15;
+            controls.maxDistance = 4500;
+
+            createUniverse();
+            createSun();
+
+            // 主光源：太陽中心點光源
+            sunLight = new THREE.PointLight(0xfff6e8, 8, 0, 2);
+            sunLight.position.set(0, 0, 0);
+            sun.add(sunLight);
+            scene.add(new THREE.AmbientLight(0x5a7098, 0.38));
+            scene.add(new THREE.HemisphereLight(0x7799bb, 0x101018, 0.22));
+            createAsteroidBelt();
+            createKuiperBelt();
+            createOortCloud();
+            createPlanets();
+            createSelectionIndicator(); 
+
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('click', onCanvasClick); 
+            setupUI();
+
+            animate();
+        }
+
+        function createSelectionIndicator() {
+            const geometry = new THREE.RingGeometry(1, 1.1, 64);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x00ffff, 
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            selectionIndicator = new THREE.Mesh(geometry, material);
+            selectionIndicator.visible = false;
+            scene.add(selectionIndicator);
+        }
+
+        function updateSelectionIndicator() {
+            if (targetObject && selectionIndicator) {
+                selectionIndicator.visible = true;
+                const worldPos = new THREE.Vector3();
+                targetObject.getWorldPosition(worldPos);
+                selectionIndicator.position.copy(worldPos);
+                
+                const scale = targetSize * 1.5; 
+                selectionIndicator.scale.set(scale, scale, scale);
+                selectionIndicator.rotation.y -= 0.03; 
+
+                const time = Date.now() * 0.003;
+                selectionIndicator.material.opacity = 0.5 + Math.sin(time) * 0.3;
+            } else if (selectionIndicator) {
+                selectionIndicator.visible = false;
+            }
+        }
+
+        function createLabel(name, zhName) {
+            const div = document.createElement('div');
+            div.className = 'planet-label';
+            div.textContent = currentLang === 'zh' ? zhName : name;
+            div.dataset.en = name;
+            div.dataset.zh = zhName;
+            
+            const label = new CSS2DObject(div);
+            label.position.set(0, 0, 0); 
+            label.center.set(0.5, 1.5);
+            return label;
+        }
+
+        function createUniverse() {
+            const geometry = new THREE.SphereGeometry(3000, 64, 64);
+            const tex = loadTex(TEX.stars);
+            const material = new THREE.MeshBasicMaterial({ map: tex, color: 0xaaccff, side: THREE.BackSide });
+            scene.add(new THREE.Mesh(geometry, material));
+        }
+
+        function createSun() {
+            const geometry = new THREE.SphereGeometry(10, 64, 64);
+            const tex = loadTex(TEX.sun);
+            const material = new THREE.MeshStandardMaterial({ 
+                map: tex,
+                emissive: 0xffaa33,
+                emissiveMap: tex,
+                emissiveIntensity: 1.65,
+                roughness: 1,
+                metalness: 0
+            });
+            sun = new THREE.Mesh(geometry, material);
+            sun.frustumCulled = false;
+            
+            const glowGeo = new THREE.SphereGeometry(13, 32, 32);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.22, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false });
+            sun.add(new THREE.Mesh(glowGeo, glowMat));
+            const coronaGeo = new THREE.SphereGeometry(16, 24, 24);
+            const coronaMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.08, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false });
+            sun.add(new THREE.Mesh(coronaGeo, coronaMat));
+
+            const label = createLabel("Sun", "太陽");
+            label.position.set(0, 12, 0);
+            sun.add(label);
+
+            scene.add(sun);
+        }
+
+        function createPlanets() {
+            celestialData.forEach(data => {
+                const orb = { a: data.a, e: data.e, i: data.i, Omega: data.Omega, omega: data.omega };
+                const orbitSegments = data.type === 'comet' ? 320 : (data.e > 0.35 ? 240 : 160);
+                const points = sampleOrbitPoints(orb, orbitSegments);
+                const orbitColor = data.type === 'dwarf' ? 0x9977cc : (data.type === 'comet' ? 0x66ccff : (data.color || 0xffffff));
+                let orbitOpacity = 0.38;
+                let lineWidthPx = 3.5;
+                if (data.type === 'planet') {
+                    orbitOpacity = 0.48;
+                    lineWidthPx = 4.5;
+                } else if (data.type === 'comet') {
+                    orbitOpacity = 0.72;
+                    lineWidthPx = 5;
+                }
+                const posFlat = new Float32Array(points.length * 3);
+                for (let i = 0; i < points.length; i++) {
+                    posFlat[i * 3] = points[i].x;
+                    posFlat[i * 3 + 1] = points[i].y;
+                    posFlat[i * 3 + 2] = points[i].z;
+                }
+                const orbitGeo = new LineGeometry();
+                orbitGeo.setPositions(posFlat);
+                const orbitMat = new LineMaterial({
+                    color: orbitColor,
+                    linewidth: lineWidthPx,
+                    transparent: true,
+                    opacity: orbitOpacity,
+                    depthTest: true,
+                    depthWrite: false,
+                    resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)
+                });
+                orbitLineMaterials.push(orbitMat);
+                const orbitLine = new Line2(orbitGeo, orbitMat);
+                orbitLine.computeLineDistances();
+                scene.add(orbitLine);
+
+                const geometry = new THREE.SphereGeometry(data.size, 64, 64);
+                if (data.name === 'Haumea') geometry.scale(1.5, 1, 0.8);
+
+                const material = makeBodyMaterial(data);
+
+                const orbitRoot = new THREE.Group();
+                const obliquityGroup = new THREE.Group();
+                obliquityGroup.rotation.x = (data.obliquityDeg || 0) * DEG2RAD;
+                const spinGroup = new THREE.Group();
+
+                const bodyMesh = new THREE.Mesh(geometry, material);
+                spinGroup.add(bodyMesh);
+
+                const label = createLabel(data.name, data.zhName);
+                label.position.set(0, data.size, 0);
+                bodyMesh.add(label);
+
+                if (data.hasRing) {
+                    const innerR = data.size * 1.4;
+                    const outerR = data.size * 2.2;
+                    const ringGeo = new THREE.RingGeometry(innerR, outerR, 128);
+                    const ruv = ringGeo.attributes.uv;
+                    const rpos = ringGeo.attributes.position;
+                    for (let ri = 0; ri < rpos.count; ri++) {
+                        const rx = rpos.getX(ri);
+                        const ry = rpos.getY(ri);
+                        const u = Math.atan2(ry, rx) / (Math.PI * 2) + 0.5;
+                        ruv.setXY(ri, u, 0.48);
+                    }
+                    const ringMat = new THREE.MeshBasicMaterial({
+                        map: loadTex(TEX.saturnRing),
+                        color: 0xe8d4b0,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        opacity: 0.94,
+                        depthWrite: false
+                    });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.rotation.x = Math.PI / 2;
+                    spinGroup.add(ring);
+                }
+
+                if (data.name === 'Earth') {
+                    const cloudGeo = new THREE.SphereGeometry(data.size * 1.012, 48, 48);
+                    const cloudMat = new THREE.MeshStandardMaterial({
+                        map: loadTex(TEX.earthClouds),
+                        transparent: true,
+                        opacity: 0.42,
+                        depthWrite: false,
+                        roughness: 1,
+                        metalness: 0
+                    });
+                    const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+                    clouds.userData.isCloudLayer = true;
+                    spinGroup.add(clouds);
+
+                    moonPivot = new THREE.Group();
+                    spinGroup.add(moonPivot);
+                    const moonGeo = new THREE.SphereGeometry(0.6, 32, 32);
+                    const moonMat = new THREE.MeshStandardMaterial({
+                        map: loadTex(TEX.moon),
+                        roughness: 1.0,
+                        metalness: 0,
+                        emissive: 0x000000,
+                        emissiveIntensity: 0
+                    });
+                    const moon = new THREE.Mesh(moonGeo, moonMat);
+                    moon.position.x = 5;
+                    moonPivot.add(moon);
+                }
+
+                if (data.type === 'comet') {
+                    const tailGeo = new THREE.ConeGeometry(data.size * 0.45, data.size * 9, 10, 1, true);
+                    tailGeo.translate(0, -data.size * 4.2, 0);
+                    tailGeo.rotateX(Math.PI / 2);
+                    const tailMat = new THREE.MeshBasicMaterial({
+                        color: 0x88ddff,
+                        transparent: true,
+                        opacity: 0.38,
+                        depthWrite: false,
+                        blending: THREE.AdditiveBlending,
+                        side: THREE.DoubleSide
+                    });
+                    spinGroup.add(new THREE.Mesh(tailGeo, tailMat));
+                }
+
+                obliquityGroup.add(spinGroup);
+                orbitRoot.add(obliquityGroup);
+
+                const M0rad = data.M0 * DEG2RAD;
+                const startPos = orbitPositionFromM(orb, M0rad);
+                orbitRoot.position.set(startPos.x, startPos.y, startPos.z);
+
+                scene.add(orbitRoot);
+
+                planets.push({
+                    orbitRoot,
+                    spinGroup,
+                    bodyMesh,
+                    data,
+                    orb,
+                    meanAnomaly: M0rad,
+                    meanMotion: meanMotionRad(orb)
+                });
+            });
+        }
+
+        function createAsteroidBelt() {
+            const geometry = new THREE.BufferGeometry();
+            const count = 3000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const color = new THREE.Color();
+            const innerRadius = 2.2 * AU_SCALE;
+            const outerRadius = 3.2 * AU_SCALE;
+            for(let i = 0; i < count; i++) {
+                const r = innerRadius + Math.random() * (outerRadius - innerRadius);
+                const theta = Math.random() * Math.PI * 2;
+                const y = (Math.random() - 0.5) * 3;
+                const x = r * Math.cos(theta);
+                const z = r * Math.sin(theta);
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+                const grey = 0.4 + Math.random() * 0.4;
+                color.setRGB(grey, grey, grey);
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({ size: 0.8, vertexColors: true, transparent: true, opacity: 0.8 });
+            asteroidBelt = new THREE.Points(geometry, material);
+            scene.add(asteroidBelt);
+        }
+
+        /** 古柏帶：海王星軌道外、冥王星／矮行星一帶的扁環（示意） */
+        function createKuiperBelt() {
+            const geometry = new THREE.BufferGeometry();
+            const count = 2400;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const color = new THREE.Color();
+            const innerRadius = 30 * AU_SCALE;
+            const outerRadius = 50 * AU_SCALE;
+            for (let i = 0; i < count; i++) {
+                const r = innerRadius + Math.random() * (outerRadius - innerRadius);
+                const theta = Math.random() * Math.PI * 2;
+                const y = (Math.random() - 0.5) * 14;
+                const x = r * Math.cos(theta);
+                const z = r * Math.sin(theta);
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+                const t = Math.random();
+                color.setRGB(0.45 + t * 0.25, 0.55 + t * 0.2, 0.72 + t * 0.15);
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({
+                size: 0.65,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.62,
+                sizeAttenuation: true
+            });
+            kuiperBelt = new THREE.Points(geometry, material);
+            scene.add(kuiperBelt);
+        }
+
+        /** 歐特雲：極遠球殼稀疏冰體（示意；真實尺度遠大於此模型） */
+        function createOortCloud() {
+            const geometry = new THREE.BufferGeometry();
+            const count = 5200;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const color = new THREE.Color();
+            const innerRadius = 55 * AU_SCALE;
+            const outerRadius = 120 * AU_SCALE;
+            for (let i = 0; i < count; i++) {
+                const u = Math.random();
+                const v = Math.random();
+                const theta = u * Math.PI * 2;
+                const phi = Math.acos(2 * v - 1);
+                const r = innerRadius + Math.cbrt(Math.random()) * (outerRadius - innerRadius);
+                const sinP = Math.sin(phi);
+                positions[i * 3] = r * sinP * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.cos(phi);
+                positions[i * 3 + 2] = r * sinP * Math.sin(theta);
+                const g = 0.55 + Math.random() * 0.2;
+                color.setRGB(g * 0.85, g * 0.92, g);
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({
+                size: 0.38,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.14,
+                sizeAttenuation: true
+            });
+            oortCloud = new THREE.Points(geometry, material);
+            scene.add(oortCloud);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isPaused) {
+                const timeDelta = 0.005 * speedMultiplier;
+                sun.rotation.y += 0.002;
+                if (asteroidBelt) asteroidBelt.rotation.y += 0.0005 * speedMultiplier;
+                if (kuiperBelt) kuiperBelt.rotation.y += 0.00032 * speedMultiplier;
+                if (oortCloud) oortCloud.rotation.y += 0.000055 * speedMultiplier;
+                planets.forEach(p => {
+                    p.meanAnomaly += p.meanMotion * timeDelta;
+                    const pos = orbitPositionFromM(p.orb, p.meanAnomaly);
+                    p.orbitRoot.position.set(pos.x, pos.y, pos.z);
+                    const spin = (p.data.spinSign || 1) * 0.01 * speedMultiplier;
+                    p.spinGroup.rotation.y += spin;
+                    if (p.data.name === 'Earth') {
+                        p.spinGroup.children.forEach(ch => {
+                            if (ch.userData.isCloudLayer) ch.rotation.y += spin * 0.35;
+                        });
+                    }
+                });
+                if (moonPivot) moonPivot.rotation.y += 0.05 * speedMultiplier;
+            }
+            controls.update();
+            updateCameraFollow();
+            updateSelectionIndicator(); 
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera); 
+        }
+
+        function updateCameraFollow() {
+            if (targetObject) {
+                if (targetObject === sun) {
+                    controls.target.copy(sun.position);
+                } else {
+                    const targetPos = new THREE.Vector3();
+                    targetObject.getWorldPosition(targetPos);
+                    controls.target.lerp(targetPos, 0.05);
+                }
+            }
+        }
+
+        function resolveBodyFromHit(object) {
+            let node = object;
+            while (node) {
+                if (node === sun) return { kind: 'sun' };
+                const p = planets.find(pl => pl.spinGroup === node || pl.bodyMesh === node || pl.orbitRoot === node);
+                if (p) return { kind: 'planet', planet: p };
+                node = node.parent;
+            }
+            return null;
+        }
+
+        function onCanvasClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersectables = [sun];
+            planets.forEach(p => intersectables.push(p.spinGroup));
+            const intersects = raycaster.intersectObjects(intersectables, true);
+            if (intersects.length > 0) {
+                const hit = resolveBodyFromHit(intersects[0].object);
+                if (!hit) return;
+                document.getElementById('planet-info').style.opacity = '1';
+                if (hit.kind === 'sun') setTarget(sun, 10, 'Sun');
+                else setTarget(hit.planet.orbitRoot, hit.planet.data.size, hit.planet.data.name);
+            }
+        }
+
+        function setTarget(object, size, name) {
+            targetObject = object;
+            targetSize = size;
+            updateInfoText(name);
+            const p = planets.find(pl => pl.orbitRoot === object);
+            if (p && p.data.type === 'comet') frameCometOrbitView(p.orb);
+        }
+
+        function onWindowResize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            labelRenderer.setSize(w, h);
+            orbitLineMaterials.forEach(m => m.resolution.set(w, h));
+        }
+
+        function setupUI() {
+            const btnPause = document.getElementById('btn-pause');
+            const iconPause = document.getElementById('icon-pause');
+            const iconPlay = document.getElementById('icon-play');
+            btnPause.addEventListener('click', () => {
+                isPaused = !isPaused;
+                if(isPaused) {
+                    iconPause.classList.add('hidden');
+                    iconPlay.classList.remove('hidden');
+                    btnPause.classList.remove('bg-red-500', 'hover:bg-red-400');
+                    btnPause.classList.add('bg-green-500', 'hover:bg-green-400');
+                } else {
+                    iconPause.classList.remove('hidden');
+                    iconPlay.classList.add('hidden');
+                    btnPause.classList.add('bg-red-500', 'hover:bg-red-400');
+                    btnPause.classList.remove('bg-green-500', 'hover:bg-green-400');
+                }
+            });
+
+            const speedSlider = document.getElementById('speed-slider');
+            const speedDisplay = document.getElementById('speed-display');
+            speedSlider.addEventListener('input', (e) => {
+                speedMultiplier = parseFloat(e.target.value);
+                speedDisplay.textContent = speedMultiplier.toFixed(1) + 'x';
+            });
+
+            const navPlanets = document.getElementById('nav-planets');
+            const navOthers = document.getElementById('nav-others');
+            
+            const sunBtn = createNavButton("Sun", "太陽", "Sun", 0xffaa00);
+            navOthers.appendChild(sunBtn);
+
+            celestialData.forEach(data => {
+                const btn = createNavButton(data.name, data.zhName, data.name, data.color);
+                if (data.type === 'planet') navPlanets.appendChild(btn);
+                else navOthers.appendChild(btn);
+            });
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const targetName = btn.getAttribute('data-target');
+                    document.getElementById('planet-info').style.opacity = '1';
+                    if (targetName === 'Sun') setTarget(sun, 10, 'Sun');
+                    else {
+                        const p = planets.find(p => p.data.name === targetName);
+                        if (p) setTarget(p.orbitRoot, p.data.size, targetName);
+                    }
+                });
+            });
+
+            // Teaching modals (steps / principle / quiz / help)
+            const TEACH_MODAL_IDS = ['modal-steps', 'modal-principle', 'modal-quiz', 'modal-help'];
+
+            function closeAllModals(exceptId) {
+                TEACH_MODAL_IDS.forEach((id) => {
+                    if (exceptId && id === exceptId) return;
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (modalCloseTimers[id]) {
+                        clearTimeout(modalCloseTimers[id]);
+                        delete modalCloseTimers[id];
+                    }
+                    el.classList.add('hidden');
+                });
+            }
+
+            function openTeachModal(id) {
+                closeAllModals(id);
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('hidden');
+            }
+
+            function renderPrinciple() {
+                const t = translations[currentLang];
+                const body = document.getElementById('principle-body');
+                if (!body) return;
+                body.innerHTML =
+                    '<div><h3 class="text-lg font-bold text-blue-300 mb-2 border-b border-gray-600 pb-1">' + t.conceptTitle + '</h3><p>' + t.conceptHtml + '</p></div>' +
+                    '<div><h3 class="text-lg font-bold text-blue-300 mb-2 border-b border-gray-600 pb-1">' + t.mechTitle + '</h3>' + t.mechHtml + '</div>' +
+                    '<div><h3 class="text-lg font-bold text-blue-300 mb-2 border-b border-gray-600 pb-1">' + t.egTitle + '</h3><p>' + t.egHtml + '</p></div>';
+            }
+
+            function renderQuiz() {
+                const t = translations[currentLang];
+                const body = document.getElementById('quiz-body');
+                const ansBtn = document.getElementById('btn-quiz-answers');
+                if (ansBtn) ansBtn.textContent = quizReveal ? t.hideAns : t.showAns;
+                if (!body) return;
+                body.innerHTML = '';
+                QUIZ.forEach((item, i) => {
+                    const loc = item[currentLang] || item.zh;
+                    const card = document.createElement('div');
+                    card.className = 'rounded-lg border border-gray-600 bg-gray-900/60 p-3 space-y-2';
+                    let html = '<p class="font-bold text-violet-200">Q' + (i + 1) + '. ' + loc.q + '</p>';
+                    var qNum = i + 1;
+                    var isOpen = (qNum === 2 || qNum === 4);
+                    if (!isOpen && loc.opts && loc.opts.length) {
+                        var qName = 'q' + qNum;
+                        html += '<div class="grid gap-1.5 text-gray-300 text-sm">';
+                        loc.opts.forEach(function(o, oi) {
+                            var letter = String.fromCharCode(65 + oi);
+                            var label = o.replace(/^[A-D]\.\s*/, '');
+                            html += '<label class="flex items-start gap-2 rounded border border-gray-600 p-2 cursor-pointer hover:bg-gray-800/50"><input type="radio" name="'+qName+'" class="mt-0.5"><span>'+letter+'. '+label+'</span></label>';
+                        });
+                        html += '</div>';
+                    } else if (isOpen) {
+                        html += '<p class="text-xs text-gray-400 italic">'+(currentLang==='zh'?'先預測，再操作畫面控件核對，用自己的話作答。':'Predict, then use the sim controls to check. Write in your own words.')+'</p>';
+                    }
+                    if (quizReveal) {
+                        html += '<p class="text-xs text-emerald-300 border-t border-gray-700 pt-2 mt-2 bg-emerald-950/30 rounded p-2"><span class="font-bold">' + t.ansLabel + '：</span> ' + loc.ans + '</p>';
+                    }
+                    card.innerHTML = html;
+                    body.appendChild(card);
+                });
+            }
+
+            document.getElementById('btn-steps').addEventListener('click', () => openTeachModal('modal-steps'));
+            document.querySelector('#modal-steps .btn-close-steps').addEventListener('click', () => closeAllModals(null));
+            document.querySelector('#modal-steps .btn-ok-steps').addEventListener('click', () => closeAllModals(null));
+            document.getElementById('modal-steps').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeAllModals(null); });
+
+            document.getElementById('btn-principle').addEventListener('click', () => { renderPrinciple(); openTeachModal('modal-principle'); });
+            document.querySelector('#modal-principle .btn-close-principle').addEventListener('click', () => closeAllModals(null));
+            document.querySelector('#modal-principle .btn-ok-principle').addEventListener('click', () => closeAllModals(null));
+            document.getElementById('modal-principle').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeAllModals(null); });
+
+            document.getElementById('btn-quiz').addEventListener('click', () => { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+            document.querySelector('#modal-quiz .btn-close-quiz').addEventListener('click', () => closeAllModals(null));
+            document.querySelector('#modal-quiz .btn-ok-quiz').addEventListener('click', () => closeAllModals(null));
+            document.getElementById('modal-quiz').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeAllModals(null); });
+            document.getElementById('btn-quiz-answers').addEventListener('click', () => { quizReveal = !quizReveal; renderQuiz(); });
+
+            const modalHelp = document.getElementById('modal-help');
+            const btnHelp = document.getElementById('btn-help');
+            if (btnHelp) btnHelp.addEventListener('click', () => openTeachModal('modal-help'));
+            modalHelp.querySelector('.btn-close').addEventListener('click', () => closeAllModals(null));
+            modalHelp.querySelector('.btn-ok').addEventListener('click', () => closeAllModals(null));
+            modalHelp.addEventListener('click', (e) => { if (e.target === modalHelp) closeAllModals(null); });
+
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                isPaused = false;
+                speedMultiplier = 1;
+                speedSlider.value = '1';
+                speedDisplay.textContent = '1.0x';
+                iconPause.classList.remove('hidden');
+                iconPlay.classList.add('hidden');
+                btnPause.classList.add('bg-red-500', 'hover:bg-red-400');
+                btnPause.classList.remove('bg-green-500', 'hover:bg-green-400');
+                targetObject = null;
+                document.getElementById('planet-info').style.opacity = '0';
+                if (selectionIndicator) selectionIndicator.visible = false;
+                controls.target.set(0, 0, 0);
+                camera.position.set(0, 150, 350);
+                quizReveal = false;
+                closeAllModals(null);
+                // language / currentLang intentionally unchanged
+            });
+
+            const btnLang = document.getElementById('btn-lang');
+            btnLang.addEventListener('click', () => {
+                currentLang = currentLang === 'zh' ? 'en' : 'zh';
+                applyLanguage();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
+
+            // expose for applyLanguage reopen-fill
+            window.__astroRenderPrinciple = renderPrinciple;
+            window.__astroRenderQuiz = renderQuiz;
+        }
+
+        function createNavButton(target, zhText, enText, colorHex) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            const hex = hexStr(colorHex);
+            btn.className = 'nav-btn px-3 py-2 rounded-lg border transition shrink-0 min-w-[72px] text-center text-xs font-bold text-white shadow-sm hover:brightness-110';
+            btn.style.background = `linear-gradient(145deg, ${hex}dd, ${hex}88)`;
+            btn.style.borderColor = hex + 'aa';
+            btn.setAttribute('data-target', target);
+            const span = document.createElement('span');
+            span.setAttribute('data-zh', zhText);
+            span.setAttribute('data-en', enText);
+            span.textContent = currentLang === 'zh' ? zhText : enText;
+            btn.appendChild(span);
+            return btn;
+        }
+
+        function setInfoRow(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value ?? '—';
+        }
+
+        function updateInfoText(targetName) {
+            const infoName = document.getElementById('info-name');
+            const infoDesc = document.getElementById('info-desc');
+            const infoType = document.getElementById('info-type');
+            const t = translations[currentLang];
+            const isZh = currentLang === 'zh';
+
+            if (targetName === 'Sun') {
+                infoName.textContent = isZh ? "太陽" : "The Sun";
+                infoDesc.textContent = isZh ? "太陽系的中心，提供光與熱的恆星。" : "The star at the center of the Solar System.";
+                infoName.className = "text-xl md:text-2xl font-bold text-yellow-400";
+                infoType.textContent = t.typeStar;
+                infoType.className = "text-xs font-mono px-2 py-0.5 rounded bg-yellow-900/50 text-yellow-200 border border-yellow-700/50";
+
+                setInfoRow('val-semi', '0 AU');
+                setInfoRow('val-ecc', '—');
+                setInfoRow('val-incl', '—');
+                setInfoRow('val-period', isZh ? sunFacts.periodZH : sunFacts.periodEN);
+                setInfoRow('val-spin', isZh ? sunFacts.spinZH : sunFacts.spinEN);
+                setInfoRow('val-axial', '7.25°');
+                setInfoRow('val-spindir', t.spinPrograde);
+                setInfoRow('val-moons', t.sunMoons);
+                setInfoRow('val-mass', "333,000" + t.unitMass);
+                setInfoRow('val-dia', "1,392,700 km");
+                setInfoRow('val-dens', "1.41 g/cm³");
+                return;
+            }
+
+            const p = planets.find(pl => pl.data.name === targetName);
+            if (!p) return;
+
+            const d = p.data;
+            infoName.textContent = isZh ? d.zhName : d.name;
+            infoDesc.textContent = isZh ? d.descZH : d.descEN;
+            infoName.className = "text-xl md:text-2xl font-bold text-white";
+
+            let typeText = t.typePlanet;
+            let typeClass = "text-xs font-mono px-2 py-0.5 rounded bg-blue-900/50 text-blue-200 border border-blue-700/50";
+            if (d.type === 'dwarf') {
+                typeText = t.typeDwarf;
+                typeClass = "text-xs font-mono px-2 py-0.5 rounded bg-purple-900/50 text-purple-200 border border-purple-700/50";
+            } else if (d.type === 'comet') {
+                typeText = t.typeComet;
+                typeClass = "text-xs font-mono px-2 py-0.5 rounded bg-sky-900/50 text-sky-200 border border-sky-600/50";
+            }
+            infoType.textContent = typeText;
+            infoType.className = typeClass;
+
+            setInfoRow('val-semi', d.a.toFixed(3) + ' AU');
+            setInfoRow('val-ecc', d.e.toFixed(3));
+            setInfoRow('val-incl', d.i.toFixed(2) + '°');
+            setInfoRow('val-period', isZh ? d.period : (d.periodEN || d.period));
+            setInfoRow('val-spin', isZh ? d.spinZH : d.spinEN);
+            setInfoRow('val-axial', (d.obliquityDeg ?? 0).toFixed(1) + '°');
+            setInfoRow('val-spindir', (d.spinSign || 1) < 0 ? t.spinRetrograde : t.spinPrograde);
+            setInfoRow('val-moons', formatMoons(d, t));
+
+            if (d.type === 'comet') {
+                setInfoRow('val-mass', d.mass);
+                setInfoRow('val-dens', d.dens);
+            } else {
+                setInfoRow('val-mass', d.mass + t.unitMass);
+                setInfoRow('val-dens', d.dens + " g/cm³");
+            }
+            setInfoRow('val-dia', d.dia);
+        }
+
+        function applyLanguage() {
+            const t = translations[currentLang];
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+            document.getElementById('app-title').textContent = t.title;
+            const badge = document.getElementById('badge-grade');
+            if (badge) badge.textContent = t.badge;
+            const badgeSub = document.getElementById('badge-subject');
+            if (badgeSub) badgeSub.textContent = t.badgeSubject;
+            const txtHelp = document.getElementById('txt-help');
+            if (txtHelp) txtHelp.textContent = t.help;
+            document.getElementById('txt-steps').textContent = t.steps;
+            document.getElementById('txt-principle').textContent = t.principle;
+            document.getElementById('txt-quiz').textContent = t.quiz;
+            const txtReset = document.getElementById('txt-reset');
+            if (txtReset) txtReset.textContent = t.reset;
+            const btnReset = document.getElementById('btn-reset');
+            if (btnReset) btnReset.title = t.reset;
+            document.getElementById('txt-speed').textContent = t.speed;
+            document.getElementById('steps-title').textContent = t.stepsTitle;
+            document.getElementById('step-s1').textContent = t.s1;
+            document.getElementById('step-s2').textContent = t.s2;
+            document.getElementById('step-s3').textContent = t.s3;
+            document.getElementById('step-s4').textContent = t.s4;
+            const s5 = document.getElementById('step-s5');
+            if (s5) s5.textContent = t.s5;
+            document.querySelector('#modal-steps .btn-ok-steps').textContent = t.btnOk;
+            
+            // Labels
+            document.getElementById('lbl-semi').textContent = t.lblSemi;
+            document.getElementById('lbl-ecc').textContent = t.lblEcc;
+            document.getElementById('lbl-incl').textContent = t.lblIncl;
+            document.getElementById('lbl-period').textContent = t.lblPeriod;
+            document.getElementById('lbl-spin').textContent = t.lblSpin;
+            document.getElementById('lbl-axial').textContent = t.lblAxial;
+            document.getElementById('lbl-spindir').textContent = t.lblSpindir;
+            document.getElementById('lbl-moons').textContent = t.lblMoons;
+            document.getElementById('lbl-mass').textContent = t.lblMass;
+            document.getElementById('lbl-dia').textContent = t.lblDia;
+            document.getElementById('lbl-dens').textContent = t.lblDens;
+
+            // Help Modal
+            document.getElementById('help-title').textContent = t.modalTitle;
+            document.getElementById('help-tip').innerHTML = t.modalTip;
+            document.getElementById('help-ctrl-1').textContent = t.modalCtrl1;
+            document.getElementById('help-ctrl-2').textContent = t.modalCtrl2;
+            document.getElementById('help-ctrl-3').textContent = t.modalCtrl3;
+            document.querySelector('#modal-help .btn-ok').textContent = t.btnOk;
+
+            // Principle Modal
+            document.getElementById('principle-title').textContent = t.principleTitle;
+            const btnOkP = document.querySelector('#modal-principle .btn-ok-principle');
+            if (btnOkP) btnOkP.textContent = t.btnOk;
+
+            // Quiz Modal
+            document.getElementById('quiz-title').textContent = t.quizTitle;
+            const btnOkQ = document.querySelector('#modal-quiz .btn-ok-quiz');
+            if (btnOkQ) btnOkQ.textContent = t.btnOk;
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizReveal ? t.hideAns : t.showAns;
+
+            // Reopen-fill if modals are open
+            if (!document.getElementById('modal-principle').classList.contains('hidden') && window.__astroRenderPrinciple) {
+                window.__astroRenderPrinciple();
+            }
+            if (!document.getElementById('modal-quiz').classList.contains('hidden') && window.__astroRenderQuiz) {
+                window.__astroRenderQuiz();
+            }
+
+            document.querySelectorAll('.nav-btn span[data-zh]').forEach(span => {
+                span.textContent = span.getAttribute(`data-${currentLang}`);
+            });
+            
+            document.querySelectorAll('.planet-label').forEach(label => {
+                label.textContent = currentLang === 'zh' ? label.dataset.zh : label.dataset.en;
+            });
+
+            if (targetObject) {
+                if (targetObject === sun) updateInfoText('Sun');
+                else {
+                    const p = planets.find(pl => pl.orbitRoot === targetObject);
+                    if (p) updateInfoText(p.data.name);
+                }
+            }
+
+            const dz = document.getElementById('disclaimer-zh');
+            const de = document.getElementById('disclaimer-en');
+            if (dz && de) {
+                if (currentLang === 'zh') {
+                    dz.classList.remove('hidden');
+                    de.classList.add('hidden');
+                } else {
+                    dz.classList.add('hidden');
+                    de.classList.remove('hidden');
+                }
+            }
+        }
+
+        applyLanguage();
+        init();
+    </script>
+</body>
+</html>

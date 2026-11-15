@@ -1,247 +1,195 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Darwin's Phototropism Experiment Simulation</title>
+    <title>查爾斯·達爾文的向光性實驗 / Darwin Phototropism</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f4f7f6;
-            --panel-bg: #ffffff;
-            --primary: #2c3e50;
-            --accent: #27ae60;
-        }
-
-        body {
-            font-family: "PingFang TC", "Microsoft JhengHei", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
-
-        .header-container {
-            width: 100%;
-            max-width: 1000px;
-            margin-bottom: 20px;
-            padding-right: 120px; /* Clearance for language button */
-            box-sizing: border-box;
-        }
-
-        h1 {
-            color: var(--primary);
-            margin: 0 0 5px 0;
-        }
-
-        p.subtitle {
-            color: #666;
-            margin: 0;
-            max-width: 800px;
-        }
-
-        /* --- Positioned away from window edge to avoid close button overlap --- */
-        .lang-btn {
-            position: absolute;
-            top: 15px;
-            right: 60px; /* Shifted towards center */
-            background-color: #ffffff;
-            color: #34495e;
-            border: 1px solid #cbd5e1;
-            padding: 5px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            width: auto;
-            z-index: 10;
-        }
-
-        .lang-btn:hover {
-            background-color: #f8fafc;
-            border-color: #94a3b8;
-            color: #1e293b;
-        }
-
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            max-width: 1000px;
-            width: 100%;
-        }
-
-        .controls-panel {
-            flex: 1;
-            min-width: 300px;
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .simulation-panel {
-            flex: 2;
-            min-width: 400px;
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: var(--primary);
-        }
-
-        select, button {
-            width: 100%;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-        }
-
-        button.action-btn {
-            background-color: var(--accent);
-            color: white;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            transition: background 0.2s;
-            margin-top: 10px;
-        }
-
-        button.action-btn:hover {
-            background-color: #219150;
-        }
-
-        button.action-btn:disabled {
-            background-color: #bdc3c7;
-            cursor: not-allowed;
-        }
-
+        body { font-family: 'Noto Sans TC', "PingFang TC", "Microsoft JhengHei", 'Segoe UI', sans-serif; }
         canvas {
             background-color: #eef2f5;
-            border-radius: 4px;
+            border-radius: 0.5rem;
             border: 1px solid #dcdcdc;
+            max-width: 100%;
+            height: auto;
         }
-
-        .info-box {
-            margin-top: 20px;
-            background: #e8f4f8;
-            border-left: 4px solid #3498db;
-            padding: 10px 15px;
-            font-size: 0.9em;
-            border-radius: 0 4px 4px 0;
-            line-height: 1.5;
-        }
-
-        .legend {
-            display: flex;
-            gap: 15px;
-            margin-top: 10px;
-            font-size: 0.85em;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
+        button.action-btn:disabled {
+            background-color: #bdc3c7 !important;
+            cursor: not-allowed;
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- Language Toggle Button placed with right padding -->
-    <button id="langToggleBtn" class="lang-btn">繁體中文</button>
-
-    <div class="header-container">
-        <h1 id="title">Charles Darwin's Phototropism Experiment</h1>
-        <p class="subtitle" id="subtitle">An interactive simulation recreating Charles and Francis Darwin's experiments investigating light perception in grass coleoptiles.</p>
-    </div>
-
-    <div class="container">
-        <!-- Controls Panel -->
-        <div class="controls-panel">
-            <h2 id="setupHeading">Setup Experiment</h2>
-            
-            <div class="form-group">
-                <label for="treatment" id="labelTreatment">Test Treatment (Plant B):</label>
-                <select id="treatment">
-                    <option value="intact" id="optIntact">Intact Coleoptile (Duplicate Control)</option>
-                    <option value="cut" id="optCut">Decapitated (Tip Removed)</option>
-                    <option value="opaque-cap" id="optOpaqueCap">Opaque Cap on Tip</option>
-                    <option value="transparent-cap" id="optTransCap">Transparent Cap on Tip</option>
-                    <option value="opaque-sleeve" id="optOpaqueSleeve">Opaque Sleeve on Base</option>
-                </select>
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">🌱</div>
+            <div class="min-w-0">
+                <h1 id="title" class="text-lg sm:text-xl font-bold text-slate-800 truncate">查爾斯·達爾文的向光性實驗</h1>
+                <p id="subtitle" class="text-xs text-slate-500 truncate max-w-xl">尖端感光 · 去尖／帽／套管 · 向光性</p>
             </div>
-
-            <div class="form-group">
-                <label for="lightDir" id="labelLightDir">Light Source Direction:</label>
-                <select id="lightDir">
-                    <option value="right" id="optRight">Unilateral (From Right)</option>
-                    <option value="left" id="optLeft">Unilateral (From Left)</option>
-                    <option value="overhead" id="optOverhead">Uniform Overhead Light</option>
-                </select>
-            </div>
-
-            <button id="startBtn" class="action-btn">Run Experiment</button>
-            <button id="resetBtn" class="action-btn" style="background-color: #e74c3c;">Reset</button>
-
-            <div class="info-box" id="infoBox">
-                <!-- Text updated dynamically by JS -->
-            </div>
+            <span id="badge-subject" class="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">生物</span>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
+        </div>
+    </header>
 
-        <!-- Canvas Panel -->
-        <div class="simulation-panel">
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <section class="order-1 lg:order-2 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col items-center w-full">
             <canvas id="simCanvas" width="500" height="350"></canvas>
-            
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #27ae60;"></div>
-                    <span id="legendStem">Coleoptile Tissue</span>
+            <div class="legend flex flex-wrap gap-4 mt-3 text-xs text-slate-600">
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm" style="background:#27ae60;"></div>
+                    <span id="legendStem">胚芽鞘組織</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #34495e;"></div>
-                    <span id="legendOpaque">Opaque Material</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm" style="background:#34495e;"></div>
+                    <span id="legendOpaque">不透明材料</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: rgba(52, 152, 219, 0.5);"></div>
-                    <span id="legendTrans">Transparent Cap</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm" style="background:rgba(52,152,219,0.5);"></div>
+                    <span id="legendTrans">透明罩</span>
                 </div>
             </div>
+        </section>
+
+        <aside class="order-2 lg:order-1 lg:col-span-4 w-full flex flex-col gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 id="setupHeading" class="text-lg font-bold border-b pb-2 mb-4 text-slate-700">實驗設定</h2>
+
+                <div class="mb-4">
+                    <label for="treatment" id="labelTreatment" class="block text-sm font-semibold mb-1.5 text-slate-700">實驗組處理方式 (植物 B)：</label>
+                    <select id="treatment" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="intact" id="optIntact" selected>完整胚芽鞘（對照組重複）</option>
+                        <option value="cut" id="optCut">去頂（切除尖端）</option>
+                        <option value="opaque-cap" id="optOpaqueCap">尖端套上不透明帽</option>
+                        <option value="transparent-cap" id="optTransCap">尖端套上透明帽</option>
+                        <option value="opaque-sleeve" id="optOpaqueSleeve">莖基部套上不透明套管</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label for="lightDir" id="labelLightDir" class="block text-sm font-semibold mb-1.5 text-slate-700">光源方向：</label>
+                    <select id="lightDir" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="right" id="optRight" selected>單側光（來自右側）</option>
+                        <option value="left" id="optLeft">單側光（來自左側）</option>
+                        <option value="overhead" id="optOverhead">均勻頂光</option>
+                    </select>
+                </div>
+
+                <button type="button" id="startBtn" class="action-btn w-full py-2.5 rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors mb-2">開始實驗</button>
+                <button type="button" id="btn-reset-panel" class="w-full py-2.5 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">重置</button>
+
+                <div class="info-box mt-4 bg-sky-50 border-l-4 border-sky-500 p-3 text-sm leading-relaxed rounded-r-lg" id="infoBox"></div>
+            </div>
+        </aside>
+    </main>
+
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
         </div>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-teal-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
     </div>
 
     <script>
-        // Language Dictionary
         const i18n = {
             en: {
-                langBtn: "繁體中文",
+                langBtn: "中 / EN",
                 title: "Charles Darwin's Phototropism Experiment",
-                subtitle: "An interactive simulation recreating Charles and Francis Darwin's experiments investigating light perception in grass coleoptiles.",
+                subtitle: "Tip light-sensing · decapitation / caps / sleeve · phototropism",
+                badge: "Biology",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                stepsTitle: "Observation steps",
+                principleTitle: "Principles",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
                 setupHeading: "Setup Experiment",
                 labelTreatment: "Test Treatment (Plant B):",
                 optIntact: "Intact Coleoptile (Duplicate Control)",
@@ -254,7 +202,6 @@
                 optLeft: "Unilateral (From Left)",
                 optOverhead: "Uniform Overhead Light",
                 startBtn: "Run Experiment",
-                resetBtn: "Reset",
                 legendStem: "Coleoptile Tissue",
                 legendOpaque: "Opaque Material",
                 legendTrans: "Transparent Cap",
@@ -270,9 +217,19 @@
                 expOpaqueSleeve: "<strong>Result:</strong> Covering the bending zone with a sleeve does not prevent curvature because the tip is exposed and sends the auxin signal downward."
             },
             zh: {
-                langBtn: "English",
+                langBtn: "中 / EN",
                 title: "查爾斯·達爾文的向光性實驗",
-                subtitle: "互動式模擬：重建查爾斯·達爾文與其子法蘭西斯·達爾文研究胚芽鞘感光部位的經典生物學實驗。",
+                subtitle: "尖端感光 · 去尖／帽／套管 · 向光性",
+                badge: "生物",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
                 setupHeading: "實驗設定",
                 labelTreatment: "實驗組處理方式 (植物 B)：",
                 optIntact: "完整胚芽鞘（對照組重複）",
@@ -285,7 +242,6 @@
                 optLeft: "單側光（來自左側）",
                 optOverhead: "均勻頂光",
                 startBtn: "開始實驗",
-                resetBtn: "重置",
                 legendStem: "胚芽鞘組織",
                 legendOpaque: "不透明材料",
                 legendTrans: "透明罩",
@@ -302,31 +258,167 @@
             }
         };
 
-        let currentLang = 'en';
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalTimer = null;
 
-        // DOM Elements
+        const STEPS = [
+          {
+            zh: '按頁首<strong>重置</strong>（處理應回<strong>完整胚芽鞘</strong>、光源<strong>右側單側光</strong>、動畫歸零、結果卡回假設提示）。確認左為<strong>對照組（未處理）</strong>、右為<strong>實驗組</strong>。按<strong>開始實驗</strong>。觀察：兩株皆向<strong>右側光源</strong>彎曲——完整尖端可感光並向下傳遞生長刺激。',
+            en: 'Header <strong>Reset</strong> (treatment <strong>Intact</strong>, light <strong>Unilateral from Right</strong>, progress cleared, info back to hypothesis). Left＝<strong>Control (untreated)</strong>; right＝<strong>Test</strong>. Press <strong>Run Experiment</strong>. Both bend toward the <strong>right</strong> light—an intact tip can sense light and send a growth stimulus downward.'
+          },
+          {
+            zh: 'Reset 後，將處理改為<strong>去頂（切除尖端）</strong>，光源維持右側單側光，再 Run。觀察：左對照仍向右彎；右實驗組<strong>幾乎不伸長、不彎曲</strong>。再改為<strong>尖端套上不透明帽</strong>→ Run：實驗組<strong>直立不彎</strong>（仍可伸長，但無方向彎曲）。結論：尖端對感光與產生生長刺激至關重要；不透明帽阻斷方向光訊。',
+            en: 'After Reset, set <strong>Decapitated (tip removed)</strong>, keep right unilateral light, Run. Control still bends right; test <strong>barely elongates or bends</strong>. Then <strong>Opaque Cap on Tip</strong> → Run: test grows <strong>upright without bending</strong>. Tip is essential for sensing and for the growth stimulus; an opaque cap blocks directional light.'
+          },
+          {
+            zh: '（a）改為<strong>尖端套上透明帽</strong>＋右側單側光 → Run：實驗組<strong>仍向光彎曲</strong>（光可達尖端；套帽本身不阻彎曲）。（b）再改<strong>莖基部套上不透明套管</strong>→ Run：實驗組<strong>仍向光彎曲</strong>（感光在尖端，信號向下傳到被套管遮住的伸長區）。對照組全程 intact 行為不變。',
+            en: '(a) <strong>Transparent Cap on Tip</strong>＋right light → test still bends toward light. (b) <strong>Opaque Sleeve on Base</strong> → test still bends toward light—sensing is at the tip; the signal travels down to the elongation zone. Control stays intact throughout.'
+          },
+          {
+            zh: '選<strong>均勻頂光</strong>＋完整處理 → Run：兩株大致<strong>直立</strong>。再試頂光＋<strong>去尖</strong>：對照直立伸長、實驗組<strong>不伸長</strong>。再按<strong>重置</strong>：應回完整＋右側光、進度 0；<strong>語言不變</strong>。打開原理解說與課堂問題——確認本模擬主軸是 <strong>Darwin：尖端感光（去尖／不透明帽／透明帽／基部套管）</strong>，不是 Boysen-Jensen 瓊脂／雲母阻隔，也不是 Went 分側瓊脂塊 X／Y 偏置回接。',
+            en: '<strong>Uniform overhead</strong>＋intact → both grow roughly <strong>straight</strong>. Overhead＋<strong>cut</strong>: control elongates upright; test <strong>fails to elongate</strong>. <strong>Reset</strong>: back to intact＋right light, progress 0; <strong>language unchanged</strong>. Open Principles／Quiz—focus is <strong>Darwin tip light-sensing (decapitation／opaque／transparent caps／basal sleeve)</strong>, not Boysen-Jensen agar／mica barriers, not Went split agar blocks X／Y.'
+          }
+        ];
+
+        const PRINCIPLE = {
+          zh: {
+            conceptTitle: '概念',
+            concept: '查爾斯·達爾文與其子法蘭西斯·達爾文（Charles & Francis Darwin）研究草本胚芽鞘的向光性，問：<strong>哪一部位感受單側光？</strong> 他們比較完整、去尖、尖端不透明帽／透明帽、以及基部遮光套管等處理，證明<strong>感光部位在尖端</strong>；尖端產生的「影響」（後稱<strong>生長素／auxin</strong>）向下傳到伸長區，才引起向光彎曲。真實課室切割胚芽鞘需教師指導與實驗室安全。',
+            mechTitle: '機制',
+            mech: [
+              '<strong>單側光與差異伸長</strong>：尖端感光後，生長刺激較多沿<strong>背光側</strong>向下傳遞，背光側細胞伸長較快 → 向光彎曲。',
+              '<strong>去尖</strong>：失去尖端 → 無感光與生長刺激來源 → 不伸長、不彎曲。',
+              '<strong>不透明帽</strong>：尖端被遮光 → 無方向光訊 → 直立（可伸長但不彎）。',
+              '<strong>透明帽</strong>：光仍達尖端 → 正常向光彎曲（對照「帽」本身不阻彎曲）。',
+              '<strong>基部不透明套管</strong>：伸長區被遮，尖端暴露 → 仍彎曲 → 感光在尖端，效應在下方。',
+              '<strong>均勻頂光</strong>：兩側信號大致對稱 → 直立；去尖株在頂光下仍因缺尖端而不伸長。',
+              '<strong>範圍</strong>：本檔控件是<strong>尖端感光處理＋光源方向</strong>；<strong>不是</strong> Boysen-Jensen 的瓊脂／雲母阻隔；<strong>不是</strong> Went 的「先照光收集分側塊、再偏置放回去尖苗於黑暗中」定量曲率實驗。'
+            ],
+            egTitle: '日常例子',
+            eg: '窗邊盆栽莖葉朝窗口彎曲，是向光性的日常版。理解「感光在尖端、彎曲在下方」有助解釋為何遮住芽尖或改變單側光照會改變偏向。課室以胚芽鞘＋帽／套管示意 Darwin，銜接後續 Boysen-Jensen（化學信號可透性）與 Went（命名與定量 auxin）。'
+          },
+          en: {
+            conceptTitle: 'Concept',
+            concept: 'Charles and Francis Darwin studied phototropism in grass coleoptiles and asked <strong>where light is sensed</strong>. By comparing intact, decapitated, opaque／transparent tip caps, and a basal opaque sleeve, they showed <strong>sensing occurs in the tip</strong>; a tip-produced “influence” (later <strong>auxin</strong>) travels down to the elongation zone to cause bending toward light. Real coleoptile cutting needs teacher supervision and lab safety.',
+            mechTitle: 'Mechanism',
+            mech: [
+              'Under <strong>unilateral light</strong>, the tip senses direction so more growth stimulus travels down the <strong>shaded</strong> side → faster elongation there → bending toward light.',
+              '<strong>Decapitation</strong>: no tip → no sensing／stimulus → little elongation or bending.',
+              '<strong>Opaque cap</strong>: tip shaded → no directional cue → upright (may elongate without bending).',
+              '<strong>Transparent cap</strong>: light reaches tip → normal phototropic bending (cap alone does not block bending).',
+              '<strong>Opaque basal sleeve</strong>: elongation zone covered, tip exposed → still bends → sensing at tip, effect below.',
+              '<strong>Overhead light</strong>: roughly symmetric → upright; a cut shoot still fails to elongate under overhead light.',
+              '<strong>Scope</strong>: tip-sensing treatments＋light direction only—<strong>not</strong> Boysen-Jensen agar／mica barriers; <strong>not</strong> Went’s split-block X／Y dark-curvature assay.'
+            ],
+            egTitle: 'Everyday example',
+            eg: 'Houseplants leaning toward a window are everyday phototropism. This sim is the Darwin tip-sensing foundation before Boysen-Jensen’s chemical-signal barriers and Went’s auxin quantification.'
+          }
+        };
+
+        const QUIZ = [
+          {
+            q: {
+              zh: '重置後維持預設完整胚芽鞘與右側單側光，按開始實驗。哪項觀察最合理？',
+              en: 'After Reset, keep default Intact and unilateral light from the right, then Run. Which observation is best?'
+            },
+            choices: [
+              { zh: '對照組與實驗組都向右側光源彎曲——完整尖端可感光並向下傳遞生長刺激', en: 'Control and test both bend toward the right light—an intact tip senses light and sends a growth stimulus down' },
+              { zh: '實驗組因是「測試條件」而永遠不彎曲', en: 'The test plant never bends because it is labeled “test”' },
+              { zh: '只有對照組彎曲，完整處理的實驗組永遠直立', en: 'Only the control bends; an intact test plant always stays upright' },
+              { zh: '本模擬沒有光源方向選項', en: 'This sim has no light-direction control' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。intact → calculateBendingMaxAngle 回向光角；左右皆 intact 行為。',
+              en: 'A. intact → bending angle toward light; both plants behave as intact.'
+            }
+          },
+          {
+            q: {
+              zh: '重置後選去頂（切除尖端）、右側單側光，Run。哪項正確？',
+              en: 'After Reset, choose Decapitated (tip removed), right unilateral light, Run. Which is correct?'
+            },
+            choices: null,
+                ans: null,
+            explain: {
+              zh: 'A。cut → 彎曲角 0 且 growth＝1.0；intact 仍彎。',
+              en: 'A. cut → bend angle 0 and growth＝1.0; intact still bends.'
+            }
+          },
+          {
+            q: {
+              zh: '在右側單側光下，先跑不透明帽，再跑透明帽，最後跑基部不透明套管。哪項描述最合理？',
+              en: 'Under right unilateral light, run opaque tip cap, then transparent tip cap, then opaque basal sleeve. Which description is most reasonable?'
+            },
+            choices: [
+              { zh: '不透明帽時實驗組直立不彎；透明帽與基部套管時實驗組仍向光彎曲', en: 'Opaque cap: test stays upright without bending; transparent cap and basal sleeve: test still bends toward light' },
+              { zh: '三種處理結果完全相同，實驗組都比對照彎得更厲害', en: 'All three treatments behave identically and bend more than the control' },
+              { zh: '透明帽會讓實驗組瞬間變成去尖的動畫', en: 'Transparent cap instantly becomes the decapitated animation' },
+              { zh: '本模擬沒有「基部不透明套管」選項', en: 'This sim has no “opaque sleeve on base” option' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。opaque-cap 角 0；transparent-cap／opaque-sleeve 角＝向光。',
+              en: 'A. opaque-cap angle 0; transparent-cap／opaque-sleeve bend toward light.'
+            }
+          },
+          {
+            q: {
+              zh: '先把處理改成去尖或不透明帽、光源改成左側或頂光並 Run 一次，再按頁首重置。用自己的話寫：（1）重置後處理、光源、動畫進度／結果卡應如何（本設計預期）；（2）重置會不會切換中／EN。',
+              en: 'Set cut or opaque-cap and change light to left or overhead, Run once, then press header Reset. In your own words: (1) expected treatment／light／progress／info after Reset; (2) whether Reset switches zh／EN.'
+            },
+            choices: null,
+            ans: null,
+            explain: {
+              zh: '（1）處理回完整（intact）；光源回右側單側光；progress=0（直立）；結果卡回假設提示；開始鈕可用。（2）不切換語言。',
+              en: '(1) Treatment back to intact; light back to right; progress 0 (upright); info = default hypothesis; Run enabled. (2) Reset must not switch language.'
+            }
+          },
+          {
+            q: {
+              zh: '根據本模擬控件與設計，哪項最正確？',
+              en: 'Using this sim’s controls and design, which is most correct?'
+            },
+            choices: [
+              { zh: '可選完整／去尖／不透明帽／透明帽／基部套管與單側／頂光，對照 intact 與實驗組並排，並有步驟／原理／五題／中EN／重置——主軸是 Darwin 證明尖端感光，不是 Boysen-Jensen 瓊脂／雲母阻隔，也不是 Went 分側瓊脂塊 X／Y 偏置回接', en: 'You choose intact／cut／opaque／transparent caps／basal sleeve and uni-/overhead light, compare intact vs test, with steps／principle／five quiz items／zh-EN／Reset—focus Darwin tip light-sensing, not Boysen-Jensen agar／mica, not Went split-block X／Y' },
+              { zh: '主要控件是瓊脂塊與雲母片（背光／向光／完全貫穿），用來證明可移動化學信號', en: 'Main controls are agar and mica (shaded／lit／full) to prove a mobile chemical signal' },
+              { zh: '重置會強制改成英文並刪除去尖選項', en: 'Reset always switches to English and deletes the decapitation option' },
+              { zh: '必須先在單側光下做分側塊 X／Y，再於黑暗中偏置放回去尖苗才能操作', en: 'You must first make split blocks X／Y under unilateral light, then offset them on decapitated shoots in darkness' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。隔離 boysen-jensen／frits-went siblings；Reset 不改語言、不刪 treatment 選項。',
+              en: 'A. Separates boysen-jensen／frits-went siblings; Reset does not change language or delete treatments.'
+            }
+          }
+        ];
+
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const langToggleBtn = document.getElementById('langToggleBtn');
         const treatmentSelect = document.getElementById('treatment');
         const lightDirSelect = document.getElementById('lightDir');
         const infoBox = document.getElementById('infoBox');
 
-        // Simulation State
-        let progress = 0; // 0 to 1
+        let progress = 0;
         let animationFrame = null;
         let isRunning = false;
-
         const BASE_Y = 280;
 
         function updateLanguageUI() {
             const t = i18n[currentLang];
-            
-            langToggleBtn.textContent = t.langBtn;
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            document.getElementById('btn-lang').textContent = t.langBtn;
             document.getElementById('title').textContent = t.title;
             document.getElementById('subtitle').textContent = t.subtitle;
+            document.getElementById('badge-subject').textContent = t.badge;
+            document.getElementById('btn-steps').textContent = t.btnSteps;
+            document.getElementById('btn-principle').textContent = t.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = t.btnQuiz;
+            document.getElementById('btn-reset').textContent = t.btnReset;
+            const rp = document.getElementById('btn-reset-panel');
+            if (rp) rp.textContent = t.btnReset;
             document.getElementById('setupHeading').textContent = t.setupHeading;
             document.getElementById('labelTreatment').textContent = t.labelTreatment;
             document.getElementById('optIntact').textContent = t.optIntact;
@@ -339,7 +431,6 @@
             document.getElementById('optLeft').textContent = t.optLeft;
             document.getElementById('optOverhead').textContent = t.optOverhead;
             document.getElementById('startBtn').textContent = t.startBtn;
-            document.getElementById('resetBtn').textContent = t.resetBtn;
             document.getElementById('legendStem').textContent = t.legendStem;
             document.getElementById('legendOpaque').textContent = t.legendOpaque;
             document.getElementById('legendTrans').textContent = t.legendTrans;
@@ -349,7 +440,7 @@
             } else if (progress === 0 && !isRunning) {
                 infoBox.innerHTML = t.defaultInfo;
             }
-
+            refreshOpenTeachModals();
             render();
         }
 
@@ -364,12 +455,10 @@
             if (direction === 'overhead') {
                 ctx.fillStyle = 'rgba(241, 196, 15, 0.15)';
                 ctx.fillRect(0, 0, canvas.width, BASE_Y);
-                
                 ctx.fillStyle = '#f1c40f';
                 ctx.beginPath();
                 ctx.arc(canvas.width / 2, 30, 20, 0, Math.PI * 2);
                 ctx.fill();
-
                 ctx.strokeStyle = 'rgba(241, 196, 15, 0.3)';
                 ctx.lineWidth = 2;
                 for (let x = 50; x < canvas.width; x += 60) {
@@ -384,7 +473,6 @@
                 ctx.beginPath();
                 ctx.arc(x, 50, 20, 0, Math.PI * 2);
                 ctx.fill();
-
                 ctx.strokeStyle = 'rgba(241, 196, 15, 0.4)';
                 ctx.lineWidth = 3;
                 for (let i = -2; i <= 2; i++) {
@@ -401,9 +489,9 @@
             ctx.save();
             ctx.translate(x, BASE_Y);
 
-            const lowerStemLen = 30 * verticalGrowthScale;    
-            const bendZoneLen = 70 * verticalGrowthScale;     
-            const upperTipLen = (type === 'cut' ? 0 : 30);    
+            const lowerStemLen = 30 * verticalGrowthScale;
+            const bendZoneLen = 70 * verticalGrowthScale;
+            const upperTipLen = (type === 'cut' ? 0 : 30);
 
             const lowerEndX = 0;
             const lowerEndY = -lowerStemLen;
@@ -416,7 +504,6 @@
             const finalTipX = midEndX + Math.sin(bendAngle) * upperTipLen;
             const finalTipY = midEndY - Math.cos(bendAngle) * upperTipLen;
 
-            // 1. Stem
             ctx.strokeStyle = '#27ae60';
             ctx.lineWidth = 14;
             ctx.lineCap = 'round';
@@ -424,7 +511,6 @@
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(lowerEndX, lowerEndY);
-
             ctx.quadraticCurveTo(ctrlPointX, ctrlPointY, midEndX, midEndY);
 
             if (type !== 'cut') {
@@ -443,7 +529,6 @@
                 ctx.fill();
             }
 
-            // 2. Attachments
             if (type === 'opaque-cap') {
                 ctx.save();
                 ctx.translate(finalTipX, finalTipY);
@@ -465,7 +550,6 @@
                 ctx.lineWidth = 16;
                 ctx.strokeStyle = '#34495e';
                 ctx.lineCap = 'round';
-                
                 ctx.beginPath();
                 ctx.moveTo(lowerEndX, lowerEndY - 5);
                 ctx.quadraticCurveTo(ctrlPointX, ctrlPointY, midEndX, midEndY + 5);
@@ -478,7 +562,7 @@
         function drawLabels() {
             const t = i18n[currentLang];
             ctx.fillStyle = '#2c3e50';
-            ctx.font = 'bold 14px "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif';
+            ctx.font = 'bold 14px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(t.controlLabel, 150, BASE_Y + 30);
             ctx.fillText(t.testLabel, 350, BASE_Y + 30);
@@ -486,16 +570,14 @@
 
         function calculateBendingMaxAngle(type, direction) {
             if (direction === 'overhead') return 0;
-
             const bendDirectionConstant = direction === 'right' ? (Math.PI / 5.5) : -(Math.PI / 5.5);
-
             switch (type) {
                 case 'intact':
                 case 'transparent-cap':
-                case 'opaque-sleeve': 
+                case 'opaque-sleeve':
                     return bendDirectionConstant;
                 case 'cut':
-                case 'opaque-cap': 
+                case 'opaque-cap':
                     return 0;
                 default:
                     return 0;
@@ -504,31 +586,24 @@
 
         function calculateGrowthScale(type) {
             if (type === 'cut') return 1.0;
-            return 1.25; 
+            return 1.25;
         }
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             const lightDir = lightDirSelect.value;
             const treatment = treatmentSelect.value;
-
             drawLight(lightDir);
             drawSoil();
             drawLabels();
-
             const controlAngleTarget = calculateBendingMaxAngle('intact', lightDir);
             const testAngleTarget = calculateBendingMaxAngle(treatment, lightDir);
-
             const controlGrowthTarget = calculateGrowthScale('intact');
             const testGrowthTarget = calculateGrowthScale(treatment);
-
             const controlAngle = controlAngleTarget * progress;
             const testAngle = testAngleTarget * progress;
-
             const currentControlGrowth = 1.0 + (controlGrowthTarget - 1.0) * progress;
             const currentTestGrowth = 1.0 + (testGrowthTarget - 1.0) * progress;
-
             drawPlant(150, 'intact', controlAngle, currentControlGrowth);
             drawPlant(350, treatment, testAngle, currentTestGrowth);
         }
@@ -549,36 +624,118 @@
             const t = i18n[currentLang];
             const treatment = treatmentSelect.value;
             const lightDir = lightDirSelect.value;
-
             if (lightDir === 'overhead') {
                 infoBox.innerHTML = (treatment === 'cut') ? t.expOverheadCut : t.expOverheadIntact;
                 return;
             }
-
             switch (treatment) {
-                case 'intact':
-                    infoBox.innerHTML = t.expIntact;
-                    break;
-                case 'cut':
-                    infoBox.innerHTML = t.expCut;
-                    break;
-                case 'opaque-cap':
-                    infoBox.innerHTML = t.expOpaqueCap;
-                    break;
-                case 'transparent-cap':
-                    infoBox.innerHTML = t.expTransCap;
-                    break;
-                case 'opaque-sleeve':
-                    infoBox.innerHTML = t.expOpaqueSleeve;
-                    break;
+                case 'intact': infoBox.innerHTML = t.expIntact; break;
+                case 'cut': infoBox.innerHTML = t.expCut; break;
+                case 'opaque-cap': infoBox.innerHTML = t.expOpaqueCap; break;
+                case 'transparent-cap': infoBox.innerHTML = t.expTransCap; break;
+                case 'opaque-sleeve': infoBox.innerHTML = t.expOpaqueSleeve; break;
             }
         }
 
-        // Event Listeners
-        langToggleBtn.addEventListener('click', () => {
-            currentLang = (currentLang === 'en') ? 'zh' : 'en';
-            updateLanguageUI();
-        });
+        function resetAll() {
+            closeAllModals(null);
+            cancelAnimationFrame(animationFrame);
+            isRunning = false;
+            startBtn.disabled = false;
+            progress = 0;
+            treatmentSelect.value = 'intact';
+            lightDirSelect.value = 'right';
+            infoBox.innerHTML = i18n[currentLang].defaultInfo;
+            quizReveal = false;
+            render();
+        }
+
+        function closeAllModals(exceptId) {
+            if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+            ['modal-steps','modal-principle','modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                var el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+        function openTeachModal(id) {
+            closeAllModals(id);
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        }
+        function renderSteps() {
+            var t = i18n[currentLang];
+            document.getElementById('steps-title').textContent = t.stepsTitle;
+            document.getElementById('steps-body').innerHTML = STEPS.map(function(s, i) {
+                return '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200"><div class="font-bold text-indigo-600 mb-1">' + (i+1) + '</div><div class="leading-relaxed">' + (currentLang==='en'?s.en:s.zh) + '</div></div>';
+            }).join('');
+        }
+        function renderPrinciple() {
+            var p = PRINCIPLE[currentLang] || PRINCIPLE.zh;
+            var t = i18n[currentLang];
+            document.getElementById('principle-title').textContent = t.principleTitle;
+            var mech = p.mech.map(function(m){ return '<li class="mb-2 leading-relaxed">'+m+'</li>'; }).join('');
+            document.getElementById('principle-body').innerHTML =
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.conceptTitle+'</h3><p class="leading-relaxed">'+p.concept+'</p></div>' +
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.mechTitle+'</h3><ol class="list-decimal pl-5">'+mech+'</ol></div>' +
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.egTitle+'</h3><p class="leading-relaxed">'+p.eg+'</p></div>';
+        }
+        function renderQuiz() {
+            var t = i18n[currentLang];
+            document.getElementById('quiz-title').textContent = t.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? t.hideAns : t.showAns;
+            document.getElementById('quiz-body').innerHTML = QUIZ.map(function(item, qi) {
+                var qtext = currentLang==='en' ? item.q.en : item.q.zh;
+                var html = '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 mb-3"><div class="font-bold text-violet-700 mb-2">Q'+(qi+1)+'. '+qtext+'</div>';
+                var qNum = qi + 1;
+                var isOpen = (qNum === 2 || qNum === 4);
+                if (!isOpen && item.choices) {
+                  var qName = 'q' + qNum;
+                  html += '<div class="grid gap-1.5 text-sm">';
+                  item.choices.forEach(function(c, ci) {
+                    var label = String.fromCharCode(65+ci);
+                    var txt = currentLang==='en' ? c.en : c.zh;
+                    html += '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="'+qName+'" class="mt-0.5 accent-violet-600"><span>'+label+'. '+txt+'</span></label>';
+                  });
+                  html += '</div>';
+                } else if (isOpen) {
+                  html += '<p class="text-xs text-slate-500 italic">'+(currentLang==='en'?'Predict, then use the sim controls to check. Write in your own words.':'先預測，再操作畫面控件核對，用自己的話作答。')+'</p>';
+                }
+                if (quizReveal && item.explain) {
+                  var ex = currentLang==='en' ? item.explain.en : item.explain.zh;
+                  var ref = currentLang==='en' ? 'Reference answer' : '參考答案';
+                  html += '<div class="mt-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>'+ref+'：</strong> '+ex+'</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+        }
+        function refreshOpenTeachModals() {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+        }
+        function wireTeachingUI() {
+            document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', function() {
+                currentLang = (currentLang === 'en') ? 'zh' : 'en';
+                updateLanguageUI();
+            });
+            document.getElementById('btn-reset').addEventListener('click', resetAll);
+            document.getElementById('btn-reset-panel').addEventListener('click', resetAll);
+            document.getElementById('btn-quiz-answers').addEventListener('click', function() { quizReveal = !quizReveal; renderQuiz(); });
+            document.querySelectorAll('.modal-close').forEach(function(btn) {
+                btn.addEventListener('click', function() { closeAllModals(null); });
+            });
+            document.querySelectorAll('.teach-modal').forEach(function(el) {
+                el.addEventListener('click', function(e) { if (e.target === el) closeAllModals(null); });
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
+        }
 
         startBtn.addEventListener('click', () => {
             if (isRunning) return;
@@ -586,15 +743,6 @@
             startBtn.disabled = true;
             progress = 0;
             animate();
-        });
-
-        resetBtn.addEventListener('click', () => {
-            cancelAnimationFrame(animationFrame);
-            isRunning = false;
-            startBtn.disabled = false;
-            progress = 0;
-            render();
-            infoBox.innerHTML = i18n[currentLang].defaultInfo;
         });
 
         treatmentSelect.addEventListener('change', () => {
@@ -609,7 +757,7 @@
             if (!isRunning) infoBox.innerHTML = i18n[currentLang].defaultInfo;
         });
 
-        // Initialize UI
+        wireTeachingUI();
         updateLanguageUI();
     </script>
 </body>

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遺傳圖 | Genetic Diagrams</title>
+    <!-- 只保留 Tailwind CSS 用於排版，完全移除 Babel, React 及任何多餘的 CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; }
+        .animate-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        /* 隱藏滾動條但保留功能 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "遺傳圖", "en": "Genetic Diagrams"}, "grade": {"zh": "生物", "en": "Biology"}, "steps": {"zh": ["選一個單基因例子，看親代基因型和配子。", "完成受精組合，讀後代基因型比例。", "若有顯性，再寫表現型比例。", "按重置換下一個例子，不要沿用上一題的配子。"], "en": ["Choose a one-gene cross and read the parental genotypes and gametes.", "Complete the fertilisation grid and read the offspring genotype ratio.", "If there is dominance, write the phenotype ratio too.", "Reset before the next case so you do not reuse the previous gametes."]}, "principle": {"zh": ["減數分裂時，等位基因分開，每個配子只得其中一個。", "受精是配子隨機結合。兩雜交體 Aa × Aa 的基因型比約為 1:2:1，顯性完全時表現型約為 3:1。", "測交用來分辨顯性個體是純合還是雜合。伴性遺傳則要把等位基因寫在 X 染色體上。"], "en": ["In meiosis the alleles separate, so each gamete receives one of them.", "Fertilisation joins gametes at random. Aa × Aa gives about 1:2:1 genotypes and, with complete dominance, about 3:1 phenotypes.", "A test cross distinguishes a homozygous dominant individual from a heterozygote."]}, "quiz": [{"zh": "Aa × Aa，若 A 對 a 完全顯性，表現型比例最接近？", "en": "For Aa × Aa with complete dominance, the phenotype ratio is closest to?", "azh": "B。", "aen": "B.", "czh": ["1:1", "3:1", "9:3:3:1", "全部是隱性"], "cen": ["1:1", "3:1", "9:3:3:1", "All recessive"], "ans": 1}, {"zh": "先預測 Aa 個體的配子一半是 A、一半是 a，再在圖上數配子。", "en": "Predict that an Aa individual makes half A and half a gametes, then count them on the diagram.", "azh": "等位基因分離，兩種配子機會相等。", "aen": "The alleles segregate, so the two gametes are equally likely."}, {"zh": "基因型 AA 和 Aa 在完全顯性下？", "en": "With complete dominance, genotypes AA and Aa?", "azh": "B。", "aen": "B.", "czh": ["表現型一定不同", "表現型相同", "都不能生存", "沒有配子"], "cen": ["Must look different", "Share the same phenotype", "Cannot survive", "Produce no gametes"], "ans": 1}, {"zh": "換一個雜交例子前先按重置。預測重置後不會留下舊配子，再核對。", "en": "Reset before a new cross. Predict that the old gametes disappear, then check.", "azh": "重置清除上一幅遺傳圖。", "aen": "Reset clears the previous diagram."}, {"zh": "測交通常是顯性個體與？", "en": "A test cross is usually a dominant individual crossed with?", "azh": "B。看後代有沒有隱性表現。", "aen": "B. You look for recessive offspring.", "czh": ["另一個相同的顯性純合體", "隱性純合體", "完全無關的物種", "本身的體細胞"], "cen": ["Another identical homozygous dominant", "A homozygous recessive", "An unrelated species", "One of its body cells"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+    <div id="root"></div>
+
+    <script>
+        // --- 狀態管理 (State) ---
+        let state = {
+            lang: 'zh',
+            step: 0,
+            selectedCaseId: 'blood',
+            p1: null,
+            p2: null,
+            revealedStep: 0,
+            quizAnswers: {}
+        };
+
+        // --- SVG 圖示庫 (原生字串返回) ---
+        const Icon = (name, size = 20, className = "") => {
+            const icons = {
+                flask: '<path d="M9 2v8H5l7 11 7-11h-4V2z" />',
+                refresh: '<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8m0 0V3m0 5h5m-1 4a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16m0 0v5m0-5h-5" />',
+                info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+                check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>',
+                chevron: '<path d="m9 18 6-6-6-6"/>',
+                lang: '<path d="m5 8 6 6"/><path d="m4 14 6-6"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+                help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+                eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+                eyeOff: '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>'
+            };
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}">${icons[name]}</svg>`;
+        };
+
+        // --- 翻譯資料 ---
+        const translations = {
+            zh: {
+                title: "DSE 遺傳圖模擬器",
+                subtitle: "符合 DSE 生物科評分標準的繪圖格式",
+                reset: "重新開始",
+                start: "開始生成遺傳圖解",
+                next: "下一步",
+                selectCaseTitle: "選擇遺傳案例",
+                selectP1: "選擇親本 1 基因型",
+                selectP2: "選擇親本 2 基因型",
+                hintSexLinked: "提示：性連鎖遺傳必須由一位男性 and 一位女性進行雜交。",
+                dseHint: "DSE 提示：在表現型比例中，一般會將「帶基因者」視作「正常」表徵進行合併計數。注意在繪圖時，符號定義的準確性會直接影響得分。",
+                steps: ["定義符號", "親本表現型及基因型", "配子 (減數分裂)", "隨機受精 (連線)", "子一代基因型", "子一代表現型及百分比", "表現型比例"],
+                labels: { symbols: "定義符號", parents: "親本", gametes: "配子", f1gen: "子一代", ratio: "表現型比例" },
+                common: { male: "男性", female: "女性", carrier: "帶基因者", normal: "正常", homo: "純合", hetero: "雜合", affected: "患病", let: "設", beAllele: "為控制", alleleFor: "的等位基因", chromosome: "染色體", and: "及", yDesc: "不帶相關等位基因的 Y 染色體" },
+                quizTitle: "DSE 遺傳學短答題練習",
+                showAnswer: "顯示答案", hideAnswer: "隱藏答案",
+                questions: [
+                    { q: "從 ABO 血型系統的角度，解釋為什麼 AB 型血的人被稱為「全適受血者」(Universal recipient)。", a: "因為 AB 型血的人的血漿中既不含抗 A 抗體，也不含抗 B 抗體。因此在接受任何血液紅細胞輸入時，都不會發生凝集反應。" },
+                    { q: "解釋為什麼男性不能成為紅綠色盲（性連鎖隱性遺傳）的帶基因者。", a: "因為控制紅綠色盲的基因位於 X 染色體上，而男性只有一條 X 染色體。只要他帶有一個隱性致病等位基因，該基因的性狀就會表現出來。因此男性只有「患病」或「正常」兩種可能，不會出現「雜合子（帶基因者）」的狀態。" },
+                    { q: "說明「測交 (Test cross)」的目的及其做法。", a: "目的是為了確定一個具有顯性表現型的個體是純合子還是雜合子。做法是將該個體與一個純合隱性個體進行雜交。" },
+                    { q: "解釋為什麼一對表現型正常的夫婦有可能誕下患有白化病（常染色體隱性）的孩子。", a: "因為這對夫婦可能都是該致病等位基因的帶基因者（雜合子）。當兩者均將隱性致病基因傳給孩子時，孩子便會出現病徵。" },
+                    { q: "在紅綠色盲（性連鎖隱性遺傳）遺傳中，父親能否將色盲基因傳給他的兒子？試解釋之。", a: "不能。因為父親只會將 Y 染色體傳給兒子，而控制色盲的等位基因位於 X 染色體上。父親只會將 X 染色體傳給女兒。" }
+                ]
+            },
+            en: {
+                title: "DSE Genetic Diagram Simulator",
+                subtitle: "Drawing format complying with DSE Biology marking standards",
+                reset: "Reset",
+                start: "Generate Diagram",
+                next: "Next Step",
+                selectCaseTitle: "Select Inheritance Case",
+                selectP1: "Select Genotype for Parent 1",
+                selectP2: "Select Genotype for Parent 2",
+                hintSexLinked: "Note: Sex-linked inheritance requires crossing one male and one female.",
+                dseHint: "DSE Hint: In phenotypic ratios, 'carriers' are usually grouped with 'normal' individuals. Accuracy in symbol definitions is crucial for scoring.",
+                steps: ["Symbol Definition", "P Phenotypes & Genotypes", "Gametes (Meiosis)", "Random Fertilization", "F1 Genotypes", "F1 Phenotypes & %", "Phenotypic Ratio"],
+                labels: { symbols: "Symbol Definition", parents: "Parents", gametes: "Gametes", f1gen: "F₁ Generation", ratio: "Phenotypic Ratio" },
+                common: { male: "Male", female: "Female", carrier: "Carrier", normal: "Normal", homo: "Homozygous", hetero: "Heterozygous", affected: "Affected", let: "Let", beAllele: "be the allele for", alleleFor: "", chromosome: "chromosome", and: "and", yDesc: "the Y chromosome carrying no such allele" },
+                quizTitle: "DSE Genetics Short Question Practice",
+                showAnswer: "Show Answer", hideAnswer: "Hide Answer",
+                questions: [
+                    { q: "From the perspective of the ABO blood group system, explain why individuals with type AB blood are considered 'universal recipients'.", a: "Because individuals with type AB blood have neither anti-A nor anti-B antibodies in their plasma. Therefore, transfusion of red blood cells from any blood type will not cause an agglutination reaction." },
+                    { q: "Explain why males cannot be carriers of red-green color blindness (sex-linked recessive inheritance).", a: "Because the gene for color blindness is located on the X chromosome, and males have only one X chromosome. If they possess one recessive disease allele, the trait will be expressed. Thus, males are either 'affected' or 'normal', never 'carriers' (heterozygous)." },
+                    { q: "State the purpose and procedure of a 'Test cross'.", a: "The purpose is to determine whether an individual showing a dominant phenotype is homozygous or heterozygous. It is done by crossing the individual with a homozygous recessive individual." },
+                    { q: "Explain why a couple with normal phenotypes can have a child with albinism (autosomal recessive).", a: "Both parents could be carriers (heterozygous) of the recessive disease allele. If both parents pass the recessive allele to the child, the child will express the condition." },
+                    { q: "In red-green color blindness (sex-linked recessive) inheritance, can a father pass the color blindness gene to his son? Explain.", a: "No. A father only passes his Y chromosome to his son. The allele for color blindness is located on the X chromosome. The father passes his X chromosome only to his daughters." }
+                ]
+            }
+        };
+
+        // --- 案例資料產生器 ---
+        const getCasesData = (lang) => {
+            const t = translations[lang].common;
+            return {
+                blood: {
+                    name: lang === 'zh' ? 'ABO 血型' : 'ABO Blood Type', description: lang === 'zh' ? '複等位基因遺傳' : 'Multiple Alleles', type: 'autosomal-blood',
+                    alleles: { A: 'Iᴬ', B: 'Iᴮ', O: 'i' }, phenotypes: { A: 'A', B: 'B', AB: 'AB', O: 'O' },
+                    genotypes: [
+                        { code: 'IAIA', name: `${t.normal} A (${t.homo})`, display: 'IᴬIᴬ' }, { code: 'IAi', name: `${t.normal} A (${t.hetero})`, display: 'Iᴬi' },
+                        { code: 'IBIB', name: `${t.normal} B (${t.homo})`, display: 'IᴮIᴮ' }, { code: 'IBi', name: `${t.normal} B (${t.hetero})`, display: 'Iᴮi' },
+                        { code: 'IAIB', name: `${t.normal} AB`, display: 'IᴬIᴮ' }, { code: 'ii', name: `${t.normal} O`, display: 'ii' }
+                    ]
+                },
+                colorblind: {
+                    name: lang === 'zh' ? '紅綠色盲' : 'Red-green Color Blindness', description: lang === 'zh' ? '性連鎖遺傳' : 'X-linked Recessive', type: 'sex-linked', trait: lang === 'zh' ? '色覺' : 'color vision', disease: lang === 'zh' ? '紅綠色盲' : 'color blindness',
+                    alleles: { dominant: 'Xᴮ', recessive: 'Xᵇ', y: 'Y' }, phenotypes: { normal: lang === 'zh' ? '正常' : 'Normal', affected: lang === 'zh' ? '色盲' : 'Color Blind' },
+                    genotypes: [
+                        { code: 'XBY', name: `${t.normal}${t.male}`, display: 'XᴮY', sex: 'M' }, { code: 'XbY', name: `${lang === 'zh' ? '色盲' : 'Color Blind'}${t.male}`, display: 'XᵇY', sex: 'M' },
+                        { code: 'XBXB', name: `${t.normal}${t.female} (${t.homo})`, display: 'XᴮXᴮ', sex: 'F' }, { code: 'XBXb', name: `${t.normal}${t.female} (${t.carrier})`, display: 'XᴮXᵇ', sex: 'F' },
+                        { code: 'XbXb', name: `${lang === 'zh' ? '色盲' : 'Color Blind'}${t.female}`, display: 'XᵇXᵇ', sex: 'F' }
+                    ]
+                },
+                hemophilia: {
+                    name: lang === 'zh' ? '血友病' : 'Hemophilia', description: lang === 'zh' ? '性連鎖遺傳' : 'X-linked Recessive', type: 'sex-linked', trait: lang === 'zh' ? '正常' : 'normal', disease: lang === 'zh' ? '血友病' : 'hemophilia',
+                    alleles: { dominant: 'Xᴮ', recessive: 'Xᵇ', y: 'Y' }, phenotypes: { normal: lang === 'zh' ? '正常' : 'Normal', affected: lang === 'zh' ? '血友病' : 'Hemophilic' },
+                    genotypes: [
+                        { code: 'XBY', name: `${t.normal}${t.male}`, display: 'XᴮY', sex: 'M' }, { code: 'XbY', name: `${lang === 'zh' ? '血友病' : 'Hemophilic'}${t.male}`, display: 'XᵇY', sex: 'M' },
+                        { code: 'XBXB', name: `${t.normal}${t.female} (${t.homo})`, display: 'XᴮXᴮ', sex: 'F' }, { code: 'XBXb', name: `${t.normal}${t.female} (${t.carrier})`, display: 'XᴮXᵇ', sex: 'F' },
+                        { code: 'XbXb', name: `${lang === 'zh' ? '血友病' : 'Hemophilic'}${t.female}`, display: 'XᵇXᵇ', sex: 'F' }
+                    ]
+                },
+                polydactyly: {
+                    name: lang === 'zh' ? '多指症 (六指)' : 'Polydactyly', description: lang === 'zh' ? '常染色體顯性遺傳' : 'Autosomal Dominant', type: 'autosomal',
+                    alleles: { dominant: 'F', recessive: 'f' }, phenotypes: { dominant: lang === 'zh' ? '多指症' : 'Polydactyly', recessive: lang === 'zh' ? '正常手指' : 'Normal Fingers' },
+                    genotypes: [
+                        { code: 'FF', name: `${lang === 'zh' ? '多指症' : 'Polydactyly'} (${t.homo})` }, { code: 'Ff', name: `${lang === 'zh' ? '多指症' : 'Polydactyly'} (${t.hetero})` }, { code: 'ff', name: lang === 'zh' ? '正常手指' : 'Normal Fingers' }
+                    ]
+                },
+                albinism: {
+                    name: lang === 'zh' ? '白化病' : 'Albinism', description: lang === 'zh' ? '常染色體隱性遺傳' : 'Autosomal Recessive', type: 'autosomal',
+                    alleles: { dominant: 'A', recessive: 'a' }, phenotypes: { dominant: lang === 'zh' ? '膚色正常' : 'Normal Skin', recessive: lang === 'zh' ? '白化病' : 'Albinism' },
+                    genotypes: [
+                        { code: 'AA', name: `${t.normal} (${t.homo})` }, { code: 'Aa', name: `${t.normal} (${t.carrier})` }, { code: 'aa', name: lang === 'zh' ? '白化病' : 'Albinism' }
+                    ]
+                },
+                flowerColor: {
+                    name: lang === 'zh' ? '植物花朵顏色' : 'Plant Flower Color', description: lang === 'zh' ? '完全顯性遺傳' : 'Complete Dominance', type: 'autosomal',
+                    alleles: { dominant: 'R', recessive: 'r' }, phenotypes: { dominant: lang === 'zh' ? '紫色花' : 'Purple Flower', recessive: lang === 'zh' ? '白色花' : 'White Flower' },
+                    genotypes: [
+                        { code: 'RR', name: `${lang === 'zh' ? '紫色花' : 'Purple Flower'} (${t.homo})` }, { code: 'Rr', name: `${lang === 'zh' ? '紫色花' : 'Purple Flower'} (${t.hetero})` }, { code: 'rr', name: lang === 'zh' ? '白色花' : 'White Flower' }
+                    ]
+                },
+                height: {
+                    name: lang === 'zh' ? '豆科植物高矮' : 'Plant Height', description: lang === 'zh' ? '單基因雜種雜交' : 'Monohybrid Cross', type: 'autosomal',
+                    alleles: { dominant: 'T', recessive: 't' }, phenotypes: { dominant: lang === 'zh' ? '高莖' : 'Tall', recessive: lang === 'zh' ? '矮莖' : 'Dwarf' },
+                    genotypes: [
+                        { code: 'TT', name: `${lang === 'zh' ? '高莖' : 'Tall'} (${t.homo})` }, { code: 'Tt', name: `${lang === 'zh' ? '高莖' : 'Tall'} (${t.hetero})` }, { code: 'tt', name: lang === 'zh' ? '矮莖' : 'Dwarf' }
+                    ]
+                }
+            };
+        };
+
+        // --- 全域控制函式庫 ---
+        window.setLang = (l) => { state.lang = l; window.renderApp(); };
+        window.setStep = (s) => { state.step = s; window.renderApp(); };
+        window.setSelectedCaseId = (id) => { state.selectedCaseId = id; state.step = 1; window.renderApp(); };
+        window.setP1 = (code) => {
+            const cases = getCasesData(state.lang);
+            state.p1 = cases[state.selectedCaseId].genotypes.find(g => g.code === code);
+            state.p2 = null;
+            window.renderApp();
+        };
+        window.setP2 = (code) => {
+            const cases = getCasesData(state.lang);
+            state.p2 = cases[state.selectedCaseId].genotypes.find(g => g.code === code);
+            window.renderApp();
+        };
+        window.startDiagram = () => { state.step = 2; state.revealedStep = 0; window.renderApp(); };
+        window.nextRevealStep = () => {
+            const maxSteps = translations[state.lang].steps.length - 1;
+            state.revealedStep = Math.min(state.revealedStep + 1, maxSteps);
+            window.renderApp();
+        };
+        window.resetApp = () => { state.step = 0; state.p1 = null; state.p2 = null; window.renderApp(); };
+        window.toggleQuiz = (idx) => { state.quizAnswers[idx] = !state.quizAnswers[idx]; window.renderApp(); };
+
+        const isValidP2 = (g) => {
+            if (!state.p1) return true;
+            const currentData = getCasesData(state.lang)[state.selectedCaseId];
+            return currentData.type.includes('sex-linked') ? state.p1.sex !== g.sex : true;
+        };
+
+        // --- 繪圖區 HTML 產生器 ---
+        function renderDiagramHtml() {
+            const t = translations[state.lang];
+            const common = t.common;
+            const currentData = getCasesData(state.lang)[state.selectedCaseId];
+            const p1 = state.p1;
+            const p2 = state.p2;
+
+            const getPhenotypeDisplay = (genotypeStr) => {
+                if (state.selectedCaseId === 'blood') {
+                    const type = (genotypeStr.includes('I裝') || genotypeStr.includes('Iᴬ')) && (genotypeStr.includes('I築') || genotypeStr.includes('Iᴮ')) ? 'AB' :
+                                 genotypeStr.includes('Iᴬ') ? 'A' :
+                                 genotypeStr.includes('Iᴮ') ? 'B' : 'O';
+                    return `${state.lang === 'zh' ? type + ' 型血' : 'Type ' + type}`;
+                }
+                if (currentData.type === 'sex-linked') {
+                    const isAffected = genotypeStr.includes('Xᵇ');
+                    const isMale = genotypeStr.includes('Y');
+                    const prefix = isMale ? common.male : common.female;
+                    if (!isMale) {
+                        if (genotypeStr.includes('Xᴮ')) {
+                            return genotypeStr.includes('Xᵇ') ? `${common.normal}${prefix} (${common.carrier})` : `${common.normal}${prefix}`;
+                        }
+                        return `${currentData.phenotypes.affected}${prefix}`;
+                    } else {
+                        return isAffected ? `${currentData.phenotypes.affected}${prefix}` : `${common.normal}${prefix}`;
+                    }
+                }
+                if (state.selectedCaseId === 'height') return genotypeStr.includes('T') ? currentData.phenotypes.dominant : currentData.phenotypes.recessive;
+                if (state.selectedCaseId === 'polydactyly') return genotypeStr.includes('F') ? currentData.phenotypes.dominant : currentData.phenotypes.recessive;
+                if (state.selectedCaseId === 'albinism') return genotypeStr.includes('A') ? currentData.phenotypes.dominant : currentData.phenotypes.recessive;
+                if (state.selectedCaseId === 'flowerColor') return genotypeStr.includes('R') ? currentData.phenotypes.dominant : currentData.phenotypes.recessive;
+                return "";
+            };
+
+            const getGametesArray = (code, display) => {
+                let rawGametes = [];
+                if (state.selectedCaseId === 'blood') {
+                    rawGametes = display.match(/Iᴬ|Iᴮ|i/g) || [];
+                } else if (currentData.type === 'sex-linked') {
+                    rawGametes = display.match(/X.|Y/g) || [];
+                } else {
+                    rawGametes = code.split('');
+                }
+                return rawGametes[0] === rawGametes[1] ? [rawGametes[0]] : [rawGametes[0], rawGametes[1]];
+            };
+
+            const gametes1 = getGametesArray(p1.code, p1.display || p1.code);
+            const gametes2 = getGametesArray(p2.code, p2.display || p2.code);
+
+            const getF1Genotype = (g1, g2) => {
+                const pair = [g1, g2];
+                return pair.sort((a, b) => {
+                    if (a === 'Iᴬ' && b === 'Iᴮ') return -1;
+                    if (a === 'Iᴮ' && b === 'Iᴬ') return 1;
+                    if ((a === 'Iᴬ' || a === 'Iᴮ') && b === 'i') return -1;
+                    if (a === 'i' && (b === 'Iᴬ' || b === 'Iᴮ')) return 1;
+                    if (a.startsWith('X') && b === 'Y') return -1;
+                    if (b.startsWith('X') && a === 'Y') return 1;
+                    if (a === 'Xᴮ' && b === 'Xᵇ') return -1;
+                    if (a === 'Xᵇ' && b === 'Xᴮ') return 1;
+                    if (a === a.toUpperCase() && b === b.toLowerCase() && !a.startsWith('X')) return -1;
+                    if (a === a.toLowerCase() && b === b.toUpperCase() && !b.startsWith('X')) return 1;
+                    return 0;
+                }).join('');
+            };
+
+            const offspring = [];
+            gametes1.forEach((g1, i) => {
+                gametes2.forEach((g2, j) => {
+                    const gen = getF1Genotype(g1, g2);
+                    offspring.push({ gen, pheno: getPhenotypeDisplay(gen), g1i: i, g2i: j });
+                });
+            });
+
+            const totalOffspring = offspring.length;
+            const phenoSummary = {};
+            offspring.forEach(o => {
+                let displayPheno = o.pheno;
+                if (currentData.type === 'sex-linked' && displayPheno.includes(common.normal) && displayPheno.includes(common.female)) {
+                    displayPheno = `${common.normal}${common.female}`;
+                }
+                phenoSummary[displayPheno] = (phenoSummary[displayPheno] || 0) + 1;
+            });
+
+            const labelClass = "w-32 md:w-40 text-right pr-6 font-bold text-gray-400 text-[10px] md:text-[11px] italic border-r-2 border-slate-100 flex items-center justify-end leading-tight shrink-0";
+            const contentClass = "flex-1 relative";
+
+            const getGameteX = (parent, index, count) => parent === 1 ? (count === 1 ? 25 : (index === 0 ? 12.5 : 37.5)) : (count === 1 ? 75 : (index === 0 ? 62.5 : 87.5));
+            const getF1X = (index, count) => count === 4 ? 12.5 + (index * 25) : (count === 2 ? 25 + (index * 50) : 50);
+
+            let symbolsHtml = '';
+            if (state.selectedCaseId === 'blood') {
+                symbolsHtml = `
+                    <div class="flex flex-wrap gap-x-10 gap-y-2">
+                        <span>${common.let} <span class="font-mono font-bold">Iᴬ</span> ${common.beAllele} ${state.lang === 'zh' ? 'A 型血' : 'Type A blood'}${common.alleleFor}</span>
+                        <span>${common.let} <span class="font-mono font-bold">Iᴮ</span> ${common.beAllele} ${state.lang === 'zh' ? 'B 型血' : 'Type B blood'}${common.alleleFor}</span>
+                        <span>${common.let} <span class="font-mono font-bold">i</span> ${common.beAllele} ${state.lang === 'zh' ? 'O 型血' : 'Type O blood'}${common.alleleFor}</span>
+                    </div>`;
+            } else if (state.selectedCaseId === 'colorblind') {
+                symbolsHtml = `
+                    <div class="flex flex-col gap-1">
+                        <span>${common.let} <span class="font-mono font-bold">Xᴮ</span> ${state.lang === 'zh' ? '為帶正常色覺等位基因的 X 染色體' : 'be the X chromosome carrying the allele for normal color vision'}</span>
+                        <span>${common.let} <span class="font-mono font-bold">Xᵇ</span> ${state.lang === 'zh' ? '為帶紅綠色盲等位基因的 X 染色體' : 'be the X chromosome carrying the allele for red-green color blindness'}</span>
+                        <span>${common.let} <span class="font-mono font-bold">Y</span> ${state.lang === 'zh' ? '為 Y 染色體' : 'be the Y chromosome'}</span>
+                    </div>`;
+            } else if (state.selectedCaseId === 'hemophilia') {
+                symbolsHtml = `
+                    <div class="flex flex-col gap-1">
+                        <span>${common.let} <span class="font-mono font-bold">Xᴮ</span> ${state.lang === 'zh' ? '為帶正常等位基因的 X 染色體' : 'be the X chromosome carrying the normal allele'}</span>
+                        <span>${common.let} <span class="font-mono font-bold">Xᵇ</span> ${state.lang === 'zh' ? '為帶血友病等位基因的 X 染色體' : 'be the X chromosome carrying the allele for hemophilia'}</span>
+                        <span>${common.let} <span class="font-mono font-bold">Y</span> ${state.lang === 'zh' ? '為 Y 染色體' : 'be the Y chromosome'}</span>
+                    </div>`;
+            } else if (!currentData.type.includes('sex-linked')) {
+                symbolsHtml = `
+                    <div class="flex flex-wrap gap-x-10 gap-y-2">
+                        <span>${common.let} <span class="font-mono font-bold">${currentData.alleles.dominant}</span> ${common.beAllele} ${currentData.phenotypes.dominant}${common.alleleFor}</span>
+                        <span>${common.let} <span class="font-mono font-bold">${currentData.alleles.recessive}</span> ${common.beAllele} ${currentData.phenotypes.recessive}${common.alleleFor}</span>
+                    </div>`;
+            }
+
+            const rStep = state.revealedStep;
+
+            return `
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm">
+                        <div class="flex items-center gap-2">
+                            ${Icon('check', 16, "text-blue-600")}
+                            <span class="text-sm font-bold text-blue-900">${state.lang === 'zh' ? '步驟' : 'Step'} ${rStep + 1}: ${t.steps[rStep]}</span>
+                        </div>
+                        <button onclick="window.nextRevealStep()" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-blue-700 transition-all flex items-center gap-2 shadow-md ${rStep === t.steps.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${rStep === t.steps.length - 1 ? 'disabled' : ''}>
+                            ${t.next} ${Icon('chevron', 18)}
+                        </button>
+                    </div>
+
+                    <div class="bg-white p-6 md:p-8 border border-slate-200 rounded-xl overflow-x-auto hide-scrollbar">
+                        <div class="flex flex-col space-y-12 min-w-[800px]">
+                            ${rStep >= 0 ? `
+                                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs animate-in">
+                                    <span class="font-bold text-slate-700 underline block mb-2">${t.labels.symbols}:</span>
+                                    <div class="flex flex-col gap-2 text-slate-600">${symbolsHtml}</div>
+                                </div>
+                            ` : ''}
+
+                            ${rStep >= 1 ? `
+                                <div class="flex items-center">
+                                    <div class="${labelClass}">${t.labels.parents}</div>
+                                    <div class="${contentClass}">
+                                        <div class="grid grid-cols-2 w-full">
+                                            <div class="text-center">
+                                                <div class="text-sm text-blue-700 font-bold mb-1">${getPhenotypeDisplay(p1.display || p1.code)}</div>
+                                                <div class="inline-block font-mono text-xl md:text-2xl font-bold tracking-widest bg-blue-50 px-4 py-1 rounded border border-blue-100">${p1.display || p1.code}</div>
+                                            </div>
+                                            <div class="text-center relative">
+                                                <div class="absolute left-0 top-1/2 -translate-x-1/2 text-2xl text-slate-300 font-light">×</div>
+                                                <div class="text-sm text-pink-700 font-bold mb-1">${getPhenotypeDisplay(p2.display || p2.code)}</div>
+                                                <div class="inline-block font-mono text-xl md:text-2xl font-bold tracking-widest bg-pink-50 px-4 py-1 rounded border border-pink-100">${p2.display || p2.code}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${rStep >= 2 ? `
+                                <div class="flex items-center">
+                                    <div class="${labelClass}">${t.labels.gametes}</div>
+                                    <div class="${contentClass}">
+                                        <div class="relative w-full h-12">
+                                            ${gametes1.map((g, i) => `<div style="left: ${getGameteX(1, i, gametes1.length)}%; transform: translateX(-50%)" class="absolute top-0 w-12 h-12 rounded-full border-2 border-blue-500 flex items-center justify-center font-mono font-bold text-xl bg-white shadow-sm z-10 animate-in">${g}</div>`).join('')}
+                                            ${gametes2.map((g, i) => `<div style="left: ${getGameteX(2, i, gametes2.length)}%; transform: translateX(-50%)" class="absolute top-0 w-12 h-12 rounded-full border-2 border-pink-500 flex items-center justify-center font-mono font-bold text-xl bg-white shadow-sm z-10 animate-in">${g}</div>`).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${rStep >= 3 ? `
+                                <div class="flex items-start">
+                                    <div class="${labelClass} pt-[54px]">${rStep >= 4 ? t.labels.f1gen : ""}</div>
+                                    <div class="${contentClass}">
+                                        <div class="relative w-full h-40">
+                                            <svg class="absolute w-full overflow-visible pointer-events-none" style="top: -72px; height: 120px;">
+                                                ${offspring.map((child, idx) => `
+                                                    <g class="animate-in">
+                                                        <line x1="${getGameteX(1, child.g1i, gametes1.length)}%" y1="0" x2="${getF1X(idx, offspring.length)}%" y2="100%" stroke="#3b82f6" stroke-width="2" />
+                                                        <line x1="${getGameteX(2, child.g2i, gametes2.length)}%" y1="0" x2="${getF1X(idx, offspring.length)}%" y2="100%" stroke="#ec4899" stroke-width="2" />
+                                                    </g>
+                                                `).join('')}
+                                            </svg>
+                                            <div class="absolute top-[48px] left-0 w-full">
+                                                ${offspring.map((child, i) => `
+                                                    <div style="left: ${getF1X(i, offspring.length)}%; transform: translateX(-50%)" class="absolute top-0 flex flex-col items-center z-10 text-center min-w-[110px]">
+                                                        ${rStep >= 4 ? `<div class="font-mono font-bold text-lg bg-white px-2 py-1 border-b-2 border-slate-900 shadow-sm animate-in">${child.gen}</div>` : ''}
+                                                        ${rStep >= 5 ? `
+                                                            <div class="mt-3 animate-in">
+                                                                <div class="text-[10px] font-bold text-slate-700 leading-tight uppercase bg-slate-100 px-2 py-1 rounded">${child.pheno}</div>
+                                                                <div class="text-[11px] text-blue-600 font-black mt-1">${(1/totalOffspring * 100).toFixed(0)}%</div>
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${rStep >= 6 ? `
+                                <div class="flex items-center">
+                                    <div class="${labelClass}">${t.labels.ratio}</div>
+                                    <div class="${contentClass}">
+                                        <div class="flex flex-wrap gap-4 animate-in">
+                                            ${Object.entries(phenoSummary).map(([pheno, count]) => `
+                                                <div class="flex flex-col bg-slate-900 text-white rounded-lg overflow-hidden shadow-lg min-w-[130px]">
+                                                    <div class="bg-slate-700 px-3 py-1 text-[10px] font-bold opacity-80 uppercase">${pheno}</div>
+                                                    <div class="px-3 py-2 flex justify-between items-end">
+                                                        <span class="text-xl font-bold">${count}</span>
+                                                        <span class="text-xs text-blue-400 font-bold mb-1">${(count/totalOffspring * 100).toFixed(0)}%</span>
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 主程式及渲染入口 ---
+        window.renderApp = () => {
+            const t = translations[state.lang];
+            const cases = getCasesData(state.lang);
+            const currentData = cases[state.selectedCaseId];
+
+            const getCasesHtml = () => Object.entries(cases).map(([key, value]) => `
+                <button onclick="window.setSelectedCaseId('${key}')" class="p-6 rounded-xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:bg-blue-50 text-left shadow-sm group transition-all">
+                    <h3 class="font-bold text-lg text-gray-800 group-hover:text-blue-600">${value.name}</h3>
+                    <p class="text-xs text-gray-500 mt-1">${value.description}</p>
+                </button>
+            `).join('');
+
+            const getP1Html = () => currentData.genotypes.map(g => {
+                const isSelected = state.p1 && state.p1.code === g.code;
+                const cls = isSelected ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300';
+                return `
+                    <button onclick="window.setP1('${g.code}')" class="p-4 rounded-lg border-2 text-left transition-all ${cls}">
+                        <span class="font-mono font-bold text-lg">${g.display || g.code}</span>
+                        <span class="ml-3 text-gray-600 text-sm">${g.name}</span>
+                    </button>
+                `;
+            }).join('');
+
+            const getP2Html = () => currentData.genotypes.map(g => {
+                const valid = isValidP2(g);
+                const isSelected = state.p2 && state.p2.code === g.code;
+                const cls = !valid ? 'opacity-20 cursor-not-allowed bg-gray-50' : (isSelected ? 'border-pink-500 bg-pink-50 ring-2 ring-pink-100' : 'border-gray-200 hover:border-gray-300');
+                return `
+                    <button ${!valid ? 'disabled' : ''} onclick="window.setP2('${g.code}')" class="p-4 rounded-lg border-2 text-left transition-all ${cls}">
+                        <span class="font-mono font-bold text-lg">${g.display || g.code}</span>
+                        <span class="ml-3 text-gray-600 text-sm">${g.name}</span>
+                    </button>
+                `;
+            }).join('');
+
+            const getQuizHtml = () => t.questions.map((item, index) => `
+                <div class="border-b border-gray-100 last:border-0 pb-6 last:pb-0">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded text-sm shrink-0">Q${index + 1}</span>
+                        <p class="font-medium text-slate-800 leading-relaxed">${item.q}</p>
+                    </div>
+                    <div class="mt-4 pl-12">
+                        <button onclick="window.toggleQuiz(${index})" class="flex items-center gap-2 text-indigo-600 text-sm font-bold hover:text-indigo-800 transition-colors">
+                            ${state.quizAnswers[index] ? Icon('eyeOff', 16) : Icon('eye', 16)} ${state.quizAnswers[index] ? t.hideAnswer : t.showAnswer}
+                        </button>
+                        ${state.quizAnswers[index] ? `
+                            <div class="mt-3 bg-slate-50 border-l-4 border-indigo-500 p-4 rounded-r-lg animate-in">
+                                <p class="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">${item.a}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            const mainContent = state.step === 0 ? `
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in">${getCasesHtml()}</div>
+            ` : state.step === 1 ? `
+                <div class="space-y-8 animate-in">
+                    ${currentData.type.includes('sex-linked') ? `
+                        <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm text-amber-800 flex items-center gap-2">
+                            ${Icon('info', 16)} ${t.hintSexLinked}
+                        </div>
+                    ` : ''}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="space-y-4"><h3 class="font-bold text-gray-700">P1 - ${t.selectP1}</h3><div class="flex flex-col gap-2">${getP1Html()}</div></div>
+                        <div class="space-y-4"><h3 class="font-bold text-gray-700">P2 - ${t.selectP2}</h3><div class="flex flex-col gap-2">${getP2Html()}</div></div>
+                    </div>
+                    <div class="flex justify-center pt-6">
+                        <button ${!(state.p1 && state.p2) ? 'disabled' : ''} onclick="window.startDiagram()" class="px-12 py-4 rounded-full font-bold text-white transition-all shadow-lg ${state.p1 && state.p2 ? 'bg-blue-600 hover:bg-blue-700 active:scale-95' : 'bg-gray-300 cursor-not-allowed'}">
+                            ${t.start}
+                        </button>
+                    </div>
+                </div>
+            ` : renderDiagramHtml();
+
+            document.getElementById('root').innerHTML = `
+                <div class="min-h-screen p-4 md:p-8 font-sans">
+                    <div class="max-w-5xl mx-auto space-y-8">
+                        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+                            <div class="bg-slate-900 p-6 text-white flex justify-between items-center">
+                                <div>
+                                    <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2">${Icon('flask', 24, "text-blue-400")} ${t.title}</h1>
+                                    <p class="text-slate-400 text-xs mt-1">${t.subtitle}</p>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <button onclick="window.setLang('${state.lang === 'zh' ? 'en' : 'zh'}')" class="flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-lg text-sm hover:bg-white/20 border border-white/20 transition-all">
+                                        ${Icon('lang', 16)} ${state.lang === 'zh' ? 'English' : '繁體中文'}
+                                    </button>
+                                    ${state.step > 0 ? `<button onclick="window.resetApp()" class="text-xs bg-white/10 px-3 py-1.5 rounded-lg hover:bg-white/20 flex items-center gap-1 transition-colors">${Icon('refresh', 14)} ${t.reset}</button>` : ''}
+                                </div>
+                            </div>
+                            <div class="p-6 md:p-10">${mainContent}</div>
+                        </div>
+
+                        <!-- Quiz 區塊 -->
+                        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 animate-in">
+                            <div class="bg-indigo-700 p-6 text-white flex items-center gap-2">
+                                ${Icon('help', 24)} <h2 class="text-xl font-bold">${t.quizTitle}</h2>
+                            </div>
+                            <div class="p-6 md:p-8 space-y-6">${getQuizHtml()}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- 初始化應用 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            window.renderApp();
+        });
+    </script>
+</body>
+</html>

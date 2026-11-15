@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>立體電場線 | 3D Electric Field Lines</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
+
+    <!-- Three.js and OrbitControls via robust CDN for Canvas LMS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Glassmorphism panel suitable for Canvas */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 10px 38px 0 rgba(15, 23, 42, 0.15);
+        }
+
+        /* Pill Segmented Control - Fixed Light Contrast */
+        .segmented-control {
+            display: flex; background: #e2e8f0; border-radius: 999px; padding: 0.25rem;
+        }
+        .segment-btn {
+            flex: 1; text-align: center; padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.875rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .segment-btn.active { background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #0f172a; }
+        .segment-btn:not(.active) { color: #64748b; }
+        .segment-btn:hover:not(.active) { color: #334155; }
+
+        /* Custom Scrollbar for Panel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
+
+        /* Toggle Switch Pure CSS Logic */
+        input:checked ~ .dot { transform: translateX(1rem); background-color: #ffffff; }
+        input:checked ~ .block { background-color: #3b82f6; }
+        input:not(:checked) ~ .dot { transform: translateX(0); background-color: #ffffff; }
+        input:not(:checked) ~ .block { background-color: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer" class="flex flex-col md:flex-row justify-between p-3 md:p-6 h-full box-border">
+        <!-- Header / Left Area -->
+        <div class="pointer-events-auto flex items-start justify-between w-full md:w-auto md:flex-col gap-3">
+            <!-- Title Bar with Gear Button on the Right -->
+            <div class="flex items-center gap-3 glass-panel px-4 py-3 rounded-2xl shadow-sm cursor-pointer hover:bg-white transition-colors" onclick="uiState.togglePanel()" title="Toggle Control Panel">
+                <div class="min-w-0">
+                    <h1 id="title" class="text-lg md:text-xl font-bold text-slate-800 m-0 select-none">立體電場線</h1>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800" data-i18n="badge">物理</span>
+                </div>
+                <div class="flex flex-wrap gap-1" onclick="event.stopPropagation()">
+                    <button type="button" id="btn-steps" class="px-2 py-1 rounded-lg text-xs font-semibold bg-slate-100">觀察步驟</button>
+                    <button type="button" id="btn-principle" class="px-2 py-1 rounded-lg text-xs font-semibold bg-sky-600 text-white">原理解說</button>
+                    <button type="button" id="btn-quiz" class="px-2 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">課堂問題</button>
+                </div>
+                <!-- Gear Button (Moved to the right of the title) -->
+                <div class="text-slate-500 hover:text-blue-600 transition-colors p-1.5 rounded-full hover:bg-slate-100 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform hover:rotate-90 transition-transform duration-300">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </div>
+            </div>
+            
+            <div id="instruction-toast" class="glass-panel px-4 py-2 rounded-xl text-sm text-slate-600 hidden sm:block max-w-xs transition-opacity duration-500 shadow-sm">
+                <span data-i18n="drag_rotate">拖曳畫面旋轉視角，雙指/滾輪縮放。</span>
+            </div>
+        </div>
+
+        <!-- Right Panel (Controls) -->
+        <div id="control-panel" class="pointer-events-auto glass-panel rounded-2xl w-full w-full md:w-[300px] flex flex-col shadow-lg transition-all duration-300 ease-in-out absolute md:relative bottom-3 md:bottom-auto left-0 md:left-auto px-3 md:px-0">
+            <!-- Panel Header -->
+            <div class="flex justify-between items-center p-3 md:p-4 border-b border-slate-200 bg-white/50 rounded-t-2xl">
+                <h2 class="font-bold text-slate-800 m-0 text-sm md:text-base">
+                    <span data-i18n="controls">控制面板</span>
+                </h2>
+                <!-- Theme Toggle Button (Controls Canvas Light/Dark Background) -->
+                <button onclick="uiState.toggleTheme()" class="text-slate-500 hover:text-amber-500 hover:bg-slate-200/50 p-1.5 rounded-full transition-colors focus:outline-none" title="Toggle Background Light/Dark">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+            </div>
+
+            <!-- Panel Content -->
+            <div id="panel-content" class="p-3 md:p-4 overflow-y-auto max-h-[65vh] md:max-h-[80vh] flex flex-col gap-4">
+                
+                <!-- Dimension Toggle -->
+                <div class="space-y-1.5">
+                    <label class="text-xs md:text-sm font-semibold text-slate-700" data-i18n="dimension">視角與維度</label>
+                    <div class="segmented-control">
+                        <div id="dim-2d" class="segment-btn active" onclick="sim.setDimension('2D')">2D 平面</div>
+                        <div id="dim-3d" class="segment-btn" onclick="sim.setDimension('3D')">3D 立體</div>
+                    </div>
+                </div>
+
+                <!-- Charge Configuration Presets -->
+                <div class="space-y-1.5">
+                    <label class="text-xs md:text-sm font-semibold text-slate-700" data-i18n="charge_config">預設分佈 (Presets)</label>
+                    <div class="grid grid-cols-1 gap-1.5">
+                        <button onclick="sim.setConfig('single_pos')" id="cfg-single_pos" class="config-btn w-full text-left px-3 py-1.5 text-xs md:text-sm rounded-xl border bg-white border-slate-200 hover:border-blue-500 transition-colors text-slate-700 shadow-sm font-medium flex items-center">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 mr-2 text-white font-bold" style="font-size: 10px;">+</span> <span data-i18n="single_pos">正電荷 (Isolated +)</span>
+                        </button>
+                        <button onclick="sim.setConfig('single_neg')" id="cfg-single_neg" class="config-btn w-full text-left px-3 py-1.5 text-xs md:text-sm rounded-xl border bg-white border-slate-200 hover:border-blue-500 transition-colors text-slate-700 shadow-sm font-medium flex items-center">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 mr-2 text-white font-bold" style="font-size: 10px;">-</span> <span data-i18n="single_neg">負電荷 (Isolated -)</span>
+                        </button>
+                        <button onclick="sim.setConfig('dipole')" id="cfg-dipole" class="config-btn w-full text-left px-3 py-1.5 text-xs md:text-sm rounded-xl border border-blue-500 ring-1 ring-blue-500 bg-blue-50/40 transition-colors text-slate-700 shadow-sm font-medium flex items-center">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 mr-1 text-white font-bold" style="font-size: 10px;">+</span><span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 mr-2 text-white font-bold" style="font-size: 10px;">-</span> <span data-i18n="dipole">一正一負 (+ / -)</span>
+                        </button>
+                        <button onclick="sim.setConfig('pos_pos')" id="cfg-pos_pos" class="config-btn w-full text-left px-3 py-1.5 text-xs md:text-sm rounded-xl border bg-white border-slate-200 hover:border-blue-500 transition-colors text-slate-700 shadow-sm font-medium flex items-center">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 mr-1 text-white font-bold" style="font-size: 10px;">+</span><span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 mr-2 text-white font-bold" style="font-size: 10px;">+</span> <span data-i18n="pos_pos">兩正電荷 (+ / +)</span>
+                        </button>
+                        <button onclick="sim.setConfig('neg_neg')" id="cfg-neg_neg" class="config-btn w-full text-left px-3 py-1.5 text-xs md:text-sm rounded-xl border bg-white border-slate-200 hover:border-blue-500 transition-colors text-slate-700 shadow-sm font-medium flex items-center">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 mr-1 text-white font-bold" style="font-size: 10px;">-</span><span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 mr-2 text-white font-bold" style="font-size: 10px;">-</span> <span data-i18n="neg_neg">兩負電荷 (- / -)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Charge Bars (+/- Sliders) -->
+                <div class="space-y-3 pt-2 border-t border-slate-200">
+                    <label class="text-xs md:text-sm font-semibold text-slate-700" data-i18n="charge_bars">電荷電量控制 (Charge Magnitude)</label>
+                    
+                    <div class="space-y-1" id="q1-control-group">
+                        <div class="flex justify-between text-xs md:text-sm font-medium text-slate-600 items-center">
+                            <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-slate-300 text-white font-bold text-[8px]" id="q1-icon"></span> <span data-i18n="charge_1">電荷 1 (左)</span></span>
+                            <span id="q1-display" class="text-red-500 font-bold">+2 e</span>
+                        </div>
+                        <input type="range" id="charge-q1" min="-4" max="4" step="1" value="2" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-red-500" oninput="sim.setQ1(this.value)">
+                    </div>
+
+                    <div class="space-y-1" id="q2-control-group">
+                        <div class="flex justify-between text-xs md:text-sm font-medium text-slate-600 items-center">
+                            <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-slate-300 text-white font-bold text-[8px]" id="q2-icon"></span> <span data-i18n="charge_2">電荷 2 (右)</span></span>
+                            <span id="q2-display" class="text-blue-500 font-bold">-2 e</span>
+                        </div>
+                        <input type="range" id="charge-q2" min="-4" max="4" step="1" value="-2" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500" oninput="sim.setQ2(this.value)">
+                    </div>
+                </div>
+
+                <!-- Distance Slider -->
+                <div class="space-y-1.5 pt-2 border-t border-slate-200 transition-opacity duration-300" id="dist-control-group">
+                    <label class="flex justify-between text-xs md:text-sm font-semibold text-slate-700">
+                        <span data-i18n="charge_distance">電荷距離 (d)</span>
+                        <span id="dist-display" class="text-blue-600 font-bold">6.0 m</span>
+                    </label>
+                    <input type="range" id="charge-dist" min="2" max="10" step="0.2" value="6" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" oninput="sim.setDistance(this.value)">
+                </div>
+
+                <!-- Toggles Section -->
+                <div class="pt-2 border-t border-slate-200 space-y-3">
+                    
+                    <label class="flex items-center justify-between cursor-pointer group">
+                        <span class="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors" data-i18n="show_field_lines">顯示電場線</span>
+                        <div class="relative">
+                            <input type="checkbox" id="toggle-lines" class="sr-only" checked onchange="sim.toggleLines(this.checked)">
+                            <div class="block w-10 h-6 rounded-full transition-colors duration-300 block"></div>
+                            <div class="dot absolute left-1 top-1 w-4 h-4 rounded-full transition-transform duration-300 shadow-sm"></div>
+                        </div>
+                    </label>
+
+                    <label class="flex items-center justify-between cursor-pointer group transition-opacity duration-300 opacity-40" id="np-control-group">
+                        <span class="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition-colors" data-i18n="show_neutral_point">顯示中性點</span>
+                        <div class="relative">
+                            <input type="checkbox" id="toggle-np" class="sr-only" disabled onchange="sim.toggleNeutralPoint(this.checked)">
+                            <div class="block w-10 h-6 rounded-full transition-colors duration-300 block"></div>
+                            <div class="dot absolute left-1 top-1 w-4 h-4 rounded-full transition-transform duration-300 shadow-sm"></div>
+                        </div>
+                    </label>
+
+                </div>
+
+                <!-- Learning Points (Collapsible Accordion) -->
+                <div class="pt-3 border-t border-slate-200">
+                    <button onclick="uiState.toggleLp()" class="flex justify-between items-center w-full text-left focus:outline-none group pb-1">
+                        <span class="text-xs md:text-sm font-semibold text-slate-800 flex items-center gap-1.5 group-hover:text-blue-600 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                            <span data-i18n="learning_points_title">學習重點</span>
+                        </span>
+                        <svg id="lp-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 transition-transform duration-300 rotate-180"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <!-- Expandable Content -->
+                    <div id="learning-points-content" class="overflow-hidden transition-all duration-300 max-h-[500px] opacity-100 mt-2">
+                        <ul class="text-xs text-slate-600 list-decimal pl-5 space-y-1.5 pb-2 pr-1">
+                            <li data-i18n="lp_1">場力線顯示作用於正電荷的電力方向；</li>
+                            <li data-i18n="lp_2">場力線從正電荷出發，到負電荷終止；</li>
+                            <li data-i18n="lp_3">在場力線愈密的地方，電場愈強；</li>
+                            <li data-i18n="lp_4">場力線永不相交。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Language Toggle -->
+                <div class="pt-3 border-t border-slate-200">
+                    <div class="segmented-control">
+                        <div id="lang-zh" class="segment-btn active text-xs md:text-sm" onclick="uiState.setLang('zh')">中文</div>
+                        <div id="lang-en" class="segment-btn text-xs md:text-sm" onclick="uiState.setLang('en')">English</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. I18N & UI State Management ---
+        const i18n = {
+            'zh': {
+                'title': '立體電場線',
+                'badge': '物理',
+                'btn_steps': '觀察步驟',
+                'btn_principle': '原理解說',
+                'btn_quiz': '課堂問題',
+                'drag_rotate': '拖曳畫面旋轉視角，雙指／滾輪縮放。',
+                'controls': '控制面板',
+                'dimension': '視角與維度',
+                'charge_config': '預設分佈 (Presets)',
+                'single_pos': '正電荷 (Isolated +)',
+                'single_neg': '負電荷 (Isolated -)',
+                'dipole': '一正一負 (+ / -)',
+                'pos_pos': '兩正電荷 (+ / +)',
+                'neg_neg': '兩負電荷 (- / -)',
+                'charge_bars': '電荷電量控制 (Charge Magnitude)',
+                'charge_1': '電荷 1 (左)',
+                'charge_2': '電荷 2 (右)',
+                'charge_distance': '電荷距離 (d)',
+                'show_field_lines': '顯示電場線',
+                'show_neutral_point': '顯示中性點 (Neutral Point)',
+                'learning_points_title': '學習重點 (Key Notes)',
+                'lp_1': '場力線顯示作用於正電荷的電力方向；',
+                'lp_2': '場力線從正電荷出發，到負電荷終止；',
+                'lp_3': '在場力線愈密的地方，電場愈強；',
+                'lp_4': '場力線永不相交。'
+            },
+            'en': {
+                'title': '3D Electric Field Lines',
+                'badge': 'Physics',
+                'btn_steps': 'Steps',
+                'btn_principle': 'Principle',
+                'btn_quiz': 'Quiz',
+                'drag_rotate': 'Drag to rotate, scroll/pinch to zoom.',
+                'controls': 'Control Panel',
+                'dimension': 'Dimension View',
+                'charge_config': 'Presets',
+                'single_pos': 'Isolated (+)',
+                'single_neg': 'Isolated (-)',
+                'dipole': 'Dipole (+ / -)',
+                'pos_pos': 'Two Positive (+ / +)',
+                'neg_neg': 'Two Negative (- / -)',
+                'charge_bars': 'Charge Magnitude',
+                'charge_1': 'Charge 1 (Left)',
+                'charge_2': 'Charge 2 (Right)',
+                'charge_distance': 'Charge Distance (d)',
+                'show_field_lines': 'Show Field Lines',
+                'show_neutral_point': 'Show Point of zero E',
+                'learning_points_title': 'Key Notes',
+                'lp_1': 'Field lines show the direction of electric force on a positive charge.',
+                'lp_2': 'Field lines start from positive charges and end at negative charges.',
+                'lp_3': 'The denser the field lines, the stronger the electric field.',
+                'lp_4': 'Field lines never cross each other.'
+            }
+        };
+
+        const uiState = {
+            lang: 'zh',
+            isDark: false,
+            isPanelOpen: true,
+            isLpOpen: true, // Learning points open by default
+            
+            init() {
+                const userLang = navigator.language || navigator.userLanguage;
+                if (!userLang.toLowerCase().startsWith('zh')) {
+                    this.setLang('en');
+                } else {
+                    this.updateText();
+                }
+
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    this.toggleTheme(true); 
+                }
+            },
+
+            setLang(l) {
+                this.lang = l;
+                document.getElementById('lang-zh').classList.toggle('active', l === 'zh');
+                document.getElementById('lang-en').classList.toggle('active', l === 'en');
+                this.updateText();
+            },
+
+            updateText() {
+                document.getElementById('title').innerText = i18n[this.lang]['title'];
+                document.getElementById('btn-steps').innerText = i18n[this.lang]['btn_steps'];
+                document.getElementById('btn-principle').innerText = i18n[this.lang]['btn_principle'];
+                document.getElementById('btn-quiz').innerText = i18n[this.lang]['btn_quiz'];
+                if (window.renderEqClassroom) window.renderEqClassroom();
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.getAttribute('data-i18n');
+                    if (i18n[this.lang][key]) el.innerText = i18n[this.lang][key];
+                });
+            },
+
+            toggleTheme(forceDark = null) {
+                if (forceDark !== null) {
+                    this.isDark = forceDark;
+                } else {
+                    this.isDark = !this.isDark;
+                }
+                
+                if(window.sim && window.sim.scene) {
+                    sim.updateColors(this.isDark);
+                }
+            },
+
+            togglePanel() {
+                const panel = document.getElementById('control-panel');
+                if (this.isPanelOpen) {
+                    panel.style.transform = 'translateX(-120%)';
+                    panel.style.opacity = '0';
+                    setTimeout(() => panel.style.display = 'none', 300);
+                } else {
+                    panel.style.display = 'flex';
+                    setTimeout(() => {
+                        panel.style.transform = 'translateX(0)';
+                        panel.style.opacity = '1';
+                    }, 10);
+                }
+                this.isPanelOpen = !this.isPanelOpen;
+            },
+
+            // Toggles the accordion for learning points
+            toggleLp() {
+                this.isLpOpen = !this.isLpOpen;
+                const content = document.getElementById('learning-points-content');
+                const chevron = document.getElementById('lp-chevron');
+                if (this.isLpOpen) {
+                    content.classList.remove('max-h-0', 'opacity-0', 'mt-0');
+                    content.classList.add('max-h-[500px]', 'opacity-100', 'mt-2');
+                    chevron.classList.add('rotate-180');
+                } else {
+                    content.classList.remove('max-h-[500px]', 'opacity-100', 'mt-2');
+                    content.classList.add('max-h-0', 'opacity-0', 'mt-0');
+                    chevron.classList.remove('rotate-180');
+                }
+            }
+        };
+
+        // --- 2. Physics Simulation & Three.js ---
+        const sim = {
+            scene: null, camera: null, renderer: null, controls: null,
+            charges: [], fieldLinesGroup: new THREE.Group(),
+            config: 'dipole', dimension: '2D', showLines: true, distance: 6.0,
+            q1: 2, q2: -2, 
+            showNP: false, npSprite: null,
+            isDark: false, resizeObserver: null,
+            
+            // Materials
+            posMat: new THREE.MeshPhongMaterial({ color: 0xef4444, shininess: 100 }), 
+            negMat: new THREE.MeshPhongMaterial({ color: 0x3b82f6, shininess: 100 }), 
+            neutralMat: new THREE.MeshPhongMaterial({ color: 0x94a3b8, shininess: 30 }), 
+            
+            lineMatDark: new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.85 }),
+            lineMatLight: new THREE.MeshBasicMaterial({ color: 0x16a34a, transparent: true, opacity: 0.85 }),
+            arrowMatDark: new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
+            arrowMatLight: new THREE.MeshBasicMaterial({ color: 0x16a34a }),
+
+            init() {
+                const container = document.getElementById('canvas-container');
+                
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0xf8fafc); 
+                this.scene.add(this.fieldLinesGroup);
+
+                const aspect = container.clientWidth > 0 ? container.clientWidth / container.clientHeight : 1;
+                this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+                
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                const width = container.clientWidth || window.innerWidth;
+                const height = container.clientHeight || window.innerHeight;
+                
+                this.renderer.setSize(width, height);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+                container.appendChild(this.renderer.domElement);
+
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.enablePan = false; 
+
+                this.setCameraFor2D();
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+                this.scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+                dirLight.position.set(10, 20, 15);
+                this.scene.add(dirLight);
+
+                this.resizeObserver = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        const { width, height } = entry.contentRect;
+                        if (width > 0 && height > 0) {
+                            this.camera.aspect = width / height;
+                            this.camera.updateProjectionMatrix();
+                            this.renderer.setSize(width, height);
+                        }
+                    }
+                });
+                this.resizeObserver.observe(container);
+
+                this.npSprite = this.createNPSprite();
+                this.npSprite.visible = false;
+                this.scene.add(this.npSprite);
+
+                this.updateColors(uiState.isDark);
+                
+                // Set initial icons correctly
+                this.updateSliderDisplays();
+                this.buildCharges();
+                this.animate();
+            },
+
+            updateColors(isDark) {
+                this.isDark = isDark;
+                this.scene.background = new THREE.Color(isDark ? 0x111827 : 0xf8fafc);
+                if (this.showLines) this.drawFieldLines(); 
+
+                if (this.npSprite) {
+                    const wasVisible = this.npSprite.visible;
+                    this.scene.remove(this.npSprite);
+                    this.npSprite.material.map.dispose();
+                    this.npSprite.material.dispose();
+                    this.npSprite = this.createNPSprite();
+                    this.npSprite.visible = wasVisible;
+                    this.scene.add(this.npSprite);
+                }
+            },
+
+            setDimension(dim) {
+                this.dimension = dim;
+                document.getElementById('dim-2d').classList.toggle('active', dim === '2D');
+                document.getElementById('dim-3d').classList.toggle('active', dim === '3D');
+                
+                if (dim === '2D') {
+                    this.setCameraFor2D();
+                } else {
+                    this.controls.enableRotate = true;
+                    this.camera.position.set(8, 6, 12);
+                    this.controls.target.set(0, 0, 0);
+                }
+                this.drawFieldLines(); 
+            },
+
+            setCameraFor2D() {
+                this.camera.position.set(0, 0, 18);
+                if(this.controls) {
+                    this.controls.target.set(0, 0, 0);
+                    this.controls.enableRotate = false; 
+                }
+                this.camera.up.set(0, 1, 0);
+            },
+
+            setConfig(cfg) {
+                this.config = cfg;
+                
+                document.querySelectorAll('.config-btn').forEach(btn => {
+                    btn.classList.remove('border-blue-500', 'ring-1', 'ring-blue-500', 'bg-blue-50/40');
+                    btn.classList.add('border-slate-200');
+                });
+                const activeBtn = document.getElementById('cfg-' + cfg);
+                activeBtn.classList.remove('border-slate-200');
+                activeBtn.classList.add('border-blue-500', 'ring-1', 'ring-blue-500', 'bg-blue-50/40');
+
+                switch (cfg) {
+                    case 'single_pos': this.q1 = 2; this.q2 = 0; break;
+                    case 'single_neg': this.q1 = -2; this.q2 = 0; break;
+                    case 'dipole': this.q1 = 2; this.q2 = -2; break;
+                    case 'pos_pos': this.q1 = 2; this.q2 = 2; break;
+                    case 'neg_neg': this.q1 = -2; this.q2 = -2; break;
+                }
+
+                document.getElementById('charge-q1').value = this.q1;
+                document.getElementById('charge-q2').value = this.q2;
+                this.updateSliderDisplays();
+
+                this.buildCharges();
+            },
+
+            setQ1(val) {
+                this.q1 = parseInt(val);
+                this.updateSliderDisplays();
+                this.updateConfigPresetHighlight();
+                this.buildCharges();
+            },
+
+            setQ2(val) {
+                this.q2 = parseInt(val);
+                this.updateSliderDisplays();
+                this.updateConfigPresetHighlight();
+                this.buildCharges();
+            },
+
+            updateSliderDisplays() {
+                const q1Disp = document.getElementById('q1-display');
+                const q2Disp = document.getElementById('q2-display');
+                const q1Icon = document.getElementById('q1-icon');
+                const q2Icon = document.getElementById('q2-icon');
+                
+                // Update Text Values
+                q1Disp.innerText = (this.q1 > 0 ? '+' : '') + this.q1 + ' e';
+                q2Disp.innerText = (this.q2 > 0 ? '+' : '') + this.q2 + ' e';
+
+                // Update Text Colors
+                q1Disp.className = this.q1 > 0 ? "text-red-500 font-bold" : (this.q1 < 0 ? "text-blue-500 font-bold" : "text-slate-500 font-bold");
+                q2Disp.className = this.q2 > 0 ? "text-red-500 font-bold" : (this.q2 < 0 ? "text-blue-500 font-bold" : "text-slate-500 font-bold");
+
+                // Update Input Slider Accent Colors
+                document.getElementById('charge-q1').className = `w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-${this.q1 > 0 ? 'red-500' : (this.q1 < 0 ? 'blue-500' : 'slate-500')}`;
+                document.getElementById('charge-q2').className = `w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-${this.q2 > 0 ? 'red-500' : (this.q2 < 0 ? 'blue-500' : 'slate-500')}`;
+
+                // Update Icons (+/-) next to label
+                q1Icon.innerText = this.q1 > 0 ? '+' : (this.q1 < 0 ? '-' : '0');
+                q1Icon.className = `inline-flex items-center justify-center w-4 h-4 rounded-full text-white font-bold text-[10px] bg-${this.q1 > 0 ? 'red-500' : (this.q1 < 0 ? 'blue-500' : 'slate-400')}`;
+                
+                q2Icon.innerText = this.q2 > 0 ? '+' : (this.q2 < 0 ? '-' : '0');
+                q2Icon.className = `inline-flex items-center justify-center w-4 h-4 rounded-full text-white font-bold text-[10px] bg-${this.q2 > 0 ? 'red-500' : (this.q2 < 0 ? 'blue-500' : 'slate-400')}`;
+
+                const isSingle = (this.q1 === 0 || this.q2 === 0);
+                document.getElementById('charge-dist').disabled = isSingle;
+                document.getElementById('dist-control-group').style.opacity = isSingle ? '0.4' : '1';
+                document.getElementById('charge-dist').style.cursor = isSingle ? 'not-allowed' : 'pointer';
+
+                const hasNP = (this.q1 * this.q2 > 0);
+                const npGroup = document.getElementById('np-control-group');
+                const npToggle = document.getElementById('toggle-np');
+                
+                npGroup.style.opacity = hasNP ? '1' : '0.4';
+                npToggle.disabled = !hasNP;
+                if (!hasNP) {
+                    npToggle.checked = false;
+                    this.toggleNeutralPoint(false);
+                } else {
+                    this.toggleNeutralPoint(npToggle.checked);
+                }
+            },
+
+            updateConfigPresetHighlight() {
+                document.querySelectorAll('.config-btn').forEach(btn => {
+                    btn.classList.remove('border-blue-500', 'ring-1', 'ring-blue-500', 'bg-blue-50/40');
+                    btn.classList.add('border-slate-200');
+                });
+                
+                let activeBtnId = null;
+                if (this.q1 === 2 && this.q2 === 0) activeBtnId = 'cfg-single_pos';
+                else if (this.q1 === -2 && this.q2 === 0) activeBtnId = 'cfg-single_neg';
+                else if (this.q1 === 2 && this.q2 === -2) activeBtnId = 'cfg-dipole';
+                else if (this.q1 === 2 && this.q2 === 2) activeBtnId = 'cfg-pos_pos';
+                else if (this.q1 === -2 && this.q2 === -2) activeBtnId = 'cfg-neg_neg';
+
+                if (activeBtnId) {
+                    const activeBtn = document.getElementById(activeBtnId);
+                    activeBtn.classList.remove('border-slate-200');
+                    activeBtn.classList.add('border-blue-500', 'ring-1', 'ring-blue-500', 'bg-blue-50/40');
+                }
+            },
+
+            setDistance(val) {
+                this.distance = parseFloat(val);
+                document.getElementById('dist-display').innerText = this.distance.toFixed(1) + ' m';
+                this.buildCharges();
+            },
+
+            toggleLines(show) {
+                this.showLines = show;
+                this.fieldLinesGroup.visible = show;
+                if (show) this.drawFieldLines();
+            },
+
+            toggleNeutralPoint(show) {
+                this.showNP = show;
+                if (this.npSprite) {
+                    const hasNP = (this.q1 * this.q2 > 0);
+                    this.npSprite.visible = show && hasNP;
+                }
+                this.updateNeutralPointPosition();
+            },
+
+            createSignSprite(sign) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 80px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(sign, 64, 68); 
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.scale.set(0.8, 0.8, 1);
+                sprite.renderOrder = 999; 
+                return sprite;
+            },
+
+            createNPSprite() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                
+                const color = this.isDark ? '#4ade80' : '#16a34a'; 
+                
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(38, 38); 
+                ctx.lineTo(90, 90);
+                ctx.moveTo(90, 38); 
+                ctx.lineTo(38, 90);
+                ctx.stroke();
+
+                ctx.fillStyle = color;
+                ctx.font = 'bold 38px Arial';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('N', 94, 50);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.scale.set(1.5, 1.5, 1);
+                sprite.renderOrder = 998; 
+                return sprite;
+            },
+
+            getNeutralPoint() {
+                if (this.charges.length < 2) return null;
+                const c1 = this.charges[0];
+                const c2 = this.charges[1];
+                const q1 = c1.q;
+                const q2 = c2.q;
+                const x1 = c1.position.x;
+                const x2 = c2.position.x;
+
+                if (q1 === 0 || q2 === 0) return null; 
+
+                const absQ1 = Math.abs(q1);
+                const absQ2 = Math.abs(q2);
+
+                if (q1 * q2 > 0) {
+                    const x = (x1 * Math.sqrt(absQ2) + x2 * Math.sqrt(absQ1)) / (Math.sqrt(absQ1) + Math.sqrt(absQ2));
+                    return new THREE.Vector3(x, 0, 0);
+                } else {
+                    if (absQ1 === absQ2) return null; 
+
+                    let x;
+                    if (absQ1 < absQ2) {
+                        x = (x2 * Math.sqrt(absQ1) - x1 * Math.sqrt(absQ2)) / (Math.sqrt(absQ1) - Math.sqrt(absQ2));
+                    } else {
+                        x = (x1 * Math.sqrt(absQ2) - x2 * Math.sqrt(absQ1)) / (Math.sqrt(absQ2) - Math.sqrt(absQ1));
+                    }
+                    return new THREE.Vector3(x, 0, 0);
+                }
+            },
+
+            updateNeutralPointPosition() {
+                const np = this.getNeutralPoint();
+                if (np && this.showNP && (this.q1 * this.q2 > 0)) {
+                    this.npSprite.position.copy(np);
+                    this.npSprite.visible = true;
+                } else {
+                    if (this.npSprite) this.npSprite.visible = false;
+                }
+            },
+
+            buildCharges() {
+                this.charges.forEach(c => this.scene.remove(c.mesh));
+                this.charges = [];
+
+                const sphereGeom = new THREE.SphereGeometry(0.5, 32, 32);
+
+                const addCharge = (q, x, y, z) => {
+                    let mat;
+                    if (q > 0) mat = this.posMat;
+                    else if (q < 0) mat = this.negMat;
+                    else mat = this.neutralMat;
+
+                    const mesh = new THREE.Mesh(sphereGeom, mat);
+                    
+                    const scale = 0.4 + 0.15 * Math.abs(q); 
+                    mesh.scale.set(scale, scale, scale);
+
+                    if (q !== 0) {
+                        const sprite = this.createSignSprite(q > 0 ? '+' : '-');
+                        mesh.add(sprite);
+                    }
+                    
+                    mesh.position.set(x, y, z);
+                    this.scene.add(mesh);
+                    this.charges.push({ q, position: new THREE.Vector3(x, y, z), mesh });
+                };
+
+                const d = this.distance / 2;
+                
+                if (this.q1 !== 0 && this.q2 === 0) {
+                    addCharge(this.q1, 0, 0, 0);
+                } else if (this.q1 === 0 && this.q2 !== 0) {
+                    addCharge(this.q2, 0, 0, 0);
+                } else {
+                    addCharge(this.q1, -d, 0, 0);
+                    addCharge(this.q2, d, 0, 0);
+                }
+
+                this.updateNeutralPointPosition();
+
+                if (this.showLines) this.drawFieldLines();
+            },
+
+            getEField(point) {
+                let Ex = 0, Ey = 0, Ez = 0;
+                const k = 1; 
+                for (let c of this.charges) {
+                    const dx = point.x - c.position.x;
+                    const dy = point.y - c.position.y;
+                    const dz = point.z - c.position.z;
+                    const r2 = dx*dx + dy*dy + dz*dz;
+                    const r = Math.sqrt(r2);
+                    if (r < 0.2) continue; 
+                    const E = (k * c.q) / r2;
+                    Ex += E * (dx / r);
+                    Ey += E * (dy / r);
+                    Ez += E * (dz / r);
+                }
+                return new THREE.Vector3(Ex, Ey, Ez);
+            },
+
+            drawFieldLines() {
+                while(this.fieldLinesGroup.children.length > 0) { 
+                    const child = this.fieldLinesGroup.children[0];
+                    if(child.geometry) child.geometry.dispose(); 
+                    this.fieldLinesGroup.remove(child); 
+                }
+
+                if (this.charges.length === 0) return;
+
+                const stepSize = 0.1;
+                const maxSteps = 1500; 
+                const lineMaterial = this.isDark ? this.lineMatDark : this.lineMatLight;
+                const arrowMaterial = this.isDark ? this.arrowMatDark : this.arrowMatLight;
+                
+                const arrowGeom = new THREE.ConeGeometry(0.12, 0.3, 8);
+                arrowGeom.rotateX(Math.PI / 2); 
+
+                const np = this.getNeutralPoint();
+
+                const getDir = (pos, isPositive) => {
+                    let E = this.getEField(pos);
+                    let mag = E.length();
+                    if (mag < 1e-6) return new THREE.Vector3(0,0,0);
+                    E.divideScalar(mag);
+                    if (!isPositive) E.negate();
+                    if (this.dimension === '2D') E.z = 0;
+                    return E;
+                };
+
+                const generateSeeds = (charge) => {
+                    const seeds = [];
+                    const absQ = Math.abs(charge.q);
+                    if (absQ === 0) return seeds; 
+                    
+                    const chargeVisualRadius = 0.4 + 0.15 * absQ;
+                    const rStart = chargeVisualRadius * 1.25; 
+
+                    if (this.dimension === '2D') {
+                        const baseLines = 8;
+                        const numLines = absQ * baseLines;
+                        
+                        const isLike = (this.q1 * this.q2 > 0);
+                        const pointsTowardsCenter = charge.position.x < 0 ? 0 : Math.PI;
+
+                        for (let i = 0; i < numLines; i++) {
+                            const theta = (i + 0.5) * 2 * Math.PI / numLines;
+                            seeds.push(new THREE.Vector3(
+                                charge.position.x + rStart * Math.cos(theta),
+                                charge.position.y + rStart * Math.sin(theta),
+                                0
+                            ));
+                        }
+
+                        if (isLike) {
+                            const offsetAngles = [0.03, -0.03, 0.08, -0.08]; 
+                            offsetAngles.forEach(angle => {
+                                const theta = pointsTowardsCenter + angle;
+                                seeds.push(new THREE.Vector3(
+                                    charge.position.x + rStart * Math.cos(theta),
+                                    charge.position.y + rStart * Math.sin(theta),
+                                    0
+                                ));
+                            });
+                        }
+                    } else { 
+                        const numLines = absQ * 16;
+                        const phi = Math.PI * (3 - Math.sqrt(5));
+                        for (let i = 0; i < numLines; i++) {
+                            const y = 1 - ((i + 0.5) / numLines) * 2; 
+                            const radius = Math.sqrt(1 - y * y);
+                            const theta = phi * i;
+
+                            const dx = Math.cos(theta) * radius;
+                            const dy = y;
+                            const dz = Math.sin(theta) * radius;
+
+                            seeds.push(new THREE.Vector3(
+                                charge.position.x + rStart * dx,
+                                charge.position.y + rStart * dy,
+                                charge.position.z + rStart * dz
+                            ));
+                        }
+                    }
+                    return seeds;
+                };
+
+                let seedCharges = this.charges;
+                const isOpposite = (this.q1 * this.q2 < 0);
+                if (isOpposite) {
+                    seedCharges = this.charges.filter(c => c.q > 0);
+                }
+
+                seedCharges.forEach(charge => {
+                    const isPositive = charge.q > 0;
+                    const seeds = generateSeeds(charge);
+
+                    seeds.forEach(seed => {
+                        let currentPos = seed.clone();
+                        const points = [currentPos.clone()];
+                        let stopped = false;
+
+                        for (let i = 0; i < maxSteps; i++) {
+                            let E = this.getEField(currentPos);
+                            let EMag = E.length();
+                            
+                            if (EMag < 0.0001) break;
+
+                            let k1 = getDir(currentPos, isPositive);
+                            if (k1.lengthSq() === 0) break;
+
+                            let p2 = currentPos.clone().addScaledVector(k1, stepSize * 0.5);
+                            let k2 = getDir(p2, isPositive);
+
+                            let p3 = currentPos.clone().addScaledVector(k2, stepSize * 0.5);
+                            let k3 = getDir(p3, isPositive);
+
+                            let p4 = currentPos.clone().addScaledVector(k3, stepSize);
+                            let k4 = getDir(p4, isPositive);
+
+                            let nextPos = currentPos.clone();
+                            nextPos.x += (stepSize / 6) * (k1.x + 2*k2.x + 2*k3.x + k4.x);
+                            nextPos.y += (stepSize / 6) * (k1.y + 2*k2.y + 2*k3.y + k4.y);
+                            nextPos.z += (stepSize / 6) * (k1.z + 2*k2.z + 2*k3.z + k4.z);
+
+                            if (np && (this.q1 * this.q2 > 0)) {
+                                const dx_curr = currentPos.x - np.x;
+                                const dx_next = nextPos.x - np.x;
+                                
+                                if (dx_curr * dx_next < 0) {
+                                    nextPos.x = currentPos.x; 
+                                }
+                                
+                                if (nextPos.distanceTo(np) < 0.05) {
+                                    break;
+                                }
+                            }
+
+                            currentPos.copy(nextPos);
+                            points.push(currentPos.clone());
+
+                            for (let c of this.charges) {
+                                const hitRadius = (0.4 + 0.15 * Math.abs(c.q)) * 1.05;
+                                if (currentPos.distanceTo(c.position) < hitRadius) { 
+                                    if (i > 5 || c !== charge) {
+                                        stopped = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (stopped) break;
+                            
+                            if (currentPos.length() > 50) break; 
+                        }
+
+                        if (points.length > 2) {
+                            try {
+                                const curve = new THREE.CatmullRomCurve3(points);
+                                const geometry = new THREE.TubeGeometry(curve, points.length, 0.015, 5, false);
+                                const line = new THREE.Mesh(geometry, lineMaterial);
+                                this.fieldLinesGroup.add(line);
+
+                                let targetDistance = 2.0; 
+                                let arrowIndex = 1;
+                                let currentDist = 0;
+                                for (let j=1; j<points.length; j++) {
+                                    currentDist += points[j].distanceTo(points[j-1]);
+                                    if (currentDist >= targetDistance) {
+                                        arrowIndex = j;
+                                        break;
+                                    }
+                                }
+                                if (arrowIndex === 1 && points.length > 10) arrowIndex = Math.floor(points.length * 0.3);
+
+                                if (arrowIndex > 0 && arrowIndex < points.length - 1) {
+                                    const p1 = points[arrowIndex];
+                                    const p2 = points[arrowIndex + 1];
+                                    const arrow = new THREE.Mesh(arrowGeom, arrowMaterial);
+                                    arrow.position.copy(p1);
+                                    
+                                    const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
+                                    if (!isPositive) direction.negate(); 
+                                    
+                                    arrow.lookAt(p1.clone().add(direction));
+                                    this.fieldLinesGroup.add(arrow);
+                                }
+                            } catch (e) {
+                                console.error("Field line drawing error:", e);
+                            }
+                        }
+                    });
+                });
+            },
+
+            animate() {
+                requestAnimationFrame(this.animate.bind(this));
+                if(this.controls) this.controls.update();
+                if(this.renderer && this.scene && this.camera) {
+                    this.renderer.render(this.scene, this.camera);
+                }
+            }
+        };
+
+        window.sim = sim;
+        window.uiState = uiState;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            uiState.init();
+            sim.init();
+        });
+
+    </script>
+
+<div id="modal-steps" class="eq-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title"><div class="eq-panel"><div class="eq-head"><h2 id="steps-title">觀察步驟</h2><button type="button" data-eq-close>✕</button></div><ol id="steps-body"></ol></div></div>
+<div id="modal-principle" class="eq-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title"><div class="eq-panel"><div class="eq-head"><h2 id="principle-title">原理解說</h2><button type="button" data-eq-close>✕</button></div><div id="principle-body"></div></div></div>
+<div id="modal-quiz" class="eq-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title"><div class="eq-panel"><div class="eq-head"><h2 id="quiz-title">課堂問題</h2><button type="button" data-eq-close>✕</button></div><div id="quiz-list"></div><button type="button" id="btn-quiz-answers">顯示參考答案</button></div></div>
+<style>
+.eq-modal[hidden]{display:none!important}
+.eq-modal{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.eq-panel{width:min(640px,100%);max-height:80vh;overflow:auto;background:#fff;color:#0f172a;border-radius:16px;padding:16px;font-family:"Noto Sans TC","PingFang TC",sans-serif}
+.eq-head{display:flex;justify-content:space-between;align-items:center}
+.eq-panel li,.eq-panel p{line-height:1.55;margin:0 0 8px}
+.eq-panel article{border:1px solid #e2e8f0;border-radius:12px;padding:10px;margin-bottom:8px}
+.eq-choices{display:grid;gap:6px}
+.eq-choices label{display:flex;gap:6px}
+.eq-answer{margin-top:8px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:8px;font-size:13px}
+#btn-quiz-answers{border:0;border-radius:8px;padding:6px 10px;background:#0f172a;color:#fff;cursor:pointer}
+</style>
+<script>
+(function(){
+  const pack = {
+    steps: {
+      zh: ['選「正電荷」，看場力線向外。','改選「負電荷」，看場力線向內。','選「一正一負」，拖曳畫面看線從正到負。','把兩電荷都調成正，打開「中性點」。','切到 3D，用滾輪拉遠再看同一組電荷。'],
+      en: ['Choose an isolated positive charge and watch the lines point outward.','Switch to an isolated negative charge.','Choose a dipole and drag the view to follow lines from positive to negative.','Set both charges positive and turn on the neutral point.','Switch to 3D and zoom out with the scroll wheel.']
+    },
+    principle: {
+      zh: ['場力線表示正電荷受力的方向，由正電荷出發，到負電荷終止。','線愈密，電場愈強；線永不相交。','同號電荷之間可以有電場為零的中性點，位置偏向電量較小的一方。'],
+      en: ['Field lines show the force on a positive charge. They leave positive charges and end on negative charges.','Denser lines mean a stronger field, and lines never cross.','Like charges can have a neutral point where the field is zero, closer to the smaller charge.']
+    },
+    quiz: [
+      {zh:'孤立正電荷的場力線？',en:'Field lines of an isolated positive charge?',azh:'A。',aen:'A.',czh:['向外','向內','是閉合圓','一定為零'],cen:['Point outward','Point inward','Are closed circles','Are certainly zero'],ans:0},
+      {zh:'先預測負電荷的線指向電荷，再選「負電荷」核對。',en:'Predict that a negative charge has inward lines, then select the negative preset.',azh:'線向內終止於負電荷。',aen:'The lines point inward and end on the negative charge.'},
+      {zh:'一正一負時，線的方向大致是？',en:'For one positive and one negative charge, the lines run roughly?',azh:'B。',aen:'B.',czh:['從負到正','從正到負','只存在於兩電荷外側','沒有方向'],cen:['From negative to positive','From positive to negative','Only outside the pair','With no direction'],ans:1},
+      {zh:'先預測兩個正電荷之間有電場為零的點，再打開「中性點」。',en:'Predict a point of zero field between two positive charges, then show the neutral point.',azh:'同號之間有中性點，位置較靠近電量較小的電荷。',aen:'Like charges have a neutral point, closer to the smaller charge.'},
+      {zh:'場力線較密的地方，電場？',en:'Where field lines are denser, the electric field is?',azh:'A。',aen:'A.',czh:['較強','較弱','一定為零','與密度無關'],cen:['Stronger','Weaker','Certainly zero','Unrelated to density'],ans:0}
+    ]
+  };
+  let answers = false;
+  const $ = (id) => document.getElementById(id);
+  function lang(){ return (window.uiState && uiState.lang) || 'zh'; }
+  function openModal(id){
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid)=>{ const el=$(mid); if(el) el.hidden = mid!==id; });
+  }
+  function close(){ ['modal-steps','modal-principle','modal-quiz'].forEach((mid)=>{ const el=$(mid); if(el) el.hidden=true; }); }
+  window.renderEqClassroom = function(){
+    const l = lang();
+    $('steps-title').textContent = l==='zh'?'觀察步驟':'Steps';
+    $('principle-title').textContent = l==='zh'?'原理解說':'Principle';
+    $('quiz-title').textContent = l==='zh'?'課堂問題':'Quiz';
+    $('steps-body').innerHTML = pack.steps[l].map((s,i)=>'<li>'+(i+1)+'. '+s+'</li>').join('');
+    $('principle-body').innerHTML = pack.principle[l].map((s)=>'<p>'+s+'</p>').join('');
+    const labels=['A','B','C','D'];
+    $('quiz-list').innerHTML = pack.quiz.map((q,idx)=>{
+      const n=idx+1, open=n===2||n===4;
+      let choices='';
+      if(!open){
+        const arr=l==='zh'?q.czh:q.cen;
+        choices='<div class="eq-choices">'+arr.map((t,i)=>'<label><input type="radio" name="eq'+n+'"> <span>'+labels[i]+'. '+t+'</span></label>').join('')+'</div>';
+      }
+      const ans=answers?'<div class="eq-answer"><strong>'+(l==='zh'?'參考答案':'Answer')+'</strong> '+(l==='zh'?q.azh:q.aen)+'</div>':'';
+      return '<article><p><strong>Q'+n+'.</strong> '+(l==='zh'?q.zh:q.en)+'</p>'+choices+ans+'</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = answers ? (l==='zh'?'隱藏參考答案':'Hide answers') : (l==='zh'?'顯示參考答案':'Show answers');
+  };
+  $('btn-steps').addEventListener('click',()=>openModal('modal-steps'));
+  $('btn-principle').addEventListener('click',()=>openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click',()=>openModal('modal-quiz'));
+  $('btn-quiz-answers').addEventListener('click',()=>{ answers=!answers; renderEqClassroom(); });
+  document.querySelectorAll('[data-eq-close]').forEach((b)=>b.addEventListener('click',close));
+  document.querySelectorAll('.eq-modal').forEach((el)=>el.addEventListener('click',(e)=>{ if(e.target===el) close(); }));
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') close(); });
+  renderEqClassroom();
+})();
+</script>
+
+</body>
+</html>

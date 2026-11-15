@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>水蒸發速率因素 | Evaporation Rate Factors</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+        /* 自定義動畫 */
+        @keyframes vapor {
+            0% { transform: translateY(0) scale(1); opacity: 0.8; }
+            100% { transform: translateY(-40px) scale(1.5); opacity: 0; }
+        }
+        .animate-vapor {
+            animation: vapor 2s ease-out infinite;
+        }
+
+        @keyframes wind-move {
+            0% { transform: translateX(-100%); opacity: 0; }
+            20% { opacity: 0.6; }
+            80% { opacity: 0.6; }
+            100% { transform: translateX(100%); opacity: 0; }
+        }
+        .animate-wind {
+            animation: wind-move linear infinite;
+        }
+
+        @keyframes heat-wave {
+            0%, 100% { filter: hue-rotate(0deg) blur(0px); opacity: 0.1; }
+            50% { filter: hue-rotate(15deg) blur(1px); opacity: 0.3; }
+        }
+        .heat-effect {
+            animation: heat-wave 3s infinite alternate;
+            background: linear-gradient(to top, rgba(239, 68, 68, 0.2), transparent);
+        }
+
+        /* 隱藏預設 Range Input 樣式 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+        /* 禁用狀態樣式 */
+        .disabled-area {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(50%);
+        }
+        
+        /* 水容器過渡效果 */
+        #water-container {
+            transition: width 0.5s ease-in-out;
+        }
+        #water-level {
+            transition: height 0.1s linear;
+        }
+    
+        
+
+            body { font-family: 'Noto Sans TC', sans-serif; }
+    
+        .modal-backdrop { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal-content { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+</style>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10 flex flex-col">
+<header class="w-full max-w-7xl mx-auto bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 z-20 sticky top-2 shrink-0">
+<div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 text-white flex items-center justify-center shadow-md shrink-0">
+<svg fill="none" height="22" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="22" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+</div>
+<div class="min-w-0">
+<h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-800 flex items-center gap-2 flex-wrap">
+<span data-i18n="title">水蒸發速率因素</span>
+<span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold border border-slate-200" data-i18n="badge">中一科學</span>
+</h1>
+<p class="text-xs text-slate-500 truncate" data-i18n="subtitle">溫度、表面積、風速</p>
+</div>
+</div>
+<button class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+</div>
+<div class="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+<button class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2" id="btn-steps" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M9 5h12"></path><path d="M9 12h12"></path><path d="M9 19h12"></path><circle cx="4" cy="5" fill="currentColor" r="1"></circle><circle cx="4" cy="12" fill="currentColor" r="1"></circle><circle cx="4" cy="19" fill="currentColor" r="1"></circle></svg>
+<span data-i18n="btnSteps">觀察步驟</span>
+</button>
+<button class="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-sky-400 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2" id="btn-principle" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+<span data-i18n="btnPrinciple">原理解說</span>
+</button>
+<button class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2" id="btn-quiz" type="button"><span data-i18n="btnQuiz">課堂問題</span></button>
+<button class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300" id="btn-lang" type="button">中 / EN</button>
+</div>
+</header>
+<main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto lg:overflow-hidden"><aside class="lg:col-span-4 xl:col-span-4 order-2 lg:order-1 space-y-3 shrink-0 min-h-0"><div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200" id="control-panel">
+<h2 class="text-xl font-bold flex items-center gap-2 mb-6">
+<span class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span>
+<span>設定獨立變因</span>
+</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- 溫度 -->
+<div class="space-y-2 p-4 bg-red-50 rounded-lg border border-red-100">
+<label class="flex justify-between text-sm font-bold text-red-800">
+<span class="flex items-center gap-1"><svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"></path></svg> 溫度 (Temperature)</span>
+<span id="val-temp">25 °C</span>
+</label>
+<input class="w-full" id="slider-temp" max="80" min="10" oninput="updateControls()" step="5" type="range" value="25"/>
+<div class="flex justify-between text-xs text-red-400"><span>10°C</span><span>80°C</span></div>
+</div>
+<!-- 濕度 -->
+<div class="space-y-2 p-4 bg-blue-50 rounded-lg border border-blue-100">
+<label class="flex justify-between text-sm font-bold text-blue-800">
+<span class="flex items-center gap-1"><svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path></svg> 相對濕度 (Humidity)</span>
+<span id="val-hum">60 %</span>
+</label>
+<input class="w-full" id="slider-hum" max="90" min="10" oninput="updateControls()" step="10" type="range" value="60"/>
+<div class="flex justify-between text-xs text-blue-400"><span>10%</span><span>90%</span></div>
+</div>
+<!-- 風速 -->
+<div class="space-y-2 p-4 bg-teal-50 rounded-lg border border-teal-100">
+<label class="flex justify-between text-sm font-bold text-teal-800">
+<span class="flex items-center gap-1"><svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg> 風速 (Wind Speed)</span>
+<span id="val-wind">0 m/s</span>
+</label>
+<input class="w-full" id="slider-wind" max="10" min="0" oninput="updateControls()" step="1" type="range" value="0"/>
+<div class="flex justify-between text-xs text-teal-400"><span>無風(0)</span><span>強風(10)</span></div>
+</div>
+<!-- 表面面積 -->
+<div class="space-y-2 p-4 bg-purple-50 rounded-lg border border-purple-100">
+<label class="flex justify-between text-sm font-bold text-purple-800">
+<span class="flex items-center gap-1"><svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16"><rect height="18" rx="2" ry="2" width="18" x="3" y="3"></rect></svg> 暴露表面面積 (Area)</span>
+<span id="val-area">中等 (40cm²)</span>
+</label>
+<input class="w-full" id="slider-area" max="3" min="1" oninput="updateControls()" step="1" type="range" value="2"/>
+<div class="flex justify-between text-xs text-purple-400"><span>小杯</span><span>中碗</span><span>大盆</span></div>
+</div>
+</div>
+</div>
+</aside>
+<section class="lg:col-span-8 xl:col-span-8 order-1 lg:order-2 flex flex-col gap-4 min-w-0 min-h-0">
+<!-- 模擬視覺區 -->
+<div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-xl font-bold flex items-center gap-2">
+<span class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
+<span>實驗模擬區</span>
+</h2>
+<div class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-sm font-bold border border-slate-300" id="status-badge">
+                        狀態：待機中
+                    </div>
+</div>
+<!-- 畫布區域 -->
+<div class="relative h-64 bg-slate-100 rounded-lg border-2 border-slate-300 overflow-hidden flex flex-col justify-end items-center" id="simulation-canvas">
+<!-- 溫度特效 (背景熱浪) -->
+<div class="absolute inset-0 heat-effect pointer-events-none opacity-0" id="heat-layer"></div>
+<!-- 濕度特效 (背景霧氣) -->
+<div class="absolute inset-0 bg-slate-300 pointer-events-none transition-opacity duration-300" id="humidity-layer" style="opacity: 0.3;"></div>
+<!-- 風速特效 (移動的線條) -->
+<div class="absolute inset-0 pointer-events-none overflow-hidden opacity-0" id="wind-layer">
+<div class="absolute top-10 left-0 w-full h-1 bg-slate-400 rounded animate-wind" style="animation-duration: 2s;"></div>
+<div class="absolute top-24 left-0 w-3/4 h-1 bg-slate-400 rounded animate-wind" style="animation-duration: 1.5s; animation-delay: 0.5s;"></div>
+<div class="absolute top-40 left-0 w-full h-1 bg-slate-400 rounded animate-wind" style="animation-duration: 2.2s; animation-delay: 0.2s;"></div>
+</div>
+<!-- 蒸發粒子生成區 -->
+<div class="absolute w-full h-full pointer-events-none z-20 flex justify-center items-end pb-12" id="vapor-particles">
+<!-- 透過 JS 動態生成 -->
+</div>
+<!-- 水容器 -->
+<div class="relative z-10 flex flex-col items-center justify-end">
+<div class="w-32 border-x-4 border-b-4 border-slate-500 rounded-b-lg bg-white relative flex items-end justify-center h-32 overflow-hidden shadow-inner transition-all duration-500" id="water-container">
+<!-- 水 -->
+<div class="w-full bg-blue-400/80 relative" id="water-level" style="height: 100%;">
+<!-- 表面波紋效果 -->
+<div class="absolute top-0 w-full h-2 bg-blue-300/50"></div>
+</div>
+</div>
+<div class="mt-2 text-sm font-bold text-slate-600 bg-white/80 px-2 rounded" id="volume-display">
+                            水量: 100.0 mL
+                        </div>
+</div>
+<!-- 環境資訊面板浮疊 -->
+<div class="absolute top-2 left-2 bg-white/90 p-2 rounded shadow text-xs font-mono space-y-1 border border-slate-200 z-30 backdrop-blur-sm">
+<div class="flex justify-between w-24"><span>溫度:</span><span class="text-red-600 font-bold" id="hud-temp">25°C</span></div>
+<div class="flex justify-between w-24"><span>濕度:</span><span class="text-blue-600 font-bold" id="hud-hum">60%</span></div>
+<div class="flex justify-between w-24"><span>風速:</span><span class="text-teal-600 font-bold" id="hud-wind">0 m/s</span></div>
+<div class="flex justify-between w-24"><span>面積:</span><span class="text-purple-600 font-bold" id="hud-area">中等</span></div>
+</div>
+</div>
+<!-- 播放控制區 -->
+<div class="mt-6 grid grid-cols-3 gap-4">
+<button class="flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition shadow" id="btn-start" onclick="startSimulation()">
+<svg fill="none" height="20" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="20"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        開始模擬
+                    </button>
+<button class="flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow disabled:opacity-50 disabled:cursor-not-allowed" disabled="" id="btn-stop" onclick="stopSimulation()">
+<svg fill="none" height="20" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="20"><rect height="16" width="4" x="6" y="4"></rect><rect height="16" width="4" x="14" y="4"></rect></svg>
+                        停止
+                    </button>
+<button class="flex items-center justify-center gap-2 py-3 bg-slate-600 text-white rounded-lg font-bold hover:bg-slate-700 transition shadow" id="btn-reset" onclick="resetSimulation()">
+<svg fill="none" height="20" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="20"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                        重置水量
+                    </button>
+</div>
+</div>
+<!-- 測量結果與記錄 -->
+<div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+<h2 class="text-xl font-bold flex items-center gap-2 mb-4">
+<span class="bg-orange-100 text-orange-600 w-8 h-8 rounded-full flex items-center justify-center text-sm">3</span>
+<span>測量依變變因與記錄</span>
+</h2>
+<div class="bg-slate-800 text-green-400 p-4 rounded-lg font-mono relative mb-4">
+<div class="text-xs text-slate-400 mb-1">本次模擬測得之平均蒸發速率</div>
+<div class="flex items-end gap-2">
+<span class="text-4xl font-bold" id="result-rate">0.00</span>
+<span class="text-lg text-slate-400 mb-1">mL/hr</span>
+</div>
+</div>
+<button class="w-full py-3 bg-yellow-500 text-white rounded-lg font-bold hover:bg-yellow-600 transition shadow flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled="" id="btn-record" onclick="recordData()">
+<svg fill="none" height="20" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="20"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    記錄本次數據
+                </button>
+<div class="mt-6 overflow-x-auto">
+<table class="w-full text-sm text-left border-collapse">
+<thead class="bg-slate-100 text-slate-600">
+<tr>
+<th class="p-2 border">溫度(°C)</th>
+<th class="p-2 border">濕度(%)</th>
+<th class="p-2 border">風速(m/s)</th>
+<th class="p-2 border">面積</th>
+<th class="p-2 border text-blue-600">速率(mL/hr)</th>
+</tr>
+</thead>
+<tbody id="data-table-body">
+<!-- 數據將由 JS 插入 -->
+<tr><td class="p-4 text-center text-slate-400" colspan="5">尚無數據，請執行模擬並記錄</td></tr>
+</tbody>
+</table>
+</div>
+<div class="mt-3 flex justify-end">
+<button class="text-sm text-red-500 hover:text-red-700 underline" onclick="clearData()">清除所有數據</button>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-xl font-bold flex items-center gap-2">
+<span class="bg-purple-100 text-purple-600 w-8 h-8 rounded-full flex items-center justify-center text-sm">4</span>
+<span>圖表分析</span>
+</h2>
+<select class="text-sm border-slate-300 rounded p-1 shadow-sm" id="chart-x-axis" onchange="updateChart()">
+<option value="temp">X軸: 溫度</option>
+<option value="hum">X軸: 濕度</option>
+<option value="wind">X軸: 風速</option>
+<option value="area">X軸: 面積</option>
+</select>
+</div>
+<div class="h-56 w-full relative">
+<canvas id="analysisChart"></canvas>
+</div>
+<p class="text-xs text-slate-500 mt-2 text-center">
+                    提示：改變單一變因並記錄多次，以觀察其對蒸發速率的影響關係。
+                </p>
+</div>
+</section></main>
+<script>
+        // 實驗狀態
+        const state = {
+            temp: 25,
+            hum: 60,
+            wind: 0,
+            areaLevel: 2, // 1: 小, 2: 中, 3: 大
+            areaValue: 40,
+            
+            volumeMax: 100,
+            volumeCurrent: 100,
+            
+            isRunning: false,
+            simulationTimer: 0, // 模擬經過的虛擬時間 (小時)
+            realTimer: null,
+            lastEvaporated: 0,
+            lastRate: 0
+        };
+
+        // 記錄數據
+        let recordedData = [];
+        let chartInstance = null;
+
+        // 面積對應設定
+        const areaConfigs = {
+            1: { name: '小杯', val: 20, width: 'w-16' },
+            2: { name: '中等', val: 40, width: 'w-32' },
+            3: { name: '大盆', val: 80, width: 'w-56' }
+        };
+
+        // 初始化
+        window.onload = function() {
+            updateControls(); // 初始化 UI 顯示
+            initChart();
+        };
+
+        function updateControls() {
+            if (state.isRunning) return; // 執行中不允許修改
+
+            // 讀取滑桿值
+            state.temp = parseInt(document.getElementById('slider-temp').value);
+            state.hum = parseInt(document.getElementById('slider-hum').value);
+            state.wind = parseInt(document.getElementById('slider-wind').value);
+            state.areaLevel = parseInt(document.getElementById('slider-area').value);
+            state.areaValue = areaConfigs[state.areaLevel].val;
+
+            // 更新文字標籤
+            document.getElementById('val-temp').innerText = `${state.temp} °C`;
+            document.getElementById('val-hum').innerText = `${state.hum} %`;
+            document.getElementById('val-wind').innerText = `${state.wind} m/s`;
+            document.getElementById('val-area').innerText = `${areaConfigs[state.areaLevel].name} (${state.areaValue}cm²)`;
+
+            // 更新 HUD
+            document.getElementById('hud-temp').innerText = `${state.temp}°C`;
+            document.getElementById('hud-hum').innerText = `${state.hum}%`;
+            document.getElementById('hud-wind').innerText = `${state.wind} m/s`;
+            document.getElementById('hud-area').innerText = areaConfigs[state.areaLevel].name;
+
+            updateVisualEffects();
+        }
+
+        function updateVisualEffects() {
+            // 面積 (容器寬度)
+            const container = document.getElementById('water-container');
+            container.className = `border-x-4 border-b-4 border-slate-500 rounded-b-lg bg-white relative flex items-end justify-center h-32 overflow-hidden shadow-inner transition-all duration-500 ${areaConfigs[state.areaLevel].width}`;
+
+            // 濕度 (背景霧氣不透明度)
+            const humLayer = document.getElementById('humidity-layer');
+            humLayer.style.opacity = state.hum / 100;
+
+            // 溫度 (熱浪特效)
+            const heatLayer = document.getElementById('heat-layer');
+            heatLayer.style.opacity = (state.temp - 10) / 100; // 溫度越高越明顯
+
+            // 風速 (移動線條)
+            const windLayer = document.getElementById('wind-layer');
+            if (state.wind > 0) {
+                windLayer.style.opacity = state.wind / 10;
+                // 改變動畫速度
+                const lines = windLayer.children;
+                lines[0].style.animationDuration = `${3 - (state.wind * 0.2)}s`;
+                lines[1].style.animationDuration = `${2.5 - (state.wind * 0.2)}s`;
+                lines[2].style.animationDuration = `${3.2 - (state.wind * 0.2)}s`;
+            } else {
+                windLayer.style.opacity = 0;
+            }
+        }
+
+        // 計算蒸發速率 (數學模型)
+        function calculateEvaporationRate() {
+            // 基本速率
+            const baseRate = 0.5;
+            
+            // 面積影響 (成正比)
+            const areaFactor = state.areaValue / 20; 
+            
+            // 溫度影響 (非線性，溫度越高蒸發越快，模擬飽和蒸氣壓曲線)
+            // 這裡簡化為二次方關係以凸顯效果
+            const tempFactor = Math.pow(state.temp / 20, 2); 
+            
+            // 濕度影響 (100% 時蒸發極慢，0% 時最快)
+            const humFactor = Math.max(0.01, (100 - state.hum) / 100); 
+            
+            // 風速影響 (風速帶走水氣，加速蒸發)
+            const windFactor = 1 + (state.wind * 0.3);
+
+            // 綜合速率 (mL / hr)
+            let rate = baseRate * areaFactor * tempFactor * humFactor * windFactor;
+            
+            return rate;
+        }
+
+        function createVaporParticle() {
+            if (!state.isRunning) return;
+            const container = document.getElementById('vapor-particles');
+            const particle = document.createElement('div');
+            
+            // 隨機大小與位置
+            const size = Math.random() * 10 + 5;
+            const left = Math.random() * 100; // 0 to 100%
+            
+            particle.className = 'absolute bg-slate-300 rounded-full animate-vapor';
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+            particle.style.left = `${left}%`;
+            particle.style.bottom = '30px';
+            
+            container.appendChild(particle);
+            
+            // 動畫結束後移除
+            setTimeout(() => {
+                if (particle.parentNode) particle.parentNode.removeChild(particle);
+            }, 2000);
+        }
+
+        function startSimulation() {
+            if (state.volumeCurrent <= 0) {
+                resetSimulation();
+            }
+
+            state.isRunning = true;
+            state.simulationTimer = 0;
+            const rate = calculateEvaporationRate();
+            state.lastRate = rate;
+
+            // UI 狀態切換
+            document.getElementById('control-panel').classList.add('disabled-area');
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+            document.getElementById('btn-record').disabled = true;
+            
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.innerText = '狀態：模擬進行中...';
+            statusBadge.className = 'px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-bold border border-green-300 animate-pulse';
+
+            // 為了讓動畫好看，我們將真實時間與虛擬時間映射
+            // 設定模擬跑 3 秒鐘真實時間 (代表經過 5 小時虛擬時間)
+            const virtualHoursToRun = 5; 
+            const realTimeMs = 3000;
+            const fps = 30;
+            const steps = (realTimeMs / 1000) * fps;
+            const volumeToLosePerStep = (rate * virtualHoursToRun) / steps;
+            
+            let currentStep = 0;
+
+            // 粒子生成計時器 (速率越快產生越多)
+            const particleInterval = Math.max(50, 500 - (rate * 5));
+            window.vaporSpawner = setInterval(createVaporParticle, particleInterval);
+
+            // 主動畫迴圈
+            state.realTimer = setInterval(() => {
+                currentStep++;
+                state.volumeCurrent -= volumeToLosePerStep;
+                if (state.volumeCurrent < 0) state.volumeCurrent = 0;
+
+                // 更新水面高度
+                const heightPct = (state.volumeCurrent / state.volumeMax) * 100;
+                document.getElementById('water-level').style.height = `${heightPct}%`;
+                document.getElementById('volume-display').innerText = `水量: ${state.volumeCurrent.toFixed(1)} mL`;
+
+                if (currentStep >= steps || state.volumeCurrent === 0) {
+                    stopSimulation(true);
+                }
+            }, 1000 / fps);
+        }
+
+        function stopSimulation(autoFinish = false) {
+            state.isRunning = false;
+            clearInterval(state.realTimer);
+            clearInterval(window.vaporSpawner);
+
+            // UI 狀態還原
+            document.getElementById('control-panel').classList.remove('disabled-area');
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-stop').disabled = true;
+            document.getElementById('btn-record').disabled = false;
+
+            const statusBadge = document.getElementById('status-badge');
+            
+            if (autoFinish) {
+                statusBadge.innerText = '狀態：模擬完成';
+                statusBadge.className = 'px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-bold border border-yellow-300';
+                
+                // 顯示測量結果
+                document.getElementById('result-rate').innerText = state.lastRate.toFixed(2);
+                
+                // 閃爍提醒記錄按鈕
+                const btnRecord = document.getElementById('btn-record');
+                btnRecord.classList.add('animate-bounce');
+                setTimeout(() => btnRecord.classList.remove('animate-bounce'), 3000);
+
+            } else {
+                statusBadge.innerText = '狀態：已中斷';
+                statusBadge.className = 'px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-bold border border-red-300';
+            }
+        }
+
+        function resetSimulation() {
+            if (state.isRunning) stopSimulation();
+            
+            state.volumeCurrent = state.volumeMax;
+            document.getElementById('water-level').style.height = '100%';
+            document.getElementById('volume-display').innerText = `水量: 100.0 mL`;
+            document.getElementById('result-rate').innerText = '0.00';
+            document.getElementById('btn-record').disabled = true;
+
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.innerText = '狀態：已重置，待機中';
+            statusBadge.className = 'px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-sm font-bold border border-slate-300';
+        }
+
+        function recordData() {
+            // 建立記錄物件
+            const record = {
+                temp: state.temp,
+                hum: state.hum,
+                wind: state.wind,
+                areaLabel: areaConfigs[state.areaLevel].name,
+                areaVal: state.areaValue,
+                rate: parseFloat(state.lastRate.toFixed(2))
+            };
+
+            recordedData.push(record);
+            document.getElementById('btn-record').disabled = true; // 避免重複記錄同一筆
+            
+            renderTable();
+            updateChart();
+        }
+
+        function clearData() {
+            recordedData = [];
+            renderTable();
+            updateChart();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('data-table-body');
+            if (recordedData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">尚無數據，請執行模擬並記錄</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            recordedData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                tr.innerHTML = `
+                    <td class="p-2 border text-center">${row.temp}</td>
+                    <td class="p-2 border text-center">${row.hum}</td>
+                    <td class="p-2 border text-center">${row.wind}</td>
+                    <td class="p-2 border text-center">${row.areaLabel}</td>
+                    <td class="p-2 border text-center font-bold text-blue-600">${row.rate}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('analysisChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: '蒸發速率 (mL/hr)',
+                        data: [],
+                        backgroundColor: '#ef4444', // red-500
+                        borderColor: '#b91c1c',
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'X軸變數' }
+                        },
+                        y: {
+                            title: { display: true, text: '蒸發速率 (mL/hr)' },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if (!chartInstance) return;
+
+            const xAxisVar = document.getElementById('chart-x-axis').value;
+            let dataPoints = [];
+            let xLabel = '';
+
+            recordedData.forEach(d => {
+                let xVal;
+                switch (xAxisVar) {
+                    case 'temp': xVal = d.temp; xLabel = '溫度 (°C)'; break;
+                    case 'hum': xVal = d.hum; xLabel = '相對濕度 (%)'; break;
+                    case 'wind': xVal = d.wind; xLabel = '風速 (m/s)'; break;
+                    case 'area': xVal = d.areaVal; xLabel = '表面面積 (cm²)'; break;
+                }
+                dataPoints.push({ x: xVal, y: d.rate });
+            });
+
+            // 更新圖表資料
+            chartInstance.data.datasets[0].data = dataPoints;
+            chartInstance.options.scales.x.title.text = xLabel;
+            
+            // 嘗試連線 (如果資料依照X軸排序)
+            dataPoints.sort((a, b) => a.x - b.x);
+            chartInstance.options.elements = { line: { tension: 0.3 } };
+            chartInstance.config.type = dataPoints.length > 1 ? 'line' : 'scatter';
+
+            chartInstance.update();
+        }
+
+    </script>
+<div aria-labelledby="modal-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-principle" role="dialog">
+<div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-blue-600 to-sky-400 p-5 text-white flex justify-between items-center shrink-0">
+<div>
+<h2 class="text-lg font-bold" data-i18n="modalTitle" id="modal-title">原理解說</h2>
+<p class="text-xs opacity-80" data-i18n="modalSub">Principle</p>
+</div>
+<button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" id="modal-close" type="button">✕</button>
+</div>
+<div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+<div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+<h3 class="font-bold text-slate-900 mb-1" data-i18n="m1t">1. 蒸發</h3>
+<p class="text-xs" data-i18n="m1d">液面分子動能夠大逃離；發生在沸點以下。</p>
+</div>
+<div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+<h3 class="font-bold text-slate-900 mb-1" data-i18n="m2t">2. 因素</h3>
+<p class="text-xs" data-i18n="m2d">T↑、面積↑、風速↑ 加快蒸發。</p>
+</div>
+<div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+<h3 class="font-bold text-emerald-900 mb-1" data-i18n="m5t">3. 應用</h3>
+<p class="text-xs text-emerald-800" data-i18n="m5d">晾衣、鹽田曬鹽、吹乾頭髮、水循環蒸發環節。</p>
+</div>
+</div>
+<div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+<button class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="modal-confirm" type="button">關閉</button>
+</div>
+</div>
+</div>
+<div aria-labelledby="steps-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-steps" role="dialog">
+<div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-blue-600 to-sky-400 p-5 text-white flex justify-between items-center shrink-0">
+<h2 class="text-lg font-bold" data-i18n="stepsTitle" id="steps-title">觀察步驟</h2>
+<button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" id="steps-close" type="button">✕</button>
+</div>
+<div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s1">1. 調溫度。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s2">2. 改表面積。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s3">3. 開關風扇。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s4">4. 讀 m–t。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s5">5. 比三因素。</div>
+</div>
+<div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+<button class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="steps-confirm" type="button">關閉</button>
+</div>
+</div>
+</div>
+<div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+<div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-rose-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center gap-3 flex-wrap">
+<h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+<button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+<button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15" aria-label="Close">✕</button>
+</div>
+<div id="quiz-list" class="p-5 overflow-y-auto text-sm text-slate-700"></div>
+<div class="p-4 border-t flex justify-end"><button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button></div>
+</div>
+</div>
+<script>
+(function() {
+    const platformI18n = {
+        zh: {
+        title: "水蒸發速率因素",
+        subtitle: "溫度、表面積、風速",
+        badge: "中一科學",
+        btnSteps: "觀察步驟",
+        btnPrinciple: "原理解說",
+        stepsTitle: "觀察步驟",
+        modalTitle: "原理解說",
+        modalSub: "概念、機制與應用",
+        modalClose: "關閉",
+        m1t: "1. 蒸發",
+        m1d: "液面分子動能夠大逃離；發生在沸點以下。",
+        m2t: "2. 因素",
+        m2d: "T↑、面積↑、風速↑ 加快蒸發。",
+        m5t: "3. 應用",
+        m5d: "晾衣、鹽田曬鹽、吹乾頭髮、水循環蒸發環節。",
+        s1: "1. 調溫度。",
+        s2: "2. 改表面積。",
+        s3: "3. 開關風扇。",
+        s4: "4. 讀 m–t。",
+        s5: "5. 比三因素。",
+        btnQuiz: "課堂問題", quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案",
+        quizQ1: "升高溫度（slider-temp）對水蒸發速率？", quizQ1a: "變慢", quizQ1b: "加快", quizQ1c: "無影響", quizQ1d: "只改變水色",
+        quizQ1ans: "溫度愈高，液面分子平均動能愈大，逃離液面的速率愈快，水量下降曲線更陡。",
+        quizQ2: "其餘不變，只把溫度滑桿調高：預測水量(mL)下降快慢與蒸發粒子多少，再按「開始實驗」核對。",
+        quizQ2ans: "高溫下蒸發粒子增多，質量–時間圖斜率較大，蒸發較快。",
+        quizQ3: "增大暴露表面面積（slider-area，小杯→大盆）會？", quizQ3a: "減慢蒸發", quizQ3b: "加快蒸發", quizQ3c: "不變", quizQ3d: "立即停止",
+        quizQ3ans: "表面面積愈大，同時逃離的分子愈多，蒸發速率上升。",
+        quizQ4: "比較風速 0 m/s 與 10 m/s（其餘相同）：預測完全蒸乾時間長短，再操作風速滑桿核對。",
+        quizQ4ans: "強風帶走液面飽和水蒸氣，濃度差維持，蒸發較快；無風時較慢。",
+        quizQ5: "本模擬中的「蒸發」主要指？", quizQ5a: "沸點以下液面分子變成水蒸氣", quizQ5b: "只有沸騰時才發生", quizQ5c: "水質量增加", quizQ5d: "濕度愈高蒸發愈快",
+        quizQ5ans: "蒸發發生在沸點以下，液面高速分子逃離；沸騰是整體劇烈氣化。"
+        },
+        en: {
+        title: "Evaporation rate factors",
+        subtitle: "Liquid → vapour",
+        badge: "Junior Science",
+        btnSteps: "Steps",
+        btnPrinciple: "Principle",
+        stepsTitle: "Observation Steps",
+        modalTitle: "Principle",
+        modalSub: "Concepts, mechanism & applications",
+        modalClose: "Close",
+        m1t: "1. Evaporation",
+        m1d: "Surface molecules escape if fast enough.",
+        m2t: "2. Factors",
+        m2d: "T, area, wind.",
+        m5t: "3. Applications",
+        m5d: "Drying clothes, salt pans.",
+        s1: "1. Temperature.",
+        s2: "2. Surface area.",
+        s3: "3. Airflow.",
+        s4: "4. Mass–time.",
+        s5: "5. Compare.",
+        btnQuiz: "Quiz", quizTitle: "Classroom Quiz", quizShowAnswers: "Show reference answers", quizHideAnswers: "Hide reference answers", quizRef: "Reference",
+        quizQ1: "Raising temperature (slider-temp) makes evaporation:", quizQ1a: "Slower", quizQ1b: "Faster", quizQ1c: "No change", quizQ1d: "Water colour only",
+        quizQ1ans: "Higher T gives molecules more kinetic energy; more escape; steeper mass–time slope.",
+        quizQ2: "Change only the temperature slider upward: predict how fast volume drops and vapor dots appear, then run the experiment.",
+        quizQ2ans: "Higher T → more vapor particles and a steeper m–t curve.",
+        quizQ3: "Increasing exposed area (slider-area, cup→basin):", quizQ3a: "Slows evaporation", quizQ3b: "Speeds evaporation", quizQ3c: "No change", quizQ3d: "Stops instantly",
+        quizQ3ans: "Larger area lets more molecules escape at once.",
+        quizQ4: "Compare wind 0 m/s vs 10 m/s (other settings equal): predict dry-up time, then adjust slider-wind.",
+        quizQ4ans: "Wind removes humid air near the surface; evaporation is faster at 10 m/s.",
+        quizQ5: "Evaporation in this sim mainly means:", quizQ5a: "Surface molecules become vapour below boiling point", quizQ5b: "Only when boiling", quizQ5c: "Water mass increases", quizQ5d: "Higher humidity always speeds it up",
+        quizQ5ans: "Evaporation occurs below boiling; fast surface molecules escape."
+        }
+    };
+    let quizAnswersVisible = false;
+    function renderQuiz() {
+        const box = document.getElementById('quiz-list'); if (!box) return;
+        const lang = getLang(); const pack = Object.assign({}, platformI18n.zh, platformI18n[lang] || platformI18n.zh);
+        const mk = (n) => ['A','B','C','D'].map(ch => `<label class="flex gap-2 border rounded-lg p-2 cursor-pointer"><input type="radio" name="q${n}" class="mt-0.5"><span>${ch}. ${pack['quizQ'+n+ch.toLowerCase()]||''}</span></label>`).join('');
+        const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs bg-emerald-50 border border-emerald-200 p-2 rounded-lg"><strong>${pack.quizRef}：</strong> ${pack['quizQ'+n+'ans']}</div>` : '';
+        box.innerHTML = [1,2,3,4,5].map(n => { const open = n===2||n===4; return `<div class="border rounded-xl p-3 mb-2"><p class="font-semibold text-rose-700">Q${n}. ${pack['quizQ'+n]}</p>${open?'':`<div class="grid gap-1.5">${mk(n)}</div>`}${ans(n)}</div>`; }).join('');
+        const ab = document.getElementById('btn-quiz-answers'); if (ab) ab.textContent = quizAnswersVisible ? pack.quizHideAnswers : pack.quizShowAnswers;
+    }
+    function openQuiz(){ quizAnswersVisible=false; closePrinciple(); closeSteps(); const ms=document.getElementById('modal-quiz'); const sc=ms&&ms.querySelector('.modal-content'); if(ms&&sc){ms.classList.remove('opacity-0','pointer-events-none'); sc.classList.remove('scale-95','opacity-0'); sc.classList.add('scale-100','opacity-100');} renderQuiz(); }
+    function closeQuiz(){ const ms=document.getElementById('modal-quiz'); const sc=ms&&ms.querySelector('.modal-content'); if(!ms||!sc) return; sc.classList.remove('scale-100','opacity-100'); sc.classList.add('scale-95','opacity-0'); ms.classList.add('opacity-0','pointer-events-none'); }
+
+    function getLang() {
+        if (typeof currentLang !== 'undefined') return currentLang;
+        if (typeof window.currentLang !== 'undefined') return window.currentLang;
+        return 'zh';
+    }
+
+    function setLangVar(lang) {
+        if (typeof currentLang !== 'undefined') currentLang = lang;
+        window.currentLang = lang;
+    }
+
+    function mergeInto(dict) {
+        if (!dict) return;
+        ['zh','en'].forEach(function(lang) {
+            if (!dict[lang]) dict[lang] = {};
+            Object.assign(dict[lang], platformI18n[lang]);
+            if (dict[lang].appTitle && !dict[lang].title) dict[lang].title = dict[lang].appTitle;
+            if (dict[lang].appSubtitle && !dict[lang].subtitle) dict[lang].subtitle = dict[lang].appSubtitle;
+        });
+    }
+
+    mergeInto(typeof i18n !== 'undefined' ? i18n : null);
+    mergeInto(typeof translations !== 'undefined' ? translations : null);
+    mergeInto(typeof i18nData !== 'undefined' ? i18nData : null);
+    mergeInto(typeof TRANSLATIONS !== 'undefined' ? TRANSLATIONS : null);
+
+    function applyPlatformI18n() {
+        const lang = getLang();
+        document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+        let pack = platformI18n[lang];
+        if (typeof i18n !== 'undefined' && i18n[lang]) pack = Object.assign({}, platformI18n[lang], i18n[lang]);
+        else if (typeof translations !== 'undefined' && translations[lang]) pack = Object.assign({}, platformI18n[lang], translations[lang]);
+        else if (typeof i18nData !== 'undefined' && i18nData[lang]) pack = Object.assign({}, platformI18n[lang], i18nData[lang]);
+        else if (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[lang]) pack = Object.assign({}, platformI18n[lang], TRANSLATIONS[lang]);
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+            const key = el.getAttribute('data-i18n');
+            if (pack[key] != null) {
+                if (/<[a-z][\s\S]*>/i.test(pack[key])) el.innerHTML = pack[key];
+                else el.textContent = pack[key];
+            }
+        });
+        renderQuiz();
+    }
+
+    function platformToggleLang() {
+        const next = getLang() === 'zh' ? 'en' : 'zh';
+        if (typeof toggleLanguage === 'function') toggleLanguage();
+        else if (typeof setLanguage === 'function') setLanguage(next);
+        else {
+            setLangVar(next);
+            if (typeof updateI18n === 'function') updateI18n();
+        }
+        applyPlatformI18n();
+    }
+
+    function openPrinciple() {
+        const mp = document.getElementById('modal-principle');
+        const mc = mp && mp.querySelector('.modal-content');
+        if (!mp || !mc) return;
+        mp.classList.remove('opacity-0', 'pointer-events-none');
+        mc.classList.remove('scale-95', 'opacity-0');
+        mc.classList.add('scale-100', 'opacity-100');
+    }
+    function closePrinciple() {
+        const mp = document.getElementById('modal-principle');
+        const mc = mp && mp.querySelector('.modal-content');
+        if (!mp || !mc) return;
+        mc.classList.remove('scale-100', 'opacity-100');
+        mc.classList.add('scale-95', 'opacity-0');
+        mp.classList.add('opacity-0', 'pointer-events-none');
+    }
+    function openSteps() {
+        const ms = document.getElementById('modal-steps');
+        const sc = ms && ms.querySelector('.modal-content');
+        if (!ms || !sc) return;
+        ms.classList.remove('opacity-0', 'pointer-events-none');
+        sc.classList.remove('scale-95', 'opacity-0');
+        sc.classList.add('scale-100', 'opacity-100');
+    }
+    function closeSteps() {
+        const ms = document.getElementById('modal-steps');
+        const sc = ms && ms.querySelector('.modal-content');
+        if (!ms || !sc) return;
+        sc.classList.remove('scale-100', 'opacity-100');
+        sc.classList.add('scale-95', 'opacity-0');
+        ms.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function bindPlatformUI() {
+        const bs = document.getElementById('btn-steps');
+        const bp = document.getElementById('btn-principle');
+        const bl = document.getElementById('btn-lang');
+        const bm = document.getElementById('btn-lang-mobile');
+        if (bs) bs.onclick = function() { closePrinciple(); openSteps(); };
+        if (bp) bp.onclick = function() { closeSteps(); openPrinciple(); };
+        if (bl) bl.onclick = platformToggleLang;
+        if (bm) bm.onclick = platformToggleLang;
+        ['modal-close','modal-confirm'].forEach(function(id) {
+            const b = document.getElementById(id);
+            if (b) b.onclick = closePrinciple;
+        });
+        ['steps-close','steps-confirm'].forEach(function(id) {
+            const b = document.getElementById(id);
+            if (b) b.onclick = closeSteps;
+        });
+        const mp = document.getElementById('modal-principle');
+        const ms = document.getElementById('modal-steps');
+        if (mp) mp.addEventListener('click', function(e) { if (e.target === mp) closePrinciple(); });
+        if (ms) ms.addEventListener('click', function(e) { if (e.target === ms) closeSteps(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') { closeQuiz(); closePrinciple(); closeSteps(); }
+        });
+        const bq = document.getElementById('btn-quiz');
+        if (bq) bq.onclick = function() { openQuiz(); };
+        document.getElementById('btn-quiz-answers')?.addEventListener('click', function() { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+        document.getElementById('quiz-close')?.addEventListener('click', closeQuiz);
+        document.getElementById('quiz-confirm')?.addEventListener('click', closeQuiz);
+        document.getElementById('modal-quiz')?.addEventListener('click', function(e) { if (e.target.id === 'modal-quiz') closeQuiz(); });
+        applyPlatformI18n();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindPlatformUI);
+    else bindPlatformUI();
+})();
+</script>
+</body>
+</html>

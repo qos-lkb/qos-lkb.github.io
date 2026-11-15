@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>氣體混合 | Gas Mixing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* 隱藏預設的 Range Input 樣式並自定義 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+            width: 100%;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 999px;
+        }
+        
+        .container-box {
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+        }
+
+        /* 閥門動畫 */
+        .valve-transition {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 禁用狀態 */
+        .disabled-panel {
+            opacity: 0.6;
+            pointer-events: none;
+            filter: grayscale(80%);
+            transition: all 0.3s ease;
+        }
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .modal-backdrop { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease, opacity 0.3s ease; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 pb-10">
+
+    <header class="bg-indigo-700 text-white p-4 shadow-md">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="flex items-center justify-between w-full md:w-auto gap-3 min-w-0">
+                <div class="flex items-center gap-3 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M14 14.5a2 2 0 1 1-4 0"/><path d="M12 22v-7.5"/><path d="M12 2v3"/><path d="M19.07 4.93l-2.12 2.12"/><path d="M22 12h-3"/><path d="M19.07 19.07l-2.12-2.12"/><path d="M4.93 19.07l2.12-2.12"/><path d="M2 12h3"/><path d="M4.93 4.93l2.12 2.12"/></svg>
+                <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2 flex-wrap"><span data-i18n="title">氣體混合</span><span class="text-[11px] px-2 py-0.5 rounded-full bg-white/20 font-bold border border-white/40" data-i18n="badge">物理</span></h1>
+                </div>
+                <button class="md:hidden px-2.5 py-1 bg-white/15 text-xs font-bold rounded border border-white/30 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+            </div>
+            <div class="text-sm text-indigo-200 hidden lg:block" data-i18n="tagline">理想氣體 PV = nRT</div>
+            <div class="flex gap-2 flex-wrap justify-end w-full md:w-auto">
+                <button type="button" id="btn-steps" class="px-3 py-1 bg-white/15 hover:bg-white/25 rounded text-sm font-bold border border-white/30"><span data-i18n="btnSteps">觀察步驟</span></button>
+                <button type="button" id="btn-principle" class="px-3 py-1 bg-white text-indigo-700 rounded text-sm font-bold"><span data-i18n="btnPrinciple">原理解說</span></button>
+                                <button type="button" id="btn-quiz" class="px-3 py-1.5 rounded-lg bg-white/90 hover:bg-violet-50 text-violet-800 text-sm font-bold border border-violet-200"><span data-i18n="btnQuiz">課堂問題</span></button>
+<button class="hidden md:flex px-3 py-1 bg-white/15 rounded text-sm font-bold border border-white/30" id="btn-lang" type="button">中 / EN</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-3 sm:p-4 mt-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+        <aside class="lg:col-span-4 order-2 lg:order-1 space-y-4">
+            <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 flex flex-col gap-3">
+                <button id="btn-valve" onclick="toggleValve()" class="w-full py-3 rounded-lg font-bold text-white bg-green-600 hover:bg-green-700 shadow transition-all flex items-center justify-center gap-2">
+                    <svg id="icon-valve-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                    <svg id="icon-valve-open" class="hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    <span id="text-valve" data-i18n="btnValveOpen">打通閥門</span>
+                </button>
+                <button id="btn-reset" onclick="resetExperiment()" class="w-full py-2 rounded-lg font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition-all hidden">
+                    <span data-i18n="btnReset">重置實驗</span>
+                </button>
+            </div>
+        <div class="grid grid-cols-1 gap-4">
+            
+            <!-- 容器 A 控制面板 -->
+            <div id="panel-A" class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 transition-all">
+                <h3 class="text-lg font-bold text-blue-700 flex items-center gap-2 mb-4 border-b pb-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-500 block"></span> <span data-i18n="panelA">容器 A 狀態</span>
+                </h3>
+                
+                <div class="space-y-6">
+                    <!-- 壓強 (Pressure) -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-bold text-slate-600" data-i18n="lblP">壓強 (Pressure, P)</label>
+                            <span id="val-p-A" class="font-mono font-bold text-blue-600">2.0 atm</span>
+                        </div>
+                        <input type="range" id="slider-p-A" min="0.5" max="5.0" step="0.1" value="2.0" oninput="updateState('A', 'P', this.value)">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1"><span>0.5 atm</span><span>5.0 atm</span></div>
+                    </div>
+                    
+                    <!-- 體積 (Volume) -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-bold text-slate-600" data-i18n="lblV">體積 (Volume, V)</label>
+                            <span id="val-v-A" class="font-mono font-bold text-blue-600">40 L</span>
+                        </div>
+                        <input type="range" id="slider-v-A" min="20" max="80" step="1" value="40" oninput="updateState('A', 'V', this.value)">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1"><span>20 L</span><span>80 L</span></div>
+                    </div>
+
+                    <!-- 溫度 (Temperature) -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-bold text-slate-600" data-i18n="lblT">溫度 (Temperature, T)</label>
+                            <span id="val-t-A" class="font-mono font-bold text-blue-600">300 K</span>
+                        </div>
+                        <input type="range" id="slider-t-A" min="100" max="900" step="10" value="300" oninput="updateState('A', 'T', this.value)">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1"><span data-i18n="tempCold">100 K (冷)</span><span data-i18n="tempHot">900 K (熱)</span></div>
+                    </div>
+                    
+                    <!-- 動態計算的分子數 -->
+                    <div class="bg-blue-50 p-3 rounded text-sm text-blue-800 flex justify-between border border-blue-100">
+                        <span data-i18n="lblN">相對氣體莫耳數 (n ∝ PV/T)</span>
+                        <span id="val-n-A" class="font-bold">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 容器 B 控制面板 -->
+            <div id="panel-B" class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 transition-all">
+                <h3 class="text-lg font-bold text-red-700 flex items-center gap-2 mb-4 border-b pb-2">
+                    <span class="w-3 h-3 rounded-full bg-red-500 block"></span> <span data-i18n="panelB">容器 B 狀態</span>
+                </h3>
+                
+                <div class="space-y-6">
+                    <!-- 壓強 (Pressure) -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-bold text-slate-600" data-i18n="lblP">壓強 (Pressure, P)</label>
+                            <span id="val-p-B" class="font-mono font-bold text-red-600">4.0 atm</span>
+                        </div>
+                        <input type="range" id="slider-p-B" min="0.5" max="5.0" step="0.1" value="4.0" oninput="updateState('B', 'P', this.value)">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1"><span>0.5 atm</span><span>5.0 atm</span></div>
+                    </div>
+                    
+                    <!-- 體積 (Volume) -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-bold text-slate-600" data-i18n="lblV">體積 (Volume, V)</label>
+                            <span id="val-v-B" class="font-mono font-bold text-red-600">60 L</span>
+                        </div>
+                        <input type="range" id="slider-v-B" min="20" max="80" step="1" value="60" oninput="updateState('B', 'V', this.value)">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1"><span>20 L</span><span>80 L</span></div>
+                    </div>
+
+                    <!-- 溫度 (Temperature) -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-bold text-slate-600" data-i18n="lblT">溫度 (Temperature, T)</label>
+                            <span id="val-t-B" class="font-mono font-bold text-red-600">600 K</span>
+                        </div>
+                        <input type="range" id="slider-t-B" min="100" max="900" step="10" value="600" oninput="updateState('B', 'T', this.value)">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1"><span data-i18n="tempCold">100 K (冷)</span><span data-i18n="tempHot">900 K (熱)</span></div>
+                    </div>
+
+                    <!-- 動態計算的分子數 -->
+                    <div class="bg-red-50 p-3 rounded text-sm text-red-800 flex justify-between border border-red-100">
+                        <span data-i18n="lblN">相對氣體莫耳數 (n ∝ PV/T)</span>
+                        <span id="val-n-B" class="font-bold">--</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        </aside>
+        <section class="lg:col-span-8 order-1 lg:order-2 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden relative min-h-[360px]">
+            <div class="absolute top-4 left-0 w-full flex justify-between px-10 pointer-events-none z-10">
+                <div class="bg-blue-100/90 text-blue-800 px-4 py-1 rounded-full font-bold text-sm shadow-sm border border-blue-200 backdrop-blur-sm">
+                    <span data-i18n="labelA">容器 A</span>
+                </div>
+                
+                <!-- 結果顯示浮動視窗 (僅在打開後顯示) -->
+                <div id="result-badge" class="hidden bg-indigo-600/95 text-white px-6 py-2 rounded-full font-bold text-lg shadow-lg border border-indigo-400 backdrop-blur-md transform transition-all translate-y-[-10px] opacity-0">
+                    <span data-i18n="finalP">最終平衡壓強:</span> <span id="final-pressure-display">--</span> atm
+                </div>
+
+                <div class="bg-red-100/90 text-red-800 px-4 py-1 rounded-full font-bold text-sm shadow-sm border border-red-200 backdrop-blur-sm">
+                    <span data-i18n="labelB">容器 B</span>
+                </div>
+            </div>
+
+            <!-- Canvas 容器 -->
+            <div class="w-full bg-slate-900 relative" style="height: 350px;">
+                <canvas id="simCanvas" class="absolute inset-0 w-full h-full block"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl scale-95 opacity-0">
+            <div class="flex justify-between items-center mb-3"><h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2><button type="button" id="steps-close" class="text-2xl text-slate-500" aria-label="關閉">×</button></div>
+            <ol class="list-decimal pl-5 space-y-2 text-sm text-slate-700">
+                <li data-i18n="s1">分別調容器 A、B 的壓強、體積和溫度，看相對莫耳數 n ∝ PV/T。</li>
+                <li data-i18n="s2">按「打通閥門」，看兩色分子穿過中間管道混合。</li>
+                <li data-i18n="s3">讀畫布上方的最終平衡壓強，並和 (P<sub>A</sub>V<sub>A</sub> + P<sub>B</sub>V<sub>B</sub>) / (V<sub>A</sub> + V<sub>B</sub>) 對照。</li>
+                <li data-i18n="s4">按「重置實驗」，換一組溫度再打開閥門，比較分子快慢。</li>
+            </ol>
+        </div>
+    </div>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl scale-95 opacity-0 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-3"><h2 id="principle-title" class="text-lg font-bold" data-i18n="modalTitle">原理解說</h2><button type="button" id="modal-close" class="text-2xl text-slate-500" aria-label="關閉">×</button></div>
+            <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                <p data-i18n="m1d"><strong>概念：</strong>理想氣體滿足 PV = nRT。分子速率隨溫度升高而變快。</p>
+                <p data-i18n="m2d"><strong>機制：</strong>閥門關閉時兩邊各自平衡。打開後分子自由通過。本模擬用 P<sub>f</sub> = (P<sub>A</sub>V<sub>A</sub> + P<sub>B</sub>V<sub>B</sub>) / (V<sub>A</sub> + V<sub>B</sub>) 顯示混合後的平衡壓強，體積則是兩邊相加。</p>
+                <p data-i18n="m5d"><strong>生活例子：</strong>打開兩個連通的氣瓶，壓強會趨向中間值；熱氣與冷氣混合後溫度介於兩者之間。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 取得 Canvas 內容
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            const w = parent.clientWidth;
+            const h = parent.clientHeight || canvas.clientHeight || 300;
+            if (w < 1 || h < 1) return;
+            canvas.width = Math.floor(w * dpr);
+            canvas.height = Math.floor(h * dpr);
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
+        }
+
+        function canvasW() { return canvas.clientWidth || 0; }
+        function canvasH() { return canvas.clientHeight || 0; }
+
+        // 定義系統狀態
+        const state = {
+            isOpen: false,
+            scaleV: 3, // 體積數值到 Canvas 像素的縮放比例
+            pipeWidth: 60,
+            pipeHeight: 30,
+            A: { P: 2.0, V: 40, T: 300, color: '#60a5fa' }, // Blue-400
+            B: { P: 4.0, V: 60, T: 600, color: '#f87171' }, // Red-400
+            particles: []
+        };
+
+        // 常數設定
+        const PARTICLE_RADIUS = 3;
+        const BASE_PARTICLE_COUNT = 200; // 控制視覺粒子數量的基準值
+        const BASE_VELOCITY = 0.15; // 速度縮放常數
+
+        // 建立分子類別
+        class Particle {
+            constructor(side) {
+                this.side = side; // 'A' or 'B' (用於區分顏色，追蹤擴散)
+                this.color = side === 'A' ? state.A.color : state.B.color;
+                this.resetProperties();
+            }
+
+            resetProperties() {
+                const s = state[this.side];
+                // 根據溫度設定速率 v ∝ sqrt(T)
+                const speed = Math.sqrt(s.T) * BASE_VELOCITY;
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+
+                // 計算邊界並隨機放置
+                const bounds = getBounds(this.side);
+                this.x = bounds.left + PARTICLE_RADIUS + Math.random() * (bounds.width - PARTICLE_RADIUS * 2);
+                this.y = bounds.top + PARTICLE_RADIUS + Math.random() * (bounds.height - PARTICLE_RADIUS * 2);
+            }
+        }
+
+        // 取得容器的繪製邊界 (相對於 Canvas 中心)
+        function getBounds(side) {
+            const centerX = canvasW() / 2;
+            const centerY = canvasH() / 2;
+            const h = 200; // 容器固定高度
+            
+            if (side === 'A') {
+                const w = state.A.V * state.scaleV;
+                return {
+                    left: centerX - (state.pipeWidth / 2) - w,
+                    right: centerX - (state.pipeWidth / 2),
+                    top: centerY - h / 2,
+                    bottom: centerY + h / 2,
+                    width: w,
+                    height: h
+                };
+            } else {
+                const w = state.B.V * state.scaleV;
+                return {
+                    left: centerX + (state.pipeWidth / 2),
+                    right: centerX + (state.pipeWidth / 2) + w,
+                    top: centerY - h / 2,
+                    bottom: centerY + h / 2,
+                    width: w,
+                    height: h
+                };
+            }
+        }
+
+        // 根據 PV/T 重新計算分子數量
+        function syncParticles() {
+            if (state.isOpen) return; // 打開後不再根據單邊參數增減分子
+
+            // 相對莫耳數 n = P * V / T * Const
+            const nA = (state.A.P * state.A.V) / state.A.T * BASE_PARTICLE_COUNT;
+            const nB = (state.B.P * state.B.V) / state.B.T * BASE_PARTICLE_COUNT;
+
+            // 更新 UI 顯示 (簡化數值顯示)
+            document.getElementById('val-n-A').innerText = (nA / 10).toFixed(1) + " units";
+            document.getElementById('val-n-B').innerText = (nB / 10).toFixed(1) + " units";
+
+            // 分離現有的 A 和 B 分子
+            let particlesA = state.particles.filter(p => p.side === 'A');
+            let particlesB = state.particles.filter(p => p.side === 'B');
+
+            // 調整 A 數量
+            const targetA = Math.round(nA);
+            if (particlesA.length < targetA) {
+                while (particlesA.length < targetA) particlesA.push(new Particle('A'));
+            } else if (particlesA.length > targetA) {
+                particlesA.splice(0, particlesA.length - targetA);
+            }
+
+            // 調整 B 數量
+            const targetB = Math.round(nB);
+            if (particlesB.length < targetB) {
+                while (particlesB.length < targetB) particlesB.push(new Particle('B'));
+            } else if (particlesB.length > targetB) {
+                particlesB.splice(0, particlesB.length - targetB);
+            }
+
+            state.particles = [...particlesA, ...particlesB];
+        }
+
+        // 處理 UI 滑桿變更
+        function updateState(side, property, value) {
+            state[side][property] = parseFloat(value);
+            
+            // 更新 UI 文字
+            let unit = property === 'P' ? 'atm' : property === 'V' ? 'L' : 'K';
+            document.getElementById(`val-${property.toLowerCase()}-${side}`).innerText = `${value} ${unit}`;
+
+            if (!state.isOpen) {
+                syncParticles();
+                
+                // 如果改變了溫度或體積，需要更新現有分子的屬性以免超出邊界
+                if (property === 'V' || property === 'T') {
+                    state.particles.forEach(p => {
+                        if (p.side === side) {
+                            if (property === 'T') {
+                                // 調整速率方向不變，大小改變
+                                const speed = Math.sqrt(state[side].T) * BASE_VELOCITY;
+                                const currentSpeed = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+                                if(currentSpeed > 0) {
+                                    p.vx = (p.vx / currentSpeed) * speed;
+                                    p.vy = (p.vy / currentSpeed) * speed;
+                                }
+                            }
+                            if (property === 'V') {
+                                // 確保分子在新的體積邊界內
+                                const b = getBounds(side);
+                                if (p.x < b.left + PARTICLE_RADIUS) p.x = b.left + PARTICLE_RADIUS;
+                                if (p.x > b.right - PARTICLE_RADIUS) p.x = b.right - PARTICLE_RADIUS;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        function updatePhysics() {
+            const centerX = canvasW() / 2;
+            const centerY = canvasH() / 2;
+            
+            const bA = getBounds('A');
+            const bB = getBounds('B');
+            
+            const pipeTop = centerY - state.pipeHeight / 2;
+            const pipeBottom = centerY + state.pipeHeight / 2;
+            const pipeLeft = bA.right;
+            const pipeRight = bB.left;
+
+            for (let p of state.particles) {
+                // 預測下一步位置
+                let nx = p.x + p.vx;
+                let ny = p.y + p.vy;
+                const r = PARTICLE_RADIUS;
+
+                // -- 垂直方向碰撞檢測 --
+                // 判斷當前處於哪個橫向區域來決定上下邊界
+                let topBound, bottomBound;
+                if (nx > pipeLeft && nx < pipeRight) {
+                    // 在管道區域內
+                    topBound = pipeTop;
+                    bottomBound = pipeBottom;
+                } else {
+                    // 在大容器內
+                    topBound = bA.top; // A和B的高度相同
+                    bottomBound = bA.bottom;
+                }
+
+                if (ny < topBound + r) {
+                    ny = topBound + r;
+                    p.vy *= -1;
+                } else if (ny > bottomBound - r) {
+                    ny = bottomBound - r;
+                    p.vy *= -1;
+                }
+
+                // -- 水平方向碰撞檢測 --
+                if (nx < bA.left + r) {
+                    nx = bA.left + r;
+                    p.vx *= -1;
+                } else if (nx > bB.right - r) {
+                    nx = bB.right - r;
+                    p.vx *= -1;
+                }
+
+                // 處理中間隔板與閥門
+                if (!state.isOpen) {
+                    // 閥門關閉，完全阻擋
+                    if (p.x <= pipeLeft && nx > pipeLeft - r) {
+                        nx = pipeLeft - r;
+                        p.vx *= -1;
+                    } else if (p.x >= pipeRight && nx < pipeRight + r) {
+                        nx = pipeRight + r;
+                        p.vx *= -1;
+                    }
+                } else {
+                    // 閥門打開，但容器壁在管道上下方仍然會阻擋
+                    if (nx > pipeLeft - r && nx < pipeRight + r) {
+                        // 即將進入或穿過中間區域，檢查 Y 是否對齊管道
+                        if (p.y < pipeTop + r || p.y > pipeBottom - r) {
+                            // 撞到容器內壁 (通往管道的牆壁)
+                            if (p.vx > 0) { // 從左向右撞
+                                nx = pipeLeft - r;
+                                p.vx *= -1;
+                            } else { // 從右向左撞
+                                nx = pipeRight + r;
+                                p.vx *= -1;
+                            }
+                        }
+                    }
+                }
+
+                // 更新位置
+                p.x = nx;
+                p.y = ny;
+            }
+        }
+
+        function draw() {
+            const cw = canvasW();
+            const ch = canvasH();
+            if (!cw || !ch) return;
+            ctx.clearRect(0, 0, cw, ch);
+
+            const centerX = cw / 2;
+            const centerY = ch / 2;
+            const bA = getBounds('A');
+            const bB = getBounds('B');
+            const pipeTop = centerY - state.pipeHeight / 2;
+            const pipeBottom = centerY + state.pipeHeight / 2;
+            const pipeLeft = bA.right;
+            const pipeRight = bB.left;
+
+            // 繪製容器外框 (發光風格)
+            ctx.lineWidth = 4;
+            ctx.lineJoin = 'round';
+
+            // 設定容器顏色
+            ctx.strokeStyle = '#475569'; // slate-600
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.5)'; // 內部背景 slate-800
+
+            // 繪製路徑
+            ctx.beginPath();
+            // 左上角
+            ctx.moveTo(bA.left, bA.top);
+            ctx.lineTo(pipeLeft, bA.top);
+            // 管道上方
+            ctx.lineTo(pipeLeft, pipeTop);
+            ctx.lineTo(pipeRight, pipeTop);
+            // 管道右上
+            ctx.lineTo(pipeRight, bB.top);
+            ctx.lineTo(bB.right, bB.top);
+            // 右側
+            ctx.lineTo(bB.right, bB.bottom);
+            // 管道右下
+            ctx.lineTo(pipeRight, bB.bottom);
+            ctx.lineTo(pipeRight, pipeBottom);
+            // 管道下方
+            ctx.lineTo(pipeLeft, pipeBottom);
+            // 管道左下
+            ctx.lineTo(pipeLeft, bA.bottom);
+            ctx.lineTo(bA.left, bA.bottom);
+            ctx.closePath();
+
+            ctx.fill();
+            ctx.stroke();
+
+            // 繪製閥門
+            if (!state.isOpen) {
+                ctx.fillStyle = '#10b981'; // green-500
+                ctx.fillRect(pipeLeft + 20, pipeTop - 10, 20, state.pipeHeight + 20);
+                // 閥門手柄
+                ctx.fillStyle = '#047857';
+                ctx.fillRect(pipeLeft + 25, pipeTop - 25, 10, 15);
+                ctx.fillRect(pipeLeft + 15, pipeTop - 30, 30, 8);
+            } else {
+                // 打開狀態的閥門 (移動到上方)
+                ctx.fillStyle = '#10b981'; 
+                ctx.fillRect(pipeLeft + 20, pipeTop - 40, 20, state.pipeHeight + 20);
+                ctx.fillStyle = '#047857';
+                ctx.fillRect(pipeLeft + 25, pipeTop - 55, 10, 15);
+                ctx.fillRect(pipeLeft + 15, pipeTop - 60, 30, 8);
+            }
+
+            // 繪製分子
+            for (let p of state.particles) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, PARTICLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                
+                // 根據速度添加一點尾跡或亮度效果
+                const speedSq = p.vx*p.vx + p.vy*p.vy;
+                ctx.globalAlpha = Math.min(1, 0.6 + speedSq * 0.05);
+                
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 物理與動畫循環
+            updatePhysics();
+            requestAnimationFrame(draw);
+        }
+
+        function toggleValve() {
+            if (state.isOpen) return;
+            
+            state.isOpen = true;
+            
+            // 更新按鈕樣式
+            const btn = document.getElementById('btn-valve');
+            btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+            btn.classList.add('bg-slate-400', 'cursor-not-allowed');
+            btn.disabled = true;
+            
+            document.getElementById('icon-valve-closed').classList.add('hidden');
+            document.getElementById('icon-valve-open').classList.remove('hidden');
+            document.getElementById('text-valve').innerText = "氣體混合中...";
+
+            // 顯示重置按鈕
+            document.getElementById('btn-reset').classList.remove('hidden');
+
+            // 鎖定下方控制面板
+            document.getElementById('panel-A').classList.add('disabled-panel');
+            document.getElementById('panel-B').classList.add('disabled-panel');
+
+            // 計算最終平衡壓強 P_f = (P_a*V_a + P_b*V_b) / (V_a + V_b)
+            const pA = state.A.P;
+            const vA = state.A.V;
+            const pB = state.B.P;
+            const vB = state.B.V;
+            
+            const pf = (pA * vA + pB * vB) / (vA + vB);
+            
+            // 動畫顯示結果
+            setTimeout(() => {
+                const badge = document.getElementById('result-badge');
+                document.getElementById('final-pressure-display').innerText = pf.toFixed(2);
+                badge.classList.remove('hidden');
+                
+                // 觸發 Tailwind 動畫
+                requestAnimationFrame(() => {
+                    badge.classList.remove('translate-y-[-10px]', 'opacity-0');
+                    badge.classList.add('translate-y-0', 'opacity-100');
+                });
+                
+                document.getElementById('text-valve').innerText = "已達到平衡";
+            }, 800);
+        }
+
+        function resetExperiment() {
+            state.isOpen = false;
+            
+            // 隱藏結果徽章
+            const badge = document.getElementById('result-badge');
+            badge.classList.add('hidden', 'translate-y-[-10px]', 'opacity-0');
+            badge.classList.remove('translate-y-0', 'opacity-100');
+
+            // 重置按鈕狀態
+            const btn = document.getElementById('btn-valve');
+            btn.classList.add('bg-green-600', 'hover:bg-green-700');
+            btn.classList.remove('bg-slate-400', 'cursor-not-allowed');
+            btn.disabled = false;
+            
+            document.getElementById('icon-valve-closed').classList.remove('hidden');
+            document.getElementById('icon-valve-open').classList.add('hidden');
+            document.getElementById('text-valve').innerText = "打通閥門";
+            
+            document.getElementById('btn-reset').classList.add('hidden');
+
+            // 解鎖控制面板
+            document.getElementById('panel-A').classList.remove('disabled-panel');
+            document.getElementById('panel-B').classList.remove('disabled-panel');
+
+            // 重新整理分子，重置到各自的容器
+            syncParticles();
+            state.particles.forEach(p => p.resetProperties());
+        }
+
+        // 初始化
+        window.onload = () => {
+            resizeCanvas();
+            syncParticles();
+            draw();
+        };
+
+    </script>
+<div aria-labelledby="quiz-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-quiz" role="dialog">
+    <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-violet-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+        <div class="bg-gradient-to-r from-violet-500 to-purple-600 p-5 text-white flex justify-between items-center shrink-0 gap-2">
+            <div class="flex items-center gap-3 flex-wrap min-w-0">
+                <h2 class="text-lg font-bold" data-i18n="quizTitle" id="quiz-title">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white border border-white/30 text-xs font-semibold shrink-0" data-i18n="quizShowAnswers">顯示參考答案</button>
+            </div>
+            <button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center shrink-0 quiz-close" type="button">✕</button>
+        </div>
+        <div class="p-6 overflow-y-auto"><div id="quiz-list" class="space-y-4 text-sm text-slate-700"></div></div>
+        <div class="p-4 border-t flex justify-end shrink-0">
+            <button type="button" class="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl quiz-close" data-i18n="modalClose">關閉</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const i18n={zh:{btnQuiz:"課堂問題",quizTitle:"課堂問題",quizShowAnswers:"顯示參考答案",quizHideAnswers:"隱藏參考答案",quizRef:"參考答案",quizQ1:"閥門關閉時，單一容器內理想氣體滿足？",quizQ1a:"PV=nRT",quizQ1b:"PV=常數（任何 T）",quizQ1c:"P 與 V 無關",quizQ1d:"n 恆為零",quizQ1ans:"A。理想氣體狀態方程。",quizQ2:"A 冷（#slider-t-A 低）、B 熱（#slider-t-B 高），打開 #btn-valve。預測混合後分子運動快慢與顏色區變化，再觀看粒子動畫。",quizQ2ans:"最終溫度介於兩者；快／慢分子混合，壓強趨平衡。",quizQ3:"混合後兩容器相連、總體積 V_A+V_B，最終壓強本模擬用？",quizQ3a:"(P_A V_A+P_B V_B)/(V_A+V_B)",quizQ3b:"P_A+P_B",quizQ3c:"較大側 P  alone",quizQ3d:"零",quizQ3ans:"A。見畫布上方最終平衡壓強。",quizQ4:"只增大 #slider-v-A 而 P_A、T_A 不變，#val-n-A（n∝PV/T）會？",quizQ4ans:"n 增大（體積變大）。",quizQ5:"打開閥門後達平衡，兩邊最終壓強？",quizQ5a:"相同",quizQ5b:"仍保持原來 A、B 不同",quizQ5c:"僅 A 有壓強",quizQ5d:"僅 B 有壓強",quizQ5ans:"A。連通後壓強趨同一值。",title:"氣體混合",badge:"物理",tagline:"理想氣體 PV = nRT",btnSteps:"觀察步驟",btnPrinciple:"原理解說",btnValveOpen:"打通閥門",btnReset:"重置實驗",panelA:"容器 A 狀態",panelB:"容器 B 狀態",lblP:"壓強 (Pressure, P)",lblV:"體積 (Volume, V)",lblT:"溫度 (Temperature, T)",tempCold:"100 K (冷)",tempHot:"900 K (熱)",lblN:"相對氣體莫耳數 (n ∝ PV/T)",labelA:"容器 A",labelB:"容器 B",finalP:"最終平衡壓強:",stepsTitle:"觀察步驟",modalTitle:"原理解說",s1:"分別調容器 A、B 的壓強、體積和溫度，看相對莫耳數 n ∝ PV/T。",s2:"按「打通閥門」，看兩色分子穿過中間管道混合。",s3:"讀畫布上方的最終平衡壓強，並和 (P<sub>A</sub>V<sub>A</sub> + P<sub>B</sub>V<sub>B</sub>) / (V<sub>A</sub> + V<sub>B</sub>) 對照。",s4:"按「重置實驗」，換一組溫度再打開閥門，比較分子快慢。",m1d:"<strong>概念：</strong>理想氣體滿足 PV = nRT。分子速率隨溫度升高而變快。",m2d:"<strong>機制：</strong>閥門關閉時兩邊各自平衡。打開後分子自由通過。本模擬用 P<sub>f</sub> = (P<sub>A</sub>V<sub>A</sub> + P<sub>B</sub>V<sub>B</sub>) / (V<sub>A</sub> + V<sub>B</sub>) 顯示混合後的平衡壓強，體積則是兩邊相加。",m5d:"<strong>生活例子：</strong>打開兩個連通的氣瓶，壓強會趨向中間值；熱氣與冷氣混合後溫度介於兩者之間。"},en:{btnQuiz:"Quiz",quizTitle:"Classroom questions",quizShowAnswers:"Show reference answers",quizHideAnswers:"Hide reference answers",quizRef:"Reference",quizQ1:"Valve closed, ideal gas in one container:",quizQ1a:"PV=nRT",quizQ1b:"PV=const any T",quizQ1c:"P independent of V",quizQ1d:"n=0",quizQ1ans:"A. Ideal gas law.",quizQ2:"Cold A (#slider-t-A low), hot B: open #btn-valve. Predict motion mix, watch particles.",quizQ2ans:"T between both; pressure equilibrates.",quizQ3:"After mixing, total V_A+V_B, final P model uses",quizQ3a:"(P_A V_A+P_B V_B)/(V_A+V_B)",quizQ3b:"P_A+P_B",quizQ3c:"higher side only",quizQ3d:"zero",quizQ3ans:"A. On-canvas final pressure.",quizQ4:"Raise #slider-v-A only, P_A T_A fixed. #val-n-A",quizQ4ans:"n increases (larger V).",quizQ5:"After opening valve to equilibrium, both sides P",quizQ5a:"equal",quizQ5b:"stay different",quizQ5c:"only A",quizQ5d:"only B",quizQ5ans:"A. Connected → same P.",title:"Gas Mixing",badge:"Physics",tagline:"Ideal gas PV = nRT",btnSteps:"Steps",btnPrinciple:"Principle",btnValveOpen:"Open valve",btnReset:"Reset",panelA:"Vessel A",panelB:"Vessel B",lblP:"Pressure P",lblV:"Volume V",lblT:"Temperature T",tempCold:"100 K (cold)",tempHot:"900 K (hot)",lblN:"Relative moles (n ∝ PV/T)",labelA:"Vessel A",labelB:"Vessel B",finalP:"Final pressure:",stepsTitle:"Observation Steps",modalTitle:"Principle",s1:"Set P, V, T on A and B; watch n ∝ PV/T.",s2:"Open the valve; watch molecules mix.",s3:"Read final P and compare with the weighted formula.",s4:"Reset, change T, reopen valve; compare speeds.",m1d:"<strong>Concept.</strong> Ideal gas: PV = nRT; faster molecules at higher T.",m2d:"<strong>Mechanism.</strong> Closed: separate equilibria. Open: molecules pass through; P<sub>f</sub> from combined PV.",m5d:"<strong>Examples.</strong> Connected cylinders equalize pressure; hot and cold air mix to an intermediate T."}};
+(function(){
+let quizAnswersVisible=false;
+function renderQuiz(){
+  const box=document.getElementById('quiz-list'); if(!box)return;
+  const lang=window.currentLang||'zh'; const pack=i18n[lang]||i18n.zh;
+  const tr=k=>pack[k]||i18n.zh[k]||k;
+  const mk=qid=>['A','B','C','D'].map(L=>{const lk='quizQ'+qid.slice(1)+L.toLowerCase();return `<label class="flex items-start gap-2 border border-slate-200 rounded-lg p-2 cursor-pointer"><input type="radio" name="${qid}"><span>${L}. ${tr(lk)}</span></label>`;}).join('');
+  const ans=n=>quizAnswersVisible?`<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${tr('quizRef')}：</strong> ${tr('quizQ'+n+'ans')}</div>`:'';
+  box.innerHTML=[1,2,3,4,5].map(n=>{const open=n===2||n===4;return `<div class="rounded-xl border p-3"><p class="font-semibold text-violet-800 mb-2">Q${n}. ${tr('quizQ'+n)}</p>${open?'':`<div class="grid gap-1.5">${mk('q'+n)}</div>`}${ans(n)}</div>`;}).join('');
+  const ab=document.getElementById('btn-quiz-answers'); if(ab)ab.textContent=quizAnswersVisible?tr('quizHideAnswers'):tr('quizShowAnswers');
+}
+function openQuizModal(){const mq=document.getElementById('modal-quiz'),mc=mq&&mq.querySelector('.modal-content');if(!mq||!mc)return;closePrinciple();closeSteps();renderQuiz();mq.classList.remove('opacity-0','pointer-events-none');mc.classList.remove('scale-95','opacity-0');mc.classList.add('scale-100','opacity-100');}
+function closeQuizModal(){const mq=document.getElementById('modal-quiz'),mc=mq&&mq.querySelector('.modal-content');if(!mq||!mc)return;mc.classList.add('scale-95','opacity-0');mc.classList.remove('scale-100','opacity-100');mq.classList.add('opacity-0','pointer-events-none');}
+function getLang(){return window.currentLang||'zh';}function setLangVar(l){window.currentLang=l;}function applyPlatformI18n(){const lang=getLang();document.documentElement.lang=lang==='en'?'en':'zh-Hant';const pack=i18n[lang];document.querySelectorAll('[data-i18n]').forEach(function(el){const key=el.getAttribute('data-i18n');if(pack[key]!=null){if(/<[a-z][\s\S]*>/i.test(pack[key]))el.innerHTML=pack[key];else el.textContent=pack[key];}});renderQuiz();}function platformToggleLang(){setLangVar(getLang()==='zh'?'en':'zh');applyPlatformI18n();}function openPrinciple(){closeQuizModal();const mp=document.getElementById('modal-principle'),mc=mp&&mp.querySelector('.modal-content');if(!mp||!mc)return;mp.classList.remove('opacity-0','pointer-events-none');mc.classList.remove('scale-95','opacity-0');mc.classList.add('scale-100','opacity-100');}function closePrinciple(){const mp=document.getElementById('modal-principle'),mc=mp&&mp.querySelector('.modal-content');if(!mp||!mc)return;mc.classList.add('scale-95','opacity-0');mc.classList.remove('scale-100','opacity-100');mp.classList.add('opacity-0','pointer-events-none');}function openSteps(){closeQuizModal();const ms=document.getElementById('modal-steps'),sc=ms&&ms.querySelector('.modal-content');if(!ms||!sc)return;ms.classList.remove('opacity-0','pointer-events-none');sc.classList.remove('scale-95','opacity-0');sc.classList.add('scale-100','opacity-100');}function closeSteps(){const ms=document.getElementById('modal-steps'),sc=ms&&ms.querySelector('.modal-content');if(!ms||!sc)return;sc.classList.add('scale-95','opacity-0');sc.classList.remove('scale-100','opacity-100');ms.classList.add('opacity-0','pointer-events-none');}function bindPlatformUI(){const bl=document.getElementById('btn-lang'),bm=document.getElementById('btn-lang-mobile');document.getElementById('btn-steps').onclick=function(){closePrinciple();openSteps();};document.getElementById('btn-principle').onclick=function(){closeSteps();openPrinciple();};const bq=document.getElementById('btn-quiz');if(bq)bq.onclick=openQuizModal;document.getElementById('btn-quiz-answers').addEventListener('click',function(){quizAnswersVisible=!quizAnswersVisible;renderQuiz();});document.querySelectorAll('#modal-quiz .quiz-close').forEach(function(b){b.onclick=closeQuizModal;});const mq=document.getElementById('modal-quiz');if(mq)mq.addEventListener('click',function(e){if(e.target===mq)closeQuizModal();});if(bl)bl.onclick=platformToggleLang;if(bm)bm.onclick=platformToggleLang;const mc=document.getElementById('modal-close');if(mc)mc.onclick=closePrinciple;const sc=document.getElementById('steps-close');if(sc)sc.onclick=closeSteps;['modal-principle','modal-steps'].forEach(function(id){const m=document.getElementById(id);if(m)m.addEventListener('click',function(e){if(e.target===m)(id==='modal-principle'?closePrinciple:closeSteps)();});});document.addEventListener('keydown',function(e){if(e.key==='Escape'){closePrinciple();closeSteps();closeQuizModal();}});applyPlatformI18n();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindPlatformUI);else bindPlatformUI();})();
+</script>
+</body>
+</html>

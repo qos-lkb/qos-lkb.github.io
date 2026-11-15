@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日食與月食 | Eclipses</title>
+    <!-- Google Tag (G-ENZ6QD5K5Y) -->
+    
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-ENZ6QD5K5Y');
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            background-color: #050505;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .toggle-pill {
+            position: relative;
+            width: 100px;
+            height: 32px;
+            background: #2d2d2d;
+            border-radius: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            transition: all 0.3s;
+        }
+        .toggle-pill .slider {
+            position: absolute;
+            left: 2px;
+            width: 48px;
+            height: 28px;
+            background: #ffffff;
+            border-radius: 14px;
+            transition: all 0.3s ease-in-out;
+        }
+        .lang-en .slider { transform: translateX(48px); }
+        .label-text { z-index: 10; font-size: 12px; font-weight: 600; }
+        .lang-zh .label-zh { color: #000; }
+        .lang-zh .label-en { color: #888; }
+        .lang-en .label-zh { color: #888; }
+        .lang-en .label-en { color: #000; }
+        canvas { touch-action: none; }
+    </style>
+</head>
+<body class="text-white">
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "日食與月食", "en": "Eclipses"}, "grade": {"zh": "中一科學", "en": "S1 Science"}, "steps": {"zh": ["先選「食季：日全蝕」，看月影打到地球。", "再選「食季：月全蝕」，看地球的影罩住月球。", "改選非食季的新月或滿月，看為什麼擦身而過。", "打開星體標籤，對照日、地、月的次序。"], "en": ["Choose the eclipse season for a total solar eclipse and watch the Moon's shadow on Earth.", "Then choose a total lunar eclipse and watch Earth's shadow cover the Moon.", "Choose a new or full moon outside the eclipse season and see the miss.", "Turn on the labels and check the order of the Sun, Earth and Moon."]}, "principle": {"zh": ["日食發生在新月，月球走到太陽和地球之間。月食發生在滿月，地球走到太陽和月球之間。", "月球軌道有傾斜，所以不是每個月都食。只有走到交點附近的食季才會對齊。", "日全食只在月影本影掃過的狹窄地區看見；月食則是夜半球大範圍都能看到。"], "en": ["A solar eclipse is a new moon between the Sun and Earth. A lunar eclipse is a full moon in Earth's shadow.", "The Moon's orbit is tilted, so eclipses do not happen every month.", "A total solar eclipse is seen only inside the narrow umbra. A lunar eclipse is visible across the night side of Earth."]}, "quiz": [{"zh": "日全食時，三者次序是？", "en": "During a total solar eclipse the order is?", "azh": "B。月球擋住太陽。", "aen": "B. The Moon blocks the Sun.", "czh": ["太陽、地球、月球", "太陽、月球、地球", "月球、地球、太陽", "地球在太陽裡面"], "cen": ["Sun, Earth, Moon", "Sun, Moon, Earth", "Moon, Earth, Sun", "Earth inside the Sun"], "ans": 1}, {"zh": "先預測非食季的滿月不會進入地球本影，再選「非食季：錯過(滿月)」。", "en": "Predict that a full moon outside the eclipse season misses Earth's umbra, then select that case.", "azh": "軌道傾斜，月球從影的上方或下方經過。", "aen": "The orbit is tilted, so the Moon passes above or below the shadow."}, {"zh": "月食發生在？", "en": "A lunar eclipse happens at?", "azh": "B。", "aen": "B.", "czh": ["新月", "滿月", "上弦", "月球不在天空"], "cen": ["New moon", "Full moon", "First quarter", "A time when the Moon is absent"], "ans": 1}, {"zh": "比較日全食和月全食的遮擋物體。先各說誰的影子，再切換兩個食季按鈕。", "en": "Compare a total solar and a total lunar eclipse. Name whose shadow is used, then press both eclipse-season buttons.", "azh": "日食是月影打到地球；月食是地球的影子罩住月球。", "aen": "A solar eclipse is the Moon's shadow on Earth. A lunar eclipse is Earth's shadow on the Moon."}, {"zh": "不是每個新月都日食，是因為？", "en": "Not every new moon is a solar eclipse because?", "azh": "B。", "aen": "B.", "czh": ["太陽每月熄滅", "月球軌道相對地球公轉面傾斜", "地球沒有自轉", "月球不會反光"], "cen": ["The Sun switches off each month", "The Moon's orbit is tilted relative to Earth's orbit", "Earth does not rotate", "The Moon does not reflect light"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 pointer-events-none z-20">
+        <!-- Header (Top Left) -->
+        <div class="absolute top-4 left-4 md:top-8 md:left-8 pointer-events-auto flex flex-col gap-3">
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 id="title" class="text-xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-200">
+                        蝕相觀測模擬器
+                    </h1>
+                    <!-- 新增的齒輪按鈕 -->
+                    <button onclick="toggleControlPanel()" class="text-gray-400 hover:text-white transition-colors p-1.5 rounded-full bg-gray-800 bg-opacity-50 hover:bg-gray-700" title="設定面板開關">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+                <p id="subtitle" class="text-gray-400 text-sm mt-1">模擬日、月蝕形成條件與黃白交角</p>
+            </div>
+            
+            <!-- Language Switcher -->
+            <div id="langToggle" class="toggle-pill lang-zh" onclick="toggleLanguage()">
+                <div class="slider"></div>
+                <span class="label-text label-zh">中文</span>
+                <span class="label-text label-en">EN</span>
+            </div>
+
+            <!-- Info Toggle Button -->
+            <button onclick="toggleInfo()" class="glass-panel px-4 py-2 rounded-xl text-xs font-bold hover:bg-white hover:text-black transition flex items-center gap-2 mt-2 w-max shadow-lg">
+                <span class="text-lg leading-none">ℹ️</span> <span id="btn-info-text">成因解說</span>
+            </button>
+        </div>
+
+        <!-- 3D Labels Container -->
+        <div id="labels-container" class="absolute inset-0 pointer-events-none z-10 hidden">
+            <div id="lbl-sun" class="absolute text-red-500 text-sm font-bold drop-shadow-md transform -translate-x-1/2 -translate-y-1/2">太陽</div>
+            <div id="lbl-earth" class="absolute text-blue-400 text-xs font-bold drop-shadow-md transform -translate-x-1/2 -translate-y-1/2">地球</div>
+            <div id="lbl-moon" class="absolute text-gray-300 text-[10px] font-bold drop-shadow-md transform -translate-x-1/2 -translate-y-1/2">月球</div>
+            <div id="lbl-obs" class="absolute text-red-400 text-[10px] font-bold drop-shadow-md transform -translate-x-1/2 -translate-y-1/2">觀測者</div>
+        </div>
+
+        <!-- Info Modal -->
+        <div id="info-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4 transition-opacity opacity-0 pointer-events-none">
+            <div class="glass-panel bg-gray-900 bg-opacity-90 p-6 md:p-8 rounded-2xl max-w-lg w-full relative border border-gray-600 shadow-2xl pointer-events-auto">
+                <button onclick="toggleInfo()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl">✕</button>
+                <h2 id="info-title" class="text-xl md:text-2xl font-bold text-yellow-300 mb-6">日蝕與月蝕成因解說</h2>
+                <div class="space-y-4 text-sm md:text-base text-gray-200 leading-relaxed">
+                    <p id="info-solar" class="border-l-4 border-orange-500 pl-4">
+                        <strong class="text-orange-400">日蝕 (Solar Eclipse)：</strong>當地月軌道交會，且月球運行至太陽與地球之間（新月），月球的陰影投射在地球表面，即發生日蝕。
+                    </p>
+                    <p id="info-lunar" class="border-l-4 border-blue-500 pl-4">
+                        <strong class="text-blue-400">月蝕 (Lunar Eclipse)：</strong>當地月軌道交會，且地球運行至太陽與月球之間（滿月），月球進入地球的陰影中，即發生月蝕。
+                    </p>
+                    <div class="bg-white bg-opacity-5 p-4 rounded-xl mt-4 border border-gray-700">
+                        <p id="info-tilt"><strong class="text-white">為什麼不是每個月都有蝕？</strong><br>因為月球軌道（白道）與地球軌道（黃道）之間有約 5.1° 的「黃白交角」。只有當交點剛好對齊太陽方向時（稱為食季），月球才不會從太陽上方或下方「擦肩而過」。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Info Panel (Top Right) -->
+        <div id="view-panel" class="glass-panel p-3 rounded-2xl flex flex-col justify-center items-center absolute top-4 right-4 md:top-8 md:right-8 pointer-events-auto min-h-[150px] w-36 md:w-48 shadow-lg">
+            <!-- 新增拖曳把手 -->
+            <div class="drag-handle w-full flex justify-center pb-2 cursor-move" style="touch-action: none;">
+                <div class="w-8 h-1.5 bg-gray-500 rounded-full opacity-60 pointer-events-none"></div>
+            </div>
+            <div id="view-label" class="w-full text-center text-[9px] md:text-[10px] uppercase tracking-widest text-gray-500 pointer-events-none">Earth Observation View</div>
+            <div id="observation-canvas-container" class="w-24 h-24 md:w-32 md:h-32 mt-2 rounded-full border border-gray-700 bg-black flex items-center justify-center relative overflow-hidden">
+                <canvas id="obsCanvas" width="200" height="200" class="w-full h-full"></canvas>
+            </div>
+            <div id="status-text" class="mt-2 text-xs font-medium text-yellow-500 text-center">正在觀測...</div>
+        </div>
+
+        <!-- Movable Parameter Control Panel (Bottom Left) -->
+        <!-- 修改了這個 div 的 class，加入了 transition-opacity duration-300 讓隱藏顯示有動畫效果 -->
+        <div id="control-panel" class="glass-panel p-4 rounded-2xl w-[90%] md:w-80 space-y-3 absolute bottom-4 left-[5%] md:bottom-8 md:left-8 pointer-events-auto shadow-2xl transition-opacity duration-300">
+            <!-- Drag Handle (將原本的 id="drag-handle" 改為 class="drag-handle") -->
+            <div class="drag-handle w-full flex justify-center pb-1 cursor-move" style="touch-action: none;">
+                <div class="w-12 h-1.5 bg-gray-500 rounded-full opacity-60 pointer-events-none"></div>
+            </div>
+            
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span id="label-angle">黃白交角 (Inclination)</span>
+                    <span class="text-orange-400 font-mono"><span id="val-angle">5.1</span>°</span>
+                </div>
+                <input type="range" id="input-angle" min="0" max="15" step="0.1" value="5.1" 
+                       class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-orange-500 cursor-auto">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span id="label-node">軌道交點位置 (Node Position)</span>
+                    <span class="text-purple-400 font-mono"><span id="val-node">0</span>°</span>
+                </div>
+                <input type="range" id="input-node" min="0" max="360" step="1" value="0" 
+                       class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 cursor-auto">
+            </div>
+            
+            <div>
+                <div class="flex justify-between items-center text-xs mb-1">
+                    <span id="label-phase">月球位置 (Moon Position)</span>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-play" onclick="toggleAutoPlay()" class="bg-green-600 hover:bg-green-500 text-white px-2 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1">
+                            <span>▶</span> <span id="play-text">自動</span>
+                        </button>
+                        <span class="text-blue-400 font-mono w-8 text-right"><span id="val-phase">0</span>°</span>
+                    </div>
+                </div>
+                <!-- FIXED: step="1" changed to step="0.1" here -->
+                <input type="range" id="input-phase" min="0" max="360" step="0.1" value="0" 
+                       class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500 cursor-auto">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 cursor-auto mt-2">
+                <button onclick="setEvent('solar_eclipse')" id="btn-cond-1" class="bg-orange-600 hover:bg-orange-500 py-1.5 rounded-xl text-xs font-semibold transition">食季: 日全蝕</button>
+                <button onclick="setEvent('lunar_eclipse')" id="btn-cond-2" class="bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-semibold transition">食季: 月全蝕</button>
+                <button onclick="setEvent('no_eclipse_solar')" id="btn-cond-3" class="bg-gray-700 hover:bg-gray-600 py-1.5 rounded-xl text-xs font-semibold transition">非食季: 錯過(新月)</button>
+                <button onclick="setEvent('no_eclipse_lunar')" id="btn-cond-4" class="bg-gray-700 hover:bg-gray-600 py-1.5 rounded-xl text-xs font-semibold transition">非食季: 錯過(滿月)</button>
+            </div>
+
+            <div class="pt-2 border-t border-gray-700 cursor-auto">
+                <button id="btn-labels" onclick="toggleLabels()" class="w-full bg-gray-800 hover:bg-gray-700 py-2 rounded-xl text-xs font-semibold transition text-gray-200">
+                    顯示星體標籤
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main 3D Container -->
+    <div id="canvas-container" class="w-full h-full absolute inset-0 z-10"></div>
+
+    <script>
+        // Language Data
+        const i18n = {
+            zh: {
+                title: "蝕相觀測模擬器",
+                subtitle: "模擬日、月蝕形成條件與黃白交角",
+                labelAngle: "黃白交角 (Inclination)",
+                labelNode: "軌道交點位置 (Node Position)",
+                labelPhase: "月軌位置 (Moon Position)",
+                btnCond1: "食季: 日全蝕", btnCond2: "食季: 月全蝕",
+                btnCond3: "非食季: 錯過(新月)", btnCond4: "非食季: 錯過(滿月)",
+                btnPlay: "自動", btnPause: "暫停",
+                viewLabel: "地球觀測視角",
+                statusNormal: "無蝕相 (錯過)",
+                statusSolarTotal: "日全蝕！",
+                statusSolarPartial: "日偏蝕",
+                statusLunarTotal: "月全蝕 (紅月亮)",
+                statusLunarPartial: "月偏蝕",
+                btnInfoText: "成因解說",
+                btnLabelsShow: "顯示星體標籤", btnLabelsHide: "隱藏星體標籤",
+                infoTitle: "日蝕與月蝕成因解說",
+                infoSolar: "<strong class='text-orange-400'>日蝕 (Solar Eclipse)：</strong>當地月軌道交會，且月球運行至太陽與地球之間（新月），月球的陰影投射在地球表面，即發生日蝕。",
+                infoLunar: "<strong class='text-blue-400'>月蝕 (Lunar Eclipse)：</strong>當地月軌道交會，且地球運行至太陽與月球之間（滿月），月球進入地球的陰影中，即發生月蝕。",
+                infoTilt: "<strong class='text-white'>為什麼不是每個月都有蝕？</strong><br>因為月球軌道與地球軌道之間有約 5.1° 的「黃白交角」。只有當交點剛好對齊太陽方向時（稱為食季），月球才不會從太陽上方或下方「擦肩而過」。",
+                lblSun: "太陽", lblEarth: "地球", lblMoon: "月球", lblObs: "觀測者"
+            },
+            en: {
+                title: "Eclipse Simulator",
+                subtitle: "Inclination & Node Alignment Physics",
+                labelAngle: "Orbital Inclination",
+                labelNode: "Node Alignment",
+                labelPhase: "Moon Phase",
+                btnCond1: "Season: Solar", btnCond2: "Season: Lunar",
+                btnCond3: "Off-Season: Miss (New)", btnCond4: "Off-Season: Miss (Full)",
+                btnPlay: "Auto", btnPause: "Pause",
+                viewLabel: "Earth View",
+                statusNormal: "No Eclipse (Missed)",
+                statusSolarTotal: "Total Solar Eclipse!",
+                statusSolarPartial: "Partial Solar Eclipse",
+                statusLunarTotal: "Total Lunar Eclipse",
+                statusLunarPartial: "Partial Lunar Eclipse",
+                btnInfoText: "Explanation",
+                btnLabelsShow: "Show Labels", btnLabelsHide: "Hide Labels",
+                infoTitle: "Causes of Eclipses",
+                infoSolar: "<strong class='text-orange-400'>Solar Eclipse:</strong> Occurs when the Moon passes between the Earth and the Sun, blocking all or part of the Sun for a viewer on Earth.",
+                infoLunar: "<strong class='text-blue-400'>Lunar Eclipse:</strong> Occurs when the Earth passes between the Sun and the Moon, casting a shadow on the Moon.",
+                infoTilt: "<strong class='text-white'>Why not every month?</strong><br>The Moon's orbit is tilted about 5.1°. Eclipses only happen during an 'Eclipse Season' when the orbital nodes align directly with the Sun.",
+                lblSun: "Sun", lblEarth: "Earth", lblMoon: "Moon", lblObs: "Observer"
+            }
+        };
+
+        let currentLang = 'zh';
+        let isAutoPlaying = true;
+        let showLabels = false;
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            const toggle = document.getElementById('langToggle');
+            if(toggle) toggle.className = `toggle-pill lang-${currentLang}`;
+            updateText();
+        }
+
+        function updateText() {
+            const t = i18n[currentLang];
+            document.getElementById('title').innerText = t.title;
+            document.getElementById('subtitle').innerText = t.subtitle;
+            document.getElementById('label-angle').innerText = t.labelAngle;
+            document.getElementById('label-node').innerText = t.labelNode;
+            document.getElementById('label-phase').innerText = t.labelPhase;
+            document.getElementById('view-label').innerText = t.viewLabel;
+            
+            document.getElementById('btn-cond-1').innerText = t.btnCond1;
+            document.getElementById('btn-cond-2').innerText = t.btnCond2;
+            document.getElementById('btn-cond-3').innerText = t.btnCond3;
+            document.getElementById('btn-cond-4').innerText = t.btnCond4;
+            
+            const playTextSpan = document.getElementById('play-text');
+            if (playTextSpan) playTextSpan.innerText = isAutoPlaying ? t.btnPause : t.btnPlay;
+            document.getElementById('btn-info-text').innerText = t.btnInfoText;
+            document.getElementById('btn-labels').innerText = showLabels ? t.btnLabelsHide : t.btnLabelsShow;
+            
+            document.getElementById('info-title').innerText = t.infoTitle;
+            document.getElementById('info-solar').innerHTML = t.infoSolar;
+            document.getElementById('info-lunar').innerHTML = t.infoLunar;
+            document.getElementById('info-tilt').innerHTML = t.infoTilt;
+            document.getElementById('lbl-sun').innerText = t.lblSun;
+            document.getElementById('lbl-earth').innerText = t.lblEarth;
+            document.getElementById('lbl-moon').innerText = t.lblMoon;
+            document.getElementById('lbl-obs').innerText = t.lblObs;
+        }
+
+        function toggleInfo() {
+            const modal = document.getElementById('info-modal');
+            if (modal.classList.contains('pointer-events-none')) {
+                modal.classList.remove('hidden');
+                void modal.offsetWidth;
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+            } else {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        function toggleLabels() {
+            showLabels = !showLabels;
+            const container = document.getElementById('labels-container');
+            showLabels ? container.classList.remove('hidden') : container.classList.add('hidden');
+            updateText();
+        }
+
+        // 負責切換控制面板顯示狀態的函式
+        function toggleControlPanel() {
+            const panel = document.getElementById('control-panel');
+            if (panel.classList.contains('opacity-0')) {
+                panel.classList.remove('opacity-0', 'pointer-events-none');
+                panel.classList.add('pointer-events-auto');
+            } else {
+                panel.classList.add('opacity-0', 'pointer-events-none');
+                panel.classList.remove('pointer-events-auto');
+            }
+        }
+
+        const tempV = new THREE.Vector3();
+
+        // 3D Engine Variables
+        let scene, camera, renderer;
+        let sun, earth, moon, moonOrbitGroup, observerMarker;
+        let earthShadow, moonShadow;
+        let obsCanvas, obsCtx;
+
+        // Camera Orbit Controls (Spherical)
+        let camAngle = -Math.PI / 4; 
+        let camElevation = Math.PI / 3; 
+        let camRadius = window.innerWidth / window.innerHeight < 1 ? 180 : 120;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+            
+            const sunLight = new THREE.PointLight(0xffffff, 2, 500);
+            sunLight.position.set(-75, 0, 0);
+            scene.add(sunLight);
+
+            // Sun
+            const sunGeom = new THREE.SphereGeometry(10, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
+            sun = new THREE.Mesh(sunGeom, sunMat);
+            sun.position.set(-75, 0, 0);
+            scene.add(sun);
+
+            // Earth
+            const earthGeom = new THREE.SphereGeometry(5, 32, 32);
+            const earthMat = new THREE.MeshPhongMaterial({ color: 0x2233ff, emissive: 0x112244 });
+            earth = new THREE.Mesh(earthGeom, earthMat);
+            scene.add(earth);
+
+            // Earth Umbra Shadow (Visual Helper)
+            const eShadowGeom = new THREE.ConeGeometry(5, 75, 32);
+            eShadowGeom.translate(0, -37.5, 0); // Base at 0
+            const eShadowMat = new THREE.MeshBasicMaterial({color: 0x050510, transparent: true, opacity: 0.6, depthWrite: false});
+            earthShadow = new THREE.Mesh(eShadowGeom, eShadowMat);
+            // Point away from sun (-X) -> towards +X
+            earthShadow.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(1, 0, 0));
+            scene.add(earthShadow);
+
+            // Observer Marker
+            const markerGeom = new THREE.CylinderGeometry(0, 0.6, 2, 8);
+            markerGeom.translate(0, 1, 0); 
+            const markerMat = new THREE.MeshBasicMaterial({ color: 0xff3333 });
+            observerMarker = new THREE.Mesh(markerGeom, markerMat);
+            scene.add(observerMarker);
+
+            moonOrbitGroup = new THREE.Group();
+            scene.add(moonOrbitGroup);
+
+            // Moon
+            const moonGeom = new THREE.SphereGeometry(1.4, 32, 32);
+            const moonMat = new THREE.MeshPhongMaterial({ color: 0x888888 });
+            moon = new THREE.Mesh(moonGeom, moonMat);
+            moonOrbitGroup.add(moon);
+
+            // Moon Shadow
+            const mShadowGeom = new THREE.ConeGeometry(1.4, 30, 32);
+            mShadowGeom.translate(0, -15, 0);
+            const mShadowMat = new THREE.MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0.8, depthWrite: false});
+            moonShadow = new THREE.Mesh(mShadowGeom, mShadowMat);
+            scene.add(moonShadow); // Add directly to scene to avoid nested rotation logic
+
+            // Orbit Line
+            const orbitGeom = new THREE.RingGeometry(24.8, 25, 64);
+            const orbitMat = new THREE.MeshBasicMaterial({ color: 0x444444, side: THREE.DoubleSide });
+            const orbitLine = new THREE.Mesh(orbitGeom, orbitMat);
+            orbitLine.rotation.x = Math.PI / 2;
+            moonOrbitGroup.add(orbitLine);
+
+            obsCanvas = document.getElementById('obsCanvas');
+            if (obsCanvas) obsCtx = obsCanvas.getContext('2d');
+
+            animate();
+        }
+
+        function syncPlayButtonUI() {
+            const btn = document.getElementById('btn-play');
+            if (!btn) return;
+            const playTextSpan = document.getElementById('play-text');
+            const iconSpan = btn.querySelector('span:first-child');
+            const t = i18n[currentLang];
+
+            if (isAutoPlaying) {
+                playTextSpan.innerText = t.btnPause;
+                iconSpan.innerText = "⏸";
+                btn.classList.replace('bg-green-600', 'bg-red-600');
+                btn.classList.replace('hover:bg-green-500', 'hover:bg-red-500');
+            } else {
+                playTextSpan.innerText = t.btnPlay;
+                iconSpan.innerText = "▶";
+                btn.classList.replace('bg-red-600', 'bg-green-600');
+                btn.classList.replace('hover:bg-red-500', 'hover:bg-green-500');
+            }
+        }
+
+        function toggleAutoPlay() {
+            isAutoPlaying = !isAutoPlaying;
+            syncPlayButtonUI();
+        }
+
+        function setEvent(type) {
+            if (isAutoPlaying) toggleAutoPlay();
+            document.getElementById('input-angle').value = 5.1; // Ensure physical tilt is on
+
+            if(type === 'solar_eclipse') {
+                document.getElementById('input-phase').value = 180;
+                document.getElementById('input-node').value = 0; // Align nodes
+            } else if (type === 'lunar_eclipse') {
+                document.getElementById('input-phase').value = 0;
+                document.getElementById('input-node').value = 0; // Align nodes
+            } else if (type === 'no_eclipse_solar') {
+                document.getElementById('input-phase').value = 180;
+                document.getElementById('input-node').value = 90; // Misalign nodes (Off-season)
+            } else if (type === 'no_eclipse_lunar') {
+                document.getElementById('input-phase').value = 0;
+                document.getElementById('input-node').value = 90; // Misalign nodes
+            }
+            updateSimulation(); 
+        }
+
+        function updateSimulation() {
+            const inputAngle = document.getElementById('input-angle');
+            const inputNode = document.getElementById('input-node');
+            const inputPhase = document.getElementById('input-phase');
+
+            if (!inputAngle || !inputPhase || !inputNode) return;
+            const angle = parseFloat(inputAngle.value);
+            const node = parseFloat(inputNode.value);
+            const phase = parseFloat(inputPhase.value) * (Math.PI / 180);
+            
+            document.getElementById('val-angle').innerText = angle;
+            document.getElementById('val-node').innerText = Math.round(node);
+            document.getElementById('val-phase').innerText = Math.round(parseFloat(inputPhase.value));
+
+            // Setup proper physics for Nodes & Tilt
+            const tiltRad = angle * (Math.PI / 180);
+            const nodeRad = node * (Math.PI / 180);
+            
+            // The tilt axis defines where the nodes (intersection points) are located.
+            const axis = new THREE.Vector3(Math.cos(nodeRad), 0, Math.sin(nodeRad)).normalize();
+            moonOrbitGroup.setRotationFromAxisAngle(axis, tiltRad);
+
+            // Position Moon
+            const orbitRadius = 25;
+            moon.position.set(Math.cos(phase) * orbitRadius, 0, Math.sin(phase) * orbitRadius);
+
+            // Move Moon Shadow with Moon, pointing perfectly away from the Sun (+X)
+            const moonWorld = new THREE.Vector3();
+            moon.getWorldPosition(moonWorld);
+            moonShadow.position.copy(moonWorld);
+            moonShadow.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(1, 0, 0));
+
+            // Position Observer (Standing on Earth surface facing outward)
+            const earthRadius = 5.05;
+            observerMarker.position.set(Math.cos(phase) * earthRadius, 0, Math.sin(phase) * earthRadius);
+            const upVec = observerMarker.position.clone().normalize();
+            observerMarker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), upVec);
+
+            drawObservation(moonWorld);
+        }
+
+        function drawObservation(moonWorld) {
+            if (!obsCtx) return;
+            const ctx = obsCtx;
+            ctx.clearRect(0, 0, 200, 200);
+            
+            const centerX = 100, centerY = 100;
+            const statusEl = document.getElementById('status-text');
+            const t = i18n[currentLang];
+            const phaseVal = parseFloat(document.getElementById('input-phase').value);
+
+            // Based purely on angle to the Sun/Shadow axis
+            const isNearSolar = Math.abs(phaseVal - 180) < 45;
+            const isNearLunar = Math.abs(phaseVal - 0) < 45 || Math.abs(phaseVal - 360) < 45;
+
+            // Mapping 3D offset to 2D canvas 
+            // We artificially exaggerate the vertical (Y) offset in the 2D view. 
+            // In reality, 5.1° tilt creates a vertical gap ~10x larger than the Sun's diameter.
+            const scaleX = 8;
+            const scaleY = 40; 
+
+            if (isNearSolar) {
+                // Sun Background
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 50, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffcc00';
+                ctx.shadowBlur = 20; ctx.shadowColor = '#ffaa00';
+                ctx.fill(); ctx.shadowBlur = 0;
+
+                // Moon Overlay
+                // View from Earth to Sun (-X). Z is horizontal axis.
+                const mX = centerX - (moonWorld.z * scaleX); 
+                const mY = centerY - (moonWorld.y * scaleY); 
+                
+                ctx.beginPath();
+                ctx.arc(mX, mY, 51, 0, Math.PI * 2);
+                ctx.fillStyle = '#050505';
+                ctx.fill();
+
+                const dist = Math.sqrt((mX-centerX)**2 + (mY-centerY)**2);
+                if (dist < 5) statusEl.innerText = t.statusSolarTotal;
+                else if (dist < 100) statusEl.innerText = t.statusSolarPartial;
+                else statusEl.innerText = t.statusNormal;
+
+            } else if (isNearLunar) {
+                // Earth Umbra
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 60, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(40, 20, 20, 0.8)';
+                ctx.fill();
+
+                // Moon Position
+                // View from Earth to +X. Z is horizontal axis inverted relative to solar view.
+                const mX = centerX + (moonWorld.z * scaleX); 
+                const mY = centerY - (moonWorld.y * scaleY);
+                const dist = Math.sqrt((mX-centerX)**2 + (mY-centerY)**2);
+                
+                ctx.beginPath();
+                ctx.arc(mX, mY, 25, 0, Math.PI * 2);
+
+                if (dist < 35) {
+                    ctx.fillStyle = '#cc3300'; // Blood moon
+                    statusEl.innerText = t.statusLunarTotal;
+                } else if (dist < 85) {
+                    ctx.fillStyle = '#666666'; 
+                    statusEl.innerText = t.statusLunarPartial;
+                } else {
+                    ctx.fillStyle = '#eeeeee';
+                    statusEl.innerText = t.statusNormal;
+                }
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.fillText("---", centerX, centerY);
+                statusEl.innerText = t.statusNormal;
+            }
+        }
+
+        function updateLabelsPosition() {
+            if (!showLabels) return;
+            tempV.setFromMatrixPosition(sun.matrixWorld); projectLabel(tempV, 'lbl-sun');
+            tempV.setFromMatrixPosition(earth.matrixWorld); projectLabel(tempV, 'lbl-earth');
+            tempV.setFromMatrixPosition(moon.matrixWorld); projectLabel(tempV, 'lbl-moon');
+            tempV.setFromMatrixPosition(observerMarker.matrixWorld); projectLabel(tempV, 'lbl-obs');
+        }
+
+        function projectLabel(vector, elementId) {
+            vector.project(camera);
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            if (vector.z > 1) { el.style.display = 'none'; return; }
+            el.style.display = 'block';
+            el.style.left = `${(vector.x * 0.5 + 0.5) * window.innerWidth}px`;
+            el.style.top = `${(-(vector.y * 0.5) + 0.5) * window.innerHeight}px`;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isAutoPlaying) {
+                const phaseInput = document.getElementById('input-phase');
+                if (phaseInput) {
+                    let currentPhase = parseFloat(phaseInput.value);
+                    currentPhase += 0.4; 
+                    if (currentPhase >= 360) currentPhase -= 360;
+                    phaseInput.value = currentPhase;
+                }
+            }
+
+            // Update Camera based on Orbit controls
+            camera.position.x = camRadius * Math.sin(camElevation) * Math.cos(camAngle);
+            camera.position.z = camRadius * Math.sin(camElevation) * Math.sin(camAngle);
+            camera.position.y = camRadius * Math.cos(camElevation);
+            camera.lookAt(0, 0, 0);
+            camera.updateMatrixWorld(); // Crucial for label projection
+
+            updateSimulation();
+            updateLabelsPosition(); 
+            renderer.render(scene, camera);
+        }
+
+        // Camera Drag Interaction (Detached from physics orbit)
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        const canvasContainer = document.getElementById('canvas-container');
+
+        canvasContainer.addEventListener('mousedown', (e) => { 
+            isDragging = true; 
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+        
+        canvasContainer.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaMove = { x: e.clientX - previousMousePosition.x, y: e.clientY - previousMousePosition.y };
+                camAngle -= deltaMove.x * 0.005;
+                camElevation -= deltaMove.y * 0.005;
+                camElevation = Math.max(0.1, Math.min(Math.PI/2 - 0.1, camElevation)); // limit up/down
+            }
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+        
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        
+        // Mobile Touch Events (Added preventDefault and passive: false)
+        canvasContainer.addEventListener('touchstart', (e) => { 
+            isDragging = true; 
+            // FIXED: Added [0] to get the first touch point
+            previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }, { passive: false });
+        
+        canvasContainer.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                e.preventDefault(); // 阻擋手機瀏覽器預設的滑動/重新整理行為
+                // FIXED: Added [0] to get the first touch point
+                const deltaMove = { x: e.touches[0].clientX - previousMousePosition.x, y: e.touches[0].clientY - previousMousePosition.y };
+                camAngle -= deltaMove.x * 0.008;
+                camElevation -= deltaMove.y * 0.008;
+                camElevation = Math.max(0.1, Math.min(Math.PI/2 - 0.1, camElevation));
+                
+                // FIXED: Update previous position correctly
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        }, { passive: false });
+        
+        window.addEventListener('touchend', () => { isDragging = false; });
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camRadius = window.innerWidth / window.innerHeight < 1 ? 180 : 120;
+        });
+
+        // Draggable Control Panel
+        function makeDraggable(elmnt) {
+            if (!elmnt) return;
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            // 改為使用 class 來尋找該面板專屬的拖曳把手
+            const handle = elmnt.querySelector(".drag-handle") || elmnt;
+            
+            handle.onmousedown = dragMouseDown;
+            handle.ontouchstart = dragTouchStart;
+
+            function dragMouseDown(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                e.preventDefault();
+                pos3 = e.clientX; pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function dragTouchStart(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                // FIXED: get the first touch object
+                const touch = e.touches[0];
+                pos3 = touch.clientX; pos4 = touch.clientY;
+                document.ontouchend = closeDragElement;
+                document.ontouchmove = elementDragTouch;
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+                pos3 = e.clientX; pos4 = e.clientY;
+                updateElementPosition();
+            }
+
+            function elementDragTouch(e) {
+                // FIXED: get the first touch object
+                const touch = e.touches[0];
+                pos1 = pos3 - touch.clientX; pos2 = pos4 - touch.clientY;
+                pos3 = touch.clientX; pos4 = touch.clientY;
+                updateElementPosition();
+            }
+
+            function updateElementPosition() {
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+                elmnt.style.bottom = "auto"; elmnt.style.right = "auto";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null; document.onmousemove = null;
+                document.ontouchend = null; document.ontouchmove = null;
+            }
+        }
+
+        window.onload = () => {
+            init();
+            updateText();
+            syncPlayButtonUI(); 
+            const controlPanel = document.getElementById("control-panel");
+            if (controlPanel) makeDraggable(controlPanel);
+            
+            // 讓「地球觀測視角」面板也能被拖曳
+            const viewPanel = document.getElementById("view-panel");
+            if (viewPanel) makeDraggable(viewPanel);
+        };
+    </script>
+</body>
+</html>

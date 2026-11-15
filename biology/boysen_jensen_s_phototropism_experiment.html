@@ -1,245 +1,197 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boysen-Jensen's Phototropism Experiment Simulation</title>
+    <title>白森·詹森的向光性實驗 / Boysen-Jensen Phototropism</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f4f7f6;
-            --panel-bg: #ffffff;
-            --primary: #2c3e50;
-            --accent: #27ae60;
-        }
-
-        body {
-            font-family: "PingFang TC", "Microsoft JhengHei", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
-
-        .header-container {
-            width: 100%;
-            max-width: 1000px;
-            margin-bottom: 20px;
-            padding-right: 120px;
-            box-sizing: border-box;
-        }
-
-        h1 {
-            color: var(--primary);
-            margin: 0 0 5px 0;
-        }
-
-        p.subtitle {
-            color: #666;
-            margin: 0;
-            max-width: 800px;
-        }
-
-        .lang-btn {
-            position: absolute;
-            top: 15px;
-            right: 60px;
-            background-color: #ffffff;
-            color: #34495e;
-            border: 1px solid #cbd5e1;
-            padding: 5px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            width: auto;
-            z-index: 10;
-        }
-
-        .lang-btn:hover {
-            background-color: #f8fafc;
-            border-color: #94a3b8;
-            color: #1e293b;
-        }
-
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            max-width: 1000px;
-            width: 100%;
-        }
-
-        .controls-panel {
-            flex: 1;
-            min-width: 300px;
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .simulation-panel {
-            flex: 2;
-            min-width: 400px;
-            background: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: var(--primary);
-        }
-
-        select, button {
-            width: 100%;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-        }
-
-        button.action-btn {
-            background-color: var(--accent);
-            color: white;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            transition: background 0.2s;
-            margin-top: 10px;
-        }
-
-        button.action-btn:hover {
-            background-color: #219150;
-        }
-
-        button.action-btn:disabled {
-            background-color: #bdc3c7;
-            cursor: not-allowed;
-        }
-
+        body { font-family: 'Noto Sans TC', "PingFang TC", "Microsoft JhengHei", 'Segoe UI', sans-serif; }
         canvas {
             background-color: #eef2f5;
-            border-radius: 4px;
+            border-radius: 0.5rem;
             border: 1px solid #dcdcdc;
+            max-width: 100%;
+            height: auto;
         }
-
-        .info-box {
-            margin-top: 20px;
-            background: #e8f4f8;
-            border-left: 4px solid #3498db;
-            padding: 10px 15px;
-            font-size: 0.9em;
-            border-radius: 0 4px 4px 0;
-            line-height: 1.5;
-        }
-
-        .legend {
-            display: flex;
-            gap: 15px;
-            margin-top: 10px;
-            font-size: 0.85em;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
+        button.action-btn:disabled {
+            background-color: #bdc3c7 !important;
+            cursor: not-allowed;
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- Language Toggle Button -->
-    <button id="langToggleBtn" class="lang-btn">繁體中文</button>
-
-    <div class="header-container">
-        <h1 id="title">Peter Boysen-Jensen's Experiment</h1>
-        <p class="subtitle" id="subtitle">Interactive simulation exploring Boysen-Jensen's 1913 experiments demonstrating that a mobile chemical signal controls phototropism.</p>
-    </div>
-
-    <div class="container">
-        <!-- Controls Panel -->
-        <div class="controls-panel">
-            <h2 id="setupHeading">Setup Experiment</h2>
-            
-            <div class="form-group">
-                <label for="treatment" id="labelTreatment">Barrier Material & Placement (Plant B):</label>
-                <select id="treatment">
-                    <option value="agar" id="optAgar">Agar Block (Permeable)</option>
-                    <option value="mica-shaded" id="optMicaShaded">Mica Plate on Shaded Side</option>
-                    <option value="mica-lit" id="optMicaLit">Mica Plate on Illuminated Side</option>
-                    <option value="mica-full" id="optMicaFull">Mica Plate Inserted Completely</option>
-                </select>
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">🌱</div>
+            <div class="min-w-0">
+                <h1 id="title" class="text-lg sm:text-xl font-bold text-slate-800 truncate">白森·詹森的向光性實驗</h1>
+                <p id="subtitle" class="text-xs text-slate-500 truncate max-w-xl">瓊脂／雲母阻隔 · 可移動化學信號 · 向光性</p>
             </div>
-
-            <div class="form-group">
-                <label for="lightDir" id="labelLightDir">Light Source Direction:</label>
-                <select id="lightDir">
-                    <option value="right" id="optRight">Unilateral (From Right)</option>
-                    <option value="left" id="optLeft">Unilateral (From Left)</option>
-                    <option value="overhead" id="optOverhead">Uniform Overhead Light</option>
-                </select>
-            </div>
-
-            <button id="startBtn" class="action-btn">Run Experiment</button>
-            <button id="resetBtn" class="action-btn" style="background-color: #e74c3c;">Reset</button>
-
-            <div class="info-box" id="infoBox">
-                <!-- Dynamic text updated via JS -->
-            </div>
+            <span id="badge-subject" class="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">生物</span>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
+        </div>
+    </header>
 
-        <!-- Canvas Panel -->
-        <div class="simulation-panel">
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Viz: Scheme A col-span-8, order-1 narrow -->
+        <section class="order-1 lg:order-2 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col items-center w-full">
             <canvas id="simCanvas" width="500" height="350"></canvas>
-            
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #27ae60;"></div>
-                    <span id="legendStem">Coleoptile Tissue</span>
+            <div class="legend flex flex-wrap gap-4 mt-3 text-xs text-slate-600">
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm" style="background:#27ae60;"></div>
+                    <span id="legendStem">胚芽鞘組織</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: rgba(230, 126, 34, 0.85);"></div>
-                    <span id="legendAgar">Agar Block (Permeable)</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm" style="background:rgba(230,126,34,0.85);"></div>
+                    <span id="legendAgar">瓊脂塊</span>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #7f8c8d;"></div>
-                    <span id="legendMica">Mica Plate (Impermeable)</span>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-3 h-3 rounded-sm" style="background:#7f8c8d;"></div>
+                    <span id="legendMica">雲母片</span>
                 </div>
             </div>
+        </section>
+
+        <!-- Controls: Scheme A col-span-4, order-2 narrow -->
+        <aside class="order-2 lg:order-1 lg:col-span-4 w-full flex flex-col gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 id="setupHeading" class="text-lg font-bold border-b pb-2 mb-4 text-slate-700">實驗設定</h2>
+
+                <div class="mb-4">
+                    <label for="treatment" id="labelTreatment" class="block text-sm font-semibold mb-1.5 text-slate-700">阻隔物材質與插入位置 (植物 B)：</label>
+                    <select id="treatment" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="agar" id="optAgar" selected>瓊脂塊 (可透性)</option>
+                        <option value="mica-shaded" id="optMicaShaded">雲母片（插在背光側）</option>
+                        <option value="mica-lit" id="optMicaLit">雲母片（插在向光側）</option>
+                        <option value="mica-full" id="optMicaFull">雲母片（完全切斷貫穿）</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label for="lightDir" id="labelLightDir" class="block text-sm font-semibold mb-1.5 text-slate-700">光源方向：</label>
+                    <select id="lightDir" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="right" id="optRight" selected>單側光（來自右側）</option>
+                        <option value="left" id="optLeft">單側光（來自左側）</option>
+                        <option value="overhead" id="optOverhead">均勻頂光</option>
+                    </select>
+                </div>
+
+                <button type="button" id="startBtn" class="action-btn w-full py-2.5 rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors mb-2">開始實驗</button>
+                <button type="button" id="btn-reset-panel" class="w-full py-2.5 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">重置</button>
+
+                <div class="info-box mt-4 bg-sky-50 border-l-4 border-sky-500 p-3 text-sm leading-relaxed rounded-r-lg" id="infoBox"></div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Teaching Modals -->
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
         </div>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-teal-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
     </div>
 
     <script>
-        // Language Dictionary
         const i18n = {
             en: {
-                langBtn: "繁體中文",
-                title: "Peter Boysen-Jensen's Phototropism Experiment",
-                subtitle: "Interactive simulation exploring Boysen-Jensen's 1913 experiments demonstrating that a mobile chemical signal controls phototropism.",
+                langBtn: "中 / EN",
+                title: "Boysen-Jensen's Phototropism Experiment",
+                subtitle: "Permeable agar / impermeable mica · mobile chemical signal · phototropism",
+                badge: "Biology",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                stepsTitle: "Observation steps",
+                principleTitle: "Principles",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
                 setupHeading: "Setup Experiment",
                 labelTreatment: "Barrier Material & Placement (Plant B):",
                 optAgar: "Agar Block (Permeable)",
@@ -251,7 +203,6 @@
                 optLeft: "Unilateral (From Left)",
                 optOverhead: "Uniform Overhead Light",
                 startBtn: "Run Experiment",
-                resetBtn: "Reset",
                 legendStem: "Coleoptile Tissue",
                 legendAgar: "Agar Block",
                 legendMica: "Mica Plate",
@@ -265,9 +216,19 @@
                 expMicaFull: "<strong>Result:</strong> Inserting the mica plate completely across the shoot severs all chemical transport between tip and base. Growth and bending are completely halted."
             },
             zh: {
-                langBtn: "English",
+                langBtn: "中 / EN",
                 title: "白森·詹森的向光性實驗",
-                subtitle: "互動式模擬：重現 1913 年白森·詹森 (Peter Boysen-Jensen) 證實植物向光性是由「可移動化學物質」控制的經典實驗。",
+                subtitle: "瓊脂／雲母阻隔 · 可移動化學信號 · 向光性",
+                badge: "生物",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
                 setupHeading: "實驗設定",
                 labelTreatment: "阻隔物材質與插入位置 (植物 B)：",
                 optAgar: "瓊脂塊 (可透性)",
@@ -279,7 +240,6 @@
                 optLeft: "單側光（來自左側）",
                 optOverhead: "均勻頂光",
                 startBtn: "開始實驗",
-                resetBtn: "重置",
                 legendStem: "胚芽鞘組織",
                 legendAgar: "瓊脂塊",
                 legendMica: "雲母片",
@@ -294,31 +254,164 @@
             }
         };
 
-        let currentLang = 'en';
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalTimer = null;
 
-        // DOM Elements
+        const STEPS = [
+          {
+            zh: '按頁首<strong>重置</strong>（阻隔應回<strong>瓊脂塊</strong>、光源<strong>右側單側光</strong>、動畫歸零、結果卡回假設提示）。確認左為<strong>對照組（完整）</strong>、右為<strong>實驗組</strong>。按<strong>開始實驗</strong>。觀察：兩株皆向<strong>右側光源</strong>彎曲——瓊脂可透，尖端化學信號仍能傳到伸長區。',
+            en: 'Header <strong>Reset</strong> (treatment <strong>Agar</strong>, light <strong>Unilateral from Right</strong>, progress cleared, info back to hypothesis). Left＝<strong>Control (intact)</strong>; right＝<strong>Test</strong>. Press <strong>Run Experiment</strong>. Both bend toward the <strong>right</strong> light—agar is permeable, so the tip’s chemical signal still reaches the elongation zone.'
+          },
+          {
+            zh: 'Reset 後，將阻隔改為<strong>雲母片（插在背光側）</strong>，光源維持右側單側光，再 Run。觀察：左對照仍向右彎；右實驗組<strong>幾乎不彎曲</strong>——背光側向下通道被不透雲母阻斷，生長素無法刺激背光側伸長。',
+            en: 'After Reset, set <strong>Mica on Shaded Side</strong>, keep right unilateral light, Run. Control still bends right; test plant <strong>fails to bend</strong>—impermeable mica blocks downward transport on the shaded side.'
+          },
+          {
+            zh: '（a）改為<strong>雲母片（插在向光側）</strong>＋右側單側光 → Run：實驗組<strong>仍向光彎曲</strong>（背光側通道未斷）。（b）再改<strong>雲母片（完全切斷貫穿）</strong>→ Run：實驗組<strong>幾乎不伸長、不彎曲</strong>。對照組全程 intact 行為不變。',
+            en: '(a) <strong>Mica on Illuminated Side</strong>＋right light → test still bends toward light. (b) <strong>Mica inserted completely</strong> → test nearly stops elongating／bending. Control stays intact throughout.'
+          },
+          {
+            zh: '選<strong>均勻頂光</strong>＋瓊脂 → Run：兩株大致<strong>直立</strong>。再按<strong>重置</strong>：應回瓊脂＋右側光、進度 0；<strong>語言不變</strong>。打開原理解說與課堂問題——確認本模擬主軸是 <strong>Boysen-Jensen：可透瓊脂／不透雲母位置證明可移動化學信號</strong>，不是 Darwin 去尖／帽／套感光部位，也不是 Went 分側瓊脂塊 X／Y 偏置回接。',
+            en: '<strong>Uniform overhead</strong>＋agar → both grow roughly <strong>straight</strong>. <strong>Reset</strong>: back to agar＋right light, progress 0; <strong>language unchanged</strong>. Open Principles／Quiz—focus is <strong>Boysen-Jensen permeable agar／impermeable mica placement for a mobile chemical signal</strong>, not Darwin tip-sensing caps／decapitation, not Went split agar blocks X／Y.'
+          }
+        ];
+
+        const PRINCIPLE = {
+          zh: {
+            conceptTitle: '概念',
+            concept: '白森·詹森（Peter Boysen-Jensen, 1913）在達爾文之後進一步追問：尖端的「刺激」如何傳到下方伸長區？他在尖端與基部之間插入<strong>可透性瓊脂</strong>或<strong>不透性雲母</strong>，證明向光性依賴<strong>可移動的化學物質</strong>（後稱<strong>生長素／auxin</strong>）向下擴散／運輸，而非僅靠電脈衝或連續活組織的機械連結。真實課室切割胚芽鞘需教師指導與實驗室安全。',
+            mechTitle: '機制',
+            mech: [
+              '<strong>單側光與差異伸長</strong>：單側光照下，生長素在尖端區域重新分配，較多沿<strong>背光側</strong>向下運送，使背光側細胞伸長較快，胚芽鞘向光彎曲。',
+              '<strong>瓊脂（可透）</strong>：化學信號可穿過瓊脂到達伸長區 → 實驗組彎曲與對照相似。',
+              '<strong>雲母（不透）</strong>：插在<strong>背光側</strong>→ 阻斷主要運輸路徑 → 不彎曲；插在<strong>向光側</strong>→ 背光側仍通 → 仍彎曲；<strong>完全貫穿</strong>→ 尖端與基部化學連結全斷 → 伸長與彎曲幾乎停止。',
+              '<strong>均勻頂光</strong>：兩側信號大致對稱 → 直立生長（在通道未被完全切斷時）。',
+              '<strong>範圍</strong>：本檔控件是<strong>阻隔材質與插入位置＋光源方向</strong>；<strong>不是</strong> Darwin 的去尖／不透明帽／透明帽／基部遮光套；<strong>不是</strong> Went 的「先照光收集分側塊、再偏置放回去尖苗於黑暗中」定量曲率實驗。'
+            ],
+            egTitle: '日常例子',
+            eg: '窗邊盆栽莖葉朝窗口彎曲，是向光性的日常版。農業／園藝上理解生長素運輸與遮光，有助解釋為何單側光照會造成徒長偏向。課室以胚芽鞘＋瓊脂／雲母示意 Boysen-Jensen，銜接後續 Went 命名與定量 auxin。'
+          },
+          en: {
+            conceptTitle: 'Concept',
+            concept: 'Peter Boysen-Jensen (1913) asked how the tip’s stimulus reaches the elongation zone. By inserting <strong>permeable agar</strong> or <strong>impermeable mica</strong> between tip and base, he showed phototropism depends on a <strong>mobile chemical</strong> (later called <strong>auxin</strong>), not only electrical signals or unbroken living tissue continuity. Real coleoptile cutting needs teacher supervision and lab safety.',
+            mechTitle: 'Mechanism',
+            mech: [
+              'Under <strong>unilateral light</strong>, auxin is redistributed so more travels down the <strong>shaded</strong> side → faster elongation there → bending toward light.',
+              '<strong>Agar (permeable)</strong>: signal passes → test plant bends like the control.',
+              '<strong>Mica (impermeable)</strong>: shaded-side insert blocks bending; illuminated-side insert allows bending; full transect nearly stops growth／bending.',
+              '<strong>Overhead light</strong>: roughly symmetric signal → upright growth when transport is not fully severed.',
+              '<strong>Scope</strong>: barrier material／placement＋light direction only—<strong>not</strong> Darwin tip-sensing treatments; <strong>not</strong> Went’s split-block X／Y dark-curvature assay.'
+            ],
+            egTitle: 'Everyday example',
+            eg: 'Houseplants leaning toward a window are everyday phototropism. This sim is the Boysen-Jensen bridge between Darwin’s tip work and Went’s auxin quantification.'
+          }
+        };
+
+        const QUIZ = [
+          {
+            q: {
+              zh: '重置後維持預設瓊脂塊與右側單側光，按開始實驗。哪項觀察最合理？',
+              en: 'After Reset, keep default Agar and unilateral light from the right, then Run. Which observation is best?'
+            },
+            choices: [
+              { zh: '對照組與實驗組都向右側光源彎曲——瓊脂可透，化學信號仍能向下傳遞', en: 'Control and test both bend toward the right light—agar is permeable so the chemical signal still travels down' },
+              { zh: '實驗組完全停止生長，因為插入了任何材料都會切斷信號', en: 'The test plant always stops growing whenever any material is inserted' },
+              { zh: '只有對照組彎曲，實驗組因有瓊脂而永遠不彎', en: 'Only the control bends; agar always prevents bending' },
+              { zh: '本模擬沒有光源方向選項', en: 'This sim has no light-direction control' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。agar 時彎曲角與 intact 相同，兩株皆向光彎。',
+              en: 'A. With agar, bending angle matches intact; both bend toward light.'
+            }
+          },
+          {
+            q: {
+              zh: '重置後選雲母片（插在背光側）、右側單側光，Run。哪項正確？',
+              en: 'After Reset, choose Mica plate on shaded side, right unilateral light, Run. Which is correct?'
+            },
+            choices: null,
+                ans: null,
+            explain: {
+              zh: 'A。mica-shaded → 彎曲角 0；intact 仍彎。',
+              en: 'A. mica-shaded → bend angle 0; intact still bends.'
+            }
+          },
+          {
+            q: {
+              zh: '在右側單側光下，先跑雲母（向光側），再跑雲母（完全切斷貫穿）。哪項描述最合理？',
+              en: 'Under right unilateral light, run mica on illuminated side, then mica inserted completely. Which description is most reasonable?'
+            },
+            choices: [
+              { zh: '向光側雲母時實驗組仍向光彎；完全貫穿時實驗組幾乎不伸長、不彎曲', en: 'Illuminated-side mica: test still bends toward light; full mica: test barely elongates or bends' },
+              { zh: '兩種雲母處理結果完全相同，實驗組都比對照彎得更厲害', en: 'Both mica treatments behave identically and bend more than the control' },
+              { zh: '完全貫穿會讓實驗組瞬間變成向光側雲母的動畫', en: 'Full transect instantly becomes the illuminated-side mica animation' },
+              { zh: '本模擬沒有「完全切斷貫穿」選項', en: 'This sim has no “mica inserted completely” option' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。mica-lit 彎曲＝向光；mica-full 角 0 且 growth≈1.05。',
+              en: 'A. mica-lit bends toward light; mica-full angle 0 and growth ≈1.05.'
+            }
+          },
+          {
+            q: {
+              zh: '先把阻隔改成雲母完全貫穿、光源改成左側或頂光並 Run 一次，再按頁首重置。用自己的話寫：（1）重置後阻隔、光源、動畫進度／結果卡應如何；（2）重置會不會切換中／EN。',
+              en: 'Set mica-full and change light to left or overhead, Run once, then press header Reset. In your own words: (1) expected treatment／light／progress／info after Reset; (2) whether Reset switches zh／EN.'
+            },
+            choices: null,
+            ans: null,
+            explain: {
+              zh: '（1）阻隔回瓊脂；光源回右側單側光；progress=0（直立）；結果卡回假設提示；開始鈕可用。（2）不切換語言。',
+              en: '(1) Treatment back to agar; light back to right; progress 0 (upright); info = default hypothesis; Run enabled. (2) Reset must not switch language.'
+            }
+          },
+          {
+            q: {
+              zh: '根據本模擬控件與設計，哪項最正確？',
+              en: 'Using this sim’s controls and design, which is most correct?'
+            },
+            choices: [
+              { zh: '可選瓊脂／雲母（背光、向光、完全貫穿）與單側／頂光，對照 intact 與實驗組並排，並有步驟／原理／五題／中EN／重置——主軸是 Boysen-Jensen 證明可移動化學信號，不是 Darwin 去尖／帽／套感光，也不是 Went 分側瓊脂塊 X／Y 偏置回接', en: 'You choose agar／mica (shaded, lit, full) and uni-/overhead light, compare intact vs test, with steps／principle／five quiz items／zh-EN／Reset—focus Boysen-Jensen mobile chemical signal, not Darwin tip caps／decapitation, not Went split-block X／Y' },
+              { zh: '主要控件是不透明帽、透明帽與去尖，用來定位感光部位', en: 'Main controls are opaque／transparent caps and decapitation to locate light sensing' },
+              { zh: '重置會強制改成英文並刪除雲母選項', en: 'Reset always switches to English and deletes mica options' },
+              { zh: '必須先在單側光下做分側塊 X／Y，再於黑暗中偏置放回去尖苗才能操作', en: 'You must first make split blocks X／Y under unilateral light, then offset them on decapitated shoots in darkness' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。隔離 Darwin／Went sibling；Reset 不改語言、不刪 treatment 選項。',
+              en: 'A. Separates Darwin／Went siblings; Reset does not change language or delete treatments.'
+            }
+          }
+        ];
+
+        // DOM
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const langToggleBtn = document.getElementById('langToggleBtn');
         const treatmentSelect = document.getElementById('treatment');
         const lightDirSelect = document.getElementById('lightDir');
         const infoBox = document.getElementById('infoBox');
 
-        // Simulation State
-        let progress = 0; // 0 to 1
+        let progress = 0;
         let animationFrame = null;
         let isRunning = false;
-
         const BASE_Y = 280;
 
         function updateLanguageUI() {
             const t = i18n[currentLang];
-            
-            langToggleBtn.textContent = t.langBtn;
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            document.getElementById('btn-lang').textContent = t.langBtn;
             document.getElementById('title').textContent = t.title;
             document.getElementById('subtitle').textContent = t.subtitle;
+            document.getElementById('badge-subject').textContent = t.badge;
+            document.getElementById('btn-steps').textContent = t.btnSteps;
+            document.getElementById('btn-principle').textContent = t.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = t.btnQuiz;
+            document.getElementById('btn-reset').textContent = t.btnReset;
+            const rp = document.getElementById('btn-reset-panel');
+            if (rp) rp.textContent = t.btnReset;
             document.getElementById('setupHeading').textContent = t.setupHeading;
             document.getElementById('labelTreatment').textContent = t.labelTreatment;
             document.getElementById('optAgar').textContent = t.optAgar;
@@ -330,7 +423,6 @@
             document.getElementById('optLeft').textContent = t.optLeft;
             document.getElementById('optOverhead').textContent = t.optOverhead;
             document.getElementById('startBtn').textContent = t.startBtn;
-            document.getElementById('resetBtn').textContent = t.resetBtn;
             document.getElementById('legendStem').textContent = t.legendStem;
             document.getElementById('legendAgar').textContent = t.legendAgar;
             document.getElementById('legendMica').textContent = t.legendMica;
@@ -340,7 +432,7 @@
             } else if (progress === 0 && !isRunning) {
                 infoBox.innerHTML = t.defaultInfo;
             }
-
+            refreshOpenTeachModals();
             render();
         }
 
@@ -355,12 +447,10 @@
             if (direction === 'overhead') {
                 ctx.fillStyle = 'rgba(241, 196, 15, 0.15)';
                 ctx.fillRect(0, 0, canvas.width, BASE_Y);
-                
                 ctx.fillStyle = '#f1c40f';
                 ctx.beginPath();
                 ctx.arc(canvas.width / 2, 30, 20, 0, Math.PI * 2);
                 ctx.fill();
-
                 ctx.strokeStyle = 'rgba(241, 196, 15, 0.3)';
                 ctx.lineWidth = 2;
                 for (let x = 50; x < canvas.width; x += 60) {
@@ -375,7 +465,6 @@
                 ctx.beginPath();
                 ctx.arc(x, 50, 20, 0, Math.PI * 2);
                 ctx.fill();
-
                 ctx.strokeStyle = 'rgba(241, 196, 15, 0.4)';
                 ctx.lineWidth = 3;
                 for (let i = -2; i <= 2; i++) {
@@ -392,9 +481,9 @@
             ctx.save();
             ctx.translate(x, BASE_Y);
 
-            const lowerStemLen = 30 * verticalGrowthScale;    
-            const bendZoneLen = 70 * verticalGrowthScale;     
-            const upperTipLen = 25;    
+            const lowerStemLen = 30 * verticalGrowthScale;
+            const bendZoneLen = 70 * verticalGrowthScale;
+            const upperTipLen = 25;
 
             const lowerEndX = 0;
             const lowerEndY = -lowerStemLen;
@@ -407,11 +496,9 @@
             const finalTipX = midEndX + Math.sin(bendAngle) * upperTipLen;
             const finalTipY = midEndY - Math.cos(bendAngle) * upperTipLen;
 
-            // 1. Draw Stem
             ctx.strokeStyle = '#27ae60';
             ctx.lineWidth = 14;
             ctx.lineCap = 'round';
-
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(lowerEndX, lowerEndY);
@@ -419,18 +506,15 @@
             ctx.lineTo(finalTipX, finalTipY);
             ctx.stroke();
 
-            // Inner Core
             ctx.strokeStyle = '#2ecc71';
             ctx.lineWidth = 6;
             ctx.stroke();
 
-            // Tip Dome
             ctx.fillStyle = '#27ae60';
             ctx.beginPath();
             ctx.arc(finalTipX, finalTipY, 7, 0, Math.PI * 2);
             ctx.fill();
 
-            // 2. Draw Agar Block or Mica Plate (Attached directly below the tip, moving with the bend)
             const attachmentPointX = finalTipX - Math.sin(bendAngle) * 8;
             const attachmentPointY = finalTipY + Math.cos(bendAngle) * 8;
 
@@ -438,27 +522,22 @@
                 ctx.save();
                 ctx.translate(attachmentPointX, attachmentPointY);
                 ctx.rotate(bendAngle);
-                
                 ctx.fillStyle = 'rgba(230, 126, 34, 0.85)';
                 ctx.strokeStyle = '#d35400';
                 ctx.lineWidth = 1;
                 ctx.fillRect(-8, -2, 16, 7);
                 ctx.strokeRect(-8, -2, 16, 7);
                 ctx.restore();
-            } 
-            else if (type.startsWith('mica')) {
+            } else if (type.startsWith('mica')) {
                 ctx.save();
                 ctx.translate(attachmentPointX, attachmentPointY);
                 ctx.rotate(bendAngle);
-                
                 ctx.fillStyle = '#7f8c8d';
                 ctx.strokeStyle = '#2c3e50';
                 ctx.lineWidth = 1;
-
                 const lightIsRight = (lightDir === 'right');
                 const insertOnRight = (type === 'mica-lit' && lightIsRight) || (type === 'mica-shaded' && !lightIsRight);
                 const isFull = (type === 'mica-full');
-
                 if (isFull) {
                     ctx.fillRect(-10, -2, 20, 4);
                     ctx.strokeRect(-10, -2, 20, 4);
@@ -471,14 +550,13 @@
                 }
                 ctx.restore();
             }
-
             ctx.restore();
         }
 
         function drawLabels() {
             const t = i18n[currentLang];
             ctx.fillStyle = '#2c3e50';
-            ctx.font = 'bold 14px "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif';
+            ctx.font = 'bold 14px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(t.controlLabel, 150, BASE_Y + 30);
             ctx.fillText(t.testLabel, 350, BASE_Y + 30);
@@ -486,53 +564,35 @@
 
         function calculateBendingMaxAngle(type, direction) {
             if (direction === 'overhead') return 0;
-
             const bendRight = (Math.PI / 5.5);
             const bendLeft = -(Math.PI / 5.5);
             const targetDirAngle = (direction === 'right') ? bendRight : bendLeft;
-
-            if (type === 'intact' || type === 'agar') {
-                return targetDirAngle;
-            }
-
-            if (type === 'mica-lit') {
-                return targetDirAngle;
-            }
-
-            if (type === 'mica-shaded' || type === 'mica-full') {
-                return 0;
-            }
-
+            if (type === 'intact' || type === 'agar') return targetDirAngle;
+            if (type === 'mica-lit') return targetDirAngle;
+            if (type === 'mica-shaded' || type === 'mica-full') return 0;
             return 0;
         }
 
         function calculateGrowthScale(type) {
-            if (type === 'mica-full') return 1.05; 
-            return 1.25; 
+            if (type === 'mica-full') return 1.05;
+            return 1.25;
         }
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             const lightDir = lightDirSelect.value;
             const treatment = treatmentSelect.value;
-
             drawLight(lightDir);
             drawSoil();
             drawLabels();
-
             const controlAngleTarget = calculateBendingMaxAngle('intact', lightDir);
             const testAngleTarget = calculateBendingMaxAngle(treatment, lightDir);
-
             const controlGrowthTarget = calculateGrowthScale('intact');
             const testGrowthTarget = calculateGrowthScale(treatment);
-
             const controlAngle = controlAngleTarget * progress;
             const testAngle = testAngleTarget * progress;
-
             const currentControlGrowth = 1.0 + (controlGrowthTarget - 1.0) * progress;
             const currentTestGrowth = 1.0 + (testGrowthTarget - 1.0) * progress;
-
             drawPlant(150, 'intact', controlAngle, currentControlGrowth, lightDir);
             drawPlant(350, treatment, testAngle, currentTestGrowth, lightDir);
         }
@@ -553,33 +613,118 @@
             const t = i18n[currentLang];
             const treatment = treatmentSelect.value;
             const lightDir = lightDirSelect.value;
-
             if (lightDir === 'overhead') {
                 infoBox.innerHTML = t.expOverhead;
                 return;
             }
-
             switch (treatment) {
-                case 'agar':
-                    infoBox.innerHTML = t.expAgar;
-                    break;
-                case 'mica-shaded':
-                    infoBox.innerHTML = t.expMicaShaded;
-                    break;
-                case 'mica-lit':
-                    infoBox.innerHTML = t.expMicaLit;
-                    break;
-                case 'mica-full':
-                    infoBox.innerHTML = t.expMicaFull;
-                    break;
+                case 'agar': infoBox.innerHTML = t.expAgar; break;
+                case 'mica-shaded': infoBox.innerHTML = t.expMicaShaded; break;
+                case 'mica-lit': infoBox.innerHTML = t.expMicaLit; break;
+                case 'mica-full': infoBox.innerHTML = t.expMicaFull; break;
             }
         }
 
-        // Event Listeners
-        langToggleBtn.addEventListener('click', () => {
-            currentLang = (currentLang === 'en') ? 'zh' : 'en';
-            updateLanguageUI();
-        });
+        function resetAll() {
+            closeAllModals(null);
+            cancelAnimationFrame(animationFrame);
+            isRunning = false;
+            startBtn.disabled = false;
+            progress = 0;
+            treatmentSelect.value = 'agar';
+            lightDirSelect.value = 'right';
+            infoBox.innerHTML = i18n[currentLang].defaultInfo;
+            quizReveal = false;
+            render();
+        }
+
+        // Teaching modals
+        function closeAllModals(exceptId) {
+            if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+            ['modal-steps','modal-principle','modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                var el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+        function openTeachModal(id) {
+            closeAllModals(id);
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        }
+        function renderSteps() {
+            var t = i18n[currentLang];
+            document.getElementById('steps-title').textContent = t.stepsTitle;
+            document.getElementById('steps-body').innerHTML = STEPS.map(function(s, i) {
+                return '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200"><div class="font-bold text-indigo-600 mb-1">' + (i+1) + '</div><div class="leading-relaxed">' + (currentLang==='en'?s.en:s.zh) + '</div></div>';
+            }).join('');
+        }
+        function renderPrinciple() {
+            var p = PRINCIPLE[currentLang] || PRINCIPLE.zh;
+            var t = i18n[currentLang];
+            document.getElementById('principle-title').textContent = t.principleTitle;
+            var mech = p.mech.map(function(m){ return '<li class="mb-2 leading-relaxed">'+m+'</li>'; }).join('');
+            document.getElementById('principle-body').innerHTML =
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.conceptTitle+'</h3><p class="leading-relaxed">'+p.concept+'</p></div>' +
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.mechTitle+'</h3><ol class="list-decimal pl-5">'+mech+'</ol></div>' +
+              '<div><h3 class="font-bold text-teal-700 mb-1">'+p.egTitle+'</h3><p class="leading-relaxed">'+p.eg+'</p></div>';
+        }
+        function renderQuiz() {
+            var t = i18n[currentLang];
+            document.getElementById('quiz-title').textContent = t.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? t.hideAns : t.showAns;
+            document.getElementById('quiz-body').innerHTML = QUIZ.map(function(item, qi) {
+                var qtext = currentLang==='en' ? item.q.en : item.q.zh;
+                var html = '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 mb-3"><div class="font-bold text-violet-700 mb-2">Q'+(qi+1)+'. '+qtext+'</div>';
+                var qNum = qi + 1;
+                var isOpen = (qNum === 2 || qNum === 4);
+                if (!isOpen && item.choices) {
+                  var qName = 'q' + qNum;
+                  html += '<div class="grid gap-1.5 text-sm">';
+                  item.choices.forEach(function(c, ci) {
+                    var label = String.fromCharCode(65+ci);
+                    var txt = currentLang==='en' ? c.en : c.zh;
+                    html += '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="'+qName+'" class="mt-0.5 accent-violet-600"><span>'+label+'. '+txt+'</span></label>';
+                  });
+                  html += '</div>';
+                } else if (isOpen) {
+                  html += '<p class="text-xs text-slate-500 italic">'+(currentLang==='en'?'Predict, then use the sim controls to check. Write in your own words.':'先預測，再操作畫面控件核對，用自己的話作答。')+'</p>';
+                }
+                if (quizReveal && item.explain) {
+                  var ex = currentLang==='en' ? item.explain.en : item.explain.zh;
+                  var ref = currentLang==='en' ? 'Reference answer' : '參考答案';
+                  html += '<div class="mt-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>'+ref+'：</strong> '+ex+'</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+        }
+        function refreshOpenTeachModals() {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+        }
+        function wireTeachingUI() {
+            document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', function() {
+                currentLang = (currentLang === 'en') ? 'zh' : 'en';
+                updateLanguageUI();
+            });
+            document.getElementById('btn-reset').addEventListener('click', resetAll);
+            document.getElementById('btn-reset-panel').addEventListener('click', resetAll);
+            document.getElementById('btn-quiz-answers').addEventListener('click', function() { quizReveal = !quizReveal; renderQuiz(); });
+            document.querySelectorAll('.modal-close').forEach(function(btn) {
+                btn.addEventListener('click', function() { closeAllModals(null); });
+            });
+            document.querySelectorAll('.teach-modal').forEach(function(el) {
+                el.addEventListener('click', function(e) { if (e.target === el) closeAllModals(null); });
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
+        }
 
         startBtn.addEventListener('click', () => {
             if (isRunning) return;
@@ -587,15 +732,6 @@
             startBtn.disabled = true;
             progress = 0;
             animate();
-        });
-
-        resetBtn.addEventListener('click', () => {
-            cancelAnimationFrame(animationFrame);
-            isRunning = false;
-            startBtn.disabled = false;
-            progress = 0;
-            render();
-            infoBox.innerHTML = i18n[currentLang].defaultInfo;
         });
 
         treatmentSelect.addEventListener('change', () => {
@@ -610,7 +746,7 @@
             if (!isRunning) infoBox.innerHTML = i18n[currentLang].defaultInfo;
         });
 
-        // Initialize UI
+        wireTeachingUI();
         updateLanguageUI();
     </script>
 </body>

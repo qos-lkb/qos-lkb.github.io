@@ -1,380 +1,606 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>碰撞衝力與時間關係實驗室 (Force-Time Collision Lab)</title>
-  <!-- Tailwind CSS CDN -->
+  <title>碰撞衝力與時間關係模擬器</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- MathJax for rendering physics formulas -->
-  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      chtml: { scale: 1.0 }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
   <style>
-    input[type=range] {
-      -webkit-appearance: none;
-      background: transparent;
-    }
+    body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+    input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; }
     input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 18px;
-      width: 18px;
-      border-radius: 50%;
-      background: #3b82f6;
-      cursor: pointer;
-      margin-top: -6px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+      background: #3b82f6; cursor: pointer; margin-top: -6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     input[type=range]::-webkit-slider-runnable-track {
-      width: 100%;
-      height: 6px;
-      cursor: pointer;
-      background: #e2e8f0;
-      border-radius: 999px;
+      width: 100%; height: 6px; cursor: pointer; background: #e2e8f0; border-radius: 999px;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+    .modal-panel { transition: opacity 0.25s ease; }
+    .modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+    .quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; }
+    .quiz-item .q-stem { font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; }
+    .quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+    .quiz-options button {
+      text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+      border: 1px solid #cbd5e1; background: #f8fafc; font-size: 0.875rem; transition: all 0.15s;
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background-color: #cbd5e1;
-      border-radius: 4px;
+    .quiz-options button:hover { border-color: #6366f1; background: #eef2ff; }
+    .quiz-options button.selected { border-color: #4f46e5; background: #e0e7ff; }
+    .quiz-options button.correct { border-color: #16a34a; background: #dcfce7; }
+    .quiz-options button.wrong { border-color: #dc2626; background: #fee2e2; }
+    .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f1f5f9; border-radius: 0.5rem; font-size: 0.85rem; color: #334155; }
+    .quiz-answer.show { display: block; }
+    .highlight-cell { animation: pulseHL 1.6s ease; }
+    @keyframes pulseHL {
+      0%, 100% { background-color: transparent; }
+      30% { background-color: rgba(251, 191, 36, 0.35); }
     }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans pb-10">
 
-  <!-- Header -->
-  <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4 sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-          </svg>
+  <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700 p-4 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto flex flex-col gap-3">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30 shrink-0">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent" data-i18n="title">碰撞衝力與時間關係模擬器</h1>
+              <span class="text-[10px] bg-blue-900/60 border border-blue-500/40 text-blue-200 px-2 py-0.5 rounded-full" data-i18n="badge">物理</span>
+            </div>
+            <p class="text-xs text-slate-400" data-i18n="subtitle">單球撞牆・衝量–動量定理・F–t 曲線與剛度</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">
-            碰撞衝力與時間關係模擬器
-          </h1>
-          <p class="text-xs text-slate-400">探索動量守恆、衝量與軟硬度（碰撞時間）對最大衝力的影響</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" id="btn-steps" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnSteps">觀察步驟</button>
+          <button type="button" id="btn-principle" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnPrinciple">原理解說</button>
+          <button type="button" id="btn-quiz" class="text-sm font-bold bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded border border-violet-400 transition-colors" data-i18n="btnQuiz">課堂問題</button>
+          <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold border border-slate-500 transition-colors">中 / EN</button>
         </div>
       </div>
-
-      <!-- Quick Preset Selector -->
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="text-slate-400">快速預設情境：</span>
-        <button onclick="applyPreset('soft_vs_hard')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition">
-          軟質 vs 硬質物體
-        </button>
-        <button onclick="applyPreset('car_crumple')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition">
-          汽車潰縮區原理
-        </button>
-        <button onclick="applyPreset('helmet')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition">
-          安全帽緩衝襯墊
-        </button>
+        <span class="text-slate-400" data-i18n="presetLabel">快速預設情境：</span>
+        <button type="button" id="btn-preset-soft" onclick="applyPreset('soft_vs_hard')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition" data-i18n="presetSoft">軟質 vs 硬質物體</button>
+        <button type="button" id="btn-preset-car" onclick="applyPreset('car_crumple')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition" data-i18n="presetCar">汽車潰縮區原理</button>
+        <button type="button" id="btn-preset-helmet" onclick="applyPreset('helmet')" class="px-2.5 py-1 bg-slate-700 hover:bg-blue-600/40 hover:border-blue-500 border border-slate-600 rounded text-slate-200 transition" data-i18n="presetHelmet">安全帽緩衝襯墊</button>
       </div>
     </div>
   </header>
 
-  <!-- Main Content Layout -->
   <main class="max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
 
-    <!-- Left Controls Panel (4 cols) -->
-    <div class="lg:col-span-4 space-y-5">
-      
-      <!-- Parameter Adjustment Card -->
+    <!-- Controls: order-2 on narrow -->
+    <div class="lg:col-span-4 space-y-5 order-2">
       <div class="bg-slate-800 rounded-xl p-5 border border-slate-700/80 shadow-lg space-y-4">
         <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-          <h2 class="font-bold text-slate-200 flex items-center gap-2">
-            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+          <h2 class="font-bold text-slate-200 flex items-center gap-2" data-i18n="paramTitle">
             碰撞物體參數設定
           </h2>
           <span id="current-preset-tag" class="text-[10px] px-2 py-0.5 bg-blue-900/50 text-blue-300 border border-blue-700/50 rounded-full">自訂</span>
         </div>
 
-        <!-- Run Name Label -->
         <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-1">本次實驗名稱標籤</label>
+          <label class="block text-xs font-semibold text-slate-300 mb-1" data-i18n="runNameLabel">本次實驗名稱標籤</label>
           <input id="input-name" type="text" value="試驗 1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
         </div>
 
-        <!-- Parameter Sliders -->
-        <!-- 1. Hardness / Stiffness k -->
         <div class="space-y-1">
           <div class="flex justify-between text-xs">
-            <span class="text-slate-300 font-medium">物體硬度 / 剛度 ($k$)</span>
+            <span class="text-slate-300 font-medium" data-i18n="labelK">物體硬度 / 剛度 ($k$)</span>
             <span id="val-k" class="font-mono text-blue-400 font-bold">5,000 N/m</span>
           </div>
-          <input id="slider-k" type="range" min="100" max="50000" step="100" value="5000" oninput="updateSliders()">
+          <input id="slider-k" type="range" min="100" max="50000" step="100" value="5000" oninput="onSliderInput()">
           <div class="flex justify-between text-[10px] text-slate-500">
-            <span>極軟 (海綿/橡皮)</span>
-            <span>中等</span>
-            <span>極硬 (剛體/鋼鐵)</span>
+            <span data-i18n="kSoft">極軟 (海綿/橡皮)</span>
+            <span data-i18n="kMid">中等</span>
+            <span data-i18n="kHard">極硬 (剛體/鋼鐵)</span>
           </div>
         </div>
 
-        <!-- 2. Mass m -->
         <div class="space-y-1">
           <div class="flex justify-between text-xs">
-            <span class="text-slate-300 font-medium">物體質量 ($m$)</span>
+            <span class="text-slate-300 font-medium" data-i18n="labelM">物體質量 ($m$)</span>
             <span id="val-m" class="font-mono text-blue-400 font-bold">1.0 kg</span>
           </div>
-          <input id="slider-m" type="range" min="0.1" max="10.0" step="0.1" value="1.0" oninput="updateSliders()">
+          <input id="slider-m" type="range" min="0.1" max="10.0" step="0.1" value="1.0" oninput="onSliderInput()">
           <div class="flex justify-between text-[10px] text-slate-500">
-            <span>0.1 kg</span>
-            <span>5.0 kg</span>
-            <span>10.0 kg</span>
+            <span>0.1 kg</span><span>5.0 kg</span><span>10.0 kg</span>
           </div>
         </div>
 
-        <!-- 3. Velocity v0 -->
         <div class="space-y-1">
           <div class="flex justify-between text-xs">
-            <span class="text-slate-300 font-medium">碰撞前初速 ($v_0$)</span>
+            <span class="text-slate-300 font-medium" data-i18n="labelV">碰撞前初速 ($v_0$)</span>
             <span id="val-v" class="font-mono text-blue-400 font-bold">5.0 m/s</span>
           </div>
-          <input id="slider-v" type="range" min="1.0" max="25.0" step="0.5" value="5.0" oninput="updateSliders()">
+          <input id="slider-v" type="range" min="1.0" max="25.0" step="0.5" value="5.0" oninput="onSliderInput()">
           <div class="flex justify-between text-[10px] text-slate-500">
-            <span>1.0 m/s</span>
-            <span>12.5 m/s</span>
-            <span>25.0 m/s</span>
+            <span>1.0 m/s</span><span>12.5 m/s</span><span>25.0 m/s</span>
           </div>
         </div>
 
-        <!-- 4. Restitution Coefficient / Damping e -->
         <div class="space-y-1">
           <div class="flex justify-between text-xs">
-            <span class="text-slate-300 font-medium">恢復係數 ($e$ / 彈性程度)</span>
-            <span id="val-e" class="font-mono text-blue-400 font-bold">0.80 (完全彈性: 1.0)</span>
+            <span class="text-slate-300 font-medium" data-i18n="labelE">恢復係數 ($e$ / 彈性程度)</span>
+            <span id="val-e" class="font-mono text-blue-400 font-bold">0.80</span>
           </div>
-          <input id="slider-e" type="range" min="0.0" max="1.0" step="0.05" value="0.80" oninput="updateSliders()">
+          <input id="slider-e" type="range" min="0.0" max="1.0" step="0.05" value="0.80" oninput="onSliderInput()">
           <div class="flex justify-between text-[10px] text-slate-500">
-            <span>完全非彈性 (0.0)</span>
-            <span>部分彈性</span>
-            <span>完全彈性 (1.0)</span>
+            <span data-i18n="eInelastic">完全非彈性 (0.0)</span>
+            <span data-i18n="ePartial">部分彈性</span>
+            <span data-i18n="eElastic">完全彈性 (1.0)</span>
           </div>
+          <p class="text-[10px] text-amber-300/90 mt-1" data-i18n="eNote">本模擬標準 $e$：0＝非彈性，1＝彈性（勿與兩體動量檔的反向 $e$ 混淆）</p>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="pt-2 flex gap-2">
-          <button id="btn-run" onclick="runCollisionSimulation()" class="flex-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 text-sm">
+        <div class="pt-2 flex flex-col sm:flex-row gap-2">
+          <button type="button" id="btn-run" onclick="runCollisionSimulation()" class="flex-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            開始模擬與記錄曲線
+            <span data-i18n="btnRun">開始模擬與記錄曲線</span>
+          </button>
+          <button type="button" id="btn-reset" onclick="resetParameters()" class="sm:w-auto bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2 text-sm" title="Reset">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span data-i18n="btnReset">重置參數</span>
           </button>
         </div>
       </div>
 
-      <!-- Theory & Formula Reference Card -->
       <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/80 text-xs text-slate-300 space-y-2">
-        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-1.5" data-i18n="theoryTitle">
           物理核心觀念 (Impulse-Momentum Theorem)
         </h3>
-        <p>1. <strong>動量定理 (Impulse)：</strong> 衝力對時間的積分（曲線下的面積）等於物體動量的變化量 $\Delta p$。</p>
+        <p data-i18n="theoryP1">1. <strong>動量定理 (Impulse)：</strong> 衝力對時間的積分（曲線下的面積）等於物體動量的變化量 $\Delta p$。</p>
         <div class="p-2 bg-slate-900 rounded font-mono text-center text-blue-300 border border-slate-700">
-          $J = \int F(t) \, dt = F_{\text{avg}} \cdot \Delta t = m(v_f - v_i)$
+          $J = \int F(t) \, dt = F_{\mathrm{avg}} \cdot \Delta t = m(v_f - v_i)$
         </div>
-        <p>2. <strong>延長作用時間：</strong> 較軟的物體（剛度 $k$ 小）碰撞變形大、作用時間 $\Delta t$ 長，因此能顯著降低最大峰值衝力 $F_{\text{max}}$。</p>
+        <p data-i18n="theoryP2">2. <strong>延長作用時間：</strong> 較軟的物體（剛度 $k$ 小）碰撞變形大、作用時間 $\Delta t$ 長，因此能顯著降低最大峰值衝力 $F_{\mathrm{max}}$。</p>
+        <p class="text-emerald-300/90" data-i18n="theoryHint">曲線下面積 ≈ 表中總衝量 $J$。完整說明請開「原理解說」。</p>
       </div>
-
     </div>
 
-    <!-- Right Visualization & Graph Area (8 cols) -->
-    <div class="lg:col-span-8 space-y-5">
-
-      <!-- Physical Animation Canvas -->
+    <!-- Viz: order-1 on narrow -->
+    <div class="lg:col-span-8 space-y-5 order-1">
       <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-lg relative">
         <div class="flex justify-between items-center mb-2">
-          <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2" data-i18n="vizTitle">
             物理碰撞動畫視覺化 (Collision Visualizer)
           </h2>
           <span id="anim-status" class="text-xs text-slate-400 font-mono">就緒</span>
         </div>
-        
         <div class="relative w-full h-40 bg-slate-900 rounded-lg overflow-hidden border border-slate-700/60 flex items-center">
           <canvas id="simCanvas" class="w-full h-full block"></canvas>
         </div>
       </div>
 
-      <!-- Multi-Curve Comparison Chart Section -->
       <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-lg space-y-3">
         <div class="flex flex-wrap justify-between items-center gap-2">
           <div>
-            <h2 class="text-base font-bold text-slate-200 flex items-center gap-2">
-              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+            <h2 class="text-base font-bold text-slate-200 flex items-center gap-2" data-i18n="chartTitle">
               碰撞衝力-時間關係線圖 ($F - t$ Graph)
             </h2>
-            <p class="text-xs text-slate-400">畫面上可同時呈現並比較不同參數下的多條衝力歷程曲線</p>
+            <p class="text-xs text-slate-400" data-i18n="chartSub">畫面上可同時呈現並比較不同參數下的多條衝力歷程曲線</p>
           </div>
-
-          <div class="flex gap-2">
-            <button onclick="clearChartRuns()" class="px-3 py-1.5 bg-slate-700 hover:bg-red-600/30 hover:border-red-500 border border-slate-600 rounded-lg text-xs text-slate-300 transition flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              清除所有線圖
-            </button>
-          </div>
+          <button type="button" id="btn-clear-runs" onclick="clearChartRuns()" class="px-3 py-1.5 bg-slate-700 hover:bg-red-600/30 hover:border-red-500 border border-slate-600 rounded-lg text-xs text-slate-300 transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            <span data-i18n="btnClear">清除所有線圖</span>
+          </button>
         </div>
-
-        <!-- Chart Canvas Container -->
         <div class="relative h-72 w-full bg-slate-900/60 p-2 rounded-lg border border-slate-700/50">
           <canvas id="forceTimeChart"></canvas>
         </div>
       </div>
 
-      <!-- Run Data Comparison Table -->
       <div class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-lg space-y-3">
-        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2" data-i18n="tableTitle">
           數據對比與定量分析表
         </h3>
-
         <div class="overflow-x-auto custom-scrollbar">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900/80 text-slate-400 font-semibold border-b border-slate-700">
               <tr>
-                <th class="p-2.5">標記色</th>
-                <th class="p-2.5">實驗名稱</th>
-                <th class="p-2.5">剛度 $k$ (N/m)</th>
-                <th class="p-2.5">質量 $m$</th>
-                <th class="p-2.5">初速 $v_0$</th>
-                <th class="p-2.5">作用時間 $\Delta t$</th>
-                <th class="p-2.5">最大衝力 $F_{\text{max}}$</th>
-                <th class="p-2.5">總衝量 $J$ (面積)</th>
-                <th class="p-2.5 text-center">操作</th>
+                <th class="p-2.5" data-i18n="thColor">標記色</th>
+                <th class="p-2.5" data-i18n="thName">實驗名稱</th>
+                <th class="p-2.5" data-i18n="thK">剛度 $k$ (N/m)</th>
+                <th class="p-2.5" data-i18n="thM">質量 $m$</th>
+                <th class="p-2.5" data-i18n="thV0">初速 $v_0$</th>
+                <th class="p-2.5" data-i18n="thDt">作用時間 $\Delta t$</th>
+                <th class="p-2.5" data-i18n="thFmax">最大衝力 $F_{\mathrm{max}}$</th>
+                <th class="p-2.5" data-i18n="thJ">總衝量 $J$ (面積)</th>
+                <th class="p-2.5 text-center" data-i18n="thAction">操作</th>
               </tr>
             </thead>
-            <tbody id="table-body" class="divide-y divide-slate-700/50">
-              <!-- Dynamic Rows inserted here -->
-            </tbody>
+            <tbody id="table-body" class="divide-y divide-slate-700/50"></tbody>
           </table>
         </div>
       </div>
-
     </div>
-
   </main>
 
-  <script>
-    // --- Global State & Variables ---
-    let runs = [];
-    const colorPalette = [
-      '#3b82f6', // blue
-      '#ef4444', // red
-      '#10b981', // green
-      '#f59e0b', // amber
-      '#8b5cf6', // purple
-      '#ec4899', // pink
-      '#06b6d4', // cyan
-      '#f97316'  // orange
-    ];
-    let colorIndex = 0;
+  <!-- Steps modal -->
+  <div id="modal-steps" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden opacity-0 modal-panel" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+    <div class="bg-white text-slate-800 p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto transform scale-95" data-modal-panel>
+      <h2 id="steps-title" class="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2" data-i18n="stepsTitle">觀察步驟</h2>
+      <ol class="list-decimal pl-5 space-y-3 text-slate-700 leading-relaxed" id="steps-body"></ol>
+      <div class="mt-6 text-right">
+        <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-steps" data-i18n="closeBtn">關閉</button>
+      </div>
+    </div>
+  </div>
 
+  <!-- Principle modal -->
+  <div id="modal-principle" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden opacity-0 modal-panel" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+    <div class="bg-white text-slate-800 p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto transform scale-95" data-modal-panel>
+      <h2 id="principle-title" class="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2" data-i18n="principleTitle">原理解說</h2>
+      <div id="principle-body" class="space-y-4 text-slate-700 leading-relaxed"></div>
+      <div class="mt-6 text-right">
+        <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-principle" data-i18n="closeBtn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quiz modal -->
+  <div id="modal-quiz" class="fixed inset-0 bg-black/60 z-50 flex items-start sm:items-center justify-center hidden opacity-0 modal-panel overflow-y-auto py-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+    <div class="bg-white text-slate-800 p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto transform scale-95 custom-scrollbar" data-modal-panel>
+      <h2 id="quiz-title" class="text-2xl font-bold text-violet-700 mb-4 border-b pb-2" data-i18n="quizTitle">課堂問題</h2>
+      <div class="mb-3">
+        <button type="button" id="btn-quiz-answers" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold py-2 px-4 rounded"></button>
+      </div>
+      <div id="quiz-body"></div>
+      <div class="mt-6 text-right">
+        <button type="button" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-quiz" data-i18n="closeBtn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+    let runs = [];
+    const colorPalette = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+    let colorIndex = 0;
     let chartInstance = null;
     let animId = null;
-
-    // Simulation Physics State
     let isSimulating = false;
     let simStartTime = 0;
     let currentPhysicsRun = null;
+    let currentLang = 'zh';
+    let currentPreset = null; // 'soft_vs_hard' | 'car_crumple' | 'helmet' | null
+    let lastHighlightId = null;
+    let animStatusKey = 'statusReady';
+    let animStatusDetail = '';
+    const quizState = { showAnswers: false, selections: {} };
+    const DEFAULTS = { k: 5000, m: 1.0, v: 5.0, e: 0.80 };
 
-    // --- Physics Core Engine ---
-    // Single mass hitting a viscoelastic wall model: F(t) = k*x + c*v during compression/contact
+    const dict = {
+      zh: {
+        title: "碰撞衝力與時間關係模擬器",
+        subtitle: "單球撞牆・衝量–動量定理・F–t 曲線與剛度",
+        badge: "物理",
+        btnSteps: "觀察步驟",
+        btnPrinciple: "原理解說",
+        btnQuiz: "課堂問題",
+        btnReset: "重置參數",
+        btnRun: "開始模擬與記錄曲線",
+        btnClear: "清除所有線圖",
+        closeBtn: "關閉",
+        presetLabel: "快速預設情境：",
+        presetSoft: "軟質 vs 硬質物體",
+        presetCar: "汽車潰縮區原理",
+        presetHelmet: "安全帽緩衝襯墊",
+        paramTitle: "碰撞物體參數設定",
+        runNameLabel: "本次實驗名稱標籤",
+        labelK: "物體硬度 / 剛度 ($k$)",
+        labelM: "物體質量 ($m$)",
+        labelV: "碰撞前初速 ($v_0$)",
+        labelE: "恢復係數 ($e$ / 彈性程度)",
+        kSoft: "極軟 (海綿/橡皮)",
+        kMid: "中等",
+        kHard: "極硬 (剛體/鋼鐵)",
+        eInelastic: "完全非彈性 (0.0)",
+        ePartial: "部分彈性",
+        eElastic: "完全彈性 (1.0)",
+        eNote: "本模擬標準 $e$：0＝非彈性，1＝彈性（勿與兩體動量檔的反向 $e$ 混淆）",
+        theoryTitle: "物理核心觀念 (Impulse-Momentum Theorem)",
+        theoryP1: "1. <strong>動量定理 (Impulse)：</strong> 衝力對時間的積分（曲線下的面積）等於物體動量的變化量 $\\Delta p$。",
+        theoryP2: "2. <strong>延長作用時間：</strong> 較軟的物體（剛度 $k$ 小）碰撞變形大、作用時間 $\\Delta t$ 長，因此能顯著降低最大峰值衝力 $F_{\\mathrm{max}}$。",
+        theoryHint: "曲線下面積 ≈ 表中總衝量 $J$。完整說明請開「原理解說」。",
+        vizTitle: "物理碰撞動畫視覺化 (Collision Visualizer)",
+        chartTitle: "碰撞衝力-時間關係線圖 ($F - t$ Graph)",
+        chartSub: "畫面上可同時呈現並比較不同參數下的多條衝力歷程曲線",
+        tableTitle: "數據對比與定量分析表",
+        thColor: "標記色",
+        thName: "實驗名稱",
+        thK: "剛度 $k$ (N/m)",
+        thM: "質量 $m$",
+        thV0: "初速 $v_0$",
+        thDt: "作用時間 $\\Delta t$",
+        thFmax: "最大衝力 $F_{\\mathrm{max}}$",
+        thJ: "總衝量 $J$ (面積)",
+        thAction: "操作",
+        stepsTitle: "觀察步驟",
+        principleTitle: "原理解說",
+        quizTitle: "課堂問題",
+        showAnswers: "顯示參考答案",
+        hideAnswers: "隱藏參考答案",
+        shortHint: "請操作模擬後寫下比較結果。",
+        chartX: "碰撞歷程時間 t (毫秒 ms)",
+        chartY: "碰撞衝力 F (牛頓 N)",
+        emptyTable: "尚無碰撞記錄，請點擊上方「開始模擬」按鈕。",
+        statusReady: "就緒",
+        statusCleared: "數據已清空",
+        statusDone: "演示完成",
+        statusPlaying: "動態演示中",
+        tagCustom: "自訂",
+        tagSoft: "預設：軟質碰撞",
+        tagCar: "預設：汽車潰縮防撞",
+        tagHelmet: "預設：安全帽緩衝",
+        nameSoft: "軟質彈性球 (k=2000)",
+        nameCar: "具潰縮區防撞 (k=5k, e=0.2)",
+        nameHelmet: "加裝安全帽緩衝 (k=3.5k)",
+        trialPrefix: "試驗",
+        eLabelElastic: "彈性",
+        eLabelAbsorb: "高吸能",
+        eLabelPartial: "部分彈性",
+        deleteTitle: "刪除這條記錄",
+        conceptLabel: "概念",
+        mechanismLabel: "機制",
+        exampleLabel: "日常例子",
+        step1: "按「清除所有線圖」（若有舊曲線）。用預設或手動設：$k\\approx$ <strong>5000</strong> N/m、$m$=1.0 kg、$v_0\\approx$5.0 m/s、$e\\approx$0.80。按「開始模擬與記錄曲線」。觀察 Canvas 球撞牆與 F–t 曲線；記下表中 $\\Delta t$ 與 $F_{\\mathrm{max}}$。",
+        step2: "保持 $m,v_0,e$ 不變，把 $k$ 調到約 <strong>2000</strong>（較軟），改名稱後再跑一次。比較兩條曲線：軟者 $\\Delta t$ 是否<strong>較長</strong>、$F_{\\mathrm{max}}$ 是否<strong>較低</strong>？兩次的總衝量 $J$ 量級是否接近（同 $\\Delta p$ 時面積相近）？",
+        step3: "清除或保留對照均可。點頁首「汽車潰縮區原理」預設，再跑一次。觀察 $e$ 較低（約 0.2）與較高 $v_0$ 時曲線／$F_{\\mathrm{max}}$ 的變化；用一句話連結「潰縮延長碰撞時間、降低峰值力」。",
+        step4: "設兩次實驗僅改 $e$（例如 1.00 vs 0.20），$k,m,v_0$ 相同。比較回彈動畫與曲線形狀；對照表中 $J$ 與「動量變化應約為 $m(v_f-v_i)$」的觀念（完全非彈性時回彈弱、$|\\Delta p|$ 較小）。",
+        principleConcept: "本模擬研究<strong>單個物體撞擊固定牆</strong>時的<strong>衝力–時間</strong>關係，而不是兩體對撞的動量分配。核心是<strong>衝量–動量定理</strong>：作用在物體上的淨衝量等於其動量變化。F–t 圖上曲線下的<strong>面積</strong>就是衝量 $J$。",
+        principleMechanism: "<ol class='list-decimal pl-5 space-y-2'><li>$J = \\int F(t)\\,dt = F_{\\mathrm{avg}}\\cdot\\Delta t = \\Delta p = m(v_f - v_i)$。</li><li>接觸用單向彈簧模型：$F = kx$（牆不「拉」物體，故 $F\\ge 0$）；非彈性以回彈段塑性截斷實現。剛度 $k$ 大 → 變形小、接觸短 → $F_{\\mathrm{max}}$ 高；$k$ 小則相反。</li><li>恢復係數 $e\\in[0,1]$：本模擬 <strong>$e=1$ 完全彈性</strong>、<strong>$e=0$ 完全非彈性</strong>（與教科書一致）。接觸採 Poisson 恢復：壓縮衝量 $J_c\\approx m v_0$，回彈衝量 $J_r=e\\,J_c$，故總衝量 $J\\approx m(1+e)v_0$、回彈速率 $\\approx e\\,v_0$。</li><li>可疊加多次實驗，直接比較不同 $k$／$e$／$v_0$ 的峰高、峰寬與面積。</li></ol><p class='text-xs text-amber-700 mt-2'>勿與 slug <code>collision-momentum-and-kinetic-energy</code> 的反向 $e$ 慣例混淆。</p>",
+        principleExample: "汽車潰縮區與安全氣囊故意延長碰撞時間以降低峰值力；安全帽泡棉同理；接高速球時手往後收、跳高落墊，都是「同樣動量變化、拉長 $\\Delta t$、減小 $F_{\\mathrm{max}}$」。",
+        q1: "清除舊曲線後，設 $m$=1.0 kg、$v_0$=5.0 m/s、$e$=0.80，先以 $k$=<strong>20000</strong> 跑一次，再以 $k$=<strong>2000</strong>（其餘不變）跑一次。關於 $F_{\\mathrm{max}}$ 與 $\\Delta t$，哪項最正確？",
+        q1a: "A. $k$ 較大時通常 $F_{\\mathrm{max}}$ 較高、$\\Delta t$ 較短",
+        q1b: "B. $k$ 較大時 $F_{\\mathrm{max}}$ 一定較低",
+        q1c: "C. 剛度不影響曲線，只影響球顏色",
+        q1d: "D. 表不會記錄 $\\Delta t$",
+        q1ans: "參考答案：A。硬接觸時間短、峰值力高；軟則相反。",
+        q2: "用同一組 $m,v_0,e$，先比較 $k$=20000 與 $k$=2000 兩次實驗的「總衝量 $J$」（曲線面積）。先預測 $J$ 是否守恆，再操作核對。",
+        q2a: "A. $J$ 量級通常接近（同樣 $\\Delta p$ 可由「高而窄」或「矮而寬」的力達成）",
+        q2b: "B. 軟碰撞的 $J$ 必須是硬碰撞的十倍以上",
+        q2c: "C. 衝量與動量變化無關",
+        q2d: "D. 只有質量改變才會改變 $J$，剛度無效",
+        q2ans: "參考答案：A。衝量–動量定理：同 $\\Delta p$ 則面積相近，形狀可不同。",
+        q3: "點頁首「汽車潰縮區原理」預設並開始模擬。相對於高 $e$、硬牆的彈性撞，此預設較強調哪一點？",
+        q3a: "A. 較低 $e$（吸能）搭配設計過的變形／作用時間，以降低乘客承受的峰值力",
+        q3b: "B. 把恢復係數調到 1.0 使撞擊完全彈性",
+        q3c: "C. 取消所有衝量，使 $\\Delta p=0$",
+        q3d: "D. 只改變球的顏色，物理參數不變",
+        q3ans: "參考答案：A。潰縮區＝延長 $\\Delta t$、吸收動能（低 $e$），降 $F_{\\mathrm{max}}$。",
+        q4: "清除後，固定 $k$=5000、$m$=1.0、$v_0$=8.0，先跑 $e$=<strong>1.00</strong>，再跑 $e$=<strong>0.20</strong>。寫下：哪一次 Canvas 回彈較明顯？哪一次表中 $|J|$ 較大？用衝量–動量關係用一句解釋。",
+        q4ans: "參考答案：$e$=1.00 回彈較明顯；$|J|$ 也通常較大（速度由 $+v_0$ 到約 $-v_0$，$|\\Delta p|\\approx 2mv_0$），而 $e$=0.20 回彈弱、$|\\Delta p|$ 較小。",
+        q5: "點「安全帽緩衝襯墊」預設並跑一次，再手動把 $k$ 大幅提高到接近上限（其餘盡量不變）再跑。觀察 $F_{\\mathrm{max}}$：安全帽／較軟襯墊的主要課堂訊息是？",
+        q5a: "A. 延長碰撞作用時間、降低峰值衝力，以保護頭部",
+        q5b: "B. 讓恢復係數永遠等於 0，並增加質量",
+        q5c: "C. 把所有衝力集中在更短時間以提高 $F_{\\mathrm{max}}$",
+        q5d: "D. 安全帽只改變圖例顏色，不改 $\\Delta t$",
+        q5ans: "參考答案：A。緩衝襯墊 → 較軟接觸 → 較長 $\\Delta t$、較低 $F_{\\mathrm{max}}$。"
+      },
+      en: {
+        title: "Force–Time Collision Lab",
+        subtitle: "Single ball vs wall · impulse–momentum · F–t & stiffness",
+        badge: "Physics",
+        btnSteps: "Steps",
+        btnPrinciple: "Principles",
+        btnQuiz: "Quiz",
+        btnReset: "Reset",
+        btnRun: "Run & record curve",
+        btnClear: "Clear all runs",
+        closeBtn: "Close",
+        presetLabel: "Quick presets:",
+        presetSoft: "Soft vs hard",
+        presetCar: "Car crumple zone",
+        presetHelmet: "Helmet padding",
+        paramTitle: "Collision parameters",
+        runNameLabel: "Run name label",
+        labelK: "Stiffness ($k$)",
+        labelM: "Mass ($m$)",
+        labelV: "Initial speed ($v_0$)",
+        labelE: "Coefficient of restitution ($e$)",
+        kSoft: "Very soft",
+        kMid: "Medium",
+        kHard: "Very hard",
+        eInelastic: "Perfectly inelastic (0)",
+        ePartial: "Partly elastic",
+        eElastic: "Elastic (1.0)",
+        eNote: "Standard $e$ here: 0 = inelastic, 1 = elastic (not the inverted $e$ of the two-body momentum sim)",
+        theoryTitle: "Core idea (Impulse–Momentum Theorem)",
+        theoryP1: "1. <strong>Impulse:</strong> the integral of force over time (area under the curve) equals the change in momentum $\\Delta p$.",
+        theoryP2: "2. <strong>Longer contact:</strong> softer objects (small $k$) deform more, lengthen $\\Delta t$, and cut peak force $F_{\\mathrm{max}}$.",
+        theoryHint: "Area under the curve ≈ table impulse $J$. Open Principles for the full write-up.",
+        vizTitle: "Collision visualizer",
+        chartTitle: "Force–time graph ($F$–$t$)",
+        chartSub: "Overlay and compare force histories for different parameters",
+        tableTitle: "Run comparison table",
+        thColor: "Colour",
+        thName: "Run name",
+        thK: "Stiffness $k$ (N/m)",
+        thM: "Mass $m$",
+        thV0: "Speed $v_0$",
+        thDt: "Contact $\\Delta t$",
+        thFmax: "Peak $F_{\\mathrm{max}}$",
+        thJ: "Impulse $J$ (area)",
+        thAction: "Action",
+        stepsTitle: "Observation steps",
+        principleTitle: "Principles",
+        quizTitle: "Classroom quiz",
+        showAnswers: "Show answers",
+        hideAnswers: "Hide answers",
+        shortHint: "Operate the sim, then write your comparison.",
+        chartX: "Contact time t (ms)",
+        chartY: "Force F (N)",
+        emptyTable: "No runs yet. Press Run above.",
+        statusReady: "Ready",
+        statusCleared: "Runs cleared",
+        statusDone: "Demo finished",
+        statusPlaying: "Animating",
+        tagCustom: "Custom",
+        tagSoft: "Preset: soft hit",
+        tagCar: "Preset: crumple zone",
+        tagHelmet: "Preset: helmet",
+        nameSoft: "Soft elastic ball (k=2000)",
+        nameCar: "Crumple zone (k=5k, e=0.2)",
+        nameHelmet: "Helmet padding (k=3.5k)",
+        trialPrefix: "Trial",
+        eLabelElastic: "elastic",
+        eLabelAbsorb: "high absorption",
+        eLabelPartial: "partly elastic",
+        deleteTitle: "Delete this run",
+        conceptLabel: "Concept",
+        mechanismLabel: "Mechanism",
+        exampleLabel: "Everyday example",
+        step1: "Clear all runs if needed. Set $k\\approx$ <strong>5000</strong> N/m, $m$=1.0 kg, $v_0\\approx$5.0 m/s, $e\\approx$0.80 (or use defaults). Press Run. Watch the ball hit the wall and the F–t curve; note $\\Delta t$ and $F_{\\mathrm{max}}$ in the table.",
+        step2: "Keep $m,v_0,e$ fixed; set $k\\approx$ <strong>2000</strong> (softer), rename, Run again. Compare: is $\\Delta t$ <strong>longer</strong> and $F_{\\mathrm{max}}$ <strong>lower</strong> for the soft run? Are the impulses $J$ similar in magnitude (same $\\Delta p$)?",
+        step3: "Optional clear. Click the <strong>car crumple-zone</strong> preset, Run. Note lower $e$ (~0.2) and higher $v_0$; in one sentence link crumple zones to longer $\\Delta t$ and lower peak force.",
+        step4: "Two runs differing only in $e$ (e.g. 1.00 vs 0.20), same $k,m,v_0$. Compare rebound animation and curve shape; relate table $J$ to $\\Delta p=m(v_f-v_i)$ (weaker rebound → smaller $|\\Delta p|$ when more inelastic).",
+        principleConcept: "This lab studies the <strong>force–time</strong> history of a <strong>single mass hitting a fixed wall</strong>, not two-body momentum sharing. The key law is the <strong>impulse–momentum theorem</strong>: the net impulse equals the change in momentum. The <strong>area</strong> under the F–t curve is the impulse $J$.",
+        principleMechanism: "<ol class='list-decimal pl-5 space-y-2'><li>$J = \\int F(t)\\,dt = F_{\\mathrm{avg}}\\cdot\\Delta t = \\Delta p = m(v_f - v_i)$.</li><li>Contact uses a unilateral spring: $F = kx$ with $F\\ge 0$; inelasticity is a plastic cut-off of the restitution phase. Large stiffness $k$ → short contact, high $F_{\\mathrm{max}}$; soft $k$ does the opposite.</li><li>Restitution $e\\in[0,1]$: here <strong>$e=1$ = elastic</strong>, <strong>$e=0$ = perfectly inelastic</strong> (textbook direction). Poisson restitution: compression impulse $J_c\\approx m v_0$, restitution impulse $J_r=e\\,J_c$, so total $J\\approx m(1+e)v_0$ and rebound speed $\\approx e\\,v_0$.</li><li>Stack multiple runs to compare peak height, width, and area across $k$, $e$, and $v_0$.</li></ol><p class='text-xs text-amber-700 mt-2'>Do not confuse with the inverted $e$ convention in <code>collision-momentum-and-kinetic-energy</code>.</p>",
+        principleExample: "Crumple zones and airbags lengthen collision time to cut peak force; helmet foam does the same; “giving” with a catch or a landing mat spreads $\\Delta p$ over larger $\\Delta t$, so $F_{\\mathrm{max}}$ drops.",
+        q1: "Clear runs. Fix $m$=1.0 kg, $v_0$=5.0 m/s, $e$=0.80. Run once at $k$=<strong>20000</strong>, then at $k$=<strong>2000</strong>. Which statement about $F_{\\mathrm{max}}$ and $\\Delta t$ is best?",
+        q1a: "A. Larger $k$ usually gives higher $F_{\\mathrm{max}}$ and shorter $\\Delta t$",
+        q1b: "B. Larger $k$ always lowers $F_{\\mathrm{max}}$",
+        q1c: "C. Stiffness never changes the curve, only ball colour",
+        q1d: "D. The table never records $\\Delta t$",
+        q1ans: "Answer: A. Hard contact is short with high peak force; soft is the opposite.",
+        q2: "With the same $m,v_0,e$, compare impulse $J$ (area) at $k$=20000 vs $k$=2000. Predict whether $J$ stays conserved, then verify on the sim.",
+        q2a: "A. $J$ is usually similar in magnitude (same $\\Delta p$ via tall-narrow or short-wide force)",
+        q2b: "B. Soft-run $J$ must be >10× the hard-run $J$",
+        q2c: "C. Impulse is unrelated to momentum change",
+        q2d: "D. Only mass can change $J$; stiffness never matters",
+        q2ans: "Answer: A. Impulse–momentum: same $\\Delta p$ ⇒ similar area, different shapes OK.",
+        q3: "Click the <strong>car crumple-zone</strong> preset and Run. Versus a high-$e$ hard hit, what does this preset emphasise?",
+        q3a: "A. Lower $e$ (energy absorption) with designed deformation／contact time to cut peak force on occupants",
+        q3b: "B. Setting $e$=1.0 so the crash is perfectly elastic",
+        q3c: "C. Removing all impulse so $\\Delta p=0$",
+        q3d: "D. Only changing ball colour; physics unchanged",
+        q3ans: "Answer: A. Crumple zones lengthen $\\Delta t$ and absorb KE (low $e$) to cut $F_{\\mathrm{max}}$.",
+        q4: "Clear. Fix $k$=5000, $m$=1.0, $v_0$=8.0. Run $e$=<strong>1.00</strong>, then $e$=<strong>0.20</strong>. Which run rebounds more clearly? Which has larger $|J|$? Explain in one sentence with impulse–momentum.",
+        q4ans: "Answer: $e$=1.00 rebounds more; $|J|$ is usually larger ($+v_0\\to\\sim -v_0$ ⇒ $|\\Delta p|\\approx 2mv_0$); $e$=0.20 rebounds weakly with smaller $|\\Delta p|$.",
+        q5: "Run the <strong>helmet</strong> preset, then raise $k$ near the maximum (other controls similar) and Run again. Watching $F_{\\mathrm{max}}$, what is the main classroom message of soft padding／helmets?",
+        q5a: "A. Lengthen contact time and lower peak force to protect the head",
+        q5b: "B. Force $e=0$ forever and increase mass",
+        q5c: "C. Concentrate force into a shorter time to raise $F_{\\mathrm{max}}$",
+        q5d: "D. Helmets only change legend colour, never $\\Delta t$",
+        q5ans: "Answer: A. Soft padding → longer $\\Delta t$, lower $F_{\\mathrm{max}}$."
+      }
+    };
+
+    function t(key) { return (dict[currentLang] && dict[currentLang][key]) || key; }
+
+    function setAnimStatus(key, detail) {
+      animStatusKey = key || 'statusReady';
+      animStatusDetail = detail || '';
+      const el = document.getElementById('anim-status');
+      if (!el) return;
+      el.innerText = animStatusDetail ? (t(animStatusKey) + ': ' + animStatusDetail) : t(animStatusKey);
+    }
+
     function computeCollisionData(m, k, v0, e) {
-      // Calculate effective damping coefficient c from coefficient of restitution e
-      // e = exp(-zeta * pi / sqrt(1 - zeta^2))
-      let zeta = 0;
-      if (e < 0.9999) {
-        let lnE = Math.log(Math.max(e, 0.01));
-        zeta = Math.abs(lnE) / Math.sqrt(Math.PI * Math.PI + lnE * lnE);
-      }
-      
-      const omega0 = Math.sqrt(k / m);
-      const c = 2 * zeta * Math.sqrt(m * k);
-      
-      const dt = 0.00005; // time step for physics integration (seconds)
-      let x = 0; // deformation/compression
-      let v = v0; // initial velocity
-      let t = 0;
+      // Standard e: 0 = perfectly inelastic, 1 = elastic.
+      // Poisson restitution on unilateral spring contact:
+      //   compression (F = kx) until v = 0 → Jc ≈ m v0;
+      //   restitution until Jr = e·Jc → exit speed ≈ e·v0, J ≈ m(1+e)v0.
+      // (Linear Kelvin–Voigt + F≥0 cannot reach true e→0; plastic cut-off does.)
+      e = Math.max(0, Math.min(1, e));
+      const dt = 0.00005;
+      let x = 0, v = v0, tm = 0;
+      let timePoints = [], forcePoints = [], posPoints = [];
+      let maxForce = 0, impulseSum = 0;
 
-      let timePoints = [];
-      let forcePoints = [];
-      let posPoints = [];
-      
-      let maxForce = 0;
-      let contactDuration = 0;
-      let impulseSum = 0;
-
-      // Contact starts at t = 0
-      let inContact = true;
-
-      while (inContact && t < 0.5) { // safety timeout 0.5s
-        // Spring + Damping force
-        let F = k * x + c * v;
-        if (F < 0) F = 0; // Spring cannot pull wall
-
+      function stepForce() {
+        let F = k * x;
+        if (F < 0) F = 0;
         if (F > maxForce) maxForce = F;
-
-        // Record high-resolution data points (sample every ~0.2ms)
-        timePoints.push(t * 1000); // ms
-        forcePoints.push(F); // N
-        posPoints.push(x); // m
-
+        timePoints.push(tm * 1000);
+        forcePoints.push(F);
+        posPoints.push(x);
         impulseSum += F * dt;
-
-        // Integration (Verlet/Euler)
-        let a = -F / m;
-        v += a * dt;
+        v += (-F / m) * dt;
         x += v * dt;
-        t += dt;
-
-        // Contact ends when object moves backward and separation occurs (x <= 0)
-        if (x <= 0 && t > 0.0005) {
-          inContact = false;
-        }
+        tm += dt;
+        return F;
       }
 
-      contactDuration = t * 1000; // in ms
+      // --- Compression phase ---
+      while (v > 0 && tm < 0.5) {
+        stepForce();
+        if (x < 0) { x = 0; break; }
+      }
+      const Jc = impulseSum;
 
-      // Downsample data for smooth Chart display (~150 points max per run)
+      if (e <= 1e-8) {
+        // Perfectly inelastic: stick. Unload residual compression without returning KE.
+        let guard = 0;
+        while (x > 1e-6 && guard++ < 20000) {
+          x *= 0.9;
+          const F = Math.max(0, k * x);
+          timePoints.push(tm * 1000);
+          forcePoints.push(F);
+          posPoints.push(x);
+          tm += dt;
+        }
+        x = 0; v = 0;
+        timePoints.push(tm * 1000);
+        forcePoints.push(0);
+        posPoints.push(0);
+      } else {
+        // --- Restitution: stop when Jr reaches e·Jc (plastic remainder discarded) ---
+        const JrTarget = e * Jc;
+        let Jr = 0;
+        while (x > 0 && tm < 0.5) {
+          const F = stepForce();
+          Jr += F * dt;
+          if (Jr >= JrTarget) {
+            x = 0;
+            break;
+          }
+        }
+        if (x < 0) x = 0;
+      }
+
+      const contactDuration = tm * 1000;
+      const reboundSpeed = Math.max(0, -v);
       const step = Math.max(1, Math.floor(timePoints.length / 120));
-      let sampledTime = [];
-      let sampledForce = [];
-
-      // Add zero force padding before contact
-      sampledTime.push(0);
-      sampledForce.push(0);
-
+      let sampledTime = [0], sampledForce = [0];
       for (let i = 0; i < timePoints.length; i += step) {
         sampledTime.push(parseFloat(timePoints[i].toFixed(2)));
         sampledForce.push(parseFloat(forcePoints[i].toFixed(1)));
       }
-
-      // Add end zero padding
       if (sampledTime[sampledTime.length - 1] < contactDuration) {
         sampledTime.push(parseFloat(contactDuration.toFixed(2)));
         sampledForce.push(0);
       }
       sampledTime.push(parseFloat((contactDuration * 1.2).toFixed(2)));
       sampledForce.push(0);
-
       return {
-        m, k, v0, e,
-        maxForce,
-        contactDuration,
+        m, k, v0, e, maxForce, contactDuration,
         impulse: impulseSum,
-        v_final: -v,
-        timePoints,
-        forcePoints,
-        posPoints,
-        sampledTime,
-        sampledForce
+        v_final: reboundSpeed,
+        v_exit: v,
+        timePoints, forcePoints, posPoints, sampledTime, sampledForce
       };
     }
 
-    // --- Preset Handlers ---
     function applyPreset(type) {
       const sliderK = document.getElementById('slider-k');
       const sliderM = document.getElementById('slider-m');
@@ -382,30 +608,24 @@
       const sliderE = document.getElementById('slider-e');
       const inputName = document.getElementById('input-name');
       const tag = document.getElementById('current-preset-tag');
-
+      currentPreset = type;
       if (type === 'soft_vs_hard') {
-        sliderK.value = 2000;
-        sliderM.value = 1.0;
-        sliderV.value = 6.0;
-        sliderE.value = 0.8;
-        inputName.value = "軟質彈性球 (k=2000)";
-        tag.innerText = "預設：軟質碰撞";
+        sliderK.value = 2000; sliderM.value = 1.0; sliderV.value = 6.0; sliderE.value = 0.8;
+        inputName.value = t('nameSoft'); tag.innerText = t('tagSoft');
       } else if (type === 'car_crumple') {
-        sliderK.value = 5000;
-        sliderM.value = 3.0;
-        sliderV.value = 10.0;
-        sliderE.value = 0.2; // crumple zone absorbs energy
-        inputName.value = "具潰縮區防撞 (k=5k, e=0.2)";
-        tag.innerText = "預設：汽車潰縮防撞";
+        sliderK.value = 5000; sliderM.value = 3.0; sliderV.value = 10.0; sliderE.value = 0.2;
+        inputName.value = t('nameCar'); tag.innerText = t('tagCar');
       } else if (type === 'helmet') {
-        sliderK.value = 3500;
-        sliderM.value = 1.5;
-        sliderV.value = 8.0;
-        sliderE.value = 0.4;
-        inputName.value = "加裝安全帽緩衝 (k=3.5k)";
-        tag.innerText = "預設：安全帽緩衝";
+        sliderK.value = 3500; sliderM.value = 1.5; sliderV.value = 8.0; sliderE.value = 0.4;
+        inputName.value = t('nameHelmet'); tag.innerText = t('tagHelmet');
       }
-      updateSliders();
+      // refresh numeric labels without clearing preset tag
+      const k = parseFloat(sliderK.value), m = parseFloat(sliderM.value), v = parseFloat(sliderV.value), e = parseFloat(sliderE.value);
+      document.getElementById('val-k').innerText = k.toLocaleString() + ' N/m';
+      document.getElementById('val-m').innerText = m.toFixed(1) + ' kg';
+      document.getElementById('val-v').innerText = v.toFixed(1) + ' m/s';
+      const eHint = e > 0.9 ? t('eLabelElastic') : (e < 0.3 ? t('eLabelAbsorb') : t('eLabelPartial'));
+      document.getElementById('val-e').innerText = e.toFixed(2) + ' (' + eHint + ')';
     }
 
     function updateSliders() {
@@ -413,98 +633,87 @@
       const m = parseFloat(document.getElementById('slider-m').value);
       const v = parseFloat(document.getElementById('slider-v').value);
       const e = parseFloat(document.getElementById('slider-e').value);
-
-      document.getElementById('val-k').innerText = `${k.toLocaleString()} N/m`;
-      document.getElementById('val-m').innerText = `${m.toFixed(1)} kg`;
-      document.getElementById('val-v').innerText = `${v.toFixed(1)} m/s`;
-      document.getElementById('val-e').innerText = `${e.toFixed(2)} (${e > 0.9 ? '彈性' : e < 0.3 ? '高吸能' : '部分彈性'})`;
+      document.getElementById('val-k').innerText = k.toLocaleString() + ' N/m';
+      document.getElementById('val-m').innerText = m.toFixed(1) + ' kg';
+      document.getElementById('val-v').innerText = v.toFixed(1) + ' m/s';
+      const eHint = e > 0.9 ? t('eLabelElastic') : (e < 0.3 ? t('eLabelAbsorb') : t('eLabelPartial'));
+      document.getElementById('val-e').innerText = e.toFixed(2) + ' (' + eHint + ')';
     }
 
-    // --- Run Simulation & Record Data ---
+    function onSliderInput() {
+      currentPreset = null;
+      updateSliders();
+      document.getElementById('current-preset-tag').innerText = t('tagCustom');
+    }
+
+    function resetParameters() {
+      if (animId) cancelAnimationFrame(animId);
+      isSimulating = false;
+      animId = null;
+      currentPhysicsRun = null;
+      document.getElementById('slider-k').value = DEFAULTS.k;
+      document.getElementById('slider-m').value = DEFAULTS.m;
+      document.getElementById('slider-v').value = DEFAULTS.v;
+      document.getElementById('slider-e').value = DEFAULTS.e;
+      document.getElementById('input-name').value = t('trialPrefix') + ' 1';
+      currentPreset = null;
+      document.getElementById('current-preset-tag').innerText = t('tagCustom');
+      updateSliders();
+      setAnimStatus('statusReady');
+      // redraw idle canvas
+      const canvas = document.getElementById('simCanvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+          canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
     function runCollisionSimulation() {
-      const name = document.getElementById('input-name').value || `實驗 ${runs.length + 1}`;
+      const name = document.getElementById('input-name').value || (t('trialPrefix') + ' ' + (runs.length + 1));
       const k = parseFloat(document.getElementById('slider-k').value);
       const m = parseFloat(document.getElementById('slider-m').value);
       const v0 = parseFloat(document.getElementById('slider-v').value);
       const e = parseFloat(document.getElementById('slider-e').value);
-
-      // Compute physical collision data
       const simData = computeCollisionData(m, k, v0, e);
-
-      // Assign color
       const color = colorPalette[colorIndex % colorPalette.length];
       colorIndex++;
-
-      const newRun = {
-        id: Date.now(),
-        name,
-        color,
-        ...simData
-      };
-
+      const newRun = { id: Date.now(), name, color, ...simData };
       runs.push(newRun);
-
-      // Update UI Components
+      lastHighlightId = newRun.id;
       updateChart();
       updateTable();
       startAnimation(newRun);
-
-      // Increment run name counter for next test
-      document.getElementById('input-name').value = `試驗 ${runs.length + 1}`;
+      document.getElementById('input-name').value = t('trialPrefix') + ' ' + (runs.length + 1);
     }
 
-    // --- Chart.js Rendering ---
     function initChart() {
       const ctx = document.getElementById('forceTimeChart').getContext('2d');
       chartInstance = new Chart(ctx, {
         type: 'line',
-        data: {
-          datasets: []
-        },
+        data: { datasets: [] },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 600 },
+          responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
           scales: {
             x: {
-              type: 'linear',
-              position: 'bottom',
-              title: {
-                display: true,
-                text: '碰撞歷程時間 t (毫秒 ms)',
-                color: '#94a3b8',
-                font: { size: 12, weight: 'bold' }
-              },
-              grid: { color: '#334155' },
-              ticks: { color: '#cbd5e1' }
+              type: 'linear', position: 'bottom',
+              title: { display: true, text: t('chartX'), color: '#94a3b8', font: { size: 12, weight: 'bold' } },
+              grid: { color: '#334155' }, ticks: { color: '#cbd5e1' }
             },
             y: {
               beginAtZero: true,
-              title: {
-                display: true,
-                text: '碰撞衝力 F (牛頓 N)',
-                color: '#94a3b8',
-                font: { size: 12, weight: 'bold' }
-              },
-              grid: { color: '#334155' },
-              ticks: { color: '#cbd5e1' }
+              title: { display: true, text: t('chartY'), color: '#94a3b8', font: { size: 12, weight: 'bold' } },
+              grid: { color: '#334155' }, ticks: { color: '#cbd5e1' }
             }
           },
           plugins: {
-            legend: {
-              labels: { color: '#f8fafc', font: { size: 12 } }
-            },
+            legend: { labels: { color: '#f8fafc', font: { size: 12 } } },
             tooltip: {
-              backgroundColor: '#1e293b',
-              titleColor: '#60a5fa',
-              bodyColor: '#f1f5f9',
-              borderColor: '#475569',
-              borderWidth: 1,
-              callbacks: {
-                label: function(context) {
-                  return `${context.dataset.label}: ${context.parsed.y} N @ ${context.parsed.x} ms`;
-                }
-              }
+              backgroundColor: '#1e293b', titleColor: '#60a5fa', bodyColor: '#f1f5f9',
+              borderColor: '#475569', borderWidth: 1,
+              callbacks: { label: function(c) { return c.dataset.label + ': ' + c.parsed.y + ' N @ ' + c.parsed.x + ' ms'; } }
             }
           }
         }
@@ -513,26 +722,12 @@
 
     function updateChart() {
       if (!chartInstance) return;
-
-      chartInstance.data.datasets = runs.map(run => {
-        const points = run.sampledTime.map((t, i) => ({
-          x: t,
-          y: run.sampledForce[i]
-        }));
-
-        return {
-          label: run.name,
-          data: points,
-          borderColor: run.color,
-          backgroundColor: run.color + '22', // transparent fill
-          borderWidth: 2.5,
-          tension: 0.3, // smooth curves
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          fill: true
-        };
-      });
-
+      chartInstance.data.datasets = runs.map(run => ({
+        label: run.name,
+        data: run.sampledTime.map((tm, i) => ({ x: tm, y: run.sampledForce[i] })),
+        borderColor: run.color, backgroundColor: run.color + '22',
+        borderWidth: 2.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 5, fill: true
+      }));
       chartInstance.update();
     }
 
@@ -540,7 +735,7 @@
       runs = [];
       updateChart();
       updateTable();
-      document.getElementById('anim-status').innerText = '數據已清空';
+      setAnimStatus('statusCleared');
     }
 
     function deleteRun(id) {
@@ -549,211 +744,278 @@
       updateTable();
     }
 
-    // --- Table UI Update ---
     function updateTable() {
       const tbody = document.getElementById('table-body');
       tbody.innerHTML = '';
-
       if (runs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center p-4 text-slate-500">尚無碰撞記錄，請點擊上方「開始模擬」按鈕。</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4 text-slate-500">' + t('emptyTable') + '</td></tr>';
         return;
       }
-
       runs.forEach(run => {
+        const hl = run.id === lastHighlightId ? ' highlight-cell' : '';
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-700/30 transition border-b border-slate-700/40";
-        tr.innerHTML = `
-          <td class="p-2.5">
-            <span class="inline-block w-3.5 h-3.5 rounded-full shadow" style="background-color: ${run.color}"></span>
-          </td>
-          <td class="p-2.5 font-bold text-slate-100">${run.name}</td>
-          <td class="p-2.5 font-mono text-blue-300">${run.k.toLocaleString()}</td>
-          <td class="p-2.5 font-mono">${run.m} kg</td>
-          <td class="p-2.5 font-mono">${run.v0} m/s</td>
-          <td class="p-2.5 font-mono text-emerald-400 font-semibold">${run.contactDuration.toFixed(2)} ms</td>
-          <td class="p-2.5 font-mono text-rose-400 font-bold">${Math.round(run.maxForce).toLocaleString()} N</td>
-          <td class="p-2.5 font-mono text-amber-300 font-semibold">${run.impulse.toFixed(2)} N·s</td>
-          <td class="p-2.5 text-center">
-            <button onclick="deleteRun(${run.id})" class="text-slate-500 hover:text-red-400 transition" title="刪除這條記錄">
-              <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-          </td>
-        `;
+        tr.className = 'hover:bg-slate-700/30 transition border-b border-slate-700/40';
+        tr.innerHTML =
+          '<td class="p-2.5"><span class="inline-block w-3.5 h-3.5 rounded-full shadow" style="background-color:' + run.color + '"></span></td>' +
+          '<td class="p-2.5 font-bold text-slate-100">' + escapeHtml(run.name) + '</td>' +
+          '<td class="p-2.5 font-mono text-blue-300">' + run.k.toLocaleString() + '</td>' +
+          '<td class="p-2.5 font-mono">' + run.m + ' kg</td>' +
+          '<td class="p-2.5 font-mono">' + run.v0 + ' m/s</td>' +
+          '<td class="p-2.5 font-mono text-emerald-400 font-semibold' + hl + '">' + run.contactDuration.toFixed(2) + ' ms</td>' +
+          '<td class="p-2.5 font-mono text-rose-400 font-bold' + hl + '">' + Math.round(run.maxForce).toLocaleString() + ' N</td>' +
+          '<td class="p-2.5 font-mono text-amber-300 font-semibold">' + run.impulse.toFixed(2) + ' N·s</td>' +
+          '<td class="p-2.5 text-center"><button type="button" onclick="deleteRun(' + run.id + ')" class="text-slate-500 hover:text-red-400 transition" title="' + t('deleteTitle') + '">' +
+          '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></td>';
         tbody.appendChild(tr);
       });
-
-      // Trigger MathJax render for dynamically inserted latex if necessary
-      if (window.MathJax) MathJax.typesetPromise();
+      if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([tbody]).catch(function(){});
     }
 
-    // --- Canvas Animation Physics Visualization ---
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     function startAnimation(runData) {
       currentPhysicsRun = runData;
       isSimulating = true;
       simStartTime = performance.now();
-      document.getElementById('anim-status').innerText = `動態演示中: ${runData.name}`;
-
+      setAnimStatus('statusPlaying', runData.name);
       if (animId) cancelAnimationFrame(animId);
-      requestAnimationFrame(animateFrame);
+      animId = requestAnimationFrame(animateFrame);
     }
 
     function animateFrame(now) {
       const canvas = document.getElementById('simCanvas');
       const ctx = canvas.getContext('2d');
-
-      // Adjust canvas resolution
       if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+        canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       }
-
-      const W = canvas.width;
-      const H = canvas.height;
-      const wallX = W * 0.75; // Rigid Wall position
-      const groundY = H - 20;
-
+      const W = canvas.width, H = canvas.height;
+      const wallX = W * 0.75, groundY = H - 20;
       ctx.clearRect(0, 0, W, H);
-
-      // Draw Ground & Rigid Wall
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(0, groundY, W, 20); // Ground
-
-      // Wall Pattern
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(wallX, 10, W - wallX, groundY - 10);
-      ctx.strokeStyle = '#64748b';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(wallX, 10);
-      ctx.lineTo(wallX, groundY);
-      ctx.stroke();
-
-      // Hatching lines on wall
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#334155'; ctx.fillRect(0, groundY, W, 20);
+      ctx.fillStyle = '#475569'; ctx.fillRect(wallX, 10, W - wallX, groundY - 10);
+      ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(wallX, 10); ctx.lineTo(wallX, groundY); ctx.stroke();
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
       for (let y = 15; y < groundY; y += 15) {
-        ctx.beginPath();
-        ctx.moveTo(wallX, y);
-        ctx.lineTo(wallX + 25, y + 25);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(wallX, y); ctx.lineTo(wallX + 25, y + 25); ctx.stroke();
       }
-
       if (!currentPhysicsRun) return;
-
-      // Elapsed animation time
-      const elapsedMs = (now - simStartTime) * 0.5; // Slow-mo coefficient
+      const elapsedMs = (now - simStartTime) * 0.5;
       const totalContactMs = currentPhysicsRun.contactDuration;
-      const approachDuration = 600; // ms to travel from left to wall
-
+      const approachDuration = 600;
       let ballRadius = Math.max(12, Math.min(26, currentPhysicsRun.m * 5 + 8));
-      let ballX = 0;
-      let compression = 0;
-      let currentForce = 0;
-
+      let ballX = 0, compression = 0, currentForce = 0;
       if (elapsedMs < approachDuration) {
-        // Phase 1: Approaching wall
         const progress = elapsedMs / approachDuration;
         ballX = 40 + progress * (wallX - ballRadius - 40);
       } else if (elapsedMs < approachDuration + totalContactMs) {
-        // Phase 2: Contact & Collision Compression
         const contactT = elapsedMs - approachDuration;
-        // Interpolate displacement & force from sim points
         const points = currentPhysicsRun.timePoints;
-        let idx = points.findIndex(t => t >= contactT);
+        let idx = points.findIndex(tm => tm >= contactT);
         if (idx < 0) idx = points.length - 1;
-
         compression = currentPhysicsRun.posPoints[idx] || 0;
         currentForce = currentPhysicsRun.forcePoints[idx] || 0;
-
-        // Visual compression scaling
         const visualSquish = Math.min(ballRadius * 0.6, compression * 80);
         ballX = wallX - ballRadius + visualSquish * 0.5;
-      } else if (elapsedMs < approachDuration + totalContactMs + 600) {
-        // Phase 3: Rebound away from wall
-        const reboundT = elapsedMs - (approachDuration + totalContactMs);
-        const progress = reboundT / 600;
-        ballX = (wallX - ballRadius) - progress * (W * 0.5);
       } else {
-        // Finished loop
-        ballX = (wallX - ballRadius) - (W * 0.5);
-        document.getElementById('anim-status').innerText = '演示完成';
-        isSimulating = false;
+        // Rebound travel scales with exit speed / e (not a fixed half-width cosmetic bounce)
+        const speedRatio = Math.min(1, Math.max(0,
+          (currentPhysicsRun.v_final != null
+            ? currentPhysicsRun.v_final
+            : currentPhysicsRun.e * currentPhysicsRun.v0) / Math.max(currentPhysicsRun.v0, 1e-9)
+        ));
+        const reboundDist = (W * 0.55) * speedRatio;
+        const reboundDur = 200 + 500 * Math.max(speedRatio, 0.05);
+        const reboundT = elapsedMs - (approachDuration + totalContactMs);
+        if (speedRatio < 0.02) {
+          ballX = wallX - ballRadius;
+          if (reboundT > 400) {
+            setAnimStatus('statusDone');
+            isSimulating = false;
+          }
+        } else if (reboundT < reboundDur) {
+          const progress = Math.min(1, reboundT / reboundDur);
+          ballX = (wallX - ballRadius) - progress * reboundDist;
+        } else {
+          ballX = (wallX - ballRadius) - reboundDist;
+          setAnimStatus('statusDone');
+          isSimulating = false;
+        }
       }
-
-      // Calculate squish aspect ratio for deformation visual
-      let squishX = 1;
-      let squishY = 1;
+      let squishX = 1, squishY = 1;
       if (compression > 0) {
         let maxComp = Math.max(...currentPhysicsRun.posPoints);
         let factor = (compression / (maxComp || 1));
-        squishX = 1 - 0.35 * factor;
-        squishY = 1 + 0.3 * factor;
+        squishX = 1 - 0.35 * factor; squishY = 1 + 0.3 * factor;
       }
-
-      // Draw Ball Shadow
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath();
-      ctx.ellipse(ballX, groundY - 2, ballRadius * squishX, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw Ball Object
+      ctx.beginPath(); ctx.ellipse(ballX, groundY - 2, ballRadius * squishX, 4, 0, 0, Math.PI * 2); ctx.fill();
       ctx.save();
       ctx.translate(ballX, groundY - ballRadius * squishY);
       ctx.scale(squishX, squishY);
-
-      // Sphere Fill Gradient
       const grad = ctx.createRadialGradient(-ballRadius*0.3, -ballRadius*0.3, ballRadius*0.1, 0, 0, ballRadius);
       grad.addColorStop(0, '#93c5fd');
       grad.addColorStop(0.7, currentPhysicsRun.color);
       grad.addColorStop(1, '#1e3a8a');
-
       ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, ballRadius, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.restore();
-
-      // Draw Force Vector Vector Arrow during contact
       if (currentForce > 10) {
         const arrowLength = Math.min(80, (currentForce / currentPhysicsRun.maxForce) * 70 + 10);
-        ctx.strokeStyle = '#ef4444';
-        ctx.fillStyle = '#ef4444';
-        ctx.lineWidth = 3;
-
-        ctx.beginPath();
-        ctx.moveTo(ballX, groundY - ballRadius);
-        ctx.lineTo(ballX - arrowLength, groundY - ballRadius);
-        ctx.stroke();
-
-        // Arrow head
+        ctx.strokeStyle = '#ef4444'; ctx.fillStyle = '#ef4444'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(ballX, groundY - ballRadius); ctx.lineTo(ballX - arrowLength, groundY - ballRadius); ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(ballX - arrowLength, groundY - ballRadius);
         ctx.lineTo(ballX - arrowLength + 8, groundY - ballRadius - 5);
         ctx.lineTo(ballX - arrowLength + 8, groundY - ballRadius + 5);
-        ctx.closePath();
-        ctx.fill();
-
-        // Force text readout
-        ctx.fillStyle = '#f8fafc';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillText(`F = ${Math.round(currentForce)} N`, ballX - arrowLength - 10, groundY - ballRadius - 10);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('F = ' + Math.round(currentForce) + ' N', ballX - arrowLength - 10, groundY - ballRadius - 10);
       }
+      if (isSimulating) animId = requestAnimationFrame(animateFrame);
+    }
 
-      if (isSimulating) {
-        animId = requestAnimationFrame(animateFrame);
+    function typesetMath(root) {
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise(root ? [root] : undefined).catch(function () {});
       }
     }
 
-    // --- Window Onload Initialization ---
-    window.onload = function() {
+    function toggleLanguage() {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      updateLanguage();
+    }
+
+    function updateLanguage() {
+      const texts = dict[currentLang];
+      document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+      document.title = texts.title;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (texts[key]) el.innerHTML = texts[key];
+      });
+      document.getElementById('steps-body').innerHTML =
+        '<li>' + texts.step1 + '</li><li>' + texts.step2 + '</li><li>' + texts.step3 + '</li><li>' + texts.step4 + '</li>';
+      document.getElementById('principle-body').innerHTML =
+        '<div><h3 class="font-bold text-indigo-600 mb-1">' + texts.conceptLabel + '</h3><p>' + texts.principleConcept + '</p></div>' +
+        '<div><h3 class="font-bold text-indigo-600 mb-1">' + texts.mechanismLabel + '</h3>' + texts.principleMechanism + '</div>' +
+        '<div><h3 class="font-bold text-indigo-600 mb-1">' + texts.exampleLabel + '</h3><p>' + texts.principleExample + '</p></div>' +
+        '<div class="mt-3 p-3 bg-slate-100 rounded text-center text-indigo-700 font-mono">$J = \\int F(t)\\,dt = F_{\\mathrm{avg}}\\cdot\\Delta t = \\Delta p$</div>';
+      if (chartInstance) {
+        chartInstance.options.scales.x.title.text = texts.chartX;
+        chartInstance.options.scales.y.title.text = texts.chartY;
+        chartInstance.update('none');
+      }
+      // refresh numeric labels
+      const k = parseFloat(document.getElementById('slider-k').value);
+      const m = parseFloat(document.getElementById('slider-m').value);
+      const v = parseFloat(document.getElementById('slider-v').value);
+      const e = parseFloat(document.getElementById('slider-e').value);
+      document.getElementById('val-k').innerText = k.toLocaleString() + ' N/m';
+      document.getElementById('val-m').innerText = m.toFixed(1) + ' kg';
+      document.getElementById('val-v').innerText = v.toFixed(1) + ' m/s';
+      const eHint = e > 0.9 ? texts.eLabelElastic : (e < 0.3 ? texts.eLabelAbsorb : texts.eLabelPartial);
+      document.getElementById('val-e').innerText = e.toFixed(2) + ' (' + eHint + ')';
+      const tag = document.getElementById('current-preset-tag');
+      const inputName = document.getElementById('input-name');
+      if (currentPreset === 'soft_vs_hard') { tag.innerText = texts.tagSoft; inputName.value = texts.nameSoft; }
+      else if (currentPreset === 'car_crumple') { tag.innerText = texts.tagCar; inputName.value = texts.nameCar; }
+      else if (currentPreset === 'helmet') { tag.innerText = texts.tagHelmet; inputName.value = texts.nameHelmet; }
+      else { tag.innerText = texts.tagCustom; }
+      updateTable();
+      setAnimStatus(animStatusKey, animStatusDetail);
+      renderQuiz();
+      typesetMath();
+      if (!document.getElementById('modal-principle').classList.contains('hidden')) typesetMath(document.getElementById('modal-principle'));
+      if (!document.getElementById('modal-steps').classList.contains('hidden')) typesetMath(document.getElementById('modal-steps'));
+      if (!document.getElementById('modal-quiz').classList.contains('hidden')) typesetMath(document.getElementById('modal-quiz'));
+    }
+
+    let quizAnswersVisible = false;
+
+        function renderQuiz() {
+            const texts = dict[currentLang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const langIsZh = (currentLang === 'zh');
+            const ref = texts.quizRef || (langIsZh ? '參考答案' : 'Reference answer');
+            const optKey = (qid, L) => {
+                const lower = qid + L.toLowerCase();
+                const upper = qid + L.toUpperCase();
+                return texts[lower] != null ? lower : upper;
+            };
+            const mkChoice = (qid) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = optKey(qid, L);
+                return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span>' + (texts[key] || '') + '</span></label>';
+            }).join('');
+            const vis = quizAnswersVisible;
+            const ans = (key) => vis
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+            const openHint = texts.shortHint || texts.openHint || '';
+            const block = (n, qid, mc) => {
+                let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
+                if (mc) h += '<div class="grid gap-1.5">' + mkChoice(qid) + '</div>';
+                else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
+                return h + ans(qid + 'ans') + '</div>';
+            };
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = vis ? texts.hideAnswers : texts.showAnswers;
+            const modal = document.getElementById('modal-quiz');
+            if (vis && typeof typesetMath === 'function' && modal) typesetMath(modal);
+        }
+
+
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      void modal.offsetWidth;
+      modal.classList.remove('opacity-0');
+      const panel = modal.querySelector('[data-modal-panel]');
+      if (panel) panel.classList.remove('scale-95');
+      typesetMath(modal);
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (!modal || modal.classList.contains('hidden')) return;
+      modal.classList.add('opacity-0');
+      const panel = modal.querySelector('[data-modal-panel]');
+      if (panel) panel.classList.add('scale-95');
+      setTimeout(function () { modal.classList.add('hidden'); }, 250);
+    }
+
+    function closeAllModals() {
+      ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+    }
+
+    function wireModals() {
+      document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+      document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+      document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+      document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+      document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+                quizAnswersVisible = !quizAnswersVisible;
+                renderQuiz();
+            });
+      document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+      });
+      ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+        const modal = document.getElementById(id);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(id); });
+      });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllModals(); });
+    }
+
+    window.onload = function () {
       initChart();
-      updateSliders();
-      
-      // Run an initial default simulation
+      wireModals();
+      updateLanguage();
       applyPreset('soft_vs_hard');
       runCollisionSimulation();
     };

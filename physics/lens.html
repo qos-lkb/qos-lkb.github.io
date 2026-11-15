@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>透鏡成像 | Lens Imaging</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; touch-action: none; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #2563eb; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        .preset-btn { padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover { background: #eff6ff; border-color: #93c5fd; }
+        .preset-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .lens-type-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #93c5fd; border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+        .mj-box mjx-container { color: #93c5fd !important; }
+        .mj-calc { overflow-x: auto; font-size: 13px; line-height: 1.85; color: #334155; text-align: center; }
+        .calc-step { padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 8px; text-align: center; }
+        .calc-step:last-child { margin-bottom: 0; }
+        .case-table th, .case-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        .case-table th { background: #f8fafc; font-weight: 600; color: #475569; }
+        .case-table tr:last-child td { border-bottom: none; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center shadow-md text-lg font-black">()</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">透鏡成像</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">透鏡公式、三條特殊光線與凸／凹透鏡成像</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-800 rounded-xl font-bold text-sm shadow-sm border border-blue-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-cases" class="px-3.5 py-2 bg-white hover:bg-indigo-50 text-indigo-800 rounded-xl font-bold text-sm shadow-sm border border-indigo-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span data-i18n="btnCases">成像列表</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="labelLensType">透鏡種類</p>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button type="button" id="btn-convex" class="lens-type-btn active py-2 rounded-xl border border-slate-200 text-xs font-bold" data-type="convex">
+                        <span class="text-base">()</span> <span data-i18n="convexLens">凸透鏡</span>
+                    </button>
+                    <button type="button" id="btn-concave" class="lens-type-btn py-2 rounded-xl border border-slate-200 text-xs font-bold" data-type="concave">
+                        <span class="text-base">)(</span> <span data-i18n="concaveLens">凹透鏡</span>
+                    </button>
+                </div>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4" id="preset-list">
+                    <button type="button" class="preset-btn active" data-preset="beyond2f" data-i18n="preBeyond2f">① u &gt; 2f：縮小實像（相機）</button>
+                    <button type="button" class="preset-btn" data-preset="at2f" data-i18n="preAt2f">② u = 2f：等大實像</button>
+                    <button type="button" class="preset-btn" data-preset="between" data-i18n="preBetween">③ f &lt; u &lt; 2f：放大實像（投影機）</button>
+                    <button type="button" class="preset-btn" data-preset="atf" data-i18n="preAtf">④ u = f：不成像（探照燈）</button>
+                    <button type="button" class="preset-btn" data-preset="insidef" data-i18n="preInsidef">⑤ u &lt; f：放大虛像（放大鏡）</button>
+                    <button type="button" class="preset-btn" data-preset="concave" data-i18n="preConcave">⑥ 凹透鏡：恆為縮小虛像</button>
+                </div>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelF">焦距 f</span>
+                        <span id="disp-f" class="text-blue-700 font-mono">100 mm</span>
+                    </span>
+                    <input type="range" id="in-f" min="60" max="200" step="5" value="100">
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelU">物距 u</span>
+                        <span id="disp-u" class="text-blue-700 font-mono">280 mm</span>
+                    </span>
+                    <input type="range" id="in-u" min="20" max="500" step="1" value="280">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>f</span>
+                        <span>2f</span>
+                        <span id="u-region" class="text-blue-600 font-bold">u &gt; 2f</span>
+                    </div>
+                </label>
+
+                <label class="block mb-3">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelH">物高 h<sub>o</sub></span>
+                        <span id="disp-h" class="text-blue-700 font-mono">60 mm</span>
+                    </span>
+                    <input type="range" id="in-h" min="20" max="120" step="2" value="60">
+                </label>
+
+                <button type="button" id="btn-reset" class="w-full py-2 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-700 text-white" data-i18n="btnReset">重置場景</button>
+                <p class="text-[10px] text-slate-400 mt-2 leading-relaxed" data-i18n="dragHint">可拖曳畫面上的紅色箭矢頂端改變物距與物高；接近 f、2f 時會自動對齊標記。</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs space-y-2">
+                <div class="font-black text-blue-800 mb-1" data-i18n="liveTitle">即時數據</div>
+                <div id="status-box" class="p-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-center font-bold text-emerald-800">
+                    <span id="status-text">—</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span data-i18n="statType">透鏡</span><b id="val-type">凸</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span>f</span><b id="val-f">100 mm</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span>u</span><b id="val-u">280 mm</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span>v</span><b id="val-v">—</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-slate-100"><span>m</span><b id="val-m">—</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statRegion">物距區間</span><b id="val-region">u &gt; 2f</b></div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-2 flex flex-col gap-3 min-h-0">
+            <div class="relative bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[280px] h-[340px] sm:h-[420px]" id="canvas-wrap">
+                <canvas id="simCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                <div class="absolute top-3 right-3 bg-white/95 backdrop-blur-sm rounded-xl border border-slate-200 p-2.5 text-[10px] space-y-1 pointer-events-none max-w-[140px]">
+                    <div class="font-bold text-slate-700 border-b pb-1 mb-1" data-i18n="imgNature">成像性質</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-orange-500 rounded-full"></span><span id="badge-type">實像</span></div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-slate-500 rounded-full"></span><span id="badge-orient">倒立</span></div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span><span id="badge-size">縮小</span></div>
+                </div>
+                <div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200 p-2.5 text-[10px] space-y-1 pointer-events-none">
+                    <div class="flex items-center gap-2"><span class="w-5 h-1.5 bg-red-500 rounded"></span><span data-i18n="legObj">物體</span></div>
+                    <div class="flex items-center gap-2"><span class="w-5 h-1.5 bg-orange-500 rounded"></span><span data-i18n="legReal">實像</span></div>
+                    <div class="flex items-center gap-2"><span class="w-5 h-1.5 bg-violet-500 rounded border border-dashed border-violet-400"></span><span data-i18n="legVirt">虛像</span></div>
+                    <div class="flex items-center gap-2"><span class="w-5 h-1.5 bg-amber-400 rounded"></span><span data-i18n="legRay">特殊光線</span></div>
+                    <div class="flex items-center gap-2"><span class="w-5 h-1.5 bg-amber-200 rounded border border-dashed border-amber-300"></span><span data-i18n="legVirtRay">虛像延長線</span></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                <h3 class="font-black text-blue-800 text-sm mb-3" data-i18n="calcTitle">透鏡公式計算</h3>
+                <div id="calc-steps" class="mj-calc"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-500 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">透鏡成像原理</h2>
+                    <p class="text-xs text-blue-100" data-i18n="modalSub">Lens formula and ray diagrams</p>
+                </div>
+                <button type="button" class="modal-close w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                    <h3 class="font-bold text-blue-900 mb-1" data-i18n="m1t">1. 三條特殊光線（凸透鏡）</h3>
+                    <ul class="text-xs text-slate-600 space-y-2 mt-2">
+                        <li><strong data-i18n="ray1Name">平行光：</strong><span data-i18n="ray1Desc">平行主軸入射，折射後通過像方焦點 F。</span></li>
+                        <li><strong data-i18n="ray2Name">光心光：</strong><span data-i18n="ray2Desc">通過光心 O，方向不變。</span></li>
+                        <li><strong data-i18n="ray3Name">焦點光：</strong><span data-i18n="ray3Desc">通過物方焦點 F′，折射後平行主軸射出。</span></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 透鏡公式與符號</h3>
+                    <div class="mj-box">\( \dfrac{1}{f} = \dfrac{1}{u} + \dfrac{1}{v} \qquad m = -\dfrac{v}{u} = \dfrac{h_i}{h_o} \)</div>
+                    <p class="text-xs text-slate-500 mt-2" data-i18n="m2d">實物 u &gt; 0；實像 v &gt; 0、虛像 v &lt; 0；凸透鏡 f &gt; 0、凹透鏡 f &lt; 0。放大率 m 為負代表倒立。</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+                        <h4 class="font-bold text-indigo-800 mb-1" data-i18n="m3t">凸透鏡六種情況</h4>
+                        <p data-i18n="m3d">u &gt; 2f 縮小實像；u = 2f 等大實像；f &lt; u &lt; 2f 放大實像；u = f 光線平行不成像；u &lt; f 放大正立虛像。</p>
+                    </div>
+                    <div class="bg-violet-50 p-3 rounded-xl border border-violet-100">
+                        <h4 class="font-bold text-violet-800 mb-1" data-i18n="m4t">凹透鏡</h4>
+                        <p data-i18n="m4d">物體無論在何處，凹透鏡恆形成縮小、正立、虛像；常見於近視眼鏡。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" class="modal-close px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" class="steps-close w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <ol class="space-y-3 text-sm text-slate-700">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="step1">選「u &gt; 2f」預設，觀察三條黃色特殊光線交於右側，形成縮小倒立實像（橙色箭矢）。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="step2">依次切換 u = 2f、f &lt; u &lt; 2f、u = f、u &lt; f，比較像的大小、正倒與實虛；u = f 時光線平行、無像。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="step3">拖曳紅色物體或拉動 u 滑桿，對照下方 v、m 與透鏡公式計算步驟是否一致。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="step4">改選凹透鏡：虛像（紫色虛線箭矢）恆在透鏡左側同側，且縮小正立；比較與凸透鏡 u &lt; f 的異同。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" class="steps-close px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-cases" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="cases-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-indigo-600 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="cases-title" class="text-lg font-bold" data-i18n="casesTitle">透鏡成像列表</h2>
+                <button type="button" class="cases-close w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-5 text-sm">
+                <div>
+                    <h3 class="font-bold text-blue-600 mb-2 border-b pb-2" data-i18n="convexCasesTitle">凸透鏡成像</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs case-table">
+                            <thead><tr><th data-i18n="thObjPos">物距 u</th><th data-i18n="thImgNature">成像性質</th><th data-i18n="thApp">應用</th></tr></thead>
+                            <tbody class="text-slate-700">
+                                <tr><td>u = ∞</td><td data-i18n="case1Nature">點狀實像（焦點）</td><td data-i18n="case1App">聚光</td></tr>
+                                <tr><td>u &gt; 2f</td><td data-i18n="case2Nature">縮小、倒立、實像</td><td data-i18n="case2App">相機、眼睛</td></tr>
+                                <tr><td>u = 2f</td><td data-i18n="case3Nature">等大、倒立、實像</td><td data-i18n="case3App">影印機 1:1</td></tr>
+                                <tr><td>f &lt; u &lt; 2f</td><td data-i18n="case4Nature">放大、倒立、實像</td><td data-i18n="case4App">投影機</td></tr>
+                                <tr><td>u = f</td><td data-i18n="case5Nature">不成像</td><td data-i18n="case5App">探照燈</td></tr>
+                                <tr><td>u &lt; f</td><td data-i18n="case6Nature">放大、正立、虛像</td><td data-i18n="case6App">放大鏡</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700">
+                    <h3 class="font-bold text-violet-700 mb-1" data-i18n="concaveCasesTitle">凹透鏡成像</h3>
+                    <p data-i18n="concaveDesc">無論物距，恆為縮小、正立、虛像。</p>
+                    <p class="mt-1 text-slate-500" data-i18n="concaveApp">應用：近視眼鏡</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" class="cases-close px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="px-5 pt-4 flex justify-end shrink-0">
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 text-xs font-semibold" data-i18n="quizShowAnswers">顯示參考答案</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-1 min-h-0">
+                <div id="quiz-list" class="space-y-4 text-sm text-slate-700"></div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const PRESETS = {
+    beyond2f: { lensType: 'convex', f: 100, u: 280, h: 60 },
+    at2f:     { lensType: 'convex', f: 100, u: 200, h: 60 },
+    between:  { lensType: 'convex', f: 100, u: 150, h: 60 },
+    atf:      { lensType: 'convex', f: 100, u: 100, h: 60 },
+    insidef:  { lensType: 'convex', f: 100, u: 60, h: 60 },
+    concave:  { lensType: 'concave', f: 100, u: 200, h: 60 }
+};
+
+const DEFAULT = { ...PRESETS.beyond2f, preset: 'beyond2f' };
+
+const i18n = {
+    zh: {
+        title: '透鏡成像', badge: '物理', subtitle: '透鏡公式、三條特殊光線與凸／凹透鏡成像',
+        btnSteps: '觀察步驟', btnCases: '成像列表', btnPrinciple: '原理解說',
+        controlTitle: '實驗控制', labelLensType: '透鏡種類', convexLens: '凸透鏡', concaveLens: '凹透鏡',
+        presets: '教學情境',
+        preBeyond2f: '① u > 2f：縮小實像（相機）', preAt2f: '② u = 2f：等大實像',
+        preBetween: '③ f < u < 2f：放大實像（投影機）', preAtf: '④ u = f：不成像（探照燈）',
+        preInsidef: '⑤ u < f：放大虛像（放大鏡）', preConcave: '⑥ 凹透鏡：恆為縮小虛像',
+        labelF: '焦距 f', labelU: '物距 u', labelH: '物高 h<sub>o</sub>',
+        btnReset: '重置場景', dragHint: '可拖曳畫面上的紅色箭矢頂端改變物距與物高；接近 f、2f 時會自動對齊標記。',
+        liveTitle: '即時數據', statType: '透鏡', statRegion: '物距區間',
+        imgNature: '成像性質', legObj: '物體', legReal: '實像', legVirt: '虛像', legRay: '特殊光線', legVirtRay: '虛像延長線',
+        calcTitle: '透鏡公式計算',
+        modalTitle: '透鏡成像原理', modalSub: 'Lens formula and ray diagrams', modalClose: '關閉',
+        m1t: '1. 三條特殊光線（凸透鏡）',
+        ray1Name: '平行光：', ray1Desc: '平行主軸入射，折射後通過像方焦點 F。',
+        ray2Name: '光心光：', ray2Desc: '通過光心 O，方向不變。',
+        ray3Name: '焦點光：', ray3Desc: '通過物方焦點 F′，折射後平行主軸射出。',
+        m2t: '2. 透鏡公式與符號',
+        m2d: '實物 u > 0；實像 v > 0、虛像 v < 0；凸透鏡 f > 0、凹透鏡 f < 0。放大率 m 為負代表倒立。',
+        m3t: '凸透鏡六種情況', m3d: 'u > 2f 縮小實像；u = 2f 等大實像；f < u < 2f 放大實像；u = f 光線平行不成像；u < f 放大正立虛像。',
+        m4t: '凹透鏡', m4d: '物體無論在何處，凹透鏡恆形成縮小、正立、虛像；常見於近視眼鏡。',
+        stepsTitle: '觀察步驟',
+        step1: '選「u > 2f」預設，觀察三條黃色特殊光線交於右側，形成縮小倒立實像（橙色箭矢）。',
+        step2: '依次切換 u = 2f、f < u < 2f、u = f、u < f，比較像的大小、正倒與實虛；u = f 時光線平行、無像。',
+        step3: '拖曳紅色物體或拉動 u 滑桿，對照下方 v、m 與透鏡公式計算步驟是否一致。',
+        step4: '改選凹透鏡：虛像（紫色虛線箭矢）恆在透鏡左側同側，且縮小正立；比較與凸透鏡 u < f 的異同。',
+        casesTitle: '透鏡成像列表', convexCasesTitle: '凸透鏡成像', concaveCasesTitle: '凹透鏡成像',
+        thObjPos: '物距 u', thImgNature: '成像性質', thApp: '應用',
+        case1Nature: '點狀實像（焦點）', case1App: '聚光',
+        case2Nature: '縮小、倒立、實像', case2App: '相機、眼睛',
+        case3Nature: '等大、倒立、實像', case3App: '影印機 1:1',
+        case4Nature: '放大、倒立、實像', case4App: '投影機',
+        case5Nature: '不成像', case5App: '探照燈',
+        case6Nature: '放大、正立、虛像', case6App: '放大鏡',
+        concaveDesc: '無論物距，恆為縮小、正立、虛像。', concaveApp: '應用：近視眼鏡',
+        convexShort: '凸', concaveShort: '凹',
+        real: '實像', virtual: '虛像', inverted: '倒立', upright: '正立',
+        magnified: '放大', diminished: '縮小', sameSize: '等大', noImage: '不成像',
+        infinity: '∞', objLabel: '物', imgReal: '像', imgVirt: '虛像',
+        regionBeyond2f: 'u > 2f', regionAt2f: 'u = 2f', regionBetween: 'f < u < 2f',
+        regionAtf: 'u = f', regionInsidef: 'u < f', regionConcave: '凹透鏡',
+        calcS1: '① 代入透鏡公式', calcS2: '② 像距 v', calcS3: '③ 放大率 m',
+        calcNoImage: 'u = f：折射光線平行，無法成清晰像。',
+        btnQuiz: '課堂問題', quizTitle: '課堂問題', quizShowAnswers: '顯示參考答案', quizHideAnswers: '隱藏參考答案', quizRef: '參考答案',
+        quizQ1: '凸透鏡且物距 u > 2f 時，像的性質通常是？',
+        quizQ1a: '縮小、倒立、實像', quizQ1b: '放大、正立、虛像', quizQ1c: '等大、正立、虛像', quizQ1d: '不成像',
+        quizQ1ans: 'u > 2f 時 v 在 f 與 2f 之間，|m| < 1，畫面為橙色倒立實像（預設①）。',
+        quizQ2: '選教學情境「⑤ u < f：放大虛像（放大鏡）」。先預測像距 v 的符號及畫面上像的顏色（橙色實像／紫色虛像），再點預設並對照 val-v 與右上角「成像性質」。',
+        quizQ2ans: 'u < f：v < 0，正立放大虛像，紫色虛線箭矢在物體同側；即時數據 v 為負。',
+        quizQ3: '凸透鏡物距 u = f 時，成像情況是？',
+        quizQ3a: '折射光線平行，不成清晰像', quizQ3b: '放大倒立實像', quizQ3c: '縮小正立虛像', quizQ3d: '等大實像於 2f',
+        quizQ3ans: 'u = f 時折射後光線平行，無實交點；選預設④，status 顯示不成像，公式區提示無像。',
+        quizQ4: '先按「凸透鏡」選 u > 2f 預設，再改按「凹透鏡」。比較像的正倒與大小：凹透鏡所成的像永遠屬哪一類？操作後說明。',
+        quizQ4ans: '凹透鏡恆為縮小、正立、虛像（紫色虛像於同側）；凸透鏡 u > 2f 則為縮小倒立實像。',
+        quizQ5: '依本模擬符號約定，實像的像距 v 通常記為？',
+        quizQ5a: 'v > 0（像於透鏡另一側）', quizQ5b: 'v < 0', quizQ5c: 'v = 0', quizQ5d: '與透鏡種類無關',
+        quizQ5ans: '實像 v > 0、虛像 v < 0；凸透鏡 f > 0、凹透鏡 f < 0。見原理解說與下方計算步驟。'
+    },
+    en: {
+        title: 'Lens Imaging', badge: 'Physics', subtitle: 'Lens formula, special rays, convex & concave images',
+        btnSteps: 'Steps', btnCases: 'Cases', btnPrinciple: 'Theory',
+        controlTitle: 'Controls', labelLensType: 'Lens type', convexLens: 'Convex', concaveLens: 'Concave',
+        presets: 'Teaching presets',
+        preBeyond2f: '① u > 2f: diminished real (camera)', preAt2f: '② u = 2f: same-size real',
+        preBetween: '③ f < u < 2f: magnified real (projector)', preAtf: '④ u = f: no image (spotlight)',
+        preInsidef: '⑤ u < f: magnified virtual (magnifier)', preConcave: '⑥ Concave: always virtual',
+        labelF: 'Focal length f', labelU: 'Object distance u', labelH: 'Object height h<sub>o</sub>',
+        btnReset: 'Reset', dragHint: 'Drag the red arrow tip to change u and h; snaps near f and 2f.',
+        liveTitle: 'Live data', statType: 'Lens', statRegion: 'u region',
+        imgNature: 'Image nature', legObj: 'Object', legReal: 'Real image', legVirt: 'Virtual image',
+        legRay: 'Special rays', legVirtRay: 'Virtual extensions',
+        calcTitle: 'Lens formula',
+        modalTitle: 'Lens imaging', modalSub: 'Lens formula and ray diagrams', modalClose: 'Close',
+        m1t: '1. Three special rays (convex)',
+        ray1Name: 'Parallel:', ray1Desc: 'Parallel to axis, refracts through image-side focus F.',
+        ray2Name: 'Center:', ray2Desc: 'Through optical center O, undeviated.',
+        ray3Name: 'Focal:', ray3Desc: 'Through object-side F′, emerges parallel to axis.',
+        m2t: '2. Formula & sign convention',
+        m2d: 'Real object u > 0; real image v > 0, virtual v < 0; convex f > 0, concave f < 0. Negative m means inverted.',
+        m3t: 'Six convex cases', m3d: 'u > 2f diminished real; u = 2f same size; f < u < 2f magnified real; u = f parallel rays; u < f upright virtual.',
+        m4t: 'Concave lens', m4d: 'Always diminished, upright, virtual; used in myopia glasses.',
+        stepsTitle: 'Observation steps',
+        step1: 'Choose u > 2f: yellow rays meet on the right — diminished inverted real image (orange).',
+        step2: 'Step through u = 2f, between f and 2f, u = f, u < f; at u = f rays are parallel — no image.',
+        step3: 'Drag the object or u slider; check v, m and the calculation steps below.',
+        step4: 'Switch to concave: purple dashed virtual image always on the object side, diminished upright.',
+        casesTitle: 'Imaging cases', convexCasesTitle: 'Convex lens', concaveCasesTitle: 'Concave lens',
+        thObjPos: 'Object u', thImgNature: 'Nature', thApp: 'Application',
+        case1Nature: 'Point at focus', case1App: 'Burning glass',
+        case2Nature: 'Diminished, inverted, real', case2App: 'Camera, eye',
+        case3Nature: 'Same size, inverted, real', case3App: 'Copier 1:1',
+        case4Nature: 'Magnified, inverted, real', case4App: 'Projector',
+        case5Nature: 'No image', case5App: 'Spotlight',
+        case6Nature: 'Magnified, upright, virtual', case6App: 'Magnifying glass',
+        concaveDesc: 'Always diminished, upright, virtual.', concaveApp: 'App: myopia glasses',
+        convexShort: 'Convex', concaveShort: 'Concave',
+        real: 'Real', virtual: 'Virtual', inverted: 'Inverted', upright: 'Upright',
+        magnified: 'Magnified', diminished: 'Diminished', sameSize: 'Same size', noImage: 'No image',
+        infinity: '∞', objLabel: 'Obj', imgReal: 'Img', imgVirt: 'Virt',
+        regionBeyond2f: 'u > 2f', regionAt2f: 'u = 2f', regionBetween: 'f < u < 2f',
+        regionAtf: 'u = f', regionInsidef: 'u < f', regionConcave: 'Concave',
+        calcS1: '① Lens formula', calcS2: '② Image distance v', calcS3: '③ Magnification m',
+        calcNoImage: 'u = f: emergent rays are parallel — no sharp image.',
+        btnQuiz: 'Quiz', quizTitle: 'Classroom Quiz', quizShowAnswers: 'Show reference answers', quizHideAnswers: 'Hide reference answers', quizRef: 'Reference',
+        quizQ1: 'For a convex lens with object distance u > 2f, the image is usually:',
+        quizQ1a: 'Diminished, inverted, real', quizQ1b: 'Magnified, upright, virtual', quizQ1c: 'Same size, upright, virtual', quizQ1d: 'No image',
+        quizQ1ans: 'u > 2f gives f < v < 2f, |m| < 1 — orange inverted real image (preset ①).',
+        quizQ2: 'Choose preset “⑤ u < f (magnifier)”. Predict the sign of v and image colour (orange real / purple virtual), then check val-v and the nature badge.',
+        quizQ2ans: 'u < f: v < 0, upright magnified virtual — purple dashed arrow on the object side; val-v is negative.',
+        quizQ3: 'When u = f for a convex lens:',
+        quizQ3a: 'Refracted rays are parallel — no sharp image', quizQ3b: 'Magnified inverted real', quizQ3c: 'Diminished upright virtual', quizQ3d: 'Same-size real at 2f',
+        quizQ3ans: 'At u = f emergent rays are parallel; preset ④ shows no image and the calc panel says so.',
+        quizQ4: 'Select convex with u > 2f, then switch to concave. Compare orientation and size: a concave image is always:',
+        quizQ4ans: 'Concave: always diminished, upright, virtual (purple, same side); convex u > 2f is diminished inverted real.',
+        quizQ5: 'In this sim’s sign convention, a real image has image distance v:',
+        quizQ5a: 'v > 0 (opposite side of lens)', quizQ5b: 'v < 0', quizQ5c: 'v = 0', quizQ5d: 'Independent of lens type',
+        quizQ5ans: 'Real v > 0, virtual v < 0; convex f > 0, concave f < 0 — see theory modal and calc steps.'
+    }
+};
+
+let lang = 'zh';
+let quizAnswersVisible = false;
+let lastCalcKey = '';
+const state = { ...DEFAULT };
+
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvas-wrap');
+
+const els = {
+    f: document.getElementById('in-f'), u: document.getElementById('in-u'), h: document.getElementById('in-h'),
+    dispF: document.getElementById('disp-f'), dispU: document.getElementById('disp-u'), dispH: document.getElementById('disp-h'),
+    valF: document.getElementById('val-f'), valU: document.getElementById('val-u'), valV: document.getElementById('val-v'),
+    valM: document.getElementById('val-m'), valType: document.getElementById('val-type'), valRegion: document.getElementById('val-region'),
+    uRegion: document.getElementById('u-region'), statusText: document.getElementById('status-text'), statusBox: document.getElementById('status-box'),
+    badgeType: document.getElementById('badge-type'), badgeOrient: document.getElementById('badge-orient'), badgeSize: document.getElementById('badge-size'),
+    calcSteps: document.getElementById('calc-steps'),
+    btnConvex: document.getElementById('btn-convex'), btnConcave: document.getElementById('btn-concave')
+};
+
+function t(k) { return i18n[lang][k] || k; }
+
+function renderQuiz() {
+    const box = document.getElementById('quiz-list');
+    if (!box) return;
+    const mkChoice = (qid) => ['A','B','C','D'].map(L => {
+        const optKey = 'quizQ' + qid.slice(1) + L.toLowerCase();
+        return `<label class="flex items-start gap-2 border border-slate-200 rounded-lg p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-500"><span>${L}. ${t(optKey)}</span></label>`;
+    }).join('');
+    const ans = (n) => quizAnswersVisible
+        ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${t('quizRef')}：</strong> ${t('quizQ' + n + 'ans')}</div>`
+        : '';
+    box.innerHTML = [1, 2, 3, 4, 5].map(n => {
+        const qid = 'q' + n;
+        const open = n === 2 || n === 4;
+        return `<div class="rounded-xl border border-slate-200 p-3">
+            <p class="font-semibold text-rose-800 mb-2">Q${n}. ${t('quizQ' + n)}</p>
+            ${open ? '' : `<div class="grid gap-1.5">${mkChoice(qid)}</div>`}
+            ${ans(n)}
+        </div>`;
+    }).join('');
+    const ansBtn = document.getElementById('btn-quiz-answers');
+    if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t('quizHideAnswers') : t('quizShowAnswers');
+}
+
+function signedF() { return state.lensType === 'convex' ? state.f : -state.f; }
+
+function snapU(u) {
+    const f = state.f;
+    const targets = [f * 0.5, f, f * 1.5, f * 2, f * 3];
+    for (const target of targets) {
+        if (Math.abs(u - target) < 10) return Math.round(target);
+    }
+    return Math.round(u);
+}
+
+function getRegion() {
+    if (state.lensType === 'concave') return t('regionConcave');
+    const f = state.f, u = state.u;
+    if (Math.abs(u - f) < 2) return t('regionAtf');
+    if (Math.abs(u - 2 * f) < 2) return t('regionAt2f');
+    if (u > 2 * f) return t('regionBeyond2f');
+    if (u > f) return t('regionBetween');
+    return t('regionInsidef');
+}
+
+function calculateImage() {
+    const u = state.u, f = signedF();
+    if (state.lensType === 'convex' && Math.abs(u - state.f) < 0.5) {
+        return { v: Infinity, m: Infinity };
+    }
+    const v = (f * u) / (u - f);
+    const m = -v / u;
+    return { v, m };
+}
+
+function syncInputsFromState() {
+    els.f.value = state.f;
+    els.u.max = Math.max(500, Math.round(state.f * 4));
+    els.u.value = state.u;
+    els.h.value = state.h;
+    els.dispF.textContent = `${state.f} mm`;
+    els.dispU.textContent = `${state.u} mm`;
+    els.dispH.textContent = `${state.h} mm`;
+    els.btnConvex.classList.toggle('active', state.lensType === 'convex');
+    els.btnConcave.classList.toggle('active', state.lensType === 'concave');
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === state.preset);
+    });
+}
+
+function applyLanguage() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang][key] != null) el.innerHTML = i18n[lang][key];
+    });
+    renderQuiz();
+    const mjTargets = [document.getElementById('calc-steps')];
+    const mq = document.getElementById('modal-quiz');
+    if (mq && !mq.classList.contains('pointer-events-none')) mjTargets.push(mq);
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise(mjTargets).catch(() => {});
+    render();
+}
+
+function updateCalcSteps(v, m) {
+    const f = signedF();
+    const u = state.u;
+    const key = `${state.lensType}|${f}|${u}|${v}|${m}`;
+    if (key === lastCalcKey) return;
+    lastCalcKey = key;
+
+    if (!isFinite(v)) {
+        els.calcSteps.innerHTML = `<div class="calc-step">${t('calcNoImage')}</div>`;
+        if (window.MathJax?.typesetPromise) MathJax.typesetPromise([els.calcSteps]).catch(() => {});
+        return;
+    }
+
+    const vStr = v.toFixed(1);
+    const mStr = m.toFixed(3);
+    const invV = (1 / f - 1 / u).toFixed(4);
+    els.calcSteps.innerHTML = `
+        <div class="calc-step"><strong>${t('calcS1')}</strong><br>
+            \\( \\dfrac{1}{${f.toFixed(0)}} = \\dfrac{1}{${u}} + \\dfrac{1}{v} \\)</div>
+        <div class="calc-step"><strong>${t('calcS2')}</strong><br>
+            \\( \\dfrac{1}{v} = ${invV} \\Rightarrow v = ${vStr}\\ \\text{mm} \\)</div>
+        <div class="calc-step"><strong>${t('calcS3')}</strong><br>
+            \\( m = -\\dfrac{v}{u} = ${mStr} \\)</div>`;
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise([els.calcSteps]).catch(() => {});
+}
+
+function render() {
+    syncInputsFromState();
+    const { v, m } = calculateImage();
+    const region = getRegion();
+
+    els.valF.textContent = `${state.f} mm`;
+    els.valU.textContent = `${state.u} mm`;
+    els.valType.textContent = state.lensType === 'convex' ? t('convexShort') : t('concaveShort');
+    els.valRegion.textContent = region;
+    els.uRegion.textContent = region;
+
+    if (!isFinite(v)) {
+        els.valV.textContent = t('infinity');
+        els.valM.textContent = t('infinity');
+        els.badgeType.textContent = t('noImage');
+        els.badgeOrient.textContent = '—';
+        els.badgeSize.textContent = '—';
+        els.statusText.textContent = t('noImage');
+        els.statusBox.className = 'p-3 rounded-xl border-2 border-amber-300 bg-amber-50 text-center font-bold text-amber-800';
+    } else {
+        const vDisp = `${v >= 0 ? '+' : ''}${v.toFixed(1)} mm`;
+        els.valV.textContent = vDisp;
+        els.valM.textContent = `${m.toFixed(3)} (${Math.abs(m).toFixed(2)}×)`;
+
+        const typeText = v > 0 ? t('real') : t('virtual');
+        const orientText = m < 0 ? t('inverted') : t('upright');
+        const absM = Math.abs(m);
+        const sizeText = absM > 1.01 ? t('magnified') : (absM < 0.99 ? t('diminished') : t('sameSize'));
+
+        els.badgeType.textContent = typeText;
+        els.badgeOrient.textContent = orientText;
+        els.badgeSize.textContent = sizeText;
+        els.statusText.textContent = `${sizeText} · ${orientText} · ${typeText}`;
+        els.statusBox.className = v > 0
+            ? 'p-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-center font-bold text-emerald-800'
+            : 'p-3 rounded-xl border-2 border-violet-300 bg-violet-50 text-center font-bold text-violet-800';
+    }
+
+    updateCalcSteps(v, m);
+    drawScene(v, m);
+}
+
+function resizeCanvas() {
+    const rect = wrap.getBoundingClientRect();
+    canvas.width = Math.max(320, rect.width);
+    canvas.height = Math.max(280, rect.height);
+    render();
+}
+
+function drawScene(v, m) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const scale = Math.min(1, (canvas.width * 0.42) / Math.max(state.u, state.f * 2.5, Math.abs(isFinite(v) ? v : 0)));
+    const uPx = state.u * scale;
+    const fPx = state.f * scale;
+    const hPx = state.h * scale;
+
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    for (let x = cx % 40; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = cy % 40; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+
+    [cx - 2 * fPx, cx - fPx, cx + fPx, cx + 2 * fPx].forEach(x => {
+        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(x, cy - 100); ctx.lineTo(x, cy + 100); ctx.stroke();
+        ctx.setLineDash([]);
+    });
+
+    drawLens(cx, cy);
+    drawFocusLabels(cx, cy, fPx);
+
+    const objX = cx - uPx;
+    drawArrow(objX, cy, hPx, '#dc2626', t('objLabel'), false);
+
+    if (isFinite(v)) {
+        const imgX = cx + v * scale;
+        const imgH = hPx * m;
+        const isVirt = v < 0;
+        drawArrow(imgX, cy, imgH, isVirt ? '#7c3aed' : '#ea580c', isVirt ? t('imgVirt') : t('imgReal'), isVirt);
+    }
+
+    if (state.lensType === 'convex') drawConvexRays(cx, cy, objX, cy - hPx, fPx, v, m, scale);
+    else drawConcaveRays(cx, cy, objX, cy - hPx, fPx, v, m, scale);
+}
+
+function drawLens(cx, cy) {
+    const h = Math.min(110, canvas.height * 0.38);
+    const w = 14;
+    ctx.fillStyle = 'rgba(147, 197, 253, 0.35)';
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (state.lensType === 'convex') {
+        ctx.moveTo(cx, cy - h);
+        ctx.quadraticCurveTo(cx + w, cy, cx, cy + h);
+        ctx.quadraticCurveTo(cx - w, cy, cx, cy - h);
+    } else {
+        ctx.moveTo(cx - w, cy - h);
+        ctx.lineTo(cx + w, cy - h);
+        ctx.quadraticCurveTo(cx + 4, cy, cx + w, cy + h);
+        ctx.lineTo(cx - w, cy + h);
+        ctx.quadraticCurveTo(cx - 4, cy, cx - w, cy - h);
+    }
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#1e40af';
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = '#1e3a8a';
+    ctx.textAlign = 'left';
+    ctx.fillText('O', cx + 6, cy + 14);
+}
+
+function drawFocusLabels(cx, cy, fPx) {
+    ctx.font = '11px "Noto Sans TC", sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    if (state.lensType === 'convex') {
+        ctx.fillText("F′", cx - fPx, cy + 22);
+        ctx.fillText('F', cx + fPx, cy + 22);
+        ctx.fillText('2F′', cx - 2 * fPx, cy + 22);
+        ctx.fillText('2F', cx + 2 * fPx, cy + 22);
+    } else {
+        ctx.fillText('F', cx - fPx, cy + 22);
+        ctx.fillText("F′", cx + fPx, cy + 22);
+        ctx.fillText('2F', cx - 2 * fPx, cy + 22);
+        ctx.fillText("2F′", cx + 2 * fPx, cy + 22);
+    }
+    ctx.beginPath();
+    [cx - fPx, cx + fPx, cx - 2 * fPx, cx + 2 * fPx].forEach(x => {
+        ctx.moveTo(x, cy - 3); ctx.lineTo(x, cy + 3);
+    });
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+function drawArrow(x, originY, height, color, label, dashed) {
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3;
+    ctx.setLineDash(dashed ? [6, 5] : []);
+    const tipY = originY - height;
+    ctx.beginPath(); ctx.moveTo(x, originY); ctx.lineTo(x, tipY); ctx.stroke();
+    const dir = height >= 0 ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, tipY);
+    ctx.lineTo(x - 6, tipY - 6 * dir);
+    ctx.lineTo(x + 6, tipY - 6 * dir);
+    ctx.closePath(); ctx.fill();
+    ctx.setLineDash([]);
+    ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, originY + (height >= 0 ? 36 : -24));
+}
+
+function drawRay(x1, y1, x2, y2, color, dashed) {
+    if (![x1, y1, x2, y2].every(isFinite)) return;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color; ctx.lineWidth = dashed ? 1.5 : 2;
+    ctx.setLineDash(dashed ? [5, 5] : []);
+    ctx.stroke(); ctx.setLineDash([]);
+    if (!dashed) {
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        const ang = Math.atan2(y2 - y1, x2 - x1);
+        ctx.save(); ctx.translate(mx, my); ctx.rotate(ang);
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-8, -4); ctx.lineTo(-6, 0); ctx.lineTo(-8, 4);
+        ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+}
+
+function drawConvexRays(cx, cy, objX, objY, fPx, v, m, scale) {
+    const ray = '#eab308', virt = '#fcd34d';
+    const far = cx + canvas.width * 2;
+    const imgX = isFinite(v) ? cx + v * scale : null;
+    const imgY = isFinite(v) ? cy - state.h * scale * m : null;
+
+    drawRay(objX, objY, cx, objY, ray, false);
+    const slope1 = (cy - objY) / fPx;
+    drawRay(cx, objY, far, objY + slope1 * (far - cx), ray, false);
+    if (v < 0 && imgX != null) drawRay(cx, objY, imgX, imgY, virt, true);
+
+    const slope2 = (cy - objY) / (cx - objX);
+    drawRay(objX, objY, far, cy + slope2 * (far - cx), ray, false);
+    if (v < 0 && imgX != null) drawRay(cx, cy, imgX, imgY, virt, true);
+
+    if (Math.abs(state.u - state.f) > 1) {
+        const fObjX = cx - fPx;
+        const slope3 = (cy - objY) / (fObjX - objX);
+        const hitY = objY + slope3 * (cx - objX);
+        drawRay(objX, objY, cx, hitY, ray, false);
+        drawRay(cx, hitY, far, hitY, ray, false);
+        if (v < 0) drawRay(cx, hitY, imgX, hitY, virt, true);
+    }
+}
+
+function drawConcaveRays(cx, cy, objX, objY, fPx, v, m, scale) {
+    const ray = '#eab308', virt = '#fcd34d';
+    const far = cx + canvas.width * 2;
+    const imgX = cx + v * scale;
+    const imgY = cy - state.h * scale * m;
+
+    drawRay(objX, objY, cx, objY, ray, false);
+    const slope1 = (objY - cy) / fPx;
+    drawRay(cx, objY, far, objY + slope1 * (far - cx), ray, false);
+    drawRay(cx, objY, cx - fPx, cy, virt, true);
+
+    const slope2 = (cy - objY) / (cx - objX);
+    drawRay(objX, objY, far, cy + slope2 * (far - cx), ray, false);
+
+    const slope3 = (cy - objY) / (cx + fPx - objX);
+    const hitY = objY + slope3 * (cx - objX);
+    drawRay(objX, objY, cx, hitY, ray, false);
+    drawRay(cx, hitY, far, hitY, ray, false);
+    drawRay(cx, hitY, imgX, hitY, virt, true);
+}
+
+function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    Object.assign(state, { ...p, preset: name });
+    render();
+}
+
+function setLensType(type) {
+    state.lensType = type;
+    if (type === 'concave') state.preset = 'concave';
+    else if (state.preset === 'concave') state.preset = 'beyond2f';
+    render();
+}
+
+function openModal(id) {
+    const el = document.getElementById(id);
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+    if ((id === 'modal-principle' || id === 'modal-quiz') && window.MathJax?.typesetPromise) MathJax.typesetPromise([el]).catch(() => {});
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function closeAllModals() {
+    ['modal-principle', 'modal-steps', 'modal-cases', 'modal-quiz'].forEach(closeModal);
+}
+
+document.getElementById('btn-principle').addEventListener('click', () => { closeAllModals(); openModal('modal-principle'); });
+document.getElementById('btn-steps').addEventListener('click', () => { closeAllModals(); openModal('modal-steps'); });
+document.getElementById('btn-cases').addEventListener('click', () => { closeAllModals(); openModal('modal-cases'); });
+document.getElementById('btn-quiz').addEventListener('click', () => { closeAllModals(); renderQuiz(); openModal('modal-quiz'); });
+document.getElementById('btn-quiz-answers').addEventListener('click', () => {
+    quizAnswersVisible = !quizAnswersVisible;
+    renderQuiz();
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise([document.getElementById('modal-quiz')]).catch(() => {});
+});
+document.getElementById('quiz-close').addEventListener('click', () => closeModal('modal-quiz'));
+document.getElementById('quiz-confirm').addEventListener('click', () => closeModal('modal-quiz'));
+document.getElementById('modal-quiz').addEventListener('click', e => { if (e.target.id === 'modal-quiz') closeModal('modal-quiz'); });
+document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', () => closeModal('modal-principle')));
+document.querySelectorAll('.steps-close').forEach(btn => btn.addEventListener('click', () => closeModal('modal-steps')));
+document.querySelectorAll('.cases-close').forEach(btn => btn.addEventListener('click', () => closeModal('modal-cases')));
+['modal-principle', 'modal-steps', 'modal-cases'].forEach(id => {
+    document.getElementById(id).addEventListener('click', e => { if (e.target.id === id) closeModal(id); });
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        const mq = document.getElementById('modal-quiz');
+        if (mq && !mq.classList.contains('pointer-events-none')) { closeModal('modal-quiz'); return; }
+        closeAllModals();
+    }
+});
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    lastCalcKey = '';
+    applyLanguage();
+}
+document.getElementById('btn-lang').addEventListener('click', toggleLang);
+document.getElementById('btn-lang-mobile').addEventListener('click', toggleLang);
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+els.btnConvex.addEventListener('click', () => setLensType('convex'));
+els.btnConcave.addEventListener('click', () => setLensType('concave'));
+
+els.f.addEventListener('input', () => {
+    const ratio = state.u / state.f;
+    state.f = Number(els.f.value);
+    state.u = snapU(Math.round(state.f * ratio));
+    state.preset = null;
+    render();
+});
+els.u.addEventListener('input', () => { state.u = Number(els.u.value); state.preset = null; render(); });
+els.u.addEventListener('change', () => { state.u = snapU(Number(els.u.value)); state.preset = null; render(); });
+els.h.addEventListener('input', () => { state.h = Number(els.h.value); render(); });
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+    Object.assign(state, { ...DEFAULT });
+    lastCalcKey = '';
+    render();
+});
+
+let dragging = false, dragTarget = null;
+
+function ptrXY(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+}
+
+function sceneScale() {
+    return Math.min(1, (canvas.width * 0.42) / Math.max(state.u, state.f * 2.5));
+}
+
+function tryStartDrag(x, y) {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const scale = sceneScale();
+    const objX = cx - state.u * scale;
+    const tipY = cy - state.h * scale;
+    if (Math.hypot(x - objX, y - tipY) < 36) { dragging = true; dragTarget = 'tip'; return true; }
+    if (Math.abs(x - objX) < 36 && Math.abs(y - cy) < 70) { dragging = true; dragTarget = 'base'; return true; }
+    return false;
+}
+
+function dragTo(x, y) {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const scale = sceneScale();
+    let u = (cx - x) / scale;
+    if (u < 15) u = 15;
+    if (dragTarget === 'tip') {
+        let h = (cy - y) / scale;
+        if (h < 15) h = 15;
+        if (h > 140) h = 140;
+        state.h = Math.round(h);
+    }
+    state.u = Math.round(u);
+    state.preset = null;
+    render();
+}
+
+function endDrag() {
+    if (!dragging) return;
+    state.u = snapU(state.u);
+    dragging = false;
+    dragTarget = null;
+    render();
+}
+
+canvas.addEventListener('mousedown', e => {
+    const { x, y } = ptrXY(e.clientX, e.clientY);
+    tryStartDrag(x, y);
+});
+canvas.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    dragTo(...Object.values(ptrXY(e.clientX, e.clientY)));
+});
+canvas.addEventListener('mouseup', endDrag);
+canvas.addEventListener('mouseleave', endDrag);
+canvas.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    const { x, y } = ptrXY(e.touches[0].clientX, e.touches[0].clientY);
+    if (tryStartDrag(x, y) && e.cancelable) e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+    if (!dragging || e.touches.length !== 1) return;
+    if (e.cancelable) e.preventDefault();
+    dragTo(...Object.values(ptrXY(e.touches[0].clientX, e.touches[0].clientY)));
+}, { passive: false });
+canvas.addEventListener('touchend', endDrag);
+canvas.addEventListener('touchcancel', endDrag);
+
+window.addEventListener('resize', resizeCanvas);
+applyLanguage();
+resizeCanvas();
+</script>
+</body>
+</html>

@@ -1,199 +1,390 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pupil Light Reflex Simulation 瞳孔光反射模擬</title>
+    <title>瞳孔光反射模擬｜Pupil Light Reflex Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Microsoft JhengHei', sans-serif;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            margin-bottom: 5px;
-            color: #1a252f;
-            text-align: center;
-        }
-        p.subtitle {
-            margin-top: 0;
-            margin-bottom: 20px;
-            color: #666;
-            font-size: 0.95rem;
-            text-align: center;
-        }
-        #container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            max-width: 950px;
-            width: 100%;
-        }
-        canvas {
+        body { font-family: 'Noto Sans TC', "PingFang TC", "Microsoft JhengHei", 'Segoe UI', sans-serif; }
+        canvas#simCanvas {
             background-color: #000000;
-            border: 1px solid #e1e8ed;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            max-width: 100%;
+            height: auto;
         }
-        .controls {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-        }
-        .slider-container {
-            display: flex;
-            align-items: center;
-            width: 90%;
-            gap: 15px;
-        }
-        .slider-container label {
-            font-weight: 600;
-            color: #334155;
-            width: 240px;
-        }
-        input[type="range"] {
-            flex-grow: 1;
-            height: 6px;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .info-panel {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            width: 100%;
-            margin-top: 5px;
-        }
-        .info-card {
-            background: #ffffff;
-            padding: 12px 15px;
-            border-radius: 6px;
-            border-top: 4px solid #3b82f6;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border-left: 1px solid #e2e8f0;
-            border-right: 1px solid #e2e8f0;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .info-card h4 {
-            margin: 0 0 5px 0;
-            color: #1e293b;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .info-card p {
-            margin: 0;
-            font-size: 1.05em;
-            color: #0f172a;
-            font-weight: 700;
-        }
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 15px;
-            font-size: 0.85em;
-            color: #475569;
-            font-weight: 600;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .color-box {
-            width: 14px;
-            height: 14px;
-            border-radius: 3px;
-        }
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
+        input[type="range"] { width: 100%; height: 6px; cursor: pointer; }
     </style>
 </head>
-<body>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <h1>Pupil Light Reflex Simulation 瞳孔光反射模擬</h1>
-    <p class="subtitle">Adjust light intensity to observe radial muscles, circular muscles, and pupil size changes<br>調整光線強度以觀察放射肌、環狀肌及瞳孔大小的變化</p>
-
-    <div id="container">
-        <div class="legend">
-            <div class="legend-item"><div class="color-box" style="background:#ef4444;"></div> Circular Muscle 環狀肌</div>
-            <div class="legend-item"><div class="color-box" style="background:#2563eb;"></div> Radial Muscle 放射肌</div>
-            <div class="legend-item"><div class="color-box" style="background:#a7f3d0; border: 1px solid #059669;"></div> Iris Structure 虹膜</div>
-            <div class="legend-item"><div class="color-box" style="background:#000000; border: 1px solid #64748b;"></div> Pupil 瞳孔</div>
-            <div class="legend-item"><div class="color-box" style="background:#eab308;"></div> Incident Light 光線</div>
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10 sticky top-0">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white font-bold shrink-0">👁</div>
+            <div class="min-w-0">
+                <h1 id="title" class="text-lg sm:text-xl font-bold text-slate-800 truncate">瞳孔光反射模擬</h1>
+                <p id="subtitle" class="text-xs text-slate-500 truncate max-w-xl">調整光線強度，觀察環狀肌、放射肌與瞳孔大小</p>
+            </div>
+            <span id="badge-subject" class="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">生物</span>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
+        </div>
+    </header>
 
-        <canvas id="simCanvas" width="900" height="480"></canvas>
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <div class="controls">
-            <div class="slider-container">
-                <label for="lightSlider">Light Intensity 光線強度:</label>
-                <input type="range" id="lightSlider" min="0" max="100" value="50">
-                <span id="lightVal" style="font-weight: bold; width: 180px; color: #2563eb;">Medium Intensity 中等光線</span>
+        <section class="order-1 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col items-center w-full">
+            <div class="flex flex-wrap justify-center gap-3 sm:gap-4 mb-3 text-xs text-slate-600 font-semibold">
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#ef4444;"></div><span id="legCircular">環狀肌</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#2563eb;"></div><span id="legRadial">放射肌</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm border border-emerald-600" style="background:#a7f3d0;"></div><span id="legIris">虹膜</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm border border-slate-500" style="background:#000000;"></div><span id="legPupil">瞳孔</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#eab308;"></div><span id="legLight">光線</span></div>
+            </div>
+            <canvas id="simCanvas" width="900" height="480"></canvas>
+        </section>
+
+        <aside class="order-2 lg:col-span-4 w-full flex flex-col gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-md space-y-4">
+                <h2 id="setupHeading" class="text-lg font-bold border-b pb-2 text-slate-700">實驗設定</h2>
+                <div>
+                    <label for="lightSlider" id="labelLight" class="block text-sm font-semibold mb-1.5 text-slate-700">光線強度</label>
+                    <input type="range" id="lightSlider" min="0" max="100" value="50">
+                    <p id="lightVal" class="mt-1 text-sm font-bold text-blue-600">中等光線</p>
+                </div>
+                <p id="hintText" class="text-xs text-slate-500 leading-relaxed">滑桿 0＝弱光；50＝中等；100＝強光。因果：光強 → 環狀肌／放射肌 → 瞳孔大小。</p>
+                <button type="button" id="btn-reset-panel" onclick="resetAll()" class="w-full py-2.5 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">重置</button>
             </div>
 
-            <div class="info-panel">
-                <div class="info-card">
-                    <h4>Circular Muscle<br>環狀肌</h4>
-                    <p id="circularStatus">Relaxed 鬆弛</p>
+            <div class="bg-white p-4 rounded-xl shadow-md space-y-3">
+                <div class="rounded-lg border border-slate-200 border-t-4 border-t-red-500 p-3">
+                    <h4 id="cardCircularTitle" class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">環狀肌</h4>
+                    <p id="circularStatus" class="text-sm font-bold"></p>
                 </div>
-                <div class="info-card">
-                    <h4>Radial Muscle<br>放射肌</h4>
-                    <p id="radialStatus">Relaxed 鬆弛</p>
+                <div class="rounded-lg border border-slate-200 border-t-4 border-t-blue-500 p-3">
+                    <h4 id="cardRadialTitle" class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">放射肌</h4>
+                    <p id="radialStatus" class="text-sm font-bold"></p>
                 </div>
-                <div class="info-card">
-                    <h4>Pupil State<br>瞳孔狀態</h4>
-                    <p id="pupilStatus">Normal 直徑正常</p>
+                <div class="rounded-lg border border-slate-200 border-t-4 border-t-slate-700 p-3">
+                    <h4 id="cardPupilTitle" class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">瞳孔狀態</h4>
+                    <p id="pupilStatus" class="text-sm font-bold"></p>
                 </div>
             </div>
+        </aside>
+    </main>
+
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
         </div>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-teal-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
     </div>
 
     <script>
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalCloseTimers = {};
+
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const slider = document.getElementById('lightSlider');
-
         const lightValLabel = document.getElementById('lightVal');
         const circularStatus = document.getElementById('circularStatus');
         const radialStatus = document.getElementById('radialStatus');
         const pupilStatus = document.getElementById('pupilStatus');
 
+        function t() { return i18n[currentLang] || i18n.zh; }
+
+        const i18n = {
+            zh: {
+                langBtn: '中 / EN',
+                title: '瞳孔光反射模擬',
+                subtitle: '調整光線強度，觀察環狀肌、放射肌與瞳孔大小',
+                badge: '生物',
+                btnSteps: '觀察步驟',
+                btnPrinciple: '原理解說',
+                btnQuiz: '課堂問題',
+                btnReset: '重置',
+                setupHeading: '實驗設定',
+                labelLight: '光線強度',
+                hintText: '滑桿 0＝弱光；50＝中等；100＝強光。因果：光強 → 環狀肌／放射肌 → 瞳孔大小。',
+                cardCircularTitle: '環狀肌',
+                cardRadialTitle: '放射肌',
+                cardPupilTitle: '瞳孔狀態',
+                legCircular: '環狀肌',
+                legRadial: '放射肌',
+                legIris: '虹膜',
+                legPupil: '瞳孔',
+                legLight: '光線',
+                panelAnterior: '正面圖',
+                panelSide: '側面剖面圖',
+                labelCornea: '角膜',
+                labelLens: '晶體',
+                lightDim: '弱光',
+                lightMedium: '中等光線',
+                lightBright: '強光',
+                muscleRelaxed: '鬆弛',
+                muscleContracted: '收縮',
+                muscleModerate: '適中',
+                pupilDilated: '擴張',
+                pupilNormal: '直徑正常',
+                pupilConstricted: '縮小',
+                stepsTitle: '觀察步驟',
+                principleTitle: '原理解說',
+                quizTitle: '課堂問題',
+                showAns: '顯示參考答案',
+                hideAns: '隱藏參考答案',
+                steps: [
+                    { t: '步驟 1｜重置＋認識中等起點', b: '按頁首<strong>重置</strong>（滑桿應回 <strong>50</strong>／中等光線；瞳孔「直徑正常」；環狀與放射皆「適中」；<strong>語言不變</strong>）。看左正面圖的黑瞳孔與右剖面的入射光線。確認本模擬主控件是<strong>光線強度</strong>，不是物件距離或矯正鏡。' },
+                    { t: '步驟 2｜弱光 → 擴瞳', b: '把滑桿慢慢拖到<strong>弱光</strong>區（約 0–34，使 factor &lt; 0.35）。觀察：（1）瞳孔<strong>變大（擴張）</strong>；（2）藍色<strong>放射肌</strong>線變粗、紅色<strong>環狀肌</strong>線變細；（3）info-card：放射＝<strong>收縮</strong>、環狀＝<strong>鬆弛</strong>、瞳孔＝<strong>擴張</strong>；（4）剖面穿過瞳孔的光線開口變大。' },
+                    { t: '步驟 3｜強光 → 縮瞳', b: '再拖到<strong>強光</strong>區（約 66–100，factor &gt; 0.65）。觀察：瞳孔<strong>縮小</strong>；環狀肌線變粗、放射肌變細；info-card：環狀＝<strong>收縮</strong>、放射＝<strong>鬆弛</strong>、瞳孔＝<strong>縮小</strong>；剖面被虹膜擋住的光線變多、穿過瞳孔的變少／更亮背景。' },
+                    { t: '步驟 4｜對照＋Reset＋主題範圍', b: '用自己的話對照：<strong>強光＝環狀收縮＋瞳孔縮小</strong>；<strong>弱光＝放射收縮＋瞳孔擴張</strong>。再按頁首<strong>重置</strong>：回中等；<strong>語言不變</strong>。打開原理解說與課堂問題——確認主軸是瞳孔對光反射，不是睫狀肌調節或近視遠視矯正。' }
+                ],
+                conceptTitle: '概念',
+                concept: '<strong>瞳孔對光反射</strong>是指當環境光線變強或變弱時，虹膜內的平滑肌自動改變<strong>瞳孔大小</strong>，以調節進入眼球的光量。這是一種保護視網膜、並幫助在不同亮度下看清景物的反射。本模擬用滑桿改變光強，並以正面與剖面雙視圖展示<strong>環狀肌、放射肌與瞳孔</strong>的聯動。',
+                mechTitle: '機制',
+                mech: [
+                    '<strong>強光</strong>：視網膜感光增強後（課堂層次：光強↑），<strong>環狀肌（括約肌）收縮</strong>、<strong>放射肌鬆弛</strong> → 瞳孔<strong>縮小（miosis／constriction）</strong> → 進光減少。',
+                    '<strong>弱光</strong>：<strong>環狀肌鬆弛</strong>、<strong>放射肌收縮</strong> → 瞳孔<strong>擴大（mydriasis／dilation）</strong> → 進光增加。',
+                    '<strong>拮抗</strong>：兩組肌肉作用相反；本模擬用線寬／色塊厚度示意哪一組正在「用力」。',
+                    '<strong>雙視圖</strong>：正面看瞳孔直徑與肌纖維；剖面看虹膜瓣開合與哪些光線能穿過瞳孔。',
+                    '<strong>範圍</strong>：本檔是課堂 2D 示意，數值閾值（0.35／0.65）為教學分段，非臨床瞳孔測量。本檔<strong>不是</strong>睫狀肌／晶體調節（human-eye-accommodation），<strong>不是</strong>近視／遠視與鏡片矯正（eye-defects-correction）。真實反射尚涉及自主神經通路，課堂可不考核名稱。'
+                ],
+                egTitle: '日常例子',
+                eg: '從暗室走到陽光下會感到刺眼、過一會兒瞳孔縮小；醫生檢查時用手電筒照一眼，兩眼瞳孔都會縮小（對光反應）——都是生活中可見的瞳孔對光反射。'
+            },
+            en: {
+                langBtn: '中 / EN',
+                title: 'Pupil Light Reflex Simulation',
+                subtitle: 'Adjust light intensity to watch circular／radial muscles and pupil size',
+                badge: 'Biology',
+                btnSteps: 'Steps',
+                btnPrinciple: 'Principles',
+                btnQuiz: 'Quiz',
+                btnReset: 'Reset',
+                setupHeading: 'Setup',
+                labelLight: 'Light intensity',
+                hintText: 'Slider 0＝Dim; 50＝Medium; 100＝Bright. Chain: light → circular／radial muscles → pupil size.',
+                cardCircularTitle: 'Circular muscle',
+                cardRadialTitle: 'Radial muscle',
+                cardPupilTitle: 'Pupil state',
+                legCircular: 'Circular muscle',
+                legRadial: 'Radial muscle',
+                legIris: 'Iris',
+                legPupil: 'Pupil',
+                legLight: 'Incident light',
+                panelAnterior: 'Anterior (front) view',
+                panelSide: 'Cross-sectional view',
+                labelCornea: 'Cornea',
+                labelLens: 'Lens',
+                lightDim: 'Dim light',
+                lightMedium: 'Medium light',
+                lightBright: 'Bright light',
+                muscleRelaxed: 'Relaxed',
+                muscleContracted: 'Contracted',
+                muscleModerate: 'Moderate',
+                pupilDilated: 'Dilated',
+                pupilNormal: 'Normal',
+                pupilConstricted: 'Constricted',
+                stepsTitle: 'Observation steps',
+                principleTitle: 'Principles',
+                quizTitle: 'Quiz',
+                showAns: 'Show answers',
+                hideAns: 'Hide answers',
+                steps: [
+                    { t: 'Step 1｜Reset + medium start', b: 'Header <strong>Reset</strong> (slider back to <strong>50</strong>／medium light; pupil “Normal”; both muscles “Moderate”; <strong>language unchanged</strong>). Note the front-view pupil and side-view rays. Confirm the main control is <strong>light intensity</strong>, not object distance or corrective lenses.' },
+                    { t: 'Step 2｜Dim → dilation', b: 'Drag toward <strong>dim</strong> (about 0–34 so factor &lt; 0.35). Watch: (1) pupil <strong>dilates</strong>; (2) blue <strong>radial</strong> lines thicken, red <strong>circular</strong> lines thin; (3) cards: radial <strong>Contracted</strong>, circular <strong>Relaxed</strong>, pupil <strong>Dilated</strong>; (4) side-view opening through the pupil widens.' },
+                    { t: 'Step 3｜Bright → constriction', b: 'Drag to <strong>bright</strong> (about 66–100, factor &gt; 0.65). Watch pupil <strong>constrict</strong>; circular lines thicken, radial thin; cards: circular <strong>Contracted</strong>, radial <strong>Relaxed</strong>, pupil <strong>Constricted</strong>; more side rays blocked by iris.' },
+                    { t: 'Step 4｜Contrast + Reset + scope', b: 'Contrast: <strong>Bright＝circular contracts＋pupil constricts</strong>; <strong>Dim＝radial contracts＋pupil dilates</strong>. Header <strong>Reset</strong> again: back to medium; <strong>language unchanged</strong>. Open Principles／Quiz—focus is pupil light reflex, not ciliary accommodation or myopia／hyperopia correction.' }
+                ],
+                conceptTitle: 'Concept',
+                concept: 'The <strong>pupil light reflex</strong> automatically changes <strong>pupil size</strong> when light gets brighter or dimmer, controlling how much light enters the eye. This sim links a light-intensity slider to <strong>circular muscle, radial muscle, and pupil diameter</strong> in front and side views.',
+                mechTitle: 'Mechanism',
+                mech: [
+                    '<strong>Bright light</strong>: <strong>circular (sphincter) contracts</strong>, <strong>radial relaxes</strong> → pupil <strong>constricts</strong> → less light in.',
+                    '<strong>Dim light</strong>: <strong>circular relaxes</strong>, <strong>radial contracts</strong> → pupil <strong>dilates</strong> → more light in.',
+                    '<strong>Antagonism</strong>: the two muscle sets work oppositely; line thickness in this sim is a classroom cue for which set is “active.”',
+                    '<strong>Two views</strong>: front = pupil size／fibers; side = iris flaps and which rays pass the pupil.',
+                    '<strong>Scope</strong>: schematic thresholds (0.35／0.65), not clinical metrics—<strong>not</strong> ciliary accommodation (human-eye-accommodation), <strong>not</strong> myopia／hyperopia with lenses (eye-defects-correction). Autonomic pathways exist but need not be named for this class focus.'
+                ],
+                egTitle: 'Everyday example',
+                eg: 'Stepping from a dark room into sunlight (pupils constrict) and a doctor’s torch test (both pupils constrict) are everyday pupil light reflexes.'
+            }
+        };
+
+        const QUIZ = [
+            {
+                q: {
+                    zh: '重置後，把光線強度滑桿拖到弱光區（約低於 35）。此時 info-card 與舞台最合理的組合是？',
+                    en: 'After Reset, drag the light slider into the dim zone (about below 35). Which combination best matches the cards and stage?'
+                },
+                choices: [
+                    { zh: '環狀肌鬆弛、放射肌收縮、瞳孔擴張', en: 'Circular relaxed, radial contracted, pupil dilated' },
+                    { zh: '環狀肌收縮、放射肌鬆弛、瞳孔縮小', en: 'Circular contracted, radial relaxed, pupil constricted' },
+                    { zh: '睫狀肌收縮、晶體變厚', en: 'Ciliary muscle contracts, lens thickens' },
+                    { zh: '自動換成凹透鏡矯正近視', en: 'Automatically switches to a concave lens for myopia' }
+                ],
+                ans: 0,
+                explain: {
+                    zh: 'A。對應 factor < 0.35 分支；B 是強光；C／D 屬 sibling 主題。',
+                    en: 'A. Matches factor < 0.35; B is bright; C／D are sibling topics.'
+                }
+            },
+            {
+                q: {
+                    zh: '把滑桿拖到強光區（約高於 65）。觀察正面瞳孔與 info-card。哪項正確？',
+                    en: 'Drag the slider into the bright zone (about above 65). Watch the front pupil and cards. Which is correct?'
+                },
+                choices: null,
+                ans: null,
+                explain: {
+                    zh: 'A。對應 factor > 0.65；B 是弱光；C／D 屬調節／近視。',
+                    en: 'A. Matches factor > 0.65; B is dim; C／D are accommodation／myopia.'
+                }
+            },
+            {
+                q: {
+                    zh: '先設為弱光（瞳孔擴張），再慢慢拖向強光，直到瞳孔明顯縮小。關於環狀肌與放射肌，哪項最符合本模擬？',
+                    en: 'Start in dim (dilated), then slowly drag toward bright until the pupil clearly constricts. Which best matches this sim about the two iris muscles?'
+                },
+                choices: [
+                    { zh: '兩組肌肉拮抗：強光時環狀收縮而放射鬆弛；弱光時相反', en: 'They are antagonistic: in bright light circular contracts and radial relaxes; the reverse in dim light' },
+                    { zh: '兩組肌肉永遠同時收縮、永遠同時鬆弛', en: 'Both always contract together and always relax together' },
+                    { zh: '只有睫狀肌會改變，虹膜肌肉不變', en: 'Only the ciliary muscle changes; iris muscles stay fixed' },
+                    { zh: '肌肉狀態只由矯正鏡片類型決定', en: 'Muscle state is decided only by corrective-lens type' }
+                ],
+                ans: 0,
+                explain: {
+                    zh: 'A。對應線寬與三分 UI；B 否認拮抗；C／D 混入 sibling。',
+                    en: 'A. Matches line width and three-band UI; B denies antagonism; C／D mix in siblings.'
+                }
+            },
+            {
+                q: {
+                    zh: '先把滑桿拖到強光或弱光任一端，再按頁首重置。用自己的話寫：（1）重置後滑桿／瞳孔／肌肉狀態應如何（本設計預期）；（2）重置會不會切換中／EN。',
+                    en: 'Drag the slider to either bright or dim extreme, then press header Reset. In your own words: (1) expected slider／pupil／muscle state after Reset; (2) whether Reset switches zh／EN.'
+                },
+                choices: null,
+                ans: null,
+                explain: {
+                    zh: '（1）滑桿回 50、中等光線、瞳孔「直徑正常」、環狀與放射皆「適中」；（2）不切換語言。',
+                    en: '(1) Slider back to 50, medium light, pupil “Normal”, both muscles “Moderate”; (2) Reset must not switch language.'
+                }
+            },
+            {
+                q: {
+                    zh: '根據本模擬控件與設計，哪項最正確？',
+                    en: 'Using this sim’s controls and design, which is most correct?'
+                },
+                choices: [
+                    { zh: '以光線強度滑桿驅動環狀肌／放射肌／瞳孔大小，並有步驟／原理／五題／中EN／重置——主軸是瞳孔對光反射，不是睫狀肌調節或近視遠視矯正', en: 'A light-intensity slider drives circular／radial muscles and pupil size, with steps／principle／five quiz items／zh-EN／Reset—focus pupil light reflex, not ciliary accommodation or myopia／hyperopia correction' },
+                    { zh: '主要控件是物件距離與晶體厚度', en: 'Main controls are object distance and lens thickness' },
+                    { zh: '重置會強制改成英文並進入遠視＋凸透鏡模式', en: 'Reset always switches to English and enters hyperopia＋convex-lens mode' },
+                    { zh: '必須先選近視／遠視才能調光強', en: 'You must choose myopia／hyperopia before adjusting light intensity' }
+                ],
+                ans: 0,
+                explain: {
+                    zh: 'A。隔離 human-eye-accommodation／eye-defects-correction；Reset 不改語言、不改主題。',
+                    en: 'A. Isolates sibling sims; Reset does not change language or theme.'
+                }
+            }
+        ];
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Intensity factor: 0 (Dim / Dark) to 1 (Bright)
+            const tt = t();
             const factor = slider.value / 100;
 
-            // --- 0. BACKGROUND LIGHTING EFFECT ---
             const bgAlpha = 0.05 + factor * 0.45;
-            ctx.fillStyle = `rgba(255, 253, 208, ${bgAlpha})`;
+            ctx.fillStyle = 'rgba(255, 253, 208, ' + bgAlpha + ')';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Pupil radius calculation
             const maxPupilR = 98;
             const minPupilR = 28;
             const pupilRadius = maxPupilR - (factor * (maxPupilR - minPupilR));
             const outerIrisRadius = 135;
 
-            // --- 1. VIEW PANELS DIVIDER ---
             ctx.strokeStyle = '#e2e8f0';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -201,20 +392,15 @@
             ctx.lineTo(450, 460);
             ctx.stroke();
 
-            // Panel Titles
             ctx.fillStyle = '#1e293b';
-            ctx.font = 'bold 15px Segoe UI, Microsoft JhengHei, Arial';
+            ctx.font = 'bold 15px "Noto Sans TC", "Microsoft JhengHei", Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('Anterior View (Front View 正面圖)', 225, 40);
-            ctx.fillText('Cross-Sectional View (側面剖面圖)', 675, 40);
+            ctx.fillText(tt.panelAnterior, 225, 40);
+            ctx.fillText(tt.panelSide, 675, 40);
 
-            // =========================================================
-            // LEFT PANEL: FRONT VIEW OF IRIS & PUPIL
-            // =========================================================
             const cx = 225;
             const cy = 250;
 
-            // Sclera / Eye Background Outer Limit
             ctx.beginPath();
             ctx.arc(cx, cy, outerIrisRadius + 20, 0, Math.PI * 2);
             ctx.fillStyle = '#f8fafc';
@@ -223,19 +409,17 @@
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // Lighter Iris Base Background
             ctx.beginPath();
             ctx.arc(cx, cy, outerIrisRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#a7f3d0'; 
+            ctx.fillStyle = '#a7f3d0';
             ctx.fill();
             ctx.strokeStyle = '#059669';
             ctx.lineWidth = 2.5;
             ctx.stroke();
 
-            // RADIAL MUSCLES (Radiating Fibers)
             const numSpokes = 32;
-            const radialLineWidth = 1.5 + (1 - factor) * 2.5; 
-            ctx.strokeStyle = '#2563eb'; 
+            const radialLineWidth = 1.5 + (1 - factor) * 2.5;
+            ctx.strokeStyle = '#2563eb';
             ctx.lineWidth = radialLineWidth;
 
             for (let i = 0; i < numSpokes; i++) {
@@ -244,17 +428,15 @@
                 const innerY = cy + pupilRadius * Math.sin(angle);
                 const outerX = cx + outerIrisRadius * Math.cos(angle);
                 const outerY = cy + outerIrisRadius * Math.sin(angle);
-
                 ctx.beginPath();
                 ctx.moveTo(innerX, innerY);
                 ctx.lineTo(outerX, outerY);
                 ctx.stroke();
             }
 
-            // CIRCULAR MUSCLES (Concentric Rings near Pupil Edge)
             const circularRings = 4;
-            const circularLineWidth = 1.5 + (factor * 3.5); 
-            ctx.strokeStyle = '#ef4444'; 
+            const circularLineWidth = 1.5 + (factor * 3.5);
+            ctx.strokeStyle = '#ef4444';
 
             for (let r = 0; r < circularRings; r++) {
                 const ringRadius = pupilRadius + 6 + (r * 7);
@@ -266,7 +448,6 @@
                 }
             }
 
-            // PUPIL (Center Hole)
             ctx.beginPath();
             ctx.arc(cx, cy, pupilRadius, 0, Math.PI * 2);
             ctx.fillStyle = '#000000';
@@ -275,36 +456,27 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Light Reflection Glint on Pupil
             ctx.beginPath();
             ctx.arc(cx - pupilRadius * 0.3, cy - pupilRadius * 0.3, Math.max(3, pupilRadius * 0.15), 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.fill();
 
-
-            // =========================================================
-            // RIGHT PANEL: CROSS-SECTIONAL SIDE VIEW
-            // =========================================================
             const rx = 675;
             const ry = 250;
 
-            // Incoming Light Rays
             const lightRayCount = 7;
             const raySpread = 160;
-            ctx.strokeStyle = `rgba(234, 179, 8, ${0.2 + factor * 0.75})`;
+            ctx.strokeStyle = 'rgba(234, 179, 8, ' + (0.2 + factor * 0.75) + ')';
             ctx.lineWidth = 1 + factor * 2.5;
 
             for (let i = 0; i < lightRayCount; i++) {
                 const startY = ry - (raySpread / 2) + (i * (raySpread / (lightRayCount - 1)));
-                
-                // Rays entering through pupil opening
                 if (Math.abs(startY - ry) <= pupilRadius) {
                     ctx.beginPath();
                     ctx.moveTo(rx - 180, startY);
                     ctx.lineTo(rx + 140, startY);
                     ctx.stroke();
                 } else {
-                    // Rays blocked by Iris
                     ctx.beginPath();
                     ctx.moveTo(rx - 180, startY);
                     ctx.lineTo(rx - 30, startY);
@@ -312,7 +484,6 @@
                 }
             }
 
-            // CORNEA
             ctx.beginPath();
             ctx.arc(rx - 100, ry, 120, -Math.PI * 0.3, Math.PI * 0.3);
             ctx.strokeStyle = '#38bdf8';
@@ -320,10 +491,9 @@
             ctx.stroke();
 
             ctx.fillStyle = '#0284c7';
-            ctx.font = 'bold 11px Segoe UI, Microsoft JhengHei, Arial';
-            ctx.fillText('Cornea 角膜', rx - 100, ry - 110);
+            ctx.font = 'bold 11px "Noto Sans TC", "Microsoft JhengHei", Arial';
+            ctx.fillText(tt.labelCornea, rx - 100, ry - 110);
 
-            // LENS
             ctx.beginPath();
             ctx.ellipse(rx + 10, ry, 18, 65, 0, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(186, 230, 253, 0.7)';
@@ -333,28 +503,22 @@
             ctx.stroke();
 
             ctx.fillStyle = '#0284c7';
-            ctx.fillText('Lens 晶體', rx + 10, ry - 75);
+            ctx.fillText(tt.labelLens, rx + 10, ry - 75);
 
-            // UPPER & LOWER IRIS FLAPS IN SIDE VIEW
             const upperIrisTopY = ry - outerIrisRadius;
             const upperIrisBottomY = ry - pupilRadius;
-
             const lowerIrisTopY = ry + pupilRadius;
             const lowerIrisBottomY = ry + outerIrisRadius;
 
-            // Draw Upper Iris Flap
             drawIrisFlap(rx - 30, upperIrisTopY, upperIrisBottomY, factor);
-            // Draw Lower Iris Flap
             drawIrisFlap(rx - 30, lowerIrisTopY, lowerIrisBottomY, factor);
 
-            // --- UPDATE INTERFACE STATUS DISPLAY ---
             updateUI(factor);
         }
 
         function drawIrisFlap(x, startY, endY, factor) {
             const width = 24;
 
-            // Lighter Iris Structure Tissue
             ctx.beginPath();
             ctx.fillStyle = '#a7f3d0';
             ctx.strokeStyle = '#059669';
@@ -363,7 +527,6 @@
             ctx.fill();
             ctx.stroke();
 
-            // Circular Muscle Block (Sphincter) near pupil edge
             const cmHeight = 12 + factor * 8;
             const cmY = (startY < endY) ? endY - cmHeight : startY;
 
@@ -375,7 +538,6 @@
             ctx.fill();
             ctx.stroke();
 
-            // Radial Muscle Line along length of iris
             ctx.strokeStyle = '#2563eb';
             ctx.lineWidth = 2 + (1 - factor) * 2;
             ctx.beginPath();
@@ -385,50 +547,181 @@
         }
 
         function updateUI(factor) {
+            const tt = t();
             if (factor < 0.35) {
-                // Dim Light State
-                lightValLabel.innerText = "Dim Light 弱光";
-                lightValLabel.style.color = "#d97706";
-
-                circularStatus.innerText = "Relaxed 鬆弛";
-                circularStatus.style.color = "#16a34a";
-
-                radialStatus.innerText = "Contracted 收縮";
-                radialStatus.style.color = "#dc2626";
-
-                pupilStatus.innerText = "Dilated 擴張";
-                pupilStatus.style.color = "#2563eb";
+                lightValLabel.innerText = tt.lightDim;
+                lightValLabel.style.color = '#d97706';
+                circularStatus.innerText = tt.muscleRelaxed;
+                circularStatus.style.color = '#16a34a';
+                radialStatus.innerText = tt.muscleContracted;
+                radialStatus.style.color = '#dc2626';
+                pupilStatus.innerText = tt.pupilDilated;
+                pupilStatus.style.color = '#2563eb';
             } else if (factor > 0.65) {
-                // Bright Light State
-                lightValLabel.innerText = "Bright Light 強光";
-                lightValLabel.style.color = "#ea580c";
-
-                circularStatus.innerText = "Contracted 收縮";
-                circularStatus.style.color = "#dc2626";
-
-                radialStatus.innerText = "Relaxed 鬆弛";
-                radialStatus.style.color = "#16a34a";
-
-                pupilStatus.innerText = "Constricted 縮小";
-                pupilStatus.style.color = "#2563eb";
+                lightValLabel.innerText = tt.lightBright;
+                lightValLabel.style.color = '#ea580c';
+                circularStatus.innerText = tt.muscleContracted;
+                circularStatus.style.color = '#dc2626';
+                radialStatus.innerText = tt.muscleRelaxed;
+                radialStatus.style.color = '#16a34a';
+                pupilStatus.innerText = tt.pupilConstricted;
+                pupilStatus.style.color = '#2563eb';
             } else {
-                // Medium Light State
-                lightValLabel.innerText = "Medium Light 中等光線";
-                lightValLabel.style.color = "#2563eb";
-
-                circularStatus.innerText = "Moderate 適中";
-                circularStatus.style.color = "#475569";
-
-                radialStatus.innerText = "Moderate 適中";
-                radialStatus.style.color = "#475569";
-
-                pupilStatus.innerText = "Normal 直徑正常";
-                pupilStatus.style.color = "#2563eb";
+                lightValLabel.innerText = tt.lightMedium;
+                lightValLabel.style.color = '#2563eb';
+                circularStatus.innerText = tt.muscleModerate;
+                circularStatus.style.color = '#475569';
+                radialStatus.innerText = tt.muscleModerate;
+                radialStatus.style.color = '#475569';
+                pupilStatus.innerText = tt.pupilNormal;
+                pupilStatus.style.color = '#2563eb';
             }
         }
 
+        function applyLanguage() {
+            const tt = t();
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+            document.title = currentLang === 'zh'
+                ? '瞳孔光反射模擬｜Pupil Light Reflex Simulation'
+                : 'Pupil Light Reflex Simulation｜瞳孔光反射模擬';
+            document.getElementById('btn-lang').textContent = tt.langBtn;
+            document.getElementById('title').textContent = tt.title;
+            document.getElementById('subtitle').textContent = tt.subtitle;
+            document.getElementById('badge-subject').textContent = tt.badge;
+            document.getElementById('btn-steps').textContent = tt.btnSteps;
+            document.getElementById('btn-principle').textContent = tt.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = tt.btnQuiz;
+            document.getElementById('btn-reset').textContent = tt.btnReset;
+            document.getElementById('btn-reset-panel').textContent = tt.btnReset;
+            document.getElementById('setupHeading').textContent = tt.setupHeading;
+            document.getElementById('labelLight').textContent = tt.labelLight;
+            document.getElementById('hintText').textContent = tt.hintText;
+            document.getElementById('cardCircularTitle').textContent = tt.cardCircularTitle;
+            document.getElementById('cardRadialTitle').textContent = tt.cardRadialTitle;
+            document.getElementById('cardPupilTitle').textContent = tt.cardPupilTitle;
+            document.getElementById('legCircular').textContent = tt.legCircular;
+            document.getElementById('legRadial').textContent = tt.legRadial;
+            document.getElementById('legIris').textContent = tt.legIris;
+            document.getElementById('legPupil').textContent = tt.legPupil;
+            document.getElementById('legLight').textContent = tt.legLight;
+            document.getElementById('steps-title').textContent = tt.stepsTitle;
+            document.getElementById('principle-title').textContent = tt.principleTitle;
+            document.getElementById('quiz-title').textContent = tt.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+            draw();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        }
+
+        function renderSteps() {
+            const tt = t();
+            const body = document.getElementById('steps-body');
+            body.innerHTML = tt.steps.map(function(s, i) {
+                const colors = ['bg-indigo-50 border-indigo-100', 'bg-teal-50 border-teal-100', 'bg-sky-50 border-sky-100', 'bg-amber-50 border-amber-100'];
+                return '<div class="p-4 rounded-xl border ' + colors[i % 4] + '"><p class="font-bold text-slate-800 mb-1">' + s.t + '</p><p class="text-slate-700 leading-relaxed">' + s.b + '</p></div>';
+            }).join('');
+        }
+
+        function renderPrinciple() {
+            const tt = t();
+            const body = document.getElementById('principle-body');
+            let html = '<div class="p-4 bg-indigo-50 rounded-xl border border-indigo-100"><h3 class="font-bold text-indigo-900 mb-2">' + tt.conceptTitle + '</h3><p class="text-slate-700">' + tt.concept + '</p></div>';
+            html += '<div><h3 class="font-bold text-teal-800 mb-2">' + tt.mechTitle + '</h3><ol class="list-decimal list-inside space-y-2 text-slate-700">';
+            tt.mech.forEach(function(m) { html += '<li>' + m + '</li>'; });
+            html += '</ol></div>';
+            html += '<div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100"><h3 class="font-bold text-emerald-900 mb-2">' + tt.egTitle + '</h3><p class="text-slate-700">' + tt.eg + '</p></div>';
+            body.innerHTML = html;
+        }
+
+        function renderQuiz() {
+            const tt = t();
+            const body = document.getElementById('quiz-body');
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            const letters = ['A', 'B', 'C', 'D'];
+            let html = '';
+            QUIZ.forEach(function(item, i) {
+                const qtext = item.q[currentLang] || item.q.zh;
+                html += '<div class="p-4 rounded-xl border border-violet-100 bg-violet-50/40 space-y-2 mb-3">';
+                html += '<p class="font-bold text-violet-900">Q' + (i + 1) + '. ' + qtext + '</p>';
+                const qNum = i + 1;
+                const isOpen = (qNum === 2 || qNum === 4);
+                if (!isOpen && item.choices) {
+                    const qName = 'q' + qNum;
+                    html += '<div class="grid gap-1.5">';
+                    item.choices.forEach(function(c, j) {
+                        html += '<label class="flex items-start gap-2 rounded-lg border border-violet-100 p-2 cursor-pointer hover:bg-violet-50/60"><input type="radio" name="' + qName + '" class="mt-0.5 accent-violet-600"><span class="text-sm">' + letters[j] + '. ' + (c[currentLang] || c.zh) + '</span></label>';
+                    });
+                    html += '</div>';
+                } else if (isOpen) {
+                    html += '<p class="text-xs text-slate-500 italic">' + (currentLang === 'zh' ? '先預測，再操作畫面控件核對，用自己的話作答。' : 'Predict, then use the sim controls to check. Write in your own words.') + '</p>';
+                }
+                if (quizReveal && item.explain) {
+                    const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+                    html += '<div class="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-900"><strong>' + ref + '：</strong> ' + (item.explain[currentLang] || item.explain.zh) + '</div>';
+                }
+                html += '</div>';
+            });
+            body.innerHTML = html;
+        }
+
+        function closeAllModals(exceptId) {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                const modal = document.getElementById(id);
+                if (!modal || modal.classList.contains('hidden')) return;
+                if (modalCloseTimers[id]) {
+                    clearTimeout(modalCloseTimers[id]);
+                    delete modalCloseTimers[id];
+                }
+                modal.classList.add('hidden');
+            });
+        }
+
+        function openTeachModal(id) {
+            closeAllModals(id);
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            if (modalCloseTimers[id]) {
+                clearTimeout(modalCloseTimers[id]);
+                delete modalCloseTimers[id];
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function resetAll() {
+            closeAllModals(null);
+            slider.value = 50;
+            quizReveal = false;
+            draw();
+        }
+
         slider.addEventListener('input', draw);
-        draw();
+
+        document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+        document.getElementById('btn-reset').addEventListener('click', resetAll);
+        document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+        document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+        document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+        document.getElementById('btn-quiz-answers').addEventListener('click', function() { quizReveal = !quizReveal; renderQuiz(); });
+        document.querySelectorAll('.modal-close').forEach(function(btn) {
+            btn.addEventListener('click', function() { closeAllModals(null); });
+        });
+        ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+            document.getElementById(id).addEventListener('click', function(e) {
+                if (e.target === this) closeAllModals(null);
+            });
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeAllModals(null);
+        });
+
+        applyLanguage();
     </script>
 </body>
 </html>

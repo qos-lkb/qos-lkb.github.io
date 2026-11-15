@@ -1,100 +1,589 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>物理教學：平面鏡反射光線圖</title>
+    <title>平面鏡光線圖｜Plane Mirror Ray Diagram</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* 防止在 iPad 上拖動時選取文字或滾動頁面 */
         body {
             overscroll-behavior: none;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
+            font-family: 'Noto Sans TC', 'Segoe UI', sans-serif;
         }
-        canvas {
-            touch-action: none;
-        }
+        canvas { touch-action: none; }
+        .teach-modal { z-index: 60; }
+        .teach-modal.hidden { display: none !important; }
+        .teach-modal:not(.hidden) { display: flex; }
+        .quiz-ans { display: none; }
+        .quiz-ans.shown { display: block; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden font-sans">
+<body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
 
-    <!-- Header -->
-    <header class="bg-blue-600 text-white p-3 shadow-md z-10 shrink-0">
-        <div class="max-w-7xl mx-auto flex flex-wrap gap-3 justify-between items-center">
-            <h1 class="text-lg md:text-xl font-bold flex items-center gap-2 whitespace-nowrap">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-                物理教室：平面鏡反射
-            </h1>
-            
-            <div class="flex flex-wrap items-center gap-2 md:gap-4">
-                <label class="flex items-center gap-2 cursor-pointer bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded border border-blue-500 transition select-none">
+    <header class="bg-blue-600 text-white p-3 shadow-md z-30 shrink-0">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap gap-2 justify-between items-center">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                <div class="min-w-0">
+                    <h1 id="app-title" class="text-base sm:text-lg md:text-xl font-bold truncate">平面鏡光線圖</h1>
+                    <p id="app-subtitle" class="text-[10px] sm:text-xs text-blue-100 truncate">平面鏡光線圖｜Plane Mirror Ray Diagram</p>
+                </div>
+                <span id="subject-badge" class="shrink-0 text-[10px] sm:text-xs font-semibold bg-sky-500/90 border border-sky-200 text-white px-2 py-0.5 rounded-full">科學｜Science</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <button type="button" id="btn-steps" class="px-2.5 py-1.5 bg-indigo-500 hover:bg-indigo-400 rounded-lg text-xs sm:text-sm font-semibold border border-indigo-300 transition">觀察步驟</button>
+                <button type="button" id="btn-principle" class="px-2.5 py-1.5 bg-teal-500 hover:bg-teal-400 rounded-lg text-xs sm:text-sm font-semibold border border-teal-300 transition">原理解說</button>
+                <button type="button" id="btn-quiz" class="px-2.5 py-1.5 bg-violet-500 hover:bg-violet-400 rounded-lg text-xs sm:text-sm font-semibold border border-violet-300 transition">課堂問題</button>
+                <div class="hidden sm:block h-6 w-px bg-blue-400/60"></div>
+                <label class="flex items-center gap-1.5 cursor-pointer bg-blue-700 hover:bg-blue-800 px-2.5 py-1.5 rounded-lg border border-blue-500 transition select-none">
                     <input type="checkbox" id="toggleDistances" class="w-4 h-4 text-blue-300 rounded focus:ring-blue-500 cursor-pointer">
-                    <span class="text-xs md:text-sm font-bold">顯示物距/像距</span>
+                    <span id="label-distances" class="text-xs sm:text-sm font-bold">顯示物距／像距</span>
                 </label>
-
-                <label class="flex items-center gap-2 cursor-pointer bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded border border-blue-500 transition select-none">
+                <label class="flex items-center gap-1.5 cursor-pointer bg-blue-700 hover:bg-blue-800 px-2.5 py-1.5 rounded-lg border border-blue-500 transition select-none">
                     <input type="checkbox" id="toggleAngles" class="w-4 h-4 text-blue-300 rounded focus:ring-blue-500 cursor-pointer">
-                    <span class="text-xs md:text-sm font-bold">顯示法線/角度</span>
+                    <span id="label-angles" class="text-xs sm:text-sm font-bold">顯示法線／角度</span>
                 </label>
-
-                <button onclick="resetSimulation()" class="bg-blue-500 hover:bg-blue-700 text-white text-xs md:text-sm font-bold py-2 px-4 rounded border border-blue-400 transition whitespace-nowrap">
-                    重置位置
+                <button type="button" id="btn-lang" class="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-blue-800 rounded-lg text-xs sm:text-sm font-bold transition min-w-[72px]">中 / EN</button>
+                <button type="button" id="btn-reset" class="px-2.5 py-1.5 bg-blue-500 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded-lg border border-blue-400 transition whitespace-nowrap">
+                    <span id="btn-reset-label">重置</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Canvas Container -->
-    <main class="flex-grow relative w-full h-full bg-white cursor-crosshair" id="canvas-container">
+    <main class="flex-grow relative w-full h-full min-h-0 bg-white cursor-crosshair" id="canvas-container">
         <canvas id="simCanvas" class="block w-full h-full"></canvas>
-        
-        <!-- Floating Instructions -->
+
         <div class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg border-l-4 border-yellow-500 max-w-xs pointer-events-none select-none">
-            <h3 class="font-bold text-gray-700 mb-1">操作說明：</h3>
+            <h3 id="hint-title" class="font-bold text-gray-700 mb-1">操作說明：</h3>
             <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
-                <li>拖動 <span class="font-bold text-red-600">紅色箭咀</span> 改變物體位置。</li>
-                <li>拖動 <span class="font-bold text-blue-600">眼睛</span> 改變觀察角度。</li>
-                <li>勾選上方選項顯示輔助線。</li>
+                <li id="hint-1">拖動 <span class="font-bold text-red-600">紅色箭咀</span> 改變物體位置。</li>
+                <li id="hint-2">拖動 <span class="font-bold text-blue-600">眼睛</span> 改變觀察角度。</li>
+                <li id="hint-3">勾選上方選項顯示輔助線。</li>
             </ul>
         </div>
 
-        <!-- Image Properties Panel -->
         <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg border-r-4 border-blue-600 max-w-xs pointer-events-none select-none hidden md:block">
-            <h3 class="font-bold text-gray-800 mb-2 border-b border-gray-200 pb-1">平面鏡成像性質：</h3>
+            <h3 id="props-title" class="font-bold text-gray-800 mb-2 border-b border-gray-200 pb-1">平面鏡成像性質：</h3>
             <ol class="text-sm text-gray-700 space-y-1 list-decimal list-inside font-medium">
-                <li><span class="font-bold text-red-500">虛像</span> (Virtual)</li>
-                <li><span class="font-bold text-blue-600">正立</span> (Erect)</li>
-                <li><span class="font-bold">大小相等</span> (Same size)</li>
-                <li><span class="font-bold">橫向倒置</span> (Laterally inverted)</li>
-                <li><span class="font-bold">像距 = 物距</span></li>
-                <li>影像形成在平面鏡後</li>
+                <li id="prop-1"><span class="font-bold text-red-500">虛像</span> (Virtual)</li>
+                <li id="prop-2"><span class="font-bold text-blue-600">正立</span> (Erect)</li>
+                <li id="prop-3"><span class="font-bold">大小相等</span> (Same size)</li>
+                <li id="prop-4"><span class="font-bold">橫向倒置</span> (Laterally inverted)</li>
+                <li id="prop-5"><span class="font-bold">像距 = 物距</span></li>
+                <li id="prop-6">影像形成在平面鏡後</li>
             </ol>
         </div>
 
-        <!-- Legend -->
         <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow border border-gray-200 text-xs md:text-sm pointer-events-none">
             <div class="flex items-center gap-2 mb-1">
-                <span class="w-6 h-0.5 bg-green-600"></span> <span>來自頂部的光線</span>
+                <span class="w-6 h-0.5 bg-green-600"></span> <span id="legend-top">來自頂部的光線</span>
             </div>
             <div class="flex items-center gap-2">
-                <span class="w-6 h-0.5 bg-purple-600"></span> <span>來自底部的光線</span>
+                <span class="w-6 h-0.5 bg-purple-600"></span> <span id="legend-bot">來自底部的光線</span>
             </div>
-            <div class="mt-2 pt-2 border-t border-gray-200 text-gray-500">
+            <div id="legend-note" class="mt-2 pt-2 border-t border-gray-200 text-gray-500">
                 實線 = 真實光線<br>虛線 = 虛擬延伸線
             </div>
         </div>
     </main>
 
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/60 items-center justify-center backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-white text-slate-800 rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-indigo-600 p-4 flex justify-between items-center text-white flex-shrink-0">
+                <h3 id="steps-title" class="text-xl font-bold">觀察步驟</h3>
+                <button type="button" class="modal-close-btn hover:bg-indigo-700 p-1 rounded-full transition" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div id="steps-body" class="p-6 space-y-3 overflow-y-auto text-sm leading-relaxed"></div>
+            <div class="bg-gray-50 p-4 flex justify-end flex-shrink-0">
+                <button type="button" class="modal-close-btn px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition" id="steps-close-label">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Principle -->
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/60 items-center justify-center backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-white text-slate-800 rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-teal-600 p-4 flex justify-between items-center text-white flex-shrink-0">
+                <h3 id="principle-title" class="text-xl font-bold">原理解說</h3>
+                <button type="button" class="modal-close-btn hover:bg-teal-700 p-1 rounded-full transition" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div id="principle-body" class="p-6 space-y-4 overflow-y-auto text-sm leading-relaxed"></div>
+            <div class="bg-gray-50 p-4 flex justify-end flex-shrink-0">
+                <button type="button" class="modal-close-btn px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition" id="principle-close-label">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/60 items-center justify-center backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-white text-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-violet-600 p-4 flex justify-between items-center text-white flex-shrink-0">
+                <h3 id="quiz-title" class="text-xl font-bold">課堂問題</h3>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-700 hover:bg-violet-500 text-white border border-violet-300 font-semibold">顯示參考答案</button>
+                    <button type="button" class="modal-close-btn hover:bg-violet-700 p-1 rounded-full transition" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="quiz-body" class="p-6 space-y-5 overflow-y-auto text-sm"></div>
+            <div class="bg-gray-50 p-4 flex justify-end flex-shrink-0">
+                <button type="button" class="modal-close-btn px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition" id="quiz-close-label">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const translations = {
+            zh: {
+                appTitle: "平面鏡光線圖",
+                appSubtitle: "平面鏡光線圖｜Plane Mirror Ray Diagram",
+                subjectBadge: "科學｜Science",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                btnClose: "關閉",
+                langBtn: "中 / EN",
+                pageTitle: "平面鏡光線圖｜Plane Mirror Ray Diagram",
+                labelDistances: "顯示物距／像距",
+                labelAngles: "顯示法線／角度",
+                hintTitle: "操作說明：",
+                hint1: "拖動 <span class=\"font-bold text-red-600\">紅色箭咀</span> 改變物體位置。",
+                hint2: "拖動 <span class=\"font-bold text-blue-600\">眼睛</span> 改變觀察角度。",
+                hint3: "勾選上方選項顯示輔助線。",
+                propsTitle: "平面鏡成像性質：",
+                prop1: "<span class=\"font-bold text-red-500\">虛像</span> (Virtual)",
+                prop2: "<span class=\"font-bold text-blue-600\">正立</span> (Erect)",
+                prop3: "<span class=\"font-bold\">大小相等</span> (Same size)",
+                prop4: "<span class=\"font-bold\">橫向倒置</span> (Laterally inverted)",
+                prop5: "<span class=\"font-bold\">像距 = 物距</span>",
+                prop6: "影像形成在平面鏡後",
+                legendTop: "來自頂部的光線",
+                legendBot: "來自底部的光線",
+                legendNote: "實線 = 真實光線<br>虛線 = 虛擬延伸線",
+                canvasMirror: "平面鏡",
+                canvasObject: "物體",
+                canvasImage: "虛像",
+                canvasEye: "眼睛",
+                canvasNormal: "法線",
+                canvasObjDist: "物距",
+                canvasImgDist: "像距",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
+                ansPrefix: "參考答案：",
+                shortAns: "（短答）"
+            },
+            en: {
+                appTitle: "Plane Mirror Ray Diagram",
+                appSubtitle: "Plane Mirror Ray Diagram｜平面鏡光線圖",
+                subjectBadge: "Science｜科學",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                btnClose: "Close",
+                langBtn: "中 / EN",
+                pageTitle: "Plane Mirror Ray Diagram｜平面鏡光線圖",
+                labelDistances: "Show object／image distance",
+                labelAngles: "Show normal／angles",
+                hintTitle: "Controls:",
+                hint1: "Drag the <span class=\"font-bold text-red-600\">red arrow</span> to move the object.",
+                hint2: "Drag the <span class=\"font-bold text-blue-600\">eye</span> to change viewing angle.",
+                hint3: "Check the header options for helper overlays.",
+                propsTitle: "Image properties:",
+                prop1: "<span class=\"font-bold text-red-500\">Virtual</span> (虛像)",
+                prop2: "<span class=\"font-bold text-blue-600\">Erect</span> (正立)",
+                prop3: "<span class=\"font-bold\">Same size</span> (大小相等)",
+                prop4: "<span class=\"font-bold\">Laterally inverted</span> (橫向倒置)",
+                prop5: "<span class=\"font-bold\">Image distance = object distance</span>",
+                prop6: "Image forms behind the plane mirror",
+                legendTop: "Rays from the top",
+                legendBot: "Rays from the bottom",
+                legendNote: "Solid = real rays<br>Dashed = virtual extensions",
+                canvasMirror: "Plane mirror",
+                canvasObject: "Object",
+                canvasImage: "Virtual image",
+                canvasEye: "Eye",
+                canvasNormal: "Normal",
+                canvasObjDist: "Object dist.",
+                canvasImgDist: "Image dist.",
+                stepsTitle: "Observation steps",
+                principleTitle: "Principles",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
+                ansPrefix: "Answer: ",
+                shortAns: "(Short answer)"
+            }
+        };
+
+        const STEPS = [
+            {
+                zh: "按頁首<strong>重置</strong>。確認：物體在鏡左側、鏡後有紅色虛線<strong>虛像</strong>、藍色<strong>眼睛</strong>在左側、物距／像距與法線／角度<strong>皆關閉</strong>、語言<strong>不變</strong>。觀察 Canvas：垂直<strong>平面鏡</strong>、綠／紫光線（入射／反射實線＋鏡後虛線）。確認本檔是 science 的 <code>plane-mirror-ray-diagram</code>（平面鏡光線圖／虛像作圖），不是 <code>laws-of-reflection</code>（反射定律量角），也不是折射／<code>how-do-we-see</code>。",
+                en: "Press header <strong>Reset</strong>. Confirm object left of the mirror, dashed red <strong>virtual image</strong> behind it, blue <strong>eye</strong> on the left, distance and normal／angle overlays <strong>off</strong>, <strong>language unchanged</strong>. Note the vertical <strong>plane mirror</strong> and green／purple rays (solid incident／reflected + dashed virtual extensions). This file is science <code>plane-mirror-ray-diagram</code>, not <code>laws-of-reflection</code>, and not refraction／how-we-see labs."
+            },
+            {
+                zh: "勾選<strong>顯示物距／像距</strong>。讀兩條尺寸線上的毫米數——應<strong>相等</strong>。再拖曳<strong>紅色物體</strong>靠近或遠離鏡子：虛像對稱移動，兩距離標註仍相等。",
+                en: "Check <strong>Show object／image distance</strong>. The two mm labels should be <strong>equal</strong>. Drag the <strong>red object</strong> nearer or farther: the virtual image mirrors it and the two distances stay equal."
+            },
+            {
+                zh: "拖曳<strong>眼睛</strong>到不同高度／遠近（保持在鏡左）。觀察綠／紫光線路徑改變，但<strong>虛像位置</strong>大致仍由物體與鏡決定（鏡對稱），不會跟着眼睛跑到別處。",
+                en: "Drag the <strong>eye</strong> to different heights／distances (stay left of the mirror). Green／purple ray paths change, but the <strong>virtual image</strong> stays fixed by object–mirror symmetry—it does not follow the eye."
+            },
+            {
+                zh: "勾選<strong>顯示法線／角度</strong>（可先 Reset 再開）。在頂部主光線入射點看到<strong>法線</strong>與入射角／反射角標註，提醒反射仍遵守「入射角＝反射角」。記住：本檔主軸是<strong>成像光線圖</strong>，專門量角驗證反射定律請用 sibling <code>laws-of-reflection</code>。",
+                en: "Check <strong>Show normal／angles</strong> (Reset first if you like). At the top ray’s hit point see the <strong>normal</strong> and i／r labels—reflection still obeys θᵢ＝θᵣ. Remember: this file’s focus is the <strong>imaging ray diagram</strong>; dedicated angle-law practice is sibling <code>laws-of-reflection</code>."
+            },
+            {
+                zh: "對照右上<strong>成像性質</strong>：虛像、正立、大小相等、橫向倒置、像距＝物距、像在鏡後。按<strong>重置</strong>：物體／眼睛回預設、兩開關關、<strong>語言不變</strong>。打開原理解說與課堂問題——主軸是 <strong>平面鏡光線圖／虛像作圖</strong>，不是反射定律量角專檔或折射。",
+                en: "Review <strong>image properties</strong>: virtual, erect, same size, laterally inverted, v＝u, behind the mirror. <strong>Reset</strong>: default object／eye poses, both toggles off, <strong>language unchanged</strong>. Open Principles／Quiz—focus is <strong>plane-mirror ray diagram／virtual-image construction</strong>, not a reflection-angle lab or refraction."
+            }
+        ];
+
+        const PRINCIPLE = {
+            zh: {
+                conceptTitle: "概念",
+                concept: "平面鏡成像可用<strong>光線圖</strong>說明：物體發出（或反射）的光線射到鏡面，依反射定律反射進入眼睛；人腦沿反射線的反向延長線「以為」光線來自鏡後某一點——該點即<strong>虛像</strong>。虛像與物體對鏡面<strong>對稱</strong>，故<strong>像距＝物距</strong>；像為正立、大小相等，並有<strong>橫向倒置</strong>（左右相反）。本模擬（slug <code>plane-mirror-ray-diagram</code>）讓你拖動物體與眼睛，即時看到入射／反射實線與鏡後虛線，以及可選的物距／像距標註。",
+                mechTitle: "機制／流程",
+                mech: [
+                    "<strong>物體</strong>：置於鏡前（本舞台左側）；箭咀代表物體方向。",
+                    "<strong>虛像位置</strong>：對垂直鏡面左右對稱——距鏡等於物距，高度與物體相同。",
+                    "<strong>作圖光線</strong>：選物體頂／底一點 → 畫入射線至鏡 → 反射線進入眼睛瞳孔；鏡後畫反射線的<strong>虛線延長</strong>交於虛像對應點。",
+                    "<strong>為何是虛像</strong>：鏡後並無真實光線會聚；虛線只表示「看起來從哪裡來」。",
+                    "<strong>眼睛的角色</strong>：改變眼睛只改「哪幾條反射線進入瞳孔」，不改虛像幾何位置。",
+                    "<strong>範圍</strong>：平面鏡光線圖／成像性質；法線／角度僅輔助。<strong>不</strong>做反射定律量角專檔（見 <code>laws-of-reflection</code>）；<strong>不</strong>處理折射（見 <code>analogy-refraction</code>／<code>snells-law</code>）；<strong>不</strong>講「如何看見」發光／非發光主軸（見 <code>how-do-we-see</code>）。"
+                ],
+                egTitle: "日常／課堂例子",
+                eg: "梳妝鏡、電梯鏡、潛望鏡中的平面鏡段：你看到的「鏡中人」在鏡後等距處，左右相反（舉左手則像舉右手）。課堂作圖常用「物→鏡→眼」兩條實線加虛線延長相交得虛像。"
+            },
+            en: {
+                conceptTitle: "Concept",
+                concept: "A <strong>ray diagram</strong> explains plane-mirror images: rays from the object hit the mirror, reflect into the eye by the laws of reflection, and the brain traces the reflected rays <strong>backward</strong> as if they came from a point behind the mirror—the <strong>virtual image</strong>. The image is the <strong>mirror image</strong> of the object, so <strong>image distance equals object distance</strong>; it is erect, same size, and <strong>laterally inverted</strong>. This sim (slug <code>plane-mirror-ray-diagram</code>) lets you drag the object and eye to see solid incident／reflected rays, dashed virtual extensions, and optional distance labels.",
+                mechTitle: "Mechanism／workflow",
+                mech: [
+                    "<strong>Object</strong>: in front of the mirror (left on this stage).",
+                    "<strong>Virtual-image location</strong>: left–right symmetric across the vertical mirror—same distance, same height.",
+                    "<strong>Construction rays</strong>: from object tip／base → incident to mirror → reflected into the eye; dashed extensions behind the mirror meet at the matching image point.",
+                    "<strong>Why virtual</strong>: no real rays meet behind the glass; dashes show “where they appear to come from.”",
+                    "<strong>Eye’s role</strong>: moving the eye changes which reflected rays enter the pupil, not the geometric image position.",
+                    "<strong>Scope</strong>: ray diagram／image properties; normal／angles are helpers only—<strong>not</strong> a dedicated reflection-angle lab (<code>laws-of-reflection</code>), <strong>not</strong> refraction (<code>analogy-refraction</code>／<code>snells-law</code>), <strong>not</strong> “how we see” (<code>how-do-we-see</code>)."
+                ],
+                egTitle: "Everyday／class example",
+                eg: "Bathroom mirrors and lift mirrors: the “you” in the glass sits as far behind as you stand in front, left–right reversed. Class constructions often use two solid rays plus dashed extensions to locate the virtual image."
+            }
+        };
+
+        const QUIZ = [
+            {
+                q: {
+                    zh: "按頁首<strong>重置</strong>後觀察 Canvas（兩輔助開關保持關閉）。哪項描述最符合本模擬（<code>plane-mirror-ray-diagram</code>）？",
+                    en: "After header <strong>Reset</strong>, observe the canvas with both helper toggles still off. Which best matches this <code>plane-mirror-ray-diagram</code> sim?"
+                },
+                choices: [
+                    {
+                        zh: "鏡左側有紅色物體與眼睛；鏡後有虛線紅色虛像；可見綠／紫入射與反射實線及鏡後虛線；物距／像距與法線顯示關",
+                        en: "Red object and eye left of the mirror; dashed red virtual image behind; green／purple solid rays + virtual dashes; distance and normal overlays off"
+                    },
+                    {
+                        zh: "重置後變成可旋轉鏡＋側欄只驗證入射角＝反射角的 <code>laws-of-reflection</code> 模式並強制切英文",
+                        en: "Reset becomes a rotatable-mirror θᵢ＝θᵣ lab (<code>laws-of-reflection</code>) and switches to English"
+                    },
+                    {
+                        zh: "舞台改為半圓玻璃塊測折射率，本檔變成 <code>snells-law</code>",
+                        en: "The stage becomes a semicircular-block Snell’s-law lab"
+                    },
+                    {
+                        zh: "重置會刪除平面鏡並只留下空白畫布",
+                        en: "Reset deletes the plane mirror and leaves only a blank canvas"
+                    }
+                ],
+                explain: {
+                    zh: "A。對應預設位姿與兩開關關；B／C 為 sibling 離題。",
+                    en: "A. Matches default poses and both toggles off; B／C are sibling digressions."
+                }
+            },
+            {
+                q: {
+                    zh: "重置後，勾選<strong>顯示物距／像距</strong>，把紅色物體拖到至少兩個不同遠近。先<strong>預測</strong>物距與像距讀數關係，再操作核對。",
+                    en: "After Reset, check <strong>Show object／image distance</strong>, drag the object to two distances. <strong>Predict</strong> how the distance labels relate, then check."
+                },
+                choices: null,
+                explain: {
+                    zh: "每次標註的物距與像距數值相等（像距＝物距）；虛像在鏡另一側對稱位置。",
+                    en: "Object and image distance labels match each time (v＝u); virtual image symmetric across the mirror."
+                }
+            },
+            {
+                q: {
+                    zh: "重置後（可開或關距離標註），只拖曳<strong>眼睛</strong>上下／遠近（勿動物體）。哪項最合理？",
+                    en: "After Reset (distance labels optional), drag <strong>only the eye</strong> up／down／nearer／farther (do not move the object). Which is most reasonable?"
+                },
+                choices: [
+                    {
+                        zh: "光線路徑改變，但虛像仍大致停在物體對鏡的對稱位置",
+                        en: "Ray paths change, but the virtual image stays roughly at the object’s mirror-symmetric place"
+                    },
+                    {
+                        zh: "眼睛一動，虛像會跟着眼睛跑到鏡的同一側並變成實像",
+                        en: "Moving the eye makes the virtual image follow the eye onto the same side and become real"
+                    },
+                    {
+                        zh: "拖眼睛會重置語言為英文",
+                        en: "Dragging the eye resets language to English"
+                    },
+                    {
+                        zh: "拖眼睛後物體與虛像控件全部消失",
+                        en: "After dragging the eye, object and image controls all vanish"
+                    }
+                ],
+                explain: {
+                    zh: "A。imageX 只由 objectDist 決定；traceRay 隨 targetPt（眼睛）改路徑。",
+                    en: "A. imageX depends only on objectDist; traceRay follows targetPt (eye)."
+                }
+            },
+            {
+                q: {
+                    zh: "重置後觀察虛像箭咀與光線樣式（可對照右下圖例）。先<strong>預測</strong>鏡後虛線代表什麼，再對照舞台核對。",
+                    en: "After Reset, observe the virtual-image arrow and ray styles (legend OK). <strong>Predict</strong> what the dashes behind the mirror mean, then check."
+                },
+                choices: null,
+                explain: {
+                    zh: "虛像用虛線箭咀在鏡後；鏡後虛線是延伸線，表示光「看起來從哪裡來」，不是真實光線會聚的實像。",
+                    en: "Dashed virtual-image arrow behind the mirror; dashes are extensions showing where rays appear to come from—not a real convergence."
+                }
+            },
+            {
+                q: {
+                    zh: "先拖動物體與眼睛、勾選兩個顯示開關，再按頁首<strong>重置</strong>。哪項最符合重置後狀態？",
+                    en: "Move object and eye, check both toggles, then header <strong>Reset</strong>. Which best matches the state after Reset?"
+                },
+                choices: [
+                    { zh: "物體／眼睛回預設、物距／像距與法線／角度開關皆關；<strong>不</strong>切換語言", en: "Default object／eye, both display toggles off; language <strong>unchanged</strong>" },
+                    { zh: "仍保持拖曳後位置與兩開關開", en: "Dragged poses and both toggles still on" },
+                    { zh: "重置後變成 <code>laws-of-reflection</code> 量角驗證模式", en: "Reset becomes <code>laws-of-reflection</code> angle lab" },
+                    { zh: "重置強制英文並刪除平面鏡", en: "Reset forces English and removes the mirror" }
+                ],
+                explain: {
+                    zh: "A。對應 resetSimulation；本模擬主軸是平面鏡光線圖／虛像作圖，不是反射定律量角專檔。",
+                    en: "A. Matches resetSimulation; focus is plane-mirror ray diagram／virtual image, not the reflection-angle lab."
+                }
+            }
+        ];
+
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalTimer = null;
+
+        function t(key) {
+            return translations[currentLang][key];
+        }
+
+        function applyLanguage() {
+            const tt = translations[currentLang];
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            document.title = tt.pageTitle;
+            document.getElementById('app-title').textContent = tt.appTitle;
+            document.getElementById('app-subtitle').textContent = tt.appSubtitle;
+            document.getElementById('subject-badge').textContent = tt.subjectBadge;
+            document.getElementById('btn-steps').textContent = tt.btnSteps;
+            document.getElementById('btn-principle').textContent = tt.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = tt.btnQuiz;
+            document.getElementById('btn-lang').textContent = tt.langBtn;
+            document.getElementById('btn-reset-label').textContent = tt.btnReset;
+            document.getElementById('label-distances').textContent = tt.labelDistances;
+            document.getElementById('label-angles').textContent = tt.labelAngles;
+            document.getElementById('hint-title').textContent = tt.hintTitle;
+            document.getElementById('hint-1').innerHTML = tt.hint1;
+            document.getElementById('hint-2').innerHTML = tt.hint2;
+            document.getElementById('hint-3').innerHTML = tt.hint3;
+            document.getElementById('props-title').textContent = tt.propsTitle;
+            document.getElementById('prop-1').innerHTML = tt.prop1;
+            document.getElementById('prop-2').innerHTML = tt.prop2;
+            document.getElementById('prop-3').innerHTML = tt.prop3;
+            document.getElementById('prop-4').innerHTML = tt.prop4;
+            document.getElementById('prop-5').innerHTML = tt.prop5;
+            document.getElementById('prop-6').textContent = tt.prop6;
+            document.getElementById('legend-top').textContent = tt.legendTop;
+            document.getElementById('legend-bot').textContent = tt.legendBot;
+            document.getElementById('legend-note').innerHTML = tt.legendNote;
+            document.getElementById('steps-title').textContent = tt.stepsTitle;
+            document.getElementById('principle-title').textContent = tt.principleTitle;
+            document.getElementById('quiz-title').textContent = tt.quizTitle;
+            document.getElementById('steps-close-label').textContent = tt.btnClose;
+            document.getElementById('principle-close-label').textContent = tt.btnClose;
+            document.getElementById('quiz-close-label').textContent = tt.btnClose;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            refreshOpenTeachModals();
+            draw();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        }
+
+        function fillStepsBody() {
+            const body = document.getElementById('steps-body');
+            body.innerHTML = STEPS.map(function (s, i) {
+                return '<div class="p-3 bg-indigo-50 rounded-lg border border-indigo-100"><div class="font-bold text-indigo-700 mb-1">' + (i + 1) + '.</div><div>' + s[currentLang] + '</div></div>';
+            }).join('');
+        }
+
+        function fillPrincipleBody() {
+            const p = PRINCIPLE[currentLang];
+            const body = document.getElementById('principle-body');
+            body.innerHTML =
+                '<div class="bg-teal-50 p-4 rounded-lg border border-teal-100 space-y-2"><h4 class="font-bold text-teal-900">' + p.conceptTitle + '</h4><p>' + p.concept + '</p></div>' +
+                '<div><h4 class="font-bold text-gray-900 mb-2">' + p.mechTitle + '</h4><ol class="list-decimal pl-5 space-y-1.5">' +
+                p.mech.map(function (m) { return '<li>' + m + '</li>'; }).join('') +
+                '</ol></div>' +
+                '<div class="bg-amber-50 p-4 rounded-lg border border-amber-100"><h4 class="font-bold text-amber-900 mb-1">' + p.egTitle + '</h4><p>' + p.eg + '</p></div>';
+        }
+
+        function fillQuizBody() {
+            const body = document.getElementById('quiz-body');
+            const letters = ['A', 'B', 'C', 'D'];
+            const tt = translations[currentLang];
+            const openHint = currentLang === 'zh' ? '先預測，再操作本模擬核對。' : 'Predict first, then use the sim to check.';
+            const refLabel = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+            body.innerHTML = QUIZ.map(function (item, i) {
+                const n = i + 1;
+                const isOpen = n === 2 || n === 4;
+                const qid = 'q' + n;
+                let html = '<div class="mb-4 p-3 bg-violet-50 rounded-lg border border-violet-100">';
+                html += '<div class="font-semibold text-violet-800 mb-2">Q' + n + '. ' + item.q[currentLang] + '</div>';
+                if (!isOpen && item.choices) {
+                    html += '<div class="grid gap-1.5">';
+                    item.choices.forEach(function (c, j) {
+                        html += '<label class="flex items-start gap-2 rounded-lg border border-violet-200 bg-white p-2 cursor-pointer hover:bg-violet-50/50"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span><span class="font-mono font-bold text-violet-600">' + letters[j] + '.</span> ' + c[currentLang] + '</span></label>';
+                    });
+                    html += '</div>';
+                } else if (isOpen) {
+                    html += '<p class="text-xs text-slate-500 italic">' + openHint + '</p>';
+                }
+                if (quizReveal) {
+                    html += '<div class="mt-2 text-sm bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg p-2"><strong>' + refLabel + '：</strong> ' + item.explain[currentLang] + '</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+        }
+
+        function refreshOpenTeachModals() {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) fillStepsBody();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) fillPrincipleBody();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) fillQuizBody();
+        }
+
+        function closeAllModals(exceptId) {
+            if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+                if (id !== exceptId) document.getElementById(id).classList.add('hidden');
+            });
+        }
+
+        function openTeachModal(id) {
+            closeAllModals(id);
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'modal-steps') fillStepsBody();
+            if (id === 'modal-principle') fillPrincipleBody();
+            if (id === 'modal-quiz') fillQuizBody();
+        }
+
+        function toggleQuizAnswers() {
+            quizReveal = !quizReveal;
+            fillQuizBody();
+        }
+
+        function wireTeachUi() {
+            document.getElementById('btn-steps').addEventListener('click', function () { openTeachModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function () { openTeachModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function () { openTeachModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+            document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+            document.getElementById('btn-quiz-answers').addEventListener('click', toggleQuizAnswers);
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+                const el = document.getElementById(id);
+                el.addEventListener('click', function (e) {
+                    if (e.target === el) closeAllModals(null);
+                });
+                el.querySelectorAll('.modal-close-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () { closeAllModals(null); });
+                });
+            });
+        }
+
         // --- Configuration & State ---
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         let width, height;
         let mirrorX;
-        
-        // Physics State
+
         const state = {
             obj: { x: 0, y: 0, w: 40, h: 160, dragging: false },
             eye: { x: 0, y: 0, radius: 20, dragging: false },
@@ -103,22 +592,19 @@
             dragOffset: { x: 0, y: 0 }
         };
 
-        // Grid Config
         const gridSize = 40;
 
-        // --- Initialization ---
         function resize() {
             width = canvas.parentElement.clientWidth;
             height = canvas.parentElement.clientHeight;
             canvas.width = width;
             canvas.height = height;
-            
+
             mirrorX = width / 2;
-            
-            // Re-clamp positions if screen resizes
-            if(state.obj.x > mirrorX - 20) state.obj.x = mirrorX - 100;
-            if(state.eye.x > mirrorX - 20) state.eye.x = mirrorX - 200;
-            
+
+            if (state.obj.x > mirrorX - 20) state.obj.x = mirrorX - 100;
+            if (state.eye.x > mirrorX - 20) state.eye.x = mirrorX - 200;
+
             draw();
         }
 
@@ -128,20 +614,21 @@
             canvas.width = width;
             canvas.height = height;
             mirrorX = width / 2;
-            
-            // Listener for checkboxes
-            document.getElementById('toggleDistances').addEventListener('change', (e) => {
+
+            document.getElementById('toggleDistances').addEventListener('change', function (e) {
                 state.showDistances = e.target.checked;
                 draw();
             });
 
-            document.getElementById('toggleAngles').addEventListener('change', (e) => {
+            document.getElementById('toggleAngles').addEventListener('change', function (e) {
                 state.showAngles = e.target.checked;
                 draw();
             });
 
+            wireTeachUi();
+            applyLanguage();
             resetSimulation();
-            
+
             window.addEventListener('resize', resize);
             setupInteractions();
             requestAnimationFrame(loop);
@@ -149,22 +636,31 @@
 
         function resetSimulation() {
             mirrorX = width / 2;
-            // Default positions
             state.obj.x = mirrorX - 150;
-            state.obj.y = height / 2 + 50; // Base of arrow
+            state.obj.y = height / 2 + 50;
+            state.obj.dragging = false;
             state.eye.x = mirrorX - 250;
             state.eye.y = height / 2 - 100;
+            state.eye.dragging = false;
+
+            const distEl = document.getElementById('toggleDistances');
+            const angEl = document.getElementById('toggleAngles');
+            distEl.checked = false;
+            angEl.checked = false;
+            state.showDistances = false;
+            state.showAngles = false;
+
+            quizReveal = false;
+            document.getElementById('btn-quiz-answers').textContent = t('showAns');
+            closeAllModals(null);
             draw();
         }
 
-        // --- Drawing Functions ---
-
         function drawGrid() {
             ctx.beginPath();
-            ctx.strokeStyle = '#e5e7eb'; // tailwind gray-200
+            ctx.strokeStyle = '#e5e7eb';
             ctx.lineWidth = 1;
 
-            // Vertical lines
             for (let x = mirrorX; x < width; x += gridSize) {
                 ctx.moveTo(x, 0); ctx.lineTo(x, height);
             }
@@ -172,7 +668,6 @@
                 ctx.moveTo(x, 0); ctx.lineTo(x, height);
             }
 
-            // Horizontal lines
             const centerY = height / 2;
             for (let y = centerY; y < height; y += gridSize) {
                 ctx.moveTo(0, y); ctx.lineTo(width, y);
@@ -185,15 +680,14 @@
 
         function drawMirror() {
             ctx.beginPath();
-            ctx.strokeStyle = '#3b82f6'; // Blue-500
+            ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 4;
             ctx.moveTo(mirrorX, 50);
             ctx.lineTo(mirrorX, height - 50);
             ctx.stroke();
 
-            // Draw hash marks on the back (right side)
             ctx.beginPath();
-            ctx.strokeStyle = '#9ca3af'; // Gray-400
+            ctx.strokeStyle = '#9ca3af';
             ctx.lineWidth = 1;
             for (let y = 60; y < height - 50; y += 15) {
                 ctx.moveTo(mirrorX, y);
@@ -201,40 +695,31 @@
             }
             ctx.stroke();
 
-            // Label
             ctx.fillStyle = '#1f2937';
-            ctx.font = 'bold 16px sans-serif';
+            ctx.font = 'bold 16px "Noto Sans TC", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText("平面鏡", mirrorX, 40);
+            ctx.fillText(t('canvasMirror'), mirrorX, 40);
         }
 
         function drawDistances() {
-            // Calculate distances
-            // Scale: 1 grid (40px) = 10 mm
             const pixelDist = mirrorX - state.obj.x;
-            const mmDist = Math.round((pixelDist / gridSize) * 10); // Convert px to mm
-            
+            const mmDist = Math.round((pixelDist / gridSize) * 10);
             const imageX = mirrorX + pixelDist;
-            
-            // Position markers near the bottom of the mirror
-            const yPos = height - 120; 
+            const yPos = height - 120;
 
             ctx.save();
-            ctx.strokeStyle = '#4b5563'; // gray-600
-            ctx.fillStyle = '#4b5563'; // Fill for arrows
+            ctx.strokeStyle = '#4b5563';
+            ctx.fillStyle = '#4b5563';
             ctx.lineWidth = 2;
-            ctx.font = 'bold 14px sans-serif';
+            ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
             ctx.textAlign = 'center';
 
-            // Helper to draw dimension line with arrows <--->
             function drawDimensionArrow(x1, x2, y) {
-                // Main line
                 ctx.beginPath();
                 ctx.moveTo(x1, y);
                 ctx.lineTo(x2, y);
                 ctx.stroke();
 
-                // Arrow at Left (x1)
                 ctx.beginPath();
                 ctx.moveTo(x1, y);
                 ctx.lineTo(x1 + 8, y - 4);
@@ -242,7 +727,6 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // Arrow at Right (x2)
                 ctx.beginPath();
                 ctx.moveTo(x2, y);
                 ctx.lineTo(x2 - 8, y - 4);
@@ -250,35 +734,28 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // Vertical ticks
                 ctx.beginPath();
                 ctx.moveTo(x1, y - 8); ctx.lineTo(x1, y + 8);
                 ctx.moveTo(x2, y - 8); ctx.lineTo(x2, y + 8);
                 ctx.stroke();
             }
 
-            // --- Object Distance ---
             drawDimensionArrow(state.obj.x, mirrorX, yPos);
 
-            // Text
             const objLabelX = (state.obj.x + mirrorX) / 2;
-            ctx.fillStyle = 'rgba(255,255,255,0.8)'; // background for text
-            ctx.fillRect(objLabelX - 50, yPos - 20, 100, 16); // slightly wider background
-            ctx.fillStyle = '#dc2626'; // Red color for object text
-            ctx.fillText(`物距: ${mmDist} mm`, objLabelX, yPos - 8);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.fillRect(objLabelX - 55, yPos - 20, 110, 16);
+            ctx.fillStyle = '#dc2626';
+            ctx.fillText(t('canvasObjDist') + ': ' + mmDist + ' mm', objLabelX, yPos - 8);
 
-
-            // --- Image Distance ---
-            // Reset fill style for arrows
-            ctx.fillStyle = '#4b5563'; 
+            ctx.fillStyle = '#4b5563';
             drawDimensionArrow(mirrorX, imageX, yPos);
 
-            // Text
             const imgLabelX = (mirrorX + imageX) / 2;
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.fillRect(imgLabelX - 50, yPos - 20, 100, 16);
-            ctx.fillStyle = '#dc2626'; // Red color for image text (virtual image logic)
-            ctx.fillText(`像距: ${mmDist} mm`, imgLabelX, yPos - 8);
+            ctx.fillRect(imgLabelX - 55, yPos - 20, 110, 16);
+            ctx.fillStyle = '#dc2626';
+            ctx.fillText(t('canvasImgDist') + ': ' + mmDist + ' mm', imgLabelX, yPos - 8);
 
             ctx.restore();
         }
@@ -292,13 +769,11 @@
                 ctx.setLineDash([8, 8]);
             }
 
-            // Main shaft (drawing from bottom up)
             ctx.beginPath();
             ctx.moveTo(x, y);
             ctx.lineTo(x, y - height);
             ctx.stroke();
 
-            // Arrow Head (放大兩倍)
             ctx.setLineDash([]);
             ctx.beginPath();
             ctx.moveTo(x, y - height);
@@ -307,10 +782,9 @@
             ctx.closePath();
             ctx.fill();
 
-            // Label
             if (label) {
                 ctx.fillStyle = color;
-                ctx.font = 'bold 18px sans-serif';
+                ctx.font = 'bold 18px "Noto Sans TC", sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(label, x, y + 30);
             }
@@ -320,45 +794,37 @@
         function drawEye(x, y) {
             ctx.save();
             ctx.translate(x, y);
-            
-            // 放大倍率
+
             const s = 4.0;
 
-            // Make eye look towards the mirror (right)
-            // Sclera
             ctx.beginPath();
-            ctx.strokeStyle = '#2563eb'; // Blue-600
+            ctx.strokeStyle = '#2563eb';
             ctx.lineWidth = 2;
             ctx.fillStyle = 'white';
-            // Eye shape
             ctx.moveTo(-15 * s, 0);
             ctx.quadraticCurveTo(0, -12 * s, 15 * s, 0);
             ctx.quadraticCurveTo(0, 12 * s, -15 * s, 0);
             ctx.fill();
             ctx.stroke();
 
-            // Pupil (Lens area)
             ctx.beginPath();
             ctx.fillStyle = '#1e40af';
-            // Pupil slightly to the right to look at mirror
             ctx.ellipse(5 * s, 0, 3 * s, 6 * s, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Label
             ctx.fillStyle = '#1e40af';
-            ctx.font = '14px sans-serif';
+            ctx.font = '14px "Noto Sans TC", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText("眼睛", 0, 35);
+            ctx.fillText(t('canvasEye'), 0, 35);
 
             ctx.restore();
         }
 
-        // Helper to draw a ray with an arrow in the middle
         function drawRayLine(x1, y1, x2, y2, color, type) {
             ctx.save();
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
-            
+
             if (type === 'virtual') {
                 ctx.setLineDash([4, 4]);
                 ctx.strokeStyle = color;
@@ -372,142 +838,77 @@
             ctx.lineTo(x2, y2);
             ctx.stroke();
 
-            // Draw direction arrow in the middle of the segment
             if (type !== 'virtual') {
                 const midX = (x1 + x2) / 2;
                 const midY = (y1 + y2) / 2;
                 const angle = Math.atan2(y2 - y1, x2 - x1);
-                
+
                 ctx.translate(midX, midY);
                 ctx.rotate(angle);
-                
+
                 ctx.beginPath();
                 ctx.fillStyle = color;
                 ctx.moveTo(0, 0);
                 ctx.lineTo(-6, -3);
                 ctx.lineTo(-6, 3);
                 ctx.fill();
-                
-                // Reset transform
+
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
             }
-            
+
             ctx.restore();
         }
 
-        // Helper to draw normal and angles
         function drawNormalAndAngles(intersectY, sourcePt, targetPt) {
-            // 1. Draw Normal (Horizontal dashed line)
-            // It is horizontal because mirror is vertical
             ctx.save();
             ctx.strokeStyle = '#000000';
             ctx.setLineDash([4, 4]);
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.moveTo(mirrorX, intersectY);
-            ctx.lineTo(mirrorX - 100, intersectY); // Draw normal to the left
+            ctx.lineTo(mirrorX - 100, intersectY);
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Label "Normal"
             ctx.fillStyle = 'black';
-            ctx.font = '12px sans-serif';
-            ctx.fillText("法線", mirrorX - 105, intersectY + 4);
+            ctx.font = '12px "Noto Sans TC", sans-serif';
+            ctx.fillText(t('canvasNormal'), mirrorX - 105, intersectY + 4);
 
-            // 2. Calculate Angles
-            // Angle is formed with the Normal (horizontal, pointing left = PI)
-            // We need angle of Incident Ray vector (Intersection -> Object) relative to Normal
-            // And Reflected Ray vector (Intersection -> Eye) relative to Normal (wait, reflected is to right)
-            // Standard physics: Normal is perpendicular to surface. 
-            // Let's use absolute slope angles.
-
-            // Normal Vector is (-1, 0)
-            
-            // Incident Ray Vector (Intersection -> Source)
-            const incDx = sourcePt.x - mirrorX;
-            const incDy = sourcePt.y - intersectY;
-            const incAngleRad = Math.atan2(incDy, incDx); // This is angle from Intersection pointing to Source
-
-            // Reflected Ray Vector (Intersection -> Target)
-            // But reflection angle is usually measured between Normal and Reflected Ray
-            // Let's calculate the angle magnitude simply using geometry
-            // Theta = atan(|dy| / |dx|)
             const theta = Math.atan(Math.abs((targetPt.y - intersectY) / (targetPt.x - mirrorX)));
             const deg = (theta * 180 / Math.PI).toFixed(1);
 
-            // Draw Arc for Incident Angle (i)
-            // Center at (mirrorX, intersectY)
-            // Normal is at 180 degrees (PI)
-            // Object is to the left, so angle is PI +/- theta
             const radius = 40;
             const startAngle = Math.PI;
             let endAngle = Math.PI + ((sourcePt.y > intersectY) ? theta : -theta);
-            
+
             ctx.beginPath();
-            ctx.strokeStyle = '#ef4444'; // Red for i
+            ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 2;
-            ctx.arc(mirrorX, intersectY, radius, startAngle, endAngle, (sourcePt.y < intersectY)); // counterclockwise if source is above
+            ctx.arc(mirrorX, intersectY, radius, startAngle, endAngle, (sourcePt.y < intersectY));
             ctx.stroke();
 
-            // Label i
             ctx.fillStyle = '#ef4444';
-            ctx.font = 'bold 14px sans-serif';
-            // Position text
+            ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
             const labelAngleI = (startAngle + endAngle) / 2;
             const lxI = mirrorX + (radius + 15) * Math.cos(labelAngleI);
             const lyI = intersectY + (radius + 15) * Math.sin(labelAngleI);
-            ctx.fillText(`i = ${deg}°`, lxI - 20, lyI);
+            ctx.fillText('i = ' + deg + '°', lxI - 20, lyI);
 
-            // Draw Arc for Reflected Angle (r)
-            // The reflected ray goes to the RIGHT (Eye). 
-            // BUT the "Angle of Reflection" is the angle between the Reflected Ray and the Normal.
-            // The Normal is perpendicular to surface.
-            // In this 2D side view, the "Normal" is the horizontal line.
-            // The reflected ray is on the RIGHT side of the mirror.
-            // So we measure angle from 0 degrees (Horizontal Right) to the Reflected Ray?
-            // Wait, the Normal is a line. It extends both sides? 
-            // In reflection diagrams, the normal is usually drawn on the side where light comes from (Left).
-            // But the reflected ray goes to the right (Eye is on left? NO).
-            // Let's check the setup.
-            // Object is Left (x < MirrorX). Eye is Left (x < MirrorX).
-            // Mirror is at MirrorX.
-            // Light: Object -> Mirror -> Eye.
-            // BOTH Incident and Reflected rays are on the LEFT side of the mirror.
-            // My previous traceRay drew:
-            // 1. Object -> Mirror (Incident)
-            // 2. Mirror -> Eye (Reflected)
-            // Yes, both are on the left.
-            
-            // Re-calc Reflected Vector (Intersection -> Eye)
-            const refDx = targetPt.x - mirrorX;
-            const refDy = targetPt.y - intersectY;
-            // Both object and eye are on the Left (negative relative to mirror).
-            // So the logic holds.
-            
-            // Angle for Reflected Ray
-            // Eye is to the left, so dx is negative.
-            // Angle is PI +/- theta.
             let endAngleR = Math.PI + ((targetPt.y > intersectY) ? theta : -theta);
 
-            // Wait, if Object is above Eye (or vice versa), one angle is +theta, one is -theta relative to PI
-            // Incident Ray comes FROM object. Reflected Ray goes TO eye.
-            
             ctx.beginPath();
-            ctx.strokeStyle = '#2563eb'; // Blue for r
+            ctx.strokeStyle = '#2563eb';
             ctx.lineWidth = 2;
-            // Draw arc from PI to Reflected Ray angle
-            // Note: Draw slightly smaller radius to avoid overlap if they are close
             const radiusR = 30;
             ctx.arc(mirrorX, intersectY, radiusR, Math.PI, endAngleR, (targetPt.y < intersectY));
             ctx.stroke();
 
-            // Label r
             ctx.fillStyle = '#2563eb';
-            ctx.font = 'bold 14px sans-serif';
+            ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
             const labelAngleR = (Math.PI + endAngleR) / 2;
             const lxR = mirrorX + (radiusR + 25) * Math.cos(labelAngleR);
             const lyR = intersectY + (radiusR + 25) * Math.sin(labelAngleR);
-            ctx.fillText(`r = ${deg}°`, lxR - 20, lyR);
+            ctx.fillText('r = ' + deg + '°', lxR - 20, lyR);
 
             ctx.restore();
         }
@@ -517,81 +918,58 @@
             const imageX = mirrorX + objectDist;
             const imageY = state.obj.y;
 
-            // Draw Image (Ghost Arrow)
-            drawArrow(imageX, imageY, state.obj.h, '#ef4444', true, "虛像");
+            drawArrow(imageX, imageY, state.obj.h, '#ef4444', true, t('canvasImage'));
 
-            // Coordinates for Object Tips and Tail
             const objTop = { x: state.obj.x, y: state.obj.y - state.obj.h };
             const objBot = { x: state.obj.x, y: state.obj.y };
-            
+
             const imgTop = { x: imageX, y: imageY - state.obj.h };
             const imgBot = { x: imageX, y: imageY };
 
             const eyePos = { x: state.eye.x, y: state.eye.y };
-            
-            // Eye aperture (Top and Bottom entrance points of pupil)
+
             const s = 4.0;
             const pupilCenterX = eyePos.x + (5 * s);
             const pupilRadiusY = 6 * s;
-            
+
             const eyeTargetTop = { x: pupilCenterX, y: eyePos.y - pupilRadiusY };
             const eyeTargetBot = { x: pupilCenterX, y: eyePos.y + pupilRadiusY };
 
-            // --- Ray Logic ---
-            // added displayAngles param
             function traceRay(sourcePt, imagePt, targetPt, color, showAnglesForThisRay) {
-                // 1. Calculate slope between Image and Target (Eye part)
                 const dx = targetPt.x - imagePt.x;
                 const dy = targetPt.y - imagePt.y;
-                
-                if (dx === 0) return; 
+
+                if (dx === 0) return;
 
                 const m = dy / dx;
-
-                // 2. Find Y at Mirror X
                 const intersectY = m * (mirrorX - imagePt.x) + imagePt.y;
 
-                // Ray 1: Virtual (Image to Mirror)
                 drawRayLine(imagePt.x, imagePt.y, mirrorX, intersectY, color, 'virtual');
-
-                // Ray 2: Reflected (Mirror to Eye Target)
                 drawRayLine(mirrorX, intersectY, targetPt.x, targetPt.y, color, 'reflected');
-
-                // Ray 3: Incident (Object to Mirror)
                 drawRayLine(sourcePt.x, sourcePt.y, mirrorX, intersectY, color, 'incident');
 
-                // Draw Normal and Angles if requested
                 if (showAnglesForThisRay) {
                     drawNormalAndAngles(intersectY, sourcePt, targetPt);
                 }
             }
 
-            // Trace Top Rays (Green)
-            // Only show angles for the FIRST ray (Top -> Top Pupil) to prevent clutter
-            traceRay(objTop, imgTop, eyeTargetTop, '#16a34a', state.showAngles); 
+            traceRay(objTop, imgTop, eyeTargetTop, '#16a34a', state.showAngles);
             traceRay(objTop, imgTop, eyeTargetBot, '#16a34a', false);
-
-            // Trace Bottom Rays (Purple)
             traceRay(objBot, imgBot, eyeTargetTop, '#9333ea', false);
             traceRay(objBot, imgBot, eyeTargetBot, '#9333ea', false);
         }
 
         function draw() {
+            if (!width || !height) return;
             ctx.clearRect(0, 0, width, height);
-            
+
             drawGrid();
             drawMirror();
-            
-            // Draw Object
-            drawArrow(state.obj.x, state.obj.y, state.obj.h, '#dc2626', false, "物體");
-            
-            // Draw Eye
-            drawEye(state.eye.x, state.eye.y);
 
-            // Draw Rays & Image
+            drawArrow(state.obj.x, state.obj.y, state.obj.h, '#dc2626', false, t('canvasObject'));
+            drawEye(state.eye.x, state.eye.y);
             drawRayDiagram();
 
-            // Draw Distances if toggled
             if (state.showDistances) {
                 drawDistances();
             }
@@ -603,8 +981,6 @@
             }
             requestAnimationFrame(loop);
         }
-
-        // --- Interactions ---
 
         function getPointerPos(e) {
             const rect = canvas.getBoundingClientRect();
@@ -618,19 +994,18 @@
 
         function isOverObject(pos) {
             const dx = Math.abs(pos.x - state.obj.x);
-            // Expanded hitbox for better touch
             return dx < 30 && pos.y > state.obj.y - state.obj.h - 20 && pos.y < state.obj.y + 20;
         }
 
         function isOverEye(pos) {
             const dx = pos.x - state.eye.x;
             const dy = pos.y - state.eye.y;
-            return Math.sqrt(dx*dx + dy*dy) < 40; 
+            return Math.sqrt(dx * dx + dy * dy) < 40;
         }
 
         function handleStart(e) {
             const pos = getPointerPos(e);
-            
+
             if (isOverObject(pos)) {
                 state.obj.dragging = true;
                 state.dragOffset.x = pos.x - state.obj.x;
@@ -685,30 +1060,26 @@
             state.obj.dragging = false;
             state.eye.dragging = false;
             canvas.style.cursor = 'crosshair';
-            draw(); 
+            draw();
         }
 
         function setupInteractions() {
-            // Mouse
             canvas.addEventListener('mousedown', handleStart);
             window.addEventListener('mousemove', handleMove);
             window.addEventListener('mouseup', handleEnd);
 
-            // Touch
-            canvas.addEventListener('touchstart', (e) => {
+            canvas.addEventListener('touchstart', function (e) {
                 e.preventDefault();
                 handleStart(e);
             }, { passive: false });
-            window.addEventListener('touchmove', (e) => {
+            window.addEventListener('touchmove', function (e) {
                 e.preventDefault();
                 handleMove(e);
             }, { passive: false });
             window.addEventListener('touchend', handleEnd);
         }
 
-        // Run
         init();
-
     </script>
 </body>
 </html>

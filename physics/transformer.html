@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>變壓器 | Transformer</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js for Oscilloscope -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- MathJax for Formulas -->
+<script>
+        MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] }
+        };
+    </script>
+<script async="" id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* 隱藏預設滑塊樣式並自定義 */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+
+        /* 磁通量流動動畫 */
+        @keyframes flux-flow {
+            to { stroke-dashoffset: -40; }
+        }
+        .flux-line {
+            stroke-dasharray: 10 10;
+            animation: flux-flow 1s linear infinite;
+        }
+
+        /* 輝光效果 */
+        .glow-red { filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6)); }
+        .glow-blue { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6)); }
+    
+        
+
+    
+        .modal-backdrop { transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .modal-content { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+</style>
+<link href="../css/sim-mathjax.css" rel="stylesheet"/>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col pb-10">
+<header class="w-full max-w-7xl mx-auto bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 z-20 sticky top-2 shrink-0">
+<div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-md shrink-0">
+<svg fill="none" height="22" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="22" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+</div>
+<div class="min-w-0">
+<h1 class="text-lg sm:text-xl font-black tracking-tight text-slate-800 flex items-center gap-2 flex-wrap">
+<span data-i18n="title">變壓器</span>
+<span class="text-[11px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-bold border border-slate-200" data-i18n="badge">物理</span>
+</h1>
+<p class="text-xs text-slate-500 truncate" data-i18n="subtitle">匝數比與磁通耦合</p>
+</div>
+</div>
+<button class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+</div>
+<div class="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+<button class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border border-slate-300 flex items-center gap-2" id="btn-steps" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M9 5h12"></path><path d="M9 12h12"></path><path d="M9 19h12"></path><circle cx="4" cy="5" fill="currentColor" r="1"></circle><circle cx="4" cy="12" fill="currentColor" r="1"></circle><circle cx="4" cy="19" fill="currentColor" r="1"></circle></svg>
+<span data-i18n="btnSteps">觀察步驟</span>
+</button>
+<button class="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2" id="btn-principle" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+<span data-i18n="btnPrinciple">原理解說</span>
+</button>
+<button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+            <span data-i18n="btnQuiz">課堂問題</span>
+        </button>
+
+<button class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-sm shadow-sm" id="btn-reset-sim" type="button">
+<span data-i18n="btnReset">重置</span>
+</button>
+<button class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm border border-slate-300" id="btn-lang" type="button">中 / EN</button>
+</div>
+</header>
+<!-- 頂部 Header -->
+<main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto lg:overflow-hidden"><aside class="lg:col-span-4 xl:col-span-4 order-2 lg:order-1 space-y-3 shrink-0 min-h-0"><div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+<svg class="text-slate-500" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+<span data-i18n="controlTitle">參數控制台</span>
+</h2>
+<button class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-colors flex items-center gap-2" id="play-btn" onclick="togglePlay()">
+<svg fill="none" height="16" id="play-icon" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><rect height="16" width="4" x="6" y="4"></rect><rect height="16" width="4" x="14" y="4"></rect></svg>
+<span data-i18n="btnPause" id="play-text">暫停</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+<!-- 輸入電壓 Vp -->
+<div class="col-span-1 md:col-span-2">
+<label class="flex justify-between text-sm font-bold text-slate-600 mb-2">
+<span data-i18n="sliderVp">原線圈輸入電壓 (Vp)</span>
+<span class="text-red-600 font-mono text-lg"><span id="val-vp">100</span> V</span>
+</label>
+<input class="text-red-500" id="slider-vp" max="220" min="10" step="10" type="range" value="100"/>
+</div>
+<!-- 匝數 Np -->
+<div>
+<label class="flex justify-between text-sm font-bold text-slate-600 mb-2">
+<span data-i18n="sliderNp">原線圈匝數 (Np)</span>
+<span class="text-red-600 font-mono text-lg"><span id="val-np">500</span> 匝</span>
+</label>
+<input class="text-red-500" id="slider-np" max="2000" min="100" step="100" type="range" value="500"/>
+</div>
+<!-- 匝數 Ns -->
+<div>
+<label class="flex justify-between text-sm font-bold text-slate-600 mb-2">
+<span data-i18n="sliderNs">副線圈匝數 (Ns)</span>
+<span class="text-blue-600 font-mono text-lg"><span id="val-ns">1000</span> 匝</span>
+</label>
+<input class="text-blue-500" id="slider-ns" max="2000" min="100" step="100" type="range" value="1000"/>
+</div>
+</div>
+</div></aside><section class="lg:col-span-8 xl:col-span-8 order-1 lg:order-2 flex flex-col gap-4 min-w-0 min-h-0"><div class="flex flex-col gap-6">
+<!-- 變壓器視覺模型 -->
+<div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 relative overflow-hidden flex flex-col items-center justify-center min-h-[350px]">
+<h2 class="absolute top-4 left-6 text-lg font-bold text-slate-700 flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+<span data-i18n="visTitle">變壓器內部結構 (互感現象)</span>
+</h2>
+<!-- SVG 變壓器 -->
+<svg class="w-full max-w-[450px] mt-6 select-none" viewbox="0 0 500 300">
+<defs>
+<lineargradient id="coreGrad" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#94a3b8"></stop>
+<stop offset="50%" stop-color="#cbd5e1"></stop>
+<stop offset="100%" stop-color="#64748b"></stop>
+</lineargradient>
+</defs>
+<!-- 鐵芯 (Iron Core) -->
+<path d="M 100 50 L 400 50 L 400 250 L 100 250 Z M 160 110 L 340 110 L 340 190 L 160 190 Z" fill="url(#coreGrad)" fill-rule="evenodd" stroke="#475569" stroke-width="4"></path>
+<text class="text-sm fill-slate-600 font-bold" data-i18n="svgCore" text-anchor="middle" x="250" y="155">導磁鐵芯</text>
+<!-- 磁通量動畫 (Magnetic Flux) -->
+<rect class="flux-line opacity-70" fill="none" height="140" id="flux-path" rx="10" stroke="#22c55e" stroke-width="3" width="240" x="130" y="80"></rect>
+<text class="text-xs fill-green-600 font-bold" data-i18n="svgFlux" text-anchor="middle" x="250" y="70">磁通量 Φ (互感)</text>
+<!-- 原線圈 (Primary Coil) - 左側 -->
+<g class="glow-red stroke-red-500" fill="none" id="svg-primary-coils" stroke-linejoin="round" stroke-width="6"></g>
+<!-- 原線圈端子 -->
+<circle cx="80" cy="90" fill="#ef4444" r="5"></circle>
+<circle cx="80" cy="210" fill="#ef4444" r="5"></circle>
+<path d="M 40 90 L 80 90 M 40 210 L 80 210" stroke="#ef4444" stroke-width="3"></path>
+<circle cx="40" cy="90" fill="none" r="4" stroke="#ef4444" stroke-width="2"></circle>
+<circle cx="40" cy="210" fill="none" r="4" stroke="#ef4444" stroke-width="2"></circle>
+<text class="text-sm fill-red-600 font-bold" text-anchor="end" x="40" y="155">~ Vp</text>
+<text class="text-sm fill-red-600 font-bold" id="svg-np-text" text-anchor="middle" x="100" y="30">Np</text>
+<!-- 副線圈 (Secondary Coil) - 右側 -->
+<g class="glow-blue stroke-blue-500" fill="none" id="svg-secondary-coils" stroke-linejoin="round" stroke-width="6"></g>
+<!-- 副線圈端子 -->
+<circle cx="420" cy="90" fill="#3b82f6" r="5"></circle>
+<circle cx="420" cy="210" fill="#3b82f6" r="5"></circle>
+<path d="M 420 90 L 460 90 M 420 210 L 460 210" stroke="#3b82f6" stroke-width="3"></path>
+<circle cx="460" cy="90" fill="none" r="4" stroke="#3b82f6" stroke-width="2"></circle>
+<circle cx="460" cy="210" fill="none" r="4" stroke="#3b82f6" stroke-width="2"></circle>
+<text class="text-sm fill-blue-600 font-bold" text-anchor="start" x="465" y="155">Vs ~</text>
+<text class="text-sm fill-blue-600 font-bold" id="svg-ns-text" text-anchor="middle" x="400" y="30">Ns</text>
+</svg>
+<div class="mt-4 flex gap-4 text-sm font-bold">
+<div class="px-3 py-1 bg-red-50 text-red-600 rounded-md border border-red-200" data-i18n="badgePrimary">原線圈 (輸入)</div>
+<div class="px-3 py-1 bg-green-50 text-green-600 rounded-md border border-green-200 hidden md:block" data-i18n="badgeMutual">互感 (磁場耦合)</div>
+<div class="px-3 py-1 bg-blue-50 text-blue-600 rounded-md border border-blue-200" data-i18n="badgeSecondary">副線圈 (輸出)</div>
+</div>
+</div>
+<!-- 控制面板 -->
+</div><div class="flex flex-col gap-6">
+<!-- 示波器 -->
+<div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-4 relative flex flex-col min-h-[300px]">
+<h2 class="text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
+<svg class="text-green-400" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+<span data-i18n="scopeTitle">雙通道示波器 (電壓-時間圖)</span>
+</h2>
+<div class="flex-grow relative w-full">
+<canvas id="oscilloscope"></canvas>
+</div>
+<div class="flex justify-center gap-6 mt-3 text-xs font-mono">
+<div class="flex items-center gap-1 text-red-400"><div class="w-3 h-1 bg-red-500 rounded"></div> Vp (Input)</div>
+<div class="flex items-center gap-1 text-blue-400"><div class="w-3 h-1 bg-blue-500 rounded"></div> Vs (Output)</div>
+</div>
+</div>
+<!-- 數據與公式面板 -->
+<div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 flex-grow flex flex-col justify-between">
+<div>
+<h2 class="text-lg font-bold text-slate-700 flex items-center gap-2 mb-4 border-b pb-2">
+<svg class="text-indigo-500" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><rect height="20" rx="2" width="16" x="4" y="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg>
+<span data-i18n="calcTitle">核心公式與計算</span>
+</h2>
+<!-- LaTeX 公式區域 -->
+<div class="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6 text-center overflow-x-auto">
+<div class="text-lg text-slate-800">
+                            $$ \frac{V_s}{V_p} = -\frac{N_s}{N_p} $$
+                        </div>
+<div class="text-[11px] text-slate-400 mt-2" data-i18n="mathNote">* 負號代表根據冷次定律，輸出端與輸入端電壓相位相反(相差180°)</div>
+</div>
+<!-- 實時數據網格 -->
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-slate-100 p-3 rounded-lg text-center">
+<div class="text-xs text-slate-500 font-bold mb-1" data-i18n="labelRatio">匝數比 (Ns/Np)</div>
+<div class="text-2xl font-mono font-bold text-slate-700" id="calc-ratio">2.00</div>
+</div>
+<div class="bg-indigo-50 border border-indigo-100 p-3 rounded-lg text-center">
+<div class="text-xs text-indigo-600 font-bold mb-1" data-i18n="labelType">變壓器類型</div>
+<div class="text-xl font-bold text-indigo-700 mt-1" id="calc-type">升壓 (Step-up)</div>
+</div>
+</div>
+</div>
+<div class="mt-6 pt-4 border-t border-slate-100">
+<div class="flex justify-between items-end">
+<span class="text-sm font-bold text-slate-500" data-i18n="labelOutput">理論輸出電壓幅值 (Vs)</span>
+<span class="text-4xl font-mono font-bold text-blue-600"><span id="calc-vs">200</span> <span class="text-xl">V</span></span>
+</div>
+</div>
+</div>
+</div></section></main>
+<!-- 右下角教學重點提示 -->
+<div class="fixed bottom-4 right-4 max-w-sm bg-yellow-50 border-l-4 border-yellow-400 p-4 shadow-xl rounded-r-lg z-50 text-sm opacity-95 hover:opacity-100 transition-opacity hidden md:block">
+<h3 class="font-bold text-yellow-800 mb-1 flex items-center gap-1">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+<span data-i18n="tipTitle">觀察重點</span>
+</h3>
+<ul class="list-disc pl-5 text-yellow-900 space-y-1 text-xs">
+<li data-i18n="tip1"><strong>電壓反相：</strong>觀察示波器，紅線(Vp)處於波峰時，藍線(Vs)處於波谷，兩者相差 180 度。</li>
+<li data-i18n="tip2"><strong>匝數決定電壓：</strong>若 Ns &gt; Np，為升壓變壓器，藍色振幅會大於紅色。</li>
+<li data-i18n="tip3"><strong>互感：</strong>鐵芯將原線圈的變動磁通量傳導至副線圈，從而感應出電動勢。</li>
+</ul>
+</div>
+<script>
+        // --- 多國語言設定 ---
+        const i18n = {
+            zh: {
+                appTitle: "電磁學實驗室：理想變壓器",
+                appSubtitle: "電磁感應與交流電轉換原理",
+                visTitle: "變壓器內部結構 (互感現象)",
+                svgCore: "導磁鐵芯",
+                svgFlux: "磁通量 Φ (互感)",
+                badgePrimary: "原線圈 (輸入)",
+                badgeMutual: "互感 (磁場耦合)",
+                badgeSecondary: "副線圈 (輸出)",
+                controlTitle: "參數控制台",
+                btnPause: "暫停",
+                btnPlay: "播放",
+                sliderVp: "原線圈輸入電壓 (Vp)",
+                sliderNp: "原線圈匝數 (Np)",
+                sliderNs: "副線圈匝數 (Ns)",
+                scopeTitle: "雙通道示波器 (電壓-時間圖)",
+                calcTitle: "核心公式與計算",
+                mathNote: "* 負號代表根據冷次定律，輸出端與輸入端電壓相位相反(相差180°)",
+                labelRatio: "匝數比 (Ns/Np)",
+                labelType: "變壓器類型",
+                typeUp: "升壓 (Step-up)",
+                typeDown: "降壓 (Step-down)",
+                typeIso: "隔離 (Isolation)",
+                labelOutput: "理論輸出電壓幅值 (Vs)",
+                tipTitle: "觀察重點",
+                tip1: "<strong>電壓反相：</strong>觀察示波器，紅線(Vp)處於波峰時，藍線(Vs)處於波谷，兩者相差 180 度。",
+                tip2: "<strong>匝數決定電壓：</strong>若 Ns > Np，為升壓變壓器，藍色振幅會大於紅色。",
+                tip3: "<strong>互感：</strong>鐵芯將原線圈的變動磁通量傳導至副線圈，從而感應出電動勢。"
+            },
+            en: {
+                appTitle: "EM Lab: Ideal Transformer",
+                appSubtitle: "Electromagnetic Induction & AC Conversion",
+                visTitle: "Internal Structure (Mutual Induction)",
+                svgCore: "Iron Core",
+                svgFlux: "Magnetic Flux Φ",
+                badgePrimary: "Primary Coil (In)",
+                badgeMutual: "Mutual Induction",
+                badgeSecondary: "Secondary Coil (Out)",
+                controlTitle: "Control Panel",
+                btnPause: "Pause",
+                btnPlay: "Play",
+                sliderVp: "Primary Voltage (Vp)",
+                sliderNp: "Primary Turns (Np)",
+                sliderNs: "Secondary Turns (Ns)",
+                scopeTitle: "Dual Oscilloscope (V-t Graph)",
+                calcTitle: "Core Formulas & Calc",
+                mathNote: "* The negative sign indicates a 180° phase shift between input and output due to Lenz's Law.",
+                labelRatio: "Turns Ratio (Ns/Np)",
+                labelType: "Transformer Type",
+                typeUp: "Step-up",
+                typeDown: "Step-down",
+                typeIso: "Isolation",
+                labelOutput: "Theoretical Output Amp. (Vs)",
+                tipTitle: "Key Observations",
+                tip1: "<strong>Phase Inversion:</strong> On the scope, when red (Vp) peaks, blue (Vs) is at the trough (180° shift).",
+                tip2: "<strong>Turns = Voltage:</strong> If Ns > Np, it's a step-up transformer; the blue wave is taller than the red.",
+                tip3: "<strong>Mutual Induction:</strong> The core guides changing flux from primary to secondary, inducing EMF."
+            }
+        };
+
+        let currentLang = 'zh';
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            const t = i18n[currentLang];
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.innerHTML = t[key];
+            });
+            updateCalculations(); // 更新升降壓文字
+        }
+
+        // --- 狀態變數 ---
+        let state = {
+            vp: 100,
+            np: 500,
+            ns: 1000,
+            vs: 200,
+            isPlaying: true,
+            time: 0,
+            freq: 0.05 // 動畫頻率
+        };
+
+        // --- DOM 元素 ---
+        const els = {
+            vpInput: document.getElementById('slider-vp'),
+            npInput: document.getElementById('slider-np'),
+            nsInput: document.getElementById('slider-ns'),
+            valVp: document.getElementById('val-vp'),
+            valNp: document.getElementById('val-np'),
+            valNs: document.getElementById('val-ns'),
+            calcRatio: document.getElementById('calc-ratio'),
+            calcType: document.getElementById('calc-type'),
+            calcVs: document.getElementById('calc-vs'),
+            svgNp: document.getElementById('svg-np-text'),
+            svgNs: document.getElementById('svg-ns-text'),
+            primaryCoils: document.getElementById('svg-primary-coils'),
+            secondaryCoils: document.getElementById('svg-secondary-coils'),
+            fluxPath: document.getElementById('flux-path'),
+            playBtnText: document.getElementById('play-text'),
+            playIcon: document.getElementById('play-icon')
+        };
+
+        // --- Chart.js 示波器設定 ---
+        const maxDataPoints = 100;
+        let chartInstance = null;
+        let chartData = {
+            labels: Array(maxDataPoints).fill(''),
+            datasets: [
+                {
+                    label: 'Vp',
+                    borderColor: '#ef4444', // Red
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    data: Array(maxDataPoints).fill(0),
+                    tension: 0.4
+                },
+                {
+                    label: 'Vs',
+                    borderColor: '#3b82f6', // Blue
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    data: Array(maxDataPoints).fill(0),
+                    tension: 0.4
+                }
+            ]
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('oscilloscope').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false, // 關閉預設動畫以提高效能
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            display: true, 
+                            min: -400, 
+                            max: 400,
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- SVG 線圈繪製 ---
+        function drawCoils() {
+            // 將匝數 (100-2000) 映射到可視的線圈圈數 (3 - 12)
+            const mapTurnsToLoops = (turns) => Math.floor(3 + (turns / 2000) * 9);
+            
+            const pLoops = mapTurnsToLoops(state.np);
+            const sLoops = mapTurnsToLoops(state.ns);
+
+            // 繪製原線圈 (左側)
+            let pPath = "M 80 110 ";
+            const pStep = 80 / pLoops;
+            for(let i=0; i<pLoops; i++) {
+                const y1 = 110 + i*pStep;
+                const y2 = y1 + pStep/2;
+                const y3 = y1 + pStep;
+                // 在鐵芯上繞圈 (左邊界 x=100, 右邊界 x=160)
+                pPath += `Q 170 ${y1} 170 ${y2} Q 170 ${y3} 80 ${y3} `;
+            }
+            els.primaryCoils.setAttribute('d', pPath);
+
+            // 繪製副線圈 (右側)
+            let sPath = "M 420 110 ";
+            const sStep = 80 / sLoops;
+            for(let i=0; i<sLoops; i++) {
+                const y1 = 110 + i*sStep;
+                const y2 = y1 + pStep/2; // slight offset for visual wrap
+                const y3 = y1 + sStep;
+                // 在鐵芯上繞圈 (左邊界 x=340, 右邊界 x=400)
+                sPath += `Q 330 ${y1} 330 ${y2} Q 330 ${y3} 420 ${y3} `;
+            }
+            els.secondaryCoils.setAttribute('d', sPath);
+        }
+
+        // --- 邏輯更新 ---
+        function updateCalculations() {
+            // 從輸入抓取數值
+            state.vp = parseInt(els.vpInput.value);
+            state.np = parseInt(els.npInput.value);
+            state.ns = parseInt(els.nsInput.value);
+            
+            // 計算
+            const ratio = state.ns / state.np;
+            state.vs = state.vp * ratio; // 物理上的幅值 (不含反相負號)
+
+            // 更新 UI 文字
+            els.valVp.innerText = state.vp;
+            els.valNp.innerText = state.np;
+            els.valNs.innerText = state.ns;
+            
+            els.svgNp.innerText = `Np: ${state.np}`;
+            els.svgNs.innerText = `Ns: ${state.ns}`;
+            
+            els.calcRatio.innerText = ratio.toFixed(2);
+            els.calcVs.innerText = state.vs.toFixed(0);
+
+            // 判斷類型
+            const t = i18n[currentLang];
+            if (ratio > 1) {
+                els.calcType.innerText = t.typeUp;
+                els.calcType.className = "text-xl font-bold text-indigo-700 mt-1";
+            } else if (ratio < 1) {
+                els.calcType.innerText = t.typeDown;
+                els.calcType.className = "text-xl font-bold text-emerald-700 mt-1";
+            } else {
+                els.calcType.innerText = t.typeIso;
+                els.calcType.className = "text-xl font-bold text-slate-700 mt-1";
+            }
+
+            drawCoils();
+        }
+
+        // --- 動畫迴圈 ---
+        function animate() {
+            if (state.isPlaying) {
+                state.time += state.freq;
+
+                // 產生交流電壓訊號
+                // Vp = A * sin(wt)
+                const currentVp = state.vp * Math.sin(state.time);
+                // Vs = - A * ratio * sin(wt) = A * ratio * sin(wt + PI) (反相)
+                const currentVs = -state.vs * Math.sin(state.time);
+
+                // 更新示波器資料
+                chartData.datasets[0].data.push(currentVp);
+                chartData.datasets[0].data.shift();
+                
+                chartData.datasets[1].data.push(currentVs);
+                chartData.datasets[1].data.shift();
+
+                chartInstance.update('none'); // 無動畫更新
+
+                // 更新 SVG 磁通量流動方向與速度
+                // 磁通量與電壓有相位差(積分關係)，此處為了視覺直觀，利用 cos 波來控制流動速度
+                const fluxSpeed = Math.cos(state.time) * 15; 
+                const currentDashOffset = parseFloat(els.fluxPath.style.strokeDashoffset || 0);
+                els.fluxPath.style.strokeDashoffset = currentDashOffset + fluxSpeed;
+                
+                // 動態調整線圈輝光透明度 (模擬電流強弱)
+                const glowIntensity = Math.abs(Math.sin(state.time));
+                els.primaryCoils.style.opacity = 0.5 + 0.5 * glowIntensity;
+                els.secondaryCoils.style.opacity = 0.5 + 0.5 * glowIntensity;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- 互動控制 ---
+        function togglePlay() {
+            state.isPlaying = !state.isPlaying;
+            const t = i18n[currentLang];
+            if (state.isPlaying) {
+                els.playBtnText.innerText = t.btnPause;
+                els.playIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`;
+                els.fluxPath.style.animationPlayState = 'running';
+            } else {
+                els.playBtnText.innerText = t.btnPlay;
+                els.playIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
+                els.fluxPath.style.animationPlayState = 'paused';
+            }
+        }
+
+        // 綁定事件
+        els.vpInput.addEventListener('input', updateCalculations);
+        els.npInput.addEventListener('input', updateCalculations);
+        els.nsInput.addEventListener('input', updateCalculations);
+
+        // 初始化
+        window.onload = () => {
+            initChart();
+            updateCalculations();
+            animate();
+        };
+
+    </script>
+<div aria-labelledby="modal-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-principle" role="dialog">
+<div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-cyan-500 to-blue-600 p-5 text-white flex justify-between items-center shrink-0">
+<div>
+<h2 class="text-lg font-bold" data-i18n="modalTitle" id="modal-title">原理解說</h2>
+<p class="text-xs opacity-80" data-i18n="modalSub">Principle</p>
+</div>
+<button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" id="modal-close" type="button">✕</button>
+</div>
+<div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+<div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+<h3 class="font-bold text-slate-900 mb-1" data-i18n="m1t">1. 電磁感應</h3>
+<p class="text-xs mj-box" data-i18n="m1d">變化磁通在次級產生 emf；交流才能持續耦合。</p>
+</div>
+<div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+<h3 class="font-bold text-slate-900 mb-1" data-i18n="m2t">2. 理想變壓器</h3>
+<p class="text-xs" data-i18n="m2d">$V_p/V_s=N_p/N_s$；$P_p=P_s$（理想）。</p>
+</div>
+<div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+<h3 class="font-bold text-emerald-900 mb-1" data-i18n="m5t">3. 應用</h3>
+<p class="text-xs text-emerald-800" data-i18n="m5d">電網升壓降流、手機充電器、隔離變壓器。</p>
+</div>
+</div>
+<div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+<button class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="modal-confirm" type="button">關閉</button>
+</div>
+</div>
+</div>
+<div aria-labelledby="steps-title" aria-modal="true" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" id="modal-steps" role="dialog">
+<div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 transform scale-95 opacity-0 flex flex-col max-h-[88vh]">
+<div class="bg-gradient-to-r from-cyan-500 to-blue-600 p-5 text-white flex justify-between items-center shrink-0">
+<h2 class="text-lg font-bold" data-i18n="stepsTitle" id="steps-title">觀察步驟</h2>
+<button aria-label="Close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" id="steps-close" type="button">✕</button>
+</div>
+<div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s1">1. 調 Np、Ns。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s2">2. 改 Vp。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s3">3. 讀 Vs。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s4">4. 加負載。</div>
+<div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s5">5. 升降壓比較。</div>
+</div>
+<div class="bg-slate-50 p-4 border-t border-slate-100 text-right shrink-0">
+<button class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose" id="steps-confirm" type="button">關閉</button>
+</div>
+</div>
+</div>
+<script>
+(function() {
+    const platformI18n = {
+        zh: {
+        title: "變壓器",
+        subtitle: "匝數比與磁通耦合",
+        badge: "物理",
+        btnSteps: "觀察步驟",
+        btnPrinciple: "原理解說",
+        btnReset: "重置",
+        stepsTitle: "觀察步驟",
+        modalTitle: "原理解說",
+        modalSub: "概念、機制與應用",
+        modalClose: "關閉",
+        m1t: "1. 電磁感應",
+        m1d: "變化磁通在次級產生 emf；交流才能持續耦合。",
+        m2t: "2. 理想變壓器",
+        m2d: "$V_p/V_s=N_p/N_s$；$P_p=P_s$（理想）。",
+        m5t: "3. 應用",
+        m5d: "電網升壓降流、手機充電器、隔離變壓器。",
+        s1: "1. 調 Np、Ns。",
+        s2: "2. 改 Vp。",
+        s3: "3. 讀 Vs。",
+        s4: "4. 加負載。",
+        s5: "5. 升降壓比較。",
+            btnQuiz: '課堂問題',
+            quizTitle: '課堂問題',
+            quizShowAnswers: '顯示參考答案',
+            quizHideAnswers: '隱藏參考答案',
+            quizRef: '參考答案：',
+            quizQ1: '理想變壓器初級／次級電壓與匝數比？',
+            quizQ1a: 'Vp/Vs＝Np/Ns',
+            quizQ1b: 'Vp/Vs＝Ns/Np',
+            quizQ1c: 'Vp ＝ Np',
+            quizQ1d: 'Vs 與 Ns 無關',
+            quizQ1ans: 'A。理想變壓器 Vp/Vs＝Np/Ns。',
+            quizQ2: '只把次級匝數 Ns 加倍（Vp、Np 不變），先預測 Vs，再對照讀數。',
+            quizQ2ans: 'Vs ∝ Ns，Ns 加倍 → Vs 約加倍。',
+            quizQ3: '增大初級電壓 Vp 滑桿（匝數不變）時，鐵芯磁通變化率？',
+            quizQ3a: '變大',
+            quizQ3b: '變小',
+            quizQ3c: '不變',
+            quizQ3d: '變為零',
+            quizQ3ans: 'A。更高 Vp → 更大 emf／磁通變化（示意）。',
+            quizQ4: '比較升壓（Ns＞Np）與降與降壓（Ns＜Np）預設：次級電壓 Vp/Vs 大小關係。',
+            quizQ4ans: '升壓 Vs＞Vp；降壓 Vs＜Vp（理想條件）。',
+            quizQ5: '若 Np＝Ns，則 Vs 與 Vp？',
+            quizQ5a: 'Vs＞Vp',
+            quizQ5b: 'Vs＜Vp',
+            quizQ5c: 'Vs≈Vp',
+            quizQ5d: 'Vs＝0',
+            quizQ5ans: 'C。1:1 匝數比 → 電壓相近（理想）。',
+        },
+        en: {
+        title: "Ideal transformer",
+        subtitle: "Step-up / step-down",
+        badge: "Physics",
+        btnSteps: "Steps",
+        btnPrinciple: "Principle",
+        btnReset: "Reset",
+        stepsTitle: "Observation Steps",
+        modalTitle: "Principle",
+        modalSub: "Concepts, mechanism & applications",
+        modalClose: "Close",
+        m1t: "1. Induction",
+        m1d: "Changing flux induces emf.",
+        m2t: "2. Turn ratio",
+        m2d: "Voltage scales with turns.",
+        m5t: "3. Applications",
+        m5d: "Grid transformers, chargers.",
+        s1: "1. Turn ratio.",
+        s2: "2. Primary voltage.",
+        s3: "3. Secondary.",
+        s4: "4. Load.",
+        s5: "5. Step types.",
+            btnQuiz: 'Quiz',
+            quizTitle: 'Classroom quiz',
+            quizShowAnswers: 'Show reference answers',
+            quizHideAnswers: 'Hide reference answers',
+            quizRef: 'Reference: ',
+            quizQ1: 'Ideal transformer voltage vs turns?',
+            quizQ1a: 'Vp/Vs＝Np/Ns',
+            quizQ1b: 'Vp/Vs＝Ns/Np',
+            quizQ1c: 'Vp＝Np',
+            quizQ1d: 'Vs independent of Ns',
+            quizQ1ans: 'A. Vp/Vs＝Np/Ns.',
+            quizQ2: 'Double only Ns (Vp, Np fixed). Predict Vs.',
+            quizQ2ans: 'Vs ∝ Ns → roughly doubles.',
+            quizQ3: 'Higher Vp slider (same turns): flux change rate?',
+            quizQ3a: 'Larger',
+            quizQ3b: 'Smaller',
+            quizQ3c: 'Same',
+            quizQ3d: 'Zero',
+            quizQ3ans: 'A. Higher primary voltage drives stronger flux change.',
+            quizQ4: 'Step-up vs step-down presets: Vs vs Vp?',
+            quizQ4ans: 'Step-up: Vs＞Vp; step-down: Vs＜Vp.',
+            quizQ5: 'Np＝Ns: Vs vs Vp?',
+            quizQ5a: 'Vs＞Vp',
+            quizQ5b: 'Vs＜Vp',
+            quizQ5c: 'Vs≈Vp',
+            quizQ5d: 'Vs＝0',
+            quizQ5ans: 'C. 1:1 turns → voltages match ideally.',
+
+        }
+    };
+
+    function getLang() {
+        if (typeof currentLang !== 'undefined') return currentLang;
+        if (typeof window.currentLang !== 'undefined') return window.currentLang;
+        return 'zh';
+    }
+
+    function setLangVar(lang) {
+        if (typeof currentLang !== 'undefined') currentLang = lang;
+        window.currentLang = lang;
+    }
+
+    function mergeInto(dict) {
+        if (!dict) return;
+        ['zh','en'].forEach(function(lang) {
+            if (!dict[lang]) dict[lang] = {};
+            Object.assign(dict[lang], platformI18n[lang]);
+            if (dict[lang].appTitle && !dict[lang].title) dict[lang].title = dict[lang].appTitle;
+            if (dict[lang].appSubtitle && !dict[lang].subtitle) dict[lang].subtitle = dict[lang].appSubtitle;
+        });
+    }
+
+    mergeInto(typeof i18n !== 'undefined' ? i18n : null);
+    mergeInto(typeof translations !== 'undefined' ? translations : null);
+    mergeInto(typeof i18nData !== 'undefined' ? i18nData : null);
+    mergeInto(typeof TRANSLATIONS !== 'undefined' ? TRANSLATIONS : null);
+
+    function applyPlatformI18n() {
+    renderQuiz();
+        const lang = getLang();
+        document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+        let pack = platformI18n[lang];
+        if (typeof i18n !== 'undefined' && i18n[lang]) pack = Object.assign({}, platformI18n[lang], i18n[lang]);
+        else if (typeof translations !== 'undefined' && translations[lang]) pack = Object.assign({}, platformI18n[lang], translations[lang]);
+        else if (typeof i18nData !== 'undefined' && i18nData[lang]) pack = Object.assign({}, platformI18n[lang], i18nData[lang]);
+        else if (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[lang]) pack = Object.assign({}, platformI18n[lang], TRANSLATIONS[lang]);
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+            const key = el.getAttribute('data-i18n');
+            if (pack[key] != null) {
+                if (/<[a-z][\s\S]*>/i.test(pack[key])) el.innerHTML = pack[key];
+                else el.textContent = pack[key];
+            }
+        });
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) MathJax.typesetPromise().catch(function(){});
+    }
+
+    function platformToggleLang() {
+        const next = getLang() === 'zh' ? 'en' : 'zh';
+        if (typeof toggleLanguage === 'function') toggleLanguage();
+        else if (typeof setLanguage === 'function') setLanguage(next);
+        else {
+            setLangVar(next);
+            if (typeof updateI18n === 'function') updateI18n();
+        }
+        renderQuiz();
+    applyPlatformI18n();
+
+        const brs = document.getElementById('btn-reset-sim');
+        if (brs && !document.querySelector('[data-native-reset="1"]')) brs.onclick = function() { location.reload(); };
+    }
+
+    function openPrinciple() {
+        const mp = document.getElementById('modal-principle');
+        const mc = mp && mp.querySelector('.modal-content');
+        if (!mp || !mc) return;
+        mp.classList.remove('opacity-0', 'pointer-events-none');
+        mc.classList.remove('scale-95', 'opacity-0');
+        mc.classList.add('scale-100', 'opacity-100');
+    }
+    function closePrinciple() {
+        const mp = document.getElementById('modal-principle');
+        const mc = mp && mp.querySelector('.modal-content');
+        if (!mp || !mc) return;
+        mc.classList.remove('scale-100', 'opacity-100');
+        mc.classList.add('scale-95', 'opacity-0');
+        mp.classList.add('opacity-0', 'pointer-events-none');
+    }
+    function openSteps() {
+        const ms = document.getElementById('modal-steps');
+        const sc = ms && ms.querySelector('.modal-content');
+        if (!ms || !sc) return;
+        ms.classList.remove('opacity-0', 'pointer-events-none');
+        sc.classList.remove('scale-95', 'opacity-0');
+        sc.classList.add('scale-100', 'opacity-100');
+    }
+    function closeSteps() {
+        const ms = document.getElementById('modal-steps');
+        const sc = ms && ms.querySelector('.modal-content');
+        if (!ms || !sc) return;
+        sc.classList.remove('scale-100', 'opacity-100');
+        sc.classList.add('scale-95', 'opacity-0');
+        ms.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    
+let quizAnswersVisible = false;
+function renderQuiz() {
+  const box = document.getElementById('quiz-list');
+  if (!box) return;
+  const L = (typeof state !== 'undefined' && state.lang) ? state.lang : ((typeof getLang === 'function') ? getLang() : ((typeof lang !== 'undefined') ? lang : 'zh'));
+  const pack = (typeof platformI18n !== 'undefined' && platformI18n[L]) ? platformI18n[L] : ((typeof i18n !== 'undefined' && i18n[L]) ? i18n[L] : null);
+  function tq(k) {
+    if (pack && pack[k] != null) return pack[k];
+    return k;
+  }
+  const mkChoice = (qid) => ['A','B','C','D'].map(ch => {
+    const key = 'quizQ' + qid.slice(1) + ch.toLowerCase();
+    return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="${qid}" class="mt-1 accent-rose-600"><span>${ch}. ${tq(key)}</span></label>`;
+  }).join('');
+  const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 p-2"><strong>${tq('quizRef')}</strong> ${tq('quizQ'+n+'ans')}</div>` : '';
+  box.innerHTML = [1,2,3,4,5].map(n => {
+    const open = n === 2 || n === 4;
+    return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-slate-800 mb-2">Q${n}. ${tq('quizQ'+n)}</p>${open ? '' : `<div class="grid gap-1.5">${mkChoice('q'+n)}</div>`}${ans(n)}</div>`;
+  }).join('');
+  const btn = document.getElementById('btn-quiz-answers');
+  if (btn) btn.textContent = quizAnswersVisible ? tq('quizHideAnswers') : tq('quizShowAnswers');
+  if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([box]).catch(() => {});
+}
+
+function bindPlatformUI() {
+        const bs = document.getElementById('btn-steps');
+        const bp = document.getElementById('btn-principle');
+        const bl = document.getElementById('btn-lang');
+        const bm = document.getElementById('btn-lang-mobile');
+        if (bs) bs.onclick = function() { closePrinciple(); openSteps(); };
+        document.getElementById('btn-quiz')?.addEventListener('click', function(){ closeSteps(); closePrinciple(); openModal('modal-quiz'); renderQuiz(); });
+        if (bp) bp.onclick = function() { closeSteps(); closeModal('modal-quiz'); openPrinciple(); };
+        if (bl) bl.onclick = platformToggleLang;
+        if (bm) bm.onclick = platformToggleLang;
+        document.getElementById('btn-quiz-answers')?.addEventListener('click', function(){ quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+        document.getElementById('modal-quiz')?.addEventListener('click', function(e){ if (e.target.id === 'modal-quiz') closeModal('modal-quiz'); });
+        document.querySelectorAll('#modal-quiz .btn-close-modal').forEach(function(b){ b.onclick = function(){ closeModal('modal-quiz'); }; });
+        ['modal-close','modal-confirm'].forEach(function(id) {
+            const b = document.getElementById(id);
+            if (b) b.onclick = closePrinciple;
+        });
+        ['steps-close','steps-confirm'].forEach(function(id) {
+            const b = document.getElementById(id);
+            if (b) b.onclick = closeSteps;
+        });
+        const mp = document.getElementById('modal-principle');
+        const ms = document.getElementById('modal-steps');
+        if (mp) mp.addEventListener('click', function(e) { if (e.target === mp) closePrinciple(); });
+        if (ms) ms.addEventListener('click', function(e) { if (e.target === ms) closeSteps(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') { closePrinciple(); closeSteps(); closeModal('modal-quiz'); }
+        });
+        applyPlatformI18n();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindPlatformUI);
+    else bindPlatformUI();
+})();
+</script>
+<!-- 課堂問題 -->
+<div id="modal-quiz" class="modal-backdrop fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+    <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5 sm:p-6 transform scale-95 opacity-0">
+        <div class="flex justify-between items-start gap-3 mb-4 flex-wrap">
+            <h2 id="quiz-title" class="text-lg font-black text-rose-800" data-i18n="quizTitle">課堂問題</h2>
+            <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 text-xs font-semibold shrink-0" data-i18n="quizShowAnswers">顯示參考答案</button>
+            <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-700 text-2xl leading-none ml-auto" aria-label="Close">&times;</button>
+        </div>
+        <div id="quiz-list" class="space-y-4 text-sm text-slate-700"></div>
+    </div>
+</div>
+
+</body>
+</html>

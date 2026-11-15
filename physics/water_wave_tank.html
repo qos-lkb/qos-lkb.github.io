@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>虛擬水波槽 | Virtual Ripple Tank</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        canvas { display: block; touch-action: none; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #fff; border: 2px solid #0284c7; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        .preset-btn, .tool-btn, .mode-btn { padding: 7px 8px; border-radius: 10px; font-weight: 700; font-size: 11px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; }
+        .preset-btn:hover, .tool-btn:hover, .mode-btn:hover { background: #e0f2fe; border-color: #7dd3fc; }
+        .preset-btn.active, .mode-btn.active { background: #0284c7; color: #fff; border-color: #0284c7; }
+        .tool-btn { text-align: center; }
+        .check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; margin-top: 2px; accent-color: #0284c7; flex-shrink: 0; }
+        .view-tab { padding: 6px 12px; border-radius: 10px; font-weight: 800; font-size: 11px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; }
+        .view-tab.active { background: #0284c7; color: #fff; border-color: #0284c7; }
+        .modal-backdrop { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .25s ease, visibility .25s ease; }
+        .modal-backdrop.open { opacity: 1; pointer-events: auto; visibility: visible; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; opacity: 0; transform: scale(.95); }
+        .modal-backdrop.open .modal-content { transform: none; opacity: 1; }
+        .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; text-align: center; }
+        #view-3d, #view-2d-wrap { min-height: 220px; }
+        .layout-split #view-3d { height: 52%; }
+        .layout-split #view-2d-wrap { height: 48%; }
+        .layout-3d #view-3d { height: 100%; }
+        .layout-3d #view-2d-wrap { display: none; }
+        .layout-2d #view-3d { display: none; }
+        .layout-2d #view-2d-wrap { height: 100%; }
+        .prop-label { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-sky-500/25 text-lg">〰</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">虛擬水波槽</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">自由放置振動器、障礙、狹縫與膠片 · 反射／折射／衍射／干涉</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-700 rounded-xl font-bold text-sm shadow-sm border border-sky-200">
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 text-white rounded-xl font-bold text-sm shadow-sm">
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl font-bold text-sm shadow-sm"><span data-i18n="btnQuiz">課堂問題</span></button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
+        <aside class="flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto lg:max-h-full">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-3">
+                    <button type="button" class="preset-btn active" data-preset="interfere" data-i18n="preInterfere">① 雙點干涉</button>
+                    <button type="button" class="preset-btn" data-preset="reflect" data-i18n="preReflect">② 直線波＋直板反射</button>
+                    <button type="button" class="preset-btn" data-preset="concave" data-i18n="preConcave">③ 凹面聚焦</button>
+                    <button type="button" class="preset-btn" data-preset="refract" data-i18n="preRefract">④ 深→淺膠片折射</button>
+                    <button type="button" class="preset-btn" data-preset="slit" data-i18n="preSlit">⑤ 單縫衍射</button>
+                    <button type="button" class="preset-btn" data-preset="dslit" data-i18n="preDslit">⑥ 雙縫干涉</button>
+                    <button type="button" class="preset-btn" data-preset="empty" data-i18n="preEmpty">⑦ 空白沙盒</button>
+                </div>
+
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btn-play" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="pause">暫停</button>
+                    <button type="button" id="btn-clear" class="flex-1 py-2 rounded-xl font-bold text-sm bg-sky-700 hover:bg-sky-800 text-white" data-i18n="clearWave">清波場</button>
+                    <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+                </div>
+
+                <label class="block mb-3">
+                    <span class="prop-label"><span data-i18n="labelFreq">頻率 \(f\)</span><span id="disp-f" class="text-sky-700">1.0 Hz</span></span>
+                    <input type="range" id="in-freq" min="0.5" max="2.5" step="0.05" value="1">
+                </label>
+                <label class="block mb-3">
+                    <span class="prop-label"><span data-i18n="labelH0">背景水深 \(h_0\)</span><span id="disp-h0" class="text-sky-700">4.0 cm</span></span>
+                    <input type="range" id="in-h0" min="1.5" max="7" step="0.1" value="4">
+                </label>
+                <label class="block mb-3">
+                    <span class="prop-label"><span data-i18n="labelAmp">振幅</span><span id="disp-amp" class="text-sky-700">1.00</span></span>
+                    <input type="range" id="in-amp" min="0.35" max="1.5" step="0.05" value="1">
+                </label>
+
+                <label class="check-row mb-2"><input type="checkbox" id="in-absorb" checked><span data-i18n="showAbsorb">槽邊消波（海綿）</span></label>
+                <label class="check-row mb-2"><input type="checkbox" id="in-heat"><span data-i18n="showHeat">時間平均強度圖</span></label>
+                <label class="check-row mb-2"><input type="checkbox" id="in-depth"><span data-i18n="showDepth">顯示水深色塊</span></label>
+                <label class="check-row mb-3"><input type="checkbox" id="in-shadow"><span data-i18n="showShadow">幾何陰影提示</span></label>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="editMode">俯視操作</p>
+                <div class="grid grid-cols-4 gap-1.5 mb-3">
+                    <button type="button" class="mode-btn active" data-mode="select" data-i18n="modeSelect">選取</button>
+                    <button type="button" class="mode-btn" data-mode="probe" data-i18n="modeProbe">探測</button>
+                    <button type="button" class="mode-btn" data-mode="ruler" data-i18n="modeRuler">直尺</button>
+                    <button type="button" class="mode-btn" data-mode="angle" data-i18n="modeAngle">角度</button>
+                </div>
+                <p class="text-[10px] text-sky-700 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2 mb-3" data-i18n="editHint">在俯視圖拖曳物件；選取後可改屬性。Delete 刪除。</p>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="toolbox">加入物件</p>
+                <div class="grid grid-cols-3 gap-1.5 mb-1">
+                    <button type="button" class="tool-btn" data-add="point" data-i18n="toolPoint">點源</button>
+                    <button type="button" class="tool-btn" data-add="dual" data-i18n="toolDual">雙點</button>
+                    <button type="button" class="tool-btn" data-add="bar" data-i18n="toolBar">長條</button>
+                    <button type="button" class="tool-btn" data-add="wall" data-i18n="toolWall">直板</button>
+                    <button type="button" class="tool-btn" data-add="block" data-i18n="toolBlock">擋塊</button>
+                    <button type="button" class="tool-btn" data-add="corner" data-i18n="toolCorner">直角</button>
+                    <button type="button" class="tool-btn" data-add="concave" data-i18n="toolConcave">凹弧</button>
+                    <button type="button" class="tool-btn" data-add="convex" data-i18n="toolConvex">凸弧</button>
+                    <button type="button" class="tool-btn" data-add="slit" data-i18n="toolSlit">單縫</button>
+                    <button type="button" class="tool-btn" data-add="dslit" data-i18n="toolDslit">雙縫</button>
+                    <button type="button" class="tool-btn" data-add="filmRect" data-i18n="toolFilmR">矩形膠片</button>
+                    <button type="button" class="tool-btn" data-add="filmCircle" data-i18n="toolFilmC">圓膠片</button>
+                    <button type="button" class="tool-btn" data-add="filmTri" data-i18n="toolFilmT">三角膠片</button>
+                </div>
+                <p id="obj-limit" class="text-[10px] text-slate-400 mt-1"></p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-sm text-slate-800" data-i18n="propTitle">選取物件</h3>
+                    <button type="button" id="btn-delete" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hidden" data-i18n="btnDelete">刪除</button>
+                </div>
+                <div id="prop-panel" class="text-xs text-slate-500" data-i18n="propEmpty">尚未選取物件</div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+                <div class="font-black text-sky-800 mb-2" data-i18n="liveTitle">即時數據</div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="stat-card"><span class="mj-sym text-slate-500">\(v_0\)</span><span id="val-v" class="mj-val block mt-1 text-xs">—</span></div>
+                    <div class="stat-card"><span class="mj-sym text-slate-500">\(\lambda_0=v_0/f\)</span><span id="val-l0" class="mj-val block mt-1 text-xs">—</span></div>
+                </div>
+                <div class="space-y-1 border-t border-dashed border-slate-100 pt-2">
+                    <div class="flex justify-between"><span data-i18n="statT">時間 t</span><b id="val-t">0.00 s</b></div>
+                    <div class="flex justify-between"><span data-i18n="statEta">探測位移 η</span><b id="val-eta">—</b></div>
+                    <div class="flex justify-between"><span data-i18n="statI">平均強度 I</span><b id="val-I">—</b></div>
+                    <div class="flex justify-between"><span data-i18n="statDelta">路徑差 Δ</span><b id="val-delta">—</b></div>
+                    <div class="flex justify-between"><span data-i18n="statRuler">直尺</span><b id="val-ruler">—</b></div>
+                    <div class="flex justify-between"><span data-i18n="statAngle">夾角</span><b id="val-angle">—</b></div>
+                </div>
+                <div id="probe-badge" class="mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200" data-i18n="probeEmpty">尚未選取探測點 P</div>
+                <canvas id="osc-canvas" class="w-full mt-2 rounded-lg border border-slate-200 bg-slate-900" height="56"></canvas>
+                <div class="mj-eq mt-3 text-xs bg-slate-900 text-emerald-300 border border-slate-700 rounded-xl p-2">\( v=\sqrt{gh},\quad \lambda=v/f \)</div>
+            </div>
+        </aside>
+
+        <section class="order-1 lg:order-2 lg:col-span-2 flex flex-col gap-2 min-h-[480px]">
+            <div class="flex flex-wrap gap-2 items-center justify-between px-1">
+                <div class="flex gap-1.5">
+                    <button type="button" class="view-tab active" data-view="split" data-i18n="viewSplit">上下對照</button>
+                    <button type="button" class="view-tab" data-view="3d" data-i18n="view3d">3D 水波</button>
+                    <button type="button" class="view-tab" data-view="2d" data-i18n="view2d">俯視水槽</button>
+                </div>
+                <p class="text-[10px] text-slate-400" data-i18n="drag3d">3D 可旋轉；俯視圖編輯物件</p>
+            </div>
+
+            <div id="stage" class="relative bg-slate-950 rounded-3xl shadow-xl overflow-hidden border border-slate-700 flex-1 min-h-[420px] flex flex-col layout-split">
+                <div id="view-3d" class="relative w-full">
+                    <div class="absolute top-3 left-3 z-10 bg-slate-900/75 backdrop-blur-sm text-slate-200 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-600" data-i18n="label3d">3D 模型</div>
+                </div>
+                <div id="view-2d-wrap" class="relative w-full border-t border-slate-700">
+                    <div class="absolute top-3 left-3 z-10 bg-slate-900/75 backdrop-blur-sm text-slate-200 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-600" data-i18n="label2d">俯視圖（編輯）</div>
+                    <canvas id="canvas-2d" class="w-full h-full cursor-crosshair"></canvas>
+                    <div class="absolute bottom-3 right-3 z-10 bg-slate-900/80 backdrop-blur-sm p-2.5 rounded-lg border border-slate-600 text-[10px] text-slate-300 space-y-1">
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-400"></span><span data-i18n="legSrc">振動器</span></div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-slate-500"></span><span data-i18n="legBar">障礙／狹縫</span></div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded bg-amber-300"></span><span data-i18n="legFilm">膠片（改水深）</span></div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-400"></span><span data-i18n="probeLeg">探測點 P</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-cyan-600 p-5 text-white flex justify-between items-center">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">水波槽原理</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">Shallow-water waves — one tank, four phenomena</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m1t">1. 淺水波速</h3>
+                    <p class="text-xs leading-relaxed" data-i18n="m1d">水波槽中，當水深遠小於波長時，波速由重力與水深決定。膠片改變局部水深，因而改變波速與波長。</p>
+                    <div class="mj-box bg-slate-900 text-emerald-300 border border-slate-700 rounded-xl p-3 mt-3 text-sm">$$ v = \sqrt{gh},\qquad \lambda = v/f $$</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-cyan-50 p-3 rounded-xl border border-cyan-100">
+                        <h4 class="font-bold text-cyan-800 mb-1" data-i18n="m2t">反射</h4>
+                        <p data-i18n="m2d">硬邊界（擋板）使位移保持為零，入射波折返。相對法線，入射角等於反射角（θᵢ＝θᵣ）。凹面可把直線波聚焦。</p>
+                    </div>
+                    <div class="bg-teal-50 p-3 rounded-xl border border-teal-100">
+                        <h4 class="font-bold text-teal-800 mb-1" data-i18n="m3t">折射</h4>
+                        <p data-i18n="m3d">波由深水進入淺水時變慢、波長縮短，波前向法線偏折：sin θ₁ / sin θ₂ = v₁ / v₂。本模擬以波動方程自然產生此現象。</p>
+                    </div>
+                    <div class="bg-violet-50 p-3 rounded-xl border border-violet-100">
+                        <h4 class="font-bold text-violet-800 mb-1" data-i18n="m4t">衍射</h4>
+                        <p data-i18n="m4d">縫隙或有限寬障礙讓波向幾何陰影區擴散。當縫寬 a 與 λ 相若時最明顯；a ≫ λ 時近乎直線前進。</p>
+                    </div>
+                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                        <h4 class="font-bold text-rose-800 mb-1" data-i18n="m5t">干涉</h4>
+                        <p data-i18n="m5d">兩個同頻相干源（或雙縫）疊加：路徑差 Δ = nλ 為相長，Δ = (n+½)λ 為相消。開啟強度圖可看穩定條紋。</p>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-500" data-i18n="m6d">本實驗以二維淺水波動方程數值積分（教學模型，含少量數值色散）。專題實驗（反射／折射／衍射／干涉）另有標註幾何量的解析示範。</p>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-sm" data-i18n="btnOk">明白了</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-cyan-600 p-5 text-white flex justify-between items-center">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="flex gap-3"><span class="font-black text-sky-600 shrink-0">1</span><p data-i18n="s1">先選教學情境「雙點干涉」，播放後在俯視圖觀察條紋；開啟時間平均強度圖更清楚。</p></div>
+                <div class="flex gap-3"><span class="font-black text-sky-600 shrink-0">2</span><p data-i18n="s2">切換「直板反射」與「凹面聚焦」，用角度工具量入射／反射角，或看凹面是否把波前收斂。</p></div>
+                <div class="flex gap-3"><span class="font-black text-sky-600 shrink-0">3</span><p data-i18n="s3">在「深→淺膠片」中比較兩側波長；改膠片水深 h，觀察偏折與 λ 如何隨 √h 改變。</p></div>
+                <div class="flex gap-3"><span class="font-black text-sky-600 shrink-0">4</span><p data-i18n="s4">單縫：把縫寬 a 調到約等於 λ 與遠大於 λ，比較衍射強弱。雙縫則看條紋間距。</p></div>
+                <div class="flex gap-3"><span class="font-black text-sky-600 shrink-0">5</span><p data-i18n="s5">用空白沙盒自行加入振動器、擋板與膠片；探測點可讀位移，直尺可估波長。</p></div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-sm" data-i18n="btnOk">開始實驗</button>
+            </div>
+        </div>
+    </div>
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-start gap-3">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 shrink-0">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <div class="flex justify-end mb-3"><button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-rose-100 text-rose-800 border border-rose-300 text-xs font-bold" data-i18n="quizShowAnswers">顯示參考答案</button></div>
+                <div id="quiz-list" class="space-y-3 text-sm text-slate-700"></div>
+            </div>
+            <div class="p-4 border-t flex justify-end"><button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold rounded-xl text-sm" data-i18n="btnOk">明白了</button></div>
+        </div>
+    </div>
+
+<script>
+let quizAnswersVisible = false;
+const PI = Math.PI;
+const N = 192;
+const TANK = 36;
+const DX = TANK / N;
+const H0_REF = 4;
+const V0_REF = 2.2;
+const C_MAX = V0_REF * Math.sqrt(8 / H0_REF);
+const DT = 0.52 * DX / (C_MAX * Math.SQRT2);
+const SPONGE = 12;
+const MAX_OBJ = 12;
+const OSC_N = 180;
+
+const i18n = {
+    zh: {
+        title: '虛擬水波槽', badge: '物理', subtitle: '自由放置振動器、障礙、狹縫與膠片 · 反射／折射／衍射／干涉',
+        btnSteps: '觀察步驟', btnPrinciple: '原理解說', btnOk: '明白了',
+        controlTitle: '實驗控制', presets: '教學情境',
+        preInterfere: '① 雙點干涉', preReflect: '② 直線波＋直板反射', preConcave: '③ 凹面聚焦',
+        preRefract: '④ 深→淺膠片折射', preSlit: '⑤ 單縫衍射', preDslit: '⑥ 雙縫干涉', preEmpty: '⑦ 空白沙盒',
+        pause: '暫停', play: '播放', reset: '重置', clearWave: '清波場',
+        labelFreq: '頻率 \\(f\\)', labelH0: '背景水深 \\(h_0\\)', labelAmp: '振幅',
+        showAbsorb: '槽邊消波（海綿）', showHeat: '時間平均強度圖', showDepth: '顯示水深色塊', showShadow: '幾何陰影提示',
+        editMode: '俯視操作', modeSelect: '選取', modeProbe: '探測', modeRuler: '直尺', modeAngle: '角度',
+        editHint: '在俯視圖拖曳物件；選取後可改屬性。Delete 刪除。',
+        toolbox: '加入物件',
+        toolPoint: '點源', toolDual: '雙點', toolBar: '長條', toolWall: '直板', toolBlock: '擋塊',
+        toolCorner: '直角', toolConcave: '凹弧', toolConvex: '凸弧', toolSlit: '單縫', toolDslit: '雙縫',
+        toolFilmR: '矩形膠片', toolFilmC: '圓膠片', toolFilmT: '三角膠片',
+        propTitle: '選取物件', btnDelete: '刪除', propEmpty: '尚未選取物件',
+        liveTitle: '即時數據', statT: '時間 t', statEta: '探測位移 η', statI: '平均強度 I',
+        statDelta: '路徑差 Δ', statRuler: '直尺', statAngle: '夾角',
+        probeEmpty: '尚未選取探測點 P', probeOn: '已放置探測點 P',
+        viewSplit: '上下對照', view3d: '3D 水波', view2d: '俯視水槽',
+        drag3d: '3D 可旋轉；俯視圖編輯物件', label3d: '3D 模型', label2d: '俯視圖（編輯）',
+        legSrc: '振動器', legBar: '障礙／狹縫', legFilm: '膠片（改水深）', probeLeg: '探測點 P',
+        modalTitle: '水波槽原理', modalSub: '淺水波 — 一個水槽，四種現象',
+        m1t: '1. 淺水波速', m1d: '水波槽中，當水深遠小於波長時，波速由重力與水深決定。膠片改變局部水深，因而改變波速與波長。',
+        m2t: '反射', m2d: '硬邊界（擋板）使位移保持為零，入射波折返。相對法線，入射角等於反射角（θᵢ＝θᵣ）。凹面可把直線波聚焦。',
+        m3t: '折射', m3d: '波由深水進入淺水時變慢、波長縮短，波前向法線偏折：sin θ₁ / sin θ₂ = v₁ / v₂。本模擬以波動方程自然產生此現象。',
+        m4t: '衍射', m4d: '縫隙或有限寬障礙讓波向幾何陰影區擴散。當縫寬 a 與 λ 相若時最明顯；a ≫ λ 時近乎直線前進。',
+        m5t: '干涉', m5d: '兩個同頻相干源（或雙縫）疊加：路徑差 Δ = nλ 為相長，Δ = (n+½)λ 為相消。開啟強度圖可看穩定條紋。',
+        m6d: '本實驗以二維淺水波動方程數值積分（教學模型，含少量數值色散）。專題實驗（反射／折射／衍射／干涉）另有標註幾何量的解析示範。',
+        stepsTitle: '觀察步驟',
+        s1: '先選教學情境「雙點干涉」，播放後在俯視圖觀察條紋；開啟時間平均強度圖更清楚。',
+        s2: '切換「直板反射」與「凹面聚焦」，用角度工具量入射／反射角，或看凹面是否把波前收斂。',
+        s3: '在「深→淺膠片」中比較兩側波長；改膠片水深 h，觀察偏折與 λ 如何隨 √h 改變。',
+        s4: '單縫：把縫寬 a 調到約等於 λ 與遠大於 λ，比較衍射強弱。雙縫則看條紋間距。',
+        s5: '用空白沙盒自行加入振動器、擋板與膠片；探測點可讀位移，直尺可估波長。',
+        objLimit: '已達 12 件上限', objCount: '物件',
+        type_point: '點振動器', type_dual: '雙點振動器', type_bar: '長條振動器',
+        type_wall: '直板', type_block: '矩形擋塊', type_corner: '直角牆',
+        type_concave: '凹弧', type_convex: '凸弧', type_slit: '單縫擋板', type_dslit: '雙縫擋板',
+        type_filmRect: '矩形膠片', type_filmCircle: '圓形膠片', type_filmTri: '三角形膠片',
+        pX: 'x', pY: 'y', pRot: '方位', pAmp: '振幅', pPhase: '相位差', pD: '距離 d', pLen: '長度',
+        pThick: '厚度', pW: '寬', pH: '高', pR: '半徑 R', pArc: '張角', pArm: '臂長', pA: '縫寬 a',
+        pSep: '縫距 d', pDepth: '水深 h', pSize: '尺寸', pOpp: '反相 180°',
+        btnQuiz: '課堂問題', quizTitle: '課堂問題', quizShowAnswers: '顯示參考答案', quizHideAnswers: '隱藏參考答案', quizRef: '參考答案',
+        quizQ1: '預設「雙點干涉」中，穩定條紋出現需要兩列波……', quizQ1a: '頻率相同且相位差固定', quizQ1b: '振幅必須為零', quizQ1c: '只能一個振動器', quizQ1d: '水深為零',
+        quizQ1ans: 'A。雙點相干源疊加才會有穩定節／腹區；可開強度圖觀察。',
+        quizQ2: '預設「單縫衍射」：只縮小縫寬 a 至約等於即時 λ，先預測衍射強弱，再俯視觀察陰影區是否有波進入。',
+        quizQ2ans: '衍射變強。a ≈ λ 時波向兩側擴散最明顯。',
+        quizQ3: '探測模式讀得路徑差 Δ 最有意義的場景通常是？', quizQ3a: '無障礙單點源', quizQ3b: '雙點／雙縫相干源', quizQ3c: '槽已清空無波', quizQ3d: '只有 3D 視窗',
+        quizQ3ans: 'B。即時數據在兩個點源時會顯示 Δ，對應干涉相長／相消條件。',
+        quizQ4: '比較預設「深→淺→淺膠片」與「直板反射」：哪一個主要是因兩側波速不同而折轉？',
+        quizQ4ans: '深→淺膠片（折射）。直板為反射定律 θᵢ=θᵣ；膠片改局部 h 使 v 變化而折射。',
+        quizQ5: '勾選「時間平均強度圖」後，讀數 I 與瞬時位移 η 相比，主要顯示……', quizQ5a: '單時刻波峰位置', quizQ5b: '穩定干涉條紋強弱分佈', quizQ5c: '槽邊溫度', quizQ5d: '只顯示水深',
+        quizQ5ans: 'B。I 為時間平均強度，突出穩定腹／節條紋，方便數疏密。'
+    },
+    en: {
+        title: 'Virtual Ripple Tank', badge: 'Physics', subtitle: 'Place dippers, barriers, slits and plates · reflection / refraction / diffraction / interference',
+        btnSteps: 'Steps', btnPrinciple: 'Theory', btnOk: 'Got it',
+        controlTitle: 'Controls', presets: 'Teaching presets',
+        preInterfere: '① Two-point interference', preReflect: '② Plane wave + straight barrier', preConcave: '③ Concave focusing',
+        preRefract: '④ Deep → shallow plate', preSlit: '⑤ Single-slit diffraction', preDslit: '⑥ Double-slit interference', preEmpty: '⑦ Empty sandbox',
+        pause: 'Pause', play: 'Play', reset: 'Reset', clearWave: 'Clear waves',
+        labelFreq: 'Frequency \\(f\\)', labelH0: 'Background depth \\(h_0\\)', labelAmp: 'Amplitude',
+        showAbsorb: 'Absorbing beaches', showHeat: 'Time-averaged intensity', showDepth: 'Show depth tint', showShadow: 'Geometric shadow hint',
+        editMode: 'Top-down tools', modeSelect: 'Select', modeProbe: 'Probe', modeRuler: 'Ruler', modeAngle: 'Angle',
+        editHint: 'Drag objects in the top-down view. Edit properties when selected. Delete to remove.',
+        toolbox: 'Add objects',
+        toolPoint: 'Point', toolDual: 'Dual', toolBar: 'Bar', toolWall: 'Wall', toolBlock: 'Block',
+        toolCorner: 'Corner', toolConcave: 'Concave', toolConvex: 'Convex', toolSlit: 'Slit', toolDslit: 'Double slit',
+        toolFilmR: 'Rect. plate', toolFilmC: 'Disc plate', toolFilmT: 'Tri. plate',
+        propTitle: 'Selected object', btnDelete: 'Delete', propEmpty: 'No object selected',
+        liveTitle: 'Live data', statT: 'Time t', statEta: 'Probe η', statI: 'Mean intensity I',
+        statDelta: 'Path difference Δ', statRuler: 'Ruler', statAngle: 'Angle',
+        probeEmpty: 'No probe point P', probeOn: 'Probe P placed',
+        viewSplit: 'Split view', view3d: '3D ripples', view2d: 'Top-down',
+        drag3d: 'Orbit in 3D; edit objects in top-down view', label3d: '3D model', label2d: 'Top-down (edit)',
+        legSrc: 'Vibrator', legBar: 'Barrier / slit', legFilm: 'Plate (depth)', probeLeg: 'Probe P',
+        modalTitle: 'Ripple-tank physics', modalSub: 'Shallow-water waves — one tank, four phenomena',
+        m1t: '1. Shallow-water speed', m1d: 'When depth is much smaller than wavelength, speed depends on g and depth. Plates change local depth, hence speed and λ.',
+        m2t: 'Reflection', m2d: 'A hard barrier keeps displacement at zero, so the wave turns back. Angle of incidence equals angle of reflection. A concave barrier can focus a plane wave.',
+        m3t: 'Refraction', m3d: 'Entering shallower water, the wave slows and λ shortens; wavefronts bend toward the normal: sin θ₁ / sin θ₂ = v₁ / v₂.',
+        m4t: 'Diffraction', m4d: 'A gap or finite obstacle lets the wave spread into the geometric shadow. Strongest when a ≈ λ; weak when a ≫ λ.',
+        m5t: 'Interference', m5d: 'Two coherent sources (or a double slit): Δ = nλ constructive, Δ = (n+½)λ destructive. Use the intensity overlay for steady fringes.',
+        m6d: 'This lab integrates the 2-D shallow-water wave equation (a teaching model with some numerical dispersion). The four focused sims still show analytic overlays.',
+        stepsTitle: 'Observation steps',
+        s1: 'Start with two-point interference; watch fringes, then turn on time-averaged intensity.',
+        s2: 'Try straight-barrier reflection and concave focusing; measure angles or watch focusing.',
+        s3: 'In the plate preset, compare λ on both sides; change plate depth h and see bending scale with √h.',
+        s4: 'Single slit: set a ≈ λ versus a ≫ λ. Double slit: watch fringe spacing.',
+        s5: 'Use the empty sandbox to place your own sources, barriers and plates; probe η and measure λ with the ruler.',
+        objLimit: 'Limit of 12 objects', objCount: 'objects',
+        type_point: 'Point dipper', type_dual: 'Dual dippers', type_bar: 'Bar vibrator',
+        type_wall: 'Straight barrier', type_block: 'Block', type_corner: 'Right-angle wall',
+        type_concave: 'Concave arc', type_convex: 'Convex arc', type_slit: 'Single slit', type_dslit: 'Double slit',
+        type_filmRect: 'Rectangular plate', type_filmCircle: 'Disc plate', type_filmTri: 'Triangular plate',
+        pX: 'x', pY: 'y', pRot: 'Bearing', pAmp: 'Amplitude', pPhase: 'Phase', pD: 'Separation d', pLen: 'Length',
+        pThick: 'Thickness', pW: 'Width', pH: 'Height', pR: 'Radius R', pArc: 'Arc', pArm: 'Arm', pA: 'Gap a',
+        pSep: 'Slit sep. d', pDepth: 'Depth h', pSize: 'Size', pOpp: 'Opposite phase 180°',
+        btnQuiz: 'Quiz', quizTitle: 'Classroom Quiz', quizShowAnswers: 'Show reference answers', quizHideAnswers: 'Hide reference answers', quizRef: 'Answer',
+        quizQ1: 'In the two-point preset, steady fringes need waves that are:', quizQ1a: 'Same f, fixed phase', quizQ1b: 'Zero amplitude', quizQ1c: 'Single source only', quizQ1d: 'Zero depth',
+        quizQ1ans: 'A. Coherent double sources superpose to steady nodes/antinodes.',
+        quizQ2: 'In single-slit preset, narrow a to ≈ λ only. Predict diffraction strength, then check shadow filling.',
+        quizQ2ans: 'Stronger when a ≈ λ.',
+        quizQ3: 'Path difference Δ from the probe is most meaningful for:', quizQ3a: 'Lone point source', quizQ3b: 'Dual coherent sources/slit', quizQ3c: 'Empty tank', quizQ3d: '3D view only',
+        quizQ3ans: 'B. Live Δ appears with two coherent sources.',
+        quizQ4: 'Which preset mainly bends wavefronts due to different speeds on each side?', quizQ4a: 'Deep→shallow plate (refraction)', quizQ4b: 'Straight barrier (reflection only)', quizQ4c: 'Neither', quizQ4d: 'Both refraction only',
+        quizQ4ans: 'A is refraction; straight barrier is θᵢ=θᵣ reflection.',
+        quizQ5: 'With time-averaged intensity on, I mainly shows:', quizQ5a: 'Instant crest positions', quizQ5b: 'Steady fringe intensity map', quizQ5c: 'Temperature', quizQ5d: 'Depth only',
+        quizQ5ans: 'B. I highlights steady bright/dark fringes.'
+    }
+};
+
+let lang = 'zh';
+let uid = 1;
+const objects = [];
+const state = {
+    playing: true,
+    time: 0,
+    freq: 1,
+    h0: 4,
+    amp: 1,
+    absorb: true,
+    showHeat: false,
+    showDepth: false,
+    showShadow: false,
+    viewLayout: 'split',
+    preset: 'interfere',
+    mode: 'select',
+    selected: null,
+    probe: null,
+    ruler: [null, null],
+    angle: [null, null, null],
+    drag: null
+};
+
+const u = new Float32Array(N * N);
+const uPrev = new Float32Array(N * N);
+let uA = u, uB = uPrev;
+const uTmp = new Float32Array(N * N);
+let uTmpRef = uTmp;
+const occ = new Uint8Array(N * N);
+const depth = new Float32Array(N * N);
+const c2 = new Float32Array(N * N);
+const damp = new Float32Array(N * N);
+const accum = new Float32Array(N * N);
+let accumN = 0;
+const oscBuf = new Float32Array(OSC_N);
+let oscPtr = 0;
+
+const canvas2d = document.getElementById('canvas-2d');
+const ctx2d = canvas2d.getContext('2d');
+const fieldCanvas = document.createElement('canvas');
+fieldCanvas.width = N;
+fieldCanvas.height = N;
+const fieldCtx = fieldCanvas.getContext('2d');
+const fieldImg = fieldCtx.createImageData(N, N);
+const oscCanvas = document.getElementById('osc-canvas');
+const oscCtx = oscCanvas.getContext('2d');
+const stage = document.getElementById('stage');
+const btnPlay = document.getElementById('btn-play');
+
+const texData = new Uint8Array(N * N * 4);
+const three = {
+    renderer: null, camera: null, scene: null, mesh: null, material: null,
+    tex: null, objGroup: null, clock: null,
+    dragging: false, lastX: 0, lastY: 0,
+    camTheta: 0, camPhi: 0.42, camR: 48, targetY: 0
+};
+
+function t(k) { return i18n[lang][k]; }
+function speedAt(h) { return V0_REF * Math.sqrt(Math.max(h, 0.5) / H0_REF); }
+function v0() { return speedAt(state.h0); }
+function lambda0() { return v0() / state.freq; }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function ij(i, j) { return j * N + i; }
+function xyToIJ(x, y) {
+    return [
+        clamp(Math.floor((x / TANK + 0.5) * N), 0, N - 1),
+        clamp(Math.floor((y / TANK + 0.5) * N), 0, N - 1)
+    ];
+}
+function ijToXY(i, j) {
+    return [((i + 0.5) / N - 0.5) * TANK, ((j + 0.5) / N - 0.5) * TANK];
+}
+function angNorm(a) {
+    while (a > PI) a -= 2 * PI;
+    while (a < -PI) a += 2 * PI;
+    return a;
+}
+function angDiff(a, b) { return Math.abs(angNorm(a - b)); }
+function localXY(x, y, cx, cy, rot) {
+    const dx = x - cx, dy = y - cy;
+    const c = Math.cos(-rot), s = Math.sin(-rot);
+    return [dx * c - dy * s, dx * s + dy * c];
+}
+function inRotRect(x, y, cx, cy, w, h, rot) {
+    const [lx, ly] = localXY(x, y, cx, cy, rot);
+    return Math.abs(lx) <= w / 2 && Math.abs(ly) <= h / 2;
+}
+function bboxVisit(cx, cy, ext, fn) {
+    const i0 = clamp(Math.floor((cx - ext) / TANK * N + N / 2), 0, N - 1);
+    const i1 = clamp(Math.ceil((cx + ext) / TANK * N + N / 2), 0, N - 1);
+    const j0 = clamp(Math.floor((cy - ext) / TANK * N + N / 2), 0, N - 1);
+    const j1 = clamp(Math.ceil((cy + ext) / TANK * N + N / 2), 0, N - 1);
+    for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+            const [x, y] = ijToXY(i, j);
+            fn(i, j, x, y);
+        }
+    }
+}
+
+function defaultObject(type) {
+    const o = { id: uid++, type, x: 0, y: 0, rot: 0 };
+    if (type === 'point') Object.assign(o, { y: -8, amp: 1, phase: 0 });
+    else if (type === 'dual') Object.assign(o, { y: -8, d: 4, amp: 1, phase: 0 });
+    else if (type === 'bar') Object.assign(o, { y: -14, length: 28, amp: 1, phase: 0 });
+    else if (type === 'wall') Object.assign(o, { y: 4, length: 16, thick: 0.55, rot: 35 * PI / 180 });
+    else if (type === 'block') Object.assign(o, { y: 2, w: 5, h: 3, thick: 0.55 });
+    else if (type === 'corner') Object.assign(o, { x: 3, y: 3, arm: 8, thick: 0.55, rot: PI });
+    else if (type === 'concave') Object.assign(o, { y: 8, radius: 11, arc: 105 * PI / 180, thick: 0.55, rot: -PI / 2 });
+    else if (type === 'convex') Object.assign(o, { y: -1, radius: 10, arc: 100 * PI / 180, thick: 0.55, rot: -PI / 2 });
+    else if (type === 'slit') Object.assign(o, { y: 0, length: TANK - 1.2, thick: 0.55, a: 2.2 });
+    else if (type === 'dslit') Object.assign(o, { y: 0, length: TANK - 1.2, thick: 0.55, a: 1.4, sep: 4 });
+    else if (type === 'filmRect') Object.assign(o, { y: 5, w: 20, h: 16, hWater: 1.3, rot: 18 * PI / 180 });
+    else if (type === 'filmCircle') Object.assign(o, { y: 4, r: 7, hWater: 1.3 });
+    else if (type === 'filmTri') Object.assign(o, { y: 4, size: 12, hWater: 1.3 });
+    return o;
+}
+
+function isSource(o) { return o.type === 'point' || o.type === 'dual' || o.type === 'bar'; }
+function isFilm(o) { return o.type === 'filmRect' || o.type === 'filmCircle' || o.type === 'filmTri'; }
+
+function inTriangle(x, y, o) {
+    const [lx, ly] = localXY(x, y, o.x, o.y, o.rot);
+    const s = o.size, h = s * Math.sqrt(3) / 2;
+    const x1 = 0, y1 = 2 * h / 3;
+    const x2 = -s / 2, y2 = -h / 3;
+    const x3 = s / 2, y3 = -h / 3;
+    const area = (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2));
+    const a = (lx * (y2 - y3) + x2 * (y3 - ly) + x3 * (ly - y2)) / area;
+    const b = (x1 * (ly - y3) + lx * (y3 - y1) + x3 * (y1 - ly)) / area;
+    const c = 1 - a - b;
+    return a >= 0 && b >= 0 && c >= 0;
+}
+
+function stampFilm(o) {
+    const hW = o.hWater;
+    if (o.type === 'filmRect') {
+        bboxVisit(o.x, o.y, 0.5 * Math.hypot(o.w, o.h) + DX, (i, j, x, y) => {
+            if (inRotRect(x, y, o.x, o.y, o.w, o.h, o.rot)) depth[ij(i, j)] = hW;
+        });
+    } else if (o.type === 'filmCircle') {
+        bboxVisit(o.x, o.y, o.r + DX, (i, j, x, y) => {
+            if ((x - o.x) ** 2 + (y - o.y) ** 2 <= o.r * o.r) depth[ij(i, j)] = hW;
+        });
+    } else if (o.type === 'filmTri') {
+        bboxVisit(o.x, o.y, o.size + DX, (i, j, x, y) => {
+            if (inTriangle(x, y, o)) depth[ij(i, j)] = hW;
+        });
+    }
+}
+
+function stampOccRect(cx, cy, w, h, rot) {
+    bboxVisit(cx, cy, 0.5 * Math.hypot(w, h) + DX, (i, j, x, y) => {
+        if (inRotRect(x, y, cx, cy, w, h, rot)) occ[ij(i, j)] = 1;
+    });
+}
+
+function stampWallGaps(o, gaps) {
+    const L = o.length, th = o.thick;
+    bboxVisit(o.x, o.y, 0.5 * Math.hypot(L, th) + DX, (i, j, x, y) => {
+        if (!inRotRect(x, y, o.x, o.y, L, th, o.rot)) return;
+        const [lx] = localXY(x, y, o.x, o.y, o.rot);
+        for (let g = 0; g < gaps.length; g++) {
+            if (Math.abs(lx - gaps[g].c) < gaps[g].w / 2) return;
+        }
+        occ[ij(i, j)] = 1;
+    });
+}
+
+function stampArc(o, facing) {
+    const R = o.radius, th = o.thick, half = o.arc / 2;
+    bboxVisit(o.x, o.y, R + th + DX, (i, j, x, y) => {
+        const dx = x - o.x, dy = y - o.y;
+        const r = Math.hypot(dx, dy);
+        if (r < R - th / 2 || r > R + th / 2) return;
+        if (angDiff(Math.atan2(dy, dx), facing) <= half) occ[ij(i, j)] = 1;
+    });
+}
+
+function stampBarrier(o) {
+    if (o.type === 'wall') stampOccRect(o.x, o.y, o.length, o.thick, o.rot);
+    else if (o.type === 'block') stampOccRect(o.x, o.y, o.w, o.h, o.rot);
+    else if (o.type === 'corner') {
+        const L = o.arm, th = o.thick;
+        stampOccRect(o.x + Math.cos(o.rot) * L / 2, o.y + Math.sin(o.rot) * L / 2, L, th, o.rot);
+        const r2 = o.rot + PI / 2;
+        stampOccRect(o.x + Math.cos(r2) * L / 2, o.y + Math.sin(r2) * L / 2, L, th, r2);
+    } else if (o.type === 'concave') stampArc(o, o.rot);
+    else if (o.type === 'convex') stampArc(o, o.rot + PI);
+    else if (o.type === 'slit') stampWallGaps(o, [{ c: 0, w: o.a }]);
+    else if (o.type === 'dslit') stampWallGaps(o, [{ c: -o.sep / 2, w: o.a }, { c: o.sep / 2, w: o.a }]);
+}
+
+function rebuildMaps() {
+    depth.fill(state.h0);
+    occ.fill(0);
+    for (const o of objects) if (isFilm(o)) stampFilm(o);
+    for (const o of objects) stampBarrier(o);
+    if (!state.absorb) {
+        for (let i = 0; i < N; i++) {
+            occ[ij(i, 0)] = occ[ij(i, N - 1)] = occ[ij(0, i)] = occ[ij(N - 1, i)] = 1;
+        }
+    }
+    const inv = DT / DX;
+    for (let k = 0; k < N * N; k++) {
+        const c = speedAt(depth[k]);
+        c2[k] = (c * inv) * (c * inv);
+        const i = k % N, j = (k / N) | 0;
+        const edge = Math.min(i, j, N - 1 - i, N - 1 - j);
+        let g = 0.0014;
+        if (state.absorb && edge < SPONGE) {
+            const t = 1 - edge / SPONGE;
+            g = 0.0014 + 0.22 * t * t;
+        }
+        damp[k] = g;
+    }
+}
+
+function clearWave() {
+    u.fill(0);
+    uPrev.fill(0);
+    uTmp.fill(0);
+    uA = u;
+    uB = uPrev;
+    uTmpRef = uTmp;
+    accum.fill(0);
+    accumN = 0;
+    oscBuf.fill(0);
+    oscPtr = 0;
+    state.time = 0;
+}
+
+function sampleU(x, y) {
+    const [i, j] = xyToIJ(x, y);
+    return uA[ij(i, j)];
+}
+
+function driveDot(x, y, val) {
+    const fi = (x / TANK + 0.5) * N - 0.5;
+    const fj = (y / TANK + 0.5) * N - 0.5;
+    const i0 = Math.round(fi), j0 = Math.round(fj);
+    for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+            const i = i0 + di, j = j0 + dj;
+            if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1) continue;
+            const idx = ij(i, j);
+            if (occ[idx]) continue;
+            const w = Math.exp(-((i - fi) ** 2 + (j - fj) ** 2) * 1.1);
+            uA[idx] = val * w;
+        }
+    }
+}
+
+function applySources() {
+    const w = 2 * PI * state.freq;
+    const A = 0.9 * state.amp;
+    for (const o of objects) {
+        if (o.type === 'point') {
+            driveDot(o.x, o.y, A * o.amp * Math.sin(w * state.time + o.phase));
+        } else if (o.type === 'dual') {
+            const dx = Math.cos(o.rot) * o.d / 2, dy = Math.sin(o.rot) * o.d / 2;
+            const s = Math.sin(w * state.time);
+            const s2 = Math.sin(w * state.time + o.phase);
+            driveDot(o.x + dx, o.y + dy, A * o.amp * s);
+            driveDot(o.x - dx, o.y - dy, A * o.amp * s2);
+        } else if (o.type === 'bar') {
+            const val = A * o.amp * Math.sin(w * state.time + o.phase);
+            const nSeg = Math.max(4, Math.round(o.length / DX));
+            const ux = Math.cos(o.rot), uy = Math.sin(o.rot);
+            for (let k = 0; k <= nSeg; k++) {
+                const t = k / nSeg - 0.5;
+                driveDot(o.x + ux * t * o.length, o.y + uy * t * o.length, val);
+            }
+        }
+    }
+}
+
+function stepFDTD() {
+    const n = N;
+    const cur = uA, prev = uB, next = uTmpRef;
+    const oc = occ, cf = c2, dm = damp;
+    for (let j = 1; j < n - 1; j++) {
+        const row = j * n;
+        for (let i = 1; i < n - 1; i++) {
+            const idx = row + i;
+            if (oc[idx]) { next[idx] = 0; continue; }
+            const un = oc[idx - n] ? 0 : cur[idx - n];
+            const us = oc[idx + n] ? 0 : cur[idx + n];
+            const uw = oc[idx - 1] ? 0 : cur[idx - 1];
+            const ue = oc[idx + 1] ? 0 : cur[idx + 1];
+            const lap = un + us + uw + ue - 4 * cur[idx];
+            const g = dm[idx];
+            const v = (2 - g) * cur[idx] - (1 - g) * prev[idx] + cf[idx] * lap;
+            next[idx] = v < -4 ? -4 : v > 4 ? 4 : v;
+        }
+    }
+    const oldPrev = uB;
+    uB = uA;
+    uA = uTmpRef;
+    uTmpRef = oldPrev;
+}
+
+function accumulateI() {
+    const cur = uA;
+    for (let k = 0; k < N * N; k++) accum[k] += cur[k] * cur[k];
+    accumN++;
+}
+
+function sourcePoints() {
+    const pts = [];
+    for (const o of objects) {
+        if (o.type === 'point') pts.push({ x: o.x, y: o.y });
+        else if (o.type === 'dual') {
+            const dx = Math.cos(o.rot) * o.d / 2, dy = Math.sin(o.rot) * o.d / 2;
+            pts.push({ x: o.x + dx, y: o.y + dy }, { x: o.x - dx, y: o.y - dy });
+        }
+    }
+    return pts;
+}
+
+function hitTest(x, y) {
+    for (let i = objects.length - 1; i >= 0; i--) {
+        if (containsObj(objects[i], x, y)) return objects[i];
+    }
+    return null;
+}
+
+function containsObj(o, x, y) {
+    const pad = 0.7;
+    if (o.type === 'point') return Math.hypot(x - o.x, y - o.y) < 1.1;
+    if (o.type === 'dual') {
+        const dx = Math.cos(o.rot) * o.d / 2, dy = Math.sin(o.rot) * o.d / 2;
+        return Math.hypot(x - o.x, y - o.y) < o.d / 2 + 1.2
+            || Math.hypot(x - (o.x + dx), y - (o.y + dy)) < 1.1
+            || Math.hypot(x - (o.x - dx), y - (o.y - dy)) < 1.1;
+    }
+    if (o.type === 'bar') return inRotRect(x, y, o.x, o.y, o.length + pad, 1.2, o.rot);
+    if (o.type === 'wall' || o.type === 'slit' || o.type === 'dslit') return inRotRect(x, y, o.x, o.y, o.length + pad, o.thick + 1.2, o.rot);
+    if (o.type === 'block') return inRotRect(x, y, o.x, o.y, o.w + pad, o.h + pad, o.rot);
+    if (o.type === 'filmRect') return inRotRect(x, y, o.x, o.y, o.w, o.h, o.rot);
+    if (o.type === 'filmCircle') return Math.hypot(x - o.x, y - o.y) <= o.r;
+    if (o.type === 'filmTri') return inTriangle(x, y, o);
+    if (o.type === 'corner') {
+        const L = o.arm, th = o.thick + 1;
+        return inRotRect(x, y, o.x + Math.cos(o.rot) * L / 2, o.y + Math.sin(o.rot) * L / 2, L, th, o.rot)
+            || inRotRect(x, y, o.x + Math.cos(o.rot + PI / 2) * L / 2, o.y + Math.sin(o.rot + PI / 2) * L / 2, L, th, o.rot + PI / 2);
+    }
+    if (o.type === 'concave' || o.type === 'convex') {
+        const dx = x - o.x, dy = y - o.y, r = Math.hypot(dx, dy);
+        const facing = o.type === 'concave' ? o.rot : o.rot + PI;
+        return Math.abs(r - o.radius) < o.thick + 1.1 && angDiff(Math.atan2(dy, dx), facing) <= o.arc / 2 + 0.15;
+    }
+    return false;
+}
+
+function viewMap(w, h) {
+    const m = Math.min(w, h) * 0.9;
+    return { m, cx: w / 2, cy: h / 2 };
+}
+function worldToPx(x, y, w, h) {
+    const { m, cx, cy } = viewMap(w, h);
+    return [cx + x * m / TANK, cy - y * m / TANK];
+}
+function pxToWorld(px, py, w, h) {
+    const { m, cx, cy } = viewMap(w, h);
+    return [(px - cx) * TANK / m, (cy - py) * TANK / m];
+}
+
+function uploadTexture() {
+    if (!three.tex) return;
+    const cur = uA, oc = occ, dep = depth, acc = accum;
+    const heat = state.showHeat && accumN > 12;
+    const invI = heat ? 1 / (accumN * 0.22) : 0;
+    for (let j = 0; j < N; j++) {
+        const row = j * N;
+        for (let i = 0; i < N; i++) {
+            const s = row + i;
+            const d = s * 4;
+            const h = Math.tanh(cur[s] * 1.15);
+            texData[d] = 128 + h * 120;
+            texData[d + 1] = oc[s] ? 255 : 0;
+            texData[d + 2] = clamp(dep[s] / 8 * 255, 0, 255);
+            texData[d + 3] = heat ? clamp(acc[s] * invI * 255, 0, 255) : 0;
+        }
+    }
+    three.tex.needsUpdate = true;
+}
+
+function init3D() {
+    const mount = document.getElementById('view-3d');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020617);
+    const w = mount.clientWidth || 400, h = mount.clientHeight || 260;
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 200);
+    three.camera = camera;
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    mount.appendChild(renderer.domElement);
+    three.renderer = renderer;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.95);
+    dir.position.set(8, 18, 28);
+    scene.add(dir);
+
+    const tex = new THREE.DataTexture(texData, N, N, THREE.RGBAFormat);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    three.tex = tex;
+
+    const material = new THREE.ShaderMaterial({
+        uniforms: { uField: { value: tex }, uHeat: { value: 0 } },
+        vertexShader: `
+            uniform sampler2D uField;
+            varying float vH; varying float vOcc; varying float vDep; varying float vI; varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                vec4 s = texture2D(uField, uv);
+                vH = s.r * 2.0 - 1.0;
+                vOcc = s.g; vDep = s.b; vI = s.a;
+                vec3 p = position;
+                p.z = vOcc > 0.5 ? 1.35 : vH * 2.6;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+            }`,
+        fragmentShader: `
+            uniform float uHeat;
+            varying float vH; varying float vOcc; varying float vDep; varying float vI;
+            void main() {
+                if (vOcc > 0.5) { gl_FragColor = vec4(0.18, 0.22, 0.30, 1.0); return; }
+                vec3 deep = vec3(0.04, 0.18, 0.38);
+                vec3 high = vec3(0.25, 0.65, 1.0);
+                vec3 color = mix(deep, high, smoothstep(-0.55, 0.55, vH));
+                color = mix(color, vec3(1.0), smoothstep(0.35, 0.7, vH) * 0.45);
+                color = mix(color, vec3(0.85, 0.65, 0.2), (1.0 - vDep / 0.55) * 0.18);
+                if (uHeat > 0.5) {
+                    float I = clamp(vI, 0.0, 1.0);
+                    vec3 heat = mix(vec3(0.05, 0.05, 0.12), vec3(1.0, 0.35, 0.15), I);
+                    heat = mix(heat, vec3(1.0, 0.95, 0.5), smoothstep(0.55, 1.0, I));
+                    color = mix(color, heat, 0.72);
+                }
+                gl_FragColor = vec4(color, 1.0);
+            }`,
+        side: THREE.DoubleSide
+    });
+    three.material = material;
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TANK, TANK, 120, 120), material);
+    scene.add(mesh);
+    three.mesh = mesh;
+    three.objGroup = new THREE.Group();
+    scene.add(three.objGroup);
+    const frame = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(TANK + 0.4, TANK + 0.4, 0.2)),
+        new THREE.LineBasicMaterial({ color: 0x334155 })
+    );
+    frame.position.z = 0.05;
+    scene.add(frame);
+    three.scene = scene;
+    three.clock = new THREE.Clock();
+    renderer.domElement.addEventListener('pointerdown', e => {
+        three.dragging = true; three.lastX = e.clientX; three.lastY = e.clientY;
+        renderer.domElement.setPointerCapture(e.pointerId);
+    });
+    renderer.domElement.addEventListener('pointermove', e => {
+        if (!three.dragging) return;
+        three.camTheta += (e.clientX - three.lastX) * 0.008;
+        three.camPhi = clamp(three.camPhi + (e.clientY - three.lastY) * 0.008, 0.08, 1.2);
+        three.lastX = e.clientX; three.lastY = e.clientY;
+    });
+    renderer.domElement.addEventListener('pointerup', () => { three.dragging = false; });
+    renderer.domElement.addEventListener('pointercancel', () => { three.dragging = false; });
+}
+
+function updateCamera() {
+    const { camR, camTheta, camPhi, camera, targetY } = three;
+    const sinP = Math.sin(camPhi), cosP = Math.cos(camPhi);
+    camera.position.set(camR * sinP * Math.sin(camTheta), targetY + camR * sinP * Math.cos(camTheta), camR * cosP);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(0, targetY, 0);
+}
+
+function matFor(o) {
+    if (isSource(o)) return new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.45, metalness: 0.1 });
+    if (isFilm(o)) return new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.32, roughness: 0.6 });
+    return new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+}
+
+function addBox(group, x, y, w, h, rot, z, mat) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, z), mat);
+    m.position.set(x, y, z / 2);
+    m.rotation.z = rot;
+    group.add(m);
+}
+
+function rebuild3DObjects() {
+    if (!three.objGroup) return;
+    while (three.objGroup.children.length) {
+        const c = three.objGroup.children[0];
+        three.objGroup.remove(c);
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+    }
+    for (const o of objects) {
+        const mat = matFor(o);
+        if (o.type === 'point') {
+            const s = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 12), mat);
+            s.position.set(o.x, o.y, 0.5);
+            three.objGroup.add(s);
+        } else if (o.type === 'dual') {
+            const dx = Math.cos(o.rot) * o.d / 2, dy = Math.sin(o.rot) * o.d / 2;
+            const s1 = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 12), mat);
+            const s2 = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 12), mat.clone());
+            s1.position.set(o.x + dx, o.y + dy, 0.5);
+            s2.position.set(o.x - dx, o.y - dy, 0.5);
+            three.objGroup.add(s1, s2);
+        } else if (o.type === 'bar') addBox(three.objGroup, o.x, o.y, o.length, 0.45, o.rot, 0.7, mat);
+        else if (o.type === 'wall') addBox(three.objGroup, o.x, o.y, o.length, o.thick, o.rot, 1.3, mat);
+        else if (o.type === 'slit' || o.type === 'dslit') {
+            const gaps = o.type === 'slit' ? [{ c: 0, w: o.a }] : [{ c: -o.sep / 2, w: o.a }, { c: o.sep / 2, w: o.a }];
+            const edges = [-o.length / 2, ...gaps.flatMap(g => [g.c - g.w / 2, g.c + g.w / 2]), o.length / 2];
+            for (let s = 0; s < edges.length - 1; s += 2) {
+                const a = edges[s], b = edges[s + 1], mid = (a + b) / 2, len = b - a;
+                if (len < 0.15) continue;
+                addBox(three.objGroup, o.x + Math.cos(o.rot) * mid, o.y + Math.sin(o.rot) * mid, len, o.thick, o.rot, 1.3, mat);
+            }
+        }
+        else if (o.type === 'block') addBox(three.objGroup, o.x, o.y, o.w, o.h, o.rot, 1.3, mat);
+        else if (o.type === 'filmRect') addBox(three.objGroup, o.x, o.y, o.w, o.h, o.rot, 0.25, mat);
+        else if (o.type === 'filmCircle') {
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r, 0.25, 28), mat);
+            m.rotation.x = PI / 2;
+            m.position.set(o.x, o.y, 0.12);
+            three.objGroup.add(m);
+        } else if (o.type === 'filmTri') {
+            const sh = new THREE.Shape();
+            const s = o.size, hh = s * Math.sqrt(3) / 2;
+            sh.moveTo(0, 2 * hh / 3); sh.lineTo(-s / 2, -hh / 3); sh.lineTo(s / 2, -hh / 3);
+            const g = new THREE.ExtrudeGeometry(sh, { depth: 0.25, bevelEnabled: false });
+            const m = new THREE.Mesh(g, mat);
+            m.position.set(o.x, o.y, 0);
+            m.rotation.z = o.rot;
+            three.objGroup.add(m);
+        } else if (o.type === 'corner') {
+            const L = o.arm;
+            addBox(three.objGroup, o.x + Math.cos(o.rot) * L / 2, o.y + Math.sin(o.rot) * L / 2, L, o.thick, o.rot, 1.3, mat);
+            addBox(three.objGroup, o.x + Math.cos(o.rot + PI / 2) * L / 2, o.y + Math.sin(o.rot + PI / 2) * L / 2, L, o.thick, o.rot + PI / 2, 1.3, mat.clone());
+        } else if (o.type === 'concave' || o.type === 'convex') {
+            const facing = o.type === 'concave' ? o.rot : o.rot + PI;
+            const nSeg = 18;
+            for (let k = 0; k < nSeg; k++) {
+                const t0 = facing - o.arc / 2 + o.arc * k / nSeg;
+                const t1 = facing - o.arc / 2 + o.arc * (k + 1) / nSeg;
+                const tm = (t0 + t1) / 2;
+                const px = o.x + o.radius * Math.cos(tm);
+                const py = o.y + o.radius * Math.sin(tm);
+                addBox(three.objGroup, px, py, o.radius * Math.abs(t1 - t0) + 0.05, o.thick, tm + PI / 2, 1.3, mat);
+            }
+        }
+    }
+}
+
+function resize3D() {
+    const mount = document.getElementById('view-3d');
+    if (!mount || !three.renderer) return;
+    const w = mount.clientWidth, h = mount.clientHeight;
+    if (w < 10 || h < 10) return;
+    three.camera.aspect = w / h;
+    three.camera.updateProjectionMatrix();
+    three.renderer.setSize(w, h);
+}
+function resize2D() {
+    const parent = document.getElementById('view-2d-wrap');
+    if (!parent || parent.clientWidth < 8) return;
+    canvas2d.width = parent.clientWidth;
+    canvas2d.height = parent.clientHeight;
+}
+function resizeOsc() {
+    const r = oscCanvas.getBoundingClientRect();
+    oscCanvas.width = Math.max(120, r.width * (window.devicePixelRatio || 1));
+    oscCanvas.height = 56 * (window.devicePixelRatio || 1);
+}
+
+function drawField() {
+    const data = fieldImg.data;
+    const cur = uA, oc = occ, dep = depth, acc = accum;
+    const heat = state.showHeat && accumN > 12;
+    const invI = heat ? 1 / (accumN * 0.22) : 0;
+    const showD = state.showDepth;
+    const showS = state.showShadow;
+    let shadowCol = null;
+    if (showS) {
+        shadowCol = new Uint8Array(N * N);
+        for (let i = 0; i < N; i++) {
+            let blocked = false;
+            for (let j = 0; j < N; j++) {
+                const s = ij(i, j);
+                if (oc[s]) blocked = true;
+                else if (blocked) shadowCol[s] = 1;
+            }
+        }
+    }
+    for (let j = 0; j < N; j++) {
+        const srcRow = j * N;
+        const dstRow = (N - 1 - j) * N;
+        for (let i = 0; i < N; i++) {
+            const s = srcRow + i;
+            const d = (dstRow + i) * 4;
+            if (oc[s]) { data[d] = 51; data[d + 1] = 65; data[d + 2] = 85; data[d + 3] = 255; continue; }
+            let r, g, b;
+            if (heat) {
+                const I = clamp(acc[s] * invI, 0, 1);
+                r = 20 + I * 220; g = 15 + I * 80; b = 30 + (1 - I) * 40;
+                if (I > 0.55) { g += (I - 0.55) * 280; }
+            } else {
+                const h = Math.tanh(cur[s] * 1.2);
+                r = 12 + (h + 1) * 40;
+                g = 48 + (h + 1) * 70;
+                b = 96 + (h + 1) * 80;
+                if (h > 0.35) { r += (h - 0.35) * 180; g += (h - 0.35) * 140; b += (h - 0.35) * 80; }
+            }
+            if (showD) {
+                const sh = (state.h0 - dep[s]) / Math.max(state.h0, 0.5);
+                if (sh > 0.05) { r = r * 0.7 + 240 * sh * 0.45; g = g * 0.75 + 180 * sh * 0.4; b = b * 0.85; }
+            }
+            if (showS && shadowCol[s]) { r *= 0.55; g *= 0.55; b *= 0.7; }
+            data[d] = r; data[d + 1] = g; data[d + 2] = b; data[d + 3] = 255;
+        }
+    }
+    fieldCtx.putImageData(fieldImg, 0, 0);
+}
+
+function strokeObj(ctx, o, selected) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    ctx.rotate(o.rot);
+    ctx.lineWidth = selected ? 0.28 : 0.14;
+    ctx.strokeStyle = selected ? '#38bdf8' : '#e2e8f0';
+    if (o.type === 'point') {
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath(); ctx.arc(0, 0, 0.55, 0, PI * 2); ctx.fill(); ctx.stroke();
+    } else if (o.type === 'dual') {
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath(); ctx.arc(o.d / 2, 0, 0.5, 0, PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-o.d / 2, 0, 0.5, 0, PI * 2); ctx.fill();
+        ctx.strokeStyle = selected ? '#38bdf8' : '#fde68a';
+        ctx.setLineDash([0.3, 0.25]);
+        ctx.beginPath(); ctx.moveTo(-o.d / 2, 0); ctx.lineTo(o.d / 2, 0); ctx.stroke();
+        ctx.setLineDash([]);
+    } else if (o.type === 'bar') {
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(-o.length / 2, -0.28, o.length, 0.56);
+        ctx.strokeRect(-o.length / 2, -0.28, o.length, 0.56);
+    } else if (o.type === 'wall' || o.type === 'block') {
+        const w = o.type === 'block' ? o.w : o.length, h = o.type === 'block' ? o.h : o.thick;
+        ctx.fillStyle = 'rgba(71,85,105,0.85)';
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+    } else if (o.type === 'slit' || o.type === 'dslit') {
+        ctx.fillStyle = 'rgba(30,41,59,0.92)';
+        const gaps = o.type === 'slit' ? [{ c: 0, w: o.a }] : [{ c: -o.sep / 2, w: o.a }, { c: o.sep / 2, w: o.a }];
+        const edges = [-o.length / 2, ...gaps.flatMap(g => [g.c - g.w / 2, g.c + g.w / 2]), o.length / 2];
+        for (let s = 0; s < edges.length - 1; s += 2) {
+            const a = edges[s], b = edges[s + 1];
+            if (b - a > 0.08) ctx.fillRect(a, -o.thick / 2, b - a, o.thick);
+        }
+        ctx.strokeRect(-o.length / 2, -o.thick / 2, o.length, o.thick);
+    } else if (o.type === 'filmRect') {
+        ctx.fillStyle = 'rgba(251,191,36,0.28)';
+        ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
+        ctx.strokeStyle = selected ? '#38bdf8' : '#fbbf24';
+        ctx.strokeRect(-o.w / 2, -o.h / 2, o.w, o.h);
+    } else if (o.type === 'filmCircle') {
+        ctx.fillStyle = 'rgba(251,191,36,0.28)';
+        ctx.beginPath(); ctx.arc(0, 0, o.r, 0, PI * 2); ctx.fill();
+        ctx.strokeStyle = selected ? '#38bdf8' : '#fbbf24'; ctx.stroke();
+    } else if (o.type === 'filmTri') {
+        const s = o.size, hh = s * Math.sqrt(3) / 2;
+        ctx.fillStyle = 'rgba(251,191,36,0.28)';
+        ctx.beginPath(); ctx.moveTo(0, 2 * hh / 3); ctx.lineTo(-s / 2, -hh / 3); ctx.lineTo(s / 2, -hh / 3); ctx.closePath();
+        ctx.fill(); ctx.strokeStyle = selected ? '#38bdf8' : '#fbbf24'; ctx.stroke();
+    } else if (o.type === 'corner') {
+        ctx.fillStyle = 'rgba(71,85,105,0.9)';
+        ctx.fillRect(0, -o.thick / 2, o.arm, o.thick);
+        ctx.save(); ctx.rotate(PI / 2); ctx.fillRect(0, -o.thick / 2, o.arm, o.thick); ctx.restore();
+        ctx.strokeRect(0, -o.thick / 2, o.arm, o.thick);
+    } else if (o.type === 'concave' || o.type === 'convex') {
+        const face = (o.type === 'concave' ? o.rot : o.rot + PI) - o.rot;
+        ctx.beginPath();
+        ctx.arc(0, 0, o.radius, face - o.arc / 2, face + o.arc / 2);
+        ctx.stroke();
+    }
+    if (selected) {
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath(); ctx.arc(0, 1.7, 0.38, 0, PI * 2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+function draw2D() {
+    const w = canvas2d.width, h = canvas2d.height;
+    if (w < 8 || h < 8) return;
+    ctx2d.clearRect(0, 0, w, h);
+    drawField();
+    const { m, cx, cy } = viewMap(w, h);
+    ctx2d.drawImage(fieldCanvas, cx - m / 2, cy - m / 2, m, m);
+    ctx2d.save();
+    ctx2d.translate(cx, cy);
+    ctx2d.scale(m / TANK, -m / TANK);
+    ctx2d.strokeStyle = '#475569';
+    ctx2d.lineWidth = 0.18;
+    ctx2d.strokeRect(-TANK / 2, -TANK / 2, TANK, TANK);
+    for (const o of objects) strokeObj(ctx2d, o, state.selected && state.selected.id === o.id);
+    if (state.probe) {
+        ctx2d.fillStyle = '#34d399';
+        ctx2d.beginPath(); ctx.arc(state.probe.x, state.probe.y, 0.45, 0, PI * 2); ctx.fill();
+        ctx2d.strokeStyle = '#fff'; ctx2d.lineWidth = 0.12; ctx2d.stroke();
+    }
+    const drawPts = (pts, color) => {
+        ctx2d.strokeStyle = color; ctx2d.fillStyle = color; ctx2d.lineWidth = 0.12;
+        ctx2d.beginPath();
+        pts.filter(Boolean).forEach((p, i) => i ? ctx2d.lineTo(p.x, p.y) : ctx2d.moveTo(p.x, p.y));
+        ctx2d.stroke();
+        pts.filter(Boolean).forEach(p => { ctx2d.beginPath(); ctx2d.arc(p.x, p.y, 0.28, 0, PI * 2); ctx2d.fill(); });
+    };
+    if (state.ruler[0]) drawPts(state.ruler, '#f472b6');
+    if (state.angle[0]) drawPts(state.angle, '#a78bfa');
+    ctx2d.restore();
+    ctx2d.fillStyle = '#e2e8f8';
+    ctx2d.font = 'bold 11px "Noto Sans TC", sans-serif';
+    if (state.probe) {
+        const [px, py] = worldToPx(state.probe.x, state.probe.y, w, h);
+        ctx2d.fillText('P', px + 8, py - 6);
+    }
+}
+
+function drawOsc() {
+    const w = oscCanvas.width, h = oscCanvas.height;
+    oscCtx.fillStyle = '#0f172a';
+    oscCtx.fillRect(0, 0, w, h);
+    oscCtx.strokeStyle = '#334155';
+    oscCtx.beginPath(); oscCtx.moveTo(0, h / 2); oscCtx.lineTo(w, h / 2); oscCtx.stroke();
+    if (!state.probe) return;
+    oscCtx.strokeStyle = '#38bdf8';
+    oscCtx.lineWidth = 1.5;
+    oscCtx.beginPath();
+    for (let i = 0; i < OSC_N; i++) {
+        const v = oscBuf[(oscPtr + i) % OSC_N];
+        const x = i / (OSC_N - 1) * w;
+        const y = h / 2 - v * h * 0.35;
+        i ? oscCtx.lineTo(x, y) : oscCtx.moveTo(x, y);
+    }
+    oscCtx.stroke();
+}
+
+function sliderRow(id, label, min, max, step, val, fmt) {
+    return `<label class="block mb-2"><span class="prop-label"><span>${label}</span><span class="text-sky-700">${fmt(val)}</span></span>
+        <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
+}
+
+function rebuildProps() {
+    const panel = document.getElementById('prop-panel');
+    const del = document.getElementById('btn-delete');
+    const o = state.selected;
+    if (!o) {
+        panel.innerHTML = t('propEmpty');
+        del.classList.add('hidden');
+        document.getElementById('obj-limit').textContent = `${t('objCount')} ${objects.length}/${MAX_OBJ}`;
+        return;
+    }
+    del.classList.remove('hidden');
+    const deg = o.rot * 180 / PI;
+    let html = `<p class="font-bold text-slate-700 mb-2">${t('type_' + o.type)}</p>`;
+    html += sliderRow('p-x', t('pX'), -16, 16, 0.1, o.x, v => v.toFixed(1) + ' cm');
+    html += sliderRow('p-y', t('pY'), -16, 16, 0.1, o.y, v => v.toFixed(1) + ' cm');
+    if (o.type !== 'point' && o.type !== 'filmCircle') {
+        html += sliderRow('p-rot', t('pRot'), -180, 180, 1, deg, v => v.toFixed(0) + '°');
+    }
+    if (isSource(o)) html += sliderRow('p-amp', t('pAmp'), 0.2, 1.5, 0.05, o.amp, v => v.toFixed(2));
+    if (o.type === 'dual') {
+        html += sliderRow('p-d', t('pD'), 1.5, 10, 0.1, o.d, v => v.toFixed(1) + ' cm');
+        html += `<label class="check-row mb-2"><input type="checkbox" id="p-opp" ${o.phase > 1 ? 'checked' : ''}><span>${t('pOpp')}</span></label>`;
+    }
+    if (o.type === 'point' || o.type === 'bar') html += sliderRow('p-phase', t('pPhase'), 0, 180, 5, o.phase * 180 / PI, v => v.toFixed(0) + '°');
+    if (o.type === 'bar' || o.type === 'wall' || o.type === 'slit' || o.type === 'dslit') {
+        const maxL = o.type === 'bar' ? 34 : 36;
+        html += sliderRow('p-len', t('pLen'), 2, maxL, 0.2, o.length, v => v.toFixed(1) + ' cm');
+    }
+    if (o.type === 'wall' || o.type === 'corner' || o.type === 'concave' || o.type === 'convex') {
+        html += sliderRow('p-th', t('pThick'), 0.3, 1.4, 0.05, o.thick, v => v.toFixed(2) + ' cm');
+    }
+    if (o.type === 'block') {
+        html += sliderRow('p-w', t('pW'), 1, 16, 0.2, o.w, v => v.toFixed(1) + ' cm');
+        html += sliderRow('p-h', t('pH'), 1, 16, 0.2, o.h, v => v.toFixed(1) + ' cm');
+    }
+    if (o.type === 'concave' || o.type === 'convex') {
+        html += sliderRow('p-r', t('pR'), 4, 16, 0.2, o.radius, v => v.toFixed(1) + ' cm');
+        html += sliderRow('p-arc', t('pArc'), 40, 160, 1, o.arc * 180 / PI, v => v.toFixed(0) + '°');
+    }
+    if (o.type === 'corner') html += sliderRow('p-arm', t('pArm'), 3, 16, 0.2, o.arm, v => v.toFixed(1) + ' cm');
+    if (o.type === 'slit' || o.type === 'dslit') html += sliderRow('p-a', t('pA'), 0.5, 8, 0.1, o.a, v => v.toFixed(1) + ' cm');
+    if (o.type === 'dslit') html += sliderRow('p-sep', t('pSep'), 1.5, 10, 0.1, o.sep, v => v.toFixed(1) + ' cm');
+    if (o.type === 'filmRect') {
+        html += sliderRow('p-w', t('pW'), 3, 30, 0.2, o.w, v => v.toFixed(1) + ' cm');
+        html += sliderRow('p-h', t('pH'), 3, 30, 0.2, o.h, v => v.toFixed(1) + ' cm');
+    }
+    if (o.type === 'filmCircle') html += sliderRow('p-r', t('pR'), 2, 14, 0.2, o.r, v => v.toFixed(1) + ' cm');
+    if (o.type === 'filmTri') html += sliderRow('p-size', t('pSize'), 4, 18, 0.2, o.size, v => v.toFixed(1) + ' cm');
+    if (isFilm(o)) html += sliderRow('p-dep', t('pDepth'), 0.8, 7, 0.1, o.hWater, v => v.toFixed(1) + ' cm');
+    panel.innerHTML = html;
+    document.getElementById('obj-limit').textContent = `${t('objCount')} ${objects.length}/${MAX_OBJ}`;
+    bindPropInputs(o);
+}
+
+function onGeomChange() {
+    rebuildMaps();
+    clearWave();
+    rebuild3DObjects();
+}
+
+function bindPropInputs(o) {
+    const num = (id, fn, fmt) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', e => {
+            const v = +e.target.value;
+            fn(v);
+            const lab = el.previousElementSibling && el.previousElementSibling.querySelectorAll('span')[1];
+            if (lab && fmt) lab.textContent = fmt(v);
+            onGeomChange();
+        });
+    };
+    const cm = v => v.toFixed(1) + ' cm';
+    num('p-x', v => { o.x = v; }, cm);
+    num('p-y', v => { o.y = v; }, cm);
+    num('p-rot', v => { o.rot = v * PI / 180; }, v => v.toFixed(0) + '°');
+    num('p-amp', v => { o.amp = v; }, v => v.toFixed(2));
+    num('p-d', v => { o.d = v; }, cm);
+    num('p-phase', v => { o.phase = v * PI / 180; }, v => v.toFixed(0) + '°');
+    num('p-len', v => { o.length = v; }, cm);
+    num('p-th', v => { o.thick = v; }, v => v.toFixed(2) + ' cm');
+    num('p-w', v => { o.w = v; }, cm);
+    num('p-h', v => { o.h = v; }, cm);
+    num('p-r', v => { if (o.type === 'filmCircle') o.r = v; else o.radius = v; }, cm);
+    num('p-arc', v => { o.arc = v * PI / 180; }, v => v.toFixed(0) + '°');
+    num('p-arm', v => { o.arm = v; }, cm);
+    num('p-a', v => { o.a = v; }, cm);
+    num('p-sep', v => { o.sep = v; }, cm);
+    num('p-size', v => { o.size = v; }, cm);
+    num('p-dep', v => { o.hWater = v; }, cm);
+    const opp = document.getElementById('p-opp');
+    if (opp) opp.addEventListener('change', e => { o.phase = e.target.checked ? PI : 0; onGeomChange(); });
+}
+
+function addObject(type) {
+    if (objects.length >= MAX_OBJ) {
+        document.getElementById('obj-limit').textContent = t('objLimit');
+        return;
+    }
+    const o = defaultObject(type);
+    const n = objects.filter(x => x.type === type).length;
+    o.x += (n % 5) * 1.2;
+    o.y += Math.floor(n / 5) * 1.2;
+    objects.push(o);
+    state.selected = o;
+    state.preset = '';
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    onGeomChange();
+    rebuildProps();
+    setMode('select');
+}
+
+function deleteSelected() {
+    if (!state.selected) return;
+    const i = objects.findIndex(o => o.id === state.selected.id);
+    if (i >= 0) objects.splice(i, 1);
+    state.selected = null;
+    onGeomChange();
+    rebuildProps();
+}
+
+function setMode(mode) {
+    state.mode = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+}
+
+function applyPreset(name) {
+    state.preset = name;
+    state.freq = 1;
+    state.h0 = 4;
+    state.amp = 1;
+    state.absorb = true;
+    state.selected = null;
+    state.probe = null;
+    state.ruler = [null, null];
+    state.angle = [null, null, null];
+    objects.length = 0;
+    uid = 1;
+    document.getElementById('in-freq').value = 1;
+    document.getElementById('in-h0').value = 4;
+    document.getElementById('in-amp').value = 1;
+    document.getElementById('in-absorb').checked = true;
+    if (name === 'interfere') {
+        objects.push(Object.assign(defaultObject('dual'), { id: uid++, y: -9, d: 4.5 }));
+    } else if (name === 'reflect') {
+        objects.push(Object.assign(defaultObject('bar'), { id: uid++, y: -14.2, length: 30 }));
+        objects.push(Object.assign(defaultObject('wall'), { id: uid++, y: 3.5, length: 18, rot: 32 * PI / 180 }));
+    } else if (name === 'concave') {
+        objects.push(Object.assign(defaultObject('bar'), { id: uid++, y: -14.2, length: 30 }));
+        objects.push(Object.assign(defaultObject('concave'), { id: uid++, y: 7.5, radius: 11.5, arc: 108 * PI / 180 }));
+    } else if (name === 'refract') {
+        objects.push(Object.assign(defaultObject('bar'), { id: uid++, y: -14.2, length: 30 }));
+        objects.push(Object.assign(defaultObject('filmRect'), { id: uid++, x: 0, y: 5.5, w: 28, h: 18, rot: 0, hWater: 1.2 }));
+    } else if (name === 'slit') {
+        objects.push(Object.assign(defaultObject('bar'), { id: uid++, y: -14.2, length: 30 }));
+        objects.push(Object.assign(defaultObject('slit'), { id: uid++, y: -1, a: 2.2 }));
+    } else if (name === 'dslit') {
+        objects.push(Object.assign(defaultObject('bar'), { id: uid++, y: -14.2, length: 30 }));
+        objects.push(Object.assign(defaultObject('dslit'), { id: uid++, y: -1, a: 1.3, sep: 4.2 }));
+    }
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+    onGeomChange();
+    rebuildProps();
+    setPlaying(true);
+}
+
+function setPlaying(on) {
+    state.playing = on;
+    btnPlay.textContent = on ? t('pause') : t('play');
+    if (three.clock) three.clock.getDelta();
+}
+
+function resetAll() {
+    applyPreset(state.preset || 'interfere');
+    state.showHeat = false;
+    state.showDepth = false;
+    state.showShadow = false;
+    document.getElementById('in-heat').checked = false;
+    document.getElementById('in-depth').checked = false;
+    document.getElementById('in-shadow').checked = false;
+    setViewLayout('split');
+    three.camTheta = 0;
+    three.camPhi = 0.42;
+    setPlaying(true);
+}
+
+function setViewLayout(mode) {
+    state.viewLayout = mode;
+    stage.className = `relative bg-slate-950 rounded-3xl shadow-xl overflow-hidden border border-slate-700 flex-1 min-h-[420px] flex flex-col layout-${mode}`;
+    document.querySelectorAll('.view-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === mode));
+    requestAnimationFrame(() => { resize3D(); resize2D(); });
+}
+
+function renderQuiz() {
+    const t = i18n[lang]; const box = document.getElementById('quiz-list'); if (!box) return;
+    const mk = (qid) => ['A','B','C','D'].map(L => `<label class="flex items-start gap-2 rounded-xl border border-slate-200 p-2 cursor-pointer hover:bg-sky-50/50"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-500"><span>${L}. ${t['quizQ'+qid.slice(1)+L.toLowerCase()]}</span></label>`).join('');
+    const ans = (k) => quizAnswersVisible ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${t.quizRef}：</strong> ${t[k]}</div>` : '';
+    box.innerHTML = [1,2,3,4,5].map(n => { const mc = n%2===1; return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-rose-700 mb-2">Q${n}. ${t['quizQ'+n]}</p>${mc?`<div class="grid gap-1.5">${mk('q'+n)}</div>`:''}${ans('quizQ'+n+'ans')}</div>`; }).join('');
+    const ab = document.getElementById('btn-quiz-answers'); if (ab) ab.textContent = quizAnswersVisible ? t.quizHideAnswers : t.quizShowAnswers;
+}
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.innerHTML = i18n[lang][k];
+    });
+    btnPlay.textContent = state.playing ? t('pause') : t('play');
+    rebuildProps();
+    updateStats(true);
+    renderQuiz();
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise();
+}
+
+let statsTick = 0;
+function updateStats(force) {
+    if (!force && (++statsTick % 4)) return;
+    document.getElementById('disp-f').textContent = state.freq.toFixed(2) + ' Hz';
+    document.getElementById('disp-h0').textContent = state.h0.toFixed(1) + ' cm';
+    document.getElementById('disp-amp').textContent = state.amp.toFixed(2);
+    document.getElementById('val-v').textContent = v0().toFixed(2) + ' cm/s';
+    document.getElementById('val-l0').textContent = lambda0().toFixed(2) + ' cm';
+    document.getElementById('val-t').textContent = state.time.toFixed(2) + ' s';
+    const badge = document.getElementById('probe-badge');
+    if (!state.probe) {
+        document.getElementById('val-eta').textContent = '—';
+        document.getElementById('val-I').textContent = '—';
+        document.getElementById('val-delta').textContent = '—';
+        badge.textContent = t('probeEmpty');
+        badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200';
+    } else {
+        const eta = sampleU(state.probe.x, state.probe.y);
+        document.getElementById('val-eta').textContent = eta.toFixed(3);
+        const [i, j] = xyToIJ(state.probe.x, state.probe.y);
+        const I = accumN ? accum[ij(i, j)] / accumN : 0;
+        document.getElementById('val-I').textContent = I.toFixed(3);
+        const pts = sourcePoints();
+        if (pts.length === 2) {
+            const d1 = Math.hypot(state.probe.x - pts[0].x, state.probe.y - pts[0].y);
+            const d2 = Math.hypot(state.probe.x - pts[1].x, state.probe.y - pts[1].y);
+            document.getElementById('val-delta').textContent = Math.abs(d1 - d2).toFixed(2) + ' cm';
+        } else document.getElementById('val-delta').textContent = '—';
+        badge.textContent = t('probeOn');
+        badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200';
+    }
+    if (state.ruler[0] && state.ruler[1]) {
+        const d = Math.hypot(state.ruler[1].x - state.ruler[0].x, state.ruler[1].y - state.ruler[0].y);
+        document.getElementById('val-ruler').textContent = d.toFixed(2) + ' cm';
+    } else document.getElementById('val-ruler').textContent = '—';
+    if (state.angle[0] && state.angle[1] && state.angle[2]) {
+        const a = state.angle[0], v = state.angle[1], b = state.angle[2];
+        const a1 = Math.atan2(a.y - v.y, a.x - v.x);
+        const a2 = Math.atan2(b.y - v.y, b.x - v.x);
+        let deg = Math.abs(angNorm(a2 - a1)) * 180 / PI;
+        if (deg > 180) deg = 360 - deg;
+        document.getElementById('val-angle').textContent = deg.toFixed(1) + '°';
+    } else document.getElementById('val-angle').textContent = '—';
+}
+
+function canvasEventXY(e) {
+    const rect = canvas2d.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas2d.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas2d.height / rect.height);
+    return pxToWorld(x, y, canvas2d.width, canvas2d.height);
+}
+
+function rotHandleWorld(o) {
+    return { x: o.x + Math.cos(o.rot + PI / 2) * 1.8, y: o.y + Math.sin(o.rot + PI / 2) * 1.8 };
+}
+
+canvas2d.addEventListener('pointerdown', e => {
+    const [x, y] = canvasEventXY(e);
+    if (state.mode === 'probe') {
+        state.probe = { x, y };
+        oscBuf.fill(0);
+        return;
+    }
+    if (state.mode === 'ruler') {
+        if (!state.ruler[0] || state.ruler[1]) state.ruler = [{ x, y }, null];
+        else state.ruler[1] = { x, y };
+        return;
+    }
+    if (state.mode === 'angle') {
+        if (!state.angle[0]) state.angle = [{ x, y }, null, null];
+        else if (!state.angle[1]) state.angle[1] = { x, y };
+        else if (!state.angle[2]) state.angle[2] = { x, y };
+        else state.angle = [{ x, y }, null, null];
+        return;
+    }
+    const sel = state.selected;
+    if (sel) {
+        const h = rotHandleWorld(sel);
+        if (Math.hypot(x - h.x, y - h.y) < 1.1) {
+            state.drag = { kind: 'rot', id: sel.id, ox: x, oy: y };
+            canvas2d.setPointerCapture(e.pointerId);
+            return;
+        }
+    }
+    const hit = hitTest(x, y);
+    state.selected = hit;
+    rebuildProps();
+    if (hit) {
+        state.drag = { kind: 'move', id: hit.id, dx: x - hit.x, dy: y - hit.y };
+        canvas2d.setPointerCapture(e.pointerId);
+    }
+});
+canvas2d.addEventListener('pointermove', e => {
+    if (!state.drag) return;
+    const [x, y] = canvasEventXY(e);
+    const o = objects.find(z => z.id === state.drag.id);
+    if (!o) return;
+    if (state.drag.kind === 'move') {
+        o.x = clamp(x - state.drag.dx, -16, 16);
+        o.y = clamp(y - state.drag.dy, -16, 16);
+    } else {
+        o.rot = Math.atan2(y - o.y, x - o.x) - PI / 2;
+    }
+});
+function endDrag() {
+    if (!state.drag) return;
+    state.drag = null;
+    onGeomChange();
+    rebuildProps();
+}
+canvas2d.addEventListener('pointerup', endDrag);
+canvas2d.addEventListener('pointercancel', endDrag);
+
+document.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+document.querySelectorAll('.view-tab').forEach(tab => tab.addEventListener('click', () => setViewLayout(tab.dataset.view)));
+document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+document.querySelectorAll('.tool-btn').forEach(b => b.addEventListener('click', () => addObject(b.dataset.add)));
+btnPlay.addEventListener('click', () => setPlaying(!state.playing));
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+document.getElementById('btn-clear').addEventListener('click', () => { clearWave(); });
+document.getElementById('btn-delete').addEventListener('click', deleteSelected);
+document.getElementById('in-freq').addEventListener('input', e => { state.freq = +e.target.value; clearWave(); });
+document.getElementById('in-h0').addEventListener('input', e => { state.h0 = +e.target.value; onGeomChange(); });
+document.getElementById('in-amp').addEventListener('input', e => { state.amp = +e.target.value; });
+document.getElementById('in-absorb').addEventListener('change', e => { state.absorb = e.target.checked; onGeomChange(); });
+document.getElementById('in-heat').addEventListener('change', e => { state.showHeat = e.target.checked; if (e.target.checked) { accum.fill(0); accumN = 0; } });
+document.getElementById('in-depth').addEventListener('change', e => { state.showDepth = e.target.checked; });
+document.getElementById('in-shadow').addEventListener('change', e => { state.showShadow = e.target.checked; });
+document.getElementById('btn-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); });
+document.getElementById('btn-lang-mobile').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); });
+
+const modalPrinciple = document.getElementById('modal-principle');
+const modalSteps = document.getElementById('modal-steps');
+const modalQuiz = document.getElementById('modal-quiz');
+function openModal(el) { el.classList.add('open'); if (el.id === 'modal-quiz') renderQuiz(); if (window.MathJax?.typesetPromise) MathJax.typesetPromise([el]); }
+function closeModal(el) { el.classList.remove('open'); }
+document.getElementById('btn-principle').addEventListener('click', () => openModal(modalPrinciple));
+document.getElementById('btn-steps').addEventListener('click', () => openModal(modalSteps));
+document.getElementById('btn-quiz').addEventListener('click', () => openModal(modalQuiz));
+document.getElementById('btn-quiz-answers').addEventListener('click', () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); if (window.MathJax?.typesetPromise) MathJax.typesetPromise([modalQuiz]); });
+['modal-close', 'modal-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(modalPrinciple)));
+['steps-close', 'steps-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(modalSteps)));
+['quiz-close', 'quiz-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(modalQuiz)));
+[modalPrinciple, modalSteps, modalQuiz].forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m); }));
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModal(modalPrinciple); closeModal(modalSteps); closeModal(modalQuiz); state.selected = null; rebuildProps(); }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && state.selected && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        deleteSelected();
+    }
+});
+
+let simAcc = 0;
+function loop() {
+    requestAnimationFrame(loop);
+    const dt = three.clock ? Math.min(three.clock.getDelta(), 0.05) : 1 / 60;
+    if (state.playing) {
+        simAcc += dt;
+        let n = 0;
+        while (simAcc >= DT && n < 8) {
+            stepFDTD();
+            state.time += DT;
+            applySources();
+            simAcc -= DT;
+            n++;
+        }
+        if (n) accumulateI();
+        if (state.probe) {
+            oscBuf[oscPtr % OSC_N] = sampleU(state.probe.x, state.probe.y);
+            oscPtr++;
+        }
+    }
+    if (three.material) three.material.uniforms.uHeat.value = state.showHeat ? 1 : 0;
+    uploadTexture();
+    updateCamera();
+    const mount = document.getElementById('view-3d');
+    if (three.renderer && mount && mount.clientHeight > 10) three.renderer.render(three.scene, three.camera);
+    draw2D();
+    drawOsc();
+    updateStats(false);
+}
+
+window.addEventListener('resize', () => { resize3D(); resize2D(); resizeOsc(); });
+
+init3D();
+resize2D();
+resizeOsc();
+applyPreset('interfere');
+applyLang();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

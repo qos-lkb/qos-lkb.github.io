@@ -1,573 +1,908 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>原子發射光譜模擬實驗</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        physics: {
-                            dark: '#1a202c',
-                            panel: '#2d3748',
-                            accent: '#4fd1c5'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        /* 自定義光暈效果 */
-        .glow-text {
-            text-shadow: 0 0 10px currentColor;
-        }
-        .spectral-line {
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        .spectral-line:hover {
-            transform: scaleY(1.2);
-            box-shadow: 0 0 15px currentColor;
-            z-index: 10;
-        }
-        /* 模擬氣體放電管的閃爍感 */
-        @keyframes flicker {
-            0% { opacity: 0.95; }
-            50% { opacity: 1; }
-            100% { opacity: 0.98; }
-        }
-        .discharge-active {
-            animation: flicker 0.1s infinite;
-        }
-        /* 卷軸美化 */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #2d3748; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #4a5568; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #718096; 
-        }
-    </style>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原子發射線光譜模擬實驗</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        physics: { dark: '#1a202c', panel: '#2d3748', accent: '#4fd1c5' }
+      }
+    }
+  }
+};
+</script>
+<style>
+body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+.glow-text { text-shadow: 0 0 10px currentColor; }
+.spectral-line { transition: all 0.2s ease; cursor: pointer; }
+.spectral-line:hover {
+  transform: scaleY(1.2);
+  box-shadow: 0 0 15px currentColor;
+  z-index: 10;
+}
+@keyframes flicker {
+  0% { opacity: 0.95; }
+  50% { opacity: 1; }
+  100% { opacity: 0.98; }
+}
+.discharge-active { animation: flicker 0.1s infinite; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #2d3748; }
+::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #718096; }
+.modal-panel { transition: opacity 0.25s ease; }
+.modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+.quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #374151; }
+.quiz-item .q-stem { font-weight: 600; color: #e5e7eb; margin-bottom: 0.5rem; }
+.quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+.quiz-options button {
+  text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+  border: 1px solid #4b5563; background: #1f2937; font-size: 0.875rem; color: #e5e7eb; transition: all 0.15s;
+}
+.quiz-options button:hover { border-color: #6366f1; background: #312e81; }
+.quiz-options button.selected { border-color: #818cf8; background: #3730a3; }
+.quiz-options button.correct { border-color: #16a34a; background: #14532d; }
+.quiz-options button.wrong { border-color: #dc2626; background: #7f1d1d; }
+.quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #111827; border-radius: 0.5rem; font-size: 0.85rem; color: #cbd5e1; }
+.quiz-answer.show { display: block; }
+.teach-btn {
+  font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.7rem; border-radius: 0.5rem;
+  border: 1px solid; transition: background-color 0.15s, color 0.15s;
+}
+</style>
 </head>
-<body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-hidden font-sans">
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- Header -->
-    <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md z-10">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-xs font-bold">PHY</div>
-            <h1 class="text-xl font-bold tracking-wide text-white">原子發射線光譜模擬實驗 <span class="text-sm font-normal text-gray-400 ml-2">Emission Line Spectra</span></h1>
-        </div>
-        <div class="text-sm text-gray-400 bg-gray-700 px-3 py-1 rounded-full">
-            E = hf = hc/λ
-        </div>
-    </header>
+<header class="bg-gray-800 border-b border-gray-700 p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 shadow-md z-20 shrink-0">
+  <div class="flex items-center gap-3 min-w-0">
+    <div class="w-8 h-8 shrink-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-xs font-bold">PHY</div>
+    <div class="min-w-0">
+      <h1 class="text-lg sm:text-xl font-bold tracking-wide text-white truncate" data-i18n="appTitle">原子發射線光譜模擬實驗</h1>
+      <p class="text-xs font-normal text-gray-400" data-i18n="appSubtitle">Emission Line Spectra</p>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+    <button type="button" id="btn-reset" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded font-medium transition border border-slate-500 text-sm" data-i18n="btnReset">重置</button>
+    <span class="hidden sm:inline text-gray-600 mx-0.5">|</span>
+    <button type="button" id="btn-steps" class="teach-btn border-indigo-400 bg-indigo-900/40 text-indigo-200 hover:bg-indigo-800/60" data-i18n="btnSteps">觀察步驟</button>
+    <button type="button" id="btn-principle" class="teach-btn border-blue-400 bg-blue-900/40 text-blue-200 hover:bg-blue-800/60" data-i18n="btnPrinciple">原理解說</button>
+    <button type="button" id="btn-quiz" class="teach-btn border-violet-400 bg-violet-900/40 text-violet-200 hover:bg-violet-800/60" data-i18n="btnQuiz">課堂問題</button>
+    <button type="button" id="btn-lang" class="teach-btn border-slate-500 bg-slate-700 text-slate-200 hover:bg-slate-600">中 / EN</button>
+  </div>
+</header>
 
-    <!-- Main Content -->
-    <div class="flex flex-1 h-full">
-        
-        <!-- Sidebar: Element Selector -->
-        <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
-            <div class="p-4 border-b border-gray-700">
-                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">選擇氣體元素</h2>
-                <p class="text-xs text-gray-500">點擊下方元素以觀察其放電顏色與光譜。</p>
-            </div>
-            <div class="overflow-y-auto flex-1 p-2 space-y-2" id="element-list">
-                <!-- Buttons will be injected here by JS -->
-            </div>
-            <div class="p-4 bg-gray-900 text-xs text-gray-500">
-                物理實驗室模擬器 v1.1
-            </div>
-        </aside>
+<div class="flex flex-1 flex-col lg:flex-row overflow-hidden min-h-0">
+  <!-- Scheme C: element list aside -->
+  <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-2 bg-gray-800 border-t lg:border-t-0 lg:border-r border-gray-700 flex flex-col max-h-[40vh] lg:max-h-none">
+    <div class="p-4 border-b border-gray-700">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2" data-i18n="selectGas">選擇氣體元素</h2>
+      <p class="text-xs text-gray-500" data-i18n="selectHint">點擊下方元素以觀察其放電顏色與光譜。</p>
+    </div>
+    <div class="overflow-y-auto flex-1 p-2 space-y-2" id="element-list"></div>
+    <div class="p-3 bg-gray-900 text-[10px] text-gray-500 text-center" data-i18n="footerNote">放電管發射線指紋 · E = 1239.8 / λ</div>
+  </aside>
 
-        <!-- Right Panel Container -->
-        <main class="flex-1 flex flex-col relative overflow-hidden">
-            
-            <!-- Upper Section: Circuit Diagram & Theory -->
-            <div class="h-3/5 bg-gray-900 relative border-b border-gray-700 flex flex-row">
-                
-                <!-- Circuit Area (70% width) -->
-                <div class="flex-1 relative flex flex-col border-r border-gray-700">
-                    <div class="absolute top-4 left-4 z-10 bg-gray-800/80 backdrop-blur px-3 py-1 rounded border border-gray-600">
-                        <h3 class="text-sm font-bold text-blue-300">實驗裝置：高壓氣體放電管</h3>
-                    </div>
-                    
-                    <div class="flex-1 flex items-center justify-center relative" id="circuit-container">
-                        <canvas id="circuitCanvas" class="w-full h-full"></canvas>
-                        
-                        <!-- Simulated Light Source (The Tube Glow) overlay -->
-                        <!-- Size updated to match the larger drawing -->
-                        <div id="tube-glow" class="absolute rounded-full blur-xl transition-colors duration-500 opacity-0" 
-                             style="width: 320px; height: 60px; top: 43%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;"></div>
-                    </div>
-
-                    <div class="absolute bottom-4 right-4 text-right pointer-events-none">
-                        <div id="current-element-display" class="text-5xl font-bold text-gray-700 transition-colors duration-500" style="text-shadow: 0 0 20px currentColor;">--</div>
-                        <div class="text-sm text-white font-medium mt-1 opacity-90">原子序 Z = <span id="atomic-number" class="text-xl font-bold">--</span></div>
-                    </div>
-                </div>
-
-                <!-- Theory Panel (30% width) -->
-                <div class="w-80 bg-gray-850 p-5 overflow-y-auto shadow-inner flex flex-col gap-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-purple-300 mb-2 flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                            發光原理 (Principle)
-                        </h3>
-                        <div class="text-sm text-gray-300 space-y-3 leading-relaxed">
-                            <p>
-                                當<span class="text-yellow-400">高壓電</span>通過氣體放電管時，高速移動的電子會撞擊氣體原子。
-                            </p>
-                            
-                            <div class="bg-gray-800 p-3 rounded border border-gray-700">
-                                <h4 class="font-bold text-blue-400 mb-1 text-xs uppercase">1. 激發 (Excitation)</h4>
-                                <p class="text-xs text-gray-400">原子的電子吸收能量，從穩定的基態 (Ground State) 跳躍到高能階的激發態 (Excited State)。</p>
-                            </div>
-
-                            <div class="bg-gray-800 p-3 rounded border border-gray-700">
-                                <h4 class="font-bold text-green-400 mb-1 text-xs uppercase">2. 躍遷與釋放 (Emission)</h4>
-                                <p class="text-xs text-gray-400">
-                                    激發態不穩定，電子會迅速跳回低能階。能量差以<span class="text-white font-bold">光子 (Photon)</span> 形式釋出。
-                                </p>
-                            </div>
-
-                            <div class="mt-2 p-2 bg-gray-900 rounded text-center">
-                                <p class="text-xs text-gray-500 mb-1">能量與波長關係公式</p>
-                                <p class="font-mono text-yellow-400 text-sm">E = hf = hc / λ</p>
-                            </div>
-                            
-                            <p class="text-xs text-gray-500 italic border-t border-gray-700 pt-2">
-                                * 不同元素的能階間隔不同，因此會產生獨特的「光譜指紋」。
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Lower Section: Spectrum -->
-            <div class="h-2/5 bg-black relative flex flex-col p-6 border-t border-gray-700 shadow-2xl z-20">
-                <div class="flex justify-between items-end mb-2">
-                    <h3 class="text-sm font-bold text-gray-300 flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                        發射光譜 (Emission Spectrum)
-                    </h3>
-                    <span class="text-xs text-gray-500">透過平面透射光柵觀察</span>
-                </div>
-
-                <!-- Spectrum Container -->
-                <div class="relative flex-1 bg-gray-900 rounded-md border border-gray-700 overflow-hidden select-none min-h-[80px]" id="spectrum-display">
-                    <!-- Ruler Background -->
-                    <div class="absolute inset-0 flex justify-between items-end px-4 pb-1 text-[10px] text-gray-500 font-mono z-0 pointer-events-none border-t border-gray-800 mt-8">
-                        <span>380nm</span>
-                        <span>450nm</span>
-                        <span>500nm</span>
-                        <span>550nm</span>
-                        <span>600nm</span>
-                        <span>650nm</span>
-                        <span>700nm</span>
-                        <span>750nm</span>
-                    </div>
-                    <!-- Lines will be injected here -->
-                    <div id="spectrum-lines-container" class="absolute inset-0 mx-4 z-10"></div>
-                </div>
-
-                <!-- Analysis Panel (Info Box) -->
-                <div id="info-panel" class="mt-3 h-16 bg-gray-800 rounded-lg border border-gray-700 flex items-center gap-6 px-4 opacity-0 transition-opacity duration-300">
-                    <div class="w-8 h-8 rounded shadow-inner border border-gray-600 flex-shrink-0" id="info-color-preview"></div>
-                    <div class="flex-1 grid grid-cols-3 gap-4 items-center">
-                        <div>
-                            <div class="text-[10px] text-gray-500 uppercase leading-tight">波長 (Wavelength)</div>
-                            <div class="text-lg font-mono text-blue-300 leading-tight"><span id="info-lambda">---</span> <span class="text-xs">nm</span></div>
-                        </div>
-                        <div>
-                            <div class="text-[10px] text-gray-500 uppercase leading-tight">顏色 (Color)</div>
-                            <div class="text-lg font-mono text-gray-300 leading-tight text-nowrap overflow-hidden text-ellipsis" id="info-color-name">---</div>
-                        </div>
-                        <div>
-                            <div class="text-[10px] text-gray-500 uppercase leading-tight">光子能量 (Energy)</div>
-                            <div class="text-lg font-mono text-green-400 leading-tight"><span id="info-energy">---</span> <span class="text-xs">eV</span></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Initial Hint -->
-                <div id="initial-hint" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-500 animate-pulse pointer-events-none">
-                    請先從左側選擇一個元素開始實驗
-                </div>
-            </div>
-        </main>
+  <main class="flex-1 order-1 flex flex-col relative overflow-hidden min-h-0">
+    <!-- Upper: discharge tube only (illegal w-80 theory panel removed → modal) -->
+    <div class="h-[55%] sm:h-3/5 bg-gray-900 relative border-b border-gray-700 flex flex-col min-h-[180px]">
+      <div class="absolute top-3 left-3 z-10 bg-gray-800/80 backdrop-blur px-3 py-1 rounded border border-gray-600">
+        <h3 class="text-sm font-bold text-blue-300" data-i18n="deviceTitle">實驗裝置：高壓氣體放電管</h3>
+      </div>
+      <div class="absolute top-3 right-3 z-10">
+        <button type="button" id="btn-principle-soft" class="text-[10px] sm:text-xs text-purple-300 bg-gray-800/80 border border-purple-700/50 px-2 py-1 rounded hover:bg-purple-900/40" data-i18n="softPrincipleTip">打開原理解說 ★</button>
+      </div>
+      <div class="flex-1 flex items-center justify-center relative" id="circuit-container">
+        <canvas id="circuitCanvas" class="w-full h-full"></canvas>
+        <div id="tube-glow" class="absolute rounded-full blur-xl transition-colors duration-500 opacity-0"
+             style="width: 320px; height: 60px; top: 43%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;"></div>
+      </div>
+      <div class="absolute bottom-3 right-4 text-right pointer-events-none">
+        <div id="current-element-display" class="text-4xl sm:text-5xl font-bold text-gray-700 transition-colors duration-500" style="text-shadow: 0 0 20px currentColor;">--</div>
+        <div class="text-sm text-white font-medium mt-1 opacity-90"><span data-i18n="atomicZ">原子序 Z =</span> <span id="atomic-number" class="text-xl font-bold">--</span></div>
+      </div>
     </div>
 
-    <script>
-        // --- 1. 數據定義 (物理常數與元素數據) ---
-        const SPECTRUM_MIN = 380; // nm
-        const SPECTRUM_MAX = 750; // nm
+    <!-- Lower: spectrum -->
+    <div class="h-[45%] sm:h-2/5 bg-black relative flex flex-col p-4 sm:p-6 border-t border-gray-700 shadow-2xl z-10 min-h-0">
+      <div class="flex justify-between items-end mb-2 gap-2 flex-wrap">
+        <h3 class="text-sm font-bold text-gray-300 flex items-center gap-2">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+          <span data-i18n="spectrumTitle">發射光譜</span>
+        </h3>
+        <span class="text-xs text-gray-500" data-i18n="gratingNote">透過平面透射光柵觀察</span>
+      </div>
 
-        // 元素數據
-        const elements = [
-            {
-                id: 'h',
-                name: '氫 (Hydrogen)',
-                atomicNumber: 1,
-                tubeColor: 'rgba(255, 100, 255, 0.8)', // 紫粉色
-                bgGradient: 'linear-gradient(90deg, #ff00ff, #aa00aa)',
-                lines: [
-                    { wl: 656.3, intensity: 1.0, name: 'H-alpha' }, // 紅
-                    { wl: 486.1, intensity: 0.6, name: 'H-beta' },  // 青
-                    { wl: 434.0, intensity: 0.3, name: 'H-gamma' }, // 藍紫
-                    { wl: 410.2, intensity: 0.15, name: 'H-delta' } // 紫
-                ]
-            },
-            {
-                id: 'he',
-                name: '氦 (Helium)',
-                atomicNumber: 2,
-                tubeColor: 'rgba(255, 220, 180, 0.9)', // 桃色/淡橘色
-                lines: [
-                    { wl: 706.5, intensity: 0.5 },
-                    { wl: 667.8, intensity: 0.8 }, // 紅
-                    { wl: 587.6, intensity: 1.0, name: 'D3 Line' }, // 黃 (非常亮)
-                    { wl: 501.6, intensity: 0.4 }, // 綠
-                    { wl: 492.2, intensity: 0.4 },
-                    { wl: 471.3, intensity: 0.3 },
-                    { wl: 447.1, intensity: 0.5 }  // 藍
-                ]
-            },
-            {
-                id: 'ne',
-                name: '氖 (Neon)',
-                atomicNumber: 10,
-                tubeColor: 'rgba(255, 50, 0, 0.9)', // 鮮豔橘紅
-                lines: [
-                    { wl: 640.2, intensity: 1.0 },
-                    { wl: 633.4, intensity: 0.8 },
-                    { wl: 614.3, intensity: 0.7 },
-                    { wl: 609.6, intensity: 0.6 },
-                    { wl: 585.2, intensity: 0.9 }, // 黃
-                    { wl: 540.1, intensity: 0.2 }  // 弱綠
-                ]
-            },
-            {
-                id: 'hg',
-                name: '汞 (Mercury)',
-                atomicNumber: 80,
-                tubeColor: 'rgba(0, 200, 255, 0.8)', // 藍青色
-                lines: [
-                    { wl: 579.1, intensity: 0.6, name: 'Yellow Doublet 1' },
-                    { wl: 577.0, intensity: 0.6, name: 'Yellow Doublet 2' },
-                    { wl: 546.1, intensity: 1.0, name: 'Green Line' }, // 強綠
-                    { wl: 435.8, intensity: 0.9, name: 'Blue Line' }, // 強藍
-                    { wl: 404.7, intensity: 0.5, name: 'Violet Line' } // 紫
-                ]
-            },
-             {
-                id: 'na',
-                name: '鈉 (Sodium)',
-                atomicNumber: 11,
-                tubeColor: 'rgba(255, 200, 0, 0.9)', // 亮黃色
-                lines: [
-                    { wl: 589.0, intensity: 1.0, name: 'D2 Line' },
-                    { wl: 589.6, intensity: 0.9, name: 'D1 Line' },
-                    { wl: 568.8, intensity: 0.1 },
-                    { wl: 615.4, intensity: 0.1 }
-                ]
-            },
-            {
-                id: 'li',
-                name: '鋰 (Lithium)',
-                atomicNumber: 3,
-                tubeColor: 'rgba(255, 60, 120, 0.9)', // 洋紅色/深粉紅
-                lines: [
-                    { wl: 670.8, intensity: 1.0, name: 'Red Line' },
-                    { wl: 610.4, intensity: 0.4, name: 'Orange Line' },
-                    { wl: 497.2, intensity: 0.1 },
-                    { wl: 460.3, intensity: 0.2 }
-                ]
-            },
-            {
-                id: 'ar',
-                name: '氬 (Argon)',
-                atomicNumber: 18,
-                tubeColor: 'rgba(180, 130, 255, 0.8)', // 淡紫色/薰衣草色
-                lines: [
-                    { wl: 750.4, intensity: 0.7 },
-                    { wl: 696.5, intensity: 0.8 },
-                    { wl: 451.1, intensity: 0.9, name: 'Blue Line' },
-                    { wl: 433.4, intensity: 0.6 },
-                    { wl: 420.1, intensity: 0.5 },
-                    { wl: 415.9, intensity: 0.5 }
-                ]
-            },
-            {
-                id: 'kr',
-                name: '氪 (Krypton)',
-                atomicNumber: 36,
-                tubeColor: 'rgba(240, 240, 255, 0.9)', // 亮白色
-                lines: [
-                    { wl: 587.1, intensity: 0.8, name: 'Yellow Line' },
-                    { wl: 557.0, intensity: 1.0, name: 'Green Line' },
-                    { wl: 427.4, intensity: 0.6 }
-                ]
-            }
-        ];
+      <div class="relative flex-1 bg-gray-900 rounded-md border border-gray-700 overflow-hidden select-none min-h-[70px]" id="spectrum-display">
+        <div class="absolute inset-0 flex justify-between items-end px-4 pb-1 text-[10px] text-gray-500 font-mono z-0 pointer-events-none border-t border-gray-800 mt-8">
+          <span>380nm</span><span>450nm</span><span>500nm</span><span>550nm</span>
+          <span>600nm</span><span>650nm</span><span>700nm</span><span>750nm</span>
+        </div>
+        <div id="spectrum-lines-container" class="absolute inset-0 mx-4 z-10"></div>
+        <div id="initial-hint" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-500 animate-pulse pointer-events-none text-center text-sm px-4" data-i18n="initialHint">請先從左側選擇一個元素開始實驗</div>
+      </div>
 
-        // --- 2. 工具函數 ---
+      <div id="info-panel" class="mt-3 h-16 bg-gray-800 rounded-lg border border-gray-700 flex items-center gap-4 sm:gap-6 px-3 sm:px-4 opacity-0 transition-opacity duration-300 shrink-0">
+        <div class="w-8 h-8 rounded shadow-inner border border-gray-600 flex-shrink-0" id="info-color-preview"></div>
+        <div class="flex-1 grid grid-cols-3 gap-2 sm:gap-4 items-center min-w-0">
+          <div class="min-w-0">
+            <div class="text-[10px] text-gray-500 uppercase leading-tight" data-i18n="labelLambda">波長</div>
+            <div class="text-base sm:text-lg font-mono text-blue-300 leading-tight"><span id="info-lambda">---</span> <span class="text-xs">nm</span></div>
+          </div>
+          <div class="min-w-0">
+            <div class="text-[10px] text-gray-500 uppercase leading-tight" data-i18n="labelColor">顏色</div>
+            <div class="text-base sm:text-lg font-mono text-gray-300 leading-tight text-nowrap overflow-hidden text-ellipsis" id="info-color-name">---</div>
+          </div>
+          <div class="min-w-0">
+            <div class="text-[10px] text-gray-500 uppercase leading-tight" data-i18n="labelEnergy">光子能量</div>
+            <div class="text-base sm:text-lg font-mono text-green-400 leading-tight"><span id="info-energy">---</span> <span class="text-xs">eV</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
 
-        // 將波長轉換為 RGB 顏色
-        function wavelengthToColor(wavelength, opacity = 1) {
-            let r, g, b, alpha;
-            const wl = wavelength;
+<!-- Modal: Steps -->
+<div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div data-modal-panel class="bg-gray-900 border border-gray-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-950/50 rounded-t-lg">
+      <h2 id="steps-title" class="text-xl font-bold text-white" data-i18n="stepsTitle">觀察步驟</h2>
+      <button type="button" class="text-gray-400 hover:text-white text-2xl leading-none" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+    </div>
+    <ol id="steps-body" class="p-6 overflow-y-auto text-gray-300 space-y-3 list-decimal pl-10 text-sm leading-relaxed"></ol>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-steps" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
 
-            if (wl >= 380 && wl < 440) {
-                r = -1 * (wl - 440) / (440 - 380);
-                g = 0;
-                b = 1;
-            } else if (wl >= 440 && wl < 490) {
-                r = 0;
-                g = (wl - 440) / (490 - 440);
-                b = 1;
-            } else if (wl >= 490 && wl < 510) {
-                r = 0;
-                g = 1;
-                b = -1 * (wl - 510) / (510 - 490);
-            } else if (wl >= 510 && wl < 580) {
-                r = (wl - 510) / (580 - 510);
-                g = 1;
-                b = 0;
-            } else if (wl >= 580 && wl < 645) {
-                r = 1;
-                g = -1 * (wl - 645) / (645 - 580);
-                b = 0;
-            } else if (wl >= 645 && wl <= 750) {
-                r = 1;
-                g = 0;
-                b = 0;
-            } else {
-                r = 0; g = 0; b = 0;
-            }
+<!-- Modal: Principle -->
+<div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div data-modal-panel class="bg-gray-900 border border-gray-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-950/50 rounded-t-lg">
+      <h2 id="principle-title" class="text-xl font-bold text-white flex items-center"><span class="text-yellow-400 mr-2">★</span><span data-i18n="principleTitle">原理解說</span></h2>
+      <button type="button" class="text-gray-400 hover:text-white text-2xl leading-none" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+    </div>
+    <div id="principle-body" class="p-6 overflow-y-auto text-gray-300 space-y-4 text-sm leading-relaxed"></div>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-principle" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
 
-            let factor;
-            if (wl >= 380 && wl < 420) factor = 0.3 + 0.7 * (wl - 380) / (420 - 380);
-            else if (wl >= 420 && wl < 700) factor = 1;
-            else if (wl >= 700 && wl <= 750) factor = 0.3 + 0.7 * (750 - wl) / (750 - 700);
-            else factor = 0;
+<!-- Modal: Quiz -->
+<div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div data-modal-panel class="bg-gray-900 border border-gray-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-gray-700 flex justify-between items-center gap-2 flex-wrap bg-gray-950/50 rounded-t-lg">
+      <h2 id="quiz-title" class="text-xl font-bold text-violet-300" data-i18n="quizTitle">課堂問題</h2>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+        <button type="button" class="text-gray-400 hover:text-white text-2xl leading-none" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div id="quiz-body" class="p-6 overflow-y-auto text-sm"></div>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-quiz" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
 
-            const R = Math.round(r * factor * 255);
-            const G = Math.round(g * factor * 255);
-            const B = Math.round(b * factor * 255);
-            
-            return `rgba(${R}, ${G}, ${B}, ${opacity})`;
-        }
+<script>
+const SPECTRUM_MIN = 380;
+const SPECTRUM_MAX = 750;
 
-        function getColorName(wl) {
-            if(wl < 400) return "紫外線/深紫 (UV/Violet)";
-            if(wl < 450) return "紫色 (Violet)";
-            if(wl < 495) return "藍色 (Blue)";
-            if(wl < 570) return "綠色 (Green)";
-            if(wl < 590) return "黃色 (Yellow)";
-            if(wl < 620) return "橘色 (Orange)";
-            return "紅色 (Red)";
-        }
+const elements = [
+  {
+    id: 'h',
+    nameKey: 'elH',
+    atomicNumber: 1,
+    tubeColor: 'rgba(255, 100, 255, 0.8)',
+    bgGradient: 'linear-gradient(90deg, #ff00ff, #aa00aa)',
+    lines: [
+      { wl: 656.3, intensity: 1.0, name: 'H-alpha' },
+      { wl: 486.1, intensity: 0.6, name: 'H-beta' },
+      { wl: 434.0, intensity: 0.3, name: 'H-gamma' },
+      { wl: 410.2, intensity: 0.15, name: 'H-delta' }
+    ]
+  },
+  {
+    id: 'he',
+    nameKey: 'elHe',
+    atomicNumber: 2,
+    tubeColor: 'rgba(255, 220, 180, 0.9)',
+    lines: [
+      { wl: 706.5, intensity: 0.5 },
+      { wl: 667.8, intensity: 0.8 },
+      { wl: 587.6, intensity: 1.0, name: 'D3 Line' },
+      { wl: 501.6, intensity: 0.4 },
+      { wl: 492.2, intensity: 0.4 },
+      { wl: 471.3, intensity: 0.3 },
+      { wl: 447.1, intensity: 0.5 }
+    ]
+  },
+  {
+    id: 'ne',
+    nameKey: 'elNe',
+    atomicNumber: 10,
+    tubeColor: 'rgba(255, 50, 0, 0.9)',
+    lines: [
+      { wl: 640.2, intensity: 1.0 },
+      { wl: 633.4, intensity: 0.8 },
+      { wl: 614.3, intensity: 0.7 },
+      { wl: 609.6, intensity: 0.6 },
+      { wl: 585.2, intensity: 0.9 },
+      { wl: 540.1, intensity: 0.2 }
+    ]
+  },
+  {
+    id: 'hg',
+    nameKey: 'elHg',
+    atomicNumber: 80,
+    tubeColor: 'rgba(0, 200, 255, 0.8)',
+    lines: [
+      { wl: 579.1, intensity: 0.6, name: 'Yellow Doublet 1' },
+      { wl: 577.0, intensity: 0.6, name: 'Yellow Doublet 2' },
+      { wl: 546.1, intensity: 1.0, name: 'Green Line' },
+      { wl: 435.8, intensity: 0.9, name: 'Blue Line' },
+      { wl: 404.7, intensity: 0.5, name: 'Violet Line' }
+    ]
+  },
+  {
+    id: 'na',
+    nameKey: 'elNa',
+    atomicNumber: 11,
+    tubeColor: 'rgba(255, 200, 0, 0.9)',
+    lines: [
+      { wl: 589.0, intensity: 1.0, name: 'D2 Line' },
+      { wl: 589.6, intensity: 0.9, name: 'D1 Line' },
+      { wl: 568.8, intensity: 0.1 },
+      { wl: 615.4, intensity: 0.1 }
+    ]
+  },
+  {
+    id: 'li',
+    nameKey: 'elLi',
+    atomicNumber: 3,
+    tubeColor: 'rgba(255, 60, 120, 0.9)',
+    lines: [
+      { wl: 670.8, intensity: 1.0, name: 'Red Line' },
+      { wl: 610.4, intensity: 0.4, name: 'Orange Line' },
+      { wl: 497.2, intensity: 0.1 },
+      { wl: 460.3, intensity: 0.2 }
+    ]
+  },
+  {
+    id: 'ar',
+    nameKey: 'elAr',
+    atomicNumber: 18,
+    tubeColor: 'rgba(180, 130, 255, 0.8)',
+    lines: [
+      { wl: 750.4, intensity: 0.7 },
+      { wl: 696.5, intensity: 0.8 },
+      { wl: 451.1, intensity: 0.9, name: 'Blue Line' },
+      { wl: 433.4, intensity: 0.6 },
+      { wl: 420.1, intensity: 0.5 },
+      { wl: 415.9, intensity: 0.5 }
+    ]
+  },
+  {
+    id: 'kr',
+    nameKey: 'elKr',
+    atomicNumber: 36,
+    tubeColor: 'rgba(240, 240, 255, 0.9)',
+    lines: [
+      { wl: 587.1, intensity: 0.8, name: 'Yellow Line' },
+      { wl: 557.0, intensity: 1.0, name: 'Green Line' },
+      { wl: 427.4, intensity: 0.6 }
+    ]
+  }
+];
 
-        function calculateEnergy(wavelengthNm) {
-            return (1239.8 / wavelengthNm).toFixed(3);
-        }
+let activeElement = null;
+let currentLang = 'zh';
+let lastLineDetail = null;
+const quizState = { selections: {}, showAnswers: false };
 
-        // --- 3. 渲染邏輯 ---
+const translations = {
+  zh: {
+    pageTitle: '原子發射線光譜模擬實驗',
+    appTitle: '原子發射線光譜模擬實驗',
+    appSubtitle: 'Emission Line Spectra',
+    btnReset: '重置',
+    btnSteps: '觀察步驟',
+    btnPrinciple: '原理解說',
+    btnQuiz: '課堂問題',
+    stepsTitle: '觀察步驟',
+    principleTitle: '原理解說',
+    quizTitle: '課堂問題',
+    showAnswers: '顯示參考答案',
+    hideAnswers: '隱藏參考答案',
+    closeBtn: '關閉',
+    shortHint: '請操作本模擬後簡答。',
+    selectGas: '選擇氣體元素',
+    selectHint: '點擊下方元素以觀察其放電顏色與光譜。',
+    footerNote: '放電管發射線指紋 · E = 1239.8 / λ',
+    deviceTitle: '實驗裝置：高壓氣體放電管',
+    softPrincipleTip: '打開原理解說 ★',
+    atomicZ: '原子序 Z =',
+    spectrumTitle: '發射光譜',
+    gratingNote: '透過平面透射光柵觀察',
+    initialHint: '請先從左側選擇一個元素開始實驗',
+    labelLambda: '波長',
+    labelColor: '顏色',
+    labelEnergy: '光子能量',
+    elH: '氫 (Hydrogen)',
+    elHe: '氦 (Helium)',
+    elNe: '氖 (Neon)',
+    elHg: '汞 (Mercury)',
+    elNa: '鈉 (Sodium)',
+    elLi: '鋰 (Lithium)',
+    elAr: '氬 (Argon)',
+    elKr: '氪 (Krypton)',
+    colorUV: '紫外線/深紫',
+    colorViolet: '紫色',
+    colorBlue: '藍色',
+    colorGreen: '綠色',
+    colorYellow: '黃色',
+    colorOrange: '橘色',
+    colorRed: '紅色',
+    step1: '從左側選擇<strong>氫</strong>。觀察：放電管出現粉紫／洋紅光暈，下方出現約四條可見發射線（含約 <strong>656.3 nm</strong> 的 H-alpha）。點擊最紅那條（約 656 nm）：下方 info 應顯示波長 <strong>656.3</strong>、顏色偏紅、光子能量約 <strong>1.89 eV</strong>（$1239.8/\\lambda$）。',
+    step2: '改選<strong>鈉</strong>。對照：管光偏<strong>黃</strong>；譜線以約 <strong>589.0／589.6 nm</strong> 的 D 線為主（兩線很靠近）。點其中一條，確認 λ 落在黃光、E 約 <strong>2.10 eV</strong> 量級。想想：為何鈉燈看起來「整管發黃」？',
+    step3: '再選<strong>氖</strong>，看橘紅管光與多條紅—黃區譜線組成的「指紋」。然後按<strong>重置</strong>：應回到未選元素（符號／Z 為 <code>--</code>、管熄、無譜線、hint 重現、info 隱藏）；<strong>語言不變</strong>。',
+    step4: '對照原理：發射線是離散指紋，不是連續光譜。本模擬假設：預置可見線表、強度僅示意、僅 380–750 nm、能量用 $1239.8/\\lambda$——不是實驗室攝譜校正，也不是能階圖點箭頭或入射粒子激發那兩個 sibling。',
+    principleConceptTitle: '概念',
+    principleConcept: '氣體放電管中的原子被高速電子撞擊後，電子躍上較高能階（<strong>激發</strong>），再跳回較低能階時放出<strong>光子</strong>（<strong>發射</strong>）。許多原子同時發生不同允許躍遷，於是在分光後看到一組<strong>離散亮線</strong>——該元素的<strong>發射光譜指紋</strong>。',
+    principleMechTitle: '機制',
+    principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>激發</strong>：碰撞把原子從基態推到激發態。</li><li><strong>發射</strong>：電子回落 → 光子；可見窗內形成亮線。</li><li><strong>能量與波長</strong>：教學 $E = hf = hc/\\lambda$；本模擬面板 $E(\\mathrm{eV}) = 1239.8 / \\lambda(\\mathrm{nm})$。λ 越短，E 越大。</li><li><strong>指紋</strong>：線的位置（與相對亮度示意）因元素而異 → 可辨認 H／Na／Ne／Hg…</li><li><strong>假設</strong>：只顯示預置可見線；非完整數據庫、非吸收暗線（夫朗和斐）、非單條躍遷能階點選、非碰撞截面模擬。</li></ol>',
+    principleExampleTitle: '日常例子',
+    principleExample: '霓虹招牌（氖等）、鈉街燈黃光、教室氫／氦放電管、熒光燈／汞燈相關譜線概念。勿與 sibling「點能階箭頭讀單次躍遷 ΔE」或「發射電子／光子打氫原子看玻爾激發」混為同一套操作。',
+    q1: '選氫，點擊波長約 <strong>656.3 nm</strong> 的譜線（H-alpha）。哪項最符合本模擬顯示？',
+    q1a: 'A. λ 顯示 656.3，顏色偏紅，E 約 1.89 eV',
+    q1b: 'B. 一定只顯示一條綠線且 E>5 eV',
+    q1c: 'C. 本模擬沒有波長讀數',
+    q1d: 'D. 點該線會強制改選汞原子',
+    q1ans: '參考答案：A。$1239.8/656.3 \\approx 1.889$ → toFixed(3) ≈ 1.889。',
+    q2: '先選氫觀察管色與譜線，再改選鈉。先預測鈉管顏色與主要譜線與氫有何不同，再切換驗證。',
+    q2a: 'A. 管光偏黃，可見主線約在 589.0／589.6 nm（D 線）附近',
+    q2b: 'B. 鈉完全沒有譜線可點',
+    q2c: 'C. 鈉只會在 410 nm 出現單條深紫線',
+    q2d: 'D. 選鈉會刪除光譜尺只留標題',
+    q2ans: '參考答案：A。對應 na.lines 之 D2／D1。',
+    q3: '在任一已顯示的譜線上，比較較短波長與較長波長的光子能量讀數。哪項正確？',
+    q3a: 'A. 較短 λ 對應較大 E（本模擬 E＝1239.8／λ）',
+    q3b: 'B. 波長越長能量一定越大',
+    q3c: 'C. 所有譜線的 E 被鎖死為同一個常數',
+    q3d: 'D. 只有切換英文後才會計算能量',
+    q3ans: '參考答案：A。例如 H-beta 486.1 nm 的 E 大於 H-alpha 656.3 nm。',
+    q4: '先選氖（或汞）看管色與多線指紋後：用自己的話寫（1）「發射線指紋」在本模擬中指什麼；（2）按重置後，元素選取、管光、譜線、hint 與語言應如何（本設計預期）。',
+    q4ans: '參考答案：（1）不同元素有不同位置／亮度模式的離散亮線，可用來辨認元素；（2）回到未選、管熄、無譜線、hint 重現；不切換中／EN。',
+    q5: '根據本模擬控件與設計，哪項最正確？',
+    q5a: 'A. 可選多種氣體、看放電管顏色與整條可見發射譜、點譜線讀 λ／色／E，並有步驟／原理／五題／中EN——主題是發射線指紋，不是點能階箭頭讀單次躍遷，也不是發射光子／電子做碰撞激發',
+    q5b: 'B. 主要用來量雙縫條紋間距求波長',
+    q5c: 'C. 重置會強制改成英文並刪除所有元素數據',
+    q5d: 'D. 主要展示 α 粒子金箔散射與核式結構',
+    q5ans: '參考答案：A。隔離 electron_transition／quantum_energy_level／Rutherford／雙縫；Reset 不改語言、不刪 elements 數據源。'
+  },
+  en: {
+    pageTitle: 'Atomic Emission Line Spectra',
+    appTitle: 'Atomic Emission Line Spectra',
+    appSubtitle: 'Emission Line Spectra',
+    btnReset: 'Reset',
+    btnSteps: 'Steps',
+    btnPrinciple: 'Principle',
+    btnQuiz: 'Quiz',
+    stepsTitle: 'Observation steps',
+    principleTitle: 'Principle',
+    quizTitle: 'Class quiz',
+    showAnswers: 'Show model answers',
+    hideAnswers: 'Hide model answers',
+    closeBtn: 'Close',
+    shortHint: 'Operate the sim, then answer briefly.',
+    selectGas: 'Select gas element',
+    selectHint: 'Click an element to observe its discharge color and spectrum.',
+    footerNote: 'Discharge-tube emission fingerprint · E = 1239.8 / λ',
+    deviceTitle: 'Setup: high-voltage gas discharge tube',
+    softPrincipleTip: 'Open Principle ★',
+    atomicZ: 'Atomic number Z =',
+    spectrumTitle: 'Emission spectrum',
+    gratingNote: 'Viewed through a plane transmission grating',
+    initialHint: 'Select an element on the left to begin',
+    labelLambda: 'Wavelength',
+    labelColor: 'Color',
+    labelEnergy: 'Photon energy',
+    elH: 'Hydrogen (H)',
+    elHe: 'Helium (He)',
+    elNe: 'Neon (Ne)',
+    elHg: 'Mercury (Hg)',
+    elNa: 'Sodium (Na)',
+    elLi: 'Lithium (Li)',
+    elAr: 'Argon (Ar)',
+    elKr: 'Krypton (Kr)',
+    colorUV: 'UV / deep violet',
+    colorViolet: 'Violet',
+    colorBlue: 'Blue',
+    colorGreen: 'Green',
+    colorYellow: 'Yellow',
+    colorOrange: 'Orange',
+    colorRed: 'Red',
+    step1: 'Select <strong>Hydrogen</strong>. The tube should glow pinkish／magenta and about four visible lines appear (including <strong>H-alpha</strong> near <strong>656.3 nm</strong>). Click the reddest line (~656 nm): info should show λ <strong>656.3</strong>, a reddish color name, and E ≈ <strong>1.89 eV</strong> ($1239.8/\\lambda$).',
+    step2: 'Switch to <strong>Sodium</strong>. Contrast: tube looks <strong>yellow</strong>; dominant <strong>D lines</strong> near <strong>589.0／589.6 nm</strong> (very close). Click one: λ in yellow, E on a <strong>~2.10 eV</strong> scale. Why do sodium lamps look “all yellow”?',
+    step3: 'Select <strong>Neon</strong>; note orange-red glow and a red–yellow fingerprint. Then <strong>Reset</strong>: back to no element (<code>--</code>, tube off, no lines, hint back, info hidden); <strong>language unchanged</strong>.',
+    step4: 'Link to the principle: emission lines are discrete fingerprints, not a continuous spectrum. Idealizations: preset visible lines, schematic intensities, 380–750 nm only, teaching $1239.8/\\lambda$—not lab spectrograph calibration, nor the sibling “click transition arrows” or “fire particles to excite” sims.',
+    principleConceptTitle: 'Concept',
+    principleConcept: 'In a gas discharge tube, fast electrons collide with atoms and raise electrons to higher levels (<strong>excitation</strong>). When they fall back, they emit <strong>photons</strong> (<strong>emission</strong>). Many atoms and allowed jumps produce a set of <strong>discrete bright lines</strong>—the element’s <strong>emission-line fingerprint</strong>.',
+    principleMechTitle: 'Mechanism',
+    principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>Excitation</strong>: collisions lift atoms from the ground state.</li><li><strong>Emission</strong>: electrons drop → photons; bright lines in the visible window.</li><li><strong>Energy vs wavelength</strong>: teaching $E = hf = hc/\\lambda$; this panel uses $E(\\mathrm{eV}) = 1239.8 / \\lambda(\\mathrm{nm})$. Shorter λ → larger E.</li><li><strong>Fingerprint</strong>: line positions (and schematic brightness) differ by element → identify H／Na／Ne／Hg…</li><li><strong>Idealizations</strong>: preset visible lines only; not a full database, not absorption Fraunhofer dark lines, not single-transition arrow clicking, not collision-cross-section physics.</li></ol>',
+    principleExampleTitle: 'Everyday example',
+    principleExample: 'Neon signs, yellow sodium street lamps, classroom H／He tubes, mercury／fluorescent-lamp line intuition. Do not merge with the sibling “click level-transition arrows for one ΔE” sim or the Bohr／particle-excitation collision sim.',
+    q1: 'Select Hydrogen and click the line near <strong>656.3 nm</strong> (H-alpha). Which best matches this sim?',
+    q1a: 'A. λ shows 656.3, reddish color, E ≈ 1.89 eV',
+    q1b: 'B. It always shows only one green line with E>5 eV',
+    q1c: 'C. This sim has no wavelength readout',
+    q1d: 'D. Clicking that line forces a switch to Mercury',
+    q1ans: 'Model answer: A. $1239.8/656.3 \\approx 1.889$ → toFixed(3) ≈ 1.889.',
+    q2: 'Observe Hydrogen tube color and lines, then switch to Sodium. Predict how the tube color and main lines differ from H, then verify.',
+    q2a: 'A. Tube looks yellowish; main visible lines near 589.0／589.6 nm (D lines)',
+    q2b: 'B. Sodium has no clickable lines',
+    q2c: 'C. Sodium shows only one deep-violet line at 410 nm',
+    q2d: 'D. Choosing Na deletes the spectrum ruler and leaves only the title',
+    q2ans: 'Model answer: A. Matches na.lines D2／D1.',
+    q3: 'On any shown spectrum, compare a shorter-λ line with a longer-λ line. Which is correct?',
+    q3a: 'A. Shorter λ → larger E (this sim uses E＝1239.8／λ)',
+    q3b: 'B. Longer wavelength must always mean larger energy',
+    q3c: 'C. Every line is locked to the exact same E',
+    q3d: 'D. Energy is computed only after switching to English',
+    q3ans: 'Model answer: A. e.g. H-beta 486.1 nm has larger E than H-alpha 656.3 nm.',
+    q4: 'After selecting Neon (or Mercury) and viewing tube color＋multi-line fingerprint, in your own words: (1) what “emission-line fingerprint” means here; (2) after Reset, what should happen to element selection, tube glow, lines, hint, and language (per this design).',
+    q4ans: 'Model answer: (1) Each element has a distinctive pattern of discrete bright lines for identification; (2) back to none selected, tube off, no lines, hint restored; Reset must not switch language.',
+    q5: 'Using this sim’s controls and design, which is most correct?',
+    q5a: 'A. You can pick several gases, see tube color and the full visible emission pattern, click lines for λ／color／E, with steps／principle／five quiz items／zh-EN—this is emission-line fingerprints, not clicking level-transition arrows for one jump, nor firing photons／electrons for collision excitation',
+    q5b: 'B. It is mainly for measuring double-slit fringe spacing to find λ',
+    q5c: 'C. Reset always switches to English and deletes the elements data table',
+    q5d: 'D. It mainly shows α gold-foil scattering and the nuclear atom',
+    q5ans: 'Model answer: A. Isolates electron_transition／quantum_energy_level／Rutherford／double-slit; Reset does not change language or delete elements data.'
+  }
+};
 
-        let activeElement = null;
+const QUIZ_META = [
+  { id: 'q1', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' },
+  { id: 'q2', type: 'short' },
+  { id: 'q3', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' },
+  { id: 'q4', type: 'short' },
+  { id: 'q5', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' }
+];
 
-        function init() {
-            renderSidebar();
-            drawCircuitBase();
-            
-            // 響應式重繪
-            window.addEventListener('resize', () => {
-                drawCircuitBase();
-            });
-        }
+function t(key) {
+  return (translations[currentLang] && translations[currentLang][key]) || (translations.zh[key] || key);
+}
 
-        function renderSidebar() {
-            const container = document.getElementById('element-list');
-            elements.forEach(el => {
-                const btn = document.createElement('button');
-                btn.className = `w-full text-left px-4 py-3 rounded-lg mb-2 transition-all duration-200 flex items-center justify-between group
-                                hover:bg-gray-700 border border-transparent hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500`;
-                btn.innerHTML = `
-                    <span class="font-medium text-gray-200 group-hover:text-white">${el.name}</span>
-                    <span class="text-xs font-mono text-gray-600 bg-gray-900 px-2 py-1 rounded">Z=${el.atomicNumber}</span>
-                `;
-                btn.onclick = () => selectElement(el, btn);
-                container.appendChild(btn);
-            });
-        }
+function typesetMath(root) {
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise(root ? [root] : undefined).catch(function () {});
+  }
+}
 
-        function selectElement(element, btnElement) {
-            activeElement = element;
-            
-            // UI Active State
-            document.querySelectorAll('#element-list button').forEach(b => {
-                b.classList.remove('bg-blue-900', 'border-blue-500', 'shadow-lg');
-                b.classList.add('hover:bg-gray-700');
-            });
-            btnElement.classList.remove('hover:bg-gray-700');
-            btnElement.classList.add('bg-blue-900', 'border-blue-500', 'shadow-lg');
+function wavelengthToColor(wavelength, opacity) {
+  if (opacity === undefined) opacity = 1;
+  var r, g, b;
+  var wl = wavelength;
+  if (wl >= 380 && wl < 440) {
+    r = -1 * (wl - 440) / (440 - 380); g = 0; b = 1;
+  } else if (wl >= 440 && wl < 490) {
+    r = 0; g = (wl - 440) / (490 - 440); b = 1;
+  } else if (wl >= 490 && wl < 510) {
+    r = 0; g = 1; b = -1 * (wl - 510) / (510 - 490);
+  } else if (wl >= 510 && wl < 580) {
+    r = (wl - 510) / (580 - 510); g = 1; b = 0;
+  } else if (wl >= 580 && wl < 645) {
+    r = 1; g = -1 * (wl - 645) / (645 - 580); b = 0;
+  } else if (wl >= 645 && wl <= 750) {
+    r = 1; g = 0; b = 0;
+  } else {
+    r = 0; g = 0; b = 0;
+  }
+  var factor;
+  if (wl >= 380 && wl < 420) factor = 0.3 + 0.7 * (wl - 380) / (420 - 380);
+  else if (wl >= 420 && wl < 700) factor = 1;
+  else if (wl >= 700 && wl <= 750) factor = 0.3 + 0.7 * (750 - wl) / (750 - 700);
+  else factor = 0;
+  var R = Math.round(r * factor * 255);
+  var G = Math.round(g * factor * 255);
+  var B = Math.round(b * factor * 255);
+  return 'rgba(' + R + ', ' + G + ', ' + B + ', ' + opacity + ')';
+}
 
-            // 修正：元素符號首字母大寫，其餘小寫 (e.g., He, Ne, Hg)
-            const symbol = element.id.charAt(0).toUpperCase() + element.id.slice(1);
-            document.getElementById('current-element-display').innerText = symbol;
-            
-            // 修正：使用放電管顏色 (tubeColor) 作為文字顏色，而不是第一條光譜線
-            // 並將 rgba 的透明度替換為 1 以確保文字清晰可見
-            const solidColor = element.tubeColor.replace(/[\d.]+\)$/g, '1)');
-            document.getElementById('current-element-display').style.color = solidColor;
-            
-            document.getElementById('atomic-number').innerText = element.atomicNumber;
-            document.getElementById('initial-hint').style.display = 'none';
-            document.getElementById('info-panel').style.opacity = '0'; 
+function getColorName(wl) {
+  if (wl < 400) return t('colorUV');
+  if (wl < 450) return t('colorViolet');
+  if (wl < 495) return t('colorBlue');
+  if (wl < 570) return t('colorGreen');
+  if (wl < 590) return t('colorYellow');
+  if (wl < 620) return t('colorOrange');
+  return t('colorRed');
+}
 
-            activateDischargeTube(element.tubeColor);
-            renderSpectrum(element.lines);
-        }
+function calculateEnergy(wavelengthNm) {
+  return (1239.8 / wavelengthNm).toFixed(3);
+}
 
-        function drawCircuitBase() {
-            const canvas = document.getElementById('circuitCanvas');
-            const ctx = canvas.getContext('2d');
-            const container = document.getElementById('circuit-container');
-            
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
+function updateLanguage() {
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+  document.title = t('pageTitle');
+  document.querySelectorAll('[data-i18n]').forEach(function (el) {
+    var key = el.dataset.i18n;
+    if (translations[currentLang][key] != null) el.textContent = translations[currentLang][key];
+  });
+  renderSidebarLabels();
+  if (lastLineDetail) {
+    document.getElementById('info-color-name').innerText = getColorName(lastLineDetail.wl);
+  }
+  renderSteps();
+  renderPrinciple();
+  renderQuiz();
+  var ansBtn = document.getElementById('btn-quiz-answers');
+  if (ansBtn) ansBtn.textContent = quizState.showAnswers ? t('hideAnswers') : t('showAnswers');
+}
 
-            const w = canvas.width;
-            const h = canvas.height;
-            const cx = w / 2;
-            const cy = h / 2;
+function renderSteps() {
+  var ol = document.getElementById('steps-body');
+  if (!ol) return;
+  ol.innerHTML = [1, 2, 3, 4].map(function (n) { return '<li>' + t('step' + n) + '</li>'; }).join('');
+  typesetMath(ol);
+}
 
-            ctx.clearRect(0, 0, w, h);
-            ctx.strokeStyle = '#4a5568'; // gray-600
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+function renderPrinciple() {
+  var body = document.getElementById('principle-body');
+  if (!body) return;
+  body.innerHTML =
+    '<section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-blue-500 pl-2">' + t('principleConceptTitle') + '</h3><p>' + t('principleConcept') + '</p></section>' +
+    '<section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-green-500 pl-2">' + t('principleMechTitle') + '</h3>' + t('principleMech') + '</section>' +
+    '<section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-purple-500 pl-2">' + t('principleExampleTitle') + '</h3><p>' + t('principleExample') + '</p></section>';
+  typesetMath(body);
+}
 
-            // --- 調整後的尺寸：放大版 ---
-            const tubeW = 340;  // 從 220 增加到 340
-            const tubeH = 70;   // 從 50 增加到 70
-            const wireSpacing = 30; // 電線間距
+function renderQuiz() {
+  const body = document.getElementById('quiz-body');
+  if (!body) return;
+  const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+  const mkChoice = (qid) => {
+    const meta = QUIZ_META.find(q => q.id === qid);
+    if (!meta || meta.type !== 'mc') return '';
+    return '<div class="grid gap-1.5 mt-1">' + meta.options.map(opt => {
+      const key = qid + opt;
+      return '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer hover:bg-slate-800/50">' +
+        '<input type="radio" name="' + qid + '" class="mt-0.5">' +
+        '<span class="text-sm">' + t(key) + '</span></label>';
+    }).join('') + '</div>';
+  };
+  const ans = (key) => quizState.showAnswers
+    ? '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + t(key) + '</div>'
+    : '';
+  const layout = [
+    { id: 'q1', mc: true }, { id: 'q2', mc: false }, { id: 'q3', mc: true }, { id: 'q4', mc: false }, { id: 'q5', mc: true }
+  ];
+  body.innerHTML = layout.map((b, idx) =>
+    '<div class="quiz-item" data-quiz="' + b.id + '">' +
+    '<div class="q-stem">Q' + (idx + 1) + '. ' + t(b.id) + '</div>' +
+    (b.mc ? mkChoice(b.id) : '<p class="text-xs text-slate-500 mb-1">' + t('shortHint') + '</p>') +
+    ans(b.id + 'ans') + '</div>'
+  ).join('');
+  const ansBtn = document.getElementById('btn-quiz-answers');
+  if (ansBtn) ansBtn.textContent = quizState.showAnswers ? t('hideAnswers') : t('showAnswers');
+  typesetMath(body);
+}
 
-            // 1. 放電管 (Glass Tube)
-            ctx.beginPath();
-            ctx.roundRect(cx - tubeW/2, cy - tubeH/2, tubeW, tubeH, 15);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-            
-            // Electrodes (Metal Plates inside)
-            ctx.fillStyle = '#718096';
-            // Left Electrode
-            ctx.fillRect(cx - tubeW/2 + 15, cy - (tubeH/2 - 10), 15, tubeH - 20); 
-            // Right Electrode
-            ctx.fillRect(cx + tubeW/2 - 30, cy - (tubeH/2 - 10), 15, tubeH - 20); 
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  requestAnimationFrame(function () {
+    el.classList.remove('opacity-0');
+    var panel = el.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.remove('scale-95');
+  });
+  if (id === 'modal-principle') typesetMath(document.getElementById('principle-body'));
+  if (id === 'modal-steps') typesetMath(document.getElementById('steps-body'));
+  if (id === 'modal-quiz') typesetMath(document.getElementById('quiz-body'));
+}
 
-            // 2. 電路連線 (Wires)
-            ctx.strokeStyle = '#63b3ed'; // Blue wire
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            
-            // Left wire: Electrode -> Power Supply
-            ctx.moveTo(cx - tubeW/2 + 15, cy); // Start at electrode
-            ctx.lineTo(cx - tubeW/2 - 40, cy); // Go left
-            ctx.lineTo(cx - tubeW/2 - 40, cy + 100); // Go down
-            ctx.lineTo(cx - 40, cy + 100); // Go to center HV box
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('opacity-0');
+  var panel = el.querySelector('[data-modal-panel]');
+  if (panel) panel.classList.add('scale-95');
+  setTimeout(function () { el.classList.add('hidden'); }, 200);
+}
 
-            // Right wire: Electrode -> Power Supply
-            ctx.moveTo(cx + tubeW/2 - 15, cy);
-            ctx.lineTo(cx + tubeW/2 + 40, cy);
-            ctx.lineTo(cx + tubeW/2 + 40, cy + 100);
-            ctx.lineTo(cx + 40, cy + 100);
-            ctx.stroke();
+function closeAllModals() {
+  ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+}
 
-            // 3. 高壓電源符號 (HV Box)
-            const boxW = 80;
-            const boxH = 50;
-            const boxY = cy + 75;
+function renderSidebar() {
+  var container = document.getElementById('element-list');
+  container.innerHTML = '';
+  elements.forEach(function (el) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.elId = el.id;
+    btn.className = 'w-full text-left px-4 py-3 rounded-lg mb-1 transition-all duration-200 flex items-center justify-between group hover:bg-gray-700 border border-transparent hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500';
+    btn.innerHTML =
+      '<span class="font-medium text-gray-200 group-hover:text-white el-name">' + t(el.nameKey) + '</span>' +
+      '<span class="text-xs font-mono text-gray-600 bg-gray-900 px-2 py-1 rounded">Z=' + el.atomicNumber + '</span>';
+    btn.onclick = function () { selectElement(el, btn); };
+    container.appendChild(btn);
+  });
+  if (activeElement) {
+    var activeBtn = container.querySelector('[data-el-id="' + activeElement.id + '"]');
+    if (activeBtn) {
+      activeBtn.classList.remove('hover:bg-gray-700');
+      activeBtn.classList.add('bg-blue-900', 'border-blue-500', 'shadow-lg');
+    }
+  }
+}
 
-            ctx.fillStyle = '#2d3748';
-            ctx.fillRect(cx - boxW/2, boxY, boxW, boxH);
-            ctx.strokeStyle = '#fbd38d'; // warning color
-            ctx.lineWidth = 2;
-            ctx.strokeRect(cx - boxW/2, boxY, boxW, boxH);
-            
-            // Text "H.V."
-            ctx.fillStyle = '#fbd38d';
-            ctx.font = "bold 16px monospace";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText("H.V.", cx, boxY + boxH/2);
-            
-            // Lightning symbol decorative
-            ctx.beginPath();
-            ctx.moveTo(cx - 45, boxY + boxH/2);
-            ctx.lineTo(cx - 55, boxY + boxH/2);
-            ctx.stroke();
-        }
+function renderSidebarLabels() {
+  document.querySelectorAll('#element-list button').forEach(function (btn) {
+    var id = btn.dataset.elId;
+    var el = elements.find(function (e) { return e.id === id; });
+    if (!el) return;
+    var nameSpan = btn.querySelector('.el-name');
+    if (nameSpan) nameSpan.textContent = t(el.nameKey);
+  });
+}
 
-        function activateDischargeTube(color) {
-            const glow = document.getElementById('tube-glow');
-            glow.style.backgroundColor = color;
-            glow.style.boxShadow = `0 0 40px 15px ${color}`; // 加強光暈
-            glow.style.opacity = '1';
-            glow.classList.add('discharge-active');
-        }
+function selectElement(element, btnElement) {
+  activeElement = element;
+  lastLineDetail = null;
 
-        function renderSpectrum(lines) {
-            const container = document.getElementById('spectrum-lines-container');
-            container.innerHTML = '';
+  document.querySelectorAll('#element-list button').forEach(function (b) {
+    b.classList.remove('bg-blue-900', 'border-blue-500', 'shadow-lg');
+    b.classList.add('hover:bg-gray-700');
+  });
+  btnElement.classList.remove('hover:bg-gray-700');
+  btnElement.classList.add('bg-blue-900', 'border-blue-500', 'shadow-lg');
 
-            lines.forEach(line => {
-                const range = SPECTRUM_MAX - SPECTRUM_MIN;
-                const pos = ((line.wl - SPECTRUM_MIN) / range) * 100;
+  var symbol = element.id.charAt(0).toUpperCase() + element.id.slice(1);
+  document.getElementById('current-element-display').innerText = symbol;
+  var solidColor = element.tubeColor.replace(/[\d.]+\)$/g, '1)');
+  document.getElementById('current-element-display').style.color = solidColor;
+  document.getElementById('atomic-number').innerText = element.atomicNumber;
+  document.getElementById('initial-hint').style.display = 'none';
+  document.getElementById('info-panel').style.opacity = '0';
+  document.getElementById('info-lambda').innerText = '---';
+  document.getElementById('info-color-name').innerText = '---';
+  document.getElementById('info-energy').innerText = '---';
 
-                if(pos < 0 || pos > 100) return;
+  activateDischargeTube(element.tubeColor);
+  renderSpectrum(element.lines);
+}
 
-                const lineDiv = document.createElement('div');
-                const color = wavelengthToColor(line.wl);
-                
-                lineDiv.className = 'spectral-line absolute top-0 bottom-0 w-1 hover:w-2 z-10 rounded-full';
-                lineDiv.style.left = `${pos}%`;
-                lineDiv.style.backgroundColor = color;
-                lineDiv.style.boxShadow = `0 0 ${5 + line.intensity * 10}px ${color}`;
-                lineDiv.style.opacity = 0.8 + (line.intensity * 0.2);
-                
-                lineDiv.onclick = () => showLineDetails(line, color);
-                lineDiv.title = `${line.wl} nm`;
+function drawCircuitBase() {
+  var canvas = document.getElementById('circuitCanvas');
+  var ctx = canvas.getContext('2d');
+  var container = document.getElementById('circuit-container');
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+  var w = canvas.width;
+  var h = canvas.height;
+  var cx = w / 2;
+  var cy = h / 2;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = '#4a5568';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-                container.appendChild(lineDiv);
-            });
-        }
+  var tubeW = Math.min(340, w * 0.7);
+  var tubeH = Math.min(70, h * 0.22);
 
-        function showLineDetails(line, colorCss) {
-            const panel = document.getElementById('info-panel');
-            panel.style.opacity = '1';
-            
-            document.getElementById('info-color-preview').style.backgroundColor = colorCss;
-            document.getElementById('info-color-preview').style.boxShadow = `0 0 15px ${colorCss}`;
-            
-            document.getElementById('info-lambda').innerText = line.wl;
-            document.getElementById('info-color-name').innerText = getColorName(line.wl);
-            document.getElementById('info-energy').innerText = calculateEnergy(line.wl);
-        }
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cx - tubeW / 2, cy - tubeH / 2, tubeW, tubeH, 15);
+  else {
+    ctx.rect(cx - tubeW / 2, cy - tubeH / 2, tubeW, tubeH);
+  }
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
 
-        init();
+  ctx.fillStyle = '#718096';
+  ctx.fillRect(cx - tubeW / 2 + 15, cy - (tubeH / 2 - 10), 15, tubeH - 20);
+  ctx.fillRect(cx + tubeW / 2 - 30, cy - (tubeH / 2 - 10), 15, tubeH - 20);
 
-    </script>
+  ctx.strokeStyle = '#63b3ed';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - tubeW / 2 + 15, cy);
+  ctx.lineTo(cx - tubeW / 2 - 40, cy);
+  ctx.lineTo(cx - tubeW / 2 - 40, cy + 100);
+  ctx.lineTo(cx - 40, cy + 100);
+  ctx.moveTo(cx + tubeW / 2 - 15, cy);
+  ctx.lineTo(cx + tubeW / 2 + 40, cy);
+  ctx.lineTo(cx + tubeW / 2 + 40, cy + 100);
+  ctx.lineTo(cx + 40, cy + 100);
+  ctx.stroke();
+
+  var boxW = 80;
+  var boxH = 50;
+  var boxY = cy + 75;
+  ctx.fillStyle = '#2d3748';
+  ctx.fillRect(cx - boxW / 2, boxY, boxW, boxH);
+  ctx.strokeStyle = '#fbd38d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cx - boxW / 2, boxY, boxW, boxH);
+  ctx.fillStyle = '#fbd38d';
+  ctx.font = 'bold 16px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('H.V.', cx, boxY + boxH / 2);
+  ctx.beginPath();
+  ctx.moveTo(cx - 45, boxY + boxH / 2);
+  ctx.lineTo(cx - 55, boxY + boxH / 2);
+  ctx.stroke();
+}
+
+function activateDischargeTube(color) {
+  var glow = document.getElementById('tube-glow');
+  glow.style.backgroundColor = color;
+  glow.style.boxShadow = '0 0 40px 15px ' + color;
+  glow.style.opacity = '1';
+  glow.classList.add('discharge-active');
+}
+
+function renderSpectrum(lines) {
+  var container = document.getElementById('spectrum-lines-container');
+  container.innerHTML = '';
+  lines.forEach(function (line) {
+    var range = SPECTRUM_MAX - SPECTRUM_MIN;
+    var pos = ((line.wl - SPECTRUM_MIN) / range) * 100;
+    if (pos < 0 || pos > 100) return;
+    var lineDiv = document.createElement('div');
+    var color = wavelengthToColor(line.wl);
+    lineDiv.className = 'spectral-line absolute top-0 bottom-0 w-1 hover:w-2 z-10 rounded-full';
+    lineDiv.style.left = pos + '%';
+    lineDiv.style.backgroundColor = color;
+    lineDiv.style.boxShadow = '0 0 ' + (5 + line.intensity * 10) + 'px ' + color;
+    lineDiv.style.opacity = 0.8 + (line.intensity * 0.2);
+    lineDiv.onclick = function () { showLineDetails(line, color); };
+    lineDiv.title = line.wl + ' nm' + (line.name ? ' (' + line.name + ')' : '');
+    container.appendChild(lineDiv);
+  });
+}
+
+function showLineDetails(line, colorCss) {
+  lastLineDetail = line;
+  var panel = document.getElementById('info-panel');
+  panel.style.opacity = '1';
+  document.getElementById('info-color-preview').style.backgroundColor = colorCss;
+  document.getElementById('info-color-preview').style.boxShadow = '0 0 15px ' + colorCss;
+  document.getElementById('info-lambda').innerText = line.wl;
+  document.getElementById('info-color-name').innerText = getColorName(line.wl);
+  document.getElementById('info-energy').innerText = calculateEnergy(line.wl);
+}
+
+function doReset() {
+  activeElement = null;
+  lastLineDetail = null;
+  document.getElementById('current-element-display').innerText = '--';
+  document.getElementById('current-element-display').style.color = '';
+  document.getElementById('atomic-number').innerText = '--';
+  var glow = document.getElementById('tube-glow');
+  glow.style.opacity = '0';
+  glow.classList.remove('discharge-active');
+  document.getElementById('spectrum-lines-container').innerHTML = '';
+  document.getElementById('info-panel').style.opacity = '0';
+  document.getElementById('info-lambda').innerText = '---';
+  document.getElementById('info-color-name').innerText = '---';
+  document.getElementById('info-energy').innerText = '---';
+  document.getElementById('info-color-preview').style.backgroundColor = '';
+  document.getElementById('info-color-preview').style.boxShadow = '';
+  document.getElementById('initial-hint').style.display = '';
+  document.querySelectorAll('#element-list button').forEach(function (b) {
+    b.classList.remove('bg-blue-900', 'border-blue-500', 'shadow-lg');
+    b.classList.add('hover:bg-gray-700');
+  });
+  drawCircuitBase();
+}
+
+function init() {
+  renderSidebar();
+  drawCircuitBase();
+  renderSteps();
+  renderPrinciple();
+  renderQuiz();
+  updateLanguage();
+
+  window.addEventListener('resize', function () { drawCircuitBase(); });
+
+  document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+  document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+  document.getElementById('btn-principle-soft').addEventListener('click', function () { openModal('modal-principle'); });
+  document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+  document.getElementById('btn-lang').addEventListener('click', function () {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    updateLanguage();
+  });
+  document.getElementById('btn-reset').addEventListener('click', doReset);
+  document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+    quizState.showAnswers = !quizState.showAnswers;
+    renderQuiz();
+  });
+  document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+  });
+  ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+    var modal = document.getElementById(id);
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeModal(id);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeAllModals();
+  });
+}
+
+init();
+</script>
 </body>
 </html>

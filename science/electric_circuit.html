@@ -1,6 +1,51 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>電路製作 | Circuit Lab</title>
@@ -55,6 +100,10 @@
             <button type="button" id="btn-principle" class="h-10 px-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 text-white rounded-xl font-bold text-sm shadow-sm inline-flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                 <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
             </button>
             <button type="button" id="btn-lang" class="hidden md:inline-flex h-10 px-3.5 items-center bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
             <button type="button" id="btn-lang-mobile" class="md:hidden inline-flex h-10 px-2.5 items-center bg-slate-100 text-xs font-bold rounded-xl border border-slate-300">中 / EN</button>
@@ -208,11 +257,81 @@
         </div>
     </div>
 
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-rose-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center gap-3 flex-wrap">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 shrink-0" aria-label="Close">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
 <script>
+
+let quizAnswersVisible = false;
+function renderQuiz() {
+    const box = document.getElementById('quiz-list');
+    if (!box) return;
+    const lang = (window.circuitApp && window.circuitApp.lang) || 'zh';
+    const pack = I18N[lang] || I18N.zh;
+    const mk = (n) => ['A','B','C','D'].map(ch => {
+        const k = 'quizQ'+n+ch.toLowerCase();
+        return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-rose-50/50"><input type="radio" name="q${n}" class="mt-0.5 accent-rose-600"><span>${ch}. ${pack[k]||''}</span></label>`;
+    }).join('');
+    const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${pack.quizRef}：</strong> ${pack['quizQ'+n+'ans']||''}</div>` : '';
+    box.innerHTML = [1,2,3,4,5].map(n => {
+        const open = n===2||n===4;
+        return `<div class="rounded-xl border border-slate-200 p-3 bg-slate-50/50"><p class="font-semibold text-rose-700 mb-2">Q${n}. ${pack['quizQ'+n]||''}</p>${open?'':`<div class="grid gap-1.5">${mk(n)}</div>`}${ans(n)}</div>`;
+    }).join('');
+    const ab = document.getElementById('btn-quiz-answers');
+    if (ab) ab.textContent = quizAnswersVisible ? pack.quizHideAnswers : pack.quizShowAnswers;
+}
+function typesetQuizModal(){ const m=document.getElementById('modal-quiz'); if(window.MathJax&&MathJax.typesetPromise) MathJax.typesetPromise(m?[m]:undefined).catch(()=>{}); }
+function openQuizModal(){
+  quizAnswersVisible = false;
+  if (window.circuitApp) {
+    circuitApp.closeAllModals();
+    circuitApp.setModal('modal-quiz', true);
+  } else {
+    const mq = document.getElementById('modal-quiz');
+    if (mq) { mq.classList.remove('opacity-0','pointer-events-none'); mq.querySelector('.modal-content')?.classList.remove('scale-95','opacity-0'); }
+  }
+  renderQuiz();
+  typesetQuizModal();
+}
+function closeQuizModal(){
+  if (window.circuitApp) circuitApp.setModal('modal-quiz', false);
+  else {
+    const mq = document.getElementById('modal-quiz');
+    if (mq) { mq.classList.add('opacity-0','pointer-events-none'); mq.querySelector('.modal-content')?.classList.add('scale-95','opacity-0'); }
+  }
+}
+function wireQuizUI(){
+    const b=document.getElementById('btn-quiz'); if(!b||b.dataset.wired) return; b.dataset.wired='1';
+    b.addEventListener('click', openQuizModal);
+    document.getElementById('btn-quiz-answers')?.addEventListener('click',()=>{quizAnswersVisible=!quizAnswersVisible;renderQuiz();typesetQuizModal();});
+    document.getElementById('quiz-close')?.addEventListener('click',closeQuizModal);
+    document.getElementById('quiz-confirm')?.addEventListener('click',closeQuizModal);
+    document.getElementById('modal-quiz')?.addEventListener('click',e=>{if(e.target.id==='modal-quiz')closeQuizModal();});
+}
+
 const I18N = {
     zh: {
         title: "電路製作", badge: "中二科學", subtitle: "拖曳元件、串並聯、歐姆定律與量度",
-        btnSteps: "觀察步驟", btnPrinciple: "原理解說", modalClose: "關閉",
+        btnSteps: "觀察步驟", btnPrinciple: "原理解說", btnQuiz: "課堂問題",
+        quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案",
+        quizQ1: "同電壓下，串聯兩個相同燈泡與只接一個相比，每盞燈泡亮度？", quizQ1a: "較亮", quizQ1b: "較暗（電流相同、分壓）", quizQ1c: "完全相同", quizQ1d: "不亮",
+        quizQ1ans: "串聯電流相同，兩盞分壓，每盞較單盞暗。", quizQ2: "載入串聯示範：預測開關閉合時安培計與燈泡，再操作核對。", quizQ2ans: "開關閉合才有電流；安培計測迴路總電流。",
+        quizQ3: "並聯兩燈時各支路電壓？", quizQ3a: "各支路約等於電源電壓", quizQ3b: "平均分為一半", quizQ3c: "只有一支路有電壓", quizQ3d: "恆為零",
+        quizQ3ans: "並聯各支路電壓相同。", quizQ4: "比較串聯與並聯預設：預測哪種總電流較大，再切換。", quizQ4ans: "並聯總電阻較小，總電流較大。",
+        quizQ5: "伏特計應如何接入？", quizQ5a: "與元件並聯", quizQ5b: "串聯在迴路中", quizQ5c: "取代電池", quizQ5d: "短接燈泡",
+        quizQ5ans: "伏特計內阻高，應並聯量度電壓差。", modalClose: "關閉",
         modalTitle: "電路原理解說", modalSub: "電流、電壓、電阻與歐姆定律",
         stepsTitle: "觀察步驟",
         s1: "1. 從左側拖入電池、燈泡與開關，在空白處拖曳畫導線接成迴路。雙擊開關閉合，觀察燈泡亮度。",
@@ -261,7 +380,14 @@ const I18N = {
     },
     en: {
         title: "Circuit Lab", badge: "S2 Science", subtitle: "Drag parts, series/parallel, Ohm’s law & meters",
-        btnSteps: "What to watch", btnPrinciple: "Theory", modalClose: "Close",
+        btnSteps: "What to watch", btnPrinciple: "Theory", btnQuiz: "Quiz",
+        quizTitle: "Classroom Quiz", quizShowAnswers: "Show reference answers", quizHideAnswers: "Hide reference answers", quizRef: "Reference",
+        quizQ1: "Same battery: two bulbs in series vs one — each bulb in series is:", quizQ1a: "Brighter", quizQ1b: "Dimmer", quizQ1c: "Same", quizQ1d: "Off",
+        quizQ1ans: "Series: same I, shared V → dimmer each.", quizQ2: "Load series preset: predict ammeter and lamps when switch closes.", quizQ2ans: "Current when closed; ammeter reads loop I.",
+        quizQ3: "Parallel lamps: branch voltage?", quizQ3a: "Each branch ≈ supply V", quizQ3b: "Half supply", quizQ3c: "One branch only", quizQ3d: "Always zero",
+        quizQ3ans: "Parallel branches share supply p.d.", quizQ4: "Compare series vs parallel presets: predict larger total I.", quizQ4ans: "Parallel lower R → higher I.",
+        quizQ5: "Voltmeter connection?", quizQ5a: "In parallel", quizQ5b: "In series", quizQ5c: "Replace battery", quizQ5d: "Short bulb",
+        quizQ5ans: "High-resistance voltmeter in parallel.", modalClose: "Close",
         modalTitle: "Circuit theory", modalSub: "Current, voltage, resistance and Ohm’s law",
         stepsTitle: "What to watch",
         s1: "1. Drag a battery, lamp and switch onto the canvas. Drag on empty space to draw wires. Double-click the switch and watch the lamp.",
@@ -468,6 +594,7 @@ class CircuitApp {
         this.updatePropertiesPanel();
         this.updateHud();
         if (window.MathJax) MathJax.typesetPromise();
+        renderQuiz();
     }
 
     toggleLanguage() {
@@ -497,9 +624,11 @@ class CircuitApp {
     closeAllModals() {
         this.setModal("modal-principle", false);
         this.setModal("modal-steps", false);
+        closeQuizModal();
     }
 
     bindUI() {
+        wireQuizUI();
         document.getElementById("btn-principle").onclick = () => this.setModal("modal-principle", true);
         document.getElementById("modal-close").onclick = document.getElementById("modal-confirm").onclick = () => this.setModal("modal-principle", false);
         document.getElementById("modal-principle").addEventListener("click", e => { if (e.target.id === "modal-principle") this.setModal("modal-principle", false); });

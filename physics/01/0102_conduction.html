@@ -1,94 +1,200 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>固體熱傳導物理模擬</title>
+    <title>固體熱傳導模擬</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body {
-            background-color: #0f172a; /* Slate 900 */
+            font-family: 'Noto Sans TC', system-ui, sans-serif;
+            background-color: #0f172a;
             color: #e2e8f0;
-            overflow: hidden; /* Prevent scrolling on mobile */
+            overflow: hidden;
             touch-action: none;
         }
         canvas {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border-radius: 8px;
+            display: block;
             cursor: crosshair;
         }
         .controls {
-            background: rgba(30, 41, 59, 0.9);
-            backdrop-filter: blur(4px);
+            background: rgba(30, 41, 59, 0.92);
+            backdrop-filter: blur(6px);
         }
+        .modal-panel { transition: opacity 0.25s ease; }
+        .modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+        .quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; }
+        .quiz-item .q-stem { font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; }
+        .quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+        .quiz-options button {
+            text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid #cbd5e1; background: #f8fafc; font-size: 0.875rem; transition: all 0.15s;
+            color: #1e293b;
+        }
+        .quiz-options button:hover { border-color: #6366f1; background: #eef2ff; }
+        .quiz-options button.selected { border-color: #4f46e5; background: #e0e7ff; }
+        .quiz-options button.correct { border-color: #16a34a; background: #dcfce7; }
+        .quiz-options button.wrong { border-color: #dc2626; background: #fee2e2; }
+        .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f1f5f9; border-radius: 0.5rem; font-size: 0.85rem; color: #334155; }
+        .quiz-answer.show { display: block; }
+        /* Layout note: fullscreen canvas + overlay controls — exempt from A/B/C; teaching modals still mandatory */
     </style>
 </head>
-<body class="flex flex-col h-screen items-center justify-center font-sans">
+<body class="h-screen w-screen relative font-sans">
 
-    <!-- Header / Instructions -->
-    <div class="absolute top-4 left-4 z-10 pointer-events-none">
-        <h1 class="text-2xl font-bold text-blue-400 mb-1">固體熱傳導模擬</h1>
-        <p class="text-sm text-slate-400 max-w-md">
-            模擬粒子在固體晶格中的振動與能量傳遞。<br>
-            <span class="text-yellow-400">操作：</span> 點擊並拖曳滑鼠（或手指）來加熱粒子。
-        </p>
-    </div>
+    <!-- Interactive header toolbar (pointer-events enabled on buttons) -->
+    <header class="absolute top-0 left-0 right-0 z-30 pointer-events-none">
+        <div class="flex flex-col gap-2 p-3 md:p-4 md:flex-row md:items-start md:justify-between">
+            <div class="pointer-events-none max-w-xl">
+                <div class="flex items-center gap-2 flex-wrap mb-1">
+                    <h1 class="text-xl md:text-2xl font-bold text-blue-400" data-i18n="appTitle">固體熱傳導模擬</h1>
+                    <span class="text-[10px] bg-blue-900/70 border border-blue-400/40 px-2 py-0.5 rounded-full text-blue-200" data-i18n="badge">物理</span>
+                </div>
+                <p class="text-sm text-slate-400" data-i18n="appSubtitle">模擬粒子在固體晶格中的振動與能量傳遞</p>
+                <p class="text-xs text-slate-500 mt-1">
+                    <span class="text-yellow-400" data-i18n="opLabel">操作：</span>
+                    <span data-i18n="opHint">點擊並拖曳滑鼠（或手指）來加熱粒子。</span>
+                </p>
+            </div>
+            <div class="pointer-events-auto flex flex-wrap items-center gap-2">
+                <button type="button" id="btn-steps" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnSteps">觀察步驟</button>
+                <button type="button" id="btn-principle" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnPrinciple">原理解說</button>
+                <button type="button" id="btn-quiz" class="text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded border border-violet-400 transition-colors" data-i18n="btnQuiz">課堂問題</button>
+                <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm font-bold border border-slate-500 transition-colors">中 / EN</button>
+            </div>
+        </div>
+    </header>
 
-    <!-- Main Canvas -->
-    <canvas id="simCanvas" class="bg-slate-800 border border-slate-700"></canvas>
+    <!-- Fullscreen canvas stage -->
+    <canvas id="simCanvas" class="absolute inset-0 w-full h-full bg-slate-800"></canvas>
 
     <!-- Legend -->
-    <div class="absolute top-4 right-4 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-lg flex flex-col gap-2">
-        <span class="text-xs text-center font-bold text-slate-300">溫度 (動能)</span>
+    <div class="absolute top-4 right-4 z-20 bg-slate-800/90 p-3 rounded-lg border border-slate-700 shadow-lg flex flex-col gap-2 pointer-events-none">
+        <span class="text-xs text-center font-bold text-slate-300" data-i18n="legendTitle">溫度 (動能)</span>
         <div class="h-32 w-4 rounded-full bg-gradient-to-t from-blue-600 via-green-500 via-yellow-500 to-red-600 mx-auto relative"></div>
-        <div class="flex justify-between text-[10px] text-slate-400 px-1">
-            <span>冷</span>
-            <span>熱</span>
+        <div class="flex justify-between text-[10px] text-slate-400 px-1 gap-2">
+            <span data-i18n="legendCold">冷</span>
+            <span data-i18n="legendHot">熱</span>
         </div>
     </div>
 
-    <!-- Controls -->
-    <div class="controls fixed bottom-6 p-4 rounded-xl border border-slate-600 flex flex-wrap gap-4 items-center justify-center shadow-2xl z-20 w-[90%] max-w-2xl">
-        
+    <!-- Bottom controls -->
+    <div class="controls fixed bottom-4 left-1/2 -translate-x-1/2 p-3 md:p-4 rounded-xl border border-slate-600 flex flex-wrap gap-3 md:gap-4 items-center justify-center shadow-2xl z-20 w-[94%] max-w-2xl">
         <div class="flex flex-col items-center">
-            <label class="text-xs text-slate-400 mb-1">熱源強度</label>
+            <label class="text-xs text-slate-400 mb-1" data-i18n="labelHeat">熱源強度</label>
             <input type="range" id="heatPower" min="1" max="10" value="5" class="w-24 accent-red-500">
         </div>
-
         <div class="flex flex-col items-center">
-            <label class="text-xs text-slate-400 mb-1">固體剛性 (彈簧係數)</label>
+            <label class="text-xs text-slate-400 mb-1" data-i18n="labelStiff">固體剛性 (彈簧係數)</label>
             <input type="range" id="stiffness" min="0.01" max="0.2" step="0.01" value="0.05" class="w-24 accent-blue-500">
         </div>
+        <div class="h-8 w-px bg-slate-600 mx-1 hidden sm:block"></div>
+        <button type="button" id="btnReset" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition shadow border border-slate-500 font-bold" data-i18n="btnReset">重置系統</button>
+        <button type="button" id="btnCool" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition shadow border border-blue-400 font-bold" data-i18n="btnCool">快速冷卻</button>
+    </div>
 
-        <div class="h-8 w-px bg-slate-600 mx-2"></div>
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="steps-title" class="text-xl font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+            </div>
+            <ol id="steps-body" class="list-decimal pl-5 space-y-3 text-sm leading-relaxed"></ol>
+        </div>
+    </div>
 
-        <button id="btnReset" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition shadow border border-slate-500">
-            重置系統
-        </button>
-        
-        <button id="btnCool" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition shadow border border-blue-400">
-            快速冷卻
-        </button>
+    <!-- Modal: Principle -->
+    <div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="principle-title" class="text-xl font-bold" data-i18n="principleTitle">原理解說</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            </div>
+            <div id="principle-body" class="space-y-4 text-sm leading-relaxed"></div>
+        </div>
+    </div>
+
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <h2 id="quiz-title" class="text-xl font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+                    <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div id="quiz-body" class="text-sm"></div>
+        </div>
     </div>
 
 <script>
 /**
- * Physics Simulation Logic
- * Model: Mass-Spring-Damper System (Lattice)
+ * Solid heat conduction — mass–spring–damper lattice
+ * Layout: fullscreen canvas (A/B/C exempt); teaching shell mandatory.
  */
 
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d');
 
-// Simulation Parameters
 let COLUMNS = 25;
 let ROWS = 15;
 let SPACING = 30;
-let DAMPING = 0.98; // Energy loss over time
-let STIFFNESS = 0.05; // Hooke's law constant
+let DAMPING = 0.98;
+let STIFFNESS = 0.05;
 let HEAT_POWER = 5;
+const DEFAULT_HEAT = 5;
+const DEFAULT_STIFF = 0.05;
 
-// State
 let particles = [];
 let springs = [];
 let isDragging = false;
@@ -96,69 +202,172 @@ let mouseX = 0;
 let mouseY = 0;
 let animationId;
 
-// UI Elements
 const heatSlider = document.getElementById('heatPower');
 const stiffnessSlider = document.getElementById('stiffness');
 const btnReset = document.getElementById('btnReset');
 const btnCool = document.getElementById('btnCool');
 
-// Particle Class
+const translations = {
+    zh: {
+        appTitle: "固體熱傳導模擬",
+        appSubtitle: "模擬粒子在固體晶格中的振動與能量傳遞",
+        badge: "物理",
+        opLabel: "操作：",
+        opHint: "點擊並拖曳滑鼠（或手指）來加熱粒子。",
+        legendTitle: "溫度 (動能)",
+        legendCold: "冷",
+        legendHot: "熱",
+        labelHeat: "熱源強度",
+        labelStiff: "固體剛性 (彈簧係數)",
+        btnReset: "重置系統",
+        btnCool: "快速冷卻",
+        btnSteps: "觀察步驟",
+        btnPrinciple: "原理解說",
+        btnQuiz: "課堂問題",
+        stepsTitle: "觀察步驟",
+        principleTitle: "原理解說",
+        quizTitle: "課堂問題",
+        showAnswers: "顯示參考答案",
+        hideAnswers: "隱藏參考答案",
+        shortHint: "請操作模擬後以短答作答。",
+        step1: "按<strong>「重置系統」</strong>。確認粒子大致靜止、顏色偏藍（低動能）。將「熱源強度」約調至 <strong>5</strong>、「固體剛性」約 <strong>0.05</strong>。在 canvas <strong>左側</strong>按住並小幅拖曳約 3–5 秒加熱，然後鬆手。觀察：加熱處變黃／紅，熱色是否逐漸向鄰近粒子擴散。",
+        step2: "再按重置。把「固體剛性」調到約 <strong>0.02</strong>（偏低），用相同強度在左側同樣加熱數秒後鬆手，留意熱區是否較集中、擴散較慢。再重置，改剛性約 <strong>0.15</strong>（偏高），重複同一加熱手法，比較擴散快慢或範圍。",
+        step3: "剛性固定在約 0.05。先用熱源強度約 <strong>2</strong> 短拖加熱，觀察發紅程度；再重置後改強度約 <strong>9</strong> 同樣操作。說明強度如何影響注入的局域動能。接著在高動能狀態按「快速冷卻」，觀察顏色迅速偏藍但網格仍在；再按重置，對照兩者差別。",
+        step4: "用一句話總結：固體中熱能如何不靠粒子「跑走」、而靠振動／鄰接作用傳遞？並指出本模擬用顏色代表什麼物理量（動能／溫度示意）。",
+        principleConceptTitle: "概念",
+        principleConcept: "<strong>熱傳導</strong>是熱能在物質中由高溫區傳向低溫區的一種方式。在<strong>固體</strong>中，粒子（原子／離子）大致固定在晶格位置附近振動；能量透過鄰接粒子間的相互作用傳遞，粒子本身通常不會像氣體那樣長距離遷移。本模擬用二維<strong>質量–彈簧–阻尼</strong>晶格，把「鄰接作用」簡化為彈簧力，把「溫度」視覺化為粒子的<strong>動能</strong>（顏色：藍＝冷／低動能，紅＝熱／高動能）。",
+        principleMechTitle: "機制",
+        principleMech: "<ol class=\"list-decimal pl-5 space-y-2\"><li><strong>加熱</strong>：在指標附近對非固定粒子施予隨機方向的速度增量（幅度由「熱源強度」控制）→ 局域動能上升 → 顏色偏紅。</li><li><strong>傳遞</strong>：彈簧依胡克定律（F = −k·Δx）耦合相鄰粒子；某粒子振動加劇會拉扯鄰居，使動能向外擴散——此即本模擬對<strong>固體熱傳導</strong>的示意。</li><li><strong>剛性</strong>：彈簧係數較大時耦合較強，能量較易傳到遠處；較小時熱較集中。此為教學對照參數，<strong>不是</strong>教科書上某種材料熱導率的精確數值。</li><li><strong>阻尼與冷卻</strong>：阻尼使動能緩慢流失；「快速冷卻」大幅縮小速度；「重置」重建靜止晶格並恢復預設滑桿。邊界粒子固定（pinned）以免整塊固體飛走。</li><li><strong>限制</strong>：二維、理想彈簧、無電子傳導／聲子真實色散、無對流與輻射通道；金屬實際熱導還與自由電子有關——課堂一句帶過即可。</li></ol>",
+        principleExampleTitle: "日常例子",
+        principleExample: "金屬湯匙一端浸入熱湯，握柄端不久變熱——能量沿固體傳遞。鍋柄用木材／膠木是因為這些材料傳導較差（課堂可對照「低耦合／低有效傳導」直觀）。本模擬不區分真實材料曲線，重點是「振動＋鄰接傳遞」的圖像。",
+        q1: "重置後，熱源強度約 5、剛性約 0.05，只在 canvas <strong>左側</strong>拖曳加熱數秒後鬆手（不要到處亂拖）。最可能觀察到？",
+        q1a: "A. 左側先變黃／紅，之後暖色逐漸向鄰近（含右側方向）粒子擴散",
+        q1b: "B. 只有被指標直接碰到的那一格永遠發紅，鄰居完全不變色",
+        q1c: "C. 整塊晶格瞬間均勻變成同一紅色，無漸進擴散",
+        q1d: "D. 粒子會整排脫離晶格飛出畫面（正常操作下）",
+        q1ans: "參考答案：A。局域加熱後經彈簧耦合向外傳遞動能。",
+        q2: "重置後做兩次對照：剛性約 0.02 與 0.15，同一側相同加熱。先預測兩次擴散快慢差異，再操作核對並說明「固體剛性」的意義。",
+        q2a: "A. 剛性較高時，鄰接耦合較強，熱／動能通常較容易（或看起來較快）傳到較遠處",
+        q2b: "B. 剛性只改變圖例標題文字，不影響物理更新",
+        q2c: "C. 剛性調高會強制呼叫「快速冷卻」",
+        q2d: "D. 剛性＝畫面背景的藍",
+        q2ans: "參考答案：A。對應剛性進入胡克力 F ∝ (ΔL)·STIFFNESS。",
+        q3: "剛性固定約 0.05。重置後用熱源強度約 <strong>2</strong> 短拖加熱；再重置改約 <strong>9</strong> 同樣短拖。差別主要是？",
+        q3a: "A. 強度較高時，加熱處注入的速度擾動較大，局域更易出現高動能（更紅／更亮）",
+        q3b: "B. 強度只改變「重置系統」按鈕顏色",
+        q3c: "C. 強度＝9 時會禁止拖曳加熱",
+        q3d: "D. 兩種強度下動能與顏色完全無差別",
+        q3ans: "參考答案：A。熱源強度縮放拖曳加熱時的隨機速度增量。",
+        q4: "先加熱使大片區域明顯偏紅，再先按「快速冷卻」、觀察；然後按「重置系統」。用自己的話寫出兩種操作對<strong>粒子速度／網格結構</strong>分別做了什麼，以及你看到的顏色變化。",
+        q4ans: "參考答案：<strong>快速冷卻</strong>：各粒子速度大幅縮小（×0.1），動能急降、顏色迅速偏藍，但同一套粒子／彈簧網格仍在。<strong>重置系統</strong>：重建晶格，粒子回到平衡位置且速度為零，並恢復預設滑桿（熱源強度 5、剛性 0.05）。",
+        q5: "本模擬用晶格振動與彈簧耦合表示固體傳熱。下列哪項最符合<strong>固體熱傳導</strong>的課堂圖像（相對於氣體中分子四處碰撞遷移）？",
+        q5a: "A. 能量主要靠粒子在平衡位置附近的振動，經鄰接作用向外傳遞；粒子不必整體長距離跑開",
+        q5b: "B. 固體傳熱必須靠整塊晶體像流體一樣流動到另一端",
+        q5c: "C. 本模擬的紅色代表電荷量，與溫度無關",
+        q5d: "D. 只有真空中的輻射光子能在固體內傳熱，彈簧沒有作用",
+        q5ans: "參考答案：A。對齊「固體以振動傳遞熱能」敘述；本模擬為示意模型。"
+    },
+    en: {
+        appTitle: "Solid Heat Conduction",
+        appSubtitle: "Particle vibration and energy transfer in a solid lattice",
+        badge: "Physics",
+        opLabel: "How to use: ",
+        opHint: "Click and drag (mouse or finger) to heat particles.",
+        legendTitle: "Temperature (KE)",
+        legendCold: "Cold",
+        legendHot: "Hot",
+        labelHeat: "Heat power",
+        labelStiff: "Stiffness (spring k)",
+        btnReset: "Reset",
+        btnCool: "Quick cool",
+        btnSteps: "Steps",
+        btnPrinciple: "Principle",
+        btnQuiz: "Quiz",
+        stepsTitle: "Observation steps",
+        principleTitle: "Principle",
+        quizTitle: "Class quiz",
+        showAnswers: "Show model answers",
+        hideAnswers: "Hide model answers",
+        shortHint: "Operate the sim, then answer briefly.",
+        step1: "Press <strong>Reset</strong>. Confirm particles are nearly still and mostly blue (low kinetic energy). Set <strong>Heat power</strong> ≈ <strong>5</strong> and <strong>Stiffness</strong> ≈ <strong>0.05</strong>. Press and drag on the <strong>left</strong> side of the canvas for about 3–5 s, then release. Watch the heated spot turn yellow/red and see whether the warm colours spread to neighbours.",
+        step2: "Reset again. Set <strong>Stiffness</strong> ≈ <strong>0.02</strong> (low), heat the left side the same way, and note whether the hot region stays more local. Reset, set stiffness ≈ <strong>0.15</strong> (high), repeat the same heating, and compare how fast or far the warmth spreads.",
+        step3: "Keep stiffness ≈ 0.05. Heat briefly at power ≈ <strong>2</strong>, note redness; reset and repeat at power ≈ <strong>9</strong>. Explain how power changes injected local kinetic energy. Then, while hot, press <strong>Quick cool</strong> and watch colours shift toward blue without rebuilding the lattice; press <strong>Reset</strong> and contrast the two actions.",
+        step4: "In one sentence, summarise how heat in a solid travels without particles migrating away, via vibration / neighbour coupling. State what colour represents in this sim (kinetic energy / a temperature proxy).",
+        principleConceptTitle: "Concept",
+        principleConcept: "<strong>Conduction</strong> is heat transfer from a hotter region to a cooler one through a material. In a <strong>solid</strong>, particles vibrate about lattice sites; energy moves via interactions between neighbours, without the long-range particle migration typical of gases. This sim uses a 2D <strong>mass–spring–damper</strong> lattice: springs stand in for neighbour coupling, and <strong>colour</strong> maps a particle’s <strong>kinetic energy</strong> (blue = cold / low KE, red = hot / high KE).",
+        principleMechTitle: "Mechanism",
+        principleMech: "<ol class=\"list-decimal pl-5 space-y-2\"><li><strong>Heating</strong>: Near the pointer, unpinned particles get random velocity kicks (size set by <strong>Heat power</strong>) → local KE rises → colours shift toward red.</li><li><strong>Transfer</strong>: Springs couple neighbours (Hooke-style forces, F = −k·Δx); a vigorously vibrating particle tugs its neighbours so KE spreads outward—this is the sim’s picture of <strong>solid conduction</strong>.</li><li><strong>Stiffness</strong>: Higher stiffness strengthens coupling so energy reaches farther more readily; lower stiffness keeps heat more local. This is a teaching contrast control, <strong>not</strong> a calibrated thermal-conductivity number for a named material.</li><li><strong>Damping and cool/reset</strong>: Damping slowly removes KE; <strong>Quick cool</strong> multiplies velocities by 0.1; <strong>Reset</strong> rebuilds a still lattice and restores default sliders. Edge particles are pinned so the sheet does not drift away.</li><li><strong>Limits</strong>: 2D, ideal springs, no real phonon spectrum or electronic conduction, no convection/radiation channels. Real metals also conduct via free electrons—mention once in class.</li></ol>",
+        principleExampleTitle: "Everyday example",
+        principleExample: "A metal spoon in hot soup warms at the handle as energy conducts through the solid. Wooden or plastic handles feel cooler because they conduct less well (a qualitative “weaker coupling” intuition). This sim does not plot real material curves; the goal is the vibration-and-neighbour-transfer picture.",
+        q1: "After Reset, with heat power ≈ 5 and stiffness ≈ 0.05, drag-heat only on the <strong>left</strong> side for a few seconds, then release (do not paint the whole grid). What is most likely?",
+        q1a: "A. The left turns yellow/red first, then warmer colours spread toward neighbouring particles (including rightward)",
+        q1b: "B. Only the single particle under the pointer ever turns red; neighbours never change",
+        q1c: "C. The whole lattice instantly becomes the same red with no gradual spread",
+        q1d: "D. Entire rows of particles fly off-screen under normal use",
+        q1ans: "Model answer: A. Local heating then spreads KE via spring coupling.",
+        q2: "After Reset, compare stiffness ≈ 0.02 vs 0.15 with the same heating. Predict how diffusion differs, then verify and explain what Stiffness means here.",
+        q2a: "A. Higher stiffness means stronger neighbour coupling, so heat/KE usually reaches farther (or appears to spread faster)",
+        q2b: "B. Stiffness only changes the legend title text, not the physics update",
+        q2c: "C. Raising stiffness always triggers Quick cool",
+        q2d: "D. Stiffness equals the blue background colour",
+        q2ans: "Model answer: A. Stiffness enters Hooke force F ∝ (ΔL)·STIFFNESS.",
+        q3: "Keep stiffness ≈ 0.05. After Reset, briefly heat at power ≈ <strong>2</strong>; Reset again and repeat at ≈ <strong>9</strong>. What is the main difference?",
+        q3a: "A. Higher power injects larger velocity kicks, so the heated spot more readily reaches high KE (redder/brighter)",
+        q3b: "B. Power only changes the Reset button colour",
+        q3c: "C. Power = 9 disables drag-heating",
+        q3d: "D. KE and colour are identical at both settings",
+        q3ans: "Model answer: A. Heat power scales the random velocity kicks in drag-heating.",
+        q4: "Heat until a large region is clearly reddish, then press <strong>Quick cool</strong> and observe; then press <strong>Reset</strong>. In your own words, state what each control does to <strong>particle velocities / the lattice</strong>, and what colour change you saw.",
+        q4ans: "Model answer: <strong>Quick cool</strong> multiplies velocities by ~0.1 → KE drops and colours shift blue, but the same particle/spring mesh remains. <strong>Reset</strong> rebuilds the lattice (particles at equilibrium, zero velocity) and restores default sliders (heat power 5, stiffness 0.05).",
+        q5: "This sim models solid heat flow with lattice vibration and spring coupling. Which best matches the classroom picture of <strong>conduction in a solid</strong> (versus molecules freely migrating and colliding in a gas)?",
+        q5a: "A. Energy spreads mainly via vibration about equilibrium sites and neighbour coupling; particles need not migrate long distances",
+        q5b: "B. Solid conduction requires the whole crystal to flow like a fluid to the other end",
+        q5c: "C. Red in this sim means electric charge, unrelated to temperature",
+        q5d: "D. Only vacuum radiation photons carry heat inside solids; springs do nothing",
+        q5ans: "Model answer: A. Aligns with “solids transfer heat by vibration”; this sim is a schematic model."
+    }
+};
+
+const quizState = { selections: {}, showAnswers: false };
+let currentLang = 'zh';
+
 class Particle {
     constructor(x, y, isPinned = false) {
-        this.ox = x; // Original X (Equilibrium)
-        this.oy = y; // Original Y (Equilibrium)
-        this.x = x;  // Current X
-        this.y = y;  // Current Y
-        this.vx = 0; // Velocity X
-        this.vy = 0; // Velocity Y
-        this.fx = 0; // Force Accumulator X
-        this.fy = 0; // Force Accumulator Y
-        this.isPinned = isPinned; // Edges are pinned to keep the solid in place
+        this.ox = x;
+        this.oy = y;
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.fx = 0;
+        this.fy = 0;
+        this.isPinned = isPinned;
         this.mass = 1;
         this.kineticEnergy = 0;
     }
 
     update() {
         if (this.isPinned) return;
-
-        // Verlet Integration / Euler roughly
         this.vx += this.fx / this.mass;
         this.vy += this.fy / this.mass;
-
-        // Apply Damping (Resistance)
         this.vx *= DAMPING;
         this.vy *= DAMPING;
-
         this.x += this.vx;
         this.y += this.vy;
-
-        // Calculate Kinetic Energy (for color) - proportional to v^2
         const speedSq = this.vx * this.vx + this.vy * this.vy;
-        // Smooth average for display stability
         this.kineticEnergy = this.kineticEnergy * 0.9 + speedSq * 0.1;
-
-        // Reset forces
         this.fx = 0;
         this.fy = 0;
     }
 
     draw() {
-        // Map energy to color
-        // 0 -> Blue (240), High -> Red (0)
-        // Normalize energy: Assuming max reasonable speed squared is around 20-50
-        let heat = Math.min(this.kineticEnergy / 15, 1); 
-        
-        // Color interpolation HSL
-        // Blue (240) -> Cyan (180) -> Green (120) -> Yellow (60) -> Red (0)
+        let heat = Math.min(this.kineticEnergy / 15, 1);
         const hue = 240 - (heat * 240);
-        const lightness = 50 + (heat * 20); // Get brighter as it gets hotter
-
+        const lightness = 50 + (heat * 20);
         ctx.beginPath();
         ctx.arc(this.x, this.y, SPACING * 0.35, 0, Math.PI * 2);
         ctx.fillStyle = `hsl(${hue}, 100%, ${lightness}%)`;
         ctx.fill();
-        
-        // High heat glow
         if (heat > 0.8) {
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'red';
@@ -168,12 +377,10 @@ class Particle {
     }
 }
 
-// Spring Class
 class Spring {
     constructor(p1, p2) {
         this.p1 = p1;
         this.p2 = p2;
-        // Calculate resting distance
         const dx = p2.ox - p1.ox;
         const dy = p2.oy - p1.oy;
         this.restLength = Math.sqrt(dx * dx + dy * dy);
@@ -183,18 +390,12 @@ class Spring {
         const dx = this.p2.x - this.p1.x;
         const dy = this.p2.y - this.p1.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        // Hooke's Law: F = k * (currentLength - restLength)
+        if (distance < 1e-8) return;
         const forceMagnitude = (distance - this.restLength) * STIFFNESS;
-        
-        // Direction unit vector
         const nx = dx / distance;
         const ny = dy / distance;
-
         const fx = nx * forceMagnitude;
         const fy = ny * forceMagnitude;
-
-        // Apply forces to particles (Newton's 3rd Law)
         if (!this.p1.isPinned) {
             this.p1.fx += fx;
             this.p1.fy += fy;
@@ -206,10 +407,8 @@ class Spring {
     }
 
     draw() {
-        // Color spring based on tension/average temp of connected particles
         const avgEnergy = (this.p1.kineticEnergy + this.p2.kineticEnergy) / 2;
-        const alpha = Math.min(0.2 + avgEnergy * 0.1, 0.8); // More visible when energetic
-
+        const alpha = Math.min(0.2 + avgEnergy * 0.1, 0.8);
         ctx.beginPath();
         ctx.moveTo(this.p1.x, this.p1.y);
         ctx.lineTo(this.p2.x, this.p2.y);
@@ -219,18 +418,9 @@ class Spring {
     }
 }
 
-// Initialization
-function init() {
-    resizeCanvas();
-    createGrid();
-    loop();
-}
-
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    
-    // Recalculate grid fit
     SPACING = Math.min(canvas.width / (COLUMNS + 2), canvas.height / (ROWS + 2));
     if (SPACING > 40) SPACING = 40;
     if (SPACING < 15) SPACING = 15;
@@ -239,39 +429,21 @@ function resizeCanvas() {
 function createGrid() {
     particles = [];
     springs = [];
-
     const startX = (canvas.width - (COLUMNS - 1) * SPACING) / 2;
     const startY = (canvas.height - (ROWS - 1) * SPACING) / 2;
-
-    // 1. Create Particles
     for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLUMNS; x++) {
             const px = startX + x * SPACING;
             const py = startY + y * SPACING;
-            
-            // Pin the edges to hold the sheet in place
-            // const isPinned = x === 0 || x === COLUMNS - 1 || y === 0 || y === ROWS - 1;
-            // Only pin corners to allow more flex? Or borders? Let's pin borders for a stable solid.
             const isPinned = (x === 0 || x === COLUMNS - 1 || y === 0 || y === ROWS - 1);
-            
             particles.push(new Particle(px, py, isPinned));
         }
     }
-
-    // 2. Create Springs (Connections)
     for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLUMNS; x++) {
             const i = y * COLUMNS + x;
-            
-            // Connect Right
-            if (x < COLUMNS - 1) {
-                springs.push(new Spring(particles[i], particles[i + 1]));
-            }
-            // Connect Down
-            if (y < ROWS - 1) {
-                springs.push(new Spring(particles[i], particles[i + COLUMNS]));
-            }
-            // Structural diagonal springs (makes it a solid rather than a net)
+            if (x < COLUMNS - 1) springs.push(new Spring(particles[i], particles[i + 1]));
+            if (y < ROWS - 1) springs.push(new Spring(particles[i], particles[i + COLUMNS]));
             if (x < COLUMNS - 1 && y < ROWS - 1) {
                 springs.push(new Spring(particles[i], particles[i + COLUMNS + 1]));
                 springs.push(new Spring(particles[i + 1], particles[i + COLUMNS]));
@@ -280,117 +452,201 @@ function createGrid() {
     }
 }
 
-// Interaction Logic
+function resetSim() {
+    HEAT_POWER = DEFAULT_HEAT;
+    STIFFNESS = DEFAULT_STIFF;
+    heatSlider.value = String(DEFAULT_HEAT);
+    stiffnessSlider.value = String(DEFAULT_STIFF);
+    createGrid();
+}
+
 function applyHeatAtMouse() {
     if (!isDragging) return;
-
     const influenceRadius = SPACING * 2.5;
     const influenceRadiusSq = influenceRadius * influenceRadius;
-
     particles.forEach(p => {
         if (p.isPinned) return;
-
         const dx = p.x - mouseX;
         const dy = p.y - mouseY;
         const distSq = dx * dx + dy * dy;
-
         if (distSq < influenceRadiusSq) {
-            // Add random kinetic energy (Heat)
-            // Random direction
             const angle = Math.random() * Math.PI * 2;
             const force = HEAT_POWER * Math.random();
-            
             p.vx += Math.cos(angle) * force;
             p.vy += Math.sin(angle) * force;
         }
     });
 }
 
-// Animation Loop
 function loop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 1. Apply User Heat
     applyHeatAtMouse();
-
-    // 2. Physics Update
-    // Apply Spring Forces
     springs.forEach(s => s.update());
-    
-    // Update Particles (apply accumulated forces)
     particles.forEach(p => p.update());
-
-    // 3. Render
     springs.forEach(s => s.draw());
     particles.forEach(p => p.draw());
-
     animationId = requestAnimationFrame(loop);
 }
 
-// Event Listeners
-window.addEventListener('resize', () => {
+function setDocumentLang() {
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+}
+
+function toggleLanguage() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    updateLanguageUI();
+}
+
+function renderSteps() {
+    const t = translations[currentLang];
+    document.getElementById('steps-body').innerHTML = [t.step1, t.step2, t.step3, t.step4].map(function (s) {
+        return '<li>' + s + '</li>';
+    }).join('');
+}
+
+function renderPrinciple() {
+    const t = translations[currentLang];
+    document.getElementById('principle-body').innerHTML =
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleConceptTitle + '</h3><p>' + t.principleConcept + '</p></div>' +
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleMechTitle + '</h3>' + t.principleMech + '</div>' +
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleExampleTitle + '</h3><p>' + t.principleExample + '</p></div>';
+}
+
+let quizAnswersVisible = false;
+
+        function renderQuiz() {
+            const texts = translations[currentLang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const langIsZh = (currentLang === 'zh');
+            const ref = texts.quizRef || (langIsZh ? '參考答案' : 'Reference answer');
+            const optKey = (qid, L) => {
+                const lower = qid + L.toLowerCase();
+                const upper = qid + L.toUpperCase();
+                return texts[lower] != null ? lower : upper;
+            };
+            const mkChoice = (qid) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = optKey(qid, L);
+                return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span>' + (texts[key] || '') + '</span></label>';
+            }).join('');
+            const vis = quizAnswersVisible;
+            const ans = (key) => vis
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+            const openHint = texts.shortHint || texts.openHint || '';
+            const block = (n, qid, mc) => {
+                let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
+                if (mc) h += '<div class="grid gap-1.5">' + mkChoice(qid) + '</div>';
+                else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
+                return h + ans(qid + 'ans') + '</div>';
+            };
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = vis ? texts.hideAnswers : texts.showAnswers;
+            const modal = document.getElementById('modal-quiz');
+            if (vis && typeof typesetMath === 'function' && modal) typesetMath(modal);
+        }
+
+
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    void modal.offsetWidth;
+    modal.classList.remove('opacity-0');
+    const panel = modal.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.remove('scale-95');
+}
+
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.classList.add('opacity-0');
+    const panel = modal.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.add('scale-95');
+    setTimeout(function () { modal.classList.add('hidden'); }, 250);
+}
+
+function closeAllModals() {
+    ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+}
+
+function wireModals() {
+    document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+    document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+    document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+    document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+    document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+                quizAnswersVisible = !quizAnswersVisible;
+                renderQuiz();
+            });
+    document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+    });
+    ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+        const modal = document.getElementById(id);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(id); });
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllModals(); });
+}
+
+function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+    const clientY = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+    mouseX = (clientX - rect.left) * scaleX;
+    mouseY = (clientY - rect.top) * scaleY;
+}
+
+function initPhysics() {
     resizeCanvas();
-    createGrid(); // Re-create to fit new screen
-});
+    createGrid();
+    loop();
+}
 
-canvas.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-});
-
-canvas.addEventListener('mousemove', (e) => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-});
-
-window.addEventListener('mouseup', () => {
-    isDragging = false;
-});
-
-// Touch support
-canvas.addEventListener('touchstart', (e) => {
-    isDragging = true;
-    const touch = e.touches[0];
-    mouseX = touch.clientX;
-    mouseY = touch.clientY;
-    e.preventDefault(); // Prevent scroll
-}, {passive: false});
-
-canvas.addEventListener('touchmove', (e) => {
-    const touch = e.touches[0];
-    mouseX = touch.clientX;
-    mouseY = touch.clientY;
-    e.preventDefault();
-}, {passive: false});
-
-window.addEventListener('touchend', () => {
-    isDragging = false;
-});
-
-// UI Control Listeners
-heatSlider.addEventListener('input', (e) => {
-    HEAT_POWER = parseFloat(e.target.value);
-});
-
-stiffnessSlider.addEventListener('input', (e) => {
-    STIFFNESS = parseFloat(e.target.value);
-});
-
-btnReset.addEventListener('click', () => {
+window.addEventListener('resize', function () {
+    resizeCanvas();
     createGrid();
 });
 
-btnCool.addEventListener('click', () => {
-    particles.forEach(p => {
+canvas.addEventListener('mousedown', function (e) {
+    isDragging = true;
+    pointerPos(e);
+});
+canvas.addEventListener('mousemove', function (e) {
+    pointerPos(e);
+});
+window.addEventListener('mouseup', function () { isDragging = false; });
+
+canvas.addEventListener('touchstart', function (e) {
+    isDragging = true;
+    pointerPos(e.touches[0]);
+    e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', function (e) {
+    pointerPos(e.touches[0]);
+    e.preventDefault();
+}, { passive: false });
+window.addEventListener('touchend', function () { isDragging = false; });
+
+heatSlider.addEventListener('input', function (e) {
+    HEAT_POWER = parseFloat(e.target.value);
+});
+stiffnessSlider.addEventListener('input', function (e) {
+    STIFFNESS = parseFloat(e.target.value);
+});
+btnReset.addEventListener('click', resetSim);
+btnCool.addEventListener('click', function () {
+    particles.forEach(function (p) {
         p.vx *= 0.1;
         p.vy *= 0.1;
     });
 });
 
-// Start
-init();
-
+wireModals();
+updateLanguageUI();
+initPhysics();
 </script>
 </body>
 </html>

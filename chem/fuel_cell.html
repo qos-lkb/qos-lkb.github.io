@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>燃料電池 | Fuel Cell</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0f172a; /* Slate 900 */
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            background-color: #1e293b; /* Slate 800 */
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            margin: 0 auto;
+        }
+        .equation {
+            font-family: 'Courier New', Courier, monospace;
+            background: #334155;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 md:p-6">
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "燃料電池", "en": "Fuel Cell"}, "grade": {"zh": "中四化學", "en": "S4 Chemistry"}, "steps": {"zh": ["確認是氫氧燃料電池畫面，按「開始反應」。", "調反應速率，看氣泡、電流或產水如何加快。", "按「切換為鹼性環境」，比較電極反應的寫法。", "再切回酸性或原來環境，對照總反應仍是氫加氧生成水。"], "en": ["Start the hydrogen-oxygen fuel cell.", "Change the rate and watch the bubbles, current or water production speed up.", "Switch to alkaline conditions and compare the electrode equations.", "Switch back and check that the overall reaction is still hydrogen plus oxygen giving water."]}, "principle": {"zh": ["燃料電池把燃料的化學能直接轉成電能。氫在一極失去電子，氧在另一極得到電子。", "總反應是 2H2 + O2 → 2H2O。酸性與鹼性的半反應寫法不同，但電子轉移方向一致。", "它不同於燃燒後再用熱機發電：電能轉換較直接，產物是水。"], "en": ["A fuel cell turns chemical energy in the fuel directly into electrical energy.", "The overall reaction is 2H2 + O2 → 2H2O. Acid and alkaline half-equations differ, but the electron flow does not.", "The product is water, and the conversion is more direct than burning the fuel in a heat engine."]}, "quiz": [{"zh": "氫氧燃料電池的總反應產物是？", "en": "The overall product of a hydrogen-oxygen fuel cell is?", "azh": "B。", "aen": "B.", "czh": ["二氧化碳", "水", "氯化鈉", "臭氧"], "cen": ["Carbon dioxide", "Water", "Sodium chloride", "Ozone"], "ans": 1}, {"zh": "先預測把反應速率調高後，單位時間產水和電流示意會增加，再移動速率滑桿。", "en": "Predict that raising the rate increases water production and the current reading, then move the rate control.", "azh": "速率愈高，電子轉移愈快，電流示意愈大。", "aen": "A higher rate means faster electron transfer and a larger current."}, {"zh": "切換鹼性環境後，改變的是？", "en": "Switching to alkaline conditions changes?", "azh": "B。", "aen": "B.", "czh": ["總反應不再生成水", "半反應的寫法，總反應仍生成水", "燃料改成碳", "電池不再需要氧"], "cen": ["The overall reaction no longer makes water", "The half-equations, while the overall reaction still makes water", "The fuel becomes carbon", "Oxygen is no longer needed"], "ans": 1}, {"zh": "比較「未按開始」和「已開始反應」：哪一個才有持續的電子流動？", "en": "Compare before and after you press start. Which one shows a continuing electron flow?", "azh": "按了開始反應之後。", "aen": "After you start the reaction."}, {"zh": "燃料電池和乾電池的一個分別是？", "en": "One difference from a dry cell is?", "azh": "A。", "aen": "A.", "czh": ["燃料電池只要不斷供應燃料和氧就可繼續供電", "燃料電池完全不涉及氧化還原", "燃料電池不能產生電流", "燃料電池的產物一定是二氧化碳"], "cen": ["It can keep working while fuel and oxygen are supplied", "It involves no redox", "It cannot produce a current", "Its product must be carbon dioxide"], "ans": 0}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+
+    <!-- Header & Controls -->
+    <header class="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+            <h1 id="main-title" class="text-3xl font-bold text-blue-400">氫氧燃料電池模擬器</h1>
+            <p id="sub-title" class="text-slate-400 mt-1">高中化學科互動教材</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="env-btn" onclick="toggleEnv()" class="bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 rounded-full transition shadow-lg border border-teal-500 font-semibold">
+                切換為鹼性環境
+            </button>
+            <button id="lang-btn" onclick="toggleLanguage()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-full transition shadow-lg border border-slate-500 font-semibold">
+                English
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="w-full max-w-6xl flex flex-col lg:flex-row gap-6">
+        
+        <!-- Canvas Area -->
+        <div class="flex-1 w-full relative">
+            <canvas id="fc-canvas" width="800" height="600"></canvas>
+            
+            <!-- Interactive Controls -->
+            <div class="mt-4 flex flex-col sm:flex-row items-center justify-between bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-700 gap-4">
+                <button id="toggle-sim-btn" onclick="toggleSimulation()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg font-bold text-lg transition shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                    開始反應
+                </button>
+                
+                <div class="flex-1 w-full flex items-center gap-4 px-4">
+                    <label id="rate-label" for="rate-slider" class="whitespace-nowrap font-semibold">反應速率:</label>
+                    <input type="range" id="rate-slider" min="1" max="5" value="2" class="w-full h-2 rounded-lg cursor-pointer">
+                </div>
+            </div>
+        </div>
+
+        <!-- Information Panel -->
+        <div class="w-full lg:w-1/3 bg-slate-800 rounded-xl shadow-lg border border-slate-700 p-6 flex flex-col gap-6">
+            
+            <div>
+                <h2 id="desc-title" class="text-xl font-bold text-blue-300 border-b border-slate-600 pb-2 mb-3">運作原理</h2>
+                <p id="desc-text" class="text-slate-300 leading-relaxed">
+                    燃料電池透過氫氣和氧氣的電化學反應產生電能。氫氣在負極失去電子，電子經由外電路移動點亮燈泡，而質子穿過交換膜到達正極，與氧氣及電子結合生成水。
+                </p>
+            </div>
+
+            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                <h3 id="anode-title" class="text-lg font-bold text-red-400">負極 (陽極) 半反應</h3>
+                <p id="anode-desc" class="text-sm text-slate-400 mb-1">氫氣發生氧化反應，釋放電子。</p>
+                <div class="equation text-red-300">H<sub>2(g)</sub> → 2H<sup>+</sup><sub>(aq)</sub> + 2e<sup>-</sup></div>
+            </div>
+
+            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                <h3 id="cathode-title" class="text-lg font-bold text-blue-400">正極 (陰極) 半反應</h3>
+                <p id="cathode-desc" class="text-sm text-slate-400 mb-1">氧氣發生還原反應，與質子和電子結合生成水。</p>
+                <div class="equation text-blue-300">½O<sub>2(g)</sub> + 2H<sup>+</sup><sub>(aq)</sub> + 2e<sup>-</sup> → H<sub>2</sub>O<sub>(l)</sub></div>
+            </div>
+
+            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                <h3 id="overall-title" class="text-lg font-bold text-green-400">總反應</h3>
+                <div class="equation text-green-300">H<sub>2(g)</sub> + ½O<sub>2(g)</sub> → H<sub>2</sub>O<sub>(l)</sub></div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // --- Translations ---
+        const dict = {
+            tc: {
+                mainTitle: "氫氧燃料電池模擬器",
+                subTitle: "高中化學科互動教材",
+                langBtn: "English",
+                envBtnAcidic: "切換至: 鹼性環境",
+                envBtnAlkaline: "切換至: 酸性環境",
+                envLabel: "【目前: 酸性環境】",
+                envLabelAlk: "【目前: 鹼性環境】",
+                startBtn: "開始反應",
+                stopBtn: "暫停反應",
+                rateLabel: "反應速率:",
+                descTitle: "運作原理",
+                descTextAcidic: "在「酸性環境」中，氫氣在負極失去電子，產生的質子(H⁺)穿過質子交換膜到達正極，與氧氣及電子結合生成水。",
+                descTextAlkaline: "在「鹼性環境」中，氧氣在正極接收電子並與水反應生成氫氧根離子(OH⁻)，穿過陰離子交換膜到達負極，與氫氣反應生成水。",
+                anodeTitle: "負極 (陽極) 半反應",
+                anodeDescAcidic: "氫氣發生氧化反應，釋放電子與質子。",
+                anodeDescAlkaline: "氫氣與氫氧根離子發生氧化反應，生成水並釋放電子。",
+                anodeEqAcidic: "H<sub>2(g)</sub> → 2H<sup>+</sup><sub>(aq)</sub> + 2e<sup>-</sup>",
+                anodeEqAlkaline: "H<sub>2(g)</sub> + 2OH<sup>-</sup><sub>(aq)</sub> → 2H<sub>2</sub>O<sub>(l)</sub> + 2e<sup>-</sup>",
+                cathodeTitle: "正極 (陰極) 半反應",
+                cathodeDescAcidic: "氧氣發生還原反應，與質子和電子結合生成水。",
+                cathodeDescAlkaline: "氧氣發生還原反應，與水和電子結合生成氫氧根離子。",
+                cathodeEqAcidic: "½O<sub>2(g)</sub> + 2H<sup>+</sup><sub>(aq)</sub> + 2e<sup>-</sup> → H<sub>2</sub>O<sub>(l)</sub>",
+                cathodeEqAlkaline: "½O<sub>2(g)</sub> + H<sub>2</sub>O<sub>(l)</sub> + 2e<sup>-</sup> → 2OH<sup>-</sup><sub>(aq)</sub>",
+                overallTitle: "總反應",
+                // Canvas Texts
+                cvAnode: "負極 (-)",
+                cvCathode: "正極 (+)",
+                cvPEM: "質子交換膜 (PEM)",
+                cvAEM: "陰離子交換膜 (AEM)",
+                cvLoad: "負載 (燈泡)",
+                cvH2In: "氫氣 (H₂) 輸入",
+                cvO2In: "氧氣 (O₂) 輸入",
+                cvH2OOut: "水 (H₂O) 排出",
+                cvElectron: "電子 (e⁻)",
+                lgLegend: "圖例 / Legend:",
+                lgH2: "H₂ (氫氣 / Hydrogen)",
+                lgO2: "O₂ (氧氣 / Oxygen)",
+                lgH_plus: "H⁺ (質子 / Proton)",
+                lgOH_minus: "OH⁻ (氫氧根 / Hydroxide)",
+                lgE_minus: "e⁻ (電子 / Electron)",
+                lgH2O: "H₂O (水 / Water)"
+            },
+            en: {
+                mainTitle: "Hydrogen Fuel Cell Simulator",
+                subTitle: "High School Chemistry Interactive Tool",
+                langBtn: "繁體中文",
+                envBtnAcidic: "Switch to: Alkaline",
+                envBtnAlkaline: "Switch to: Acidic",
+                envLabel: "[Current: Acidic]",
+                envLabelAlk: "[Current: Alkaline]",
+                startBtn: "Start Reaction",
+                stopBtn: "Pause Reaction",
+                rateLabel: "Reaction Rate:",
+                descTitle: "How it Works",
+                descTextAcidic: "In an ACIDIC environment, H₂ loses electrons at the anode. Protons (H⁺) pass through the PEM to the cathode, combining with O₂ and electrons to form water.",
+                descTextAlkaline: "In an ALKALINE environment, O₂ receives electrons at the cathode and reacts with water to form hydroxide ions (OH⁻), which pass through the AEM to the anode to form water with H₂.",
+                anodeTitle: "Anode (-) Half-Reaction",
+                anodeDescAcidic: "Hydrogen undergoes oxidation, releasing electrons and protons.",
+                anodeDescAlkaline: "Hydrogen reacts with hydroxide ions, releasing water and electrons.",
+                anodeEqAcidic: "H<sub>2(g)</sub> → 2H<sup>+</sup><sub>(aq)</sub> + 2e<sup>-</sup>",
+                anodeEqAlkaline: "H<sub>2(g)</sub> + 2OH<sup>-</sup><sub>(aq)</sub> → 2H<sub>2</sub>O<sub>(l)</sub> + 2e<sup>-</sup>",
+                cathodeTitle: "Cathode (+) Half-Reaction",
+                cathodeDescAcidic: "Oxygen undergoes reduction, combining with protons and electrons to form water.",
+                cathodeDescAlkaline: "Oxygen undergoes reduction, combining with water and electrons to form hydroxide ions.",
+                cathodeEqAcidic: "½O<sub>2(g)</sub> + 2H<sup>+</sup><sub>(aq)</sub> + 2e<sup>-</sup> → H<sub>2</sub>O<sub>(l)</sub>",
+                cathodeEqAlkaline: "½O<sub>2(g)</sub> + H<sub>2</sub>O<sub>(l)</sub> + 2e<sup>-</sup> → 2OH<sup>-</sup><sub>(aq)</sub>",
+                overallTitle: "Overall Reaction",
+                // Canvas Texts
+                cvAnode: "Anode (-)",
+                cvCathode: "Cathode (+)",
+                cvPEM: "Proton Exchange Memb.",
+                cvAEM: "Anion Exchange Memb.",
+                cvLoad: "Load (Bulb)",
+                cvH2In: "Hydrogen (H₂) In",
+                cvO2In: "Oxygen (O₂) In",
+                cvH2OOut: "Water (H₂O) Out",
+                cvElectron: "Electron (e⁻)",
+                lgLegend: "Legend:",
+                lgH2: "H₂ (Hydrogen)",
+                lgO2: "O₂ (Oxygen)",
+                lgH_plus: "H⁺ (Proton)",
+                lgOH_minus: "OH⁻ (Hydroxide)",
+                lgE_minus: "e⁻ (Electron)",
+                lgH2O: "H₂O (Water)"
+            }
+        };
+
+        let currentLang = 'tc';
+        let currentEnv = 'acidic'; // 'acidic' or 'alkaline'
+        let isRunning = false;
+        
+        // --- DOM Elements ---
+        const canvas = document.getElementById('fc-canvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('rate-slider');
+        const toggleBtn = document.getElementById('toggle-sim-btn');
+
+        // --- Canvas Geometry ---
+        const cw = canvas.width;
+        const ch = canvas.height;
+        
+        const anode = { x: 250, y: 250, w: 40, h: 250, color: '#475569' };
+        const cathode = { x: 510, y: 250, w: 40, h: 250, color: '#475569' };
+        const pem = { x: 350, y: 250, w: 100, h: 250, color: 'rgba(56, 189, 248, 0.3)' }; // semi-transparent blue
+        
+        const wireTopY = 100;
+        const bulb = { x: 400, y: wireTopY, r: 25 };
+
+        // --- Particle System ---
+        let particles = [];
+        let frameCount = 0;
+        let activeElectrons = 0; // for bulb brightness
+
+        class Particle {
+            constructor(type, x, y) {
+                this.type = type; // 'H2', 'O2', 'H+', 'e-', 'H2O'
+                this.x = x;
+                this.y = y;
+                this.active = true;
+                
+                let baseSpeed = parseInt(slider.value) * 0.8;
+                
+                if(type === 'H2') {
+                    this.vx = 2 + Math.random() + baseSpeed;
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                } else if(type === 'O2') {
+                    this.vx = -(2 + Math.random() + baseSpeed);
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                } else if(type === 'H+') {
+                    this.vx = 1.5 + baseSpeed * 0.5;
+                    this.vy = (Math.random() - 0.5) * 1;
+                } else if(type === 'OH-') {
+                    this.vx = -(1.5 + baseSpeed * 0.5);
+                    this.vy = (Math.random() - 0.5) * 1;
+                } else if(type === 'e-') {
+                    this.vx = 0;
+                    this.vy = -(4 + baseSpeed);
+                    this.state = 0; // 0: up anode, 1: right wire, 2: down cathode
+                } else if(type === 'H2O') {
+                    this.vx = currentEnv === 'acidic' ? (1 + Math.random()) : -(1 + Math.random());
+                    this.vy = 2 + baseSpeed;
+                }
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Path Logic
+                if(this.type === 'H2') {
+                    if(this.x > anode.x) {
+                        this.active = false;
+                        if(currentEnv === 'acidic') {
+                            particles.push(new Particle('H+', anode.x + anode.w, this.y));
+                            particles.push(new Particle('H+', anode.x + anode.w, this.y + 10));
+                        } else {
+                            particles.push(new Particle('H2O', anode.x, this.y));
+                        }
+                        particles.push(new Particle('e-', anode.x + anode.w/2, this.y));
+                        particles.push(new Particle('e-', anode.x + anode.w/2, this.y + 10));
+                    }
+                } 
+                else if(this.type === 'O2') {
+                    if(this.x < cathode.x + cathode.w) {
+                        this.active = false;
+                        if(currentEnv === 'acidic') {
+                            particles.push(new Particle('H2O', cathode.x + cathode.w, this.y));
+                        } else {
+                            particles.push(new Particle('OH-', cathode.x, this.y));
+                            particles.push(new Particle('OH-', cathode.x, this.y + 10));
+                        }
+                    }
+                }
+                else if(this.type === 'H+') {
+                    // Drift towards cathode
+                    if(this.x > cathode.x) {
+                        this.active = false; // reached cathode
+                    }
+                }
+                else if(this.type === 'OH-') {
+                    // Drift towards anode
+                    if(this.x < anode.x + anode.w) {
+                        this.active = false; // reached anode
+                    }
+                }
+                else if(this.type === 'e-') {
+                    if(this.state === 0) {
+                        if(this.y <= wireTopY) {
+                            this.y = wireTopY;
+                            this.vy = 0;
+                            this.vx = 5 + parseInt(slider.value);
+                            this.state = 1;
+                        }
+                    } else if(this.state === 1) {
+                        if(this.x >= cathode.x + cathode.w/2) {
+                            this.x = cathode.x + cathode.w/2;
+                            this.vx = 0;
+                            this.vy = 4 + parseInt(slider.value);
+                            this.state = 2;
+                        }
+                    } else if(this.state === 2) {
+                        if(this.y > 250 + Math.random()*200) {
+                            this.active = false; // reached cathode
+                        }
+                    }
+                }
+                else if(this.type === 'H2O') {
+                    if(this.y > ch + 20) {
+                        this.active = false; // off screen
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                if(this.type === 'H2') {
+                    ctx.fillStyle = '#f8fafc'; // white
+                    ctx.beginPath(); ctx.arc(this.x - 4, this.y, 6, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(this.x + 4, this.y, 6, 0, Math.PI*2); ctx.fill();
+                } 
+                else if(this.type === 'O2') {
+                    ctx.fillStyle = '#ef4444'; // red
+                    ctx.beginPath(); ctx.arc(this.x - 5, this.y, 7, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(this.x + 5, this.y, 7, 0, Math.PI*2); ctx.fill();
+                }
+                else if(this.type === 'H+') {
+                    ctx.fillStyle = '#3b82f6'; // blue
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 5, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('+', this.x - 3, this.y + 3);
+                }
+                else if(this.type === 'OH-') {
+                    ctx.fillStyle = '#14b8a6'; // teal
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 6, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#f8fafc'; // white H
+                    ctx.beginPath(); ctx.arc(this.x - 4, this.y + 3, 4, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('-', this.x + 3, this.y - 3);
+                }
+                else if(this.type === 'e-') {
+                    ctx.fillStyle = '#fde047'; // yellow
+                    ctx.shadowColor = '#facc15';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+                }
+                else if(this.type === 'H2O') {
+                    // oxygen
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 8, 0, Math.PI*2); ctx.fill();
+                    // hydrogens
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.beginPath(); ctx.arc(this.x - 6, this.y + 5, 5, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(this.x + 6, this.y + 5, 5, 0, Math.PI*2); ctx.fill();
+                }
+
+                // 標示分子化學名稱 (Label chemical names)
+                ctx.shadowBlur = 0; // 重置陰影設定以免文字發光過度
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.font = '12px sans-serif';
+                ctx.textAlign = 'center';
+                if (this.type === 'H2') ctx.fillText('H₂', this.x, this.y - 12);
+                else if (this.type === 'O2') ctx.fillText('O₂', this.x, this.y - 14);
+                else if (this.type === 'H+') ctx.fillText('H⁺', this.x, this.y - 12);
+                else if (this.type === 'OH-') ctx.fillText('OH⁻', this.x, this.y - 12);
+                else if (this.type === 'e-') ctx.fillText('e⁻', this.x + 12, this.y + 4); // 電子標示放右側避免擋住發光
+                else if (this.type === 'H2O') ctx.fillText('H₂O', this.x, this.y - 14);
+
+                ctx.restore();
+            }
+        }
+
+        function drawBackground() {
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Draw Wire
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(anode.x + anode.w/2, anode.y);
+            ctx.lineTo(anode.x + anode.w/2, wireTopY);
+            ctx.lineTo(cathode.x + cathode.w/2, wireTopY);
+            ctx.lineTo(cathode.x + cathode.w/2, cathode.y);
+            ctx.stroke();
+
+            // Draw Bulb
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.arc(bulb.x, bulb.y, bulb.r, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Bulb glow based on electron activity
+            if(activeElectrons > 0) {
+                let brightness = Math.min(activeElectrons / 5, 1);
+                let gradient = ctx.createRadialGradient(bulb.x, bulb.y, 5, bulb.x, bulb.y, bulb.r * 2.5);
+                gradient.addColorStop(0, `rgba(253, 224, 71, ${brightness})`);
+                gradient.addColorStop(1, 'rgba(253, 224, 71, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(bulb.x, bulb.y, bulb.r * 2.5, 0, Math.PI*2);
+                ctx.fill();
+
+                // Inner bulb bright
+                ctx.fillStyle = `rgba(255, 255, 200, ${brightness})`;
+                ctx.beginPath();
+                ctx.arc(bulb.x, bulb.y, bulb.r - 2, 0, Math.PI*2);
+                ctx.fill();
+            }
+            
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw Anode
+            ctx.fillStyle = anode.color;
+            ctx.fillRect(anode.x, anode.y, anode.w, anode.h);
+            
+            // Draw Cathode
+            ctx.fillStyle = cathode.color;
+            ctx.fillRect(cathode.x, cathode.y, cathode.w, cathode.h);
+
+            // Draw PEM
+            ctx.fillStyle = pem.color;
+            ctx.fillRect(pem.x, pem.y, pem.w, pem.h);
+            // PEM texture
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            for(let i=0; i<pem.h; i+=20) {
+                ctx.beginPath();
+                ctx.moveTo(pem.x, pem.y + i);
+                ctx.lineTo(pem.x + pem.w, pem.y + i);
+                ctx.stroke();
+            }
+
+            // Pipes / Inlets
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 3;
+            // H2 inlet
+            ctx.strokeRect(0, 300, anode.x, 60);
+            // O2 inlet
+            ctx.strokeRect(cathode.x + cathode.w, 300, cw - (cathode.x + cathode.w), 60);
+            
+            // H2O outlet depends on environment
+            if(currentEnv === 'acidic') {
+                ctx.strokeRect(cathode.x + cathode.w, 400, cw - (cathode.x + cathode.w), 80);
+            } else {
+                ctx.strokeRect(0, 400, anode.x, 80);
+            }
+
+            // Draw Text Labels on Canvas
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            
+            const t = dict[currentLang];
+            
+            // Anode & Cathode labels
+            ctx.fillText(t.cvAnode, anode.x + anode.w/2, anode.y - 15);
+            ctx.fillText(t.cvCathode, cathode.x + cathode.w/2, cathode.y - 15);
+            ctx.fillText(currentEnv === 'acidic' ? t.cvPEM : t.cvAEM, pem.x + pem.w/2, pem.y - 15);
+            ctx.fillText(t.cvLoad, bulb.x, bulb.y - 40);
+
+            // Inlet / Outlet labels
+            ctx.textAlign = 'left';
+            ctx.fillText(t.cvH2In, 20, 290);
+            ctx.textAlign = 'right';
+            ctx.fillText(t.cvO2In, cw - 20, 290);
+            
+            if(currentEnv === 'acidic') {
+                ctx.textAlign = 'right';
+                ctx.fillText(t.cvH2OOut, cw - 20, 505);
+            } else {
+                ctx.textAlign = 'left';
+                ctx.fillText(t.cvH2OOut, 20, 505);
+            }
+
+            // Arrow hints
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.font = '24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('→', 100, 338);
+            ctx.fillText('←', 700, 338);
+            if(currentEnv === 'acidic') {
+                ctx.fillText('↘', 700, 448);
+            } else {
+                ctx.fillText('↙', 100, 448);
+            }
+            
+            // Electron flow direction indicator
+            if (activeElectrons > 0) {
+                ctx.fillStyle = '#fde047';
+                ctx.font = '14px sans-serif';
+                ctx.fillText(`e⁻ →`, 320, wireTopY - 15);
+                ctx.fillText(`→ e⁻`, 480, wireTopY - 15);
+            }
+
+            // --- 繪製圖例 (Draw Legend) ---
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillText(t.lgLegend, 20, 30);
+            
+            // Legend: H2
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath(); ctx.arc(30, 50, 6, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(42, 50, 6, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '14px sans-serif';
+            ctx.fillText(t.lgH2, 55, 55);
+
+            // Legend: O2
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(30, 75, 7, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(44, 75, 7, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillText(t.lgO2, 55, 80);
+
+            // Conditional Legend based on Environment
+            if(currentEnv === 'acidic') {
+                // Legend: H+
+                ctx.fillStyle = '#3b82f6';
+                ctx.beginPath(); ctx.arc(37, 100, 6, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '10px Arial';
+                ctx.fillText('+', 34, 103);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = '14px sans-serif';
+                ctx.fillText(t.lgH_plus, 55, 105);
+            } else {
+                // Legend: OH-
+                ctx.fillStyle = '#14b8a6';
+                ctx.beginPath(); ctx.arc(37, 100, 6, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath(); ctx.arc(33, 103, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '10px Arial';
+                ctx.fillText('-', 40, 97);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = '14px sans-serif';
+                ctx.fillText(t.lgOH_minus, 55, 105);
+            }
+
+            // Legend: e-
+            ctx.fillStyle = '#fde047';
+            ctx.shadowColor = '#facc15';
+            ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.arc(37, 125, 4, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillText(t.lgE_minus, 55, 130);
+
+            // Legend: H2O
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(37, 150, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath(); ctx.arc(31, 155, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(43, 155, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillText(t.lgH2O, 55, 155);
+        }
+
+        function updateLangUI() {
+            const t = dict[currentLang];
+            document.getElementById('main-title').innerText = t.mainTitle + " " + (currentEnv === 'acidic' ? t.envLabel : t.envLabelAlk);
+            document.getElementById('sub-title').innerText = t.subTitle;
+            document.getElementById('lang-btn').innerText = t.langBtn;
+            document.getElementById('env-btn').innerText = currentEnv === 'acidic' ? t.envBtnAcidic : t.envBtnAlkaline;
+            document.getElementById('rate-label').innerText = t.rateLabel;
+            document.getElementById('desc-title').innerText = t.descTitle;
+            
+            document.getElementById('desc-text').innerText = currentEnv === 'acidic' ? t.descTextAcidic : t.descTextAlkaline;
+            document.getElementById('anode-title').innerText = t.anodeTitle;
+            document.getElementById('anode-desc').innerText = currentEnv === 'acidic' ? t.anodeDescAcidic : t.anodeDescAlkaline;
+            document.querySelector('#anode-desc + .equation').innerHTML = currentEnv === 'acidic' ? t.anodeEqAcidic : t.anodeEqAlkaline;
+            
+            document.getElementById('cathode-title').innerText = t.cathodeTitle;
+            document.getElementById('cathode-desc').innerText = currentEnv === 'acidic' ? t.cathodeDescAcidic : t.cathodeDescAlkaline;
+            document.querySelector('#cathode-desc + .equation').innerHTML = currentEnv === 'acidic' ? t.cathodeEqAcidic : t.cathodeEqAlkaline;
+            
+            document.getElementById('overall-title').innerText = t.overallTitle;
+            
+            if(isRunning) {
+                toggleBtn.innerText = t.stopBtn;
+                toggleBtn.classList.replace('bg-blue-600', 'bg-red-600');
+                toggleBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
+                toggleBtn.classList.replace('shadow-[0_0_15px_rgba(59,130,246,0.5)]', 'shadow-[0_0_15px_rgba(239,68,68,0.5)]');
+            } else {
+                toggleBtn.innerText = t.startBtn;
+                toggleBtn.classList.replace('bg-red-600', 'bg-blue-600');
+                toggleBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
+                toggleBtn.classList.replace('shadow-[0_0_15px_rgba(239,68,68,0.5)]', 'shadow-[0_0_15px_rgba(59,130,246,0.5)]');
+            }
+            
+            // Redraw background to update canvas text immediately if paused
+            if(!isRunning) drawBackground();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'tc' ? 'en' : 'tc';
+            updateLangUI();
+        }
+
+        function toggleEnv() {
+            currentEnv = currentEnv === 'acidic' ? 'alkaline' : 'acidic';
+            particles = []; // 切換環境時清空當前粒子，避免不同環境的粒子混雜
+            activeElectrons = 0;
+            updateLangUI();
+        }
+
+        function toggleSimulation() {
+            isRunning = !isRunning;
+            updateLangUI();
+            if(isRunning) {
+                animate();
+            }
+        }
+
+        function animate() {
+            if(!isRunning) return;
+            
+            drawBackground();
+
+            let rate = parseInt(slider.value);
+            let spawnIntervalH2 = Math.max(5, 30 - rate * 5);
+            let spawnIntervalO2 = Math.max(10, 50 - rate * 8);
+
+            // Spawning particles
+            frameCount++;
+            if(frameCount % spawnIntervalH2 === 0) {
+                particles.push(new Particle('H2', 0, 310 + Math.random()*40));
+            }
+            if(frameCount % spawnIntervalO2 === 0) {
+                particles.push(new Particle('O2', cw, 310 + Math.random()*40));
+            }
+
+            activeElectrons = 0;
+
+            // Update and draw
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update();
+                p.draw(ctx);
+                
+                if(p.type === 'e-' && p.state === 1) {
+                    activeElectrons++;
+                }
+
+                if(!p.active) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize
+        updateLangUI();
+        drawBackground(); // Initial draw before start
+
+    </script>
+</body>
+</html>

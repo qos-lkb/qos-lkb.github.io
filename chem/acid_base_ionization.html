@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>酸鹼在水中的電離 | Ionization of Acids and Bases</title>
+    <!-- 使用 Tailwind CSS 進行快速響應式排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入字體圖標 (Phosphor Icons) 用於介面美化 -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        canvas { background: linear-gradient(to bottom, #e0f2fe 0%, #bae6fd 100%); border-radius: 12px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.1); }
+        .tab-active { border-bottom: 4px solid #3b82f6; color: #1d4ed8; font-weight: bold; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); }
+        .particle-legend { display: inline-flex; align-items: center; margin-right: 12px; font-size: 0.875rem; }
+        .particle-dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; margin-right: 4px; border: 1px solid rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden">
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "酸鹼在水中的電離", "en": "Ionization of Acids and Bases"}, "grade": {"zh": "中四化學", "en": "S4 Chemistry"}, "steps": {"zh": ["在模擬器選「酸」，再選「強」，看粒子幾乎全部電離。", "改選「弱」酸，比較只有小部分電離。", "改到「鹼」，同樣比較強和弱。", "不要只看挑戰區分數；回到模擬器確認強弱的粒子圖。"], "en": ["Choose acid, then strong, and see nearly complete ionisation.", "Switch to weak and compare the small fraction ionised.", "Repeat for a base, both strong and weak.", "Use the simulator view, not only the quiz score, to compare strong and weak."]}, "principle": {"zh": ["強酸、強鹼在水中幾乎完全電離；弱酸、弱鹼只部分電離，並存在平衡。", "強弱說的是電離程度，不是濃度。稀的強酸仍然幾乎完全電離。", "鹽酸是強酸，醋酸是弱酸。氫氧化鈉是強鹼，氨水是弱鹼。"], "en": ["Strong acids and bases ionise almost completely. Weak ones ionise only partly and stay in equilibrium.", "Strong or weak describes the degree of ionisation, not the concentration.", "Hydrochloric acid is strong; ethanoic acid is weak. Sodium hydroxide is strong; aqueous ammonia is weak."]}, "quiz": [{"zh": "弱酸在水中的粒子圖應最接近？", "en": "The particle view of a weak acid should show?", "azh": "B。", "aen": "B.", "czh": ["幾乎全部是離子", "大部分仍是分子，只有少量離子", "完全沒有水", "只有金屬原子"], "cen": ["Almost all ions", "Mostly molecules and only a few ions", "No water at all", "Only metal atoms"], "ans": 1}, {"zh": "先預測強鹼會比弱鹼出現更多離子，再在模擬器切換強／弱核對。", "en": "Predict that a strong base shows more ions than a weak base, then switch strong and weak.", "azh": "強鹼幾乎完全電離，離子明顯較多。", "aen": "A strong base is almost fully ionised, so many more ions appear."}, {"zh": "「強」和「濃」的分別是？", "en": "How do strong and concentrated differ?", "azh": "B。", "aen": "B.", "czh": ["兩者意思相同", "強弱看電離程度，濃稀看濃度", "強一定是固體", "濃一定不能導電"], "cen": ["They mean the same thing", "Strong/weak is about ionisation; concentrated/dilute is about concentration", "Strong means the substance is a solid", "Concentrated means it cannot conduct"], "ans": 1}, {"zh": "比較酸的「強」和「弱」畫面，先預測弱酸仍看得到未電離分子，再切換。", "en": "Compare strong and weak acid views. Predict that the weak acid still shows unionised molecules, then switch.", "azh": "弱酸畫面留下許多分子。", "aen": "The weak-acid view still shows many molecules."}, {"zh": "氨水屬於？", "en": "Aqueous ammonia is?", "azh": "B。", "aen": "B.", "czh": ["強酸", "弱鹼", "強鹼", "中性金屬"], "cen": ["A strong acid", "A weak base", "A strong base", "A neutral metal"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+
+<script>
+    // ==========================================
+    // 已更新為老師提供的最新部署網址
+    // ==========================================
+    const GOOGLE_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz8QwrKcAaUavIhc81GG5K58gXFkFy9_YW8TtM11SkpLpcMQID1lkvruroT-PKTXOzzJQ/exec"; 
+    // ==========================================
+
+    // 多語言字典
+    const i18n = {
+        zh: {
+            title: "酸鹼電離模擬器",
+            simTab: "模擬器",
+            challengeTab: "挑戰區",
+            langBtn: "English",
+            typeLabel: "物質類別：",
+            acid: "酸 (Acid)",
+            base: "鹼 (Base)",
+            strengthLabel: "強度：",
+            strong: "強 (Strong)",
+            weak: "弱 (Weak)",
+            simDescStrongAcid: "強酸在水中會「完全電離」(Complete Ionization)。所有的 HA 分子都會分解成 H⁺ 和 A⁻ 離子。這就是為什麼它有很高的導電性。",
+            simDescWeakAcid: "弱酸在水中只會「部分電離」(Partial Ionization)。大部分以 HA 分子的形式存在，只有極少數電離成 H⁺ 和 A⁻。這是一個可逆反應 (HA ⇌ H⁺ + A⁻)。",
+            simDescStrongBase: "強鹼在水中會「完全電離」(Complete Ionization)。所有的 MOH 都會分解成 M⁺ 和 OH⁻ 離子。",
+            simDescWeakBase: "弱鹼在水中只會「部分電離」(Partial Ionization)。大部分以分子形式存在，只有極少數與水反應產生 OH⁻ 離子 (B + H₂O ⇌ BH⁺ + OH⁻)。",
+            legendParticles: "粒子圖例：",
+            startChallenge: "開始挑戰",
+            enterName: "請輸入你的名字：",
+            namePlaceholder: "例如：陳小明",
+            nameError: "請先輸入名字！",
+            qNum: "題號：",
+            score: "得分：",
+            nextBtn: "下一題",
+            finishBtn: "完成並提交",
+            resultTitle: "挑戰結果",
+            passMsg: "恭喜！你成功完成了挑戰！ 🎉",
+            failMsg: "挑戰失敗，繼續努力！(需要答對 8 題才算過關) 💪",
+            submitting: "正在提交成績至 Google Sheets...",
+            submitSuccess: "成績已成功匯出至 Google 試算表！",
+            submitFail: "成績提交失敗，請檢查網絡或聯絡老師。",
+            restartBtn: "重新挑戰"
+        },
+        en: {
+            title: "Acid & Base Ionization Simulator",
+            simTab: "Simulator",
+            challengeTab: "Challenge Area",
+            langBtn: "中文",
+            typeLabel: "Substance Type:",
+            acid: "Acid",
+            base: "Base",
+            strengthLabel: "Strength:",
+            strong: "Strong",
+            weak: "Weak",
+            simDescStrongAcid: "Strong acids undergo 'Complete Ionization' in water. All HA molecules dissociate into H⁺ and A⁻ ions. This is why they have high electrical conductivity.",
+            simDescWeakAcid: "Weak acids undergo only 'Partial Ionization' in water. Most remain as HA molecules, with very few ionizing into H⁺ and A⁻. This is a reversible reaction (HA ⇌ H⁺ + A⁻).",
+            simDescStrongBase: "Strong bases undergo 'Complete Ionization' in water. All MOH dissociates into M⁺ and OH⁻ ions.",
+            simDescWeakBase: "Weak bases undergo only 'Partial Ionization' in water. Most remain as molecules, with very few reacting with water to produce OH⁻ ions (B + H₂O ⇌ BH⁺ + OH⁻).",
+            legendParticles: "Particle Legend:",
+            startChallenge: "Start Challenge",
+            enterName: "Enter your name:",
+            namePlaceholder: "e.g. John Doe",
+            nameError: "Please enter your name!",
+            qNum: "Question: ",
+            score: "Score: ",
+            nextBtn: "Next",
+            finishBtn: "Finish & Submit",
+            resultTitle: "Challenge Result",
+            passMsg: "Congratulations! You passed the challenge! 🎉",
+            failMsg: "Challenge failed, keep trying! (Need 8 correct to pass) 💪",
+            submitting: "Submitting score to Google Sheets...",
+            submitSuccess: "Score successfully exported to Google Sheets!",
+            submitFail: "Submission failed. Check network or contact teacher.",
+            restartBtn: "Restart Challenge"
+        }
+    };
+
+    // 20題挑戰題目
+    const questionsData = [
+        {
+            zh: { q: "強酸的定義是什麼？", options: ["在水中能完全電離出氫離子的物質", "在水中能部分電離出氫離子的物質", "pH值大於7的物質", "在水中完全電離出氫氧離子的物質"] },
+            en: { q: "What is the definition of a strong acid?", options: ["A substance that completely ionizes in water to give hydrogen ions", "A substance that partially ionizes in water to give hydrogen ions", "A substance with pH > 7", "A substance that completely ionizes to give hydroxide ions"] },
+            ans: 0
+        },
+        {
+            zh: { q: "下列哪一個是弱酸的例子？", options: ["鹽酸 (HCl)", "乙酸/醋酸 (CH₃COOH)", "硝酸 (HNO₃)", "硫酸 (H₂SO₄)"] },
+            en: { q: "Which of the following is an example of a weak acid?", options: ["Hydrochloric acid (HCl)", "Ethanoic/Acetic acid (CH₃COOH)", "Nitric acid (HNO₃)", "Sulfuric acid (H₂SO₄)"] },
+            ans: 1
+        },
+        {
+            zh: { q: "在同濃度的情況下，強酸與弱酸相比，其電導率(導電性)如何？", options: ["兩者一樣高", "弱酸較高", "強酸較高", "兩者皆不能導電"] },
+            en: { q: "At the same concentration, how does the electrical conductivity of a strong acid compare to a weak acid?", options: ["Both are equally high", "Weak acid is higher", "Strong acid is higher", "Neither can conduct electricity"] },
+            ans: 2
+        },
+        {
+            zh: { q: "強鹼在水中的電離方程式，通常會使用哪種箭嘴？", options: ["雙向箭嘴 (⇌)", "向下箭嘴 (↓)", "向上箭嘴 (↑)", "單向箭嘴 (→)"] },
+            en: { q: "Which type of arrow is usually used in the ionization equation of a strong base in water?", options: ["Reversible arrow (⇌)", "Downward arrow (↓)", "Upward arrow (↑)", "Single arrow (→)"] },
+            ans: 3
+        },
+        {
+            zh: { q: "弱鹼溶液中，主要存在什麼微粒？", options: ["未電離的鹼分子", "氫氧離子 (OH⁻)", "氫離子 (H⁺)", "金屬離子"] },
+            en: { q: "Which particles mainly exist in a weak base solution?", options: ["Un-ionized base molecules", "Hydroxide ions (OH⁻)", "Hydrogen ions (H⁺)", "Metal ions"] },
+            ans: 0
+        },
+        {
+            zh: { q: "為什麼氨水 (NH₃) 被稱為弱鹼？", options: ["因為它有刺激性氣味", "因為它在水中只能部分電離", "因為它不含氧原子", "因為它的pH值小於7"] },
+            en: { q: "Why is aqueous ammonia (NH₃) called a weak base?", options: ["Because it has a pungent smell", "Because it only partially ionizes in water", "Because it does not contain oxygen atoms", "Because its pH is less than 7"] },
+            ans: 1
+        },
+        {
+            zh: { q: "假設有 100 個 HA (強酸) 分子溶於水，最終溶液中大約有多少個 HA 分子？", options: ["100 個", "約 90 個", "0 個", "約 50 個"] },
+            en: { q: "Suppose 100 HA (strong acid) molecules are dissolved in water. Approximately how many HA molecules are in the final solution?", options: ["100", "About 90", "0", "About 50"] },
+            ans: 2
+        },
+        {
+            zh: { q: "下列哪一個是強鹼的例子？", options: ["氨水 (NH₃)", "碳酸氫鈉 (NaHCO₃)", "氫氧化鋁 (Al(OH)₃)", "氫氧化鈉 (NaOH)"] },
+            en: { q: "Which of the following is an example of a strong base?", options: ["Aqueous ammonia (NH₃)", "Sodium hydrogencarbonate (NaHCO₃)", "Aluminum hydroxide (Al(OH)₃)", "Sodium hydroxide (NaOH)"] },
+            ans: 3
+        },
+        {
+            zh: { q: "濃度相同的鹽酸 (強酸) 和乙酸 (弱酸)，哪一個與鎂帶反應產生氣泡的速率較快？", options: ["鹽酸較快", "乙酸較快", "兩者一樣快", "不會產生氣泡"] },
+            en: { q: "For hydrochloric acid (strong) and ethanoic acid (weak) of the same concentration, which reacts faster with magnesium ribbon to produce bubbles?", options: ["Hydrochloric acid is faster", "Ethanoic acid is faster", "Both are equally fast", "No bubbles produced"] },
+            ans: 0
+        },
+        {
+            zh: { q: "「電離程度」(Degree of ionization) 是指什麼？", options: ["物質溶解在水中的質量", "已電離的分子佔總溶解分子的比例", "溶液的顏色深淺", "溶液中水分子的數量"] },
+            en: { q: "What does 'Degree of ionization' refer to?", options: ["The mass of substance dissolved in water", "The proportion of dissolved molecules that have ionized", "The color intensity of the solution", "The number of water molecules in the solution"] },
+            ans: 1
+        },
+        {
+            zh: { q: "若要表示弱酸在水中的電離，下列哪一個方程式最合適？", options: ["HA → H⁺ + A⁻", "HA + H₂O → H₃O⁺ + A⁻", "HA ⇌ H⁺ + A⁻", "H⁺ + A⁻ → HA"] },
+            en: { q: "Which equation is most suitable to represent the ionization of a weak acid in water?", options: ["HA → H⁺ + A⁻", "HA + H₂O → H₃O⁺ + A⁻", "HA ⇌ H⁺ + A⁻", "H⁺ + A⁻ → HA"] },
+            ans: 2
+        },
+        {
+            zh: { q: "在 1.0 M 氫氧化鈉 (NaOH) 溶液中，主要的微粒是什麼？", options: ["NaOH 分子", "Na 分子 和 OH 分子", "H⁺ 離子", "Na⁺ 離子 和 OH⁻ 離子"] },
+            en: { q: "In a 1.0 M Sodium hydroxide (NaOH) solution, what are the main particles?", options: ["NaOH molecules", "Na molecules and OH molecules", "H⁺ ions", "Na⁺ ions and OH⁻ ions"] },
+            ans: 3
+        },
+        {
+            zh: { q: "「濃」酸和「強」酸有什麼區別？", options: ["濃指溶質多，強指電離程度高", "強指溶質多，濃指電離程度高", "兩者意義完全相同", "濃酸必為強酸，強酸必為濃酸"] },
+            en: { q: "What is the difference between 'concentrated' acid and 'strong' acid?", options: ["Concentrated means more solute, strong means high degree of ionization", "Strong means more solute, concentrated means high degree of ionization", "They mean exactly the same thing", "Concentrated acids must be strong, strong acids must be concentrated"] },
+            ans: 0
+        },
+        {
+            zh: { q: "某溶液的 pH 值為 1，這表示它很可能是？", options: ["弱鹼", "強酸", "弱酸", "強鹼"] },
+            en: { q: "A solution has a pH of 1. This indicates it is most likely a:", options: ["Weak base", "Strong acid", "Weak acid", "Strong base"] },
+            ans: 1
+        },
+        {
+            zh: { q: "下列哪種微粒的濃度決定了溶液的酸性強弱？", options: ["氫氧離子 (OH⁻)", "水分子 (H₂O)", "氫離子 (H⁺) 或 水合氫離子 (H₃O⁺)", "金屬離子"] },
+            en: { q: "The concentration of which particle determines the acidity of a solution?", options: ["Hydroxide ions (OH⁻)", "Water molecules (H₂O)", "Hydrogen ions (H⁺) or Hydronium ions (H₃O⁺)", "Metal ions"] },
+            ans: 2
+        },
+        {
+            zh: { q: "弱鹼 B 在水中的電離反應式 B + H₂O ⇌ BH⁺ + OH⁻ 顯示這是一個：", options: ["燃燒反應", "完全電離反應", "中和反應", "可逆反應的平衡狀態"] },
+            en: { q: "The ionization equation of a weak base B in water, B + H₂O ⇌ BH⁺ + OH⁻, shows this is a:", options: ["Combustion reaction", "Complete ionization reaction", "Neutralization reaction", "Reversible reaction in equilibrium"] },
+            ans: 3
+        },
+        {
+            zh: { q: "為什麼弱酸的導電性比同濃度的強酸差？", options: ["因為弱酸溶液中自由移動的離子數量較少", "因為弱酸分子體積較大阻礙導電", "因為水分子會吸收電子", "因為弱酸本身是絕緣體"] },
+            en: { q: "Why is the conductivity of a weak acid poorer than a strong acid of the same concentration?", options: ["Because there are fewer freely moving ions in a weak acid solution", "Because larger weak acid molecules hinder conductivity", "Because water molecules absorb electrons", "Because weak acids are intrinsically insulators"] },
+            ans: 0
+        },
+        {
+            zh: { q: "將氯化氫氣體溶於水形成鹽酸，這過程涉及什麼？", options: ["只有物理變化", "化學鍵斷裂形成氫離子和氯離子", "變成弱酸", "產生氫氣"] },
+            en: { q: "Dissolving hydrogen chloride gas in water to form hydrochloric acid involves:", options: ["Only a physical change", "Breaking of chemical bonds to form hydrogen and chloride ions", "Becoming a weak acid", "Producing hydrogen gas"] },
+            ans: 1
+        },
+        {
+            zh: { q: "強鹼如氫氧化鉀 (KOH) 的電離度接近多少？", options: ["0%", "50%", "100%", "5%"] },
+            en: { q: "What is the approximate degree of ionization for a strong base like potassium hydroxide (KOH)?", options: ["0%", "50%", "100%", "5%"] },
+            ans: 2
+        },
+        {
+            zh: { q: "如果要分辨兩瓶無色液體，一瓶是 0.1M HCl，一瓶是 0.1M CH₃COOH，最快速有效的方法是？", options: ["觀察顏色", "聞氣味", "蒸發水分", "測試pH值或導電率"] },
+            en: { q: "To distinguish between two colorless liquids, 0.1M HCl and 0.1M CH₃COOH, the fastest and most effective method is:", options: ["Observe color", "Smell", "Evaporate water", "Test pH or electrical conductivity"] },
+            ans: 3
+        }
+    ];
+
+    // 狀態變數
+    let currentLang = 'zh';
+    let currentTab = 'sim'; 
+    let currentType = 'acid'; 
+    let currentStrength = 'strong'; 
+
+    let playerName = '';
+    let currentQIndex = 0;
+    let score = 0;
+    let challengeState = 'start'; 
+
+    let canvas, ctx;
+    let particles = [];
+    let animationId;
+
+    window.onload = () => {
+        initUI();
+        initCanvas();
+        updateText();
+        updateSimulation();
+    };
+
+    function initUI() {
+        document.getElementById('tab-sim').addEventListener('click', () => switchTab('sim'));
+        document.getElementById('tab-challenge').addEventListener('click', () => switchTab('challenge'));
+        
+        document.getElementById('lang-btn').addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateText();
+            if(currentTab === 'challenge' && challengeState === 'playing') {
+                renderQuestion(); 
+            }
+        });
+
+        document.getElementById('btn-acid').addEventListener('click', () => { currentType = 'acid'; updateControlUI(); updateSimulation(); });
+        document.getElementById('btn-base').addEventListener('click', () => { currentType = 'base'; updateControlUI(); updateSimulation(); });
+        document.getElementById('btn-strong').addEventListener('click', () => { currentStrength = 'strong'; updateControlUI(); updateSimulation(); });
+        document.getElementById('btn-weak').addEventListener('click', () => { currentStrength = 'weak'; updateControlUI(); updateSimulation(); });
+
+        document.getElementById('btn-start-challenge').addEventListener('click', startChallenge);
+        document.getElementById('btn-next-q').addEventListener('click', nextQuestion);
+        document.getElementById('btn-restart').addEventListener('click', resetChallenge);
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('tab-sim').classList.toggle('tab-active', tab === 'sim');
+        document.getElementById('tab-challenge').classList.toggle('tab-active', tab === 'challenge');
+        document.getElementById('tab-sim').classList.toggle('text-gray-500', tab !== 'sim');
+        document.getElementById('tab-challenge').classList.toggle('text-gray-500', tab !== 'challenge');
+
+        document.getElementById('view-sim').classList.toggle('hidden', tab !== 'sim');
+        document.getElementById('view-challenge').classList.toggle('hidden', tab !== 'challenge');
+
+        if(tab === 'sim') {
+            updateSimulation();
+        } else {
+            cancelAnimationFrame(animationId);
+        }
+    }
+
+    function updateControlUI() {
+        const setBtnActive = (id, isActive, colorClass) => {
+            const el = document.getElementById(id);
+            if(isActive) {
+                el.className = `flex-1 py-2 rounded-lg font-bold text-white shadow transition-all ${colorClass}`;
+            } else {
+                el.className = `flex-1 py-2 rounded-lg font-bold bg-white text-gray-600 border border-gray-300 hover:bg-gray-100 transition-all`;
+            }
+        };
+
+        setBtnActive('btn-acid', currentType === 'acid', 'bg-red-500 hover:bg-red-600');
+        setBtnActive('btn-base', currentType === 'base', 'bg-blue-500 hover:bg-blue-600');
+        setBtnActive('btn-strong', currentStrength === 'strong', 'bg-purple-600 hover:bg-purple-700');
+        setBtnActive('btn-weak', currentStrength === 'weak', 'bg-green-500 hover:bg-green-600');
+
+        updateText();
+    }
+
+    function updateText() {
+        const t = i18n[currentLang];
+        document.getElementById('app-title').innerText = t.title;
+        document.getElementById('tab-sim').innerText = t.simTab;
+        document.getElementById('tab-challenge').innerText = t.challengeTab;
+        document.getElementById('lang-btn').innerText = t.langBtn;
+
+        document.getElementById('lbl-type').innerText = t.typeLabel;
+        document.getElementById('btn-acid').innerText = t.acid;
+        document.getElementById('btn-base').innerText = t.base;
+        
+        document.getElementById('lbl-strength').innerText = t.strengthLabel;
+        document.getElementById('btn-strong').innerText = t.strong;
+        document.getElementById('btn-weak').innerText = t.weak;
+
+        document.getElementById('lbl-legend').innerText = t.legendParticles;
+        document.getElementById('btn-start-challenge').innerText = t.startChallenge;
+        document.getElementById('lbl-enter-name').innerText = t.enterName;
+        document.getElementById('player-name').placeholder = t.namePlaceholder;
+        document.getElementById('lbl-result-title').innerText = t.resultTitle;
+        document.getElementById('btn-restart').innerText = t.restartBtn;
+        
+        const errorMsgEl = document.getElementById('name-error');
+        if(!errorMsgEl.classList.contains('hidden')) {
+            errorMsgEl.innerText = t.nameError;
+        }
+
+        let descKey = 'simDesc' + currentStrength.charAt(0).toUpperCase() + currentStrength.slice(1) + currentType.charAt(0).toUpperCase() + currentType.slice(1);
+        document.getElementById('sim-description').innerText = t[descKey];
+
+        updateLegend();
+    }
+
+    function updateLegend() {
+        const legendDiv = document.getElementById('legend-container');
+        legendDiv.innerHTML = '';
+        
+        let particleTypes = [];
+        if (currentType === 'acid') {
+            if (currentStrength === 'strong') {
+                particleTypes = [
+                    { color: '#ef4444', text: 'H⁺' },
+                    { color: '#f472b6', text: 'A⁻' }
+                ];
+            } else {
+                particleTypes = [
+                    { color: '#9ca3af', text: 'HA' },
+                    { color: '#ef4444', text: 'H⁺' },
+                    { color: '#f472b6', text: 'A⁻' }
+                ];
+            }
+        } else {
+            if (currentStrength === 'strong') {
+                particleTypes = [
+                    { color: '#38bdf8', text: 'M⁺' },
+                    { color: '#3b82f6', text: 'OH⁻' }
+                ];
+            } else {
+                particleTypes = [
+                    { color: '#9ca3af', text: 'B' },
+                    { color: '#a855f7', text: 'BH⁺' },
+                    { color: '#3b82f6', text: 'OH⁻' }
+                ];
+            }
+        }
+
+        particleTypes.forEach(p => {
+            const span = document.createElement('span');
+            span.className = 'particle-legend';
+            span.innerHTML = `<span class="particle-dot" style="background-color: ${p.color};"></span> ${p.text}`;
+            legendDiv.appendChild(span);
+        });
+    }
+
+    function initCanvas() {
+        canvas = document.getElementById('sim-canvas');
+        ctx = canvas.getContext('2d');
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+    }
+
+    function resizeCanvas() {
+        const container = canvas.parentElement;
+        canvas.width = container.clientWidth;
+        canvas.height = 300; 
+    }
+
+    class Particle {
+        constructor(x, y, radius, color, text) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.color = color;
+            this.text = text;
+            this.vx = (Math.random() - 0.5) * 2; 
+            this.vy = (Math.random() - 0.5) * 2; 
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) this.vx *= -1;
+            const waterTop = canvas.height * 0.2;
+            if (this.y - this.radius < waterTop || this.y + this.radius > canvas.height) this.vy *= -1;
+
+            this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+            this.y = Math.max(waterTop + this.radius, Math.min(canvas.height - this.radius, this.y));
+        }
+
+        draw(ctx) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.strokeStyle = "rgba(0,0,0,0.2)";
+            ctx.stroke();
+
+            ctx.fillStyle = "white";
+            ctx.font = "bold 12px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(this.text, this.x, this.y);
+        }
+    }
+
+    function updateSimulation() {
+        cancelAnimationFrame(animationId);
+        particles = [];
+        
+        const totalParticles = 40;
+        const colors = {
+            H: '#ef4444', A: '#f472b6', HA: '#9ca3af',
+            OH: '#3b82f6', M: '#38bdf8', B: '#9ca3af', BH: '#a855f7'
+        };
+
+        const waterTop = 300 * 0.2;
+        
+        for (let i = 0; i < totalParticles; i++) {
+            let x = Math.random() * (canvas.width - 30) + 15;
+            let y = Math.random() * (300 - waterTop - 30) + waterTop + 15;
+            
+            if (currentType === 'acid') {
+                if (currentStrength === 'strong') {
+                    if (i % 2 === 0) particles.push(new Particle(x, y, 14, colors.H, 'H⁺'));
+                    else particles.push(new Particle(x, y, 14, colors.A, 'A⁻'));
+                } else {
+                    if (i < totalParticles * 0.8) particles.push(new Particle(x, y, 16, colors.HA, 'HA'));
+                    else if (i % 2 === 0) particles.push(new Particle(x, y, 12, colors.H, 'H⁺'));
+                    else particles.push(new Particle(x, y, 12, colors.A, 'A⁻'));
+                }
+            } else {
+                if (currentStrength === 'strong') {
+                    if (i % 2 === 0) particles.push(new Particle(x, y, 14, colors.M, 'M⁺'));
+                    else particles.push(new Particle(x, y, 14, colors.OH, 'OH⁻'));
+                } else {
+                    if (i < totalParticles * 0.8) particles.push(new Particle(x, y, 16, colors.B, 'B'));
+                    else if (i % 2 === 0) particles.push(new Particle(x, y, 14, colors.BH, 'BH⁺'));
+                    else particles.push(new Particle(x, y, 12, colors.OH, 'OH⁻'));
+                }
+            }
+        }
+        animate();
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const waterTop = canvas.height * 0.2;
+        ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        ctx.fillRect(0, waterTop, canvas.width, canvas.height - waterTop);
+        
+        ctx.beginPath();
+        ctx.moveTo(0, waterTop);
+        ctx.lineTo(canvas.width, waterTop);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        particles.forEach(p => {
+            p.update();
+            p.draw(ctx);
+        });
+        animationId = requestAnimationFrame(animate);
+    }
+
+    function startChallenge() {
+        const nameInput = document.getElementById('player-name').value.trim();
+        const errorMsg = document.getElementById('name-error');
+        
+        if (!nameInput) {
+            errorMsg.innerText = i18n[currentLang].nameError;
+            errorMsg.classList.remove('hidden');
+            return;
+        }
+        
+        errorMsg.classList.add('hidden');
+        playerName = nameInput;
+        score = 0;
+        currentQIndex = 0;
+        challengeState = 'playing';
+        
+        document.getElementById('chal-start-screen').classList.add('hidden');
+        document.getElementById('chal-play-screen').classList.remove('hidden');
+        document.getElementById('chal-result-screen').classList.add('hidden');
+        
+        renderQuestion();
+    }
+
+    function renderQuestion() {
+        const qData = questionsData[currentQIndex];
+        const t = i18n[currentLang];
+        
+        document.getElementById('q-progress').innerText = `${t.qNum} ${currentQIndex + 1} / 20`;
+        document.getElementById('q-score').innerText = `${t.score} ${score}`;
+        
+        const progressPct = ((currentQIndex) / 20) * 100;
+        document.getElementById('progress-bar').style.width = `${progressPct}%`;
+
+        document.getElementById('q-text').innerText = qData[currentLang].q;
+        
+        const optionsContainer = document.getElementById('q-options');
+        optionsContainer.innerHTML = '';
+        
+        qData[currentLang].options.forEach((opt, index) => {
+            const btn = document.createElement('button');
+            btn.className = "w-full text-left p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-blue-500 hover:bg-blue-50 transition-all font-medium";
+            btn.innerText = `${String.fromCharCode(65 + index)}. ${opt}`;
+            btn.onclick = () => selectOption(index, btn);
+            optionsContainer.appendChild(btn);
+        });
+
+        document.getElementById('btn-next-q').classList.add('hidden');
+        document.getElementById('btn-next-q').innerText = (currentQIndex === 19) ? t.finishBtn : t.nextBtn;
+    }
+
+    let selectedAnswerIndex = -1;
+    function selectOption(index, btnElement) {
+        if (selectedAnswerIndex !== -1) return; 
+        
+        selectedAnswerIndex = index;
+        const qData = questionsData[currentQIndex];
+        const isCorrect = (index === qData.ans);
+        const allBtns = document.getElementById('q-options').children;
+        
+        for(let i=0; i<allBtns.length; i++) {
+            allBtns[i].disabled = true;
+            if (i === qData.ans) {
+                allBtns[i].classList.replace('border-gray-200', 'border-green-500');
+                allBtns[i].classList.replace('hover:bg-blue-50', 'bg-green-100');
+                allBtns[i].classList.add('text-green-800');
+            } else if (i === index && !isCorrect) {
+                allBtns[i].classList.replace('border-gray-200', 'border-red-500');
+                allBtns[i].classList.replace('hover:bg-blue-50', 'bg-red-100');
+                allBtns[i].classList.add('text-red-800');
+            } else {
+                allBtns[i].classList.add('opacity-50');
+            }
+        }
+
+        if (isCorrect) score++;
+        document.getElementById('q-score').innerText = `${i18n[currentLang].score} ${score}`;
+        document.getElementById('btn-next-q').classList.remove('hidden');
+    }
+
+    function nextQuestion() {
+        selectedAnswerIndex = -1;
+        currentQIndex++;
+        
+        if (currentQIndex < 20) {
+            renderQuestion();
+        } else {
+            finishChallenge();
+        }
+    }
+
+    function finishChallenge() {
+        challengeState = 'result';
+        document.getElementById('chal-play-screen').classList.add('hidden');
+        document.getElementById('chal-result-screen').classList.remove('hidden');
+        
+        const t = i18n[currentLang];
+        document.getElementById('final-score').innerText = `${score} / 20`;
+        
+        const isPass = score >= 8;
+        const msgEl = document.getElementById('final-msg');
+        msgEl.innerText = isPass ? t.passMsg : t.failMsg;
+        msgEl.className = `text-xl font-bold mt-4 text-center ${isPass ? 'text-green-600' : 'text-red-600'}`;
+
+        submitToGoogleSheets();
+    }
+
+    function submitToGoogleSheets() {
+        const t = i18n[currentLang];
+        const statusEl = document.getElementById('submit-status');
+        statusEl.innerText = t.submitting;
+        statusEl.className = "mt-4 text-sm text-blue-600 text-center flex items-center justify-center gap-2";
+        statusEl.innerHTML = `<i class="ph ph-spinner animate-spin text-xl"></i> ${t.submitting}`;
+
+        // 【更新】使用 URLSearchParams 將資料轉為 form 表單格式，這可以避開瀏覽器的 OPTIONS 預檢與 CORS 錯誤
+        const payload = new URLSearchParams({
+            name: playerName,
+            score: score
+        });
+
+        fetch(GOOGLE_WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors', // 加入 no-cors 以解決 Failed to fetch (CORS 阻擋) 的問題
+            body: payload,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        })
+        .then(() => {
+            // 在 no-cors 模式下無法讀取伺服器的 response，因此只要沒有網路錯誤就視為成功
+            statusEl.innerHTML = `<i class="ph ph-check-circle text-xl text-green-500"></i> <span class="text-green-600 font-bold">${t.submitSuccess}</span>`;
+        })
+        .catch(err => {
+            statusEl.innerHTML = `<i class="ph ph-x-circle text-xl text-red-500"></i> <span class="text-red-600">${t.submitFail}</span>`;
+            console.error('Submission Error:', err);
+        });
+    }
+
+    function resetChallenge() {
+        challengeState = 'start';
+        document.getElementById('chal-result-screen').classList.add('hidden');
+        document.getElementById('chal-start-screen').classList.remove('hidden');
+        document.getElementById('player-name').value = '';
+        document.getElementById('submit-status').innerHTML = '';
+    }
+
+</script>
+
+<div class="flex flex-col h-full">
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 flex justify-between items-center z-10">
+        <h1 id="app-title" class="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <i class="ph-fill ph-flask text-blue-500"></i> 酸鹼電離模擬器
+        </h1>
+        <button id="lang-btn" class="px-4 py-1.5 rounded-full border border-gray-300 text-sm font-medium hover:bg-gray-100 transition-colors">
+            English
+        </button>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="flex bg-white border-b border-gray-200">
+        <button id="tab-sim" class="flex-1 py-3 text-center tab-active transition-colors">模擬器</button>
+        <button id="tab-challenge" class="flex-1 py-3 text-center text-gray-500 transition-colors">挑戰區</button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto p-4 relative">
+        
+        <!-- View 1: 模擬器 Simulator -->
+        <div id="view-sim" class="max-w-4xl mx-auto h-full flex flex-col gap-4">
+            <!-- 控制面版 -->
+            <div class="glass-panel p-4 rounded-xl shadow-sm">
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="flex-1">
+                        <p id="lbl-type" class="text-sm text-gray-500 mb-2 font-semibold">物質類別：</p>
+                        <div class="flex gap-2">
+                            <button id="btn-acid" class="flex-1 py-2 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 shadow transition-all">酸 (Acid)</button>
+                            <button id="btn-base" class="flex-1 py-2 rounded-lg font-bold bg-white text-gray-600 border border-gray-300 hover:bg-gray-100 transition-all">鹼 (Base)</button>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <p id="lbl-strength" class="text-sm text-gray-500 mb-2 font-semibold">強度：</p>
+                        <div class="flex gap-2">
+                            <button id="btn-strong" class="flex-1 py-2 rounded-lg font-bold text-white bg-purple-600 hover:bg-purple-700 shadow transition-all">強 (Strong)</button>
+                            <button id="btn-weak" class="flex-1 py-2 rounded-lg font-bold bg-white text-gray-600 border border-gray-300 hover:bg-gray-100 transition-all">弱 (Weak)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 動畫區域 -->
+            <div class="relative flex-1 min-h-[300px] w-full bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                <canvas id="sim-canvas" class="w-full h-[300px] block"></canvas>
+                <!-- 解說文字 -->
+                <div class="p-4 bg-white border-t border-gray-100 flex-1">
+                    <p id="sim-description" class="text-gray-700 leading-relaxed font-medium"></p>
+                    <div class="mt-4 pt-3 border-t border-gray-100">
+                        <span id="lbl-legend" class="font-bold text-gray-600 mr-2 text-sm">粒子圖例：</span>
+                        <div id="legend-container" class="inline-block mt-1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View 2: 挑戰區 Challenge Area -->
+        <div id="view-challenge" class="max-w-2xl mx-auto hidden h-full flex flex-col justify-center">
+            
+            <!-- 登入畫面 -->
+            <div id="chal-start-screen" class="glass-panel p-8 rounded-2xl shadow-lg text-center">
+                <div class="mb-6">
+                    <i class="ph-fill ph-student text-6xl text-blue-500"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">酸鹼知識挑戰區</h2>
+                <div class="mb-6 text-left">
+                    <label id="lbl-enter-name" class="block text-gray-700 font-bold mb-2">請輸入你的名字：</label>
+                    <input type="text" id="player-name" class="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:outline-none transition-colors" placeholder="例如：陳小明">
+                    <p id="name-error" class="text-red-500 text-sm mt-2 hidden font-bold">請先輸入名字！</p>
+                </div>
+                <button id="btn-start-challenge" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all text-lg">
+                    開始挑戰
+                </button>
+            </div>
+
+            <!-- 答題畫面 -->
+            <div id="chal-play-screen" class="hidden flex flex-col h-full gap-4 pb-10">
+                <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                    <span id="q-progress" class="font-bold text-blue-600">題號： 1 / 20</span>
+                    <span id="q-score" class="font-bold text-green-600">得分： 0</span>
+                </div>
+                
+                <!-- 進度條 -->
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all" style="width: 0%"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm flex-1 flex flex-col">
+                    <h3 id="q-text" class="text-lg md:text-xl font-bold text-gray-800 mb-6">題目文字</h3>
+                    <div id="q-options" class="flex flex-col gap-3 flex-1">
+                        <!-- 選項按鈕會透過 JS 動態產生在此 -->
+                    </div>
+                    <button id="btn-next-q" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow transition-all hidden">
+                        下一題
+                    </button>
+                </div>
+            </div>
+
+            <!-- 結果畫面 -->
+            <div id="chal-result-screen" class="hidden glass-panel p-8 rounded-2xl shadow-lg text-center">
+                <h2 id="lbl-result-title" class="text-3xl font-bold text-gray-800 mb-6">挑戰結果</h2>
+                <div class="text-6xl font-black text-blue-600 mb-4" id="final-score">10 / 20</div>
+                <p id="final-msg" class="text-xl font-bold"></p>
+                
+                <div id="submit-status" class="mt-6 p-4 bg-blue-50 rounded-lg"></div>
+
+                <button id="btn-restart" class="mt-8 bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-xl shadow transition-all">
+                    重新挑戰
+                </button>
+            </div>
+
+        </div>
+    </main>
+</div>
+</body>
+</html>

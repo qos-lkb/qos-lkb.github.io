@@ -1,6 +1,51 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>訊號產生器 | Signal Generator</title>
@@ -75,6 +120,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                 <span data-i18n="btnPrinciple">原理解說</span>
             </button>
+<button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+            <span data-i18n="btnQuiz">課堂問題</span>
+        </button>
+
             <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
@@ -288,7 +337,34 @@ const i18n = {
         s2: '2. 微調 B 的頻率滑桿（對數刻度），觀察拍頻 f<sub>beat</sub> 如何隨 |f<sub>A</sub>−f<sub>B</sub>| 改變。',
         s3: '3. 切換「八度」或「完全五度」，比較音程與波形疊加模樣。',
         s4: '4. 選「波形比較」，同一頻率下聽正弦波與方波的音色差異，並觀察示波器。',
-        s5: '5. 將頻率調至 20 kHz 以上，對照「聽頻範圍」提示——多數人聽不到。'
+        s5: '5. 將頻率調至 20 kHz 以上，對照「聽頻範圍」提示——多數人聽不到。',
+        btnQuiz: '課堂問題',
+            quizTitle: '課堂問題',
+            quizShowAnswers: '顯示參考答案',
+            quizHideAnswers: '隱藏參考答案',
+            quizRef: '參考答案：',
+            quizQ1: '預設拍頻（440 Hz 與 442 Hz）時，拍頻 f_beat＝|f₁−f₂| 約為？',
+            quizQ1a: '0.5 Hz',
+            quizQ1b: '2 Hz',
+            quizQ1c: '440 Hz',
+            quizQ1d: '882 Hz',
+            quizQ1ans: 'B。|440−442|＝2 Hz。',
+            quizQ2: '在 Gen A、B 同時播放時，只把 Gen B 頻率滑桿再調高約 3 Hz，先預測包絡疏密與聽到的拍頻，再操作並對照即時讀數。',
+            quizQ2ans: '|f₁−f₂| 變大 → 拍頻加快、包絡起伏更密。',
+            quizQ3: '「同度」預設（兩者皆 440 Hz）時，合成聲最接近？',
+            quizQ3a: '明顯拍頻',
+            quizQ3b: '穩定純音',
+            quizQ3c: '八度',
+            quizQ3d: '靜音',
+            quizQ3ans: 'B。頻率相同 → 無拍頻，聽感為單一音高。',
+            quizQ4: '比較「同時播放」與「全部停止」：示波器波形與揚聲器輸出有什麼不同？',
+            quizQ4ans: '播放時有疊加波形／聲波；停止後示波器趨於靜止、無聲。',
+            quizQ5: '「八度」預設（440 Hz 與 880 Hz）兩頻率之比為？',
+            quizQ5a: '√2',
+            quizQ5b: '2',
+            quizQ5c: '3',
+            quizQ5d: '1/2',
+            quizQ5ans: 'B. 880/440＝2。'
     },
     en: {
         title: 'Signal Generator', badge: 'Physics', subtitle: 'Dual sources, beats & oscilloscope',
@@ -319,8 +395,36 @@ const i18n = {
         s2: '2. Fine-tune B with the log slider and watch f<sub>beat</sub> = |f<sub>A</sub>−f<sub>B</sub>|.',
         s3: '3. Try Octave or Perfect 5th and compare intervals and wave shapes.',
         s4: '4. Load Waveform comparison: same frequency, sine vs square timbre on scope and by ear.',
-        s5: '5. Push a source above 20 kHz and read the hearing-range badge — most people cannot hear it.'
-    }
+        s5: '5. Push a source above 20 kHz and read the hearing-range badge — most people cannot hear it.',
+    
+            btnQuiz: 'Quiz',
+            quizTitle: 'Classroom quiz',
+            quizShowAnswers: 'Show reference answers',
+            quizHideAnswers: 'Hide reference answers',
+            quizRef: 'Reference: ',
+            quizQ1: 'Beat preset (440 & 442 Hz): f_beat＝|f₁−f₂| is about?',
+            quizQ1a: '0.5 Hz',
+            quizQ1b: '2 Hz',
+            quizQ1c: '440 Hz',
+            quizQ1d: '882 Hz',
+            quizQ1ans: 'B. |440−442|＝2 Hz.',
+            quizQ2: 'Both gens playing: raise only Gen B by ~3 Hz. Predict beat rate and envelope, then check the live readout.',
+            quizQ2ans: 'Larger |f₁−f₂| → faster beats and a tighter envelope.',
+            quizQ3: 'Unison preset (both 440 Hz) sounds most like?',
+            quizQ3a: 'Strong beats',
+            quizQ3b: 'Steady pure tone',
+            quizQ3c: 'Octave',
+            quizQ3d: 'Silence',
+            quizQ3ans: 'B. Equal frequencies → no beats.',
+            quizQ4: 'Compare Play both vs Stop all: scope trace and audio?',
+            quizQ4ans: 'Playing shows superposed waves/sound; stop clears motion and sound.',
+            quizQ5: 'Octave preset (440 & 880 Hz) frequency ratio?',
+            quizQ5a: '√2',
+            quizQ5b: '2',
+            quizQ5c: '3',
+            quizQ5d: '1/2',
+            quizQ5ans: 'B. 880/440＝2.'
+        }
 };
 
 const instrumentHarmonics = {
@@ -374,6 +478,7 @@ function createOctaveData(startFreq) {
 const musicalNotes = { 3: createOctaveData(130.81), 4: createOctaveData(261.63), 5: createOctaveData(523.25) };
 
 function applyI18n() {
+    renderQuiz();
     document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const v = i18n[state.lang][el.dataset.i18n];
@@ -705,6 +810,33 @@ function setModal(id, open) {
 function closeAllModals() {
     setModal('modal-principle', false);
     setModal('modal-steps', false);
+    setModal('modal-quiz', false);
+}
+function openQuizModal() { closeAllModals(); setModal('modal-quiz', true); renderQuiz(); }
+
+
+let quizAnswersVisible = false;
+function renderQuiz() {
+  const box = document.getElementById('quiz-list');
+  if (!box) return;
+  const L = (typeof state !== 'undefined' && state.lang) ? state.lang : ((typeof getLang === 'function') ? getLang() : ((typeof lang !== 'undefined') ? lang : 'zh'));
+  const pack = (typeof platformI18n !== 'undefined' && platformI18n[L]) ? platformI18n[L] : ((typeof i18n !== 'undefined' && i18n[L]) ? i18n[L] : null);
+  function tq(k) {
+    if (pack && pack[k] != null) return pack[k];
+    return k;
+  }
+  const mkChoice = (qid) => ['A','B','C','D'].map(ch => {
+    const key = 'quizQ' + qid.slice(1) + ch.toLowerCase();
+    return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="${qid}" class="mt-1 accent-rose-600"><span>${ch}. ${tq(key)}</span></label>`;
+  }).join('');
+  const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 p-2"><strong>${tq('quizRef')}</strong> ${tq('quizQ'+n+'ans')}</div>` : '';
+  box.innerHTML = [1,2,3,4,5].map(n => {
+    const open = n === 2 || n === 4;
+    return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-slate-800 mb-2">Q${n}. ${tq('quizQ'+n)}</p>${open ? '' : `<div class="grid gap-1.5">${mkChoice('q'+n)}</div>`}${ans(n)}</div>`;
+  }).join('');
+  const btn = document.getElementById('btn-quiz-answers');
+  if (btn) btn.textContent = quizAnswersVisible ? tq('quizHideAnswers') : tq('quizShowAnswers');
+  if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([box]).catch(() => {});
 }
 
 function init() {
@@ -743,12 +875,15 @@ function init() {
         state.lang = state.lang === 'zh' ? 'en' : 'zh';
         applyI18n();
     };
+    document.getElementById('btn-quiz').onclick = openQuizModal;
     document.getElementById('btn-principle').onclick = () => { closeAllModals(); setModal('modal-principle', true); };
     document.getElementById('btn-steps').onclick = () => { closeAllModals(); setModal('modal-steps', true); };
     document.getElementById('modal-close').onclick = document.getElementById('modal-confirm').onclick = () => setModal('modal-principle', false);
     document.getElementById('steps-close').onclick = document.getElementById('steps-confirm').onclick = () => setModal('modal-steps', false);
     document.getElementById('modal-principle').addEventListener('click', e => { if (e.target.id === 'modal-principle') setModal('modal-principle', false); });
     document.getElementById('modal-steps').addEventListener('click', e => { if (e.target.id === 'modal-steps') setModal('modal-steps', false); });
+    document.getElementById('btn-quiz-answers')?.addEventListener('click', () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+    document.getElementById('modal-quiz')?.addEventListener('click', e => { if (e.target.id === 'modal-quiz') setModal('modal-quiz', false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
 
     applyI18n();
@@ -756,5 +891,17 @@ function init() {
 }
 init();
 </script>
+<!-- 課堂問題 -->
+<div id="modal-quiz" class="modal-backdrop fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+    <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5 sm:p-6 transform scale-95 opacity-0">
+        <div class="flex justify-between items-start gap-3 mb-4 flex-wrap">
+            <h2 id="quiz-title" class="text-lg font-black text-rose-800" data-i18n="quizTitle">課堂問題</h2>
+            <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 text-xs font-semibold shrink-0" data-i18n="quizShowAnswers">顯示參考答案</button>
+            <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-700 text-2xl leading-none ml-auto" aria-label="Close">&times;</button>
+        </div>
+        <div id="quiz-list" class="space-y-4 text-sm text-slate-700"></div>
+    </div>
+</div>
+
 </body>
 </html>

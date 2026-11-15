@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>水銀玻管體溫計模型</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* 定義甩動動畫 */
+        body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
             10% { transform: translate(-1px, -2px) rotate(-1deg); }
@@ -23,8 +26,6 @@
         .animate-shake {
             animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
         }
-        
-        /* 確保範圍輸入滑桿樣式一致 */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 20px;
@@ -42,257 +43,391 @@
             background: #cbd5e1;
             border-radius: 2px;
         }
+        .modal-panel { transition: opacity 0.25s ease; }
+        .modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+        .quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; }
+        .quiz-item .q-stem { font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; }
+        .quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+        .quiz-options button {
+            text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid #cbd5e1; background: #f8fafc; font-size: 0.875rem; transition: all 0.15s;
+        }
+        .quiz-options button:hover { border-color: #6366f1; background: #eef2ff; }
+        .quiz-options button.selected { border-color: #4f46e5; background: #e0e7ff; }
+        .quiz-options button.correct { border-color: #16a34a; background: #dcfce7; }
+        .quiz-options button.wrong { border-color: #dc2626; background: #fee2e2; }
+        .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f1f5f9; border-radius: 0.5rem; font-size: 0.85rem; color: #334155; }
+        .quiz-answer.show { display: block; }
     </style>
 </head>
-<body class="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 md:p-8 pb-48 relative overflow-y-auto flex flex-col">
+<body class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-10">
 
-    <!-- Header -->
-    <header class="mb-6 text-center md:text-left z-10">
-        <h1 class="text-3xl font-bold text-slate-800 flex items-center gap-2 justify-center md:justify-start">
-            <!-- Thermometer Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-blue-700">
-                <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/><path d="M15 2v2"/><path d="M15 10v2"/><path d="M9 2v2"/><path d="M9 10v2"/>
-            </svg>
-            水銀玻管體溫計模型
-        </h1>
-        <p class="text-slate-600 mt-2">物理實驗模擬：熱脹冷縮與截流區原理</p>
-    </header>
-
-    <!-- Main Display Area -->
-    <main class="flex-grow flex flex-col items-center w-full max-w-5xl mx-auto relative z-10">
-        
-        <!-- 體溫計 SVG 容器 -->
-        <div id="thermometer-container" class="w-full bg-white rounded-xl shadow-xl p-4 md:p-8 mb-6 border border-slate-200 transition-transform">
-            <div class="relative w-full aspect-[3/1] md:aspect-[3.5/1]">
-                <svg viewBox="0 0 800 220" class="w-full h-full">
-                    <defs>
-                        <!-- 玻璃質感漸層 (帶有淡淡的青藍色，模擬厚玻璃) -->
-                        <linearGradient id="glassGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stop-color="rgba(240,250,255,0.8)" />
-                            <stop offset="20%" stop-color="rgba(220,240,250,0.3)" />
-                            <stop offset="50%" stop-color="rgba(255,255,255,0.1)" /> <!-- 中間透光 -->
-                            <stop offset="80%" stop-color="rgba(200,230,245,0.4)" />
-                            <stop offset="100%" stop-color="rgba(180,210,230,0.6)" />
-                        </linearGradient>
-                        
-                        <!-- 傳統體溫計的黃色琺瑯背襯 (Yellow Backing) -->
-                        <linearGradient id="enamelBacking" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stop-color="#fef9c3" /> <!-- yellow-100 -->
-                            <stop offset="50%" stop-color="#fde047" /> <!-- yellow-300 -->
-                            <stop offset="100%" stop-color="#fef9c3" />
-                        </linearGradient>
-
-                        <!-- 水銀質感漸層 (高對比金屬銀) -->
-                        <linearGradient id="mercuryGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stop-color="#64748b" />   <!-- Slate 500 (深灰邊緣) -->
-                            <stop offset="30%" stop-color="#f8fafc" />   <!-- Slate 50 (強烈高光) -->
-                            <stop offset="50%" stop-color="#cbd5e1" />   <!-- Slate 300 (金屬銀) -->
-                            <stop offset="70%" stop-color="#f8fafc" />   <!-- Slate 50 (強烈高光) -->
-                            <stop offset="100%" stop-color="#64748b" />  <!-- Slate 500 (深灰邊緣) -->
-                        </linearGradient>
-                    </defs>
-
-                    <!-- 0. 琺瑯背襯 (位於毛細管後方，增加對比度) -->
-                    <!-- 僅在管身部分顯示 -->
-                    <path d="M 150,95 L 740,95 L 740,125 L 150,125 Z" fill="url(#enamelBacking)" opacity="0.6" />
-
-                    <!-- 1. 玻璃管主體 (Body) -->
-                    <g>
-                        <!-- 管身輪廓 -->
-                        <path d="M 80,90 L 750,90 Q 770,90 770,110 Q 770,130 750,130 L 80,130 Z" fill="url(#glassGradient)" stroke="#94a3b8" stroke-width="1.5" />
-                        
-                        <!-- 液泡 (更圓潤的形狀) -->
-                        <ellipse cx="60" cy="110" rx="45" ry="35" fill="url(#glassGradient)" stroke="#94a3b8" stroke-width="1.5" />
-                        
-                        <!-- 連接處平滑化遮罩 -->
-                        <path d="M 60,75 Q 95,75 100,90" fill="none" stroke="#94a3b8" stroke-width="0" /> 
-                    </g>
-
-                    <!-- 2. 內部水銀 - 液泡 (Bulb) -->
-                    <ellipse cx="60" cy="110" rx="38" ry="28" fill="url(#mercuryGradient)" />
-
-                    <!-- 3. 截流區 (Kink) -->
-                    <!-- 玻璃通道輪廓 (深色細線) -->
-                    <path d="M 105,110 L 115,102 L 125,110 L 135,102 L 145,110" fill="none" stroke="rgba(100, 116, 139, 0.4)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-
-                    <!-- 截流區水銀 (動態) -->
-                    <path id="kink-mercury" d="M 92,110 L 105,110 L 115,102 L 125,110 L 135,102 L 145,110 L 150,110" fill="none" stroke="url(#mercuryGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-
-                    <!-- 4. 毛細管水銀 (Mercury Column) -->
-                    <!-- 稍微加粗一點點，讓它在黃色背景上更清楚 -->
-                    <rect id="mercury-column" x="150" y="106.5" width="0" height="7" fill="url(#mercuryGradient)" class="transition-all duration-300 ease-out" rx="3.5" />
-
-                    <!-- 5. 玻璃高光 (Highlights) - 增加立體感 -->
-                    <!-- 上方高光 -->
-                    <path d="M 150,95 L 740,95" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round" fill="none" />
-                    <!-- 下方反光 -->
-                    <path d="M 150,125 L 740,125" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round" fill="none" />
-                    <!-- 液泡高光 -->
-                    <ellipse cx="45" cy="95" rx="10" ry="6" fill="rgba(255,255,255,0.7)" transform="rotate(-30 45 95)" />
-
-
-                    <!-- 6. 刻度 (Scale) -->
-                    <!-- 35°C -->
-                    <g transform="translate(0,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">35°C</text>
-                        <!-- 小刻度 -->
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                    <!-- 36°C -->
-                    <g transform="translate(82.85,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">36°C</text>
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                     <!-- 37°C (紅色) -->
-                     <g transform="translate(165.7,0)">
-                        <line x1="150" y1="90" x2="150" y2="80" stroke="#dc2626" stroke-width="2.5" /> 
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-red-600 font-bold" style="font-size: 18px">37°C</text>
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                     <!-- 38°C -->
-                     <g transform="translate(248.55,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">38°C</text>
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                     <!-- 39°C -->
-                     <g transform="translate(331.4,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">39°C</text>
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                     <!-- 40°C -->
-                     <g transform="translate(414.25,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">40°C</text>
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                     <!-- 41°C -->
-                     <g transform="translate(497.1,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">41°C</text>
-                        <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
-                    </g>
-                     <!-- 42°C -->
-                     <g transform="translate(580,0)">
-                        <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
-                        <text x="150" y="75" text-anchor="middle" class="text-xs fill-slate-800 font-bold" style="font-size: 16px">42°C</text>
-                    </g>
-
-
-                    <!-- 7. 標籤系統 -->
-                    <line x1="125" y1="75" x2="125" y2="45" stroke="#ef4444" stroke-width="2" />
-                    <text x="125" y="35" text-anchor="middle" class="fill-red-600 font-bold text-lg">截流區</text>
-                    
-                    <!-- 指示斷裂點 (僅在斷裂時顯示) -->
-                    <g id="broken-indicator" class="animate-pulse" style="display: none;">
-                        <circle cx="125" cy="106" r="15" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2" />
-                        <text x="125" y="145" text-anchor="middle" class="fill-red-500 text-sm font-bold">真空/斷裂</text>
-                    </g>
-                </svg>
+    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-2 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/><path d="M15 2v2"/><path d="M15 10v2"/><path d="M9 2v2"/><path d="M9 10v2"/></svg>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 class="text-xl md:text-2xl font-bold" data-i18n="appTitle">水銀玻管體溫計模型</h1>
+                        <span class="text-[10px] bg-blue-800/60 border border-blue-300/40 px-2 py-0.5 rounded-full" data-i18n="badge">物理</span>
+                    </div>
+                    <div class="text-sm opacity-90" data-i18n="appSubtitle">熱脹冷縮與截流區原理 · 臨床體溫計</div>
+                </div>
             </div>
-            
-            <!-- 數字顯示與狀態欄 -->
-            <div class="flex flex-wrap justify-between items-center mt-4 px-4 gap-4">
-                <div class="flex gap-6">
-                    <div class="bg-slate-100 px-4 py-2 rounded-lg border border-slate-300 shadow-sm">
-                        <span class="text-slate-500 text-xs block font-semibold">環境溫度 (模擬)</span>
-                        <span id="display-ambient" class="text-xl font-mono font-bold text-slate-700">36.5°C</span>
-                    </div>
-                    <div class="bg-blue-50 px-4 py-2 rounded-lg border border-blue-200 shadow-sm">
-                        <span class="text-blue-600 text-xs block font-semibold">體溫計讀數</span>
-                        <span id="display-mercury" class="text-2xl font-mono font-bold text-blue-600">36.5°C</span>
-                    </div>
-                </div>
-                
-                <div id="warning-box" class="flex-1 flex items-center gap-2 text-amber-800 bg-amber-50 px-4 py-2 rounded-lg border border-amber-200 animate-pulse shadow-sm" style="display: none;">
-                    <!-- Info Icon -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 text-amber-600"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                    <span class="font-medium text-sm">截流區發生斷裂！讀數保持在最高溫。</span>
-                </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" id="btn-steps" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnSteps">觀察步驟</button>
+                <button type="button" id="btn-principle" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnPrinciple">原理解說</button>
+                <button type="button" id="btn-quiz" class="text-sm font-bold bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded border border-violet-400 transition-colors" data-i18n="btnQuiz">課堂問題</button>
+                <button type="button" id="btn-lang" class="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 rounded text-sm font-bold border border-blue-400 transition-colors">中 / EN</button>
             </div>
         </div>
+    </header>
 
-        <!-- 控制面板 -->
-        <div class="w-full bg-white p-6 rounded-xl shadow-lg border border-slate-100 flex flex-col md:flex-row gap-8 items-center justify-between">
-            
-            <div class="flex-1 w-full">
-                <label class="flex justify-between mb-3 font-bold text-slate-700">
-                    <span>調整環境溫度</span>
-                </label>
-                <div class="relative">
-                    <input 
+    <!-- Scheme C: viz flex-1 + aside controls -->
+    <main class="max-w-7xl mx-auto p-4 mt-4 flex flex-col lg:flex-row gap-6">
+
+        <section class="flex-1 order-1 min-w-0">
+            <div id="thermometer-container" class="w-full bg-white rounded-xl shadow-xl p-4 md:p-8 border border-slate-200 transition-transform">
+                <div class="relative w-full aspect-[3/1] md:aspect-[3.5/1]">
+                    <svg viewBox="0 0 800 220" class="w-full h-full" aria-label="clinical thermometer">
+                        <defs>
+                            <linearGradient id="glassGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="rgba(240,250,255,0.8)" />
+                                <stop offset="20%" stop-color="rgba(220,240,250,0.3)" />
+                                <stop offset="50%" stop-color="rgba(255,255,255,0.1)" />
+                                <stop offset="80%" stop-color="rgba(200,230,245,0.4)" />
+                                <stop offset="100%" stop-color="rgba(180,210,230,0.6)" />
+                            </linearGradient>
+                            <linearGradient id="enamelBacking" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#fef9c3" />
+                                <stop offset="50%" stop-color="#fde047" />
+                                <stop offset="100%" stop-color="#fef9c3" />
+                            </linearGradient>
+                            <linearGradient id="mercuryGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stop-color="#64748b" />
+                                <stop offset="30%" stop-color="#f8fafc" />
+                                <stop offset="50%" stop-color="#cbd5e1" />
+                                <stop offset="70%" stop-color="#f8fafc" />
+                                <stop offset="100%" stop-color="#64748b" />
+                            </linearGradient>
+                        </defs>
+
+                        <path d="M 150,95 L 740,95 L 740,125 L 150,125 Z" fill="url(#enamelBacking)" opacity="0.6" />
+
+                        <g>
+                            <path d="M 80,90 L 750,90 Q 770,90 770,110 Q 770,130 750,130 L 80,130 Z" fill="url(#glassGradient)" stroke="#94a3b8" stroke-width="1.5" />
+                            <ellipse cx="60" cy="110" rx="45" ry="35" fill="url(#glassGradient)" stroke="#94a3b8" stroke-width="1.5" />
+                        </g>
+
+                        <ellipse cx="60" cy="110" rx="38" ry="28" fill="url(#mercuryGradient)" />
+
+                        <path d="M 105,110 L 115,102 L 125,110 L 135,102 L 145,110" fill="none" stroke="rgba(100, 116, 139, 0.4)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path id="kink-mercury" d="M 92,110 L 105,110 L 115,102 L 125,110 L 135,102 L 145,110 L 150,110" fill="none" stroke="url(#mercuryGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                        <rect id="mercury-column" x="150" y="106.5" width="0" height="7" fill="url(#mercuryGradient)" class="transition-all duration-300 ease-out" rx="3.5" />
+
+                        <path d="M 150,95 L 740,95" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round" fill="none" />
+                        <path d="M 150,125 L 740,125" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round" fill="none" />
+                        <ellipse cx="45" cy="95" rx="10" ry="6" fill="rgba(255,255,255,0.7)" transform="rotate(-30 45 95)" />
+
+                        <g transform="translate(0,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">35°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(82.85,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">36°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(165.7,0)">
+                            <line x1="150" y1="90" x2="150" y2="80" stroke="#dc2626" stroke-width="2.5" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-red-600 font-bold" style="font-size: 18px">37°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(248.55,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">38°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(331.4,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">39°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(414.25,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">40°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(497.1,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">41°C</text>
+                            <line x1="191.4" y1="90" x2="191.4" y2="86" stroke="#64748b" stroke-width="1" />
+                        </g>
+                        <g transform="translate(580,0)">
+                            <line x1="150" y1="90" x2="150" y2="82" stroke="#1e293b" stroke-width="2" />
+                            <text x="150" y="75" text-anchor="middle" class="fill-slate-800 font-bold" style="font-size: 16px">42°C</text>
+                        </g>
+
+                        <line x1="125" y1="75" x2="125" y2="45" stroke="#ef4444" stroke-width="2" />
+                        <text id="label-kink" x="125" y="35" text-anchor="middle" class="fill-red-600 font-bold text-lg" data-i18n="labelKink">截流區</text>
+
+                        <g id="broken-indicator" class="animate-pulse" style="display: none;">
+                            <circle cx="125" cy="106" r="15" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2" />
+                            <text id="label-break" x="125" y="145" text-anchor="middle" class="fill-red-500 text-sm font-bold" data-i18n="labelBreak">真空/斷裂</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <div class="flex flex-wrap justify-between items-center mt-4 px-2 gap-4">
+                    <div class="flex gap-4 flex-wrap">
+                        <div class="bg-slate-100 px-4 py-2 rounded-lg border border-slate-300 shadow-sm">
+                            <span class="text-slate-500 text-xs block font-semibold" data-i18n="labelAmbient">環境溫度 (模擬)</span>
+                            <span id="display-ambient" class="text-xl font-mono font-bold text-slate-700">36.5°C</span>
+                        </div>
+                        <div class="bg-blue-50 px-4 py-2 rounded-lg border border-blue-200 shadow-sm">
+                            <span class="text-blue-600 text-xs block font-semibold" data-i18n="labelMercury">體溫計讀數</span>
+                            <span id="display-mercury" class="text-2xl font-mono font-bold text-blue-600">36.5°C</span>
+                        </div>
+                    </div>
+                    <div id="warning-box" class="flex-1 flex items-center gap-2 text-amber-800 bg-amber-50 px-4 py-2 rounded-lg border border-amber-200 animate-pulse shadow-sm min-w-[12rem]" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 text-amber-600"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        <span class="font-medium text-sm" data-i18n="warningText">截流區發生斷裂！讀數保持在最高溫。</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="lg:w-[300px] xl:w-[320px] shrink-0 order-2 space-y-4">
+            <div class="bg-white p-5 rounded-xl shadow-lg border border-slate-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-slate-800" data-i18n="controlsTitle">控制面板</h2>
+                    <button type="button" id="btn-reset" class="text-sm font-bold px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors" data-i18n="btnReset">重置</button>
+                </div>
+
+                <div class="mb-6">
+                    <label class="flex justify-between mb-3 font-bold text-slate-700">
+                        <span data-i18n="sliderLabel">調整環境溫度</span>
+                    </label>
+                    <input
                         id="temp-slider"
-                        type="range" 
-                        min="35.0" 
-                        max="42.0" 
+                        type="range"
+                        min="35.0"
+                        max="42.0"
                         step="0.1"
                         value="36.5"
                         class="w-full h-4 bg-slate-200 rounded-full appearance-none cursor-pointer accent-blue-600 hover:accent-blue-500"
                     />
+                    <div class="flex justify-between text-xs text-slate-400 mt-2 font-medium">
+                        <span data-i18n="sliderCold">35°C (冷)</span>
+                        <span data-i18n="sliderNormal">37°C (常溫)</span>
+                        <span data-i18n="sliderHot">42°C (熱)</span>
+                    </div>
                 </div>
-                <div class="flex justify-between text-xs text-slate-400 mt-2 font-medium">
-                    <span>35°C (冷)</span>
-                    <span>37°C (常溫)</span>
-                    <span>42°C (熱)</span>
+
+                <div class="flex flex-col items-stretch gap-2">
+                    <button
+                        type="button"
+                        id="shake-btn"
+                        class="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-slate-100 text-slate-400 border border-slate-200 cursor-default"
+                    >
+                        <svg id="shake-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        <span id="shake-text" data-i18n="shakeText">甩動體溫計</span>
+                    </button>
+                    <span id="shake-hint" class="text-xs text-slate-500 h-4 text-center"></span>
                 </div>
+
+                <p class="mt-4 text-xs text-slate-500 leading-relaxed" data-i18n="asideHint">升溫時讀數跟隨；降溫時截流區保留最高讀數；須甩動才歸位。與「兩點校正」模擬不同。</p>
             </div>
-
-            <div class="flex flex-col items-center gap-2 w-full md:w-auto">
-                <button 
-                    id="shake-btn"
-                    class="w-full md:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-slate-100 text-slate-400 border border-slate-200 cursor-default"
-                >
-                    <!-- RotateCcw Icon -->
-                    <svg id="shake-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                    <span id="shake-text">甩動體溫計</span>
-                </button>
-                <span id="shake-hint" class="text-xs text-slate-500 h-4"></span>
-            </div>
-
-        </div>
-
+        </aside>
     </main>
 
-    <!-- 右下角原理說明 -->
-    <div class="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[90%] md:w-80 bg-yellow-50 border-l-4 border-yellow-400 p-4 shadow-2xl rounded-r-lg z-50 text-sm md:text-base opacity-95 hover:opacity-100 transition-opacity">
-        <h3 class="font-bold text-yellow-800 mb-2 flex items-center gap-2">
-            <!-- Info Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-            截流區原理 (Kink)
-        </h3>
-        <div class="space-y-2 text-yellow-900">
-            <p>
-                <span class="font-bold text-yellow-700">1. 結構特徵：</span>
-                液泡上方有一段極細且彎曲的管道，稱為「截流區」。
-            </p>
-            <p>
-                <span class="font-bold text-yellow-700">2. 降溫斷裂：</span>
-                當溫度下降，水銀收縮力不足以通過狹窄彎道，水銀柱會在此處<span class="font-bold text-red-600">斷開</span>。
-            </p>
-            <p>
-                <span class="font-bold text-yellow-700">3. 結果：</span>
-                上方的水銀無法回流，保留了<span class="underline">最高溫度讀數</span>。必須用力甩動才能使其歸位。
-            </p>
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="steps-title" class="text-xl font-bold text-slate-800" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+            </div>
+            <ol id="steps-body" class="list-decimal pl-5 space-y-3 text-slate-700 text-sm leading-relaxed"></ol>
+        </div>
+    </div>
+
+    <!-- Modal: Principle -->
+    <div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="principle-title" class="text-xl font-bold text-slate-800" data-i18n="principleTitle">原理解說</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            </div>
+            <div id="principle-body" class="space-y-4 text-slate-700 text-sm leading-relaxed"></div>
+        </div>
+    </div>
+
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6">
+            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <h2 id="quiz-title" class="text-xl font-bold text-slate-800" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+                    <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div id="quiz-body" class="text-sm"></div>
         </div>
     </div>
 
     <script>
-        // 狀態
+        const translations = {
+            zh: {
+                appTitle: "水銀玻管體溫計模型",
+                appSubtitle: "熱脹冷縮與截流區原理 · 臨床體溫計",
+                badge: "物理",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                controlsTitle: "控制面板",
+                sliderLabel: "調整環境溫度",
+                sliderCold: "35°C (冷)",
+                sliderNormal: "37°C (常溫)",
+                sliderHot: "42°C (熱)",
+                shakeText: "甩動體溫計",
+                shakeHint: "將水銀甩回液泡，重置讀數",
+                shakeBusy: "用力甩動中...",
+                shakeBusyShort: "甩動中...",
+                labelAmbient: "環境溫度 (模擬)",
+                labelMercury: "體溫計讀數",
+                labelKink: "截流區",
+                labelBreak: "真空/斷裂",
+                warningText: "截流區發生斷裂！讀數保持在最高溫。",
+                asideHint: "升溫時讀數跟隨；降溫時截流區保留最高讀數；須甩動才歸位。與「兩點校正」模擬不同。",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAnswers: "顯示參考答案",
+                hideAnswers: "隱藏參考答案",
+                shortHint: "請操作模擬後以短答作答。",
+                step1: "按<strong>重置</strong>（若需要）。確認環境溫度與體溫計讀數皆約 <strong>36.5 °C</strong>，截流區水銀連續、無「斷裂」警告。拖動「調整環境溫度」滑桿緩慢升至約 <strong>38.5 °C</strong>（或 39 °C），觀察水銀柱伸長，兩顯示卡數值應一齊上升。",
+                step2: "在讀數仍高時，把滑桿<strong>降回</strong>約 <strong>36.5 °C</strong>（勿先甩動）。觀察：環境溫度下降，但「體溫計讀數」仍停在剛才的最高溫；截流區出現斷裂指示與警告「讀數保持在最高溫」。",
+                step3: "確認甩動按鈕變為可明顯操作狀態。按「甩動體溫計」，等甩動動畫結束。讀數應回到與環境溫度相同；斷裂指示與警告消失，截流區水銀恢復連通。",
+                step4: "再試一次：升到 <strong>40 °C</strong> → 降到 <strong>35 °C</strong> → 對照兩卡差值 → 甩動歸位。用一句話說明：為何量完體溫後必須甩動，才能量下一位；並說明窄刻度（35–42 °C）如何利於精讀體溫。",
+                principleConceptTitle: "概念",
+                principleConcept: "臨床（醫用）水銀玻管體溫計利用液泡內水銀的<strong>熱脹冷縮</strong>改變毛細管中液柱長度，從而讀出溫度。與一般實驗室溫度計不同，它刻度範圍很窄（本模擬 <strong>35–42 °C</strong>），並在液泡上方設有<strong>截流區（收縮／kink）</strong>，使降溫後讀數不會自動退回，方便離體後讀取最高體溫。刻度上紅色 <strong>37 °C</strong> 可作為正常體溫參考。",
+                principleMechTitle: "機制",
+                principleMech: "<ol class=\"list-decimal pl-5 space-y-2\"><li><strong>升溫</strong>：環境（或口腔／腋下）高於當前讀數 → 水銀膨脹，經截流區推入毛細管 → 讀數上升至與環境一致，柱連續。</li><li><strong>降溫與斷裂</strong>：環境低於讀數 → 液泡端收縮，但狹窄彎道阻力大使柱內水銀無法回流 → 截流區出現空隙 → 毛細管中水銀柱<strong>停留在最高溫度</strong>對應位置。</li><li><strong>甩動歸位</strong>：用力甩動產生足夠加速度，迫使水銀穿過截流區回到液泡 → 讀數重置為當前環境溫度。</li><li><strong>限制</strong>：本模擬為理想、即時平衡、無隨機誤差；真實體溫計尚有熱平衡時間、讀數視差；現代多改用電子體溫計。課堂重點是截流區因果，而非醫學診斷。</li></ol>",
+                principleExampleTitle: "日常例子",
+                principleExample: "傳統水銀體溫計量完口溫／腋溫後，讀數會「卡住」在最高值，護理人員或家人需甩動歸零再給下一位使用。家用室溫計通常<strong>沒有</strong>截流區，溫度升降時液柱會來回跟隨——對照可突顯臨床溫度計的設計目的。",
+                q1: "重置後，只把滑桿從 36.5 °C <strong>升到</strong>約 38.5 °C（不要再往下調）。此時關於兩顯示卡與截流區，哪項最正確？",
+                q1a: "A. 環境溫度與體溫計讀數大致同步上升，截流區水銀保持連通、不應出現「斷裂」警告",
+                q1b: "B. 讀數會卡在 36.5 °C，只有環境卡上升",
+                q1c: "C. 一升溫就會強制顯示真空／斷裂",
+                q1d: "D. 必須先甩動，水銀柱才會上升",
+                q1ans: "參考答案：A。加熱時膨脹可穿過截流區，讀數跟隨環境。",
+                q2: "先升到約 <strong>39 °C</strong>，再把滑桿降到 <strong>36.5 °C</strong>（先不按甩動）。先預測液柱是否跟隨下降，再操作核對。",
+                q2a: "A. 環境約 36.5 °C，體溫計讀數仍約 39 °C，並出現截流區斷裂／最高溫保留警告",
+                q2b: "B. 兩顯示卡都立刻回到 36.5 °C",
+                q2c: "C. 體溫計讀數降到 35.0 °C（刻度下限）",
+                q2d: "D. 程式自動執行一次甩動",
+                q2ans: "參考答案：A。降溫時截流區阻止回流，保留最高讀數。",
+                q3: "在 Q2 的斷裂狀態下按「甩動體溫計」並等動畫結束。結果哪項正確？",
+                q3a: "A. 體溫計讀數回到與當前環境溫度相同，斷裂指示與警告消失",
+                q3b: "B. 讀數被鎖死在 42 °C",
+                q3c: "C. 只有警告文字消失，讀數仍停在最高溫",
+                q3d: "D. 滑桿被強制重設為 35.0 °C",
+                q3ans: "參考答案：A。甩動使讀數同步為當前環境溫度。",
+                q4: "將環境升到 <strong>40.0 °C</strong>，再降到 <strong>35.0 °C</strong>，讀取兩顯示卡。寫出你見到的大約數值，並用截流區原理解釋為何兩者不同；說明若要讓它們再次相等你按了哪個控件。",
+                q4ans: "參考答案：環境約 <strong>35.0 °C</strong>，體溫計讀數約 <strong>40.0 °C</strong>（保留最高溫）。截流區狹窄彎道使降溫時水銀無法回流，柱斷開並留下最高讀數。按<strong>「甩動體溫計」</strong>後兩者再次同為約 35.0 °C。",
+                q5: "本模擬刻度約為 35–42 °C，且有截流區。相對於「無截流區、寬量程」的普通液體溫度計，下列哪項最能說明<strong>臨床體溫計</strong>的設計意圖？",
+                q5a: "A. 窄量程利於精讀體溫；截流區讓離體後仍能讀取量度期間的最高溫度，需甩動才歸位",
+                q5b: "B. 截流區是為了量冰點與蒸汽點做兩點校正",
+                q5c: "C. 窄刻度是為了顯示 −10 °C 到 110 °C 的外推",
+                q5d: "D. 甩動是為了改變玻璃的熱膨脹係數",
+                q5ans: "參考答案：A。勿與校正模擬的冰／沸兩點法混淆。"
+            },
+            en: {
+                appTitle: "Mercury Clinical Thermometer",
+                appSubtitle: "Expansion & constriction (kink) · clinical thermometer",
+                badge: "Physics",
+                btnSteps: "Steps",
+                btnPrinciple: "Principle",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                controlsTitle: "Controls",
+                sliderLabel: "Ambient temperature",
+                sliderCold: "35°C (cool)",
+                sliderNormal: "37°C (normal)",
+                sliderHot: "42°C (hot)",
+                shakeText: "Shake thermometer",
+                shakeHint: "Shake mercury back into the bulb to reset the reading",
+                shakeBusy: "Shaking hard...",
+                shakeBusyShort: "Shaking...",
+                labelAmbient: "Ambient (simulated)",
+                labelMercury: "Thermometer reading",
+                labelKink: "Constriction",
+                labelBreak: "Vacuum / break",
+                warningText: "Break at the kink! Reading holds the maximum.",
+                asideHint: "On heating the reading follows; on cooling the kink holds the maximum until you shake. Not the two-point calibration sim.",
+                stepsTitle: "Observation steps",
+                principleTitle: "Principle",
+                quizTitle: "Class quiz",
+                showAnswers: "Show model answers",
+                hideAnswers: "Hide model answers",
+                shortHint: "Operate the sim, then answer in short form.",
+                step1: "Press <strong>Reset</strong> if needed. Confirm both ambient and thermometer readings are about <strong>36.5 °C</strong>, with a continuous kink thread and no break warning. Drag <strong>Ambient temperature</strong> up to about <strong>38.5 °C</strong> (or 39 °C); the mercury column should lengthen and both readouts should rise together.",
+                step2: "While the reading is still high, drag the slider <strong>back down</strong> to about <strong>36.5 °C</strong> (do not shake yet). Ambient falls, but the thermometer reading stays at the previous maximum; the kink break indicator and the “maximum reading held” warning should appear.",
+                step3: "Confirm <strong>Shake thermometer</strong> looks active. Click it and wait for the animation. The reading should match ambient again; the break indicator and warning disappear and the kink mercury reconnects.",
+                step4: "Repeat: raise to <strong>40 °C</strong> → lower to <strong>35 °C</strong> → compare the two readouts → shake to reset. In one sentence, explain why you must shake before the next measurement, and how the narrow 35–42 °C scale helps precise body-temperature reading.",
+                principleConceptTitle: "Concept",
+                principleConcept: "A clinical (medical) mercury-in-glass thermometer uses thermal expansion and contraction of mercury in the bulb to change the capillary column length. Unlike a general lab thermometer, it has a <strong>narrow scale</strong> (here <strong>35–42 °C</strong>) and a <strong>constriction (kink)</strong> above the bulb so that after cooling the reading does not fall back—useful for reading the maximum body temperature after removal from the patient. The red <strong>37 °C</strong> mark is a normal body-temperature reference.",
+                principleMechTitle: "Mechanism",
+                principleMech: "<ol class=\"list-decimal pl-5 space-y-2\"><li><strong>Heating</strong>: When ambient (or body site) exceeds the current reading, mercury expands through the kink into the capillary → the reading rises to match ambient; the thread stays continuous.</li><li><strong>Cooling and break</strong>: When ambient falls below the reading, the bulb contracts but the narrow bend blocks return flow → a gap appears at the kink → the capillary column <strong>holds the maximum temperature</strong>.</li><li><strong>Shake to reset</strong>: A firm shake accelerates the mercury through the kink back into the bulb → the reading resets to current ambient.</li><li><strong>Limits</strong>: Ideal, instant equilibration, no random error here. Real devices need time to equilibrate and have parallax; many clinics now use electronic thermometers. Class focus: kink causality, not medical diagnosis.</li></ol>",
+                principleExampleTitle: "Everyday example",
+                principleExample: "After an oral/axillary reading, a mercury clinical thermometer “sticks” at the peak; you must shake it down before the next person. A room thermometer usually has <strong>no</strong> kink, so the column follows temperature up and down—highlighting why the clinical design exists.",
+                q1: "After Reset, move the slider <strong>up</strong> from 36.5 °C to about 38.5 °C only (do not lower it). Which statement about the two readouts and the kink is best?",
+                q1a: "A. Ambient and thermometer readings rise together; the kink stays continuous and the break warning should not appear",
+                q1b: "B. The thermometer reading sticks at 36.5 °C while only ambient rises",
+                q1c: "C. Heating always forces the vacuum/break indicator on",
+                q1d: "D. You must shake first or the column will not rise",
+                q1ans: "Model answer: A. On heating, expansion can pass the kink so the reading follows ambient.",
+                q2: "Raise to about <strong>39 °C</strong>, then lower the slider to <strong>36.5 °C</strong> (do not shake yet). Predict whether the column follows, then verify.",
+                q2a: "A. Ambient ≈ 36.5 °C, thermometer reading still ≈ 39 °C, with kink-break / maximum-held warning",
+                q2b: "B. Both readouts instantly return to 36.5 °C",
+                q2c: "C. Thermometer reading drops to 35.0 °C (scale floor)",
+                q2d: "D. The app auto-runs one shake",
+                q2ans: "Model answer: A. On cooling the kink blocks return flow and holds the maximum.",
+                q3: "From the broken-thread state in Q2, press <strong>Shake thermometer</strong> and wait. Which result is correct?",
+                q3a: "A. Thermometer reading matches current ambient; break indicator and warning disappear",
+                q3b: "B. Reading locks at 42 °C",
+                q3c: "C. Only the warning text vanishes; the reading stays at the maximum",
+                q3d: "D. The slider is forced back to 35.0 °C",
+                q3ans: "Model answer: A. Shake sets the reading equal to current ambient.",
+                q4: "Raise ambient to <strong>40.0 °C</strong>, then lower to <strong>35.0 °C</strong>, and read both displays. State the approximate values, explain the difference using the kink, and name the control you use to make them equal again.",
+                q4ans: "Model answer: Ambient ≈ <strong>35.0 °C</strong>, thermometer ≈ <strong>40.0 °C</strong> (maximum held). The narrow kink blocks return flow on cooling, so the thread breaks and keeps the peak reading. <strong>Shake thermometer</strong> equalizes them again near 35.0 °C.",
+                q5: "This sim’s scale is about 35–42 °C and includes a kink. Versus an ordinary liquid-in-glass thermometer (no kink, wide range), which best states the <strong>clinical thermometer</strong> design intent?",
+                q5a: "A. Narrow range aids precise body-temperature reading; the kink holds the maximum after removal until you shake it down",
+                q5b: "B. The kink exists to measure ice and steam points for two-point calibration",
+                q5c: "C. The narrow scale is meant to show extrapolation from −10 °C to 110 °C",
+                q5d: "D. Shaking changes the glass thermal expansivity",
+                q5ans: "Model answer: A. Do not confuse with the ice/steam two-point calibration sim."
+            }
+        };
+
+        const quizState = { selections: {}, showAnswers: false };
+        let currentLang = 'zh';
+
         const state = {
             ambientTemp: 36.5,
             mercuryLevel: 36.5,
             isShaking: false
         };
 
-        // 常數
         const MIN_TEMP = 35.0;
         const MAX_TEMP = 42.0;
         const RANGE = MAX_TEMP - MIN_TEMP;
 
-        // DOM 元素
         const slider = document.getElementById('temp-slider');
         const displayAmbient = document.getElementById('display-ambient');
         const displayMercury = document.getElementById('display-mercury');
@@ -306,102 +441,196 @@
         const shakeIcon = document.getElementById('shake-icon');
         const thermometerContainer = document.getElementById('thermometer-container');
 
-        // 初始化
-        function init() {
-            updateUI();
-            
-            // 滑桿事件
-            slider.addEventListener('input', (e) => {
-                const newAmbient = parseFloat(e.target.value);
-                state.ambientTemp = newAmbient;
-                
-                // 物理邏輯
-                if (state.ambientTemp > state.mercuryLevel) {
-                    // 加熱：推升水銀
-                    state.mercuryLevel = state.ambientTemp;
-                }
-                // 降溫：mercuryLevel 保持不變，UI 會處理斷裂顯示
+        const SHAKE_ACTIVE = "w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl transform hover:-translate-y-1 cursor-pointer";
+        const SHAKE_IDLE = "w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-slate-100 text-slate-400 border border-slate-200 cursor-default";
+        const SHAKE_BUSY = "w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-slate-100 text-slate-600 border border-slate-300 cursor-not-allowed";
 
-                updateUI();
-            });
-
-            // 按鈕事件
-            shakeBtn.addEventListener('click', handleShake);
+        function setDocumentLang() {
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
         }
 
-        // 甩動邏輯
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateLanguageUI();
+        }
+
+        function renderSteps() {
+            const t = translations[currentLang];
+            const body = document.getElementById('steps-body');
+            body.innerHTML = [t.step1, t.step2, t.step3, t.step4].map(function (s) {
+                return '<li>' + s + '</li>';
+            }).join('');
+        }
+
+        function renderPrinciple() {
+            const t = translations[currentLang];
+            const body = document.getElementById('principle-body');
+            body.innerHTML =
+                '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleConceptTitle + '</h3><p>' + t.principleConcept + '</p></div>' +
+                '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleMechTitle + '</h3>' + t.principleMech + '</div>' +
+                '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleExampleTitle + '</h3><p>' + t.principleExample + '</p></div>';
+        }
+
+        let quizAnswersVisible = false;
+
+        function renderQuiz() {
+            const texts = translations[currentLang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const langIsZh = (currentLang === 'zh');
+            const ref = texts.quizRef || (langIsZh ? '參考答案' : 'Reference answer');
+            const optKey = (qid, L) => {
+                const lower = qid + L.toLowerCase();
+                const upper = qid + L.toUpperCase();
+                return texts[lower] != null ? lower : upper;
+            };
+            const mkChoice = (qid) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = optKey(qid, L);
+                return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span>' + (texts[key] || '') + '</span></label>';
+            }).join('');
+            const vis = quizAnswersVisible;
+            const ans = (key) => vis
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+            const openHint = texts.shortHint || texts.openHint || '';
+            const block = (n, qid, mc) => {
+                let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
+                if (mc) h += '<div class="grid gap-1.5">' + mkChoice(qid) + '</div>';
+                else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
+                return h + ans(qid + 'ans') + '</div>';
+            };
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = vis ? texts.hideAnswers : texts.showAnswers;
+            const modal = document.getElementById('modal-quiz');
+            if (vis && typeof typesetMath === 'function' && modal) typesetMath(modal);
+        }
+
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            const panel = modal.querySelector('[data-modal-panel]');
+            if (panel) panel.classList.remove('scale-95');
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal || modal.classList.contains('hidden')) return;
+            modal.classList.add('opacity-0');
+            const panel = modal.querySelector('[data-modal-panel]');
+            if (panel) panel.classList.add('scale-95');
+            setTimeout(function () { modal.classList.add('hidden'); }, 250);
+        }
+
+        function closeAllModals() {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+        }
+
+        function wireModals() {
+            document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+            document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+            document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+            document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+            document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+                quizAnswersVisible = !quizAnswersVisible;
+                renderQuiz();
+            });
+            document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+                btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+            });
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+                const modal = document.getElementById(id);
+                modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(id); });
+            });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllModals(); });
+        }
+
         function handleShake() {
             if (state.isShaking) return;
-
+            const t = translations[currentLang];
             state.isShaking = true;
-            updateUI(); // 更新按鈕狀態
-
-            // 添加動畫 class
+            updateUI();
             thermometerContainer.classList.add('animate-shake');
             shakeIcon.classList.add('animate-spin');
-            shakeText.innerText = '用力甩動中...';
-
-            setTimeout(() => {
-                // 甩動完成：重置讀數
+            shakeText.innerText = t.shakeBusy;
+            setTimeout(function () {
                 state.mercuryLevel = state.ambientTemp;
                 state.isShaking = false;
-                
-                // 移除動畫 class
                 thermometerContainer.classList.remove('animate-shake');
                 shakeIcon.classList.remove('animate-spin');
-                
                 updateUI();
             }, 600);
         }
 
-        // UI 更新邏輯
+        function resetSim() {
+            state.ambientTemp = 36.5;
+            state.mercuryLevel = 36.5;
+            state.isShaking = false;
+            slider.value = '36.5';
+            thermometerContainer.classList.remove('animate-shake');
+            shakeIcon.classList.remove('animate-spin');
+            updateUI();
+        }
+
         function updateUI() {
+            const t = translations[currentLang];
             const isThreadBroken = state.ambientTemp < state.mercuryLevel;
 
-            // 1. 數字顯示
             displayAmbient.innerText = state.ambientTemp.toFixed(1) + '°C';
             displayMercury.innerText = state.mercuryLevel.toFixed(1) + '°C';
 
-            // 2. 水銀柱寬度計算
             const percentage = (state.mercuryLevel - MIN_TEMP) / RANGE;
             const width = Math.max(0, Math.min(100, percentage * 100));
             const svgWidth = 580 * (width / 100);
             mercuryColumn.setAttribute('width', svgWidth);
 
-            // 3. 截流區水銀顯示 (斷裂邏輯)
             if (isThreadBroken) {
-                kinkMercury.style.display = 'none'; // 隱藏截流區水銀
-                brokenIndicator.style.display = 'block'; // 顯示斷裂警告
-                warningBox.style.display = 'flex'; // 顯示文字警告
+                kinkMercury.style.display = 'none';
+                brokenIndicator.style.display = 'block';
+                warningBox.style.display = 'flex';
             } else {
                 kinkMercury.style.display = 'block';
                 brokenIndicator.style.display = 'none';
                 warningBox.style.display = 'none';
             }
 
-            // 4. 按鈕狀態
             if (state.isShaking) {
-                shakeBtn.className = "w-full md:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-slate-100 text-slate-600 border border-slate-300 cursor-not-allowed";
-                shakeText.innerText = "甩動中...";
+                shakeBtn.className = SHAKE_BUSY;
+                shakeText.innerText = t.shakeBusyShort;
+                shakeHint.innerText = '';
+            } else if (isThreadBroken || state.mercuryLevel > state.ambientTemp) {
+                shakeBtn.className = SHAKE_ACTIVE;
+                shakeBtn.disabled = false;
+                shakeText.innerText = t.shakeText;
+                shakeHint.innerText = t.shakeHint;
             } else {
-                // 如果斷裂或讀數高於環境 (需要甩動)
-                if (isThreadBroken || state.mercuryLevel > state.ambientTemp) {
-                    shakeBtn.className = "w-full md:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl transform hover:-translate-y-1 cursor-pointer";
-                    shakeBtn.disabled = false;
-                    shakeText.innerText = "甩動體溫計";
-                    shakeHint.innerText = "將水銀甩回液泡，重置讀數";
-                } else {
-                    shakeBtn.className = "w-full md:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-xl font-bold text-lg shadow-md transition-all bg-slate-100 text-slate-400 border border-slate-200 cursor-default";
-                    shakeBtn.disabled = false; // 讓它總是可以點擊以體驗動畫，但視覺上示弱
-                    shakeText.innerText = "甩動體溫計";
-                    shakeHint.innerText = "";
-                }
+                shakeBtn.className = SHAKE_IDLE;
+                shakeBtn.disabled = false;
+                shakeText.innerText = t.shakeText;
+                shakeHint.innerText = '';
             }
         }
 
-        // 啟動
-        init();
+        function init() {
+            setDocumentLang();
+            wireModals();
+            slider.addEventListener('input', function (e) {
+                const newAmbient = parseFloat(e.target.value);
+                state.ambientTemp = newAmbient;
+                if (state.ambientTemp > state.mercuryLevel) {
+                    state.mercuryLevel = state.ambientTemp;
+                }
+                updateUI();
+            });
+            shakeBtn.addEventListener('click', handleShake);
+            document.getElementById('btn-reset').addEventListener('click', resetSim);
+            updateLanguageUI();
+        }
 
+        init();
     </script>
 </body>
 </html>

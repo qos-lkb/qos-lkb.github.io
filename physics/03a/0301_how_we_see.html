@@ -1,15 +1,63 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>光線進入眼睛模擬器</title>
+    <title>光線進入眼睛模擬器｜How Do We See</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* 自定義 Canvas 樣式以確保清晰度 */
+        body { font-family: 'Noto Sans TC', 'Segoe UI', sans-serif; }
         canvas {
             border: 1px solid #e5e7eb;
-            background-color: #111827; /* 深色背景模擬暗室 */
+            background-color: #111827;
             border-radius: 0.5rem;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
         }
@@ -22,53 +70,53 @@
             cursor: pointer;
             border-radius: 50%;
         }
-        /* Modal Canvas 特殊樣式：白色背景 */
         #eyeModalCanvas {
             background-color: #ffffff;
             border: none;
             box-shadow: none;
         }
+        .teach-modal { z-index: 50; }
+        .teach-modal.hidden { display: none; }
+        .teach-modal:not(.hidden) { display: flex; }
+        .quiz-answer.hidden-ans { display: none; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- Header -->
-    <header class="bg-blue-600 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div class="max-w-6xl mx-auto flex items-center justify-between">
-            <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <header class="bg-blue-600 text-white p-3 md:p-4 shadow-lg sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                <span id="app-title">物理教室：光線與視覺</span>
-            </h1>
-            
-            <div class="flex items-center gap-3">
-                <!-- Experiment Explanation Button (Moved here) -->
-                <button onclick="toggleModal(true)" class="hidden md:flex items-center gap-1 bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded-lg text-sm font-medium transition border border-blue-500">
-                    <span>📖</span> <span id="btn-explain">實驗解說</span>
-                </button>
-                <!-- Mobile Icon for Explanation -->
-                <button onclick="toggleModal(true)" class="md:hidden p-2 bg-blue-700 hover:bg-blue-800 rounded-lg transition border border-blue-500">
-                    📖
-                </button>
+                <div class="min-w-0">
+                    <h1 class="text-base md:text-xl font-bold leading-tight truncate">
+                        <span id="app-title">光線進入眼睛模擬器</span>
+                    </h1>
+                    <p id="app-subtitle" class="text-xs text-blue-100 truncate">光線進入眼睛｜How do we see</p>
+                </div>
+                <span id="subject-badge" class="shrink-0 text-[10px] md:text-xs font-semibold bg-blue-800/80 border border-blue-400 px-2 py-0.5 rounded-full">科學｜Science</span>
+            </div>
 
-                <!-- Language Toggle -->
-                <button onclick="toggleLanguage()" class="bg-white text-blue-700 hover:bg-gray-100 px-3 py-1.5 rounded-lg text-sm font-bold transition shadow-sm border border-blue-200 min-w-[80px]">
-                    中 / Eng
-                </button>
+            <div class="flex flex-wrap items-center gap-1.5 md:gap-2">
+                <button type="button" id="btn-steps" onclick="openTeachModal('modal-steps')" class="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 rounded-lg text-xs md:text-sm font-semibold border border-blue-400 transition">觀察步驟</button>
+                <button type="button" id="btn-principle" onclick="openTeachModal('modal-principle')" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs md:text-sm font-semibold border border-indigo-300 transition">原理解說</button>
+                <button type="button" id="btn-quiz" onclick="openTeachModal('modal-quiz')" class="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-500 rounded-lg text-xs md:text-sm font-semibold border border-violet-300 transition">課堂問題</button>
+                <button type="button" id="btn-lang" onclick="toggleLanguage()" class="bg-white text-blue-700 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg text-xs md:text-sm font-bold transition shadow-sm border border-blue-200 min-w-[72px]">中 / EN</button>
+                <button type="button" id="btn-reset" onclick="resetAll()" class="px-2.5 py-1.5 bg-red-500 hover:bg-red-600 rounded-lg text-xs md:text-sm font-semibold transition">重置</button>
             </div>
         </div>
     </header>
 
-    <!-- Main Content -->
+    <!-- Main Content Scheme B -->
     <main class="flex-grow p-4 md:p-8 max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Controls Panel -->
-        <div class="bg-white p-6 rounded-xl shadow-md space-y-6 h-fit border border-gray-200 lg:col-span-1">
+
+        <!-- Controls Panel: order-2 narrow -->
+        <div class="order-2 lg:order-none bg-white p-6 rounded-xl shadow-md space-y-6 h-fit border border-gray-200 lg:col-span-1">
             <h2 id="settings-title" class="text-xl font-semibold border-b pb-2 text-gray-700">實驗參數設定</h2>
 
-            <!-- Control 1: Object Type -->
             <div class="space-y-2">
                 <label id="label-obj-type" class="block text-sm font-medium text-gray-700">1. 物體性質</label>
                 <div class="flex gap-2">
@@ -84,7 +132,6 @@
                 </p>
             </div>
 
-            <!-- Control 2: Distance -->
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
                     <label id="label-distance" class="block text-sm font-medium text-gray-700">2. 物體距離</label>
@@ -101,7 +148,6 @@
                 </div>
             </div>
 
-            <!-- Control 3: Pupil Size -->
             <div class="space-y-3">
                 <label id="label-pupil" class="block text-sm font-medium text-gray-700">3. 眼睛直徑 (瞳孔大小)</label>
                 <input type="range" id="pupil-slider" min="10" max="80" value="30" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb" oninput="updateSimulation()">
@@ -117,18 +163,15 @@
             </div>
         </div>
 
-        <!-- Simulation Canvas -->
-        <div class="lg:col-span-2 flex flex-col gap-4">
+        <!-- Simulation Canvas: order-1 narrow -->
+        <div class="order-1 lg:order-none lg:col-span-2 flex flex-col gap-4">
             <div class="relative w-full aspect-[16/9] bg-gray-900 rounded-xl overflow-hidden shadow-inner border border-gray-700">
                 <canvas id="simCanvas" class="absolute top-0 left-0 w-full h-full"></canvas>
-                
-                <!-- Overlay Labels (Optional for better accessibility) -->
                 <div class="absolute bottom-4 right-4 text-white/50 text-sm pointer-events-none select-none">
                     Simulation
                 </div>
             </div>
-            
-            <!-- Observation Panel -->
+
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                 <h3 id="obs-title" class="font-bold text-gray-800 mb-2">觀察重點：</h3>
                 <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
@@ -140,88 +183,115 @@
         </div>
     </main>
 
-    <!-- Modal Overlay -->
-    <div id="info-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity opacity-0">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform transition-all scale-95 flex flex-col max-h-[90vh]">
-            <!-- Modal Header -->
-            <div class="bg-indigo-600 p-4 flex justify-between items-center text-white flex-shrink-0">
-                <h3 class="text-xl font-bold flex items-center gap-2">
-                    <span>📐</span> <span id="modal-title">物距與光錐發散</span>
-                </h3>
-                <button onclick="toggleModal(false)" class="hover:bg-indigo-700 p-1 rounded-full transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/60 items-center justify-center backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-blue-600 p-4 flex justify-between items-center text-white flex-shrink-0">
+                <h3 id="steps-title" class="text-xl font-bold">觀察步驟</h3>
+                <button type="button" class="modal-close-btn hover:bg-blue-700 p-1 rounded-full transition" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
-            
-            <!-- Modal Body -->
-            <div class="p-6 space-y-4 text-gray-700 overflow-y-auto">
-                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                    <h4 id="modal-q1" class="font-bold text-indigo-900 mb-2">為什麼距離會影響光錐形狀？</h4>
-                    <p id="modal-a1" class="text-sm leading-relaxed">
-                        當物體距離眼睛不同時，能夠進入瞳孔的光線角度（發散角）會發生變化。<strong>距離愈遠，進入眼睛的光線發散角度愈小。</strong>
-                    </p>
-                </div>
+            <div id="steps-body" class="p-6 space-y-3 text-gray-700 overflow-y-auto text-sm leading-relaxed"></div>
+            <div class="bg-gray-50 p-4 flex justify-end flex-shrink-0">
+                <button type="button" class="modal-close-btn px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition" id="steps-close-label">關閉</button>
+            </div>
+        </div>
+    </div>
 
-                <!-- Frontal Eye Diagram -->
+    <!-- Modal: Principle (standardized from info-modal) -->
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/60 items-center justify-center backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-indigo-600 p-4 flex justify-between items-center text-white flex-shrink-0">
+                <h3 id="principle-title" class="text-xl font-bold flex items-center gap-2">
+                    <span>📐</span> <span id="principle-title-text">原理解說</span>
+                </h3>
+                <button type="button" class="modal-close-btn hover:bg-indigo-700 p-1 rounded-full transition" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-gray-700 overflow-y-auto">
+                <div id="principle-concept-block" class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 space-y-2">
+                    <h4 id="principle-concept-h" class="font-bold text-indigo-900">概念</h4>
+                    <p id="principle-concept" class="text-sm leading-relaxed"></p>
+                </div>
+                <div class="space-y-2">
+                    <h4 id="principle-mech-h" class="font-bold text-gray-900">機制／流程</h4>
+                    <ol id="principle-mech-list" class="list-decimal list-inside text-sm space-y-1.5 leading-relaxed"></ol>
+                </div>
                 <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 flex flex-col items-center shadow-sm">
                     <h5 id="eye-front-title" class="text-sm font-bold text-gray-700 mb-2 self-start w-full border-b pb-1">👁️ 眼睛構造正面圖 (示意)</h5>
                     <canvas id="eyeModalCanvas" width="300" height="150" class="w-full max-w-[300px]"></canvas>
                     <p class="text-xs text-gray-500 mt-2 text-center">
-                        <span class="inline-block w-3 h-3 bg-gray-800 rounded-full align-middle mr-1"></span><span id="eye-front-pupil"><strong>瞳孔 (Pupil)</strong>：位於中央的黑色圓形開孔，光線由此進入。</span><br>
-                        <span class="inline-block w-3 h-3 bg-blue-400 rounded-full align-middle mr-1"></span><span id="eye-front-iris"><strong>虹膜 (Iris)</strong>：有顏色的肌肉組織，控制瞳孔大小。</span>
+                        <span class="inline-block w-3 h-3 bg-gray-800 rounded-full align-middle mr-1"></span><span id="eye-front-pupil"></span><br>
+                        <span class="inline-block w-3 h-3 bg-blue-400 rounded-full align-middle mr-1"></span><span id="eye-front-iris"></span>
                     </p>
                 </div>
-
-                <div class="space-y-4">
+                <div class="space-y-3">
                     <div class="flex gap-4 items-start">
                         <div class="w-12 h-12 flex-shrink-0 bg-yellow-100 rounded-full flex items-center justify-center text-xl shadow-sm">🔦</div>
                         <div>
-                            <strong id="modal-short-dist-title" class="block text-gray-900">近處物體 (Short Distance)</strong>
-                            <p id="modal-short-dist-desc" class="text-sm text-gray-600 mt-1">
-                                距離較近時，光線進入眼睛的<strong>發散角度較大</strong>。光線需要以較大的張角才能剛好進入瞳孔，光錐看起來較「胖」。
-                            </p>
+                            <strong id="modal-short-dist-title" class="block text-gray-900"></strong>
+                            <p id="modal-short-dist-desc" class="text-sm text-gray-600 mt-1"></p>
                         </div>
                     </div>
-
                     <div class="flex gap-4 items-start">
                         <div class="w-12 h-12 flex-shrink-0 bg-blue-100 rounded-full flex items-center justify-center text-xl shadow-sm">🔭</div>
                         <div>
-                            <strong id="modal-long-dist-title" class="block text-gray-900">遠處物體 (Long Distance)</strong>
-                            <p id="modal-long-dist-desc" class="text-sm text-gray-600 mt-1">
-                                距離愈遠，光線進入眼睛的<strong>發散角度愈小</strong>。光線看起來越來越「直」，彼此之間的夾角顯著變小。
-                            </p>
+                            <strong id="modal-long-dist-title" class="block text-gray-900"></strong>
+                            <p id="modal-long-dist-desc" class="text-sm text-gray-600 mt-1"></p>
                         </div>
                     </div>
-
                     <div class="flex gap-4 items-start">
                         <div class="w-12 h-12 flex-shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-xl shadow-sm">♾️</div>
                         <div>
-                            <strong id="modal-infinite-title" class="block text-gray-900">無限遠 (Infinite)</strong>
-                            <p id="modal-infinite-desc" class="text-sm text-gray-600 mt-1">
-                                當物體位於無限遠時，發散角度趨近於<strong>零</strong>，進入眼睛的光線視為<strong>平行光</strong>。
-                            </p>
+                            <strong id="modal-infinite-title" class="block text-gray-900"></strong>
+                            <p id="modal-infinite-desc" class="text-sm text-gray-600 mt-1"></p>
                         </div>
                     </div>
                 </div>
+                <div class="bg-amber-50 p-4 rounded-lg border border-amber-100">
+                    <h4 id="principle-ex-h" class="font-bold text-amber-900 mb-1">日常／課堂例子</h4>
+                    <p id="principle-example" class="text-sm leading-relaxed"></p>
+                </div>
             </div>
-
-            <!-- Modal Footer -->
             <div class="bg-gray-50 p-4 flex justify-end flex-shrink-0">
-                <button id="modal-close" onclick="toggleModal(false)" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition">
-                    明白了
-                </button>
+                <button type="button" id="principle-close" class="modal-close-btn px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition">明白了</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/60 items-center justify-center backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-violet-600 p-4 flex justify-between items-center text-white flex-shrink-0">
+                <h3 id="quiz-title" class="text-xl font-bold">課堂問題</h3>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" onclick="toggleQuizAnswers()" class="text-xs px-3 py-1.5 rounded-lg bg-violet-700 hover:bg-violet-500 text-white border border-violet-300 font-semibold">顯示參考答案</button>
+                    <button type="button" class="modal-close-btn hover:bg-violet-700 p-1 rounded-full transition" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="quiz-body" class="p-6 space-y-5 text-gray-700 overflow-y-auto text-sm"></div>
+            <div class="bg-gray-50 p-4 flex justify-end flex-shrink-0">
+                <button type="button" class="modal-close-btn px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition" id="quiz-close-label">關閉</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Language Data
+
         const translations = {
             zh: {
-                appTitle: "物理教室：光線與視覺",
-                btnExplain: "實驗解說",
+                appTitle: "光線進入眼睛模擬器",
+                appSubtitle: "光線進入眼睛｜How do we see",
+                subjectBadge: "科學｜Science",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                btnClose: "關閉",
                 settingsTitle: "實驗參數設定",
                 labelObjType: "1. 物體性質",
                 btnLuminous: "🕯️ 發光體",
@@ -243,19 +313,27 @@
                 obs2: "物體距離越遠，進入眼睛的光線夾角越小。",
                 obs3: "瞳孔越大，收集到的光線越多（光錐越寬）。",
                 distanceInfinite: "無限遠",
-                
-                // Canvas Labels
                 canvasLightSource: "光源",
                 canvasObjectLuminous: "發光體",
                 canvasObjectNonLuminous: "非發光體",
                 canvasInfiniteHint: "來自無限遠的光源 (如: 星星)",
                 canvasRetina: "視網膜",
                 canvasPupil: "瞳孔",
-                
-                // Modal
-                modalTitle: "物距與光錐發散",
-                modalQ1: "為什麼距離會影響光錐形狀？",
-                modalA1: "當物體距離眼睛不同時，能夠進入瞳孔的光線角度（發散角）會發生變化。<strong>距離愈遠，進入眼睛的光線發散角度愈小。</strong>",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                principleConceptH: "概念",
+                principleConcept: "我們能「看見」某個物體，是因為有光線進入眼睛的瞳孔，並到達感光構造（本模擬以視網膜標籤示意）。本模擬（slug how-do-we-see）用可調的物體性質、物距與瞳孔開口，建立「誰發光／誰反射、光錐多寬、距離如何改變發散」的圖像。",
+                principleMechH: "機制／流程",
+                principleMech: [
+                    "發光體：物體自行發光，光線直線射向眼睛；只有落在瞳孔開口內的光線形成可見的光錐。",
+                    "非發光體：物體不發光；外部光源照射後，反射光線進入瞳孔——因此黑暗中沒有光源時，非發光體通常看不見。",
+                    "直線傳播：課堂假設光線在均勻空氣中沿直線前進（黃色邊界線示意進入瞳孔的極限光線）。",
+                    "物距與發散：距離愈近，進入瞳孔的光線張角愈大；距離愈遠，張角愈小；無限遠時視為平行光。",
+                    "瞳孔大小：開口愈大，同一距離下可收集的光線愈多（光錐在瞳孔端愈寬）。此處瞳孔是手動示意參數——不是「環境變亮→瞳孔自動縮小」的對光反射專題（見 pupil-light-reflex）。",
+                    "範圍：示意「如何看見」；不模擬睫狀肌調節晶體、近視遠視矯正、平面鏡反射或折射定律。"
+                ],
+                principleExH: "日常／課堂例子",
+                principleExample: "白天能看見書本、桌子，是因為它們反射陽光或燈光；晚上關掉燈後幾乎看不見家具。看遠處街燈時，進入眼睛的光線幾乎平行；把手機螢幕凑近眼前時，進入瞳孔的光線張角明顯變大。",
                 eyeFrontTitle: "👁️ 眼睛構造正面圖 (示意)",
                 eyeFrontPupil: "<strong>瞳孔 (Pupil)</strong>：位於中央的黑色圓形開孔，光線由此進入。",
                 eyeFrontIris: "<strong>虹膜 (Iris)</strong>：有顏色的肌肉組織，控制瞳孔大小。",
@@ -266,11 +344,70 @@
                 modalInfiniteTitle: "無限遠 (Infinite)",
                 modalInfiniteDesc: "當物體位於無限遠時，發散角度趨近於<strong>零</strong>，進入眼睛的光線視為<strong>平行光</strong>。",
                 modalClose: "明白了",
-                modalPupilLabel: "瞳孔 (圓形)"
+                modalPupilLabel: "瞳孔 (圓形)",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
+                ansLabel: "參考答案",
+                steps: [
+                    "按頁首<strong>重置</strong>。確認：選中<strong>發光體</strong>、距離約 <strong>300 cm</strong>、瞳孔約 <strong>30 mm</strong>、「設為無限遠」<strong>未勾</strong>、語言<strong>不變</strong>。觀察 Canvas：右側眼球／瞳孔、左側蠟燭、黃色<strong>光錐</strong>從蠟燭指向瞳孔。確認本檔是 science 的 <code>how-do-we-see</code>（光線進入眼睛／我們如何看見），不是 <code>pupil-light-reflex</code>（對光反射）、也不是調節、反射定律或折射實驗。",
+                    "保持發光體。把<strong>物體距離</strong>滑到較近（或拖曳蠟燭靠近眼睛），觀察光錐變「胖」（發散角較大）；再拉遠，觀察光錐變「瘦」（發散角變小）。讀距離數值變化。",
+                    "勾選<strong>設為無限遠</strong>。確認距離滑桿變灰／禁用；舞台改為<strong>平行</strong>黃光帶（無蠟燭），概念提示改為平行光。再取消勾選，恢復有限距光錐。",
+                    "取消無限遠後，點<strong>非發光體</strong>。觀察左上角<strong>光源</strong>、燈→蘋果的光線，以及自蘋果進入瞳孔的黃光錐。對照說明：非發光體靠<strong>反射</strong>外來光才能被看見。",
+                    "調大／調小<strong>瞳孔大小</strong>滑桿，觀察進入瞳孔的光錐寬度變化（開口愈大，收集光線愈多）。再按<strong>重置</strong>：回發光體、300 cm、30 mm、無限遠關、<strong>語言不變</strong>。打開原理解說與課堂問題——主軸是 <strong>光線進入眼睛／發光 vs 非發光／距離與發散</strong>，不是對光反射或晶體調節。"
+                ],
+                quiz: [
+                    {
+                        q: "按頁首<strong>重置</strong>後觀察 Canvas（勿勾無限遠、勿改非發光）。哪項描述最符合本模擬（how-do-we-see）？",
+                        opts: [
+                            "A. 選中發光體；約 300 cm、30 mm；可見蠟燭與進入瞳孔的黃光錐；無限遠關閉",
+                            "B. 重置後自動變成非發光蘋果並強制切到英文",
+                            "C. 舞台改為「光強→環狀肌／放射肌」對光反射，本檔變成 pupil-light-reflex",
+                            "D. 重置會刪除眼球並只留下空白黑屏"
+                        ],
+                        a: "A。對應預設 luminous／300／30／isInfinite=false；C 為 sibling 離題。"
+                    },
+                    {
+                        q: "重置後保持發光體。先把距離調近再調遠。先<strong>預測</strong>光錐寬窄變化，再操作核對。",
+                        opts: [],
+                        a: "較近時光錐較「胖」、較遠時較「瘦」（有限距發散幾何）。"
+                    },
+                    {
+                        q: "重置後勾選<strong>設為無限遠</strong>。哪項最合理？",
+                        opts: [
+                            "A. 距離滑桿禁用；舞台呈平行黃光（無蠟燭）；概念提示為平行光／無限遠",
+                            "B. 無限遠會把物體改成平面鏡並顯示入射角＝反射角",
+                            "C. 勾選無限遠會重置語言為英文",
+                            "D. 無限遠時瞳孔滑桿消失且無法再開"
+                        ],
+                        a: "A。toggleInfinite＋平行帶繪製。"
+                    },
+                    {
+                        q: "取消無限遠，選<strong>非發光體</strong>，把瞳孔調大。先<strong>預測</strong>外部光源與光錐，再操作核對。",
+                        opts: [],
+                        a: "可見外部光源照向蘋果，黃光錐進入瞳孔；較大瞳孔使光錐較寬。"
+                    },
+                    {
+                        q: "先選非發光體、勾選無限遠、把瞳孔調大，再按頁首<strong>重置</strong>。哪項最符合重置後狀態？",
+                        opts: [
+                            "A. 回發光體、約 300 cm、約 30 mm、無限遠關閉；不切換語言",
+                            "B. 仍為非發光體＋無限遠＋大瞳孔",
+                            "C. 重置後變成 pupil-light-reflex 對光反射",
+                            "D. 重置強制英文並刪除眼球"
+                        ],
+                        a: "A。對應 resetAll；本模擬主軸是光線進入眼睛／發光 vs 非發光，不是 pupil-light-reflex。"
+                    }
+                ]
             },
             en: {
-                appTitle: "Physics Lab: Light & Vision",
-                btnExplain: "Explanation",
+                appTitle: "How Do We See",
+                appSubtitle: "Light into the eye｜How do we see",
+                subjectBadge: "Science｜科學",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                btnClose: "Close",
                 settingsTitle: "Parameters",
                 labelObjType: "1. Object Type",
                 btnLuminous: "🕯️ Luminous",
@@ -292,19 +429,27 @@
                 obs2: "The further the object, the smaller the angle of light entering the eye.",
                 obs3: "A larger pupil collects more light (wider cone of rays).",
                 distanceInfinite: "Infinite",
-
-                // Canvas Labels
                 canvasLightSource: "Light Source",
                 canvasObjectLuminous: "Luminous",
                 canvasObjectNonLuminous: "Non-luminous",
                 canvasInfiniteHint: "Light from infinity (e.g. Stars)",
                 canvasRetina: "Retina",
                 canvasPupil: "Pupil",
-                
-                // Modal
-                modalTitle: "Distance & Divergence",
-                modalQ1: "How does distance affect the cone of rays?",
-                modalA1: "The angle of light entering the pupil changes with distance. <strong>The further the object, the smaller the angle of divergence.</strong>",
+                stepsTitle: "Observation Steps",
+                principleTitle: "Principles",
+                principleConceptH: "Concept",
+                principleConcept: "We see an object when light enters the eye through the pupil and reaches light-sensitive tissue (labelled retina here). This sim (slug how-do-we-see) uses object type, distance, and pupil opening to show who emits／who reflects, how wide the cone of rays is, and how distance changes divergence.",
+                principleMechH: "Mechanism／workflow",
+                principleMech: [
+                    "Luminous: the object emits light; only rays that fit the pupil form the visible cone of rays.",
+                    "Non-luminous: the object reflects light from an external source into the pupil—without a source, such objects are usually invisible in the dark.",
+                    "Straight-line travel: in uniform air, rays travel in straight lines (yellow edges mark limiting rays into the pupil).",
+                    "Distance & divergence: nearer → larger angle into the pupil; farther → smaller angle; infinity → parallel rays.",
+                    "Pupil size: a larger opening collects more light at the same distance. Here pupil size is a manual demo control—not the automatic light-reflex story (pupil-light-reflex).",
+                    "Scope: “how we see” only—not lens accommodation, eye-defect correction, mirror reflection, or Snell’s-law labs."
+                ],
+                principleExH: "Everyday／class example",
+                principleExample: "You see a book in daylight because it reflects sunlight or lamp light; after lights-out, furniture nearly vanishes. Distant street lamps send nearly parallel rays; holding a phone screen close widens the angle into the pupil.",
                 eyeFrontTitle: "👁️ Front View of Eye (Diagram)",
                 eyeFrontPupil: "<strong>Pupil</strong>: The black circular opening in the center where light enters.",
                 eyeFrontIris: "<strong>Iris</strong>: The colored tissue regulating pupil size.",
@@ -315,23 +460,77 @@
                 modalInfiniteTitle: "Infinite Distance",
                 modalInfiniteDesc: "At infinite distance, the angle is near <strong>zero</strong>. Rays are considered <strong>parallel</strong>.",
                 modalClose: "Got it",
-                modalPupilLabel: "Pupil (Circular)"
+                modalPupilLabel: "Pupil (Circular)",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
+                ansLabel: "Answer",
+                steps: [
+                    "Press header <strong>Reset</strong>. Confirm <strong>luminous</strong> selected, distance ≈<strong>300 cm</strong>, pupil ≈<strong>30 mm</strong>, <strong>Infinite</strong> unchecked, <strong>language unchanged</strong>. On the canvas note the eye／pupil on the right, a candle on the left, and a yellow <strong>cone of rays</strong> into the pupil. This file is science <code>how-do-we-see</code>, not <code>pupil-light-reflex</code>, and not accommodation, reflection, or refraction labs.",
+                    "Keep luminous. Move <strong>object distance</strong> nearer (or drag the candle closer) and watch the cone get <strong>wider</strong>; then farther and watch it get <strong>narrower</strong>. Read the distance readout.",
+                    "Check <strong>Infinite Distance</strong>. The slider greys／disables; the stage shows <strong>parallel</strong> yellow bands (no candle) and the tip about parallel rays. Uncheck to restore a finite-distance cone.",
+                    "With Infinite off, select <strong>Non-luminous</strong>. Note the top-left <strong>lamp</strong>, the lamp→apple ray, and the yellow cone from the apple into the pupil. Non-luminous objects are seen by <strong>reflected</strong> light.",
+                    "Drag <strong>pupil size</strong> larger／smaller and watch the cone width at the opening. <strong>Reset</strong>: luminous, 300 cm, 30 mm, Infinite off, <strong>language unchanged</strong>. Open Principles／Quiz—focus is <strong>light into the eye／luminous vs non-luminous／distance & divergence</strong>, not light reflex or lens accommodation."
+                ],
+                quiz: [
+                    {
+                        q: "After header <strong>Reset</strong>, observe the canvas without Infinite or Non-luminous. Which best matches this how-do-we-see sim?",
+                        opts: [
+                            "A. Luminous selected; ≈300 cm, 30 mm; candle and yellow cone into the pupil; Infinite off",
+                            "B. Reset forces a non-luminous apple and switches to English",
+                            "C. The stage becomes light-intensity → iris muscles (pupil-light-reflex)",
+                            "D. Reset deletes the eye and leaves only a blank black screen"
+                        ],
+                        a: "A. Defaults luminous／300／30／isInfinite=false; C is a sibling topic."
+                    },
+                    {
+                        q: "After Reset, keep luminous. Move distance nearer then farther. <strong>Predict</strong> how the cone changes, then check.",
+                        opts: [],
+                        a: "Nearer → wider cone; farther → narrower cone (finite-distance geometry)."
+                    },
+                    {
+                        q: "After Reset, check <strong>Infinite Distance</strong>. Which is most reasonable?",
+                        opts: [
+                            "A. Slider disabled; parallel yellow bands (no candle); tip about parallel／infinite rays",
+                            "B. Infinite switches the object to a plane mirror with i＝r",
+                            "C. Checking Infinite resets language to English",
+                            "D. The pupil slider disappears and cannot be restored"
+                        ],
+                        a: "A. toggleInfinite + parallel-band drawing."
+                    },
+                    {
+                        q: "Turn Infinite off, select <strong>Non-luminous</strong>, enlarge the pupil. <strong>Predict</strong> the lamp and cone, then check.",
+                        opts: [],
+                        a: "External lamp lights the apple; yellow cone into pupil; larger pupil widens the cone."
+                    },
+                    {
+                        q: "Select Non-luminous, check Infinite, enlarge the pupil, then header <strong>Reset</strong>. Which best matches the state after Reset?",
+                        opts: [
+                            "A. Back to luminous, ≈300 cm, ≈30 mm, Infinite off; language unchanged",
+                            "B. Still non-luminous with Infinite and large pupil",
+                            "C. Reset becomes pupil-light-reflex",
+                            "D. Reset forces English and deletes the eye"
+                        ],
+                        a: "A. Matches resetAll; focus is light into the eye／luminous vs non-luminous—not pupil-light-reflex."
+                    }
+                ]
             }
         };
 
-        // State
         const state = {
-            objectType: 'luminous', // 'luminous' or 'non-luminous'
+            objectType: 'luminous',
             distance: 300,
             isInfinite: false,
             pupilSize: 30,
             canvasWidth: 800,
             canvasHeight: 450,
             isDragging: false,
-            lang: 'zh'
+            lang: 'zh',
+            showQuizAnswers: false
         };
 
-        // DOM Elements
+        let modalHideTimer = null;
+
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const distanceSlider = document.getElementById('distance-slider');
@@ -343,32 +542,36 @@
         const btnNonLuminous = document.getElementById('btn-nonluminous');
         const typeDesc = document.getElementById('type-desc');
         const conceptText = document.getElementById('concept-text');
-        
-        // Helper to get text based on current language
+
         function t(key) {
             return translations[state.lang][key];
         }
 
-        // Language Toggle Logic
         function toggleLanguage() {
             state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
             updateAllText();
-            updateSimulation(); // Redraw canvas with new text
-            requestAnimationFrame(drawEyeFront); // Redraw modal canvas
+            updateSimulation();
+            requestAnimationFrame(drawEyeFront);
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) fillStepsBody();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) fillPrincipleExtras();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) fillQuizBody();
         }
 
         function updateAllText() {
-            // Header
             document.getElementById('app-title').textContent = t('appTitle');
-            document.getElementById('btn-explain').textContent = t('btnExplain');
-            
-            // Settings
+            document.getElementById('app-subtitle').textContent = t('appSubtitle');
+            document.getElementById('subject-badge').textContent = t('subjectBadge');
+            document.getElementById('btn-steps').textContent = t('btnSteps');
+            document.getElementById('btn-principle').textContent = t('btnPrinciple');
+            document.getElementById('btn-quiz').textContent = t('btnQuiz');
+            document.getElementById('btn-reset').textContent = t('btnReset');
+
             document.getElementById('settings-title').textContent = t('settingsTitle');
             document.getElementById('label-obj-type').textContent = t('labelObjType');
             document.getElementById('btn-luminous').textContent = t('btnLuminous');
             document.getElementById('btn-nonluminous').textContent = t('btnNonLuminous');
-            
-            // Logic-based text (re-run logic)
+
             if (state.objectType === 'luminous') {
                 typeDesc.textContent = t('descLuminous');
             } else {
@@ -379,29 +582,41 @@
             document.getElementById('label-infinite').textContent = t('labelInfinite');
             document.getElementById('label-near').textContent = t('labelNear');
             document.getElementById('label-far').textContent = t('labelFar');
-
             document.getElementById('label-pupil').textContent = t('labelPupil');
             document.getElementById('label-small-cone').textContent = t('labelSmallCone');
             document.getElementById('label-large-cone').textContent = t('labelLargeCone');
-            
             document.getElementById('concept-title').textContent = t('conceptTitle');
-            // Logic-based concept text
-            if (state.isInfinite) {
-                conceptText.textContent = t('conceptInfinite');
-            } else {
-                conceptText.textContent = t('conceptFinite');
-            }
+            conceptText.textContent = state.isInfinite ? t('conceptInfinite') : t('conceptFinite');
 
-            // Observations
             document.getElementById('obs-title').textContent = t('obsTitle');
             document.getElementById('obs-1').textContent = t('obs1');
             document.getElementById('obs-2').textContent = t('obs2');
             document.getElementById('obs-3').textContent = t('obs3');
 
-            // Modal
-            document.getElementById('modal-title').textContent = t('modalTitle');
-            document.getElementById('modal-q1').textContent = t('modalQ1');
-            document.getElementById('modal-a1').innerHTML = t('modalA1');
+            document.getElementById('steps-title').textContent = t('stepsTitle');
+            document.getElementById('principle-title-text').textContent = t('principleTitle');
+            document.getElementById('quiz-title').textContent = t('quizTitle');
+            document.getElementById('steps-close-label').textContent = t('btnClose');
+            document.getElementById('quiz-close-label').textContent = t('btnClose');
+            document.getElementById('principle-close').textContent = t('modalClose');
+            document.getElementById('btn-quiz-answers').textContent = state.showQuizAnswers ? t('hideAns') : t('showAns');
+
+            fillPrincipleExtras();
+        }
+
+        function fillPrincipleExtras() {
+            document.getElementById('principle-concept-h').textContent = t('principleConceptH');
+            document.getElementById('principle-concept').textContent = t('principleConcept');
+            document.getElementById('principle-mech-h').textContent = t('principleMechH');
+            const ol = document.getElementById('principle-mech-list');
+            ol.innerHTML = '';
+            (t('principleMech') || []).forEach(function(item) {
+                const li = document.createElement('li');
+                li.textContent = item;
+                ol.appendChild(li);
+            });
+            document.getElementById('principle-ex-h').textContent = t('principleExH');
+            document.getElementById('principle-example').textContent = t('principleExample');
             document.getElementById('eye-front-title').textContent = t('eyeFrontTitle');
             document.getElementById('eye-front-pupil').innerHTML = t('eyeFrontPupil');
             document.getElementById('eye-front-iris').innerHTML = t('eyeFrontIris');
@@ -411,35 +626,103 @@
             document.getElementById('modal-long-dist-desc').innerHTML = t('modalLongDistDesc');
             document.getElementById('modal-infinite-title').textContent = t('modalInfiniteTitle');
             document.getElementById('modal-infinite-desc').innerHTML = t('modalInfiniteDesc');
-            document.getElementById('modal-close').textContent = t('modalClose');
         }
 
-        // Modal Logic
-        const modal = document.getElementById('info-modal');
-        const modalContent = modal.querySelector('div');
+        function fillStepsBody() {
+            const body = document.getElementById('steps-body');
+            body.innerHTML = '';
+            (t('steps') || []).forEach(function(html, i) {
+                const div = document.createElement('div');
+                div.className = 'bg-blue-50 border border-blue-100 rounded-lg p-3';
+                div.innerHTML = '<span class="font-bold text-blue-800">' + (i + 1) + '.</span> ' + html;
+                body.appendChild(div);
+            });
+        }
 
-        function toggleModal(show) {
-            if (show) {
-                modal.classList.remove('hidden');
-                setTimeout(() => {
-                    modal.classList.remove('opacity-0');
-                    modalContent.classList.remove('scale-95');
-                    modalContent.classList.add('scale-100');
-                }, 10);
-                requestAnimationFrame(drawEyeFront);
-            } else {
-                modal.classList.add('opacity-0');
-                modalContent.classList.remove('scale-100');
-                modalContent.classList.add('scale-95');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                }, 300);
+        function fillQuizBody() {
+            const body = document.getElementById('quiz-body');
+            body.innerHTML = '';
+            const quiz = t('quiz') || [];
+            const letters = ['A', 'B', 'C', 'D'];
+            const openHint = currentLang === 'zh' ? '先預測，再操作本模擬核對。' : 'Predict first, then use the sim to check.';
+            const refLabel = t('ansLabel') || (currentLang === 'zh' ? '參考答案' : 'Reference answer');
+            quiz.forEach(function(item, i) {
+                const n = i + 1;
+                const isOpen = n === 2 || n === 4;
+                const qid = 'q' + n;
+                const wrap = document.createElement('div');
+                wrap.className = 'border border-violet-100 rounded-xl p-4 bg-violet-50/40 space-y-2';
+                let optsHtml = '';
+                if (!isOpen && item.opts && item.opts.length) {
+                    optsHtml = '<div class="grid gap-1.5 mt-1">';
+                    item.opts.forEach(function(o, j) {
+                        const text = o.replace(/^[A-D]\.\s*/, '');
+                        optsHtml += '<label class="flex items-start gap-2 rounded-lg border border-violet-200 bg-white p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span><span class="font-mono font-bold text-violet-600">' + letters[j] + '.</span> ' + text + '</span></label>';
+                    });
+                    optsHtml += '</div>';
+                } else if (isOpen) {
+                    optsHtml = '<p class="text-xs text-slate-500 italic">' + openHint + '</p>';
+                }
+                let ans = '';
+                if (state.showQuizAnswers) {
+                    ans = '<div class="mt-2 text-sm bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg p-2"><strong>' + refLabel + '：</strong> ' + item.a + '</div>';
+                }
+                wrap.innerHTML = '<p class="font-semibold text-violet-900">Q' + n + '. ' + item.q + '</p>' + optsHtml + ans;
+                body.appendChild(wrap);
+            });
+            document.getElementById('btn-quiz-answers').textContent = state.showQuizAnswers ? t('hideAns') : t('showAns');
+        }
+
+        function toggleQuizAnswers() {
+            state.showQuizAnswers = !state.showQuizAnswers;
+            fillQuizBody();
+        }
+
+        function closeAllModals(exceptId) {
+            if (modalHideTimer) {
+                clearTimeout(modalHideTimer);
+                modalHideTimer = null;
             }
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+
+        function openTeachModal(id) {
+            closeAllModals(id);
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('hidden');
+            if (id === 'modal-steps') fillStepsBody();
+            if (id === 'modal-principle') {
+                fillPrincipleExtras();
+                requestAnimationFrame(drawEyeFront);
+            }
+            if (id === 'modal-quiz') fillQuizBody();
+        }
+
+        function resetAll() {
+            closeAllModals(null);
+            state.showQuizAnswers = false;
+            state.isDragging = false;
+            infiniteToggle.checked = false;
+            state.isInfinite = false;
+            distanceSlider.disabled = false;
+            distanceSlider.parentElement.style.opacity = '1';
+            distanceSlider.value = 300;
+            state.distance = 300;
+            pupilSlider.value = 30;
+            state.pupilSize = 30;
+            setObjectType('luminous');
+            conceptText.textContent = t('conceptFinite');
+            updateSimulation();
         }
 
         function drawEyeFront() {
             const c = document.getElementById('eyeModalCanvas');
-            if(!c) return;
+            if (!c) return;
             const context = c.getContext('2d');
             const w = c.width;
             const h = c.height;
@@ -448,7 +731,6 @@
 
             context.clearRect(0, 0, w, h);
 
-            // 1. Sclera
             context.beginPath();
             context.ellipse(cx, cy, 70, 45, 0, 0, Math.PI * 2);
             context.fillStyle = "#F3F4F6";
@@ -457,37 +739,33 @@
             context.strokeStyle = "#D1D5DB";
             context.stroke();
 
-            // 2. Iris
             context.beginPath();
             context.arc(cx, cy, 32, 0, Math.PI * 2);
             context.fillStyle = "#60A5FA";
             context.fill();
             context.strokeStyle = "rgba(255,255,255,0.3)";
             context.lineWidth = 1;
-            for(let i=0; i<12; i++) {
+            for (let i = 0; i < 12; i++) {
                 context.beginPath();
                 context.moveTo(cx, cy);
-                context.lineTo(cx + Math.cos(i*Math.PI/6)*32, cy + Math.sin(i*Math.PI/6)*32);
+                context.lineTo(cx + Math.cos(i * Math.PI / 6) * 32, cy + Math.sin(i * Math.PI / 6) * 32);
                 context.stroke();
             }
 
-            // 3. Pupil
             const demoPupilSize = 15;
             context.beginPath();
             context.arc(cx, cy, demoPupilSize, 0, Math.PI * 2);
             context.fillStyle = "#1F2937";
             context.fill();
 
-            // 4. Highlight
             context.beginPath();
             context.arc(cx + 8, cy - 8, 4, 0, Math.PI * 2);
             context.fillStyle = "rgba(255,255,255,0.6)";
             context.fill();
 
-            // 5. Label
             context.strokeStyle = "#4B5563";
             context.lineWidth = 1.5;
-            context.font = "12px Arial";
+            context.font = "12px 'Noto Sans TC', Arial";
             context.fillStyle = "#374151";
 
             context.beginPath();
@@ -495,41 +773,44 @@
             context.lineTo(cx + 60, cy - 30);
             context.lineTo(cx + 90, cy - 30);
             context.stroke();
-            
-            // Translate label inside canvas
+
             context.fillText(t('modalPupilLabel'), cx + 95, cy - 26);
         }
 
-        // Close modal when clicking outside
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) toggleModal(false);
-        });
-
-        // Initialization
         function init() {
             canvas.width = state.canvasWidth;
             canvas.height = state.canvasHeight;
-            
-            // Add Drag Event Listeners
+
             canvas.addEventListener('mousedown', handleStart);
             canvas.addEventListener('mousemove', handleMove);
             window.addEventListener('mouseup', handleEnd);
-            
             canvas.addEventListener('touchstart', handleStart, {passive: false});
             canvas.addEventListener('touchmove', handleMove, {passive: false});
             window.addEventListener('touchend', handleEnd);
 
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeAllModals(null);
+            });
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+                const el = document.getElementById(id);
+                el.addEventListener('click', function(e) {
+                    if (e.target === el) closeAllModals(null);
+                });
+            });
+            document.querySelectorAll('.modal-close-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() { closeAllModals(null); });
+            });
+
+            document.documentElement.lang = 'zh-Hant';
+            updateAllText();
             updateSimulation();
         }
 
-        // Interaction Handlers (Drag & Drop)
         function getMousePos(evt) {
             const rect = canvas.getBoundingClientRect();
             const clientX = evt.clientX || (evt.touches && evt.touches[0].clientX);
             const clientY = evt.clientY || (evt.touches && evt.touches[0].clientY);
-            
             if (clientX === undefined) return { x: 0, y: 0 };
-
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
             return {
@@ -540,11 +821,9 @@
 
         function isMouseOverObject(pos) {
             if (state.isInfinite) return false;
-            
             const eyeX = canvas.width - 100;
             const objectX = eyeX - state.distance;
             const objectY = canvas.height / 2;
-            
             const dx = pos.x - objectX;
             const dy = pos.y - objectY;
             return (dx * dx + dy * dy) < 3600;
@@ -561,31 +840,19 @@
 
         function handleMove(e) {
             const pos = getMousePos(e);
-            
             if (!state.isDragging) {
-                if (isMouseOverObject(pos)) {
-                    canvas.style.cursor = 'grab';
-                } else {
-                    canvas.style.cursor = 'default';
-                }
+                canvas.style.cursor = isMouseOverObject(pos) ? 'grab' : 'default';
                 return;
             }
-
-            if (state.isDragging) {
-                if (e.type === 'touchmove') e.preventDefault();
-                
-                const eyeX = canvas.width - 100;
-                let newDist = eyeX - pos.x;
-                
-                const min = parseInt(distanceSlider.min);
-                const max = parseInt(distanceSlider.max);
-                
-                if (newDist < min) newDist = min;
-                if (newDist > max) newDist = max;
-                
-                distanceSlider.value = Math.round(newDist);
-                updateSimulation();
-            }
+            if (e.type === 'touchmove') e.preventDefault();
+            const eyeX = canvas.width - 100;
+            let newDist = eyeX - pos.x;
+            const min = parseInt(distanceSlider.min);
+            const max = parseInt(distanceSlider.max);
+            if (newDist < min) newDist = min;
+            if (newDist > max) newDist = max;
+            distanceSlider.value = Math.round(newDist);
+            updateSimulation();
         }
 
         function handleEnd(e) {
@@ -595,25 +862,19 @@
             }
         }
 
-        // Action Handlers
         function setObjectType(type) {
             state.objectType = type;
-            
             if (type === 'luminous') {
                 btnLuminous.classList.remove('border-gray-300', 'bg-gray-50', 'text-gray-600');
                 btnLuminous.classList.add('border-yellow-500', 'bg-yellow-50', 'text-yellow-700');
-                
                 btnNonLuminous.classList.remove('border-red-500', 'bg-red-50', 'text-red-700');
                 btnNonLuminous.classList.add('border-gray-300', 'bg-gray-50', 'text-gray-600');
-                
                 typeDesc.textContent = t('descLuminous');
             } else {
                 btnNonLuminous.classList.remove('border-gray-300', 'bg-gray-50', 'text-gray-600');
                 btnNonLuminous.classList.add('border-red-500', 'bg-red-50', 'text-red-700');
-                
                 btnLuminous.classList.remove('border-yellow-500', 'bg-yellow-50', 'text-yellow-700');
                 btnLuminous.classList.add('border-gray-300', 'bg-gray-50', 'text-gray-600');
-                
                 typeDesc.textContent = t('descNonLuminous');
             }
             updateSimulation();
@@ -623,13 +884,7 @@
             state.isInfinite = infiniteToggle.checked;
             distanceSlider.disabled = state.isInfinite;
             distanceSlider.parentElement.style.opacity = state.isInfinite ? '0.5' : '1';
-            
-            if (state.isInfinite) {
-                conceptText.textContent = t('conceptInfinite');
-            } else {
-                conceptText.textContent = t('conceptFinite');
-            }
-            
+            conceptText.textContent = state.isInfinite ? t('conceptInfinite') : t('conceptFinite');
             updateSimulation();
         }
 
@@ -640,26 +895,20 @@
             } else {
                 distanceValue.textContent = t('distanceInfinite');
             }
-            
             state.pupilSize = parseInt(pupilSlider.value);
             pupilValue.textContent = state.pupilSize + "mm";
-
             draw();
         }
 
-        // Drawing Logic
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             const eyeX = canvas.width - 100;
             const eyeY = canvas.height / 2;
             const objectX = eyeX - state.distance;
             const objectY = eyeY;
 
-            // 1. Draw Environment (Light Source for Non-Luminous)
             if (state.objectType === 'non-luminous' && !state.isInfinite) {
                 drawLamp(100, 50);
-                // Draw ray from lamp to object
                 ctx.beginPath();
                 ctx.moveTo(100, 50);
                 ctx.lineTo(objectX, objectY);
@@ -667,12 +916,9 @@
                 ctx.lineWidth = 2;
                 ctx.setLineDash([]);
                 ctx.stroke();
-                
-                // Arrow
                 const midX = (100 + objectX) / 2;
                 const midY = (50 + objectY) / 2;
                 const angle = Math.atan2(objectY - 50, objectX - 100);
-
                 ctx.save();
                 ctx.translate(midX, midY);
                 ctx.rotate(angle);
@@ -684,13 +930,11 @@
                 ctx.fillStyle = "rgba(255, 255, 200, 1)";
                 ctx.fill();
                 ctx.restore();
-                
                 ctx.fillStyle = "#FFF";
-                ctx.font = "14px Arial";
+                ctx.font = "14px 'Noto Sans TC', Arial";
                 ctx.fillText(t('canvasLightSource'), 80, 40);
             }
 
-            // 2. Draw Rays
             ctx.globalCompositeOperation = 'screen';
             const pupilTopY = eyeY - (state.pupilSize / 2);
             const pupilBottomY = eyeY + (state.pupilSize / 2);
@@ -698,7 +942,6 @@
             if (state.isInfinite) {
                 ctx.fillStyle = "rgba(255, 255, 0, 0.15)";
                 ctx.fillRect(0, pupilTopY, eyeX, state.pupilSize);
-                
                 ctx.strokeStyle = "rgba(255, 255, 0, 0.6)";
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -709,10 +952,8 @@
                 ctx.moveTo(0, eyeY);
                 ctx.lineTo(eyeX, eyeY);
                 ctx.stroke();
-                
                 drawArrow(ctx, 300, pupilTopY, 20);
                 drawArrow(ctx, 300, pupilBottomY, 20);
-
             } else {
                 ctx.beginPath();
                 ctx.moveTo(objectX, objectY);
@@ -721,17 +962,14 @@
                 ctx.closePath();
                 ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
                 ctx.fill();
-
                 ctx.beginPath();
                 ctx.moveTo(objectX, objectY);
                 ctx.lineTo(eyeX, pupilTopY);
                 ctx.moveTo(objectX, objectY);
                 ctx.lineTo(eyeX, pupilBottomY);
-                
                 ctx.strokeStyle = "rgba(255, 255, 0, 0.8)";
                 ctx.lineWidth = 2;
                 ctx.stroke();
-
                 const midX = (objectX + eyeX) / 2;
                 const midTopY = (objectY + pupilTopY) / 2;
                 const midBotY = (objectY + pupilBottomY) / 2;
@@ -741,7 +979,6 @@
 
             ctx.globalCompositeOperation = 'source-over';
 
-            // 3. Draw Object
             if (!state.isInfinite) {
                 if (state.objectType === 'luminous') {
                     drawCandle(objectX, objectY);
@@ -750,137 +987,112 @@
                 }
             } else {
                 ctx.fillStyle = "#FFF";
-                ctx.font = "20px Arial";
+                ctx.font = "20px 'Noto Sans TC', Arial";
                 ctx.textAlign = "left";
                 ctx.fillText(t('canvasInfiniteHint'), 20, eyeY - 50);
             }
 
-            // 4. Draw Eye
             drawEye(eyeX, eyeY, state.pupilSize);
         }
 
-        // Graphic Helpers
         function drawEye(x, y, aperture) {
             ctx.save();
-            
             ctx.beginPath();
             ctx.arc(x + 40, y, 70, 0, Math.PI * 2);
             ctx.fillStyle = "#E5E7EB";
             ctx.fill();
-
             ctx.beginPath();
             ctx.moveTo(x, y - 80);
             ctx.quadraticCurveTo(x - 20, y, x, y + 80);
             ctx.strokeStyle = "#9CA3AF";
             ctx.lineWidth = 2;
             ctx.stroke();
-
             ctx.fillStyle = "#60A5FA";
-            
             ctx.beginPath();
             ctx.moveTo(x, y - 80);
-            ctx.quadraticCurveTo(x - 15, y - 40, x, y - (aperture/2));
-            ctx.lineTo(x + 10, y - (aperture/2));
+            ctx.quadraticCurveTo(x - 15, y - 40, x, y - (aperture / 2));
+            ctx.lineTo(x + 10, y - (aperture / 2));
             ctx.lineTo(x + 10, y - 80);
             ctx.fill();
-
             ctx.beginPath();
             ctx.moveTo(x, y + 80);
-            ctx.quadraticCurveTo(x - 15, y + 40, x, y + (aperture/2));
-            ctx.lineTo(x + 10, y + (aperture/2));
+            ctx.quadraticCurveTo(x - 15, y + 40, x, y + (aperture / 2));
+            ctx.lineTo(x + 10, y + (aperture / 2));
             ctx.lineTo(x + 10, y + 80);
             ctx.fill();
-
             ctx.beginPath();
-            ctx.arc(x + 40, y, 65, -Math.PI/2, Math.PI/2, false);
+            ctx.arc(x + 40, y, 65, -Math.PI / 2, Math.PI / 2, false);
             ctx.strokeStyle = "#F87171";
             ctx.lineWidth = 4;
             ctx.stroke();
-            
             ctx.fillStyle = "#FFFFFF";
-            ctx.font = "14px Arial";
-            
+            ctx.font = "14px 'Noto Sans TC', Arial";
             ctx.textAlign = "left";
             ctx.fillText(t('canvasRetina'), x + 120, y + 5);
-            
             ctx.textAlign = "center";
             ctx.fillText(t('canvasPupil'), x, y + 105);
-
             ctx.restore();
         }
 
         function drawCandle(x, y) {
             ctx.save();
             ctx.translate(x, y);
-            
             ctx.fillStyle = "#DDDDDD";
             ctx.fillRect(-10, 10, 20, 50);
-            
             ctx.fillStyle = "#333";
             ctx.fillRect(-1, 0, 2, 10);
-
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.quadraticCurveTo(-10, -15, 0, -30);
             ctx.quadraticCurveTo(10, -15, 0, 0);
             ctx.fillStyle = "#F59E0B";
             ctx.fill();
-            
             ctx.beginPath();
             ctx.arc(0, -15, 20, 0, Math.PI * 2);
             ctx.fillStyle = "rgba(255, 200, 0, 0.3)";
             ctx.fill();
-
             ctx.fillStyle = "#FFF";
-            ctx.font = "14px Arial";
+            ctx.font = "14px 'Noto Sans TC', Arial";
             ctx.textAlign = "center";
             ctx.fillText(t('canvasObjectLuminous'), 0, 80);
-
             ctx.restore();
         }
 
         function drawApple(x, y) {
             ctx.save();
             ctx.translate(x, y);
-
             ctx.beginPath();
-            ctx.arc(0, 10, 20, 0, Math.PI*2);
+            ctx.arc(0, 10, 20, 0, Math.PI * 2);
             ctx.fillStyle = "#EF4444";
             ctx.fill();
-            
             ctx.beginPath();
-            ctx.ellipse(5, -10, 8, 4, Math.PI/4, 0, Math.PI*2);
+            ctx.ellipse(5, -10, 8, 4, Math.PI / 4, 0, Math.PI * 2);
             ctx.fillStyle = "#10B981";
             ctx.fill();
-
             ctx.fillStyle = "#FFF";
-            ctx.font = "14px Arial";
+            ctx.font = "14px 'Noto Sans TC', Arial";
             ctx.textAlign = "center";
             ctx.fillText(t('canvasObjectNonLuminous'), 0, 50);
-
             ctx.restore();
         }
 
         function drawLamp(x, y) {
             ctx.save();
             ctx.translate(x, y);
-            
             ctx.beginPath();
-            ctx.arc(0, 0, 15, 0, Math.PI*2);
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
             ctx.fillStyle = "#FEF3C7";
             ctx.fill();
             ctx.strokeStyle = "#F59E0B";
             ctx.lineWidth = 2;
             ctx.stroke();
-
-            for(let i=0; i<8; i++) {
-                ctx.rotate(Math.PI/4);
+            for (let i = 0; i < 8; i++) {
+                ctx.rotate(Math.PI / 4);
                 ctx.beginPath();
                 ctx.moveTo(20, 0);
                 ctx.lineTo(30, 0);
                 ctx.stroke();
             }
-
             ctx.restore();
         }
 
@@ -896,7 +1108,6 @@
         }
 
         window.addEventListener('load', init);
-
     </script>
 </body>
 </html>

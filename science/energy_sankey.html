@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>能量守恆與桑基圖 | Energy Sankey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: {
+                fontCache: 'global',
+                displayAlign: 'center',
+                linebreaks: { automatic: false }
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body { font-family: 'Noto Sans TC', sans-serif; touch-action: manipulation; }
+        .flow-animation { stroke-dasharray: 10 5; animation: flow 1s linear infinite; }
+        @keyframes flow { from { stroke-dashoffset: 15; } to { stroke-dashoffset: 0; } }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+            background: #2563eb; cursor: pointer; margin-top: -6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 8px; cursor: pointer; background: #e2e8f0; border-radius: 4px;
+        }
+        input[type=range]:focus { outline: none; }
+        .modal-backdrop { transition: opacity 0.25s ease, visibility 0.25s ease; }
+        .modal-content { transition: transform 0.25s ease, opacity 0.25s ease; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-full p-3 sm:p-5 flex flex-col items-center overflow-x-hidden overflow-y-auto">
+
+    <header class="w-full max-w-6xl bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-3 sticky top-2 z-20">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 bg-gradient-to-tr from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">能量守恆與桑基圖</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold" data-i18n="badge">中一科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">輸入能量＝有用輸出＋散失；箭頭闊度代表能量多寡</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-700 rounded-xl font-bold text-sm border border-blue-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <aside class="flex flex-col gap-4 order-2 lg:order-1">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 flex items-center gap-2 text-sm">
+                    <span class="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">1</span>
+                    <span data-i18n="sec1Title">選擇電器或自訂</span>
+                </h2>
+                <select id="preset-selector" class="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer text-sm">
+                    <option value="incandescent">傳統鎢絲燈泡</option>
+                    <option value="led">LED 燈泡</option>
+                    <option value="tv">電視機</option>
+                    <option value="hairdryer">風筒</option>
+                    <option value="custom">🔧 自訂數據</option>
+                </select>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 flex items-center gap-2 text-sm">
+                    <span class="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">2</span>
+                    <span data-i18n="sec2Title">能量數據（焦耳 J）</span>
+                </h2>
+                <div class="space-y-4">
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                        <label class="block text-xs font-bold text-slate-600 mb-1" data-i18n="labelInputHeading">總輸入能量</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="label-input" value="電能" class="w-24 px-2.5 py-1 text-sm border rounded bg-white" disabled>
+                            <input type="number" id="val-total" value="100" min="1" class="w-24 px-2.5 py-1 border rounded font-mono font-bold text-slate-700 bg-slate-100" readonly> J
+                        </div>
+                    </div>
+                    <div class="p-3.5 bg-green-50 rounded-xl border border-green-200">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-green-700" data-i18n="labelUsefulHeading">有用輸出能量</label>
+                            <span id="pct-useful" class="text-xs font-bold text-green-700 bg-green-200/80 px-2 py-0.5 rounded-full">10.0%</span>
+                        </div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <input type="text" id="label-useful" value="光能" class="w-24 px-2.5 py-1 text-sm border border-green-300 rounded text-green-800 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-70 bg-white">
+                            <input type="number" id="val-useful" value="10" min="0" class="w-24 px-2.5 py-1 border border-green-300 rounded font-mono font-bold text-green-700 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-70 bg-white"> J
+                        </div>
+                        <input type="range" id="slider-useful" min="0" max="100" value="10" class="w-full mt-1 accent-green-600 disabled:opacity-50" disabled>
+                    </div>
+                    <div class="p-3.5 bg-red-50 rounded-xl border border-red-200">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-red-700" data-i18n="labelWastedHeading">散失／浪費能量</label>
+                            <span id="pct-wasted" class="text-xs font-bold text-red-700 bg-red-200/80 px-2 py-0.5 rounded-full">90.0%</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="label-wasted" value="熱能" class="w-24 px-2.5 py-1 text-sm border border-red-300 rounded text-red-800 focus:outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-70 bg-white">
+                            <input type="number" id="val-wasted" value="90" class="w-24 px-2.5 py-1 border border-red-300 rounded font-mono font-bold text-red-700 bg-white" readonly> J
+                        </div>
+                        <p class="text-[11px] text-red-500 mt-2 font-medium" data-i18n="wastedNote">* 散失能量 = 總輸入 − 有用輸出</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 p-4 rounded-2xl border-l-4 border-amber-400 shadow-sm">
+                <h3 class="font-bold text-amber-900 text-sm mb-2 flex items-center gap-1.5">
+                    <span>💡</span> <span data-i18n="conceptTitle">科學概念提醒</span>
+                </h3>
+                <ul class="text-xs text-amber-900 space-y-2 list-disc pl-4 leading-relaxed">
+                    <li data-i18n="concept1">能量守恆：輸入 = 有用 + 散失</li>
+                    <li data-i18n="concept2">箭頭越闊，代表該形式能量越多</li>
+                </ul>
+            </div>
+
+            <button type="button" id="btn-reset" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-sm" data-i18n="btnReset">重置模擬</button>
+        </aside>
+
+        <section class="lg:col-span-2 space-y-5 order-1 lg:order-2">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="w-full md:w-auto">
+                    <h2 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2" data-i18n="effTitle">能量轉換效率</h2>
+                    <div class="mj-eq font-mono text-sm text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200" id="txt-eff-formula">
+                        $$\eta = \frac{E_{\text{useful}}}{E_{\text{input}}} \times 100\%$$
+                    </div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div id="txt-eff-calc-step" class="calc-step text-xs text-blue-800 font-bold mb-1 w-full max-w-xs">
+                        $$\eta = \frac{10\text{ J}}{100\text{ J}} \times 100\%$$
+                    </div>
+                    <div class="flex items-baseline gap-1">
+                        <span id="efficiency-display" class="text-4xl sm:text-5xl font-extrabold text-blue-600 tracking-tight font-mono">10.0</span>
+                        <span class="text-2xl font-bold text-blue-600">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+                <div class="min-w-[620px] h-[460px] relative" id="svg-container"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-blue-500 to-cyan-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">桑基圖與能量守恆</h2>
+                    <p class="text-xs text-blue-100" data-i18n="modalSub">Sankey diagram &amp; conservation of energy</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                    <h3 class="font-bold text-blue-900 mb-1" data-i18n="m1t">1. 什麼是桑基圖？</h3>
+                    <p class="text-xs" data-i18n="m1d">桑基圖以箭頭闊度表示能量（或物質）流量。闊度與數值成正比，可清楚看出能量由輸入分流至不同輸出。</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-2xl border border-green-100">
+                    <h3 class="font-bold text-green-900 mb-1" data-i18n="m2t">2. 能量守恆定律</h3>
+                    <p class="text-xs mb-2" data-i18n="m2d">能量不能被創造或滅絕，只能由一種形式轉換為另一種形式。</p>
+                    <div class="mj-box">$$E_{\text{input}} = E_{\text{useful}} + E_{\text{wasted}}$$</div>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <h3 class="font-bold text-amber-900 mb-1" data-i18n="m3t">3. 能量轉換效率</h3>
+                    <p class="text-xs mb-2" data-i18n="m3d">效率表示輸入能量中有多少百分比轉化為有用能量。</p>
+                    <div class="mj-box">$$\eta = \left( \frac{E_{\text{useful}}}{E_{\text{input}}} \right) \times 100\%$$</div>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m4t">4. 生活例子</h3>
+                    <p class="text-xs" data-i18n="m4d">鎢絲燈把大部分電能變成熱能，效率低；LED 把更多電能變成光能。風筒有用輸出為熱能與動能，仍有部分以聲能散失。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-slate-800 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0 text-xs">1</span><span data-i18n="s1">先選「鎢絲燈泡」，觀察桑基圖：有用（光）與散失（熱）箭頭闊度比例。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0 text-xs">2</span><span data-i18n="s2">改選「LED 燈泡」，比較效率數字與綠色／紅色箭頭闊度變化。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0 text-xs">3</span><span data-i18n="s3">切換「自訂數據」，拖曳有用能量滑桿，確認散失能量自動補足至總輸入。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center shrink-0 text-xs">4</span><span data-i18n="s4">試風筒或電視機預設，讀取效率公式中的分子分母，核對 η 百分比。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-rose-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center gap-3 flex-wrap">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 shrink-0" aria-label="Close">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const presetValues = {
+    incandescent: { total: 100, useful: 10 },
+    led: { total: 100, useful: 75 },
+    tv: { total: 200, useful: 120 },
+    hairdryer: { total: 1000, useful: 700 }
+};
+
+const i18n = {
+    zh: {
+        title: '能量守恆與桑基圖', badge: '中一科學',
+        subtitle: '輸入能量＝有用輸出＋散失；箭頭闊度代表能量多寡',
+        btnSteps: '觀察步驟', btnPrinciple: '原理解說', btnQuiz: '課堂問題', btnReset: '重置模擬',
+        quizTitle: '課堂問題', quizShowAnswers: '顯示參考答案', quizHideAnswers: '隱藏參考答案', quizRef: '參考答案',
+        quizQ1: '根據能量守恆，「散失／浪費能量」讀數如何求得？',
+        quizQ1a: '總輸入 + 有用輸出', quizQ1b: '總輸入 − 有用輸出', quizQ1c: '有用輸出 − 總輸入', quizQ1d: '總輸入 × 有用輸出',
+        quizQ1ans: 'E_wasted = E_input − E_useful，輸入等於有用加散失。',
+        quizQ2: '先預測：鎢絲燈泡與 LED 燈泡哪個效率較高？再分別在「選擇電器」中選取兩者，比較 η 與紅／綠箭咀闊度。',
+        quizQ2ans: 'LED 有用輸出比例較大，η 較高；鎢絲燈大部分電能散失為熱。',
+        quizQ3: '桑基圖中箭咀越闊表示甚麼？',
+        quizQ3a: '能量愈多', quizQ3b: '能量愈少', quizQ3c: '只表示顏色', quizQ3d: '時間愈長',
+        quizQ3ans: '箭咀闊度與該路徑能量多寡成正比。',
+        quizQ4: '在「自訂數據」下，只提高「有用輸出能量」滑桿：預測散失讀數與箭咀，再拖曳核對。',
+        quizQ4ans: '總輸入不變時，有用增加則散失自動減少；綠箭咀變闊、紅箭咀變窄。',
+        quizQ5: '預設「風筒」時，下列哪項最可能是「有用輸出能量」的主要形式？',
+        quizQ5a: '熱能與空氣動能', quizQ5b: '只輸出可見光', quizQ5c: '化學能儲存', quizQ5d: '核能',
+        quizQ5ans: '風筒把電能轉為熱能與吹出空氣的動能；部分以聲能散失。',
+        sec1Title: '選擇電器或自訂', sec2Title: '能量數據（焦耳 J）',
+        labelInputHeading: '總輸入能量', labelUsefulHeading: '有用輸出能量',
+        labelWastedHeading: '散失／浪費能量', wastedNote: '* 散失能量 = 總輸入 − 有用輸出',
+        conceptTitle: '科學概念提醒',
+        concept1: '<strong>能量守恆定律：</strong><br><span class="my-1 block mj-display">$$E_{\\text{input}} = E_{\\text{useful}} + E_{\\text{wasted}}$$</span>輸入能量必定等於總輸出（有用 + 散失），能量不會憑空消失。',
+        concept2: '<strong>箭頭寬度：</strong>在桑基圖中，箭頭越闊，代表該形式的能量越多。',
+        effTitle: '能量轉換效率',
+        effFormula: '$$\\eta = \\frac{E_{\\text{useful}}}{E_{\\text{input}}} \\times 100\\%$$',
+        stepsTitle: '觀察步驟',
+        s1: '先選「鎢絲燈泡」，觀察桑基圖：有用（光）與散失（熱）箭頭闊度比例。',
+        s2: '改選「LED 燈泡」，比較效率數字與綠色／紅色箭頭闊度變化。',
+        s3: '切換「自訂數據」，拖曳有用能量滑桿，確認散失能量自動補足至總輸入。',
+        s4: '試風筒或電視機預設，讀取效率公式中的分子分母，核對 η 百分比。',
+        modalTitle: '桑基圖與能量守恆', modalSub: '能量轉換與效率',
+        modalClose: '關閉',
+        m1t: '1. 什麼是桑基圖？',
+        m1d: '桑基圖以箭頭闊度表示能量（或物質）流量。闊度與數值成正比，可清楚看出能量由輸入分流至不同輸出。',
+        m2t: '2. 能量守恆定律',
+        m2d: '能量不能被創造或滅絕，只能由一種形式轉換為另一種形式。',
+        m3t: '3. 能量轉換效率',
+        m3d: '效率表示輸入能量中有多少百分比轉化為有用能量。',
+        m4t: '4. 生活例子',
+        m4d: '鎢絲燈把大部分電能變成熱能，效率低；LED 把更多電能變成光能。風筒有用輸出為熱能與動能，仍有部分以聲能散失。',
+        presets: {
+            incandescent: { name: '傳統鎢絲燈泡', input: '電能', useful: '光能', wasted: '熱能' },
+            led: { name: 'LED 燈泡', input: '電能', useful: '光能', wasted: '熱能' },
+            tv: { name: '電視機', input: '電能', useful: '光／聲能', wasted: '熱能' },
+            hairdryer: { name: '風筒', input: '電能', useful: '熱／動能', wasted: '聲能' },
+            custom: { name: '🔧 自訂數據' }
+        }
+    },
+    en: {
+        title: 'Energy Conservation & Sankey', badge: 'Junior Science',
+        subtitle: 'Input = useful output + wasted; arrow width shows energy amount',
+        btnSteps: 'Observation Steps', btnPrinciple: 'Theory', btnQuiz: 'Quiz', btnReset: 'Reset',
+        quizTitle: 'Classroom Quiz', quizShowAnswers: 'Show reference answers', quizHideAnswers: 'Hide reference answers', quizRef: 'Reference',
+        quizQ1: 'From conservation, how is Wasted energy calculated?',
+        quizQ1a: 'Input + useful', quizQ1b: 'Input − useful', quizQ1c: 'Useful − input', quizQ1d: 'Input × useful',
+        quizQ1ans: 'E_wasted = E_input − E_useful; input equals useful plus wasted.',
+        quizQ2: 'Predict which is more efficient — incandescent or LED. Then select each preset and compare η and arrow widths.',
+        quizQ2ans: 'LED has a higher useful fraction and η; the incandescent wastes more as heat.',
+        quizQ3: 'In the Sankey diagram, a wider arrow means?',
+        quizQ3a: 'More energy', quizQ3b: 'Less energy', quizQ3c: 'Only colour', quizQ3d: 'More time',
+        quizQ3ans: 'Arrow width is proportional to energy on that path.',
+        quizQ4: 'In Custom data, raise only the Useful output slider: predict Wasted and arrows, then drag and check.',
+        quizQ4ans: 'Input fixed: more useful means less wasted; green arrow wider, red narrower.',
+        quizQ5: 'For the Hair Dryer preset, what is mainly useful output?',
+        quizQ5a: 'Thermal energy and kinetic energy of air', quizQ5b: 'Visible light only', quizQ5c: 'Stored chemical energy', quizQ5d: 'Nuclear energy',
+        quizQ5ans: 'Hair dryer converts electricity to heat and moving air; some is wasted as sound.',
+        sec1Title: 'Select Appliance or Custom', sec2Title: 'Energy Data (Joules J)',
+        labelInputHeading: 'Total Input Energy', labelUsefulHeading: 'Useful Output Energy',
+        labelWastedHeading: 'Wasted Energy', wastedNote: '* Wasted = Input − Useful',
+        conceptTitle: 'Key Concepts',
+        concept1: '<strong>Conservation of Energy:</strong><br><span class="my-1 block mj-display">$$E_{\\text{input}} = E_{\\text{useful}} + E_{\\text{wasted}}$$</span>Total input must equal total output (useful + wasted).',
+        concept2: '<strong>Arrow Width:</strong> In a Sankey diagram, wider arrows mean more energy.',
+        effTitle: 'Energy Conversion Efficiency',
+        effFormula: '$$\\eta = \\frac{E_{\\text{useful}}}{E_{\\text{input}}} \\times 100\\%$$',
+        stepsTitle: 'Observation Steps',
+        s1: 'Select "Incandescent Bulb" and compare useful (light) vs wasted (heat) arrow widths.',
+        s2: 'Switch to "LED Bulb" and compare efficiency % and green/red arrow widths.',
+        s3: 'Choose "Custom", drag the useful-energy slider, and verify wasted energy fills the remainder.',
+        s4: 'Try Hair Dryer or TV presets; check the efficiency formula numerator and denominator.',
+        modalTitle: 'Sankey Diagram & Energy', modalSub: 'Energy transfer & efficiency',
+        modalClose: 'Close',
+        m1t: '1. What is a Sankey Diagram?',
+        m1d: 'A Sankey diagram uses arrow width to show energy (or material) flow. Width is proportional to quantity.',
+        m2t: '2. Law of Conservation of Energy',
+        m2d: 'Energy cannot be created or destroyed; it only changes form.',
+        m3t: '3. Energy Efficiency',
+        m3d: 'Efficiency is the percentage of input energy converted to useful output.',
+        m4t: '4. Real-life Examples',
+        m4d: 'Incandescent bulbs waste most energy as heat; LEDs convert more to light. Hair dryers output heat and kinetic energy, with some sound wasted.',
+        presets: {
+            incandescent: { name: 'Incandescent Bulb', input: 'Electrical', useful: 'Light', wasted: 'Thermal' },
+            led: { name: 'LED Bulb', input: 'Electrical', useful: 'Light', wasted: 'Thermal' },
+            tv: { name: 'Television', input: 'Electrical', useful: 'Light/Sound', wasted: 'Thermal' },
+            hairdryer: { name: 'Hair Dryer', input: 'Electrical', useful: 'Thermal/Kinetic', wasted: 'Sound' },
+            custom: { name: '🔧 Custom Data' }
+        }
+    }
+};
+
+let quizAnswersVisible = false;
+
+const state = {
+    lang: 'zh',
+    total: 100,
+    useful: 10,
+    isCustom: false,
+    currentPreset: 'incandescent',
+    get wasted() { return Math.max(0, this.total - this.useful); }
+};
+
+const els = {
+    preset: document.getElementById('preset-selector'),
+    valTotal: document.getElementById('val-total'),
+    valUseful: document.getElementById('val-useful'),
+    valWasted: document.getElementById('val-wasted'),
+    lblInput: document.getElementById('label-input'),
+    lblUseful: document.getElementById('label-useful'),
+    lblWasted: document.getElementById('label-wasted'),
+    sliderUseful: document.getElementById('slider-useful'),
+    pctUseful: document.getElementById('pct-useful'),
+    pctWasted: document.getElementById('pct-wasted'),
+    effDisplay: document.getElementById('efficiency-display'),
+    effCalcStep: document.getElementById('txt-eff-calc-step'),
+    effFormula: document.getElementById('txt-eff-formula'),
+    svgContainer: document.getElementById('svg-container')
+};
+
+function triggerMathJax() {
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+}
+
+function renderQuiz() {
+    const box = document.getElementById('quiz-list');
+    if (!box) return;
+    const L = i18n[state.lang];
+    const mkChoice = (qid, letters) => letters.map(ch => {
+        const key = 'quizQ' + qid.slice(1) + ch.toLowerCase();
+        return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-rose-50/50"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-600"><span>${ch}. ${L[key]}</span></label>`;
+    }).join('');
+    const ans = (n) => quizAnswersVisible
+        ? `<div class="quiz-answer mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${L.quizRef}：</strong> ${L['quizQ' + n + 'ans']}</div>`
+        : '';
+    box.innerHTML = [1,2,3,4,5].map(n => {
+        const open = n === 2 || n === 4;
+        return `<div class="rounded-xl border border-slate-200 p-3 bg-slate-50/50"><p class="font-semibold text-rose-700 mb-2">Q${n}. ${L['quizQ' + n]}</p>${open ? '' : `<div class="grid gap-1.5">${mkChoice('q' + n, ['A','B','C','D'])}</div>`}${ans(n)}</div>`;
+    }).join('');
+    const ansBtn = document.getElementById('btn-quiz-answers');
+    if (ansBtn) ansBtn.textContent = quizAnswersVisible ? L.quizHideAnswers : L.quizShowAnswers;
+}
+
+function typesetQuiz() {
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([document.getElementById('modal-quiz')]).catch(() => {});
+}
+
+function applyI18n() {
+    document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (i18n[state.lang][key]) el.innerHTML = i18n[state.lang][key];
+    });
+    const keys = ['incandescent', 'led', 'tv', 'hairdryer', 'custom'];
+    keys.forEach((k, i) => {
+        els.preset.options[i].text = i18n[state.lang].presets[k].name;
+    });
+    if (!state.isCustom && i18n[state.lang].presets[state.currentPreset]) {
+        const p = i18n[state.lang].presets[state.currentPreset];
+        els.lblInput.value = p.input;
+        els.lblUseful.value = p.useful;
+        els.lblWasted.value = p.wasted;
+    }
+    els.effFormula.innerHTML = i18n[state.lang].effFormula;
+    drawSankey();
+    triggerMathJax();
+    renderQuiz();
+}
+
+function loadPreset(key) {
+    const vals = presetValues[key];
+    const pText = i18n[state.lang].presets[key];
+    state.isCustom = false;
+    state.currentPreset = key;
+    els.valTotal.readOnly = true;
+    els.valUseful.disabled = true;
+    els.sliderUseful.disabled = true;
+    els.lblInput.disabled = true;
+    els.lblUseful.disabled = true;
+    els.lblWasted.disabled = true;
+    els.valTotal.classList.remove('bg-white', 'focus:outline-none', 'focus:ring-1', 'focus:ring-blue-500');
+    els.valTotal.classList.add('bg-slate-100');
+    els.lblInput.value = pText.input;
+    els.lblUseful.value = pText.useful;
+    els.lblWasted.value = pText.wasted;
+    els.preset.value = key;
+    updateValues(vals.total, vals.useful);
+}
+
+function enableCustomMode() {
+    state.isCustom = true;
+    state.currentPreset = 'custom';
+    els.valTotal.readOnly = false;
+    els.valUseful.disabled = false;
+    els.sliderUseful.disabled = false;
+    els.lblInput.disabled = false;
+    els.lblUseful.disabled = false;
+    els.lblWasted.disabled = false;
+    els.valTotal.classList.add('bg-white', 'focus:outline-none', 'focus:ring-1', 'focus:ring-blue-500');
+    els.valTotal.classList.remove('bg-slate-100');
+    els.sliderUseful.max = state.total;
+    drawSankey();
+}
+
+function updateValues(total, useful) {
+    total = parseInt(total, 10);
+    useful = parseInt(useful, 10);
+    if (isNaN(total) || total <= 0) total = 100;
+    if (isNaN(useful) || useful < 0) useful = 0;
+    if (useful > total) useful = total;
+    state.total = total;
+    state.useful = useful;
+    els.valTotal.value = state.total;
+    els.valUseful.value = state.useful;
+    els.valWasted.value = state.wasted;
+    if (state.isCustom) els.sliderUseful.max = state.total;
+    els.sliderUseful.value = state.useful;
+    const pctU = ((state.useful / state.total) * 100).toFixed(1);
+    const pctW = ((state.wasted / state.total) * 100).toFixed(1);
+    els.pctUseful.textContent = `${pctU}%`;
+    els.pctWasted.textContent = `${pctW}%`;
+    els.effDisplay.textContent = pctU;
+    els.effCalcStep.innerHTML = `$$\\eta = \\frac{${state.useful}\\text{ J}}{${state.total}\\text{ J}} \\times 100\\%$$`;
+    drawSankey();
+    triggerMathJax();
+}
+
+function resetSim() {
+    els.preset.value = 'incandescent';
+    loadPreset('incandescent');
+}
+
+function drawSankey() {
+    const svgWidth = 780;
+    const svgHeight = 440;
+    const maxThickness = 150;
+    const total = state.total;
+    const useful = state.useful;
+    const wasted = state.wasted;
+    const scale = maxThickness / total;
+    const hTotal = total * scale;
+    const hUseful = useful * scale;
+    const hWasted = wasted * scale;
+    const startX = 50;
+    const splitX = 260;
+    const endX = 660;
+    const startY = 70;
+
+    let svgContent = `<svg viewBox="0 0 ${svgWidth} ${svgHeight}" class="w-full h-full drop-shadow-md" role="img" aria-label="Energy Sankey diagram">
+        <defs>
+            <linearGradient id="gradInput" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#94a3b8"/><stop offset="100%" stop-color="#cbd5e1"/>
+            </linearGradient>
+            <linearGradient id="gradUseful" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#86efac"/><stop offset="100%" stop-color="#22c55e"/>
+            </linearGradient>
+            <linearGradient id="gradWasted" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fca5a5"/><stop offset="100%" stop-color="#ef4444"/>
+            </linearGradient>
+        </defs>`;
+
+    const inputPath = `M ${startX} ${startY} L ${splitX} ${startY} L ${splitX} ${startY + hTotal} L ${startX} ${startY + hTotal} Z`;
+    svgContent += `
+        <path d="${inputPath}" fill="url(#gradInput)" class="transition-all duration-300"/>
+        <path d="${inputPath}" fill="none" stroke="#ffffff" stroke-width="2" class="flow-animation transition-all duration-300" style="opacity:0.5"/>
+        <text x="${startX + (splitX - startX) / 2}" y="${startY + hTotal / 2}" dominant-baseline="middle" text-anchor="middle" class="font-bold fill-slate-800 text-base sm:text-lg">
+            ${els.lblInput.value} (${total} J)
+        </text>`;
+
+    if (useful > 0) {
+        const arrowHeadWidth = 35;
+        const arrowHeadOvershoot = 12;
+        const usefulPath = `M ${splitX} ${startY} L ${endX - arrowHeadWidth} ${startY} L ${endX - arrowHeadWidth} ${startY - arrowHeadOvershoot} L ${endX} ${startY + hUseful / 2} L ${endX - arrowHeadWidth} ${startY + hUseful + arrowHeadOvershoot} L ${endX - arrowHeadWidth} ${startY + hUseful} L ${splitX} ${startY + hUseful} Z`;
+        svgContent += `
+            <path d="${usefulPath}" fill="url(#gradUseful)" class="transition-all duration-300"/>
+            <path d="${usefulPath}" fill="none" stroke="#ffffff" stroke-width="2" class="flow-animation transition-all duration-300" style="opacity:0.4"/>
+            <text x="${splitX + (endX - splitX) / 2 - 15}" y="${startY + hUseful / 2}" dominant-baseline="middle" text-anchor="middle" class="font-bold fill-green-950 text-base sm:text-lg">
+                ${els.lblUseful.value} (${useful} J)
+            </text>`;
+    }
+
+    if (wasted > 0) {
+        const wStartY = startY + hUseful;
+        const wBotY = startY + hTotal;
+        const centerX = splitX + 160;
+        const arrowTipY = 370;
+        const arrowHeadHeight = 30;
+        const arrowBaseY = arrowTipY - arrowHeadHeight;
+        const arrowOvershoot = 10;
+        const xInner = centerX - hWasted / 2;
+        const xOuter = centerX + hWasted / 2;
+        const dxOuter = xOuter - splitX;
+        const dyOuter = arrowBaseY - wStartY;
+        const dxInner = xInner - splitX;
+        const dyInner = arrowBaseY - wBotY;
+        const wastedPath = `M ${splitX} ${wStartY} C ${splitX + dxOuter * 0.55} ${wStartY}, ${xOuter} ${arrowBaseY - dyOuter * 0.45}, ${xOuter} ${arrowBaseY} L ${xOuter + arrowOvershoot} ${arrowBaseY} L ${centerX} ${arrowTipY} L ${xInner - arrowOvershoot} ${arrowBaseY} L ${xInner} ${arrowBaseY} C ${xInner} ${arrowBaseY - dyInner * 0.45}, ${splitX + dxInner * 0.55} ${wBotY}, ${splitX} ${wBotY} Z`;
+        svgContent += `
+            <path d="${wastedPath}" fill="url(#gradWasted)" class="transition-all duration-300"/>
+            <path d="${wastedPath}" fill="none" stroke="#ffffff" stroke-width="2" class="flow-animation transition-all duration-300" style="opacity:0.35"/>
+            <text x="${centerX}" y="${arrowTipY + 24}" dominant-baseline="middle" text-anchor="middle" class="font-bold fill-red-600 text-base sm:text-lg">
+                ${els.lblWasted.value} (${wasted} J)
+            </text>`;
+    }
+
+    svgContent += `
+        <path d="M ${startX - 10} ${startY} L ${startX - 20} ${startY} L ${startX - 20} ${startY + hTotal} L ${startX - 10} ${startY + hTotal}" fill="none" stroke="#64748b" stroke-width="2"/>
+        <text x="${startX - 28}" y="${startY + hTotal / 2}" dominant-baseline="middle" text-anchor="end" class="text-xs fill-slate-500 font-bold">100%</text>
+    </svg>`;
+    els.svgContainer.innerHTML = svgContent;
+}
+
+function setModal(id, open) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+    const box = wrap.querySelector('.modal-content');
+    wrap.classList.toggle('opacity-0', !open);
+    wrap.classList.toggle('pointer-events-none', !open);
+    box.classList.toggle('opacity-0', !open);
+    box.classList.toggle('scale-95', !open);
+    if (open) {
+        if (id === 'modal-quiz') renderQuiz();
+        triggerMathJax();
+        if (id === 'modal-quiz') typesetQuiz();
+    }
+}
+
+function closeAllModals() {
+    setModal('modal-principle', false);
+    setModal('modal-steps', false);
+    setModal('modal-quiz', false);
+}
+
+function openModal(id) {
+    closeAllModals();
+    setModal(id, true);
+}
+
+function init() {
+    els.preset.addEventListener('change', e => {
+        state.currentPreset = e.target.value;
+        if (e.target.value === 'custom') enableCustomMode();
+        else loadPreset(e.target.value);
+    });
+    els.sliderUseful.addEventListener('input', e => updateValues(els.valTotal.value, e.target.value));
+    els.valUseful.addEventListener('change', e => updateValues(state.total, e.target.value));
+    els.valTotal.addEventListener('change', e => {
+        const val = parseInt(e.target.value, 10);
+        if (isNaN(val) || val <= 0) updateValues(100, state.useful);
+        else if (val < state.useful) updateValues(val, val);
+        else updateValues(val, state.useful);
+    });
+    els.lblInput.addEventListener('input', drawSankey);
+    els.lblUseful.addEventListener('input', drawSankey);
+    els.lblWasted.addEventListener('input', drawSankey);
+
+    document.getElementById('btn-lang').onclick =
+    document.getElementById('btn-lang-mobile').onclick = () => {
+        state.lang = state.lang === 'zh' ? 'en' : 'zh';
+        applyI18n();
+    };
+    document.getElementById('btn-principle').onclick = () => openModal('modal-principle');
+    document.getElementById('btn-steps').onclick = () => openModal('modal-steps');
+    document.getElementById('btn-quiz').onclick = () => { quizAnswersVisible = false; openModal('modal-quiz'); };
+    document.getElementById('btn-quiz-answers').onclick = () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); typesetQuiz(); };
+    document.getElementById('quiz-close').onclick =
+    document.getElementById('quiz-confirm').onclick = () => setModal('modal-quiz', false);
+    document.getElementById('modal-quiz').addEventListener('click', e => {
+        if (e.target.id === 'modal-quiz') setModal('modal-quiz', false);
+    });
+    document.getElementById('btn-reset').onclick = resetSim;
+    document.getElementById('modal-close').onclick =
+    document.getElementById('modal-confirm').onclick = () => setModal('modal-principle', false);
+    document.getElementById('steps-close').onclick =
+    document.getElementById('steps-confirm').onclick = () => setModal('modal-steps', false);
+    document.getElementById('modal-principle').addEventListener('click', e => {
+        if (e.target.id === 'modal-principle') setModal('modal-principle', false);
+    });
+    document.getElementById('modal-steps').addEventListener('click', e => {
+        if (e.target.id === 'modal-steps') setModal('modal-steps', false);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
+
+    loadPreset('incandescent');
+    applyI18n();
+}
+
+init();
+</script>
+</body>
+</html>

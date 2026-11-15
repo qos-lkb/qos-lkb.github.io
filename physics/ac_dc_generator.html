@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <!-- STREAMING_CHUNK: Setting up HTML head and scripts... -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直流與交流發電機 | DC and AC Generators</title>
+
+    <!-- Google Tag (G-ENZ6QD5K5Y) -->
+    
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-ENZ6QD5K5Y');
+    </script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- MathJax CDN (NO polyfill.io) -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* STREAMING_CHUNK: Defining custom CSS variables and panel styles... */
+        :root {
+            --bg-color: #f8fafc;
+            --text-color: #0f172a;
+            --panel-bg: rgba(255, 255, 255, 0.88);
+            --panel-border: rgba(0, 0, 0, 0.12);
+            --shadow-style: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        body.dark {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --panel-bg: rgba(15, 23, 42, 0.88);
+            --panel-border: rgba(255, 255, 255, 0.15);
+            --shadow-style: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .ui-layer {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+
+        .draggable-panel {
+            position: absolute;
+            background-color: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--shadow-style);
+            border-radius: 1rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: border-color 0.3s, background-color 0.3s;
+            touch-action: none;
+        }
+
+        .panel-header {
+            padding: 0.75rem 1rem;
+            cursor: grab;
+            background: rgba(0, 0, 0, 0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        body.dark .panel-header {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .panel-header:active {
+            cursor: grabbing;
+        }
+
+        .panel-content {
+            padding: 1rem;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+            overflow: hidden;
+            max-height: 800px;
+        }
+
+        .collapsed .panel-content {
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            border: none !important;
+        }
+
+        input[type=range] {
+            accent-color: #3b82f6;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .toggle-pill {
+            display: inline-flex;
+            background-color: rgba(100, 116, 139, 0.2);
+            border-radius: 9999px;
+            padding: 3px;
+            cursor: pointer;
+        }
+
+        .toggle-pill button {
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: none;
+            background: transparent;
+            color: var(--text-color);
+            transition: all 0.2s;
+        }
+
+        .toggle-pill button.active {
+            background-color: #3b82f6;
+            color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+
+        .math-symbol {
+            font-family: "Times New Roman", Times, serif;
+            font-style: italic;
+        }
+
+        .annotation-label {
+            position: absolute;
+            padding: 2px 8px;
+            background: rgba(15, 23, 42, 0.88);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+        body:not(.dark) .annotation-label {
+            background: rgba(255, 255, 255, 0.92);
+            color: #0f172a;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="dark">
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "直流與交流發電機", "en": "DC and AC Generators"}, "grade": {"zh": "物理", "en": "Physics"}, "steps": {"zh": ["選交流（滑環），按播放，看電流隨轉動正負交替。", "暫停，改選直流（換向器），再看電流是否保持同一方向。", "重置後加快或再轉多幾圈，比較兩種曲線。", "對照線圈平面與磁場的相對角度，找出電動勢接近零的位置。"], "en": ["Choose A.C. with slip rings, play, and watch the current change sign.", "Pause, switch to D.C. with a commutator, and see the current stay in one direction.", "Reset and compare the two graphs over several turns.", "Find the coil angle where the e.m.f. is nearly zero."]}, "principle": {"zh": ["線圈在磁場中轉動時，切割磁感線的速率週期性變化，所以感應電動勢呈正弦狀。", "滑環讓線圈兩端始終連著同一電刷，輸出交流。換向器每半圈對調接法，把負半週翻成同一方向，得到脈動直流。", "發電廠的交流電和單車燈的直流發電機，差別就在接出來的是滑環還是換向器。"], "en": ["As the coil turns, the rate of cutting field lines varies, so the induced e.m.f. is sinusoidal.", "Slip rings keep each end on the same brush, so the output alternates. A commutator swaps the connections every half turn and produces pulsed direct current.", "The zero e.m.f. occurs when the coil is not cutting field lines effectively."]}, "quiz": [{"zh": "滑環發電機輸出的電流是？", "en": "A generator with slip rings outputs?", "azh": "B。", "aen": "B.", "czh": ["方向不變的直流", "方向週期改變的交流", "永遠是零", "只有磁場沒有電流"], "cen": ["Direct current that never reverses", "Alternating current that reverses", "Always zero", "A field but no current"], "ans": 1}, {"zh": "先預測換向器會把負半週翻到同一方向，再改選直流並看曲線。", "en": "Predict that the commutator flips the negative half-cycle to the same direction, then select D.C. and read the graph.", "azh": "曲線不再穿到反方向，而是脈動的同一方向。", "aen": "The graph no longer crosses to the opposite sign. It is pulsed but one-directional."}, {"zh": "電動勢接近零的時刻，線圈通常？", "en": "When the induced e.m.f. is nearly zero, the coil is usually?", "azh": "B。", "aen": "B.", "czh": ["切割最快", "磁通量變化率接近零", "脫離磁場定律", "匝數變成零"], "cen": ["Cutting fastest", "At a moment when the flux is hardly changing", "Outside the field laws", "Reduced to zero turns"], "ans": 1}, {"zh": "比較轉一圈的交流曲線和直流曲線。先指出哪一條會過零變號，再各播一次。", "en": "Compare one turn of the A.C. and D.C. graphs. Say which one changes sign, then play each.", "azh": "交流曲線會變號；換向器的直流曲線保持同一方向。", "aen": "The A.C. graph changes sign. The commutator graph stays on one side."}, {"zh": "換向器的作用是？", "en": "The commutator?", "azh": "B。", "aen": "B.", "czh": ["消除磁場", "每半圈對調輸出接法，使外電路電流方向不變", "把線圈匝數加倍", "停止線圈轉動"], "cen": ["Removes the magnetic field", "Swaps the output connections every half turn so the external current does not reverse", "Doubles the number of turns", "Stops the coil"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+
+    <!-- STREAMING_CHUNK: Creating 3D canvas and UI overlay elements... -->
+    <div id="canvas-container"></div>
+
+    <!-- 2D UI Overlay Layer -->
+    <div class="ui-layer">
+        <div class="p-3 md:p-4 flex flex-wrap justify-between items-center gap-2 pointer-events-auto">
+            <div class="flex items-center gap-2 bg-slate-900/80 dark:bg-slate-900/90 text-white px-3 py-2 rounded-2xl shadow-lg backdrop-blur-md border border-white/10">
+                <h1 id="main-title" class="text-sm md:text-base font-bold tracking-wide flex items-center gap-2">
+                    <span class="bg-blue-600 text-xs px-2 py-0.5 rounded font-mono">HKDSE</span>
+                    <span id="header-title-text">交流/直流發電機模擬器 | Generator Sim</span>
+                </h1>
+                <button onclick="togglePanel('controlPanel')" class="text-gray-300 hover:text-white transition-colors p-1.5 bg-white/5 rounded-full hover:bg-white/15 border border-white/10" title="Settings / 控制面板">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform hover:rotate-90 transition-transform duration-300"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+                <button onclick="togglePanel('infoPanel')" class="text-gray-300 hover:text-white transition-colors p-1.5 bg-white/5 rounded-full hover:bg-white/15 border border-white/10" title="HKDSE Focus / 教學重點">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Theme Toggle Button (SUN ICON ONLY) -->
+                <button id="theme-btn" class="p-2 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors pointer-events-auto bg-slate-800/80 dark:bg-slate-900/80 backdrop-blur-md border border-white/10" title="Toggle Dark/Light Mode">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+
+                <!-- Language Toggle Switch -->
+                <div class="toggle-pill pointer-events-auto bg-slate-800/80 dark:bg-slate-900/80 backdrop-blur-md border border-white/10">
+                    <button id="btn-zh" class="active" onclick="setLanguage('zh')">繁中</button>
+                    <button id="btn-en" onclick="setLanguage('en')">EN</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Draggable Control Panel -->
+        <div id="controlPanel" class="draggable-panel pointer-events-auto" style="top: 75px; left: 16px; width: 330px;">
+            <div class="panel-header" id="controlPanel-header">
+                <h2 class="font-bold text-sm flex items-center gap-2" data-i18n="controlPanelTitle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                    控制面板 Control Panel
+                </h2>
+                <button onclick="toggleCollapse('controlPanel')" class="collapse-btn text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Toggle Collapse">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="minus-icon"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="plus-icon hidden"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="panel-content flex flex-col gap-3 text-xs md:text-sm">
+                
+                <!-- STREAMING_CHUNK: Adding Generator Mode Switcher in Control Panel... -->
+                <!-- GENERATOR TYPE SWITCHER (AC vs DC) -->
+                <div>
+                    <label class="block font-bold mb-1 text-blue-500 dark:text-blue-400" data-i18n="genTypeLabel">發電機類型 (Generator Type):</label>
+                    <div class="toggle-pill w-full flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
+                        <button id="btn-ac" class="flex-1 active py-1.5 text-center font-bold" onclick="setGeneratorMode('AC')" data-i18n="modeAC">交流電 A.C. (滑環)</button>
+                        <button id="btn-dc" class="flex-1 py-1.5 text-center font-bold" onclick="setGeneratorMode('DC')" data-i18n="modeDC">直流電 D.C. (換向器)</button>
+                    </div>
+                </div>
+
+                <!-- Play / Pause & Reset Buttons -->
+                <div class="flex justify-between gap-2">
+                    <button id="btn-play" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors font-semibold flex justify-center items-center gap-2 shadow" onclick="togglePlay()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="icon-play" class="hidden"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="icon-pause"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                        <span data-i18n="pause">暫停 Pause</span>
+                    </button>
+                    <button class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg transition-colors font-semibold flex items-center justify-center gap-1 shadow" onclick="resetSim()" title="Reset Simulation">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+                        <span data-i18n="reset">重置</span>
+                    </button>
+                </div>
+
+                <!-- Frequency Slider -->
+                <div>
+                    <div class="flex justify-between font-medium mb-1">
+                        <span data-i18n="speedLabel">轉動頻率 (<span class="math-symbol">f</span>)</span>
+                        <span id="speed-val" class="font-mono text-blue-500 font-bold">1.0 Hz</span>
+                    </div>
+                    <input type="range" id="speed-slider" min="0.1" max="3.0" step="0.1" value="1.0">
+                </div>
+
+                <!-- Magnetic Field Strength Slider -->
+                <div>
+                    <div class="flex justify-between font-medium mb-1">
+                        <span data-i18n="bfieldLabel">磁場強度 (<span class="math-symbol">B</span>)</span>
+                        <span id="bfield-val" class="font-mono text-emerald-500 font-bold">1.0 T</span>
+                    </div>
+                    <input type="range" id="bfield-slider" min="0.0" max="2.0" step="0.1" value="1.0">
+                </div>
+
+                <!-- Number of Turns (N) -->
+                <div>
+                    <div class="flex justify-between font-medium mb-1">
+                        <span data-i18n="turnsLabel">線圈匝數 (<span class="math-symbol">N</span>)</span>
+                        <span id="turns-val" class="font-mono text-amber-500 font-bold">100 匝</span>
+                    </div>
+                    <input type="range" id="turns-slider" min="20" max="300" step="10" value="100">
+                </div>
+
+                <!-- Toggle Options -->
+                <div class="pt-2 border-t border-slate-300 dark:border-slate-700 flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium" data-i18n="showGraph">顯示「電流 vs 周數」圖表</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="graph-toggle" class="sr-only peer" checked onchange="toggleGraphPanel()">
+                            <div class="w-10 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium" data-i18n="showLabels">顯示課本標籤 (R₁/C₁, B₁)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="label-toggle" class="sr-only peer" checked onchange="toggleTextbookLabels()">
+                            <div class="w-10 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium" data-i18n="showFieldLines">顯示磁場線 (<span class="math-symbol">B</span>-field)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="field-toggle" class="sr-only peer" checked onchange="toggleFieldLines()">
+                            <div class="w-10 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium" data-i18n="showCurrentDir">顯示電流方向 (Current Dir)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="current-dir-toggle" class="sr-only peer" checked onchange="toggleCurrentDirection()">
+                            <div class="w-10 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Draggable Graph Panel -->
+        <div id="graphPanel" class="draggable-panel pointer-events-auto" style="bottom: 16px; right: 16px; width: 380px; max-width: calc(100vw - 32px);">
+            <div class="panel-header" id="graphPanel-header">
+                <h2 class="font-bold text-xs md:text-sm flex items-center gap-2" data-i18n="graphTitle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    電流 vs 轉動周數 (Current vs Rotations)
+                </h2>
+                <button onclick="toggleCollapse('graphPanel')" class="collapse-btn text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Toggle Collapse">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="minus-icon"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="plus-icon hidden"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="panel-content p-2 bg-white/90 dark:bg-slate-900/90">
+                <canvas id="chartCanvas" width="360" height="180"></canvas>
+                <div class="text-[11px] text-center text-slate-600 dark:text-slate-300 mt-1 font-sans space-y-1" id="math-formula-box">
+                    <div id="formula-instant">$$\mathcal{\epsilon}(t) = \mathcal{\epsilon}_0 \cos(2\pi f t)$$</div>
+                    <div class="text-[10px] text-blue-500 dark:text-blue-400 font-bold">$$\mathcal{\epsilon}_0 = N B A \omega = 2\pi f N B A$$</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STREAMING_CHUNK: Adding HKDSE Physics Focus Info Panel... -->
+        <!-- Draggable Physics Info Panel -->
+        <div id="infoPanel" class="draggable-panel pointer-events-auto" style="top: 75px; right: 16px; width: 340px; max-width: calc(100vw - 32px); display: none;">
+            <div class="panel-header" id="infoPanel-header">
+                <h2 class="font-bold text-xs md:text-sm flex items-center gap-2" data-i18n="infoTitle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                    HKDSE 物理重點 Physics Focus
+                </h2>
+                <button onclick="toggleCollapse('infoPanel')" class="collapse-btn text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Toggle Collapse">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="minus-icon"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="plus-icon hidden"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="panel-content p-3 text-xs space-y-2 max-h-[60vh] overflow-y-auto">
+                <div class="bg-blue-500/10 p-2 rounded-lg border border-blue-500/20">
+                    <p class="font-bold text-blue-600 dark:text-blue-400" data-i18n="dseTip1Title">1. 滑環 vs 半環換向器之關鍵相異點：</p>
+                    <p data-i18n="dseTip1Body">交流發電機用「雙滑環 (Slip Rings)」導出方向交替的正弦交流電；直流發電機用「半環換向器 (Split-ring Commutator)」，每當線圈過垂直位置（感應電流為0）時自動反接碳刷，使外電路電流方向始終保持不變！</p>
+                </div>
+                <div class="bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                    <p class="font-bold text-amber-600 dark:text-amber-400" data-i18n="dseTip2Title">2. 水平位置（$\theta=0^\circ$）切割率最大：</p>
+                    <p data-i18n="dseTip2Body">當長方形線圈處於水平面時，磁通量為零，但導線運動方向垂直於磁場線，磁通量改變率 $\Delta\Phi/\Delta t$ 達峰值，故感應電流最大！</p>
+                </div>
+                <div class="bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                    <p class="font-bold text-rose-600 dark:text-rose-400" data-i18n="dseTip3Title">3. DSE 雙重效應陷阱：</p>
+                    <p data-i18n="dseTip3Body">轉速頻率 <span class="math-symbol">f</span> 加倍時，一個週期的時間減半，同時電流峰值 <span class="math-symbol">I₀</span> 加倍！</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic 3D Floating Labels Overlay -->
+        <div id="labels-container" class="pointer-events-none">
+            <div id="label-N" class="annotation-label font-bold text-red-500 text-sm">N</div>
+            <div id="label-S" class="annotation-label font-bold text-blue-500 text-sm">S</div>
+            <div id="label-coil" class="annotation-label">Coil (長方形線圈)</div>
+            <div id="label-W" class="annotation-label font-mono text-amber-300">W</div>
+            <div id="label-X" class="annotation-label font-mono text-amber-300">X</div>
+            <div id="label-Y" class="annotation-label font-mono text-amber-300">Y</div>
+            <div id="label-Z" class="annotation-label font-mono text-amber-300">Z</div>
+            <div id="label-axle" class="annotation-label">Axle (轉軸)</div>
+            <div id="label-R1" class="annotation-label">R₁ (Slip Ring 1)</div>
+            <div id="label-R2" class="annotation-label">R₂ (Slip Ring 2)</div>
+            <div id="label-B1" class="annotation-label">B₁ (Carbon Brush 1)</div>
+            <div id="label-B2" class="annotation-label">B₂ (Carbon Brush 2)</div>
+            <div id="label-emf" class="annotation-label">Induced EMF</div>
+        </div>
+    </div>
+
+<script>
+    // STREAMING_CHUNK: Initializing i18n dictionaries and language handlers...
+    const i18n = {
+        zh: {
+            mainTitle: "交流/直流發電機模擬器 | Generator Sim",
+            controlPanelTitle: "控制面板 Control Panel",
+            infoTitle: "HKDSE 物理重點 Physics Focus",
+            genTypeLabel: "發電機類型 (Generator Type):",
+            modeAC: "交流電 A.C. (滑環)",
+            modeDC: "直流電 D.C. (換向器)",
+            play: "播放",
+            pause: "暫停",
+            reset: "重置",
+            speedLabel: "轉動頻率 (f)",
+            bfieldLabel: "磁場強度 (B)",
+            turnsLabel: "線圈匝數 (N)",
+            showGraph: "顯示「電流 vs 周數」圖表",
+            showLabels: "顯示課本標籤 (R₁/C₁, B₁)",
+            showFieldLines: "顯示磁場線 (B-field)",
+            showCurrentDir: "顯示電流方向 (Current Dir)",
+            graphTitle: "電流 vs 轉動周數 (Current vs Rotations)",
+            dseTip1Title: "1. 滑環 vs 半環換向器之關鍵相異點：",
+            dseTip1Body: "交流發電機用「雙滑環 (Slip Rings)」導出正弦交流電；直流發電機用「半環換向器 (Split-ring Commutator)」，每當線圈過垂直位置（感應電流為0）時自動反接碳刷，使外電路電流方向始終保持單向！",
+            dseTip2Title: "2. 水平位置 (θ=0°) 切割率最大：",
+            dseTip2Body: "當長方形線圈處於水平面時，磁通量為零，但導線運動方向垂直於磁場線，磁通量改變率 ΔΦ/Δt 達峰值，故感應電流最大！",
+            dseTip3Title: "3. DSE 雙重效應陷阱：",
+            dseTip3Body: "轉速頻率 f 加倍時，一個週期的時間減半，同時電流峰值 I₀ 加倍！"
+        },
+        en: {
+            mainTitle: "A.C. & D.C. Generator Simulator",
+            controlPanelTitle: "Control Panel",
+            infoTitle: "HKDSE Physics Focus",
+            genTypeLabel: "Generator Type:",
+            modeAC: "A.C. (Slip Rings)",
+            modeDC: "D.C. (Commutator)",
+            play: "Play",
+            pause: "Pause",
+            reset: "Reset",
+            speedLabel: "Frequency (f)",
+            bfieldLabel: "B-Field Strength (B)",
+            turnsLabel: "Coil Turns (N)",
+            showGraph: "Show Current vs Rotations Graph",
+            showLabels: "Show Textbook Labels (R₁/C₁, B₁)",
+            showFieldLines: "Show Magnetic Field Lines",
+            showCurrentDir: "Show Current Direction",
+            graphTitle: "Current vs Number of Rotations",
+            dseTip1Title: "1. Slip Rings vs. Split-Ring Commutator:",
+            dseTip1Body: "A.C. generators use dual slip rings for alternating sine current. D.C. generators use a split-ring commutator that flips connection every half cycle as the coil passes vertical position, maintaining unidirectional current in external circuit!",
+            dseTip2Title: "2. Max Cutting Rate at Horizontal Position (θ=0°):",
+            dseTip2Body: "When coil plane is horizontal, magnetic flux is zero, but cutting rate ΔΦ/Δt is maximum, producing peak induced EMF!",
+            dseTip3Title: "3. Dual Effect of Speed:",
+            dseTip3Body: "When frequency f doubles, period time halves and peak current I₀ doubles simultaneously!"
+        }
+    };
+
+    let currentLang = 'zh';
+    let generatorMode = 'AC'; // 'AC' or 'DC'
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+        document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (i18n[lang][key]) {
+                const icon = el.querySelector('svg');
+                if (icon) {
+                    el.innerHTML = '';
+                    el.appendChild(icon);
+                    el.appendChild(document.createTextNode(' ' + i18n[lang][key]));
+                } else {
+                    el.innerText = i18n[lang][key];
+                }
+            }
+        });
+
+        updateChartLabels();
+        updateFormulaDisplay();
+    }
+
+    // STREAMING_CHUNK: Setting up Generator Mode Toggle (A.C. / D.C.)...
+    function setGeneratorMode(mode) {
+        generatorMode = mode;
+        document.getElementById('btn-ac').classList.toggle('active', mode === 'AC');
+        document.getElementById('btn-dc').classList.toggle('active', mode === 'DC');
+
+        // Toggle 3D mesh visibility
+        if (slipRingsGroup) slipRingsGroup.visible = (mode === 'AC');
+        if (commutatorGroup) commutatorGroup.visible = (mode === 'DC');
+
+        // Toggle static brushes and springs setup
+        if (acStaticGroup) acStaticGroup.visible = (mode === 'AC');
+        if (dcStaticGroup) dcStaticGroup.visible = (mode === 'DC');
+
+        // Update labels text
+        const labelR1 = document.getElementById('label-R1');
+        const labelR2 = document.getElementById('label-R2');
+        if (labelR1 && labelR2) {
+            if (mode === 'AC') {
+                labelR1.innerText = "R₁ (Slip Ring 1)";
+                labelR2.innerText = "R₂ (Slip Ring 2)";
+            } else {
+                labelR1.innerText = "C₁ (Commutator Segment 1)";
+                labelR2.innerText = "C₂ (Commutator Segment 2)";
+            }
+        }
+
+        const labelEmf = document.getElementById('label-emf');
+        if (labelEmf) {
+            labelEmf.innerText = mode === 'AC' ? 'Alternating emf' : 'Pulsating Direct emf';
+        }
+
+        // Adjust Chart scale
+        if (myChart) {
+            if (mode === 'AC') {
+                myChart.options.scales.y.min = -6;
+                myChart.options.scales.y.max = 6;
+            } else {
+                myChart.options.scales.y.min = -0.5;
+                myChart.options.scales.y.max = 6;
+            }
+            myChart.update('none');
+        }
+
+        resetSim();
+        updateFormulaDisplay();
+    }
+
+    function updateFormulaDisplay() {
+        const formulaEl = document.getElementById('formula-instant');
+        if (!formulaEl) return;
+
+        if (generatorMode === 'AC') {
+            formulaEl.innerHTML = "$$\\mathcal{\\epsilon}(t) = \\mathcal{\\epsilon}_0 \\cos(2\\pi f t)$$";
+        } else {
+            formulaEl.innerHTML = "$$\\mathcal{\\epsilon}(t) = |\\mathcal{\\epsilon}_0 \\cos(2\\pi f t)|$$";
+        }
+        if (window.MathJax) MathJax.typesetPromise([formulaEl]);
+    }
+
+    // Auto-detect Language
+    if (!navigator.language.startsWith('zh')) {
+        setLanguage('en');
+    }
+
+    // STREAMING_CHUNK: Setting up Theme & UI dragging functionality...
+    const themeBtn = document.getElementById('theme-btn');
+    let isDark = true;
+    themeBtn.addEventListener('click', () => {
+        isDark = !isDark;
+        if (isDark) {
+            document.body.classList.add('dark');
+        } else {
+            document.body.classList.remove('dark');
+        }
+        updateChartTheme();
+    });
+
+    function makeDraggable(element, handle) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        handle.onmousedown = dragStart;
+        handle.ontouchstart = dragStart;
+
+        function dragStart(e) {
+            if (e.target.tagName.toLowerCase() === 'button' || e.target.closest('button') || e.target.tagName.toLowerCase() === 'input') return;
+            e = e || window.event;
+            if (e.type === 'touchstart') {
+                pos3 = e.touches[0].clientX;
+                pos4 = e.touches[0].clientY;
+            } else {
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+            }
+            document.onmouseup = closeDragElement;
+            document.ontouchend = closeDragElement;
+            document.onmousemove = elementDrag;
+            document.ontouchmove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            let clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            let clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+            pos1 = pos3 - clientX;
+            pos2 = pos4 - clientY;
+            pos3 = clientX;
+            pos4 = clientY;
+
+            element.style.top = (element.offsetTop - pos2) + "px";
+            element.style.left = (element.offsetLeft - pos1) + "px";
+            element.style.bottom = "auto";
+            element.style.right = "auto";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+            document.ontouchend = null;
+            document.ontouchmove = null;
+        }
+    }
+
+    makeDraggable(document.getElementById('controlPanel'), document.getElementById('controlPanel-header'));
+    makeDraggable(document.getElementById('graphPanel'), document.getElementById('graphPanel-header'));
+    makeDraggable(document.getElementById('infoPanel'), document.getElementById('infoPanel-header'));
+
+    function toggleCollapse(panelId) {
+        const panel = document.getElementById(panelId);
+        panel.classList.toggle('collapsed');
+        const minus = panel.querySelector('.minus-icon');
+        const plus = panel.querySelector('.plus-icon');
+        if (panel.classList.contains('collapsed')) {
+            minus.classList.add('hidden');
+            plus.classList.remove('hidden');
+        } else {
+            minus.classList.remove('hidden');
+            plus.classList.add('hidden');
+        }
+    }
+
+    function togglePanel(panelId) {
+        const p = document.getElementById(panelId);
+        p.style.display = (p.style.display === 'none' || p.style.display === '') ? 'flex' : 'none';
+    }
+
+    function toggleGraphPanel() {
+        const p = document.getElementById('graphPanel');
+        p.style.display = document.getElementById('graph-toggle').checked ? 'flex' : 'none';
+    }
+
+    function toggleTextbookLabels() {
+        const show = document.getElementById('label-toggle').checked;
+        document.getElementById('labels-container').style.display = show ? 'block' : 'none';
+    }
+
+    function toggleFieldLines() {
+        const show = document.getElementById('field-toggle').checked;
+        arrowHelperGrp.visible = show;
+    }
+
+    function toggleCurrentDirection() {
+        const show = document.getElementById('current-dir-toggle').checked;
+        coilCurrentArrows.visible = show;
+        extCurrentArrows.visible = show;
+    }
+
+    // STREAMING_CHUNK: Setting up Simulation State and Sliders...
+    let isPlaying = true;
+    let frequency = 1.0;
+    let bField = 1.0;
+    let turns = 100;
+    let totalAngle = 0;
+    let rotationCount = 0;
+
+    const speedSlider = document.getElementById('speed-slider');
+    const bfieldSlider = document.getElementById('bfield-slider');
+    const turnsSlider = document.getElementById('turns-slider');
+
+    speedSlider.addEventListener('input', (e) => {
+        frequency = parseFloat(e.target.value);
+        document.getElementById('speed-val').innerText = frequency.toFixed(1) + " Hz";
+    });
+
+    bfieldSlider.addEventListener('input', (e) => {
+        bField = parseFloat(e.target.value);
+        document.getElementById('bfield-val').innerText = bField.toFixed(1) + " T";
+    });
+
+    turnsSlider.addEventListener('input', (e) => {
+        turns = parseInt(e.target.value);
+        document.getElementById('turns-val').innerText = turns + " 匝";
+    });
+
+    function togglePlay() {
+        isPlaying = !isPlaying;
+        const iconPlay = document.getElementById('icon-play');
+        const iconPause = document.getElementById('icon-pause');
+        const btnText = document.querySelector('#btn-play span');
+        if (isPlaying) {
+            iconPlay.classList.add('hidden');
+            iconPause.classList.remove('hidden');
+            btnText.innerText = i18n[currentLang].pause;
+        } else {
+            iconPlay.classList.remove('hidden');
+            iconPause.classList.add('hidden');
+            btnText.innerText = i18n[currentLang].play;
+        }
+    }
+
+    function resetSim() {
+        totalAngle = 0;
+        rotationCount = 0;
+        chartData.labels = [];
+        chartData.datasets[0].data = [];
+        myChart.update('none');
+    }
+
+    // STREAMING_CHUNK: Constructing Three.js 3D Scene and Magnets...
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(6, 4.5, 7.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(10, 20, 15);
+    scene.add(dirLight);
+
+    // Magnets
+    const magnetGeo = new THREE.BoxGeometry(1.8, 4.5, 5.2);
+    const nMat = new THREE.MeshPhongMaterial({ color: 0xef4444, shininess: 80 });
+    const sMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, shininess: 80 });
+
+    const nPole = new THREE.Mesh(magnetGeo, nMat);
+    nPole.position.set(-3.8, 0, -0.5);
+    scene.add(nPole);
+
+    const sPole = new THREE.Mesh(magnetGeo, sMat);
+    sPole.position.set(3.8, 0, -0.5);
+    scene.add(sPole);
+
+    // Magnetic field vector lines (Green)
+    const arrowHelperGrp = new THREE.Group();
+    const arrowDir = new THREE.Vector3(1, 0, 0);
+    for (let z = -2.2; z <= 1.2; z += 1.1) {
+        for (let y = -1.5; y <= 1.5; y += 1.0) {
+            const arrow = new THREE.ArrowHelper(arrowDir, new THREE.Vector3(-2.8, y, z), 5.6, 0x10b981, 0.35, 0.25);
+            arrowHelperGrp.add(arrow);
+        }
+    }
+    scene.add(arrowHelperGrp);
+
+    // STREAMING_CHUNK: Building Rotating Coil W-X-Y-Z and Axle...
+    const coilSystem = new THREE.Group();
+    scene.add(coilSystem);
+
+    // Axle Rod along Z-axis
+    const axleMat = new THREE.MeshPhongMaterial({ color: 0x94a3b8, metalness: 0.8 });
+    const axleGeo = new THREE.CylinderGeometry(0.04, 0.04, 7.5, 16);
+    const axleMesh = new THREE.Mesh(axleGeo, axleMat);
+    axleMesh.rotation.x = Math.PI / 2;
+    axleMesh.position.set(0, 0, 0.6);
+    coilSystem.add(axleMesh);
+
+    // HORIZONTAL RECTANGULAR COIL FRAME W-X-Y-Z
+    const coilW = 2.6; // Width along X
+    const coilL = 3.2; // Length along Z
+    const copperMat = new THREE.MeshStandardMaterial({ 
+        color: 0xb87333,
+        metalness: 0.85, 
+        roughness: 0.2,
+        emissive: 0x2a1200
+    });
+    const wireR = 0.085;
+
+    // 1. Rear horizontal wire W -> X
+    const rearWireGeo = new THREE.CylinderGeometry(wireR, wireR, coilW, 16);
+    const rearWire = new THREE.Mesh(rearWireGeo, copperMat);
+    rearWire.rotation.z = Math.PI / 2;
+    rearWire.position.set(0, 0, -2.1);
+    coilSystem.add(rearWire);
+
+    // 2. Left longitudinal wire W -> Z
+    const leftWireGeo = new THREE.CylinderGeometry(wireR, wireR, coilL, 16);
+    const leftWire = new THREE.Mesh(leftWireGeo, copperMat);
+    leftWire.rotation.x = Math.PI / 2;
+    leftWire.position.set(-1.3, 0, -0.5);
+    coilSystem.add(leftWire);
+
+    // 3. Right longitudinal wire X -> Y
+    const rightWireGeo = new THREE.CylinderGeometry(wireR, wireR, coilL, 16);
+    const rightWire = new THREE.Mesh(rightWireGeo, copperMat);
+    rightWire.rotation.x = Math.PI / 2;
+    rightWire.position.set(1.3, 0, -0.5);
+    coilSystem.add(rightWire);
+
+    // 4. Front right wire segment Y -> Lead Wire
+    const frontRightWireGeo = new THREE.CylinderGeometry(wireR, wireR, coilW / 2 - 0.11, 16);
+    const frontRightWire = new THREE.Mesh(frontRightWireGeo, copperMat);
+    frontRightWire.rotation.z = Math.PI / 2;
+    frontRightWire.position.set((1.3 + 0.11) / 2, 0, 1.1);
+    coilSystem.add(frontRightWire);
+
+    // 5. Front left wire segment Z -> Lead Wire
+    const frontLeftWireGeo = new THREE.CylinderGeometry(wireR, wireR, coilW / 2 - 0.15, 16);
+    const frontLeftWire = new THREE.Mesh(frontLeftWireGeo, copperMat);
+    frontLeftWire.rotation.z = Math.PI / 2;
+    frontLeftWire.position.set((-1.3 - 0.15) / 2, 0, 1.1);
+    coilSystem.add(frontLeftWire);
+
+    // Corner sphere joints W, X, Y, Z
+    const cornerGeo = new THREE.SphereGeometry(wireR * 1.2, 16, 16);
+    const cornerW = new THREE.Mesh(cornerGeo, copperMat);
+    cornerW.position.set(-1.3, 0, -2.1);
+    coilSystem.add(cornerW);
+
+    const cornerX = new THREE.Mesh(cornerGeo, copperMat);
+    cornerX.position.set(1.3, 0, -2.1);
+    coilSystem.add(cornerX);
+
+    const cornerY = new THREE.Mesh(cornerGeo, copperMat);
+    cornerY.position.set(1.3, 0, 1.1);
+    coilSystem.add(cornerY);
+
+    const cornerZ = new THREE.Mesh(cornerGeo, copperMat);
+    cornerZ.position.set(-1.3, 0, 1.1);
+    coilSystem.add(cornerZ);
+
+    // STREAMING_CHUNK: Building A.C. Slip Rings vs D.C. Split-Ring Commutators...
+    // -------------------------------------------------------------
+    // A.C. SLIP RINGS GROUP (R1 & R2)
+    // -------------------------------------------------------------
+    const slipRingsGroup = new THREE.Group();
+    coilSystem.add(slipRingsGroup);
+
+    const ringMat = new THREE.MeshStandardMaterial({ 
+        color: 0xeab308, 
+        metalness: 0.85, 
+        roughness: 0.25,
+        side: THREE.DoubleSide
+    });
+
+    const ringShape = new THREE.Shape();
+    const outerR = 0.36;
+    const innerR = 0.22;
+    ringShape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, innerR, 0, Math.PI * 2, true);
+    ringShape.holes.push(holePath);
+
+    const extrudeSettings = {
+        depth: 0.35,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.02,
+        bevelThickness: 0.02,
+        curveSegments: 32
+    };
+
+    const ringGeo = new THREE.ExtrudeGeometry(ringShape, extrudeSettings);
+
+    const ring1 = new THREE.Mesh(ringGeo, ringMat);
+    ring1.position.set(0, 0, 1.825);
+    slipRingsGroup.add(ring1);
+
+    const ring2 = new THREE.Mesh(ringGeo, ringMat);
+    ring2.position.set(0, 0, 2.625);
+    slipRingsGroup.add(ring2);
+
+    const acLeadWire1 = new THREE.Mesh(new THREE.CylinderGeometry(wireR * 0.8, wireR * 0.8, 0.9), copperMat);
+    acLeadWire1.rotation.x = Math.PI / 2;
+    acLeadWire1.position.set(-0.15, 0, 1.55);
+    slipRingsGroup.add(acLeadWire1);
+
+    const acLeadWire2 = new THREE.Mesh(new THREE.CylinderGeometry(wireR * 0.8, wireR * 0.8, 1.7), copperMat);
+    acLeadWire2.rotation.x = Math.PI / 2;
+    acLeadWire2.position.set(0.11, 0, 1.95);
+    slipRingsGroup.add(acLeadWire2);
+
+    // -------------------------------------------------------------
+    // D.C. SPLIT-RING COMMUTATOR GROUP (C1 & C2)
+    // -------------------------------------------------------------
+    const commutatorGroup = new THREE.Group();
+    commutatorGroup.visible = false; // Hidden by default (starts in AC mode)
+    coilSystem.add(commutatorGroup);
+
+    // Create 2 half-cylindrical shells separated by a small gap
+    const commGap = 0.25; // gap in radians
+    const commShape1 = new THREE.Shape();
+    commShape1.absarc(0, 0, outerR, commGap / 2, Math.PI - commGap / 2, false);
+    const commHole1 = new THREE.Path();
+    commHole1.absarc(0, 0, innerR, commGap / 2, Math.PI - commGap / 2, false);
+    commShape1.holes.push(commHole1);
+
+    const commGeo1 = new THREE.ExtrudeGeometry(commShape1, { depth: 0.6, bevelEnabled: false, curveSegments: 32 });
+    const commSegment1 = new THREE.Mesh(commGeo1, ringMat);
+    commSegment1.position.set(0, 0, 2.1);
+    commutatorGroup.add(commSegment1);
+
+    const commShape2 = new THREE.Shape();
+    commShape2.absarc(0, 0, outerR, Math.PI + commGap / 2, 2 * Math.PI - commGap / 2, false);
+    const commHole2 = new THREE.Path();
+    commHole2.absarc(0, 0, innerR, Math.PI + commGap / 2, 2 * Math.PI - commGap / 2, false);
+    commShape2.holes.push(commHole2);
+
+    const commGeo2 = new THREE.ExtrudeGeometry(commShape2, { depth: 0.6, bevelEnabled: false, curveSegments: 32 });
+    const commSegment2 = new THREE.Mesh(commGeo2, ringMat);
+    commSegment2.position.set(0, 0, 2.1);
+    commutatorGroup.add(commSegment2);
+
+    // DC Lead wires connecting coil ends to Commutator segments
+    const dcLeadWire1 = new THREE.Mesh(new THREE.CylinderGeometry(wireR * 0.8, wireR * 0.8, 1.2), copperMat);
+    dcLeadWire1.rotation.x = Math.PI / 2;
+    dcLeadWire1.position.set(-0.15, 0, 1.7);
+    commutatorGroup.add(dcLeadWire1);
+
+    const dcLeadWire2 = new THREE.Mesh(new THREE.CylinderGeometry(wireR * 0.8, wireR * 0.8, 1.2), copperMat);
+    dcLeadWire2.rotation.x = Math.PI / 2;
+    dcLeadWire2.position.set(0.11, 0, 1.7);
+    commutatorGroup.add(dcLeadWire2);
+
+    // Current Arrows inside Coil Frame
+    const coilCurrentArrows = new THREE.Group();
+    coilSystem.add(coilCurrentArrows);
+
+    const arrowMatPos = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+    const arrowHeadGeo = new THREE.ConeGeometry(0.12, 0.25, 8);
+
+    const arrowWX = new THREE.Mesh(arrowHeadGeo, arrowMatPos);
+    arrowWX.rotation.z = -Math.PI / 2;
+    arrowWX.position.set(0, 0, -2.1);
+    coilCurrentArrows.add(arrowWX);
+
+    const arrowXY = new THREE.Mesh(arrowHeadGeo, arrowMatPos);
+    arrowXY.rotation.x = Math.PI / 2;
+    arrowXY.position.set(1.3, 0, -0.5);
+    coilCurrentArrows.add(arrowXY);
+
+    const arrowYZ = new THREE.Mesh(arrowHeadGeo, arrowMatPos);
+    arrowYZ.rotation.z = Math.PI / 2;
+    arrowYZ.position.set(0, 0, 1.1);
+    coilCurrentArrows.add(arrowYZ);
+
+    const arrowZW = new THREE.Mesh(arrowHeadGeo, arrowMatPos);
+    arrowZW.rotation.x = -Math.PI / 2;
+    arrowZW.position.set(-1.3, 0, -0.5);
+    coilCurrentArrows.add(arrowZW);
+
+    // STREAMING_CHUNK: Building Stationary External Circuit, Brushes, and Bulb...
+    // -------------------------------------------------------------
+    // STATIONARY SYSTEM & BRUSHES (AC vs DC versions)
+    // -------------------------------------------------------------
+    const staticSystem = new THREE.Group();
+    scene.add(staticSystem);
+
+    const brushMat = new THREE.MeshPhongMaterial({ color: 0x334155, shininess: 60 });
+    const springMat = new THREE.MeshPhongMaterial({ color: 0x64748b, metalness: 0.6 });
+    const brushGeo = new THREE.BoxGeometry(0.25, 0.25, 0.35);
+    const springGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.4, 12);
+    const extWireMat = new THREE.MeshPhongMaterial({ color: 0x64748b });
+
+    // AC STATIC BRUSHES (Two Z positions: Z=2.0 and Z=2.8)
+    const acStaticGroup = new THREE.Group();
+    staticSystem.add(acStaticGroup);
+
+    const acBrush1 = new THREE.Mesh(brushGeo, brushMat);
+    acBrush1.position.set(0.42, 0, 2.0);
+    acStaticGroup.add(acBrush1);
+
+    const acBrush2 = new THREE.Mesh(brushGeo, brushMat);
+    acBrush2.position.set(-0.42, 0, 2.8);
+    acStaticGroup.add(acBrush2);
+
+    const acSpring1 = new THREE.Mesh(springGeo, springMat);
+    acSpring1.rotation.z = Math.PI / 2;
+    acSpring1.position.set(0.72, 0, 2.0);
+    acStaticGroup.add(acSpring1);
+
+    const acSpring2 = new THREE.Mesh(springGeo, springMat);
+    acSpring2.rotation.z = Math.PI / 2;
+    acSpring2.position.set(-0.72, 0, 2.8);
+    acStaticGroup.add(acSpring2);
+
+    const acWire1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8), extWireMat);
+    acWire1.rotation.z = Math.PI / 2;
+    acWire1.position.set(1.8, 0, 2.0);
+    acStaticGroup.add(acWire1);
+
+    const acWire2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8), extWireMat);
+    acWire2.rotation.z = Math.PI / 2;
+    acWire2.position.set(-1.8, 0, 2.8);
+    acStaticGroup.add(acWire2);
+
+    // DC STATIC BRUSHES (Single Z position: Z=2.4 on opposite sides)
+    const dcStaticGroup = new THREE.Group();
+    dcStaticGroup.visible = false;
+    staticSystem.add(dcStaticGroup);
+
+    const dcBrush1 = new THREE.Mesh(brushGeo, brushMat);
+    dcBrush1.position.set(0.42, 0, 2.4);
+    dcStaticGroup.add(dcBrush1);
+
+    const dcBrush2 = new THREE.Mesh(brushGeo, brushMat);
+    dcBrush2.position.set(-0.42, 0, 2.4);
+    dcStaticGroup.add(dcBrush2);
+
+    const dcSpring1 = new THREE.Mesh(springGeo, springMat);
+    dcSpring1.rotation.z = Math.PI / 2;
+    dcSpring1.position.set(0.72, 0, 2.4);
+    dcStaticGroup.add(dcSpring1);
+
+    const dcSpring2 = new THREE.Mesh(springGeo, springMat);
+    dcSpring2.rotation.z = Math.PI / 2;
+    dcSpring2.position.set(-0.72, 0, 2.4);
+    dcStaticGroup.add(dcSpring2);
+
+    const dcWire1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8), extWireMat);
+    dcWire1.rotation.z = Math.PI / 2;
+    dcWire1.position.set(1.8, 0, 2.4);
+    dcStaticGroup.add(dcWire1);
+
+    const dcWire2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8), extWireMat);
+    dcWire2.rotation.z = Math.PI / 2;
+    dcWire2.position.set(-1.8, 0, 2.4);
+    dcStaticGroup.add(dcWire2);
+
+    // External Circuit Current Arrows
+    const extCurrentArrows = new THREE.Group();
+    staticSystem.add(extCurrentArrows);
+
+    const arrowExt1 = new THREE.Mesh(arrowHeadGeo, arrowMatPos);
+    arrowExt1.rotation.z = -Math.PI / 2;
+    arrowExt1.position.set(1.1, 0, 2.4);
+    extCurrentArrows.add(arrowExt1);
+
+    const arrowExt2 = new THREE.Mesh(arrowHeadGeo, arrowMatPos);
+    arrowExt2.rotation.z = Math.PI / 2;
+    arrowExt2.position.set(-1.1, 0, 2.4);
+    extCurrentArrows.add(arrowExt2);
+
+    // Light Bulb Assembly
+    const bulbGrp = new THREE.Group();
+    bulbGrp.position.set(0, -1.8, 2.4);
+    staticSystem.add(bulbGrp);
+
+    const bulbBase = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.3, 16), brushMat);
+    bulbGrp.add(bulbBase);
+
+    const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.4,
+        roughness: 0.1,
+        transmission: 0.85,
+        emissive: 0xfacc15,
+        emissiveIntensity: 0
+    });
+    const glass = new THREE.Mesh(new THREE.SphereGeometry(0.45, 32, 32), glassMat);
+    glass.position.set(0, -0.45, 0);
+    bulbGrp.add(glass);
+
+    const bulbLight = new THREE.PointLight(0xfacc15, 0, 8);
+    bulbLight.position.set(0, -0.45, 0);
+    bulbGrp.add(bulbLight);
+
+    // STREAMING_CHUNK: Initializing Chart.js Graph and Canvas Setup...
+    const ctx = document.getElementById('chartCanvas').getContext('2d');
+
+    const chartData = {
+        labels: [],
+        datasets: [{
+            label: 'Induced Current (I)',
+            data: [],
+            borderColor: '#3b82f6',
+            borderWidth: 2.5,
+            tension: 0.3,
+            pointRadius: 0
+        }]
+    };
+
+    const myChart = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+            responsive: true,
+            animation: false,
+            scales: {
+                x: {
+                    title: { display: true, text: '轉動周數 (Rotations)', font: { size: 11, weight: 'bold' } },
+                    ticks: { maxTicksLimit: 6, font: { size: 10 } },
+                    grid: { color: 'rgba(150, 150, 150, 0.2)' }
+                },
+                y: {
+                    title: { display: true, text: '感應電流 (Current / A)', font: { size: 11, weight: 'bold' } },
+                    min: -6,
+                    max: 6,
+                    ticks: { font: { size: 10 } },
+                    grid: { color: 'rgba(150, 150, 150, 0.2)' }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+
+    function updateChartLabels() {
+        if (currentLang === 'zh') {
+            myChart.options.scales.x.title.text = '轉動周數 (Number of Rotations)';
+            myChart.options.scales.y.title.text = '感應電流 (Induced Current / A)';
+        } else {
+            myChart.options.scales.x.title.text = 'Number of Rotations';
+            myChart.options.scales.y.title.text = 'Induced Current (A)';
+        }
+        myChart.update('none');
+    }
+
+    function updateChartTheme() {
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)';
+        const textColor = isDark ? '#cbd5e1' : '#475569';
+
+        myChart.options.scales.x.grid.color = gridColor;
+        myChart.options.scales.y.grid.color = gridColor;
+        myChart.options.scales.x.ticks.color = textColor;
+        myChart.options.scales.y.ticks.color = textColor;
+        myChart.options.scales.x.title.color = textColor;
+        myChart.options.scales.y.title.color = textColor;
+        myChart.update('none');
+    }
+    updateChartTheme();
+
+    // STREAMING_CHUNK: Updating 3D Dynamic Label Positions...
+    const labelPositions = {
+        'label-N': new THREE.Vector3(-3.8, 2.4, -0.5),
+        'label-S': new THREE.Vector3(3.8, 2.4, -0.5),
+        'label-coil': new THREE.Vector3(0, 0.3, -0.5),
+        'label-W': new THREE.Vector3(-1.3, 0.25, -2.1),
+        'label-X': new THREE.Vector3(1.3, 0.25, -2.1),
+        'label-Y': new THREE.Vector3(1.3, 0.25, 1.1),
+        'label-Z': new THREE.Vector3(-1.3, 0.25, 1.1),
+        'label-axle': new THREE.Vector3(0, 0.3, -2.4),
+        'label-R1': new THREE.Vector3(0, 0.6, 2.0),
+        'label-R2': new THREE.Vector3(0, 0.6, 2.8),
+        'label-B1': new THREE.Vector3(0.8, -0.4, 2.0),
+        'label-B2': new THREE.Vector3(-0.8, -0.4, 2.8),
+        'label-emf': new THREE.Vector3(0, -2.6, 2.4)
+    };
+
+    function update3DLabels() {
+        if (!document.getElementById('label-toggle').checked) return;
+
+        const tempV = new THREE.Vector3();
+        for (const [id, pos] of Object.entries(labelPositions)) {
+            const labelEl = document.getElementById(id);
+            if (!labelEl) continue;
+
+            tempV.copy(pos);
+            if (id === 'label-coil' || id === 'label-W' || id === 'label-X' || id === 'label-Y' || id === 'label-Z') {
+                tempV.applyAxisAngle(new THREE.Vector3(0, 0, 1), totalAngle);
+            }
+
+            tempV.project(camera);
+
+            if (tempV.z > 1) {
+                labelEl.style.opacity = '0';
+                continue;
+            }
+
+            const x = (tempV.x * .5 + .5) * window.innerWidth;
+            const y = (tempV.y * -.5 + .5) * window.innerHeight;
+
+            labelEl.style.left = `${x}px`;
+            labelEl.style.top = `${y}px`;
+            labelEl.style.opacity = '1';
+        }
+    }
+
+    // STREAMING_CHUNK: Main Physics Animation Loop...
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const dt = clock.getDelta();
+
+        if (isPlaying) {
+            const omega = frequency * Math.PI * 2;
+            totalAngle += omega * dt;
+            rotationCount = totalAngle / (Math.PI * 2);
+
+            // Rotate Rectangular Coil WXYZ around Z-axis
+            coilSystem.rotation.z = totalAngle;
+
+            // Physics Calculation:
+            const area = 0.01;
+            const peakCurrent = (turns * bField * area * omega);
+            const rawACCurrent = peakCurrent * Math.cos(totalAngle);
+            
+            // Current value depending on AC or DC Mode
+            let current = rawACCurrent;
+            if (generatorMode === 'DC') {
+                current = Math.abs(rawACCurrent); // Rectified pulsating DC
+            }
+
+            // Internal Coil Current Arrow Orientations (Lenz's Law inside coil)
+            if (rawACCurrent >= 0) {
+                arrowWX.rotation.z = -Math.PI / 2;
+                arrowXY.rotation.x = Math.PI / 2;
+                arrowYZ.rotation.z = Math.PI / 2;
+                arrowZW.rotation.x = -Math.PI / 2;
+            } else {
+                arrowWX.rotation.z = Math.PI / 2;
+                arrowXY.rotation.x = -Math.PI / 2;
+                arrowYZ.rotation.z = -Math.PI / 2;
+                arrowZW.rotation.x = Math.PI / 2;
+            }
+
+            // External Circuit Current Arrows (AC vs DC Rectification)
+            if (generatorMode === 'AC') {
+                if (rawACCurrent >= 0) {
+                    arrowExt1.rotation.z = -Math.PI / 2;
+                    arrowExt2.rotation.z = Math.PI / 2;
+                } else {
+                    arrowExt1.rotation.z = Math.PI / 2;
+                    arrowExt2.rotation.z = -Math.PI / 2;
+                }
+            } else {
+                // DC Mode: External current ALWAYS flows in ONE direction!
+                arrowExt1.rotation.z = -Math.PI / 2;
+                arrowExt2.rotation.z = Math.PI / 2;
+            }
+
+            // Bulb Glow
+            const currentRatio = Math.min(Math.abs(current) / 3.0, 1.0);
+            glassMat.emissiveIntensity = currentRatio * 2.5;
+            bulbLight.intensity = currentRatio * 3.0;
+
+            if (current > 0.05) glassMat.emissive.setHex(0xef4444);
+            else if (generatorMode === 'AC' && current < -0.05) glassMat.emissive.setHex(0x3b82f6);
+            else glassMat.emissive.setHex(0xfacc15);
+
+            // Chart Update
+            if (document.getElementById('graph-toggle').checked) {
+                chartData.labels.push(rotationCount.toFixed(2));
+                chartData.datasets[0].data.push(current);
+
+                if (chartData.labels.length > 120) {
+                    chartData.labels.shift();
+                    chartData.datasets[0].data.shift();
+                }
+                myChart.update('none');
+            }
+
+            // Adjust Field Line Opacity
+            arrowHelperGrp.children.forEach(a => {
+                const op = bField === 0 ? 0 : 0.3 + (bField / 2.0) * 0.5;
+                a.line.material.opacity = op;
+                a.cone.material.opacity = op;
+            });
+        }
+
+        controls.update();
+        update3DLabels();
+        renderer.render(scene, scene.camera || camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED發光原理 | LED Emission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #6366f1; border: 2px solid #fff; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
+        }
+        #voltageRange::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #64748b, #ef4444, #22c55e, #3b82f6, #8b5cf6);
+        }
+        .modal-backdrop { transition: opacity .25s ease, visibility .25s ease; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; }
+        .sim-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-bottom-width: 3px;
+            opacity: 0.55;
+            filter: grayscale(30%);
+        }
+        .sim-btn:active { transform: translateY(1px); border-bottom-width: 1px; }
+        .sim-btn.active {
+            opacity: 1; filter: grayscale(0%);
+            transform: translateY(1px); border-bottom-width: 0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.12);
+        }
+        .preset-btn { width: 100%; text-align: left; padding: 8px 12px; border-radius: 10px; font-weight: 800; font-size: 0.72rem; border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+        .preset-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+        .dashboard-card { background: white; padding: 0.85rem; border-radius: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #6366f1; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #fcd34d; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+        .mj-box mjx-container { color: #fcd34d !important; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; accent-color: #6366f1; }
+        .svg-wrapper { width: 100%; border-radius: 1rem; overflow: hidden; background: #fff; }
+        #mainSvg { display: block; width: 100%; height: auto; }
+        :root { --anim-speed: 3s; --photon-color: #eab308; --led-glow: rgba(234,179,8,0); }
+
+        @keyframes electronForward {
+            0% { transform: translateX(0); opacity: 1; }
+            40% { transform: translateX(-215px); opacity: 1; }
+            45% { transform: translateX(-225px); opacity: 0; }
+            100% { transform: translateX(-225px); opacity: 0; }
+        }
+        @keyframes holeForward {
+            0% { transform: translateX(0); opacity: 1; }
+            40% { transform: translateX(215px); opacity: 1; }
+            45% { transform: translateX(225px); opacity: 0; }
+            100% { transform: translateX(225px); opacity: 0; }
+        }
+        @keyframes electronReverse {
+            0% { transform: translateX(-215px); opacity: 0.4; }
+            50% { transform: translateX(-120px); opacity: 0.4; }
+            100% { transform: translateX(-215px); opacity: 0.4; }
+        }
+        @keyframes holeReverse {
+            0% { transform: translateX(215px); opacity: 0.4; }
+            50% { transform: translateX(120px); opacity: 0.4; }
+            100% { transform: translateX(215px); opacity: 0.4; }
+        }
+        @keyframes flashEffect {
+            0% { opacity: 0; transform: scale(0.1); }
+            40% { opacity: 0; transform: scale(0.1); }
+            45% { opacity: 1; transform: scale(1.5); fill: var(--photon-color); }
+            60% { opacity: 0; transform: scale(2.0); }
+            100% { opacity: 0; }
+        }
+        @keyframes photonEmit {
+            0% { opacity: 0; transform: translateX(0) scale(0.5); }
+            45% { opacity: 0; transform: translateX(0) scale(0.5); }
+            50% { opacity: 1; transform: translateX(10px) scale(0.8); fill: var(--photon-color); }
+            100% { opacity: 0; transform: translateX(80px) scale(1.5); }
+        }
+        @keyframes arrowPulse {
+            0% { opacity: 0.3; transform: translateX(0); }
+            50% { opacity: 1; transform: translateX(5px); }
+            100% { opacity: 0.3; transform: translateX(0); }
+        }
+        @keyframes ledPulse {
+            0%, 100% { filter: drop-shadow(0 0 4px var(--led-glow)); }
+            50% { filter: drop-shadow(0 0 18px var(--led-glow)); }
+        }
+
+        .bias-forward .particle-e-group { animation: electronForward var(--anim-speed) infinite linear; }
+        .bias-forward .particle-h-group { animation: holeForward var(--anim-speed) infinite linear; }
+        .bias-reverse .particle-e-group { animation: electronReverse calc(var(--anim-speed) * 1.5) infinite ease-in-out; }
+        .bias-reverse .particle-h-group { animation: holeReverse calc(var(--anim-speed) * 1.5) infinite ease-in-out; }
+
+        .sim-active.bias-forward .flash { animation: flashEffect var(--anim-speed) infinite ease-out; }
+        .sim-active.bias-forward .photon { animation: photonEmit var(--anim-speed) infinite linear; }
+        .sim-active .arrow-indicator { animation: arrowPulse 1.5s infinite ease-in-out; }
+        .sim-active.led-on #ledBulbGroup { animation: ledPulse 2s infinite ease-in-out; }
+
+        .state-playing * { animation-play-state: running !important; }
+        .state-paused * { animation-play-state: paused !important; }
+        .state-off * { animation-play-state: paused !important; }
+        .state-off .particle-e-group, .state-off .particle-h-group { opacity: 0.35; transition: opacity 0.4s; }
+        .state-off .flash, .state-off .photon { opacity: 0 !important; animation: none !important; }
+        .state-off #ledBulbGroup { opacity: 0.35; filter: none !important; animation: none !important; }
+
+        .bias-reverse .flash, .bias-reverse .photon { opacity: 0 !important; animation: none !important; }
+        .below-threshold .flash, .below-threshold .photon { opacity: 0 !important; animation: none !important; }
+        .below-threshold #ledBulbGroup { opacity: 0.4; filter: none !important; animation: none !important; }
+
+        .particle-text { font-family: Arial, sans-serif; font-weight: bold; pointer-events: none; }
+        .header-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.375rem; shrink: 0; }
+        .header-btn {
+            display: inline-flex; align-items: center; gap: 0.375rem;
+            padding: 0.375rem 0.75rem; border-radius: 0.625rem;
+            font-size: 0.8125rem; font-weight: 700; line-height: 1.25;
+            white-space: nowrap;
+        }
+        .header-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+</style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/25 text-xl font-black">LED</div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                        <span data-i18n="title">LED發光原理</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold" data-i18n="badge">物理</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">PN 接面複合、能隙與光子釋放</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="header-btn md:hidden bg-slate-100 hover:bg-slate-200 border border-slate-300">中 / EN</button>
+        </div>
+        <div class="header-actions justify-end">
+            <button type="button" id="btn-steps" class="header-btn bg-white hover:bg-indigo-50 text-indigo-800 shadow-sm border border-indigo-200">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="header-btn bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 text-white shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-quiz" class="header-btn bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 text-white shadow-sm">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+            <button type="button" id="btn-lang" class="header-btn hidden md:inline-flex bg-slate-100 hover:bg-slate-200 border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto">
+        <aside class="lg:col-span-4 flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
+
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="btnOn" class="sim-btn active flex-1 bg-emerald-500 border-emerald-700 text-white font-bold py-2 rounded-xl text-sm" data-i18n="btnOn">接通</button>
+                    <button type="button" id="btnPause" class="sim-btn flex-1 bg-amber-500 border-amber-700 text-white font-bold py-2 rounded-xl text-sm" data-i18n="pause">暫停</button>
+                    <button type="button" id="btnOff" class="sim-btn flex-1 bg-rose-500 border-rose-700 text-white font-bold py-2 rounded-xl text-sm" data-i18n="btnOff">斷開</button>
+                </div>
+                <button type="button" id="btnReset" class="w-full mb-4 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">LED 顏色預設</p>
+                <div class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button type="button" class="preset-btn" data-preset="red" data-i18n="preRed">🔴 紅光 LED（低能隙）</button>
+                    <button type="button" class="preset-btn" data-preset="green" data-i18n="preGreen">🟢 綠光 LED</button>
+                    <button type="button" class="preset-btn active" data-preset="blue" data-i18n="preBlue">🔵 藍光 LED</button>
+                </div>
+
+                <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="labelBias">偏壓方向</p>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btnForward" class="sim-btn active flex-1 bg-indigo-500 border-indigo-700 text-white font-bold py-2 rounded-xl text-xs" data-i18n="biasForward">正向偏壓</button>
+                    <button type="button" id="btnReverse" class="sim-btn flex-1 bg-slate-500 border-slate-700 text-white font-bold py-2 rounded-xl text-xs" data-i18n="biasReverse">反向偏壓</button>
+                </div>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelVoltage">外加電壓</span>
+                        <span id="disp-voltage" class="text-indigo-600">3.0 V</span>
+                    </span>
+                    <input type="range" id="voltageRange" min="0" max="5" step="0.1" value="3">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>0 V</span>
+                        <span id="disp-threshold" class="text-rose-500 font-bold">V<sub>th</sub> 2.8 V</span>
+                        <span>5 V</span>
+                    </div>
+                </label>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelSpeed">動畫速度</span>
+                        <span id="disp-speed" class="text-slate-600">1.0×</span>
+                    </span>
+                    <input type="range" id="speedRange" min="0.3" max="2.5" step="0.1" value="1">
+                </label>
+
+                <label class="block mb-4">
+                    <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                        <span data-i18n="labelDensity">載流子密度</span>
+                        <span id="disp-density" class="text-violet-600">12</span>
+                    </span>
+                    <input type="range" id="densityRange" min="4" max="20" step="1" value="12">
+                </label>
+
+                <div class="space-y-1.5 border-t pt-3">
+                    <label class="check-row"><input type="checkbox" id="showDepletion" checked><span data-i18n="showDepletion">標示耗盡區</span></label>
+                    <label class="check-row"><input type="checkbox" id="showArrows" checked><span data-i18n="showArrows">顯示載流子箭咀</span></label>
+                    <label class="check-row"><input type="checkbox" id="showEnergyBand" checked><span data-i18n="showEnergyBand">顯示能帶示意</span></label>
+                </div>
+
+                <div class="border-t pt-3 mt-3">
+                    <h3 class="font-bold text-xs mb-2 text-slate-600" data-i18n="legendTitle">圖例</h3>
+                    <div class="grid grid-cols-1 gap-1.5 text-xs text-slate-500">
+                        <div class="flex items-center gap-2">
+                            <span class="w-5 h-5 bg-blue-500 rounded-full text-white flex items-center justify-center font-bold text-[10px]">−</span>
+                            <span data-i18n="legE">電子</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-5 h-5 border-2 border-rose-500 rounded-full text-rose-500 flex items-center justify-center font-bold text-xs bg-white">+</span>
+                            <span data-i18n="legH">空穴</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-amber-500 font-bold text-lg">↝</span>
+                            <span data-i18n="legP">複合釋放光子</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+
+        <section class="lg:col-span-8 order-1 lg:order-2 flex flex-col gap-4 min-w-0 min-h-0">
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-2">
+                <div class="svg-wrapper border border-slate-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 380" id="mainSvg" class="sim-active state-playing bias-forward led-on">
+                        <defs>
+                            <marker id="arrowHeadRed" markerWidth="8.4" markerHeight="4.2" refX="0" refY="2.1" orient="auto">
+                                <polygon points="0 0, 8.4 2.1, 0 4.2" fill="#e11d48"/>
+                            </marker>
+                            <marker id="arrowHeadBlue" markerWidth="8.4" markerHeight="4.2" refX="0" refY="2.1" orient="auto">
+                                <polygon points="0 0, 8.4 2.1, 0 4.2" fill="#2563eb"/>
+                            </marker>
+                            <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                            <radialGradient id="ledGrad" cx="50%" cy="40%" r="60%">
+                                <stop id="ledGradInner" offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+                                <stop id="ledGradOuter" offset="100%" stop-color="#3b82f6" stop-opacity="1"/>
+                            </radialGradient>
+                        </defs>
+
+                        <!-- 能帶示意（標籤在左、線條在右，避免重疊） -->
+                        <g id="energyBandGroup" opacity="0.92">
+                            <rect x="404" y="6" width="188" height="92" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+                            <text x="498" y="22" text-anchor="middle" fill="#475569" font-size="10" font-weight="bold" data-i18n-svg="bandTitle">能帶示意</text>
+                            <text x="416" y="44" fill="#6366f1" font-size="9" font-weight="bold" data-i18n-svg="bandConduction">導帶</text>
+                            <line x1="452" y1="40" x2="582" y2="40" stroke="#6366f1" stroke-width="3" stroke-linecap="round"/>
+                            <rect id="bandGapRect" x="452" y="50" width="130" height="24" rx="4" fill="#6366f1" opacity="0.12"/>
+                            <line x1="517" y1="43" x2="517" y2="50" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2,2"/>
+                            <line x1="517" y1="74" x2="517" y2="81" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2,2"/>
+                            <text x="517" y="66" text-anchor="middle" fill="#4338ca" font-size="9" font-weight="bold" id="bandGapLabel">Eg = 2.8 eV</text>
+                            <text x="416" y="84" fill="#8b5cf6" font-size="9" font-weight="bold" data-i18n-svg="bandValence">價帶</text>
+                            <line x1="452" y1="80" x2="582" y2="80" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round"/>
+                        </g>
+
+                        <!-- LED 封裝與發光燈泡 -->
+                        <g id="ledBulbGroup" transform="translate(300, 28)">
+                            <line x1="0" y1="38" x2="0" y2="52" stroke="#64748b" stroke-width="2"/>
+                            <path d="M -22 38 L -14 52 L 14 52 L 22 38 Z" fill="#94a3b8" stroke="#64748b" stroke-width="1"/>
+                            <line x1="-10" y1="52" x2="-10" y2="58" stroke="#64748b" stroke-width="2"/>
+                            <line x1="0" y1="52" x2="0" y2="58" stroke="#64748b" stroke-width="2"/>
+                            <line x1="10" y1="52" x2="10" y2="58" stroke="#64748b" stroke-width="2"/>
+                            <circle id="ledBulb" cx="0" cy="16" r="18" fill="url(#ledGrad)" stroke="#cbd5e1" stroke-width="1.5"/>
+                            <text id="ledStatusText" x="0" y="20" text-anchor="middle" fill="#fff" font-size="9" font-weight="bold">ON</text>
+                            <g id="lightRays" opacity="0.85">
+                                <line x1="0" y1="-4" x2="0" y2="-18" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="-12" y1="0" x2="-22" y2="-8" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/>
+                                <line x1="12" y1="0" x2="22" y2="-8" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/>
+                            </g>
+                        </g>
+
+                        <!-- 電路接線（電池兩端斷開） -->
+                        <g id="circuitGroup" stroke="#64748b" stroke-width="3" fill="none">
+                            <path id="circuitLeft" d="M 50 200 L 50 300 L 265 300"/>
+                            <path id="circuitRight" d="M 550 200 L 550 300 L 335 300"/>
+                        </g>
+
+                        <!-- 電池（長板＝＋，短板＝−） -->
+                        <g id="batteryGroup" transform="translate(300, 300)">
+                            <line id="batWireLeft" x1="-35" y1="0" x2="-15" y2="0" stroke="#64748b" stroke-width="3"/>
+                            <line id="batWireRight" x1="15" y1="0" x2="35" y2="0" stroke="#64748b" stroke-width="3"/>
+                            <line id="batPlusPlate" x1="-15" y1="-15" x2="-15" y2="15" stroke="#0f172a" stroke-width="2"/>
+                            <line id="batMinusPlate" x1="15" y1="-8" x2="15" y2="8" stroke="#0f172a" stroke-width="4"/>
+                            <text id="batPlus" x="-28" y="-20" fill="#e11d48" font-size="18" font-weight="bold">+</text>
+                            <text id="batMinus" x="8" y="-20" fill="#2563eb" font-size="18" font-weight="bold">-</text>
+                        </g>
+
+                        <!-- 能量顯示 -->
+                        <g transform="translate(300, 248)">
+                            <rect x="-90" y="-16" width="180" height="32" rx="6" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+                            <text id="energyDisplay" x="0" y="5" text-anchor="middle" fill="#10b981" font-family="monospace" font-size="13" font-weight="bold">E = 2.80 eV</text>
+                        </g>
+
+                        <!-- LED 晶片 / PN 接面 -->
+                        <g id="chipGroup">
+                            <rect x="38" y="86" width="524" height="114" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+                            <text x="300" y="78" text-anchor="middle" fill="#475569" font-size="10" font-weight="bold" data-i18n-svg="chipLabel">LED 晶片（PN 接面）</text>
+                            <rect x="50" y="96" width="225" height="94" fill="#ffe4e6" stroke="#e11d48" stroke-width="2"/>
+                            <text x="70" y="118" fill="#e11d48" font-weight="bold" font-size="13">P-Type</text>
+                            <rect id="depletionRect" x="275" y="96" width="50" height="94" fill="#334155" stroke="#475569" stroke-width="2"/>
+                            <text id="depletionLabel" x="300" y="148" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="bold" data-i18n-svg="depletion">耗盡區</text>
+                            <rect x="325" y="96" width="225" height="94" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+                            <text x="470" y="118" fill="#2563eb" font-weight="bold" font-size="13" text-anchor="end">N-Type</text>
+                            <text id="svgTextPN" x="300" y="108" text-anchor="middle" fill="#64748b" font-size="11" font-weight="bold">PN Junction</text>
+                            <line x1="300" y1="86" x2="300" y2="58" stroke="#64748b" stroke-width="2"/>
+                        </g>
+
+                        <g id="particleGroup"></g>
+                        <g id="flashGroup"></g>
+
+                        <g id="arrowGroup" class="arrow-indicator">
+                            <line x1="115" y1="168" x2="145" y2="168" stroke="#e11d48" stroke-width="3" marker-end="url(#arrowHeadRed)"/>
+                            <text id="svgTextArrowH" x="130" y="158" fill="#e11d48" font-size="11" font-weight="bold" text-anchor="middle">Hole flow</text>
+                            <line x1="485" y1="168" x2="455" y2="168" stroke="#2563eb" stroke-width="3" marker-end="url(#arrowHeadBlue)"/>
+                            <text id="svgTextArrowE" x="470" y="158" fill="#2563eb" font-size="11" font-weight="bold" text-anchor="middle">Electron flow</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div class="dashboard-card" style="border-top-color:#6366f1">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statVoltage">外加電壓 (V)</div>
+                    <div id="statVoltage" class="text-2xl font-mono text-indigo-600">3.00</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#10b981">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statEnergy">光子能量 (eV)</div>
+                    <div id="statEnergy" class="text-2xl font-mono text-emerald-600">2.80</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#f59e0b">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statWavelength">波長 (nm)</div>
+                    <div id="statWavelength" class="text-2xl font-mono text-amber-600">443</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#3b82f6">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statCurrent">電流 (mA)</div>
+                    <div id="statCurrent" class="text-2xl font-mono text-blue-600">0.0</div>
+                </div>
+                <div class="dashboard-card" style="border-top-color:#8b5cf6">
+                    <div class="text-xs text-gray-500 font-bold" data-i18n="statRecomb">複合速率 (/s)</div>
+                    <div id="statRecomb" class="text-2xl font-mono text-violet-600">0</div>
+                </div>
+            </div>
+
+            <div id="insightPanel" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="font-black text-indigo-800 mb-2 text-sm" data-i18n="liveTitle">即時解讀</div>
+                <p id="insightText" class="text-sm text-slate-600 leading-relaxed mb-4"></p>
+                <div id="calcPanel" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="mj-calc calc-step bg-indigo-50/60 rounded-xl p-3 border border-indigo-100 text-sm" id="calcEnergy"></div>
+                    <div class="mj-calc calc-step bg-amber-50/60 rounded-xl p-3 border border-amber-100 text-sm" id="calcWavelength"></div>
+                    <div class="mj-calc calc-step bg-blue-50/60 rounded-xl p-3 border border-blue-100 text-sm" id="calcCurrent"></div>
+                    <div class="mj-calc calc-step bg-violet-50/60 rounded-xl p-3 border border-violet-100 text-sm" id="calcThreshold"></div>
+                </div>
+            </div>
+
+            <div id="statusDisplay" class="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-center text-sm font-bold text-slate-700" data-i18n="statusRunning">正向偏壓：載流子注入接面，LED 發光中</div>
+        </section>
+    </main>
+
+    <!-- 原理解說 Modal -->
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">LED 發光原理</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="modalSub">電致發光與 PN 接面</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-1" data-i18n="m1t">1. 正向偏壓與注入</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">LED 由 P 型與 N 型半導體組成。正向偏壓時（P 接正、N 接負），外加電場削弱內建電場，電子由 N 區注入、空穴由 P 區注入，雙方向 PN 接面匯聚。</p>
+                </div>
+                <div class="bg-violet-50 p-4 rounded-2xl border border-violet-100">
+                    <h3 class="font-bold text-violet-900 mb-1" data-i18n="m2t">2. 複合與光子</h3>
+                    <p class="text-xs text-slate-600 mb-2" data-i18n="m2d">電子從導帶躍遷至價帶並與空穴複合，多餘能量以光子釋放。光子能量約等於半導體能隙 E<sub>g</sub>，決定發光顏色。</p>
+                    <div class="mj-box">\( E = hf \approx E_g \)</div>
+                    <div class="mj-box mt-2">\( \lambda \,(nm) \approx \dfrac{1240}{E_g \,(eV)} \)</div>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                        <h4 class="font-bold text-rose-800 mb-1" data-i18n="m3t">閾值電壓</h4>
+                        <p data-i18n="m3d">電壓須超過 V<sub>th</sub> ≈ E<sub>g</sub>/e 才會明顯發光。紅光 LED 能隙較小（~1.8 eV），藍光較大（~2.8 eV）。</p>
+                    </div>
+                    <div class="bg-slate-100 p-3 rounded-xl border border-slate-200">
+                        <h4 class="font-bold text-slate-800 mb-1" data-i18n="m4t">反向偏壓</h4>
+                        <p data-i18n="m4d">反向偏壓使耗盡區變寬，載流子被拉離接面，幾乎無電流、不發光——這與光伏板（受光發電）互為逆過程。</p>
+                    </div>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m5t">3. 生活例子</h3>
+                    <p class="text-xs text-emerald-800" data-i18n="m5d">交通燈、手機螢幕背光、聖誕燈串、手電筒與教室投影筆，都使用不同能隙的 LED 產生紅、綠、藍或混合白光。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 觀察步驟 Modal -->
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                    <p class="text-xs text-indigo-100" data-i18n="stepsSub">如何使用本模擬</p>
+                </div>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <ol class="space-y-3">
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">1</span><span data-i18n="s1">先選 LED 顏色預設，觀察能隙 E<sub>g</sub> 與閾值電壓 V<sub>th</sub> 如何改變。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">2</span><span data-i18n="s2">調整外加電壓：低於 V<sub>th</sub> 時 LED 不亮；超過後載流子複合、光子射出，燈泡發光。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">3</span><span data-i18n="s3">切換「反向偏壓」，對比載流子被耗盡區擋住、無複合無光子的情形。</span></li>
+                    <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 font-black flex items-center justify-center shrink-0">4</span><span data-i18n="s4">觀察下方即時數據：光子能量、波長 λ 與複合速率如何隨電壓與偏壓改變。</span></li>
+                </ol>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="Close">✕</button>
+            </div>
+            <div class="px-5 pt-4 flex justify-end shrink-0">
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 text-xs font-semibold" data-i18n="quizShowAnswers">顯示參考答案</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-1 min-h-0">
+                <div id="quiz-list" class="space-y-4 text-sm text-slate-700"></div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const PRESETS = {
+    red:   { voltage: 2.0, eg: 1.9, color: '#ef4444', threshold: 1.8 },
+    green: { voltage: 2.4, eg: 2.2, color: '#22c55e', threshold: 2.1 },
+    blue:  { voltage: 3.0, eg: 2.8, color: '#3b82f6', threshold: 2.8 },
+};
+
+const i18n = {
+    zh: {
+        title: 'LED發光原理', badge: '物理', subtitle: 'PN 接面複合、能隙與光子釋放',
+        btnPrinciple: '原理解說', btnSteps: '觀察步驟', controlTitle: '實驗控制',
+        btnOn: '接通', pause: '暫停', resume: '恢復', btnOff: '斷開', reset: '重置',
+        presets: 'LED 顏色預設',
+        preRed: '🔴 紅光 LED（低能隙）', preGreen: '🟢 綠光 LED', preBlue: '🔵 藍光 LED',
+        labelBias: '偏壓方向', biasForward: '正向偏壓', biasReverse: '反向偏壓',
+        labelVoltage: '外加電壓', labelSpeed: '動畫速度', labelDensity: '載流子密度',
+        showDepletion: '標示耗盡區', showArrows: '顯示載流子箭咀', showEnergyBand: '顯示能帶示意',
+        legendTitle: '圖例', legE: '電子 (e⁻)', legH: '空穴 (h⁺)', legP: '複合釋放光子',
+        liveTitle: '即時解讀',
+        statVoltage: '外加電壓 (V)', statEnergy: '光子能量 (eV)', statWavelength: '波長 (nm)',
+        statCurrent: '電流 (mA)', statRecomb: '複合速率 (/s)',
+        statusRunning: '正向偏壓：載流子注入接面，LED 發光中',
+        statusPaused: '模擬已暫停',
+        statusOff: '電源已斷開',
+        statusReverse: '反向偏壓：耗盡區加寬，幾乎無電流、不發光',
+        statusBelow: '電壓低於閾值：載流子不足以克服能隙，LED 未發光',
+        bandTitle: '能帶示意', bandConduction: '導帶', bandValence: '價帶', depletion: '耗盡區', chipLabel: 'LED 晶片（PN 接面）',
+        svgTextPN: 'PN 接面', svgTextArrowH: '空穴移動', svgTextArrowE: '電子移動',
+        ledOn: 'ON', ledOff: 'OFF',
+        insightForward: '正向偏壓下，電子與空穴在接面複合，釋放能量 E ≈ E<sub>g</sub> 的光子。',
+        insightReverse: '反向偏壓使載流子遠離接面，複合極少，LED 不發光（與光伏板受光發電相反）。',
+        insightBelow: '電壓低於 V<sub>th</sub>：載流子能量不足以有效複合發光，電流與亮度極低。',
+        insightOff: '電源斷開：無載流子注入，LED 熄滅。',
+        calcEnergyLabel: '光子能量', calcWavelengthLabel: '波長估算', calcCurrentLabel: '電流估算', calcThresholdLabel: '閾值條件',
+        stepsTitle: '觀察步驟', stepsSub: '如何使用本模擬',
+        s1: '先選 LED 顏色預設，觀察能隙 E_g 與閾值電壓 V_th 如何改變。',
+        s2: '調整外加電壓：低於 V_th 時 LED 不亮；超過後載流子複合、光子射出，燈泡發光。',
+        s3: '切換「反向偏壓」，對比載流子被耗盡區擋住、無複合無光子的情形。',
+        s4: '觀察下方即時數據：光子能量、波長 λ 與複合速率如何隨電壓與偏壓改變。',
+        modalTitle: 'LED 發光原理', modalSub: '電致發光與 PN 接面', modalClose: '關閉',
+        m1t: '1. 正向偏壓與注入',
+        m1d: 'LED 由 P 型與 N 型半導體組成。正向偏壓時（P 接正、N 接負），外加電場削弱內建電場，電子由 N 區注入、空穴由 P 區注入，雙方向 PN 接面匯聚。',
+        m2t: '2. 複合與光子',
+        m2d: '電子從導帶躍遷至價帶並與空穴複合，多餘能量以光子釋放。光子能量約等於半導體能隙 E_g，決定發光顏色。',
+        m3t: '閾值電壓',
+        m3d: '電壓須超過 V_th ≈ E_g/e 才會明顯發光。紅光 LED 能隙較小（~1.8 eV），藍光較大（~2.8 eV）。',
+        m4t: '反向偏壓',
+        m4d: '反向偏壓使耗盡區變寬，載流子被拉離接面，幾乎無電流、不發光——這與光伏板（受光發電）互為逆過程。',
+        m5t: '3. 生活例子',
+        m5d: '交通燈、聖誕燈串與指示燈，常用不同能隙的紅、綠、藍 LED；光子能量 E ≈ E_g 決定顏色。',
+        btnQuiz: '課堂問題', quizTitle: '課堂問題', quizShowAnswers: '顯示參考答案', quizHideAnswers: '隱藏參考答案', quizRef: '參考答案',
+        quizQ1: '正向偏壓下，外加電壓低於閾值 V_th 時，LED 會怎樣？',
+        quizQ1a: '幾乎不發光、電流極低', quizQ1b: '正常發光且波長最長', quizQ1c: '反向導通、電流大增', quizQ1d: '能隙自動變為零',
+        quizQ1ans: '電壓須超過 V_th ≈ E_g/e 才有明顯複合發光；低於閾值時即時讀數電流與複合速率極低，燈泡不亮。',
+        quizQ2: '選藍光 LED 預設，確認為「正向偏壓」，把「外加電壓」滑桿從約 1.0 V 拉到 3.5 V。先預測燈泡是否發亮及「複合速率」讀數如何變化，再操作 voltageRange 核對 statRecomb 與畫面。',
+        quizQ2ans: '藍光 V_th ≈ 2.8 V：低於閾值幾乎不亮；超過後載流子複合增加，statRecomb 上升，LED 發藍光，光子能量約 2.8 eV。',
+        quizQ3: '按下「反向偏壓」按鈕後，主要現象是？',
+        quizQ3a: '耗盡區加寬，幾乎無電流、不發光', quizQ3b: '複合加快、波長變短', quizQ3c: '能隙變小、變紅光', quizQ3d: '電流大增、LED 更亮',
+        quizQ3ans: '反向偏壓拉開載流子，複合極少；狀態列顯示無電流不發光，與正向偏壓形成對照。',
+        quizQ4: '分別點「🔴 紅光 LED」與「🔵 藍光 LED」顏色預設，比較即時讀數中的光子能量與波長 λ。哪一個波長較長？操作後說明。',
+        quizQ4ans: '紅光能隙較小（~1.9 eV）、λ 較長（~650 nm）；藍光能隙較大（~2.8 eV）、λ 較短（~443 nm）。E ≈ E_g，λ ≈ 1240/E_g (nm)。',
+        quizQ5: '能隙 E_g 較大的 LED，釋放光子的能量約為？',
+        quizQ5a: '較大（E ≈ E_g）', quizQ5b: '較小', quizQ5c: '恆為 1 eV', quizQ5d: '與能隙無關',
+        quizQ5ans: '複合釋放光子能量約等於能隙 E_g；藍光 E_g > 紅光，故 E 與頻率較高、波長較短。',
+        pageTitle: 'LED發光原理 | LED Emission'
+    },
+    en: {
+        title: 'LED Emission', badge: 'Physics', subtitle: 'PN recombination, band gap & photon release',
+        btnPrinciple: 'Theory', btnSteps: 'Steps', controlTitle: 'Controls',
+        btnOn: 'On', pause: 'Pause', resume: 'Resume', btnOff: 'Off', reset: 'Reset',
+        presets: 'LED colour presets',
+        preRed: '🔴 Red LED (small E_g)', preGreen: '🟢 Green LED', preBlue: '🔵 Blue LED',
+        labelBias: 'Bias direction', biasForward: 'Forward bias', biasReverse: 'Reverse bias',
+        labelVoltage: 'Applied voltage', labelSpeed: 'Animation speed', labelDensity: 'Carrier density',
+        showDepletion: 'Show depletion zone', showArrows: 'Show carrier arrows', showEnergyBand: 'Show band diagram',
+        legendTitle: 'Legend', legE: 'Electron (e⁻)', legH: 'Hole (h⁺)', legP: 'Recombination photon',
+        liveTitle: 'Live insight',
+        statVoltage: 'Voltage (V)', statEnergy: 'Photon energy (eV)', statWavelength: 'Wavelength (nm)',
+        statCurrent: 'Current (mA)', statRecomb: 'Recombination (/s)',
+        statusRunning: 'Forward bias: carriers inject and LED emits light',
+        statusPaused: 'Simulation paused',
+        statusOff: 'Power disconnected',
+        statusReverse: 'Reverse bias: depletion widens — negligible current, no light',
+        statusBelow: 'Below threshold: carriers cannot overcome E_g — LED off',
+        bandTitle: 'Band diagram', bandConduction: 'Conduction', bandValence: 'Valence', depletion: 'Depletion', chipLabel: 'LED chip (PN junction)',
+        svgTextPN: 'PN junction', svgTextArrowH: 'Hole flow', svgTextArrowE: 'Electron flow',
+        ledOn: 'ON', ledOff: 'OFF',
+        insightForward: 'Under forward bias, electrons and holes recombine at the junction, releasing photons with E ≈ E_g.',
+        insightReverse: 'Reverse bias pulls carriers away from the junction — almost no recombination or light (opposite of a solar cell).',
+        insightBelow: 'Voltage below V_th: carriers lack energy for radiative recombination — very dim or off.',
+        insightOff: 'Power off: no carrier injection, LED is dark.',
+        calcEnergyLabel: 'Photon energy', calcWavelengthLabel: 'Wavelength', calcCurrentLabel: 'Current estimate', calcThresholdLabel: 'Threshold',
+        stepsTitle: 'What to watch', stepsSub: 'How to use this simulator',
+        s1: 'Pick an LED colour preset and note how E_g and threshold voltage V_th change.',
+        s2: 'Adjust voltage: below V_th the LED stays off; above it, carriers recombine and photons emit — the bulb glows.',
+        s3: 'Switch to reverse bias and compare — carriers are blocked by the depletion zone, no light.',
+        s4: 'Watch the live stats: photon energy, wavelength λ and recombination rate vs voltage and bias.',
+        modalTitle: 'How LEDs emit light', modalSub: 'Electroluminescence & PN junction', modalClose: 'Close',
+        m1t: '1. Forward bias & injection',
+        m1d: 'An LED uses P-type and N-type semiconductors. Forward bias (P to +, N to −) weakens the built-in field; electrons inject from N, holes from P, meeting at the junction.',
+        m2t: '2. Recombination & photons',
+        m2d: 'Electrons drop from conduction to valence band and recombine with holes, releasing photons. Photon energy ≈ band gap E_g, which sets the colour.',
+        m3t: 'Threshold voltage',
+        m3d: 'Voltage must exceed V_th ≈ E_g/e for significant emission. Red LEDs have smaller E_g (~1.8 eV), blue larger (~2.8 eV).',
+        m4t: 'Reverse bias',
+        m4d: 'Reverse bias widens the depletion region and pulls carriers apart — negligible current and no light. This is the inverse of photovoltaic action.',
+        m5t: '3. Everyday examples',
+        m5d: 'Traffic lights, fairy lights and indicator lamps use red, green and blue LEDs with different E_g; photon energy E ≈ E_g sets the colour.',
+        btnQuiz: 'Quiz', quizTitle: 'Classroom Quiz', quizShowAnswers: 'Show reference answers', quizHideAnswers: 'Hide reference answers', quizRef: 'Reference',
+        quizQ1: 'Under forward bias, when applied voltage is below threshold V_th, the LED:',
+        quizQ1a: 'Barely glows; current very low', quizQ1b: 'Glows normally with longest λ', quizQ1c: 'Conducts heavily in reverse', quizQ1d: 'Band gap becomes zero',
+        quizQ1ans: 'Voltage must exceed V_th ≈ E_g/e for radiative recombination; below threshold, current and recombination rate stay tiny.',
+        quizQ2: 'Pick the blue LED preset, keep forward bias, drag the applied voltage slider from ~1.0 V to 3.5 V. Predict brightness and the recombination rate, then check statRecomb and the bulb.',
+        quizQ2ans: 'Blue V_th ≈ 2.8 V: dim below threshold; above it, recombination rises, the LED emits blue light at E ≈ 2.8 eV.',
+        quizQ3: 'After pressing reverse bias, the main effect is:',
+        quizQ3a: 'Depletion widens — negligible current, no light', quizQ3b: 'Faster recombination, shorter λ', quizQ3c: 'Smaller E_g, red emission', quizQ3d: 'Much higher current, brighter LED',
+        quizQ3ans: 'Reverse bias pulls carriers apart; almost no recombination or light — contrast with forward bias.',
+        quizQ4: 'Switch between red and blue LED presets and compare photon energy and wavelength λ in the live readout. Which has the longer wavelength? Verify on screen.',
+        quizQ4ans: 'Red: smaller E_g (~1.9 eV), longer λ (~650 nm); blue: larger E_g (~2.8 eV), shorter λ (~443 nm). E ≈ E_g, λ ≈ 1240/E_g (nm).',
+        quizQ5: 'An LED with a larger band gap E_g releases photons with energy:',
+        quizQ5a: 'Larger (E ≈ E_g)', quizQ5b: 'Smaller', quizQ5c: 'Always 1 eV', quizQ5d: 'Unrelated to E_g',
+        quizQ5ans: 'Recombination photon energy ≈ E_g; blue E_g > red, so higher E, higher frequency, shorter λ.',
+        pageTitle: 'LED Emission | LED發光原理'
+    }
+};
+
+let lang = 'zh';
+let quizAnswersVisible = false;
+let simState = 'playing';
+let biasMode = 'forward';
+let currentPreset = 'blue';
+let isPaused = false;
+let recombCount = 0;
+let lastRecombTick = 0;
+let recombPerSec = 0;
+let animFrameId = null;
+
+const els = {};
+['btnOn','btnPause','btnOff','btnReset','btnForward','btnReverse','btn-principle','btn-steps','btn-quiz','btn-lang','btn-lang-mobile',
+ 'modal-principle','modal-close','modal-confirm','modal-steps','steps-close','steps-confirm','modal-quiz','quiz-close','quiz-confirm','btn-quiz-answers',
+ 'voltageRange','speedRange','densityRange','disp-voltage','disp-speed','disp-density','disp-threshold',
+ 'statVoltage','statEnergy','statWavelength','statCurrent','statRecomb','statusDisplay','insightText','insightPanel','calcPanel',
+ 'calcEnergy','calcWavelength','calcCurrent','calcThreshold',
+ 'mainSvg','particleGroup','flashGroup','energyDisplay','bandGapLabel','ledStatusText',
+ 'depletionRect','depletionLabel','arrowGroup','energyBandGroup','showDepletion','showArrows','showEnergyBand',
+ 'ledGradOuter','lightRays'
+].forEach(id => els[id] = document.getElementById(id));
+
+const root = document.documentElement;
+const ns = 'http://www.w3.org/2000/svg';
+const startYMin = 108, startYMax = 178;
+
+function t(key) { return i18n[lang][key] ?? key; }
+
+function renderQuiz() {
+    const box = document.getElementById('quiz-list');
+    if (!box) return;
+    const mkChoice = (qid) => ['A','B','C','D'].map(L => {
+        const optKey = 'quizQ' + qid.slice(1) + L.toLowerCase();
+        return `<label class="flex items-start gap-2 border border-slate-200 rounded-lg p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-500"><span>${L}. ${t(optKey)}</span></label>`;
+    }).join('');
+    const ans = (n) => quizAnswersVisible
+        ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${t('quizRef')}：</strong> ${t('quizQ' + n + 'ans')}</div>`
+        : '';
+    box.innerHTML = [1, 2, 3, 4, 5].map(n => {
+        const qid = 'q' + n;
+        const open = n === 2 || n === 4;
+        return `<div class="rounded-xl border border-slate-200 p-3">
+            <p class="font-semibold text-rose-800 mb-2">Q${n}. ${t('quizQ' + n)}</p>
+            ${open ? '' : `<div class="grid gap-1.5">${mkChoice(qid)}</div>`}
+            ${ans(n)}
+        </div>`;
+    }).join('');
+    const ansBtn = document.getElementById('btn-quiz-answers');
+    if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t('quizHideAnswers') : t('quizShowAnswers');
+}
+
+function wavelengthFromEg(eg) { return Math.round(1240 / eg); }
+
+function getPreset() { return PRESETS[currentPreset]; }
+
+function isEmitting() {
+    if (simState !== 'playing' || biasMode !== 'forward') return false;
+    const v = parseFloat(els.voltageRange.value);
+    return v >= getPreset().threshold;
+}
+
+function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    document.querySelectorAll('[data-i18n-svg]').forEach(el => {
+        const k = el.getAttribute('data-i18n-svg');
+        if (i18n[lang][k] != null) el.textContent = i18n[lang][k];
+    });
+    els['svgTextPN'] = document.getElementById('svgTextPN');
+    els['svgTextArrowH'] = document.getElementById('svgTextArrowH');
+    els['svgTextArrowE'] = document.getElementById('svgTextArrowE');
+    if (els['svgTextPN']) els['svgTextPN'].textContent = t('svgTextPN');
+    if (els['svgTextArrowH']) els['svgTextArrowH'].textContent = t('svgTextArrowH');
+    if (els['svgTextArrowE']) els['svgTextArrowE'].textContent = t('svgTextArrowE');
+    els.btnPause.textContent = isPaused ? t('resume') : t('pause');
+    updateDisplay();
+    renderQuiz();
+    if (window.MathJax && MathJax.typesetPromise) {
+        const targets = [document.getElementById('modal-principle'), els.calcPanel];
+        if (els['modal-quiz'] && !els['modal-quiz'].classList.contains('pointer-events-none')) targets.push(els['modal-quiz']);
+        MathJax.typesetPromise(targets).catch(() => {});
+    }
+}
+
+function openModal(id) {
+    const m = document.getElementById(id);
+    m.classList.remove('opacity-0', 'pointer-events-none');
+    m.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0');
+    if ((id === 'modal-principle' || id === 'modal-quiz') && window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([m]).catch(() => {});
+    }
+}
+
+function closeModal(id) {
+    const m = document.getElementById(id);
+    m.classList.add('opacity-0', 'pointer-events-none');
+    m.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+}
+
+function setSimState(state) {
+    simState = state;
+    isPaused = state === 'paused';
+    ['btnOn','btnPause','btnOff'].forEach(id => els[id].classList.remove('active'));
+    els.mainSvg.classList.remove('state-playing', 'state-paused', 'state-off');
+    if (state === 'playing') { els.mainSvg.classList.add('state-playing'); els.btnOn.classList.add('active'); }
+    else if (state === 'paused') { els.mainSvg.classList.add('state-paused'); els.btnPause.classList.add('active'); }
+    else { els.mainSvg.classList.add('state-off'); els.btnOff.classList.add('active'); }
+    els.btnPause.textContent = isPaused ? t('resume') : t('pause');
+    updateDisplay();
+}
+
+function setBias(mode) {
+    biasMode = mode;
+    els.btnForward.classList.toggle('active', mode === 'forward');
+    els.btnReverse.classList.toggle('active', mode === 'reverse');
+    els.mainSvg.classList.toggle('bias-forward', mode === 'forward');
+    els.mainSvg.classList.toggle('bias-reverse', mode === 'reverse');
+    updateBatteryVisual();
+    updateDisplay();
+}
+
+function updateBatteryVisual() {
+    const plusPlate = document.getElementById('batPlusPlate');
+    const minusPlate = document.getElementById('batMinusPlate');
+    const batPlus = document.getElementById('batPlus');
+    const batMinus = document.getElementById('batMinus');
+    if (biasMode === 'forward') {
+        // P 區（左）接 +，N 區（右）接 −
+        plusPlate.setAttribute('x1', '-15'); plusPlate.setAttribute('x2', '-15');
+        plusPlate.setAttribute('y1', '-15'); plusPlate.setAttribute('y2', '15');
+        plusPlate.setAttribute('stroke-width', '2');
+        minusPlate.setAttribute('x1', '15'); minusPlate.setAttribute('x2', '15');
+        minusPlate.setAttribute('y1', '-8'); minusPlate.setAttribute('y2', '8');
+        minusPlate.setAttribute('stroke-width', '4');
+        batPlus.setAttribute('x', '-28'); batMinus.setAttribute('x', '8');
+    } else {
+        // 反向：P 區（左）接 −，N 區（右）接 +
+        plusPlate.setAttribute('x1', '15'); plusPlate.setAttribute('x2', '15');
+        plusPlate.setAttribute('y1', '-15'); plusPlate.setAttribute('y2', '15');
+        plusPlate.setAttribute('stroke-width', '2');
+        minusPlate.setAttribute('x1', '-15'); minusPlate.setAttribute('x2', '-15');
+        minusPlate.setAttribute('y1', '-8'); minusPlate.setAttribute('y2', '8');
+        minusPlate.setAttribute('stroke-width', '4');
+        batPlus.setAttribute('x', '8'); batMinus.setAttribute('x', '-28');
+    }
+}
+
+function updateLedGradient(color) {
+    if (els.ledGradOuter) els.ledGradOuter.setAttribute('stop-color', color);
+    root.style.setProperty('--photon-color', color);
+    root.style.setProperty('--led-glow', color + '99');
+    document.querySelectorAll('#lightRays line').forEach(line => line.setAttribute('stroke', color));
+}
+
+function applyPreset(name) {
+    currentPreset = name;
+    const p = PRESETS[name];
+    els.voltageRange.value = p.voltage;
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.preset === name));
+    updateLedGradient(p.color);
+    rebuildParticles();
+    updateDisplay();
+}
+
+function rebuildParticles() {
+    const count = parseInt(els.densityRange.value, 10);
+    els.particleGroup.innerHTML = '';
+    els.flashGroup.innerHTML = '';
+
+    for (let i = 0; i < count; i++) {
+        const yPos = Math.random() * (startYMax - startYMin) + startYMin;
+        const delay = Math.random() * -3;
+
+        const eg = document.createElementNS(ns, 'g');
+        eg.setAttribute('class', 'particle-e-group');
+        eg.style.animationDelay = delay + 's';
+        const ec = document.createElementNS(ns, 'circle');
+        ec.setAttribute('cx', '525'); ec.setAttribute('cy', yPos); ec.setAttribute('r', '11'); ec.setAttribute('fill', '#3b82f6');
+        const et = document.createElementNS(ns, 'text');
+        et.textContent = '−'; et.setAttribute('x', '525'); et.setAttribute('y', yPos);
+        et.setAttribute('fill', 'white'); et.setAttribute('text-anchor', 'middle'); et.setAttribute('dy', '.35em');
+        et.setAttribute('class', 'particle-text'); et.setAttribute('style', 'font-size:18px');
+        eg.appendChild(ec); eg.appendChild(et);
+        els.particleGroup.appendChild(eg);
+
+        const hg = document.createElementNS(ns, 'g');
+        hg.setAttribute('class', 'particle-h-group');
+        hg.style.animationDelay = delay + 's';
+        const hc = document.createElementNS(ns, 'circle');
+        hc.setAttribute('cx', '75'); hc.setAttribute('cy', yPos); hc.setAttribute('r', '10');
+        hc.setAttribute('fill', 'white'); hc.setAttribute('stroke', '#f43f5e'); hc.setAttribute('stroke-width', '2');
+        const ht = document.createElementNS(ns, 'text');
+        ht.textContent = '+'; ht.setAttribute('x', '75'); ht.setAttribute('y', yPos);
+        ht.setAttribute('fill', '#f43f5e'); ht.setAttribute('text-anchor', 'middle'); ht.setAttribute('dy', '.35em');
+        ht.setAttribute('class', 'particle-text'); ht.setAttribute('style', 'font-size:28px');
+        hg.appendChild(hc); hg.appendChild(ht);
+        els.particleGroup.appendChild(hg);
+
+        const fc = document.createElementNS(ns, 'g');
+        fc.setAttribute('transform', `translate(300, ${yPos})`);
+        const flash = document.createElementNS(ns, 'circle');
+        flash.setAttribute('r', '8'); flash.setAttribute('fill', getPreset().color);
+        flash.setAttribute('filter', 'url(#glow)'); flash.setAttribute('class', 'flash');
+        flash.style.animationDelay = delay + 's';
+        fc.appendChild(flash);
+        const rot = document.createElementNS(ns, 'g');
+        rot.setAttribute('transform', `rotate(${Math.random() * 360})`);
+        const photon = document.createElementNS(ns, 'text');
+        photon.textContent = '↝'; photon.setAttribute('fill', getPreset().color);
+        photon.setAttribute('font-size', '22'); photon.setAttribute('text-anchor', 'middle');
+        photon.setAttribute('dominant-baseline', 'middle'); photon.setAttribute('class', 'photon');
+        photon.style.animationDelay = delay + 's';
+        rot.appendChild(photon); fc.appendChild(rot);
+        els.flashGroup.appendChild(fc);
+    }
+    els['disp-density'].textContent = count;
+}
+
+function updateVoltageEffects() {
+    const voltage = parseFloat(els.voltageRange.value);
+    const preset = getPreset();
+    const speedMult = parseFloat(els.speedRange.value);
+    els['disp-voltage'].textContent = voltage.toFixed(1) + ' V';
+    els['disp-speed'].textContent = speedMult.toFixed(1) + '×';
+    els['disp-threshold'].innerHTML = 'V<sub>th</sub> ' + preset.threshold.toFixed(1) + ' V';
+
+    const eg = preset.eg;
+    const wl = wavelengthFromEg(eg);
+    els.energyDisplay.textContent = 'E = ' + eg.toFixed(2) + ' eV';
+    els.energyDisplay.setAttribute('fill', preset.color);
+    els.bandGapLabel.textContent = 'Eg = ' + eg.toFixed(1) + ' eV';
+
+    if (voltage <= 0.05 || !isEmitting()) {
+        root.style.setProperty('--anim-speed', '9999s');
+    } else {
+        const base = (5 / voltage) / speedMult;
+        root.style.setProperty('--anim-speed', Math.max(0.4, base) + 's');
+    }
+
+    els.mainSvg.classList.toggle('below-threshold', biasMode === 'forward' && voltage < preset.threshold);
+    els.mainSvg.classList.toggle('led-on', isEmitting());
+    els.ledStatusText.textContent = isEmitting() ? t('ledOn') : t('ledOff');
+    if (els.lightRays) els.lightRays.style.display = isEmitting() ? '' : 'none';
+
+    els.statVoltage.textContent = voltage.toFixed(2);
+    els.statEnergy.textContent = eg.toFixed(2);
+    els.statWavelength.textContent = wl;
+
+    const emitting = isEmitting();
+    const current = emitting ? Math.max(0, (voltage - preset.threshold) * 18 * parseInt(els.densityRange.value) / 12) : (biasMode === 'reverse' ? 0.01 : 0);
+    els.statCurrent.textContent = current.toFixed(1);
+}
+
+function updateInsight() {
+    if (simState === 'off') els.insightText.innerHTML = t('insightOff');
+    else if (biasMode === 'reverse') els.insightText.innerHTML = t('insightReverse');
+    else if (!isEmitting()) els.insightText.innerHTML = t('insightBelow');
+    else els.insightText.innerHTML = t('insightForward');
+}
+
+function updateCalcPanel() {
+    const voltage = parseFloat(els.voltageRange.value);
+    const preset = getPreset();
+    const eg = preset.eg;
+    const wl = wavelengthFromEg(eg);
+    const density = parseInt(els.densityRange.value, 10);
+    const emitting = isEmitting();
+    const current = emitting ? Math.max(0, (voltage - preset.threshold) * 18 * density / 12) : (biasMode === 'reverse' ? 0.01 : 0);
+
+    els.calcEnergy.innerHTML = `<div class="text-[10px] font-bold text-indigo-700 mb-1">${t('calcEnergyLabel')}</div>\\( E = hf \\approx E_g = ${eg.toFixed(2)}\\ \\text{eV} \\)`;
+    els.calcWavelength.innerHTML = `<div class="text-[10px] font-bold text-amber-700 mb-1">${t('calcWavelengthLabel')}</div>\\( \\lambda = \\frac{1240}{E_g} = \\frac{1240}{${eg.toFixed(1)}} \\approx ${wl}\\ \\text{nm} \\)`;
+    if (emitting) {
+        els.calcCurrent.innerHTML = `<div class="text-[10px] font-bold text-blue-700 mb-1">${t('calcCurrentLabel')}</div>\\( I \\propto (V - V_{th}) \\approx ${current.toFixed(1)}\\ \\text{mA} \\)`;
+    } else if (biasMode === 'reverse') {
+        els.calcCurrent.innerHTML = `<div class="text-[10px] font-bold text-blue-700 mb-1">${t('calcCurrentLabel')}</div>\\( I \\approx 0\\ \\text{mA} \\)`;
+    } else {
+        els.calcCurrent.innerHTML = `<div class="text-[10px] font-bold text-blue-700 mb-1">${t('calcCurrentLabel')}</div>\\( V < V_{th} \\Rightarrow I \\approx 0\\ \\text{mA} \\)`;
+    }
+    if (emitting) {
+        els.calcThreshold.innerHTML = `<div class="text-[10px] font-bold text-violet-700 mb-1">${t('calcThresholdLabel')}</div>\\( V = ${voltage.toFixed(1)}\\ \\text{V} > V_{th} = ${preset.threshold.toFixed(1)}\\ \\text{V} \\)`;
+    } else {
+        els.calcThreshold.innerHTML = `<div class="text-[10px] font-bold text-violet-700 mb-1">${t('calcThresholdLabel')}</div>\\( V_{th} \\approx E_g/e = ${preset.threshold.toFixed(1)}\\ \\text{V} \\)`;
+    }
+
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([els.calcPanel]).catch(() => {});
+    }
+}
+
+function updateStatus() {
+    if (simState === 'off') els.statusDisplay.textContent = t('statusOff');
+    else if (isPaused) els.statusDisplay.textContent = t('statusPaused');
+    else if (biasMode === 'reverse') els.statusDisplay.textContent = t('statusReverse');
+    else if (!isEmitting()) els.statusDisplay.textContent = t('statusBelow');
+    else els.statusDisplay.textContent = t('statusRunning');
+}
+
+function updateDisplay() {
+    updateVoltageEffects();
+    updateInsight();
+    updateCalcPanel();
+    updateStatus();
+    els.depletionRect.style.display = els.showDepletion.checked ? '' : 'none';
+    els.depletionLabel.style.display = els.showDepletion.checked ? '' : 'none';
+    els.arrowGroup.style.display = els.showArrows.checked ? '' : 'none';
+    els.energyBandGroup.style.display = els.showEnergyBand.checked ? '' : 'none';
+}
+
+function resetSim() {
+    applyPreset('blue');
+    setBias('forward');
+    els.speedRange.value = 1;
+    els.densityRange.value = 12;
+    els.showDepletion.checked = true;
+    els.showArrows.checked = true;
+    els.showEnergyBand.checked = true;
+    recombCount = 0;
+    recombPerSec = 0;
+    rebuildParticles();
+    setSimState('playing');
+    els.statusDisplay.textContent = t('statusRunning');
+}
+
+let recombSecStart = performance.now();
+function tickRecomb() {
+    const now = performance.now();
+    if (isEmitting() && simState === 'playing') {
+        const animSec = parseFloat(getComputedStyle(root).getPropertyValue('--anim-speed')) || 3;
+        const interval = animSec * 450;
+        if (now - lastRecombTick > interval) {
+            recombCount++;
+            lastRecombTick = now;
+        }
+    }
+    if (now - recombSecStart >= 1000) {
+        recombPerSec = recombCount;
+        recombCount = 0;
+        recombSecStart = now;
+        els.statRecomb.textContent = recombPerSec;
+    }
+    animFrameId = requestAnimationFrame(tickRecomb);
+}
+
+// Event listeners
+els.btnOn.addEventListener('click', () => { if (isPaused) { isPaused = false; setSimState('playing'); } else setSimState('playing'); });
+els.btnPause.addEventListener('click', () => {
+    if (simState === 'paused') setSimState('playing');
+    else setSimState('paused');
+});
+els.btnOff.addEventListener('click', () => setSimState('off'));
+els.btnReset.addEventListener('click', resetSim);
+els.btnForward.addEventListener('click', () => setBias('forward'));
+els.btnReverse.addEventListener('click', () => setBias('reverse'));
+
+els.voltageRange.addEventListener('input', updateDisplay);
+els.speedRange.addEventListener('input', updateDisplay);
+els.densityRange.addEventListener('input', () => { rebuildParticles(); updateDisplay(); });
+els.showDepletion.addEventListener('change', updateDisplay);
+els.showArrows.addEventListener('change', updateDisplay);
+els.showEnergyBand.addEventListener('change', updateDisplay);
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+function toggleLang() { lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); }
+els['btn-lang'].addEventListener('click', toggleLang);
+els['btn-lang-mobile'].addEventListener('click', toggleLang);
+
+function closeAuxModals() {
+    ['modal-principle', 'modal-steps', 'modal-quiz'].forEach(closeModal);
+}
+els['btn-principle'].addEventListener('click', () => { closeAuxModals(); openModal('modal-principle'); });
+els['btn-steps'].addEventListener('click', () => { closeAuxModals(); openModal('modal-steps'); });
+els['btn-quiz'].addEventListener('click', () => {
+    closeAuxModals();
+    renderQuiz();
+    openModal('modal-quiz');
+});
+els['btn-quiz-answers'].addEventListener('click', () => {
+    quizAnswersVisible = !quizAnswersVisible;
+    renderQuiz();
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([els['modal-quiz']]).catch(() => {});
+});
+['quiz-close','quiz-confirm'].forEach(id => els[id].addEventListener('click', () => closeModal('modal-quiz')));
+document.getElementById('modal-quiz').addEventListener('click', e => { if (e.target.id === 'modal-quiz') closeModal('modal-quiz'); });
+['modal-close','modal-confirm'].forEach(id => els[id].addEventListener('click', () => closeModal('modal-principle')));
+['steps-close','steps-confirm'].forEach(id => els[id].addEventListener('click', () => closeModal('modal-steps')));
+['modal-principle','modal-steps'].forEach(id => {
+    document.getElementById(id).addEventListener('click', e => { if (e.target.id === id) closeModal(id); });
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (els['modal-quiz'] && !els['modal-quiz'].classList.contains('pointer-events-none')) { closeModal('modal-quiz'); return; }
+        closeModal('modal-principle');
+        closeModal('modal-steps');
+    }
+});
+
+// Init
+rebuildParticles();
+applyPreset('blue');
+setBias('forward');
+setSimState('playing');
+applyLang();
+tickRecomb();
+</script>
+</body>
+</html>

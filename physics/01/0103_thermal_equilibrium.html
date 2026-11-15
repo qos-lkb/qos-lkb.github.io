@@ -3,16 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>熱平衡混合模擬實驗</title>
+    <title>熱平衡混合模擬實驗 | Thermal Equilibrium Mixing</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      window.MathJax = {
+        tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+        chtml: { scale: 1.05 },
+        options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
-        
-        /* Slider Styling */
+        body { font-family: 'Noto Sans TC', system-ui, sans-serif; background-color: #f3f4f6; }
         input[type=range] {
             -webkit-appearance: none;
             width: 100%;
@@ -25,7 +33,7 @@
             border-radius: 50%;
             background: #3b82f6;
             cursor: pointer;
-            margin-top: -8px; 
+            margin-top: -8px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
         input[type=range]::-webkit-slider-runnable-track {
@@ -35,45 +43,29 @@
             background: #e5e7eb;
             border-radius: 2px;
         }
-        
-        /* Liquid Animation */
         .liquid-fill {
             transition: height 1s cubic-bezier(0.4, 0.0, 0.2, 1), background-color 1s ease;
         }
-        
-        .pour-stream {
-            animation: pour 1s ease-in-out infinite;
-        }
-
-        @keyframes pour {
-            0% { height: 0; opacity: 0; }
-            50% { height: 100px; opacity: 0.8; }
-            100% { height: 120px; opacity: 0; }
-        }
-
         @keyframes spin-slow {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        .animate-spin-slow {
-            animation: spin-slow 3s linear infinite;
-        }
-        .animate-fade-in-up {
-            animation: fadeInUp 0.5s ease-out forwards;
-        }
+        .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+        .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        .mj-inline { display: inline; }
+        .modal-scroll { max-height: min(70vh, 640px); overflow-y: auto; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // Define Icons as React Components
         const FlaskConical = ({ size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>
         );
@@ -92,35 +84,308 @@
         const ArrowUp = ({ size = 16, className = "" }) => (
              <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
         );
+        const XIcon = ({ size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        );
 
-        // 液體數據資料庫 (比熱容量單位: J/kg·°C)
         const LIQUID_DATA = {
-            water: { name: '水', c: 4200, color: [59, 130, 246], density: 1.0 }, // Blue
-            alcohol: { name: '乙醇 (酒精)', c: 2440, color: [239, 68, 68], density: 0.79 }, // Red
-            tea: { name: '茶', c: 4180, color: [120, 53, 15], density: 1.01 }, // Dark Brown (Replaced Glycerin)
-            juice: { name: '果汁 (橙汁)', c: 3800, color: [251, 146, 60], density: 1.04 }, // Orange (Replaced Oil)
-            milk: { name: '牛奶', c: 3900, color: [243, 244, 246], density: 1.03 } // White/Gray
+            water: { nameZh: '水', nameEn: 'Water', c: 4200, color: [59, 130, 246], density: 1.0 },
+            alcohol: { nameZh: '乙醇 (酒精)', nameEn: 'Ethanol (alcohol)', c: 2440, color: [239, 68, 68], density: 0.79 },
+            tea: { nameZh: '茶', nameEn: 'Tea', c: 4180, color: [120, 53, 15], density: 1.01 },
+            juice: { nameZh: '果汁 (橙汁)', nameEn: 'Juice (orange)', c: 3800, color: [251, 146, 60], density: 1.04 },
+            milk: { nameZh: '牛奶', nameEn: 'Milk', c: 3900, color: [243, 244, 246], density: 1.03 }
+        };
+
+        const liquidName = (key, lang) => {
+            const d = LIQUID_DATA[key];
+            return lang === 'en' ? d.nameEn : d.nameZh;
+        };
+
+        const translations = {
+            zh: {
+                title: '物理實驗室：熱平衡混合模擬',
+                subtitle: '模擬兩種不同溫度與質量的液體混合，觀察最終的平衡溫度。',
+                badge: '物理',
+                btnSteps: '觀察步驟',
+                btnPrinciple: '原理解說',
+                btnQuiz: '課堂問題',
+                btnLang: '中 / EN',
+                liquidA: '液體 A 設定',
+                liquidB: '液體 B 設定',
+                liquidType: '液體種類',
+                massKg: '質量 (kg)',
+                initTemp: '初始溫度 (°C)',
+                beakerA: '燒杯 A',
+                beakerB: '燒杯 B',
+                mixer: '混合容器',
+                startMix: '開始混合',
+                reset: '重置實驗',
+                finalTemp: '最終平衡溫度',
+                totalMass: '總質量',
+                calcTitle: '計算過程解析',
+                formulaLabel: '應用公式：加權平均溫度',
+                energyTitle: '能量守恆驗證 (放熱 = 吸熱)',
+                heatLost: '高溫放熱',
+                heatGained: '低溫吸熱',
+                liquidLabel: '液體',
+                lostHint: '溫度較高物質所損失的能量',
+                gainedHint: '溫度較低物質所吸收的能量',
+                roundNote: '* 由於小數點四捨五入，兩者數值可能會有些微差異',
+                noExchange: '初始溫度相同，無熱量交換',
+                tip: '💡 老師小提示：試試看將高溫的「酒精」混合到低溫的「水」中。因為水的比熱容量 ($4200$) 遠大於酒精 ($2440$)，你會發現最後的溫度會比較偏向水的那一邊喔！',
+                stepsTitle: '觀察步驟',
+                principleTitle: '原理解說',
+                quizTitle: '課堂問題',
+                close: '關閉',
+                showAns: '顯示參考答案',
+                hideAns: '隱藏參考答案',
+                concept: '概念',
+                mechanism: '機制',
+                everyday: '日常例子',
+                steps: [
+                    '確認液體 A＝水、質量約 1.0 kg、初溫約 25°C；液體 B＝果汁、質量約 1.0 kg、初溫約 60°C（或先按「重置實驗」若已混合）。按「開始混合」，觀察混合動畫、最終平衡溫度與總質量。用手算粗估：兩邊質量與 $c$ 接近時，$T_f$ 是否約在 25 與 60 的中間附近？',
+                    '在結果卡查看「計算過程解析」：分子／分母如何得到 $T_f$？若初溫不同，放熱量與吸熱量是否大致相等？用一句話說明「理想熱平衡下能量守恆」在本模擬如何呈現。然後按「重置實驗」（參數應仍保留）。',
+                    '重置後，把 A 改為乙醇 (酒精)（$c = 2440$）、初溫約 80°C、質量約 1.0 kg；B 改為水（$c = 4200$）、初溫約 20°C、質量約 1.0 kg。再混合。$T_f$ 是否比較靠近水的 20°C（而不是兩邊的算術平均）？對照選單上的 $c$ 說明為什麼。',
+                    '重置後，兩邊都選水，令 A 約 1.0 kg、90°C，B 約 2.0 kg、30°C，再混合。說明較大質量如何把 $T_f$「拉」向該端。最後設 A、B 初溫相同再混合，確認顯示「無熱量交換」（或 Q＝0）。指出本模擬假設（無相變、無熱損失、$c$ 常數、容器不吸熱）。'
+                ],
+                principleConcept: '熱平衡（thermal equilibrium）指兩系統熱接觸足夠久後，達到同一溫度，宏觀上不再有淨熱流。本模擬用兩杯液體 A、B 混合，在理想條件下求共同最終溫度 $T_f$，並用 $Q = m c \\Delta T$ 檢查放熱與吸熱是否相等。',
+                principleMech: [
+                    '熱容量權重：每種液體的「熱容量」約為 $m c$。混合時，$T_f$ 是以 $m c$ 為權的溫度加權平均：$T_f = (m_1 c_1 T_1 + m_2 c_2 T_2) / (m_1 c_1 + m_2 c_2)$。',
+                    '能量守恆：高溫液體放出的熱量 $Q_{\\mathrm{lost}} = m_h c_h (T_h - T_f)$ 等於低溫液體吸收的 $Q_{\\mathrm{gained}} = m_c c_c (T_f - T_c)$（理想、無損失）。',
+                    '誰「拉」得比較緊：$c$ 或 $m$ 較大 → 同樣溫差需要更多能量改變溫度 → $T_f$ 較靠近該液體的初溫。水的 $c$ 遠大於酒精，故等質量下水對 $T_f$ 影響較大。',
+                    '本模擬假設：無熔／沸相變、比熱為常數、忽略燒杯與空氣熱損失、混合瞬間理想完成；顯示溫度到小數兩位，Q 取整，可能有微小捨入差。',
+                    '視覺線索：液色、液高、傾倒動畫與混合色為定性示意；定量以讀數與公式為準。'
+                ],
+                principleEveryday: '沖奶茶或兌冷熱飲時，最終溫度不會是兩邊溫度的簡單平均——水量（質量）與近似比熱都會拉扯結果；用滾燙的熱水燙傷風險與「熱容量大」有關。實驗室量熱法亦用同類公式（常再校正容器熱容量）。勿與「電熱器加熱金屬塊測比熱」或「潛熱熔／沸」檔混談。',
+                quiz: [
+                    {
+                        q: '設 A＝水、約 1.0 kg、25°C；B＝果汁、約 1.0 kg、60°C。重置（若需要）後開始混合。根據公式與讀數，哪項最合理？',
+                        opts: [
+                            '兩邊質量相近且 $c$ 同量級時，$T_f$ 約落在兩初溫之間（不會等於較高的 60°C，也不會低於 25°C）',
+                            '最終溫度一定永遠等於兩初溫的算術平均 42.5°C，與 $c$ 無關',
+                            '混合後溫度一定升到 100°C',
+                            '本模擬沒有最終溫度讀數，只能看顏色'
+                        ],
+                        ans: 'A。對齊加權平均；果汁 $c=3800$ 與水 $c=4200$ 接近但非全等，故不必恰為 42.5。',
+                        correct: 0
+                    },
+                    {
+                        q: '設 A＝乙醇 (酒精)、約 1.0 kg、80°C；B＝水、約 1.0 kg、20°C。混合前，先預測最終 $T_f$ 會偏向哪一側初溫，再操作核對並說明與 $c$ 的關係。',
+                        opts: null,
+                        ans: 'A。水的 $c$ 遠大於酒精，等質量下 $T_f$ 較靠近水的初溫（偏低溫側）；對照 $c_{\\mathrm{water}}=4200 \\gg c_{\\mathrm{alcohol}}=2440$。',
+                        correct: null
+                    },
+                    {
+                        q: '兩邊都選水。先令 A≈1.0 kg、90°C，B≈1.0 kg、30°C，混合並記下 $T_f$；重置後把 B 質量改約 2.0 kg（初溫仍約 30°C），再混合。最可能观察到？',
+                        opts: [
+                            'B 質量變大後，$T_f$ 比第一次更靠近 30°C（被較大質量的冷水拉低）',
+                            'B 質量變大後，$T_f$ 一定升到比第一次更高',
+                            '質量滑桿只改液面高度，從不進入公式',
+                            '必須先選牛奶，質量才會影響 $T_f$'
+                        ],
+                        ans: 'A。對齊 $T_f$ 的 $m c$ 權重。',
+                        correct: 0
+                    },
+                    {
+                        q: '任選兩種不同初溫的液體（質量自訂），混合後看結果卡的「高溫放熱」與「低溫吸熱」。用自己的話說明：在本模擬的理想假設下，這兩個能量應有什麼關係？為什麼顯示值可能差幾個焦耳？',
+                        opts: null,
+                        ans: '理想下 $Q_{\\mathrm{lost}}$ 應等於 $Q_{\\mathrm{gained}}$（能量守恆）；模擬用四捨五入後的 $T_f$ 再算 Q 並 Math.round，故可能有微小差異。',
+                        correct: null
+                    },
+                    {
+                        q: '根據模擬內建數值與本檔設計，哪項最正確？',
+                        opts: [
+                            '五種液體中水的 $c$ 最大、酒精最小；混合滿足加權平均 $T_f$，並以放熱＝吸熱驗證；標準五題離線可答，與電熱器金屬比熱／潛熱檔不同',
+                            '本模擬主要展示啞黑／銀色表面的輻射發射與吸收',
+                            '所有液體的 $c$ 在本模擬中都固定為 4200',
+                            '只要初溫不同，混合後一定發生沸騰相變'
+                        ],
+                        ans: 'A。標準 #modal-quiz 離線固定；勿與輻射／潛熱／specific_heat_capacity(2) 混淆。',
+                        correct: 0
+                    }
+                ]
+            },
+            en: {
+                title: 'Physics Lab: Thermal Equilibrium Mixing',
+                subtitle: 'Mix two liquids of different temperature and mass; observe the final equilibrium temperature.',
+                badge: 'Physics',
+                btnSteps: 'Steps',
+                btnPrinciple: 'Principle',
+                btnQuiz: 'Quiz',
+                btnLang: '中 / EN',
+                liquidA: 'Liquid A settings',
+                liquidB: 'Liquid B settings',
+                liquidType: 'Liquid type',
+                massKg: 'Mass (kg)',
+                initTemp: 'Initial temperature (°C)',
+                beakerA: 'Beaker A',
+                beakerB: 'Beaker B',
+                mixer: 'Mixing vessel',
+                startMix: 'Start mixing',
+                reset: 'Reset experiment',
+                finalTemp: 'Final equilibrium temperature',
+                totalMass: 'Total mass',
+                calcTitle: 'Calculation breakdown',
+                formulaLabel: 'Formula: heat-capacity-weighted average',
+                energyTitle: 'Energy check (heat lost = heat gained)',
+                heatLost: 'Heat lost (hot)',
+                heatGained: 'Heat gained (cold)',
+                liquidLabel: 'Liquid',
+                lostHint: 'Energy lost by the hotter liquid',
+                gainedHint: 'Energy gained by the cooler liquid',
+                roundNote: '* Tiny mismatches can appear from rounding the displayed $T_f$ and joules.',
+                noExchange: 'Same initial temperatures — no heat exchange',
+                tip: '💡 Tip: Try mixing hot alcohol into cooler water. Water’s specific heat capacity ($4200$) is much larger than alcohol’s ($2440$), so $T_f$ leans toward the water side.',
+                stepsTitle: 'Observation steps',
+                principleTitle: 'Principle',
+                quizTitle: 'Classroom quiz',
+                close: 'Close',
+                showAns: 'Show sample answers',
+                hideAns: 'Hide answers',
+                concept: 'Concept',
+                mechanism: 'Mechanism',
+                everyday: 'Everyday example',
+                steps: [
+                    'Set A = water, mass ≈ 1.0 kg, ≈ 25°C; B = juice, mass ≈ 1.0 kg, ≈ 60°C (Reset first if already mixed). Press Start mixing. Watch the animation, final equilibrium temperature and total mass. Roughly: with similar mass and $c$, is $T_f$ near the midpoint of 25 and 60?',
+                    'On the results card, check how the numerator/denominator give $T_f$. If the initial temperatures differ, are heat lost and heat gained roughly equal? In one sentence, say how energy conservation appears here. Then Reset (parameters should stay).',
+                    'After Reset, set A = alcohol ($c = 2440$) ≈ 80°C, 1.0 kg; B = water ($c = 4200$) ≈ 20°C, 1.0 kg. Mix again. Is $T_f$ closer to water’s 20°C than to the arithmetic mean? Explain using the menu $c$ values.',
+                    'After Reset, both water: A ≈ 1.0 kg, 90°C; B ≈ 2.0 kg, 30°C; mix and explain how larger mass pulls $T_f$. Then set equal initial temperatures and confirm no heat exchange. State idealizations (no phase change, no losses, constant $c$, container takes no heat).'
+                ],
+                principleConcept: 'Thermal equilibrium means two systems in thermal contact share one temperature with no net heat flow. This sim mixes liquids A and B under ideal conditions to find a common final temperature $T_f$, and checks heat lost versus heat gained with $Q = m c \\Delta T$.',
+                principleMech: [
+                    'Heat-capacity weights: each liquid contributes roughly $m c$. Then $T_f = (m_1 c_1 T_1 + m_2 c_2 T_2) / (m_1 c_1 + m_2 c_2)$.',
+                    'Energy conservation: ideally $Q_{\\mathrm{lost}} = m_h c_h (T_h - T_f)$ equals $Q_{\\mathrm{gained}} = m_c c_c (T_f - T_c)$.',
+                    'Who pulls harder: larger $c$ or $m$ pulls $T_f$ toward that liquid’s initial temperature. Water’s $c$ is much larger than alcohol’s, so equal masses favor water.',
+                    'Idealizations: no phase change, constant $c$, ignore beaker/air losses; display rounding may cause tiny Q mismatches.',
+                    'Visual cues: colors and fill heights are qualitative; trust readouts and the formula for numbers.'
+                ],
+                principleEveryday: 'Mixing hot and cold drinks rarely lands on the arithmetic mean of the two temperatures—mass and heat capacity both matter. School calorimetry uses the same idea (often with a calorimeter correction). Do not confuse this with the metal-block heater specific-heat sims or latent-heat phase-change sims.',
+                quiz: [
+                    {
+                        q: 'Set A = water ≈ 1.0 kg, 25°C; B = juice ≈ 1.0 kg, 60°C. Reset if needed, then mix. Which is most reasonable?',
+                        opts: [
+                            'With similar mass and comparable $c$, $T_f$ lies between the two initial temperatures (not stuck at 60°C, not below 25°C)',
+                            '$T_f$ must always be the arithmetic mean 42.5°C, independent of $c$',
+                            'After mixing, temperature always rises to 100°C',
+                            'This sim has no final-temperature readout—only colors'
+                        ],
+                        ans: 'A. Weighted average; juice $c=3800$ and water $c=4200$ are close but not identical, so not exactly 42.5.',
+                        correct: 0
+                    },
+                    {
+                        q: 'Set A = alcohol ≈ 1.0 kg, 80°C; B = water ≈ 1.0 kg, 20°C. Before mixing, predict which side $T_f$ leans toward, then verify and relate to $c$.',
+                        opts: null,
+                        ans: 'Water’s much larger $c$ pulls $T_f$ closer to water’s initial temperature (cooler side); $c_{\\mathrm{water}}=4200 \\gg c_{\\mathrm{alcohol}}=2440$.',
+                        correct: null
+                    },
+                    {
+                        q: 'Both water. First A ≈ 1.0 kg, 90°C and B ≈ 1.0 kg, 30°C; mix and note $T_f$. Reset, set B mass ≈ 2.0 kg (still ≈ 30°C), mix again. What is most likely?',
+                        opts: [
+                            'With larger B mass, $T_f$ moves closer to 30°C than in the first run',
+                            'Larger B mass must make $T_f$ higher than the first run',
+                            'The mass slider only changes fill height and never enters the formula',
+                            'Mass affects $T_f$ only when milk is selected'
+                        ],
+                        ans: 'A. Matches the $m c$ weights in $T_f$.',
+                        correct: 0
+                    },
+                    {
+                        q: 'Pick any two liquids with different initial temperatures, mix, and read heat lost vs heat gained on the results card. In your own words: under this sim’s idealizations, how should those two energies relate? Why might the displayed joules differ by a few units?',
+                        opts: null,
+                        ans: 'Ideally $Q_{\\mathrm{lost}}$ equals $Q_{\\mathrm{gained}}$; the sim recomputes Q from the rounded displayed $T_f$ and rounds joules, so tiny mismatches can appear.',
+                        correct: null
+                    },
+                    {
+                        q: 'Using the sim’s built-in values and this file’s design, which is most correct?',
+                        opts: [
+                            'Among the five liquids water has the largest $c$, alcohol the smallest; mixing uses weighted-average $T_f$ with heat-lost＝heat-gained checks; the five standard quiz items work offline—unlike heater metal specific-heat or latent-heat files',
+                            'This sim mainly shows matte-black vs silver radiative emission and absorption',
+                            'Every liquid is locked to $c = 4200$ in this sim',
+                            'Different initial temperatures always cause boiling phase change after mixing'
+                        ],
+                        ans: 'A. Offline #modal-quiz; do not confuse with radiation / latent-heat / specific_heat_capacity(2).',
+                        correct: 0
+                    }
+                ]
+            }
+        };
+
+        const typesetMath = (root) => {
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                const nodes = root ? [root] : undefined;
+                window.MathJax.typesetPromise(nodes).catch(() => {});
+            }
+        };
+
+        const ModalShell = ({ id, titleId, title, open, onClose, children, closeLabel }) => {
+            const panelRef = useRef(null);
+            useEffect(() => {
+                if (!open) return;
+                const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+                document.addEventListener('keydown', onKey);
+                const t = setTimeout(() => typesetMath(panelRef.current), 50);
+                return () => { document.removeEventListener('keydown', onKey); clearTimeout(t); };
+            }, [open, onClose, title, children]);
+            if (!open) return null;
+            return (
+                <div id={id} role="dialog" aria-modal="true" aria-labelledby={titleId}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true"></div>
+                    <div ref={panelRef} className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-200">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                            <h2 id={titleId} className="text-lg font-bold text-gray-800">{title}</h2>
+                            <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" aria-label={closeLabel}>
+                                <XIcon />
+                            </button>
+                        </div>
+                        <div className="px-5 py-4 modal-scroll text-gray-700 text-sm leading-relaxed space-y-3">
+                            {children}
+                        </div>
+                        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+                            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-bold hover:bg-gray-700">{closeLabel}</button>
+                        </div>
+                    </div>
+                </div>
+            );
         };
 
         const App = () => {
-            // 狀態設定
+            const [lang, setLang] = useState('zh');
             const [liquidA, setLiquidA] = useState({ type: 'water', mass: 1.0, temp: 25 });
-            const [liquidB, setLiquidB] = useState({ type: 'juice', mass: 1.0, temp: 60 }); 
+            const [liquidB, setLiquidB] = useState({ type: 'juice', mass: 1.0, temp: 60 });
             const [isMixed, setIsMixed] = useState(false);
             const [isAnimating, setIsAnimating] = useState(false);
             const [result, setResult] = useState(null);
+            const [modal, setModal] = useState(null); // 'steps' | 'principle' | 'quiz'
+            const [showAnswers, setShowAnswers] = useState(false);
+            const [quizPick, setQuizPick] = useState({});
+            const tipRef = useRef(null);
+            const t = translations[lang];
 
-            // 混合計算邏輯
+            useEffect(() => {
+                document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+                document.title = lang === 'en'
+                    ? 'Thermal Equilibrium Mixing | Physics Lab'
+                    : '熱平衡混合模擬實驗 | Thermal Equilibrium Mixing';
+                const timer = setTimeout(() => typesetMath(), 80);
+                return () => clearTimeout(timer);
+            }, [lang, isMixed, result, modal, showAnswers]);
+
+            useEffect(() => {
+                if (!isMixed && tipRef.current) {
+                    const timer = setTimeout(() => typesetMath(tipRef.current), 80);
+                    return () => clearTimeout(timer);
+                }
+            }, [lang, isMixed]);
+
             const calculateResult = () => {
                 const mA = parseFloat(liquidA.mass);
                 const cA = LIQUID_DATA[liquidA.type].c;
                 const tA = parseFloat(liquidA.temp);
-
                 const mB = parseFloat(liquidB.mass);
                 const cB = LIQUID_DATA[liquidB.type].c;
                 const tB = parseFloat(liquidB.temp);
 
-                // 熱平衡公式: Tf = (m1c1T1 + m2c2T2) / (m1c1 + m2c2)
                 const heatCapacityA = mA * cA;
                 const heatCapacityB = mB * cB;
                 const energyA = heatCapacityA * tA;
@@ -129,34 +394,25 @@
                 const rawFinalTemp = (energyA + energyB) / (heatCapacityA + heatCapacityB);
                 const finalTempFixed = rawFinalTemp.toFixed(2);
                 const tFinal = parseFloat(finalTempFixed);
-                
-                // 混合後的顏色計算
+
                 const colorA = LIQUID_DATA[liquidA.type].color;
                 const colorB = LIQUID_DATA[liquidB.type].color;
                 const totalMass = mA + mB;
-                const mixedColor = colorA.map((val, i) => 
+                const mixedColor = colorA.map((val, i) =>
                     Math.round((val * mA + colorB[i] * mB) / totalMass)
                 );
 
-                // 能量分析：判斷誰放熱、誰吸熱
                 let energyAnalysis = null;
                 if (tA !== tB) {
                     const isAGreater = tA > tB;
-                    
-                    // 定義高溫與低溫物體
-                    const hotObj = isAGreater 
-                        ? { label: 'A', name: LIQUID_DATA[liquidA.type].name, m: mA, c: cA, t_initial: tA }
-                        : { label: 'B', name: LIQUID_DATA[liquidB.type].name, m: mB, c: cB, t_initial: tB };
-                    
+                    const hotObj = isAGreater
+                        ? { label: 'A', type: liquidA.type, m: mA, c: cA, t_initial: tA }
+                        : { label: 'B', type: liquidB.type, m: mB, c: cB, t_initial: tB };
                     const coldObj = isAGreater
-                        ? { label: 'B', name: LIQUID_DATA[liquidB.type].name, m: mB, c: cB, t_initial: tB }
-                        : { label: 'A', name: LIQUID_DATA[liquidA.type].name, m: mA, c: cA, t_initial: tA };
-
-                    // 計算 Q = mcΔT
-                    // 使用顯示的最終溫度來計算，以便學生驗算時數值吻合
+                        ? { label: 'B', type: liquidB.type, m: mB, c: cB, t_initial: tB }
+                        : { label: 'A', type: liquidA.type, m: mA, c: cA, t_initial: tA };
                     const qLost = hotObj.m * hotObj.c * (hotObj.t_initial - tFinal);
                     const qGained = coldObj.m * coldObj.c * (tFinal - coldObj.t_initial);
-
                     energyAnalysis = {
                         hot: hotObj,
                         cold: coldObj,
@@ -178,7 +434,7 @@
             };
 
             const handleMix = () => {
-                if (isMixed) return; 
+                if (isMixed) return;
                 setIsAnimating(true);
                 calculateResult();
                 setTimeout(() => {
@@ -193,16 +449,20 @@
                 setIsAnimating(false);
             };
 
+            const toggleLang = () => setLang((prev) => (prev === 'zh' ? 'en' : 'zh'));
+
             const getLiquidColor = (type) => {
                 const rgb = LIQUID_DATA[type].color;
                 return `rgb(${rgb.join(',')})`;
             };
 
-            // 燒杯組件
+            const closeModal = useCallback(() => {
+                setModal(null);
+                setShowAnswers(false);
+            }, []);
+
             const BeakerDisplay = ({ config, label, isEmptying }) => {
-                const info = LIQUID_DATA[config.type];
-                const heightPercentage = (config.mass / 3) * 100; 
-                
+                const heightPercentage = (config.mass / 3) * 100;
                 return (
                     <div className="flex flex-col items-center w-full">
                         <div className="text-lg font-bold text-gray-700 mb-2">{label}</div>
@@ -211,17 +471,15 @@
                             <div className="absolute right-0 top-12 w-4 h-0.5 bg-gray-300"></div>
                             <div className="absolute right-0 top-20 w-4 h-0.5 bg-gray-300"></div>
                             <div className="absolute right-0 top-28 w-4 h-0.5 bg-gray-300"></div>
-                            
-                            <div 
+                            <div
                                 className="absolute bottom-0 left-0 w-full transition-all duration-1000 ease-in-out liquid-fill opacity-80"
-                                style={{ 
-                                    height: isEmptying ? '0%' : `${Math.max(5, heightPercentage)}%`, 
-                                    backgroundColor: getLiquidColor(config.type) 
+                                style={{
+                                    height: isEmptying ? '0%' : `${Math.max(5, heightPercentage)}%`,
+                                    backgroundColor: getLiquidColor(config.type)
                                 }}
                             >
                                 <div className="absolute top-0 w-full h-2 bg-white/30"></div>
                             </div>
-                            
                             <div className={`absolute right-8 transition-all duration-500 ${isEmptying ? 'bottom-0 opacity-0' : 'bottom-2 opacity-100'}`}>
                                 <div className="flex items-center bg-white/90 px-1 rounded text-xs font-mono shadow">
                                     <Thermometer size={12} className="text-red-500 mr-1"/>
@@ -230,55 +488,71 @@
                             </div>
                         </div>
                         <div className="mt-2 text-sm text-gray-600 font-medium">
-                            {info.name} {config.mass}kg
+                            {liquidName(config.type, lang)} {config.mass}kg
                         </div>
                     </div>
                 );
             };
 
+            const letters = ['A', 'B', 'C', 'D'];
+
             return (
                 <div className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
-                    <header className="mb-8 text-center">
-                        <div className="flex items-center justify-center gap-3 mb-2">
-                            <FlaskConical size={32} className="text-blue-600" />
-                            <h1 className="text-3xl font-bold text-gray-800">物理實驗室：熱平衡混合模擬</h1>
+                    <header className="mb-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                            <FlaskConical size={32} className="text-blue-600 shrink-0 mt-1" />
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <span className="text-xs font-bold uppercase tracking-wide bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{t.badge}</span>
+                                    <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{t.title}</h1>
+                                </div>
+                                <p className="text-gray-600 text-sm md:text-base">{t.subtitle}</p>
+                            </div>
                         </div>
-                        <p className="text-gray-600">模擬兩種不同溫度與質量的液體混合，觀察最終的平衡溫度。</p>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button type="button" id="btn-steps" onClick={() => setModal('steps')}
+                                className="text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg border border-indigo-400 transition-colors">{t.btnSteps}</button>
+                            <button type="button" id="btn-principle" onClick={() => setModal('principle')}
+                                className="text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg border border-violet-400 transition-colors">{t.btnPrinciple}</button>
+                            <button type="button" id="btn-quiz" onClick={() => { setModal('quiz'); setShowAnswers(false); }}
+                                className="text-sm font-bold bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg border border-amber-400 transition-colors">{t.btnQuiz}</button>
+                            <span className="text-gray-300 hidden sm:inline">|</span>
+                            <button type="button" id="btn-lang" onClick={toggleLang}
+                                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-bold border border-slate-500 transition-colors">{t.btnLang}</button>
+                        </div>
                     </header>
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        
-                        {/* 左側控制面板 */}
-                        <div className="lg:col-span-4 space-y-6">
+                        <div className="lg:col-span-4 space-y-6 order-2 lg:order-none">
                             <div className="bg-white p-6 rounded-2xl shadow-lg border-l-8 border-blue-500">
                                 <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                     <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mr-2">A</span>
-                                    液體 A 設定
+                                    {t.liquidA}
                                 </h2>
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-sm font-medium text-gray-500">液體種類</label>
-                                        <select 
+                                        <label className="text-sm font-medium text-gray-500">{t.liquidType}</label>
+                                        <select
                                             disabled={isMixed}
                                             className="w-full mt-1 p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
                                             value={liquidA.type}
                                             onChange={(e) => setLiquidA({...liquidA, type: e.target.value})}
                                         >
                                             {Object.entries(LIQUID_DATA).map(([key, data]) => (
-                                                <option key={key} value={key}>{data.name} (c = {data.c})</option>
+                                                <option key={key} value={key}>{liquidName(key, lang)} (c = {data.c})</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
                                         <div className="flex justify-between mb-1">
-                                            <label className="text-sm font-medium text-gray-500">質量 (kg)</label>
+                                            <label className="text-sm font-medium text-gray-500">{t.massKg}</label>
                                             <span className="text-sm font-bold text-blue-600">{liquidA.mass} kg</span>
                                         </div>
                                         <input type="range" min="0.1" max="3" step="0.1" disabled={isMixed} value={liquidA.mass} onChange={(e) => setLiquidA({...liquidA, mass: e.target.value})} className="w-full"/>
                                     </div>
                                     <div>
                                         <div className="flex justify-between mb-1">
-                                            <label className="text-sm font-medium text-gray-500">初始溫度 (°C)</label>
+                                            <label className="text-sm font-medium text-gray-500">{t.initTemp}</label>
                                             <span className="text-sm font-bold text-red-500">{liquidA.temp}°C</span>
                                         </div>
                                         <input type="range" min="0" max="100" step="1" disabled={isMixed} value={liquidA.temp} onChange={(e) => setLiquidA({...liquidA, temp: e.target.value})} className="w-full"/>
@@ -289,32 +563,32 @@
                             <div className="bg-white p-6 rounded-2xl shadow-lg border-l-8 border-yellow-500">
                                 <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                     <span className="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mr-2">B</span>
-                                    液體 B 設定
+                                    {t.liquidB}
                                 </h2>
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-sm font-medium text-gray-500">液體種類</label>
-                                        <select 
+                                        <label className="text-sm font-medium text-gray-500">{t.liquidType}</label>
+                                        <select
                                             disabled={isMixed}
                                             className="w-full mt-1 p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-yellow-500 outline-none"
                                             value={liquidB.type}
                                             onChange={(e) => setLiquidB({...liquidB, type: e.target.value})}
                                         >
                                             {Object.entries(LIQUID_DATA).map(([key, data]) => (
-                                                <option key={key} value={key}>{data.name} (c = {data.c})</option>
+                                                <option key={key} value={key}>{liquidName(key, lang)} (c = {data.c})</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
                                         <div className="flex justify-between mb-1">
-                                            <label className="text-sm font-medium text-gray-500">質量 (kg)</label>
+                                            <label className="text-sm font-medium text-gray-500">{t.massKg}</label>
                                             <span className="text-sm font-bold text-blue-600">{liquidB.mass} kg</span>
                                         </div>
                                         <input type="range" min="0.1" max="3" step="0.1" disabled={isMixed} value={liquidB.mass} onChange={(e) => setLiquidB({...liquidB, mass: e.target.value})} className="w-full"/>
                                     </div>
                                     <div>
                                         <div className="flex justify-between mb-1">
-                                            <label className="text-sm font-medium text-gray-500">初始溫度 (°C)</label>
+                                            <label className="text-sm font-medium text-gray-500">{t.initTemp}</label>
                                             <span className="text-sm font-bold text-red-500">{liquidB.temp}°C</span>
                                         </div>
                                         <input type="range" min="0" max="100" step="1" disabled={isMixed} value={liquidB.temp} onChange={(e) => setLiquidB({...liquidB, temp: e.target.value})} className="w-full"/>
@@ -323,17 +597,14 @@
                             </div>
                         </div>
 
-                        {/* 中間及右側 (展示與結果) */}
-                        <div className="lg:col-span-8 flex flex-col gap-6">
-                            
-                            {/* 實驗展示區 */}
+                        <div className="lg:col-span-8 flex flex-col gap-6 order-1 lg:order-none">
                             <div className="bg-white rounded-3xl shadow-xl p-8 relative overflow-hidden min-h-[400px] flex flex-col justify-between">
                                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-gray-50 to-gray-100 -z-10"></div>
                                 <div className="absolute bottom-0 w-full h-4 bg-gray-300"></div>
 
                                 <div className="flex justify-around items-end pb-4 h-full relative">
                                     <div className={`transition-all duration-700 transform ${isAnimating ? 'translate-x-20 -translate-y-24 rotate-45 opacity-0' : 'opacity-100'}`}>
-                                        <BeakerDisplay config={liquidA} label="燒杯 A" isEmptying={isMixed} />
+                                        <BeakerDisplay config={liquidA} label={t.beakerA} isEmptying={isMixed} />
                                     </div>
 
                                     <div className="flex flex-col items-center z-10">
@@ -341,10 +612,10 @@
                                             {[1,2,3,4,5].map(i => (
                                                 <div key={i} className="absolute left-0 w-6 h-0.5 bg-gray-400" style={{bottom: `${i*16}%`}}></div>
                                             ))}
-                                            <div 
+                                            <div
                                                 className="absolute bottom-0 w-full transition-all duration-1000 liquid-fill"
-                                                style={{ 
-                                                    height: isMixed ? `${Math.min(95, (result?.totalMass / 6) * 100)}%` : '0%', 
+                                                style={{
+                                                    height: isMixed ? `${Math.min(95, (result?.totalMass / 6) * 100)}%` : '0%',
                                                     backgroundColor: result ? result.mixedColor : 'transparent'
                                                 }}
                                             >
@@ -352,85 +623,77 @@
                                             </div>
                                             {isAnimating && (
                                                 <>
-                                                    <div className="absolute top-0 left-1/3 w-2 bg-blue-400 h-full opacity-50" style={{backgroundColor: getLiquidColor(liquidA.type)}}></div>
-                                                    <div className="absolute top-0 right-1/3 w-2 bg-yellow-400 h-full opacity-50" style={{backgroundColor: getLiquidColor(liquidB.type)}}></div>
+                                                    <div className="absolute top-0 left-1/3 w-2 h-full opacity-50" style={{backgroundColor: getLiquidColor(liquidA.type)}}></div>
+                                                    <div className="absolute top-0 right-1/3 w-2 h-full opacity-50" style={{backgroundColor: getLiquidColor(liquidB.type)}}></div>
                                                 </>
                                             )}
                                         </div>
-                                        <div className="mt-4 font-bold text-xl text-gray-800">混合容器</div>
+                                        <div className="mt-4 font-bold text-xl text-gray-800">{t.mixer}</div>
                                     </div>
 
                                     <div className={`transition-all duration-700 transform ${isAnimating ? '-translate-x-20 -translate-y-24 -rotate-45 opacity-0' : 'opacity-100'}`}>
-                                        <BeakerDisplay config={liquidB} label="燒杯 B" isEmptying={isMixed} />
+                                        <BeakerDisplay config={liquidB} label={t.beakerB} isEmptying={isMixed} />
                                     </div>
                                 </div>
 
                                 <div className="absolute top-6 left-0 w-full flex justify-center z-20 pointer-events-none">
                                     {!isMixed ? (
-                                        <button 
+                                        <button
                                             onClick={handleMix}
                                             className="pointer-events-auto flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-full text-lg font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all transform"
                                         >
                                             <RefreshCcw className={`w-6 h-6 ${isAnimating ? 'animate-spin-slow' : ''}`} />
-                                            開始混合
+                                            {t.startMix}
                                         </button>
                                     ) : (
-                                        <button 
+                                        <button
+                                            id="btn-reset"
                                             onClick={handleReset}
                                             className="pointer-events-auto flex items-center gap-2 bg-gray-600 text-white px-6 py-2 rounded-full font-bold hover:bg-gray-700 transition-colors shadow-lg"
                                         >
-                                            <RefreshCcw className="w-6 h-6" /> 重置實驗
+                                            <RefreshCcw className="w-6 h-6" /> {t.reset}
                                         </button>
                                     )}
                                 </div>
                             </div>
 
-                            {/* 結果與計算過程區 */}
                             {result && isMixed && (
                                 <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-200 animate-fade-in-up">
                                     <div className="flex flex-col md:flex-row gap-8">
-                                        
-                                        {/* 結果摘要 */}
                                         <div className="md:w-1/3 flex flex-col items-center justify-center bg-blue-50 rounded-xl p-6 border border-blue-100">
-                                            <h3 className="text-gray-500 font-medium mb-2">最終平衡溫度</h3>
+                                            <h3 className="text-gray-500 font-medium mb-2">{t.finalTemp}</h3>
                                             <div className="flex items-baseline justify-center gap-1 text-4xl font-bold text-blue-700 mb-2 whitespace-nowrap">
                                                 {result.finalTemp} °C
                                             </div>
                                             <div className="text-sm text-gray-500 text-center">
-                                                總質量: {result.totalMass.toFixed(1)} kg
+                                                {t.totalMass}: {result.totalMass.toFixed(1)} kg
                                             </div>
                                         </div>
 
-                                        {/* 計算過程詳解 */}
                                         <div className="md:w-2/3">
                                             <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center">
                                                 <Calculator size={20} className="mr-2" />
-                                                計算過程解析
+                                                {t.calcTitle}
                                             </h3>
-                                            
                                             <div className="space-y-4">
-                                                {/* 基礎公式 */}
                                                 <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                                    <div className="text-sm text-gray-500 mb-1">應用公式：加權平均溫度</div>
+                                                    <div className="text-sm text-gray-500 mb-1">{t.formulaLabel}</div>
                                                     <div className="font-mono text-sm md:text-base text-gray-800">
-                                                        T_final = ({Math.round(result.rawSteps.numerator)} J) / ({Math.round(result.rawSteps.denominator)} J/°C) 
+                                                        T_final = ({Math.round(result.rawSteps.numerator)} J) / ({Math.round(result.rawSteps.denominator)} J/°C)
                                                         = <strong>{result.finalTemp} °C</strong>
                                                     </div>
                                                 </div>
 
-                                                {/* 能量交換分析 */}
                                                 {result.analysis ? (
                                                     <div className="border-t pt-4 mt-2">
                                                         <h4 className="font-bold text-gray-700 mb-3 text-sm flex items-center">
-                                                            能量守恆驗證 (放熱 = 吸熱)
+                                                            {t.energyTitle}
                                                         </h4>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                            
-                                                            {/* 放熱區 */}
                                                             <div className="bg-red-50 p-3 rounded-lg border border-red-100">
                                                                 <div className="flex items-center gap-2 text-red-700 font-bold mb-2 text-sm">
                                                                     <ArrowDown className="w-4 h-4" />
-                                                                    高溫放熱 (液體{result.analysis.hot.label})
+                                                                    {t.heatLost} ({t.liquidLabel}{result.analysis.hot.label})
                                                                 </div>
                                                                 <div className="text-xs text-red-600 space-y-1 font-mono">
                                                                     <div>ΔQ = m × c × (T_高 - T_平)</div>
@@ -440,15 +703,13 @@
                                                                     <div className="text-base font-bold pt-1">
                                                                         = {result.analysis.qLost} J
                                                                     </div>
-                                                                    <div className="text-xs opacity-75">溫度較高物質所損失的能量</div>
+                                                                    <div className="text-xs opacity-75">{t.lostHint}</div>
                                                                 </div>
                                                             </div>
-
-                                                            {/* 吸熱區 */}
                                                             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                                                 <div className="flex items-center gap-2 text-blue-700 font-bold mb-2 text-sm">
                                                                     <ArrowUp className="w-4 h-4" />
-                                                                    低溫吸熱 (液體{result.analysis.cold.label})
+                                                                    {t.heatGained} ({t.liquidLabel}{result.analysis.cold.label})
                                                                 </div>
                                                                 <div className="text-xs text-blue-600 space-y-1 font-mono">
                                                                     <div>ΔQ = m × c × (T_平 - T_低)</div>
@@ -458,17 +719,15 @@
                                                                     <div className="text-base font-bold pt-1">
                                                                         = {result.analysis.qGained} J
                                                                     </div>
-                                                                    <div className="text-xs opacity-75">溫度較低物質所吸收的能量</div>
+                                                                    <div className="text-xs opacity-75">{t.gainedHint}</div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="text-center text-xs text-gray-400 mt-2">
-                                                            * 由於小數點四捨五入，兩者數值可能會有些微差異
-                                                        </div>
+                                                        <div className="text-center text-xs text-gray-400 mt-2">{t.roundNote}</div>
                                                     </div>
                                                 ) : (
                                                     <div className="text-center text-gray-500 py-4">
-                                                        初始溫度相同，無熱量交換
+                                                        {t.noExchange}
                                                     </div>
                                                 )}
                                             </div>
@@ -476,16 +735,75 @@
                                     </div>
                                 </div>
                             )}
-                            
+
                             {!isMixed && (
-                                <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center">
-                                    <p className="text-blue-800 font-medium">
-                                        💡 老師小提示：試試看將高溫的「酒精」混合到低溫的「水」中。因為水的比熱容量 ($4200$) 遠大於酒精 ($2440$)，你會發現最後的溫度會比較偏向水的那一邊喔！
-                                    </p>
+                                <div ref={tipRef} className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center">
+                                    <p className="text-blue-800 font-medium">{t.tip}</p>
                                 </div>
                             )}
                         </div>
                     </div>
+
+                    <ModalShell id="modal-steps" titleId="steps-title" title={t.stepsTitle} open={modal === 'steps'} onClose={closeModal} closeLabel={t.close}>
+                        <ol className="list-decimal pl-5 space-y-3">
+                            {t.steps.map((s, i) => (
+                                <li key={i}>{s}</li>
+                            ))}
+                        </ol>
+                    </ModalShell>
+
+                    <ModalShell id="modal-principle" titleId="principle-title" title={t.principleTitle} open={modal === 'principle'} onClose={closeModal} closeLabel={t.close}>
+                        <div>
+                            <h3 className="font-bold text-gray-900 mb-1">{t.concept}</h3>
+                            <p>{t.principleConcept}</p>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-gray-900 mb-1">{t.mechanism}</h3>
+                            <ol className="list-decimal pl-5 space-y-2">
+                                {t.principleMech.map((s, i) => <li key={i}>{s}</li>)}
+                            </ol>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-gray-900 mb-1">{t.everyday}</h3>
+                            <p>{t.principleEveryday}</p>
+                        </div>
+                    </ModalShell>
+
+                    <ModalShell id="modal-quiz" titleId="quiz-title" title={t.quizTitle} open={modal === 'quiz'} onClose={closeModal} closeLabel={t.close}>
+                        <div className="space-y-5">
+                            {t.quiz.map((item, qi) => {
+                                const n = qi + 1;
+                                const isMc = !!item.opts;
+                                const qName = 'q' + n;
+                                return (
+                                <div key={qi} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                                    <p className="font-bold text-gray-800 mb-2">Q{n}. {item.q}</p>
+                                    {isMc ? (
+                                        <div className="grid gap-1.5 mb-2">
+                                            {item.opts.map((opt, oi) => (
+                                                <label key={oi} className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 cursor-pointer hover:bg-gray-100 text-sm">
+                                                    <input type="radio" name={qName} className="mt-1 accent-indigo-600" />
+                                                    <span><span className="font-bold mr-1">{letters[oi]}.</span>{opt}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-gray-500 mb-2">{lang === 'zh' ? '（先預測，再操作模擬核對）' : '(Predict first, then verify on the sim.)'}</p>
+                                    )}
+                                    {showAnswers && (
+                                        <div className="mt-2 text-sm bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg px-3 py-2">
+                                            <strong>{lang === 'zh' ? '參考答案：' : 'Reference answer: '}</strong>{item.ans}
+                                        </div>
+                                    )}
+                                </div>
+                            );})}
+                            <button type="button" id="btn-quiz-answers"
+                                onClick={() => setShowAnswers(!showAnswers)}
+                                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm">
+                                {showAnswers ? t.hideAns : t.showAns}
+                            </button>
+                        </div>
+                    </ModalShell>
                 </div>
             );
         };

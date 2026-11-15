@@ -1,212 +1,390 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Human Eye Accommodation Simulation 人眼視覺調節模擬</title>
+    <title>人眼視覺調節模擬｜Human Eye Accommodation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Microsoft JhengHei', sans-serif;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            margin-bottom: 5px;
-            color: #1a252f;
-            text-align: center;
-        }
-        p.subtitle {
-            margin-top: 0;
-            margin-bottom: 20px;
-            color: #666;
-            font-size: 0.95rem;
-            text-align: center;
-        }
-        #container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            max-width: 950px;
-            width: 100%;
-        }
-        canvas {
+        body { font-family: 'Noto Sans TC', "PingFang TC", "Microsoft JhengHei", 'Segoe UI', sans-serif; }
+        canvas#simCanvas {
             background-color: #ffffff;
-            border: 1px solid #e1e8ed;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e1;
+            max-width: 100%;
+            height: auto;
         }
-        .controls {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-        }
-        .slider-container {
-            display: flex;
-            align-items: center;
-            width: 90%;
-            gap: 15px;
-        }
-        .slider-container label {
-            font-weight: 600;
-            color: #334155;
-            width: 220px;
-        }
-        input[type="range"] {
-            flex-grow: 1;
-            height: 6px;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .info-panel {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            width: 100%;
-            margin-top: 5px;
-        }
-        .info-card {
-            background: #ffffff;
-            padding: 12px 15px;
-            border-radius: 6px;
-            border-top: 4px solid #3b82f6;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border-left: 1px solid #e2e8f0;
-            border-right: 1px solid #e2e8f0;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .info-card h4 {
-            margin: 0 0 5px 0;
-            color: #1e293b;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .info-card p {
-            margin: 0;
-            font-size: 1.05em;
-            color: #0f172a;
-            font-weight: 700;
-        }
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 15px;
-            font-size: 0.85em;
-            color: #475569;
-            font-weight: 600;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .color-box {
-            width: 14px;
-            height: 14px;
-            border-radius: 3px;
-        }
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
+        input[type="range"] { width: 100%; height: 6px; cursor: pointer; }
     </style>
 </head>
-<body>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <h1>Human Eye Accommodation Simulation 人眼視覺調節模擬</h1>
-    <p class="subtitle">Adjust object distance to observe ciliary muscle, ligament tension, and lens shape changes<br>調整物件距離以觀察睫狀肌、懸韌帶張力及晶體形狀的變化</p>
-
-    <div id="container">
-        <div class="legend">
-            <div class="legend-item"><div class="color-box" style="background:#e8927c;"></div> Ciliary Muscle 睫狀肌</div>
-            <div class="legend-item"><div class="color-box" style="background:#a855f7;"></div> Suspensory Ligament 懸韌帶</div>
-            <div class="legend-item"><div class="color-box" style="background:#6bbfe8;"></div> Lens 晶體</div>
-            <div class="legend-item"><div class="color-box" style="background:#10b981;"></div> Focal Light Rays 光線</div>
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10 sticky top-0">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">👁</div>
+            <div class="min-w-0">
+                <h1 id="title" class="text-lg sm:text-xl font-bold text-slate-800 truncate">人眼視覺調節模擬</h1>
+                <p id="subtitle" class="text-xs text-slate-500 truncate max-w-xl">調整物件距離，觀察睫狀肌、懸韌帶與晶體厚度</p>
+            </div>
+            <span id="badge-subject" class="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">生物</span>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
+        </div>
+    </header>
 
-        <canvas id="simCanvas" width="900" height="480"></canvas>
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <div class="controls">
-            <div class="slider-container">
-                <label for="distSlider">Object Distance 物件距離:</label>
-                <input type="range" id="distSlider" min="0" max="100" value="0">
-                <span id="distVal" style="font-weight: bold; width: 160px; color: #2563eb;">Near Object 近物</span>
+        <section class="order-1 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col items-center w-full">
+            <div class="flex flex-wrap justify-center gap-3 sm:gap-4 mb-3 text-xs text-slate-600 font-semibold">
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#e8927c;"></div><span id="legMuscle">睫狀肌</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#a855f7;"></div><span id="legLigament">懸韌帶</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#6bbfe8;"></div><span id="legLens">晶體</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-sm" style="background:#10b981;"></div><span id="legRays">光線</span></div>
+            </div>
+            <canvas id="simCanvas" width="900" height="480"></canvas>
+        </section>
+
+        <aside class="order-2 lg:col-span-4 w-full flex flex-col gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-md space-y-4">
+                <h2 id="setupHeading" class="text-lg font-bold border-b pb-2 text-slate-700">實驗設定</h2>
+                <div>
+                    <label for="distSlider" id="labelDist" class="block text-sm font-semibold mb-1.5 text-slate-700">物件距離</label>
+                    <input type="range" id="distSlider" min="0" max="100" value="0">
+                    <p id="distVal" class="mt-1 text-sm font-bold text-blue-600">近物</p>
+                </div>
+                <p id="hintText" class="text-xs text-slate-500 leading-relaxed">滑桿 0＝近物；過中點→遠物。因果：距離 → 睫狀肌 → 懸韌帶 → 晶體厚度。</p>
+                <button type="button" id="btn-reset-panel" onclick="resetAll()" class="w-full py-2.5 rounded-lg font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">重置</button>
             </div>
 
-            <div class="info-panel">
-                <div class="info-card">
-                    <h4>Ciliary Muscle<br>睫狀肌</h4>
-                    <p id="muscleStatus">Contract 收縮</p>
+            <div class="bg-white p-4 rounded-xl shadow-md space-y-3">
+                <div class="rounded-lg border border-slate-200 border-t-4 border-t-rose-400 p-3">
+                    <h4 id="cardMuscleTitle" class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">睫狀肌</h4>
+                    <p id="muscleStatus" class="text-sm font-bold"></p>
                 </div>
-                <div class="info-card">
-                    <h4>Tension of Suspensory Ligament<br>懸韌帶張力</h4>
-                    <p id="ligamentStatus">Slack 鬆弛</p>
+                <div class="rounded-lg border border-slate-200 border-t-4 border-t-purple-500 p-3">
+                    <h4 id="cardLigamentTitle" class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">懸韌帶張力</h4>
+                    <p id="ligamentStatus" class="text-sm font-bold"></p>
                 </div>
-                <div class="info-card">
-                    <h4>Thickness of Lens<br>晶體厚度</h4>
-                    <p id="lensStatus">Thicker 較厚</p>
+                <div class="rounded-lg border border-slate-200 border-t-4 border-t-sky-500 p-3">
+                    <h4 id="cardLensTitle" class="text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">晶體厚度</h4>
+                    <p id="lensStatus" class="text-sm font-bold"></p>
                 </div>
             </div>
+        </aside>
+    </main>
+
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
         </div>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-teal-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
     </div>
 
     <script>
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalCloseTimers = {};
+
+        const i18n = {
+            zh: {
+                langBtn: '中 / EN',
+                title: '人眼視覺調節模擬',
+                subtitle: '調整物件距離，觀察睫狀肌、懸韌帶與晶體厚度',
+                badge: '生物',
+                btnSteps: '觀察步驟',
+                btnPrinciple: '原理解說',
+                btnQuiz: '課堂問題',
+                btnReset: '重置',
+                setupHeading: '實驗設定',
+                labelDist: '物件距離',
+                hintText: '滑桿 0＝近物；過中點→遠物。因果：距離 → 睫狀肌 → 懸韌帶 → 晶體厚度。',
+                cardMuscleTitle: '睫狀肌',
+                cardLigamentTitle: '懸韌帶張力',
+                cardLensTitle: '晶體厚度',
+                legMuscle: '睫狀肌',
+                legLigament: '懸韌帶',
+                legLens: '晶體',
+                legRays: '光線',
+                canvasObject: '物件',
+                distNear: '近物',
+                distFar: '遠物',
+                muscleContract: '收縮',
+                muscleRelax: '鬆弛',
+                ligamentSlack: '鬆弛',
+                ligamentTight: '拉緊',
+                lensThicker: '較厚',
+                lensThinner: '較薄',
+                stepsTitle: '觀察步驟',
+                principleTitle: '原理解說',
+                quizTitle: '課堂問題',
+                showAns: '顯示參考答案',
+                hideAns: '隱藏參考答案',
+                steps: [
+                    { t: '步驟 1｜近物預設（肌收縮、韌帶鬆、晶厚）', b: '按頁首<strong>重置</strong>（物件距離應回滑桿 <strong>0＝近物</strong>、三卡回「收縮／鬆弛／較厚」、舞台重繪；<strong>語言不變</strong>）。觀察 Canvas：物體較近、晶體橢圓較<strong>厚</strong>、上下睫狀肌較飽滿靠內、懸韌帶較彎／較細。讀三張狀態卡確認。' },
+                    { t: '步驟 2｜遠物（肌鬆、韌帶緊、晶薄）', b: '把<strong>物件距離</strong>滑到右側（遠物；建議滑過中點至接近 100）。觀察：物體左移變遠；睫狀肌變<strong>鬆弛</strong>（較薄、較外）；懸韌帶<strong>拉緊</strong>（較直、較粗）；晶體變<strong>薄</strong>。三卡應顯示「鬆弛／拉緊／較薄」。綠光仍示意會聚向視網膜。' },
+                    { t: '步驟 3｜來回對照因果鏈', b: '在近端與遠端之間來回滑動數次，邊看舞台邊讀卡，用自己的話串起：<strong>近 → 睫狀肌收縮 → 懸韌帶鬆弛 → 晶體變厚</strong>；<strong>遠 → 睫狀肌鬆弛 → 懸韌帶拉緊 → 晶體變薄</strong>。注意本模擬<strong>沒有</strong>光強滑桿、也<strong>沒有</strong>近視／遠視／凹凸鏡按鈕——那些是其他模擬。' },
+                    { t: '步驟 4｜Reset＋主題範圍隔離', b: '再按頁首<strong>重置</strong>：應回近物（滑桿 0）、三卡近物狀態；<strong>語言不變</strong>。打開原理解說與課堂問題——確認主軸是 <strong>正常眼調節：距離→睫狀肌→懸韌帶→晶體厚度</strong>，不是缺損矯正鏡，也不是瞳孔對光反射。' }
+                ],
+                conceptTitle: '概念',
+                concept: '<strong>調節（accommodation）</strong>是正常眼改變<strong>晶體厚度（曲率）</strong>，使不同距離的物體清晰成像於<strong>視網膜</strong>上的過程。關鍵結構是<strong>睫狀肌</strong>、連接晶體的<strong>懸韌帶（睫狀小帶）</strong>，以及具彈性的<strong>晶體</strong>。本模擬用單一「物件距離」滑桿，把「近厚／遠薄」的因果鏈可視化。',
+                mechTitle: '機制',
+                mech: [
+                    '<strong>看近物</strong>：睫狀肌<strong>收縮</strong> → 睫狀體環徑變小 → 懸韌帶<strong>鬆弛</strong> → 晶體靠自身彈性變<strong>厚</strong>（屈光力增大）→ 來自近處的發散光線被充分折射，焦點落在視網膜。',
+                    '<strong>看遠物</strong>：睫狀肌<strong>鬆弛</strong> → 環徑變大 → 懸韌帶<strong>拉緊</strong> → 晶體被拉<strong>薄</strong>（屈光力減小）→ 平行／近平行的遠方光線適度折射，焦點仍在視網膜。',
+                    '<strong>本模擬讀數</strong>：距離滑桿連續插值形狀；狀態卡在中點（factor=0.5）二分為近／遠標籤，方便課堂口頭對照。',
+                    '<strong>光路</strong>：綠色線條為示意會聚路徑，非精密光線追蹤或焦距公式計算。',
+                    '<strong>範圍</strong>：控件只有<strong>物件距離</strong>（＋教學殼）；<strong>不是</strong>近視／遠視眼球形狀與凹／凸矯正鏡（eye-defects-correction）；<strong>不是</strong>光強驅動的瞳孔縮小／擴大與放射／環狀肌（pupil-light-reflex）。真實解剖比 2D 示意更複雜；課堂以因果鏈為主。'
+                ],
+                egTitle: '日常例子',
+                eg: '看書或手機時晶體變厚、看遠處風景時晶體變薄——這就是日常調節。長時間近距離用眼會讓睫狀肌持續收縮，容易疲勞；遠眺可讓肌肉暫時放鬆（生活提示，非本模擬定量主題）。'
+            },
+            en: {
+                langBtn: '中 / EN',
+                title: 'Human Eye Accommodation',
+                subtitle: 'Adjust object distance to watch ciliary muscle, ligaments, and lens thickness',
+                badge: 'Biology',
+                btnSteps: 'Steps',
+                btnPrinciple: 'Principles',
+                btnQuiz: 'Quiz',
+                btnReset: 'Reset',
+                setupHeading: 'Setup',
+                labelDist: 'Object distance',
+                hintText: 'Slider 0＝Near; past midpoint→Distant. Chain: distance → ciliary → ligaments → lens thickness.',
+                cardMuscleTitle: 'Ciliary muscle',
+                cardLigamentTitle: 'Ligament tension',
+                cardLensTitle: 'Lens thickness',
+                legMuscle: 'Ciliary muscle',
+                legLigament: 'Suspensory ligaments',
+                legLens: 'Lens',
+                legRays: 'Light rays',
+                canvasObject: 'Object',
+                distNear: 'Near object',
+                distFar: 'Distant object',
+                muscleContract: 'Contract',
+                muscleRelax: 'Relax',
+                ligamentSlack: 'Slack',
+                ligamentTight: 'Tight',
+                lensThicker: 'Thicker',
+                lensThinner: 'Thinner',
+                stepsTitle: 'Observation steps',
+                principleTitle: 'Principles',
+                quizTitle: 'Quiz',
+                showAns: 'Show answers',
+                hideAns: 'Hide answers',
+                steps: [
+                    { t: 'Step 1｜Near default (contract／slack／thicker)', b: 'Header <strong>Reset</strong> (slider back to <strong>0＝Near</strong>, cards＝Contract／Slack／Thicker, redraw; <strong>language unchanged</strong>). On canvas: object nearer, lens <strong>thicker</strong>, ciliary bodies fuller／inward, ligaments more curved／thinner. Confirm the three status cards.' },
+                    { t: 'Step 2｜Distant (relax／tight／thinner)', b: 'Drag <strong>Object Distance</strong> rightward (Distant; past midpoint toward 100). Object moves farther left; ciliary muscle <strong>relaxes</strong> (thinner／outward); ligaments <strong>tighten</strong> (straighter／thicker stroke); lens becomes <strong>thinner</strong>. Cards＝Relax／Tight／Thinner. Green rays still converge toward the retina.' },
+                    { t: 'Step 3｜Slide back and forth', b: 'Slide back and forth between near and far while reading the cards. Chain: <strong>Near → ciliary contracts → ligaments slack → lens thicker</strong>; <strong>Far → ciliary relaxes → ligaments taut → lens thinner</strong>. This sim has <strong>no</strong> light-intensity slider and <strong>no</strong> myopia／hyperopia／lens-correction buttons—those belong to sibling sims.' },
+                    { t: 'Step 4｜Reset + scope', b: 'Header <strong>Reset</strong> again: back to near (slider 0) and near-state cards; <strong>language unchanged</strong>. Open Principles／Quiz—focus is <strong>normal-eye accommodation: distance→ciliary→ligaments→lens thickness</strong>, not defect＋corrective lenses, not pupil light reflex.' }
+                ],
+                conceptTitle: 'Concept',
+                concept: '<strong>Accommodation</strong> is how a normal eye changes <strong>lens thickness (curvature)</strong> so objects at different distances focus on the <strong>retina</strong>. Key parts: <strong>ciliary muscle</strong>, <strong>suspensory ligaments (zonules)</strong>, and the elastic <strong>lens</strong>. This sim uses one <strong>object-distance</strong> slider to show the near-thick／far-thin causal chain.',
+                mechTitle: 'Mechanism',
+                mech: [
+                    '<strong>Near</strong>: ciliary muscle <strong>contracts</strong> → ring shrinks → ligaments <strong>slacken</strong> → lens bulges <strong>thicker</strong> (more power) → near diverging rays focus on the retina.',
+                    '<strong>Far</strong>: ciliary muscle <strong>relaxes</strong> → ring widens → ligaments <strong>tighten</strong> → lens pulled <strong>thinner</strong> (less power) → distant rays focus on the retina.',
+                    '<strong>This sim</strong>: continuous shape interpolation; status cards flip near／far labels at midpoint (factor=0.5) for class talk.',
+                    '<strong>Rays</strong>: green paths are schematic, not precise ray-tracing or focal-length maths.',
+                    '<strong>Scope</strong>: object distance only—<strong>not</strong> myopia／hyperopia＋corrective lenses (eye-defects-correction); <strong>not</strong> light-driven pupil size／radial／circular iris muscles (pupil-light-reflex).'
+                ],
+                egTitle: 'Everyday example',
+                eg: 'Reading a phone thickens the lens; looking at a distant view thins it—everyday accommodation. Long near work keeps the ciliary muscle contracted and can feel tiring; looking far lets it relax briefly (life tip, not a quantified topic here).'
+            }
+        };
+
+        const QUIZ = [
+            {
+                q: {
+                    zh: '重置後維持滑桿在近物（預設 0），觀察舞台與三張狀態卡。哪項最合理？',
+                    en: 'After Reset, keep the slider at Near (default 0). Observe the canvas and three status cards. Which is best?'
+                },
+                choices: [
+                    { zh: '睫狀肌收縮、懸韌帶鬆弛、晶體較厚；物體較近', en: 'Ciliary contracts, ligaments slack, lens thicker; object nearer' },
+                    { zh: '睫狀肌鬆弛、懸韌帶拉緊、晶體較薄', en: 'Ciliary relaxes, ligaments tight, lens thinner' },
+                    { zh: '瞳孔明顯縮小，因為本模擬主控件是光強', en: 'Pupil constricts sharply because the main control is light intensity' },
+                    { zh: '自動出現凹透鏡矯正近視', en: 'A concave lens appears automatically to correct myopia' }
+                ],
+                ans: 0,
+                explain: {
+                    zh: 'A。對應 factor=0＜0.5：Contract／Slack／Thicker；無光強／無矯正鏡控件。',
+                    en: 'A. factor=0＜0.5: Contract／Slack／Thicker; no light／lens-correction controls.'
+                }
+            },
+            {
+                q: {
+                    zh: '把物件距離滑到遠端（超過中點，接近 100）。哪項觀察正確？',
+                    en: 'Slide Object Distance to the far end (past midpoint, near 100). Which observation is correct?'
+                },
+                choices: null,
+                ans: null,
+                explain: {
+                    zh: 'A。factor≥0.5：Relax／Tight／Thinner；形狀插值亦晶薄、韌帶更直粗。',
+                    en: 'A. factor≥0.5: Relax／Tight／Thinner; shape also thinner lens, straighter／thicker ligaments.'
+                }
+            },
+            {
+                q: {
+                    zh: '根據本模擬，看近物時正確的因果順序是哪一項？',
+                    en: 'In this sim, which is the correct causal order when viewing a near object?'
+                },
+                choices: [
+                    { zh: '睫狀肌收縮 → 懸韌帶鬆弛 → 晶體變厚', en: 'Ciliary contracts → ligaments slacken → lens becomes thicker' },
+                    { zh: '懸韌帶先拉緊 → 逼使睫狀肌收縮 → 晶體變薄', en: 'Ligaments tighten first → force ciliary contraction → lens thins' },
+                    { zh: '先戴凸透鏡 → 再放鬆睫狀肌 → 瞳孔擴大', en: 'Put on a convex lens first → then relax ciliary → pupil dilates' },
+                    { zh: '光強升高 → 環狀肌收縮 → 晶體變厚', en: 'Light intensity rises → circular muscle contracts → lens thickens' }
+                ],
+                ans: 0,
+                explain: {
+                    zh: 'A。對應原理機制 1；B 順序顛倒且遠近混淆；C／D 混入矯正鏡或瞳孔反射。',
+                    en: 'A. Matches mechanism 1; B reverses order; C／D mix in correction or pupil reflex.'
+                }
+            },
+            {
+                q: {
+                    zh: '先把滑桿拉到遠物並確認三卡為遠物狀態，再按頁首重置。用自己的話寫：（1）重置後滑桿位置與三卡應如何（本設計預期）；（2）重置會不會切換中／EN。',
+                    en: 'Slide to Distant and confirm far-state cards, then press header Reset. In your own words: (1) expected slider／cards after Reset; (2) whether Reset switches zh／EN.'
+                },
+                choices: null,
+                ans: null,
+                explain: {
+                    zh: '（1）滑桿回 0（近物）；三卡回 收縮／鬆弛／較厚；舞台重繪近物。（2）不切換語言。',
+                    en: '(1) Slider back to 0 (Near); cards＝Contract／Slack／Thicker; near redraw. (2) Reset must not switch language.'
+                }
+            },
+            {
+                q: {
+                    zh: '根據本模擬控件與設計，哪項最正確？',
+                    en: 'Using this sim’s controls and design, which is most correct?'
+                },
+                choices: [
+                    { zh: '可調物件距離，觀察睫狀肌／懸韌帶／晶體厚度與光路，並有步驟／原理／五題／中EN／重置——主軸是正常眼調節，不是近視遠視矯正鏡，也不是瞳孔對光反射', en: 'You adjust object distance to observe ciliary／ligaments／lens thickness and rays, with steps／principle／five quiz items／zh-EN／Reset—focus normal-eye accommodation, not myopia／hyperopia＋corrective lenses, not pupil light reflex' },
+                    { zh: '主要控件是正常／近視／遠視按鈕與凹／凸透鏡', en: 'Main controls are Normal／Myopia／Hyperopia buttons and concave／convex lenses' },
+                    { zh: '重置會強制改成英文並改為光強滑桿', en: 'Reset always switches to English and replaces the control with a light-intensity slider' },
+                    { zh: '必須先選擇放射肌或環狀肌模式才能操作', en: 'You must first choose radial or circular muscle mode before the sim works' }
+                ],
+                ans: 0,
+                explain: {
+                    zh: 'A。隔離 eye-defects-correction／pupil-light-reflex；Reset 不改語言、不改控件身分。',
+                    en: 'A. Separates eye-defects-correction／pupil-light-reflex; Reset does not change language or control identity.'
+                }
+            }
+        ];
+
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const slider = document.getElementById('distSlider');
         const distValLabel = document.getElementById('distVal');
-
         const muscleStatus = document.getElementById('muscleStatus');
         const ligamentStatus = document.getElementById('ligamentStatus');
         const lensStatus = document.getElementById('lensStatus');
 
-        // Eye Anchor Coordinates
         const eyeX = 580;
         const eyeY = 240;
         const eyeR = 150;
-        
-        const corneaX = eyeX - eyeR; 
-        const lensX = eyeX - 100;     
-        const retinaX = eyeX + eyeR - 5; 
+        const corneaX = eyeX - eyeR;
+        const lensX = eyeX - 100;
+        const retinaX = eyeX + eyeR - 5;
+
+        function t() { return i18n[currentLang]; }
 
         function draw() {
+            const tt = t();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // factor = 0 (Near / Left) to 1 (Far / Farther Left)
             const factor = slider.value / 100;
 
-            // --- OBJECT POSITION (Restricted: Cannot go behind Cornea) ---
-            const minObjX = 40;                     
-            const maxObjX = corneaX - 50;           
+            const minObjX = 40;
+            const maxObjX = corneaX - 50;
             const objectX = maxObjX - (factor * (maxObjX - minObjX));
             const objectY = eyeY;
 
-            // Dynamic Structural Variables
-            const muscleInward = 14 * (1 - factor);    
-            const muscleThickness = 22 - (factor * 10); 
-
-            const lensThickness = 32 - (factor * 20);   
-            const lensHeight = 70 + (factor * 10);      
-
+            const muscleInward = 14 * (1 - factor);
+            const muscleThickness = 22 - (factor * 10);
+            const lensThickness = 32 - (factor * 20);
+            const lensHeight = 70 + (factor * 10);
             const topMuscleY = eyeY - 110 + muscleInward;
             const bottomMuscleY = eyeY + 110 - muscleInward;
 
-            // --- 1. OPTIC NERVE & EYELID FLAPS ---
             ctx.lineWidth = 4;
             ctx.strokeStyle = '#2b3a8c';
             ctx.fillStyle = '#0284c7';
@@ -229,7 +407,6 @@
             ctx.lineTo(eyeX - 40, eyeY + 170);
             ctx.stroke();
 
-            // --- 2. MAIN EYE OUTLINE & RETINA ---
             ctx.beginPath();
             ctx.arc(eyeX, eyeY, eyeR, Math.PI * 0.72, Math.PI * 1.28, true);
             ctx.strokeStyle = '#2b3a8c';
@@ -248,7 +425,6 @@
             ctx.lineWidth = 4;
             ctx.stroke();
 
-            // --- 3. LIGHT RAYS ---
             ctx.strokeStyle = 'rgba(16, 185, 129, 0.85)';
             ctx.lineWidth = 2;
 
@@ -273,40 +449,34 @@
             ctx.strokeStyle = 'rgba(16, 185, 129, 0.85)';
             ctx.stroke();
 
-            // --- 4. SUSPENSORY LIGAMENTS (Smooth Interpolation) ---
-            ctx.strokeStyle = '#a855f7'; 
-            ctx.lineWidth = 1.2 + (factor * 1.3); 
-
-            const curveOffset = (1 - factor) * 9; 
+            ctx.strokeStyle = '#a855f7';
+            ctx.lineWidth = 1.2 + (factor * 1.3);
+            const curveOffset = (1 - factor) * 9;
 
             for (let i = -2; i <= 2; i++) {
                 let offset = i * 4;
-                
-                // Top Ligaments
                 ctx.beginPath();
                 ctx.moveTo(lensX + offset, topMuscleY + (muscleThickness / 2));
                 ctx.quadraticCurveTo(
-                    lensX + offset + curveOffset, 
-                    (topMuscleY + eyeY - lensHeight) / 2, 
-                    lensX + offset, 
+                    lensX + offset + curveOffset,
+                    (topMuscleY + eyeY - lensHeight) / 2,
+                    lensX + offset,
                     eyeY - lensHeight
                 );
                 ctx.stroke();
 
-                // Bottom Ligaments
                 ctx.beginPath();
                 ctx.moveTo(lensX + offset, bottomMuscleY - (muscleThickness / 2));
                 ctx.quadraticCurveTo(
-                    lensX + offset + curveOffset, 
-                    (bottomMuscleY + eyeY + lensHeight) / 2, 
-                    lensX + offset, 
+                    lensX + offset + curveOffset,
+                    (bottomMuscleY + eyeY + lensHeight) / 2,
+                    lensX + offset,
                     eyeY + lensHeight
                 );
                 ctx.stroke();
             }
 
-            // --- 5. CILIARY MUSCLES & IRIS ---
-            ctx.fillStyle = '#e8927c'; 
+            ctx.fillStyle = '#e8927c';
             ctx.strokeStyle = '#2b3a8c';
             ctx.lineWidth = 2;
 
@@ -336,10 +506,9 @@
             ctx.fill();
             ctx.stroke();
 
-            // --- 6. CRYSTALLINE LENS ---
             ctx.beginPath();
             ctx.ellipse(lensX, eyeY, lensThickness, lensHeight, 0, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(107, 191, 232, 0.75)'; 
+            ctx.fillStyle = 'rgba(107, 191, 232, 0.75)';
             ctx.fill();
             ctx.strokeStyle = '#2b3a8c';
             ctx.lineWidth = 2.5;
@@ -351,7 +520,6 @@
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // --- 7. OBJECT ---
             ctx.beginPath();
             ctx.arc(objectX, objectY, 18, 0, Math.PI * 2);
             let grad = ctx.createRadialGradient(objectX - 5, objectY - 5, 2, objectX, objectY, 18);
@@ -364,41 +532,186 @@
             ctx.stroke();
 
             ctx.fillStyle = '#334155';
-            ctx.font = 'bold 13px Segoe UI, Microsoft JhengHei, Arial';
-            ctx.fillText('Object 物件', objectX - 32, objectY + 38);
+            ctx.font = 'bold 13px "Noto Sans TC", "Microsoft JhengHei", Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(tt.canvasObject, objectX, objectY + 38);
+            ctx.textAlign = 'start';
 
-            // --- 8. UPDATE INTERFACE TEXT ---
             updateUI(factor);
         }
 
         function updateUI(factor) {
+            const tt = t();
             if (factor < 0.5) {
-                distValLabel.innerText = "Near Object 近物";
-                
-                muscleStatus.innerText = "Contract 收縮";
-                muscleStatus.style.color = "#dc2626";
+                distValLabel.innerText = tt.distNear;
+                distValLabel.style.color = '#2563eb';
 
-                ligamentStatus.innerText = "Slack 鬆弛";
-                ligamentStatus.style.color = "#16a34a";
+                muscleStatus.innerText = tt.muscleContract;
+                muscleStatus.style.color = '#dc2626';
 
-                lensStatus.innerText = "Thicker 較厚";
-                lensStatus.style.color = "#2563eb";
+                ligamentStatus.innerText = tt.ligamentSlack;
+                ligamentStatus.style.color = '#16a34a';
+
+                lensStatus.innerText = tt.lensThicker;
+                lensStatus.style.color = '#2563eb';
             } else {
-                distValLabel.innerText = "Distant Object 遠物";
-                
-                muscleStatus.innerText = "Relax 鬆弛";
-                muscleStatus.style.color = "#16a34a";
+                distValLabel.innerText = tt.distFar;
+                distValLabel.style.color = '#2563eb';
 
-                ligamentStatus.innerText = "Tight 拉緊";
-                ligamentStatus.style.color = "#dc2626";
+                muscleStatus.innerText = tt.muscleRelax;
+                muscleStatus.style.color = '#16a34a';
 
-                lensStatus.innerText = "Thinner 較薄";
-                lensStatus.style.color = "#2563eb";
+                ligamentStatus.innerText = tt.ligamentTight;
+                ligamentStatus.style.color = '#dc2626';
+
+                lensStatus.innerText = tt.lensThinner;
+                lensStatus.style.color = '#2563eb';
             }
         }
 
+        function applyLanguage() {
+            const tt = t();
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+            document.title = currentLang === 'zh'
+                ? '人眼視覺調節模擬｜Human Eye Accommodation'
+                : 'Human Eye Accommodation｜人眼視覺調節模擬';
+            document.getElementById('btn-lang').textContent = tt.langBtn;
+            document.getElementById('title').textContent = tt.title;
+            document.getElementById('subtitle').textContent = tt.subtitle;
+            document.getElementById('badge-subject').textContent = tt.badge;
+            document.getElementById('btn-steps').textContent = tt.btnSteps;
+            document.getElementById('btn-principle').textContent = tt.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = tt.btnQuiz;
+            document.getElementById('btn-reset').textContent = tt.btnReset;
+            document.getElementById('btn-reset-panel').textContent = tt.btnReset;
+            document.getElementById('setupHeading').textContent = tt.setupHeading;
+            document.getElementById('labelDist').textContent = tt.labelDist;
+            document.getElementById('hintText').textContent = tt.hintText;
+            document.getElementById('cardMuscleTitle').textContent = tt.cardMuscleTitle;
+            document.getElementById('cardLigamentTitle').textContent = tt.cardLigamentTitle;
+            document.getElementById('cardLensTitle').textContent = tt.cardLensTitle;
+            document.getElementById('legMuscle').textContent = tt.legMuscle;
+            document.getElementById('legLigament').textContent = tt.legLigament;
+            document.getElementById('legLens').textContent = tt.legLens;
+            document.getElementById('legRays').textContent = tt.legRays;
+            document.getElementById('steps-title').textContent = tt.stepsTitle;
+            document.getElementById('principle-title').textContent = tt.principleTitle;
+            document.getElementById('quiz-title').textContent = tt.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+            draw();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        }
+
+        function renderSteps() {
+            const tt = t();
+            const body = document.getElementById('steps-body');
+            body.innerHTML = tt.steps.map(function(s, i) {
+                const colors = ['bg-indigo-50 border-indigo-100', 'bg-teal-50 border-teal-100', 'bg-sky-50 border-sky-100', 'bg-amber-50 border-amber-100'];
+                return '<div class="p-4 rounded-xl border ' + colors[i % 4] + '"><p class="font-bold text-slate-800 mb-1">' + s.t + '</p><p class="text-slate-700 leading-relaxed">' + s.b + '</p></div>';
+            }).join('');
+        }
+
+        function renderPrinciple() {
+            const tt = t();
+            const body = document.getElementById('principle-body');
+            let html = '<div class="p-4 bg-indigo-50 rounded-xl border border-indigo-100"><h3 class="font-bold text-indigo-900 mb-2">' + tt.conceptTitle + '</h3><p class="text-slate-700">' + tt.concept + '</p></div>';
+            html += '<div><h3 class="font-bold text-teal-800 mb-2">' + tt.mechTitle + '</h3><ol class="list-decimal list-inside space-y-2 text-slate-700">';
+            tt.mech.forEach(function(m) { html += '<li>' + m + '</li>'; });
+            html += '</ol></div>';
+            html += '<div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100"><h3 class="font-bold text-emerald-900 mb-2">' + tt.egTitle + '</h3><p class="text-slate-700">' + tt.eg + '</p></div>';
+            body.innerHTML = html;
+        }
+
+        function renderQuiz() {
+            const tt = t();
+            const body = document.getElementById('quiz-body');
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            const letters = ['A', 'B', 'C', 'D'];
+            let html = '';
+            QUIZ.forEach(function(item, i) {
+                const qtext = item.q[currentLang] || item.q.zh;
+                html += '<div class="p-4 rounded-xl border border-violet-100 bg-violet-50/40 space-y-2 mb-3">';
+                html += '<p class="font-bold text-violet-900">Q' + (i + 1) + '. ' + qtext + '</p>';
+                const qNum = i + 1;
+                const isOpen = (qNum === 2 || qNum === 4);
+                if (!isOpen && item.choices) {
+                    const qName = 'q' + qNum;
+                    html += '<div class="grid gap-1.5">';
+                    item.choices.forEach(function(c, j) {
+                        html += '<label class="flex items-start gap-2 rounded-lg border border-violet-100 p-2 cursor-pointer hover:bg-violet-50/60"><input type="radio" name="' + qName + '" class="mt-0.5 accent-violet-600"><span class="text-sm">' + letters[j] + '. ' + (c[currentLang] || c.zh) + '</span></label>';
+                    });
+                    html += '</div>';
+                } else if (isOpen) {
+                    html += '<p class="text-xs text-slate-500 italic">' + (currentLang === 'zh' ? '先預測，再操作畫面控件核對，用自己的話作答。' : 'Predict, then use the sim controls to check. Write in your own words.') + '</p>';
+                }
+                if (quizReveal && item.explain) {
+                    const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+                    html += '<div class="mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-900"><strong>' + ref + '：</strong> ' + (item.explain[currentLang] || item.explain.zh) + '</div>';
+                }
+                html += '</div>';
+            });
+            body.innerHTML = html;
+        }
+
+        function closeAllModals(exceptId) {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+                if (exceptId && id === exceptId) return;
+                const modal = document.getElementById(id);
+                if (!modal || modal.classList.contains('hidden')) return;
+                if (modalCloseTimers[id]) {
+                    clearTimeout(modalCloseTimers[id]);
+                    delete modalCloseTimers[id];
+                }
+                modal.classList.add('hidden');
+            });
+        }
+
+        function openTeachModal(id) {
+            closeAllModals(id);
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            if (modalCloseTimers[id]) {
+                clearTimeout(modalCloseTimers[id]);
+                delete modalCloseTimers[id];
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function resetAll() {
+            closeAllModals(null);
+            slider.value = 0;
+            quizReveal = false;
+            draw();
+        }
+
         slider.addEventListener('input', draw);
-        draw();
+
+        document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+        document.getElementById('btn-reset').addEventListener('click', resetAll);
+        document.getElementById('btn-steps').addEventListener('click', function() { renderSteps(); openTeachModal('modal-steps'); });
+        document.getElementById('btn-principle').addEventListener('click', function() { renderPrinciple(); openTeachModal('modal-principle'); });
+        document.getElementById('btn-quiz').addEventListener('click', function() { quizReveal = false; renderQuiz(); openTeachModal('modal-quiz'); });
+        document.getElementById('btn-quiz-answers').addEventListener('click', function() { quizReveal = !quizReveal; renderQuiz(); });
+        document.querySelectorAll('.modal-close').forEach(function(btn) {
+            btn.addEventListener('click', function() { closeAllModals(null); });
+        });
+        ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+            document.getElementById(id).addEventListener('click', function(e) {
+                if (e.target === this) closeAllModals(null);
+            });
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeAllModals(null);
+        });
+
+        applyLanguage();
     </script>
 </body>
 </html>

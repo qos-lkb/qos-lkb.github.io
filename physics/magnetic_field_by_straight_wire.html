@@ -207,6 +207,7 @@ body.light .seg-toggle { background: rgba(0,0,0,0.06); }
   <div class="header-actions">
     <button type="button" id="btn-steps" class="hdr-btn" data-zh="觀察步驟" data-en="Steps">觀察步驟</button>
     <button type="button" id="btn-principle" class="hdr-btn hdr-btn-primary" data-zh="原理解說" data-en="Principle">原理解說</button>
+    <button type="button" id="btn-quiz" class="hdr-btn" style="background:rgba(244,63,94,0.2);border-color:rgba(244,63,94,0.45);color:#fda4af" data-zh="課堂問題" data-en="Quiz">課堂問題</button>
     <button type="button" id="btn-lang" class="hdr-btn hdr-btn-lang">中 / EN</button>
   </div>
 </header>
@@ -378,13 +379,84 @@ body.light .seg-toggle { background: rgba(0,0,0,0.06); }
       <p data-zh="電線周圍的弱磁場、電磁鐵設計、電流計與地磁場測量等，都涉及載流導線的磁效應。" data-en="Weak fields near power lines, electromagnet design, ammeters, and geomagnetic measurements all involve fields from current-carrying wires.">電線周圍的弱磁場、電磁鐵設計、電流計與地磁場測量等，都涉及載流導線的磁效應。</p>
     </div>
   </div>
+<div id="modal-quiz" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="modal-content scroll-thin" style="max-height:88vh;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 id="quiz-title" class="font-bold text-base" data-zh="課堂問題" data-en="Classroom Quiz">課堂問題</h2>
+      <button type="button" class="collapse-btn quiz-close" aria-label="Close">×</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:0.5rem"><button type="button" id="btn-quiz-answers" class="hdr-btn" data-zh="顯示參考答案" data-en="Show reference answers">顯示參考答案</button></div>
+    <div id="quiz-list" class="space-y-3 text-sm flex-1 overflow-y-auto"></div>
+  </div>
 </div>
+
 
 <div id="toast"></div>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const QUIZ_I18N = {
+  zh: {
+    btnQuiz: "課堂問題",
+    quizTitle: "課堂問題",
+    quizShowAnswers: "顯示參考答案",
+    quizHideAnswers: "隱藏參考答案",
+    quizRef: "參考答案",
+    quizQ1: "長直載流導線的磁力線形狀是？",
+    quizQ1a: "平行直線",
+    quizQ1b: "以導線為圓心的同心圓",
+    quizQ1c: "放射直線",
+    quizQ1d: "只有一條線",
+    quizQ1ans: "B. 3D／俯視都可見同心圓磁力線。",
+    quizQ2: "固定 r = 2.5 m，只把電流 I 由 5 A 增至 12 A。預測 val-b 如何變，再拖動 current-slider 核對。",
+    quizQ2ans: "B∝I，約增為 12/5 倍。",
+    quizQ3: "B = μ₀I/(2πr) 中，r 加倍時 B 會？",
+    quizQ3a: "加倍",
+    quizQ3b: "減半",
+    quizQ3c: "不變",
+    quizQ3d: "變為零",
+    quizQ3ans: "B. B∝1/r；用 probe-slider 驗證。",
+    quizQ4: "電流向上（dir-up）與向下（dir-down）各試一次：預測俯視 B 環流方向如何改變，再切換並對照右手定則。",
+    quizQ4ans: "反轉電流 → 磁力線切向逆／順時針對調。",
+    quizQ5: "探測距離 r 趨近 0 時，讀數 val-b 應？",
+    quizQ5a: "趨近無限大",
+    quizQ5b: "趨近零",
+    quizQ5c: "恆為 μ₀",
+    quizQ5d: "變負",
+    quizQ5ans: "A. 公式在 r→0 發散；課堂模型僅適用 r>0。",
+  },
+  en: {
+    btnQuiz: "Quiz",
+    quizTitle: "Classroom Quiz",
+    quizShowAnswers: "Show reference answers",
+    quizHideAnswers: "Hide reference answers",
+    quizRef: "Reference answer",
+    quizQ1: "Field lines around a long straight wire are",
+    quizQ1a: "parallel lines",
+    quizQ1b: "concentric circles about the wire",
+    quizQ1c: "radial spokes",
+    quizQ1d: "a single line",
+    quizQ1ans: "B. Concentric circles in 3D/top view.",
+    quizQ2: "At fixed r = 2.5 m, raise I from 5 A to 12 A only. Predict val-b, then use current-slider.",
+    quizQ2ans: "B∝I — about 12/5 times larger.",
+    quizQ3: "In B = μ₀I/(2πr), if r doubles, B",
+    quizQ3a: "doubles",
+    quizQ3b: "halves",
+    quizQ3c: "stays the same",
+    quizQ3d: "becomes zero",
+    quizQ3ans: "B. B∝1/r; try probe-slider.",
+    quizQ4: "Compare dir-up vs dir-down: predict top-view B circulation, then switch and check the grip rule.",
+    quizQ4ans: "Reversing I reverses tangential B (CW/CCW).",
+    quizQ5: "As probe distance r → 0, val-b should",
+    quizQ5a: "diverge (very large)",
+    quizQ5b: "→ 0",
+    quizQ5c: "stay μ₀",
+    quizQ5d: "go negative",
+    quizQ5ans: "A. B∝1/r diverges at r=0; model valid for r>0.",
+  }
+};
 
 const MU0 = 4 * Math.PI * 1e-7;
 const WIRE_LEN = 14;
@@ -758,7 +830,30 @@ function typesetMath(root) {
   MathJax.typesetPromise(root ? [root] : undefined).catch(() => {});
 }
 
+let quizAnswersVisible = false;
+function renderQuiz() {
+  const box = document.getElementById('quiz-list');
+  if (!box) return;
+  const lg = state.lang;
+  const tq = (k) => (QUIZ_I18N[lg] && QUIZ_I18N[lg][k]) || QUIZ_I18N.zh[k] || k;
+  const mkChoice = (qid) => ['A','B','C','D'].map((L, i) => {
+    const lk = 'quizQ' + qid.slice(1) + 'abcd'[i];
+    return `<label class="flex items-start gap-2 border border-white/10 rounded-lg p-2 cursor-pointer"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-500"><span>${L}. ${tq(lk)}</span></label>`;
+  }).join('');
+  const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>${tq('quizRef')}：</strong> ${tq('quizQ' + n + 'ans')}</div>` : '';
+  box.innerHTML = [1,2,3,4,5].map(n => {
+    const qid = 'q' + n;
+    const open = n === 2 || n === 4;
+    return `<div class="rounded-xl border border-white/10 p-3"><p class="font-semibold text-rose-300 mb-2">Q${n}. ${tq('quizQ' + n)}</p>${open ? '' : `<div class="grid gap-1.5">${mkChoice(qid)}</div>`}${ans(n)}</div>`;
+  }).join('');
+  const btn = document.getElementById('btn-quiz-answers');
+  if (btn) btn.textContent = quizAnswersVisible ? tq('quizHideAnswers') : tq('quizShowAnswers');
+  typesetMath(box);
+}
+
 function applyLang() {
+  renderQuiz();
+
   document.querySelectorAll('[data-zh]').forEach(el => {
     const text = el.getAttribute('data-' + state.lang);
     if (text) el.textContent = text;
@@ -773,10 +868,13 @@ function setupModals() {
   const openModalById = id => {
     closeModal();
     const el = document.getElementById(id);
-    if (el) { el.classList.add('open'); openModal = el; typesetMath(el); }
+    if (el) { el.classList.add('open'); openModal = el; if (id === 'modal-quiz') renderQuiz(); typesetMath(el); }
   };
   document.getElementById('btn-steps')?.addEventListener('click', () => openModalById('modal-steps'));
   document.getElementById('btn-principle')?.addEventListener('click', () => openModalById('modal-principle'));
+  document.getElementById('btn-quiz')?.addEventListener('click', () => openModalById('modal-quiz'));
+  document.getElementById('btn-quiz-answers')?.addEventListener('click', () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+  document.querySelectorAll('.quiz-close').forEach(btn => btn.addEventListener('click', () => { const m = document.getElementById('modal-quiz'); if (m && m.classList.contains('open')) { m.classList.remove('open'); } }));
   document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', closeModal));
   document.querySelectorAll('.modal-backdrop').forEach(b => b.addEventListener('click', e => { if (e.target === b) closeModal(); }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });

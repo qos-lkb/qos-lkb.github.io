@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太陽光大氣散射 | Atmospheric Scattering</title>
+<script>
+        MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+<script async id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<link href="../css/sim-mathjax.css" rel="stylesheet"/>
+    <!-- 引入 Tailwind CSS 框架 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google 字體 Inter 與 Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        /* 隱藏捲軸但保持可捲動 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        /* 自定義滑桿樣式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .modal-backdrop { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease, opacity 0.3s ease; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-8">
+
+    <header class="mb-4 w-full max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center justify-between w-full md:w-auto gap-3 min-w-0">
+        <div class="min-w-0 text-center md:text-left">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2 flex-wrap justify-center md:justify-start">
+                <span data-i18n="title">太陽光大氣散射</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-bold border border-cyan-200" data-i18n="badge">物理</span>
+            </h1>
+            <p class="text-gray-600 text-sm" data-i18n="subtitle">互動式探索瑞利散射與米氏散射</p>
+        </div>
+        <button class="md:hidden px-2.5 py-1.5 bg-white text-xs font-bold text-gray-700 rounded-lg border border-gray-300 shrink-0" id="btn-lang-mobile" type="button">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-sm border border-gray-300"><span data-i18n="btnSteps">觀察步驟</span></button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm"><span data-i18n="btnPrinciple">原理解說</span></button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-cyan-50 text-cyan-800 rounded-xl font-bold text-sm border border-cyan-200"><span data-i18n="btnQuiz">課堂問題</span></button>
+            <button class="hidden md:flex px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-sm border border-gray-300" id="btn-lang" type="button">中 / EN</button>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <aside class="order-2 lg:order-1 col-span-1 bg-white rounded-2xl shadow-lg p-6 flex flex-col h-full">
+            <h2 class="text-xl font-bold border-b pb-3 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                <span data-i18n="secControls">控制參數</span>
+            </h2>
+
+            <!-- 太陽高度控制 -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2 flex justify-between">
+                    <span data-i18n="lblSunAlt">太陽高度角 (Sun Altitude)</span>
+                    <span id="sunAngleValue" class="text-blue-600 font-bold">90°</span>
+                </label>
+                <input type="range" id="sunAngleSlider" min="0" max="90" value="90" step="1">
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span data-i18n="sunLow">0° (日出/日落)</span>
+                    <span data-i18n="sunHigh">90° (正午)</span>
+                </div>
+            </div>
+
+            <!-- 散射機制選擇 -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2" data-i18n="lblScatterType">主導散射機制 (Scattering Type)</label>
+                <div class="grid grid-cols-1 gap-2">
+                    <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors" id="label-rayleigh">
+                        <input type="radio" name="scatterType" value="rayleigh" class="w-4 h-4 text-blue-600 focus:ring-blue-500" checked>
+                        <span class="ml-2 flex-grow text-sm" data-i18n="optRayleigh">瑞利散射 (氣體分子)</span>
+                    </label>
+                    <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors" id="label-mie">
+                        <input type="radio" name="scatterType" value="mie" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                        <span class="ml-2 flex-grow text-sm" data-i18n="optMie">米氏散射 (懸浮微粒/水滴)</span>
+                    </label>
+                    <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors" id="label-both">
+                        <input type="radio" name="scatterType" value="both" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                        <span class="ml-2 flex-grow text-sm" data-i18n="optBoth">混合模式 (現實情況)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 微粒濃度控制 -->
+            <div class="mb-6" id="densityControl" style="opacity: 0.4; pointer-events: none;">
+                <label class="block text-sm font-medium text-gray-700 mb-2 flex justify-between">
+                    <span data-i18n="lblDensity">微粒濃度 (Particle Density)</span>
+                    <span id="densityValue" class="text-blue-600 font-bold">50%</span>
+                </label>
+                <input type="range" id="densitySlider" min="0" max="100" value="50" step="1">
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span data-i18n="densityClear">晴朗</span>
+                    <span data-i18n="densityFog">濃霧/多雲</span>
+                </div>
+            </div>
+
+            <hr class="my-2">
+
+            <!-- 即時現象解釋 -->
+            <div class="flex-grow flex flex-col justify-end mt-4">
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 h-full overflow-y-auto no-scrollbar">
+                    <h3 class="font-bold text-blue-800 mb-2 flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                        <span data-i18n="explainTitle">現象解析</span>
+                    </h3>
+                    <div id="explanationText" class="text-sm text-gray-700 leading-relaxed">
+                        <!-- 動態內容將插入於此 -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+        <section class="lg:col-span-2 order-1 lg:order-2 bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col relative min-h-[450px]">
+            <div class="absolute top-4 left-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold text-gray-700 shadow z-10" id="timeLabel">
+                時間: 正午
+            </div>
+            <div class="flex-grow relative overflow-hidden" id="canvasContainer">
+                <canvas id="skyCanvas"></canvas>
+            </div>
+            <div class="h-16 bg-gradient-to-b from-green-600 to-green-800 relative">
+                <div class="absolute bottom-0 w-full h-full flex justify-around items-end pb-2 px-4 opacity-50" id="treesContainer"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl scale-95 opacity-0">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="steps-title" class="text-lg font-bold text-gray-800" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="text-slate-500 text-2xl leading-none" aria-label="關閉">×</button>
+            </div>
+            <ol class="list-decimal pl-5 space-y-2 text-sm text-gray-700">
+                <li data-i18n="s1">拖動「太陽高度角」，看天空由正午藍天變成日出／日落的橙紅。</li>
+                <li data-i18n="s2">切換瑞利、米氏或混合模式，比較天空顏色與太陽周圍光暈。</li>
+                <li data-i18n="s3">在米氏或混合模式提高微粒濃度，觀察霧霾變白、太陽變暗。</li>
+                <li data-i18n="s4">對照左側「現象解析」，確認短波長較易被氣體分子散射。</li>
+            </ol>
+        </div>
+    </div>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl scale-95 opacity-0 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="principle-title" class="text-lg font-bold text-gray-800" data-i18n="modalTitle">原理解說</h2>
+                <button type="button" id="modal-close" class="text-slate-500 text-2xl leading-none" aria-label="關閉">×</button>
+            </div>
+            <div class="space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p data-i18n="m1d"><strong>概念：</strong>太陽光含各色波長。氣體分子造成瑞利散射，散射強度大約與波長四次方成反比，藍光比紅光容易被散射。</p>
+                <p data-i18n="m2d"><strong>機制：</strong>太陽高掛時，視線穿過的大氣較薄，散射進眼睛的主要是藍光，天空呈藍。日出日落時路徑變長，藍光大多散掉，剩下紅橙色直射。較大的水滴與塵埃以米氏散射為主，各色較平均地散射，所以雲和霧看起來偏白。</p>
+                <p data-i18n="m5d"><strong>生活例子：</strong>晴天中午天空是藍的；傍晚太陽變紅；霧天或沙塵時天空發白、能見度下降。</p>
+            </div>
+        </div>
+    </div>
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white rounded-2xl max-w-lg w-full shadow-xl scale-95 opacity-0 max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="p-4 border-b flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <h2 id="quiz-title" class="text-lg font-bold text-gray-800" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-xs font-semibold text-cyan-800" data-i18n="quizShowAnswers">顯示參考答案</button>
+                    <button type="button" id="quiz-close" class="text-slate-500 text-2xl leading-none" aria-label="關閉">×</button>
+                </div>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-3 text-sm text-gray-700" id="quiz-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素
+        const canvas = document.getElementById('skyCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvasContainer');
+        
+        const sunAngleSlider = document.getElementById('sunAngleSlider');
+        const sunAngleValue = document.getElementById('sunAngleValue');
+        const densitySlider = document.getElementById('densitySlider');
+        const densityValue = document.getElementById('densityValue');
+        const densityControl = document.getElementById('densityControl');
+        const scatterTypeRadios = document.querySelectorAll('input[name="scatterType"]');
+        
+        const timeLabel = document.getElementById('timeLabel');
+        const explanationText = document.getElementById('explanationText');
+        const treesContainer = document.getElementById('treesContainer');
+
+        // 狀態變數
+        let state = {
+            sunAngle: 90,        // 0 (地平線) 到 90 (正頭頂)
+            scatterType: 'rayleigh', // rayleigh, mie, both
+            density: 50,         // 0 到 100
+            width: 0,
+            height: 0
+        };
+
+        // 雲朵/微粒資料 (用於米氏散射渲染)
+        const clouds = [];
+        const numClouds = 8;
+        for (let i = 0; i < numClouds; i++) {
+            clouds.push({
+                x: Math.random(), // 0 to 1 (相對寬度)
+                y: Math.random() * 0.4 + 0.1, // 0.1 to 0.5 (相對高度)
+                size: Math.random() * 0.15 + 0.1, // 雲朵大小
+                speed: (Math.random() - 0.5) * 0.0005
+            });
+        }
+
+        // 工具函數：RGB 顏色插值
+        function lerpColor(c1, c2, t) {
+            const r = Math.round(c1.r + (c2.r - c1.r) * t);
+            const g = Math.round(c1.g + (c2.g - c1.g) * t);
+            const b = Math.round(c1.b + (c2.b - c1.b) * t);
+            return {r, g, b};
+        }
+
+        function toRGBString(c) {
+            return `rgb(${c.r}, ${c.g}, ${c.b})`;
+        }
+
+        // 定義關鍵天空顏色 (Zenith 天頂, Horizon 地平線)
+        const skyColors = {
+            noon: { // angle = 90
+                zenith: {r: 30, g: 100, b: 200},
+                horizon: {r: 150, g: 200, b: 240}
+            },
+            afternoon: { // angle = 45
+                zenith: {r: 50, g: 120, b: 210},
+                horizon: {r: 220, g: 230, b: 180}
+            },
+            sunset: { // angle = 0
+                zenith: {r: 20, g: 30, b: 80},
+                horizon: {r: 255, g: 80, b: 10}
+            }
+        };
+
+        // 根據太陽高度計算當前天空顏色
+        function calculateSkyColors(angle) {
+            let zenith, horizon;
+            if (angle > 45) {
+                const t = (angle - 45) / 45; // 0 (45deg) to 1 (90deg)
+                zenith = lerpColor(skyColors.afternoon.zenith, skyColors.noon.zenith, t);
+                horizon = lerpColor(skyColors.afternoon.horizon, skyColors.noon.horizon, t);
+            } else {
+                const t = angle / 45; // 0 (0deg) to 1 (45deg)
+                zenith = lerpColor(skyColors.sunset.zenith, skyColors.afternoon.zenith, t);
+                horizon = lerpColor(skyColors.sunset.horizon, skyColors.afternoon.horizon, t);
+            }
+            return { zenith, horizon };
+        }
+
+        // 調整畫布大小
+        let animating = false;
+        function resizeCanvas() {
+            const rect = canvasContainer.getBoundingClientRect();
+            if (rect.width < 1 || rect.height < 1) return;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(rect.width * dpr);
+            canvas.height = Math.floor(rect.height * dpr);
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            state.width = rect.width;
+            state.height = rect.height;
+            if (!animating) {
+                animating = true;
+                render();
+            }
+        }
+
+        // 主要渲染迴圈
+        function render() {
+            // 清空畫布
+            ctx.clearRect(0, 0, state.width, state.height);
+
+            // 1. 渲染天空背景 (模擬瑞利散射的漸層)
+            renderSky();
+
+            // 2. 渲染太陽
+            renderSun();
+
+            // 3. 渲染米氏散射 (雲/霧霾)
+            if (state.scatterType === 'mie' || state.scatterType === 'both') {
+                renderMieScattering();
+            }
+
+            // 更新雲朵位置 (簡單動畫)
+            clouds.forEach(c => {
+                c.x += c.speed;
+                if (c.x > 1.2) c.x = -0.2;
+                if (c.x < -0.2) c.x = 1.2;
+            });
+
+            // 請求下一幀 (用於雲朵動畫)
+            requestAnimationFrame(render);
+        }
+
+        // 繪製天空漸層
+        function renderSky() {
+            let colors = calculateSkyColors(state.sunAngle);
+            
+            // 如果只有米氏散射 (假設移除氣體分子)，天空會偏暗灰或白
+            if (state.scatterType === 'mie') {
+                const t = state.density / 100;
+                // 純米氏散射下，沒有藍光優先散射，呈現均勻的灰白（且取決於太陽光強度，這裡簡化處理）
+                const baseDark = {r: 30, g: 30, b: 40}; // 宇宙背景
+                const hazeColor = {r: 200, g: 200, b: 200};
+                
+                colors.zenith = lerpColor(baseDark, hazeColor, t * 0.5);
+                colors.horizon = lerpColor(baseDark, hazeColor, t);
+            }
+            // 如果是混合，根據 density 加入灰白霾感 (Mie 的整體散射)
+            else if (state.scatterType === 'both') {
+                const hazeLevel = state.density / 100;
+                const hazeColor = {r: 220, g: 220, b: 230};
+                
+                // 太陽越低，穿過大氣越厚，霾也會被染紅
+                if (state.sunAngle < 30) {
+                    hazeColor.r = 255;
+                    hazeColor.g = 150 + (state.sunAngle/30)*70;
+                    hazeColor.b = 100 + (state.sunAngle/30)*120;
+                }
+
+                colors.zenith = lerpColor(colors.zenith, hazeColor, hazeLevel * 0.4);
+                colors.horizon = lerpColor(colors.horizon, hazeColor, hazeLevel * 0.7);
+            }
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, state.height);
+            gradient.addColorStop(0, toRGBString(colors.zenith));
+            gradient.addColorStop(1, toRGBString(colors.horizon));
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, state.width, state.height);
+        }
+
+        // 繪製太陽
+        function renderSun() {
+            // 將角度轉換為弧度，0度在右下，90度在正中上方
+            const rad = (state.sunAngle) * (Math.PI / 180);
+            
+            // 橢圓軌道參數
+            const centerX = state.width / 2;
+            const radiusX = state.width * 0.45;
+            const radiusY = state.height * 0.8;
+            
+            // 計算太陽中心座標
+            // 當 angle = 90 (PI/2), cos(90)=0, sin(90)=1 -> x=centerX, y=top
+            // 當 angle = 0, cos(0)=1, sin(0)=0 -> x=right, y=bottom
+            // 為了讓太陽從左到右，我們使用 -cos
+            const sunX = centerX - Math.cos(rad) * radiusX;
+            const sunY = state.height - Math.sin(rad) * radiusY;
+
+            // 太陽顏色根據高度變化 (模擬穿透大氣層後的剩餘光)
+            let sunColor = "255, 255, 255"; // 正午偏白
+            if (state.sunAngle < 20) {
+                // 夕陽偏紅橙
+                const t = state.sunAngle / 20;
+                const r = 255;
+                const g = Math.floor(69 + t * (255 - 69));
+                const b = Math.floor(0 + t * (200 - 0));
+                sunColor = `${r}, ${g}, ${b}`;
+            } else if (state.sunAngle < 45) {
+                // 下午偏黃白
+                const t = (state.sunAngle - 20) / 25;
+                const r = 255;
+                const g = Math.floor(200 + t * 55);
+                const b = Math.floor(100 + t * 155);
+                sunColor = `${r}, ${g}, ${b}`;
+            }
+
+            // 繪製光暈
+            const glowRadius = state.width * 0.15;
+            const gradient = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, glowRadius);
+            gradient.addColorStop(0, `rgba(${sunColor}, 1)`);
+            gradient.addColorStop(0.2, `rgba(${sunColor}, 0.6)`);
+            gradient.addColorStop(0.5, `rgba(${sunColor}, 0.2)`);
+            gradient.addColorStop(1, `rgba(${sunColor}, 0)`);
+
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, glowRadius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // 繪製太陽本體
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, 25, 0, Math.PI * 2);
+            ctx.fillStyle = `rgb(${sunColor})`;
+            ctx.fill();
+        }
+
+        // 繪製米氏散射效果 (雲/霧)
+        function renderMieScattering() {
+            const densityFactor = state.density / 100;
+            
+            // 1. 整體霧霾層
+            if (densityFactor > 0) {
+                let hazeR = 255, hazeG = 255, hazeB = 255;
+                // 若太陽較低，光線偏紅，米氏散射也會散發出偏紅的光 (因為照射到的光已經是紅的)
+                if (state.sunAngle < 30) {
+                    const t = state.sunAngle / 30;
+                    hazeG = 150 + t * 105;
+                    hazeB = 100 + t * 155;
+                }
+
+                const hazeGradient = ctx.createLinearGradient(0, state.height*0.5, 0, state.height);
+                hazeGradient.addColorStop(0, `rgba(${hazeR}, ${hazeG}, ${hazeB}, 0)`);
+                hazeGradient.addColorStop(1, `rgba(${hazeR}, ${hazeG}, ${hazeB}, ${densityFactor * 0.6})`);
+                
+                ctx.fillStyle = hazeGradient;
+                ctx.fillRect(0, 0, state.width, state.height);
+            }
+
+            // 2. 繪製雲朵 (水滴的米氏散射)
+            // 雲朵顏色取決於照射它的陽光顏色
+            let cloudColor = "255, 255, 255";
+            if (state.sunAngle < 25) {
+                const t = state.sunAngle / 25;
+                cloudColor = `255, ${Math.floor(100 + t * 155)}, ${Math.floor(50 + t * 205)}`;
+            }
+
+            const visibleClouds = Math.floor(numClouds * densityFactor) + (densityFactor > 0.1 ? 2 : 0);
+            
+            for (let i = 0; i < Math.min(visibleClouds, numClouds); i++) {
+                const c = clouds[i];
+                const cx = c.x * state.width;
+                const cy = c.y * state.height;
+                const cr = c.size * state.width; // 基礎半徑
+
+                // 簡單的雲朵形狀 (幾個圓形疊加)
+                ctx.fillStyle = `rgba(${cloudColor}, ${0.7 + densityFactor*0.3})`;
+                
+                ctx.beginPath();
+                ctx.arc(cx, cy, cr * 0.5, 0, Math.PI * 2);
+                ctx.arc(cx + cr * 0.4, cy + cr * 0.1, cr * 0.4, 0, Math.PI * 2);
+                ctx.arc(cx - cr * 0.4, cy + cr * 0.1, cr * 0.35, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 更新 UI 狀態與文字說明
+        function updateUI() {
+            // 更新時間標籤
+            let timeStr = "正午";
+            if (state.sunAngle <= 10) timeStr = "日落 / 日出";
+            else if (state.sunAngle < 40) timeStr = "傍晚 / 清晨";
+            else if (state.sunAngle < 70) timeStr = "下午 / 上午";
+            timeLabel.innerText = `時間: ${timeStr} (${state.sunAngle}°)`;
+
+            // 更新控制面板視覺
+            document.querySelectorAll('label[id^="label-"]').forEach(el => {
+                el.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+            document.getElementById(`label-${state.scatterType}`).classList.add('border-blue-500', 'bg-blue-50');
+
+            if (state.scatterType === 'rayleigh') {
+                densityControl.style.opacity = '0.4';
+                densityControl.style.pointerEvents = 'none';
+            } else {
+                densityControl.style.opacity = '1';
+                densityControl.style.pointerEvents = 'auto';
+            }
+
+            // 生成科學解釋文字
+            let text = "";
+            
+            // 根據不同模式提供主要解釋
+            if (state.scatterType === 'rayleigh') {
+                text += `<strong>當前模式：純瑞利散射 (氣體分子)</strong><br><br>`;
+                text += `空氣中主要是氮氣與氧氣，這些分子遠小於可見光波長 ($d \\ll \\lambda$)。波長越短的光（如藍光）被散射得越強烈（強度與 $1/\\lambda^4$ 成正比）。<br><br>`;
+                
+                if (state.sunAngle > 45) {
+                    text += `☀️ <strong>正午現象：</strong> 太陽光直射，穿透大氣層距離短。短波長的藍光向四面八方劇烈散射，充滿天空，因此呈現<strong>蔚藍色</strong>。`;
+                } else if (state.sunAngle > 10) {
+                    text += `🌤️ <strong>下午現象：</strong> 陽光斜射，穿透大氣層的距離變長。藍光開始在傳播過程中被消耗，天空顏色逐漸變淺變黃。`;
+                } else {
+                    text += `🌅 <strong>日落現象：</strong> 陽光接近地平線，穿透大氣路徑極長。大部分藍光/紫光已被散射殆盡，只有穿透力強的長波長<strong>紅光與橙光</strong>能直射進入眼簾，因此夕陽與周圍天空呈現紅橙色。`;
+                }
+            } 
+            else if (state.scatterType === 'mie') {
+                text += `<strong>當前模式：純米氏散射 (較大微粒)</strong><br><br>`;
+                text += `假設空氣中充滿水滴、灰塵等微粒，其大小與光波長相近或更大 ($d \\approx \\lambda$)。米氏散射<strong>對波長沒有選擇性</strong>，所有顏色的光被均勻散射。<br><br>`;
+                text += `☁️ <strong>視覺效果：</strong> 各種顏色的光混合在一起呈現白色或灰色。隨著微粒濃度（${state.density}%）增加，天空會變得更加混濁發白，這就是我們看到<strong>白雲與濃霧</strong>的原因。`;
+            } 
+            else if (state.scatterType === 'both') {
+                text += `<strong>當前模式：混合模式 (真實大氣)</strong><br><br>`;
+                text += `真實的大氣中同時存在氣體分子與懸浮微粒。這決定了我們每天看到的天空品質。<br><br>`;
+                
+                if (state.density < 30) {
+                    text += `🌍 <strong>空氣清新：</strong> 微粒濃度低（${state.density}%），瑞利散射主導。天空保持清澈的藍色。`;
+                    if (state.sunAngle < 15) text += ` 夕陽的紅霞也非常純淨。`;
+                } else if (state.density < 70) {
+                    text += `🌫️ <strong>略有霧霾/多雲：</strong> 微粒增多（${state.density}%），米氏散射增強。原本藍色的天空被混入均勻散射的白光，顏色變淺（俗稱灰藍天）。`;
+                } else {
+                    text += `☁️ <strong>濃霧/嚴重霾害：</strong> 微粒濃度極高（${state.density}%），米氏散射完全掩蓋了瑞利散射。整個天空呈現灰白色，太陽輪廓模糊。`;
+                    if (state.sunAngle < 20) text += ` 夕陽的紅光也會被這些大顆粒強烈前向散射，使得整片霧氣看起來呈現濁橘色。`;
+                }
+            }
+
+            explanationText.innerHTML = text;
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise([explanationText]).catch(function () {});
+            }
+        }
+
+        // 裝飾性地面樹木生成
+        function generateTrees() {
+            treesContainer.innerHTML = '';
+            for(let i=0; i<15; i++) {
+                const height = 20 + Math.random() * 30;
+                const width = 10 + Math.random() * 15;
+                const margin = Math.random() * 5;
+                const tree = document.createElement('div');
+                tree.style.width = 0;
+                tree.style.height = 0;
+                tree.style.borderLeft = `${width/2}px solid transparent`;
+                tree.style.borderRight = `${width/2}px solid transparent`;
+                tree.style.borderBottom = `${height}px solid #064e3b`; // 深綠色
+                tree.style.margin = `0 ${margin}px`;
+                treesContainer.appendChild(tree);
+            }
+        }
+
+        // 事件監聽器
+        sunAngleSlider.addEventListener('input', (e) => {
+            state.sunAngle = parseInt(e.target.value);
+            sunAngleValue.innerText = `${state.sunAngle}°`;
+            updateUI();
+        });
+
+        densitySlider.addEventListener('input', (e) => {
+            state.density = parseInt(e.target.value);
+            densityValue.innerText = `${state.density}%`;
+            updateUI();
+        });
+
+        scatterTypeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                state.scatterType = e.target.value;
+                updateUI();
+            });
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // 初始化
+        function init() {
+            generateTrees();
+            resizeCanvas();
+            updateUI();
+            // 開始動畫迴圈 (在 resizeCanvas 中呼叫了 render，而 render 內有 requestAnimationFrame)
+        }
+
+        // 啟動應用
+        window.onload = init;
+
+    </script>
+<script>
+const i18n={zh:{title:"太陽光大氣散射",badge:"物理",subtitle:"互動式探索瑞利散射與米氏散射",btnSteps:"觀察步驟",btnPrinciple:"原理解說",secControls:"控制參數",lblSunAlt:"太陽高度角 (Sun Altitude)",sunLow:"0° (日出/日落)",sunHigh:"90° (正午)",lblScatterType:"主導散射機制 (Scattering Type)",optRayleigh:"瑞利散射 (氣體分子)",optMie:"米氏散射 (懸浮微粒/水滴)",optBoth:"混合模式 (現實情況)",lblDensity:"微粒濃度 (Particle Density)",densityClear:"晴朗",densityFog:"濃霧/多雲",explainTitle:"現象解析",stepsTitle:"觀察步驟",modalTitle:"原理解說",s1:"拖動「太陽高度角」，看天空由正午藍天變成日出／日落的橙紅。",s2:"切換瑞利、米氏或混合模式，比較天空顏色與太陽周圍光暈。",s3:"在米氏或混合模式提高微粒濃度，觀察霧霾變白、太陽變暗。",s4:"對照左側「現象解析」，確認短波長較易被氣體分子散射。",m1d:"<strong>概念：</strong>太陽光含各色波長。氣體分子造成瑞利散射，散射強度大約與波長四次方成反比，藍光比紅光容易被散射。",m2d:"<strong>機制：</strong>太陽高掛時，視線穿過的大氣較薄，散射進眼睛的主要是藍光，天空呈藍。日出日落時路徑變長，藍光大多散掉，剩下紅橙色直射。較大的水滴與塵埃以米氏散射為主，各色較平均地散射，所以雲和霧看起來偏白。",m5d:"<strong>生活例子：</strong>晴天中午天空是藍的；傍晚太陽變紅；霧天或沙塵時天空發白、能見度下降。",btnQuiz:"課堂問題",quizTitle:"課堂問題",quizShowAnswers:"顯示參考答案",quizHideAnswers:"隱藏參考答案",quizRef:"參考答案",quizQ1:"瑞利散射強度與波長 $\\lambda$ 的關係最接近哪一項？",quizQ1a:"與 $\\lambda$ 成正比",quizQ1b:"與 $\\lambda^4$ 成正比",quizQ1c:"大約與 $1/\\lambda^4$ 成正比",quizQ1d:"與波長無關",quizQ1Ans:"C. 短波長（藍光）散射較強，見左側「現象解析」。",quizQ2:"選「瑞利散射」，將「太陽高度角」#sunAngleSlider 由 90° 慢慢降到約 15°。先預測天空與太陽顏色如何變，再操作核對。",quizQ2Ans:"高度角降低時大氣路徑變長，藍光多被散射掉，天空偏暗橙紅、太陽更紅。",quizQ3:"正午（約 90°）且只選「瑞利散射」時，天空主色應最接近？",quizQ3a:"深藍",quizQ3b:"純白",quizQ3c:"墨綠",quizQ3d:"紫黑",quizQ3Ans:"A. 路徑短，藍光散射進眼居多。",quizQ4:"在「混合模式」下，先記低微粒濃度，再把 #densitySlider 調高。比較兩次太陽亮度與天空發白程度。",quizQ4Ans:"濃度↑ → 米氏散射↑ → 天空更白、散射光增加，直射太陽看起來更暗。",quizQ5:"日落太陽呈橙紅色的主因是？",quizQ5a:"大氣吸收所有藍光",quizQ5b:"光路變長，藍光多被瑞利散射，剩餘紅橙直射",quizQ5c:"米氏散射只保留紅光",quizQ5d:"太陽溫度降低",quizQ5Ans:"B. 低高度角時路徑長，短波散射多，直射光偏紅。"},en:{title:"Atmospheric Scattering",badge:"Physics",subtitle:"Rayleigh & Mie scattering interactively",btnSteps:"Steps",btnPrinciple:"Principle",secControls:"Controls",lblSunAlt:"Sun altitude",sunLow:"0° (sunrise/set)",sunHigh:"90° (noon)",lblScatterType:"Scattering mode",optRayleigh:"Rayleigh (air molecules)",optMie:"Mie (aerosols / droplets)",optBoth:"Mixed (realistic)",lblDensity:"Particle density",densityClear:"Clear",densityFog:"Haze / cloudy",explainTitle:"Explanation",stepsTitle:"Observation Steps",modalTitle:"Principle",s1:"Slide sun altitude; watch blue noon vs red sunset sky.",s2:"Switch Rayleigh, Mie, or mixed; compare sky and solar halo.",s3:"Raise particle density in Mie/mixed; sky whitens, sun dims.",s4:"Read the explanation panel: shorter λ scatters more (Rayleigh).",m1d:"<strong>Concept.</strong> Sunlight spans wavelengths; Rayleigh scattering ∝ 1/λ⁴ favors blue.",m2d:"<strong>Mechanism.</strong> High sun → thin path → blue sky. Low sun → long path → red direct light. Mie on larger particles gives white clouds/haze.",m5d:"<strong>Examples.</strong> Blue midday sky, red sunset, white fog/smoke haze.",btnQuiz:"Quiz",quizTitle:"Classroom Quiz",quizShowAnswers:"Show reference answers",quizHideAnswers:"Hide reference answers",quizRef:"Reference answer",quizQ1:"Rayleigh scattering intensity vs wavelength $\\lambda$ is closest to…",quizQ1a:"∝ $\\lambda$",quizQ1b:"∝ $\\lambda^4$",quizQ1c:"∝ $1/\\lambda^4$",quizQ1d:"Independent of $\\lambda$",quizQ1Ans:"C. Shorter λ (blue) scatters more—see the explanation panel.",quizQ2:"Pick Rayleigh only; lower #sunAngleSlider from 90° to ~15°. Predict sky and sun colour, then check.",quizQ2Ans:"Longer path scatters more blue; sky duller orange-red, sun redder.",quizQ3:"At noon (~90°) with Rayleigh only, the sky is mainly…",quizQ3a:"Deep blue",quizQ3b:"White",quizQ3c:"Green",quizQ3d:"Purple-black",quizQ3Ans:"A. Short path → scattered blue dominates.",quizQ4:"In mixed mode, note sun/sky at low density, then raise #densitySlider. Compare whiteness and sun brightness.",quizQ4Ans:"Higher density → more Mie → whiter sky, dimmer direct sun.",quizQ5:"Why is the setting sun orange-red?",quizQ5a:"Air absorbs all blue",quizQ5b:"Long path Rayleigh-scatters blue; red-orange direct light remains",quizQ5c:"Mie keeps only red",quizQ5d:"Sun cools at sunset",quizQ5Ans:"B. Low altitude → long path → short λ scattered out."}};
+(function(){function getLang(){return window.currentLang||'zh';}function setLangVar(l){window.currentLang=l;}function applyPlatformI18n(){const lang=getLang();document.documentElement.lang=lang==='en'?'en':'zh-Hant';const pack=i18n[lang];document.querySelectorAll('[data-i18n]').forEach(function(el){const key=el.getAttribute('data-i18n');if(pack[key]!=null){if(/<[a-z][\s\S]*>/i.test(pack[key]))el.innerHTML=pack[key];else el.textContent=pack[key];}});if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise().catch(function(){});renderQuiz();}var quizAnswersVisible=false;function quizTxt(k){return i18n[getLang()][k]||'';}function renderQuiz(){var box=document.getElementById('quiz-list');if(!box)return;var mk=function(n){return ['A','B','C','D'].map(function(L){return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer hover:bg-cyan-50/60"><input type="radio" name="q'+n+'" class="mt-0.5 accent-cyan-600"><span>'+L+'. '+quizTxt('quizQ'+n+L.toLowerCase())+'</span></label>';}).join('');};var ans=function(n){return quizAnswersVisible?'<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>'+quizTxt('quizRef')+'：</strong> '+quizTxt('quizQ'+n+'Ans')+'</div>':'';};box.innerHTML=[1,2,3,4,5].map(function(n){var open=n===2||n===4;return '<div class="rounded-xl border p-3"><p class="font-semibold text-cyan-800 mb-2">Q'+n+'. '+quizTxt('quizQ'+n)+'</p>'+(open?'':'<div class="grid gap-1.5">'+mk(n)+'</div>')+ans(n)+'</div>';}).join('');var ab=document.getElementById('btn-quiz-answers');if(ab)ab.textContent=quizAnswersVisible?quizTxt('quizHideAnswers'):quizTxt('quizShowAnswers');}function openQuiz(){closePrinciple();closeSteps();var mq=document.getElementById('modal-quiz'),mc=mq&&mq.querySelector('.modal-content');if(!mq||!mc)return;renderQuiz();mq.classList.remove('opacity-0','pointer-events-none');mc.classList.remove('scale-95','opacity-0');mc.classList.add('scale-100','opacity-100');typesetModal(mq);}function closeQuiz(){var mq=document.getElementById('modal-quiz'),mc=mq&&mq.querySelector('.modal-content');if(!mq||!mc)return;mc.classList.add('scale-95','opacity-0');mc.classList.remove('scale-100','opacity-100');mq.classList.add('opacity-0','pointer-events-none');}function platformToggleLang(){setLangVar(getLang()==='zh'?'en':'zh');applyPlatformI18n();}function typesetModal(el){if(el&&window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise([el]).catch(function(){});}function openPrinciple(){const mp=document.getElementById('modal-principle'),mc=mp&&mp.querySelector('.modal-content');if(!mp||!mc)return;mp.classList.remove('opacity-0','pointer-events-none');mc.classList.remove('scale-95','opacity-0');mc.classList.add('scale-100','opacity-100');typesetModal(mp);}function closePrinciple(){const mp=document.getElementById('modal-principle'),mc=mp&&mp.querySelector('.modal-content');if(!mp||!mc)return;mc.classList.add('scale-95','opacity-0');mc.classList.remove('scale-100','opacity-100');mp.classList.add('opacity-0','pointer-events-none');}function openSteps(){const ms=document.getElementById('modal-steps'),sc=ms&&ms.querySelector('.modal-content');if(!ms||!sc)return;ms.classList.remove('opacity-0','pointer-events-none');sc.classList.remove('scale-95','opacity-0');sc.classList.add('scale-100','opacity-100');typesetModal(ms);}function closeSteps(){const ms=document.getElementById('modal-steps'),sc=ms&&ms.querySelector('.modal-content');if(!ms||!sc)return;sc.classList.add('scale-95','opacity-0');sc.classList.remove('scale-100','opacity-100');ms.classList.add('opacity-0','pointer-events-none');}function bindPlatformUI(){const bl=document.getElementById('btn-lang'),bm=document.getElementById('btn-lang-mobile');document.getElementById('btn-steps').onclick=function(){closePrinciple();closeQuiz();openSteps();};document.getElementById('btn-principle').onclick=function(){closeQuiz();closeSteps();openPrinciple();};var bq=document.getElementById('btn-quiz');if(bq)bq.onclick=function(){closePrinciple();closeSteps();openQuiz();};var ba=document.getElementById('btn-quiz-answers');if(ba)ba.onclick=function(){quizAnswersVisible=!quizAnswersVisible;renderQuiz();typesetModal(document.getElementById('modal-quiz'));};var qc=document.getElementById('quiz-close');if(qc)qc.onclick=closeQuiz;if(bl)bl.onclick=platformToggleLang;if(bm)bm.onclick=platformToggleLang;const mc=document.getElementById('modal-close');if(mc)mc.onclick=closePrinciple;const sc=document.getElementById('steps-close');if(sc)sc.onclick=closeSteps;['modal-principle','modal-steps','modal-quiz'].forEach(function(id){const m=document.getElementById(id);if(m)m.addEventListener('click',function(e){if(e.target===m){if(id==='modal-principle')closePrinciple();else if(id==='modal-steps')closeSteps();else closeQuiz();}});});document.addEventListener('keydown',function(e){if(e.key==='Escape'){closePrinciple();closeSteps();closeQuiz();}});applyPlatformI18n();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindPlatformUI);else bindPlatformUI();})();
+</script>
+</body>
+</html>

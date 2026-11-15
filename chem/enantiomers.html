@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>對映異構體 | Enantiomers</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D simulation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: 'PingFang TC', 'Heiti TC', 'Microsoft JhengHei', sans-serif;
+            background-color: #f3f4f6;
+            touch-action: manipulation;
+        }
+        #sim-canvas-container {
+            width: 100%;
+            height: 400px; /* 將 60vh 改為固定高度，避免在 Google Site 中過大 */
+            max-height: 60vh; /* 保留最大高度限制 */
+            min-height: 300px;
+            background: radial-gradient(circle at center, #ffffff 0%, #e5e7eb 100%);
+            position: relative;
+            overflow: hidden;
+            touch-action: none; /* Prevent scroll while interacting with 3D */
+            border-radius: 0.5rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            border-bottom: 4px solid #3b82f6;
+            color: #1d4ed8;
+            font-weight: bold;
+        }
+        /* Fade animation for quiz */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Molecule labels */
+        .mol-label {
+            position: absolute;
+            bottom: 10px;
+            font-weight: bold;
+            color: #374151;
+            background: rgba(255,255,255,0.7);
+            padding: 4px 12px;
+            border-radius: 999px;
+            pointer-events: none;
+        }
+        #label-A { left: 10%; }
+        #label-B { right: 10%; }
+        
+        /* Interactive Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "對映異構體", "en": "Enantiomers"}, "grade": {"zh": "中五化學", "en": "S5 Chemistry"}, "steps": {"zh": ["在 3D 模擬選「一般手性分子」，旋轉原分子和鏡像。", "按嘗試疊加，看四個不同基團能否完全重疊。", "改選「兩個相同基團」，再試疊加。", "最後選乳酸，重置視角後再轉一次。"], "en": ["Select the molecule with four different groups and rotate both the original and the mirror image.", "Try to superimpose them.", "Switch to the molecule with two identical groups and try again.", "Finish with lactic acid and reset the view."]}, "principle": {"zh": ["碳若連著四個不同基團，就是手性中心。它和鏡像不能完全重疊，兩者是對映異構體。", "若有兩個基團相同，鏡像可以翻轉後重疊，分子沒有對映異構。", "乳酸有手性碳，所以有 L 與 D 兩種對映體。藥物里不同對映體可能作用不同。"], "en": ["A carbon with four different groups is a chiral centre. Its mirror image cannot be superimposed on it.", "Two identical groups let the mirror image be rotated to match, so there are no enantiomers.", "Lactic acid has a chiral carbon, so it has a pair of enantiomers."]}, "quiz": [{"zh": "四個基團都不同的碳，其鏡像通常？", "en": "A carbon with four different groups usually has a mirror image that?", "azh": "B。這就是對映異構。", "aen": "B. That pair are enantiomers.", "czh": ["可以完全重疊", "不能完全重疊", "一定是同一原子", "沒有鏡像"], "cen": ["Can be fully superimposed", "Cannot be fully superimposed", "Must be the same atom", "Has no mirror image"], "ans": 1}, {"zh": "先預測「兩個相同基團」可以疊加成功，再按疊加核對。", "en": "Predict that the molecule with two identical groups can be superimposed, then try it.", "azh": "可以。它不是手性分子。", "aen": "Yes. It is not chiral."}, {"zh": "乳酸例子用來說明？", "en": "The lactic acid example shows?", "azh": "B。", "aen": "B.", "czh": ["所有有機物都沒有鏡像", "真實分子也可以有一對對映體", "乳酸沒有碳", "鏡像一定更重"], "cen": ["No organic molecule has a mirror image", "A real molecule can have a pair of enantiomers", "Lactic acid contains no carbon", "The mirror image must be heavier"], "ans": 1}, {"zh": "比較例子 1 和例子 2 的疊加結果。先寫下誰失敗，再各試一次。", "en": "Compare examples 1 and 2. Write which superposition fails, then try both.", "azh": "例子 1（四個不同基團）失敗；例子 2 成功。", "aen": "Example 1 fails; example 2 succeeds."}, {"zh": "手性中心的必要條件是？", "en": "A chiral centre needs?", "azh": "B。", "aen": "B.", "czh": ["四個基團完全相同", "連著四個互不相同的基團", "一定是金屬", "必須帶電荷"], "cen": ["Four identical groups", "Four different groups", "It must be a metal", "It must be charged"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+
+    <!-- Header -->
+    <header class="text-center mb-6">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-blue-700 mb-2">手性分子與對映異構體</h1>
+        <p class="text-gray-600 text-sm md:text-base">探索立體化學的奧秘：鏡像、重疊與手性</p>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-gray-300 mb-6">
+        <button onclick="switchTab('simulator')" id="tab-simulator" class="tab-btn active flex-1 py-3 text-lg focus:outline-none text-gray-500">
+            🔍 3D 模擬器
+        </button>
+        <button onclick="switchTab('challenge')" id="tab-challenge" class="tab-btn flex-1 py-3 text-lg focus:outline-none text-gray-500">
+            🏆 知識挑戰區
+        </button>
+    </div>
+
+    <!-- ==========================================
+         TAB 1: 3D SIMULATOR
+         ========================================== -->
+    <section id="sec-simulator" class="block fade-in">
+        <div class="bg-white rounded-xl shadow-lg p-4 md:p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">操作說明：</h2>
+            <ul class="list-disc pl-5 mb-4 text-gray-600 text-sm md:text-base space-y-1">
+                <li>這是一個帶有四個不同基團（顏色）的碳原子，我們稱之為<strong>手性中心 (Chiral Center)</strong>。</li>
+                <li><strong>觸控或滑鼠拖曳：</strong> 左半屏幕旋轉左側分子，右半屏幕旋轉右側鏡像。</li>
+                <li><strong>移動滑桿：</strong> 嘗試將右側的鏡像分子移動到左側，看看它們能否<strong>完全重疊</strong>（所有顏色方向一致）。</li>
+            </ul>
+
+            <!-- 分子選擇器 & 教學註解 -->
+            <div class="mb-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label for="mol-selector" class="block text-sm font-medium text-gray-700 mb-2">請選擇要觀察的分子模型：</label>
+                <select id="mol-selector" onchange="updateMoleculeType()" class="block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-700 mb-4">
+                    <option value="generic">例子 1：一般手性分子 (4個不同基團)</option>
+                    <option value="achiral">例子 2：非手性分子 (2個相同基團)</option>
+                    <option value="lactic">例子 3：真實對映異構體 (乳酸 Lactic Acid)</option>
+                </select>
+                <div id="mol-annotation" class="text-sm text-gray-600">
+                    <span class="font-bold text-blue-600">一般手性分子：</span> 中心碳原子連接著四個完全不同的基團（以四種不同顏色表示）。無論你如何旋轉，它的鏡像都無法與原分子完全重疊，這就是「對映異構體」。
+                </div>
+            </div>
+
+            <!-- 旋光性教學區塊 -->
+            <div class="mb-6 bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded text-sm text-gray-700 shadow-sm">
+                <h3 class="font-bold text-indigo-800 text-base mb-1">💡 核心概念：什麼是旋光性 (Optical Activity)？</h3>
+                <p>對映異構體就像你的左手和右手，它們的物理性質（如熔點、沸點、密度）和化學性質幾乎<strong>完全相同</strong>。它們唯一的區別在於對<strong>平面偏振光</strong>的反應：</p>
+                <ul class="list-disc pl-5 mt-2 space-y-1">
+                    <li>如果其中一個分子使偏振光向右旋轉（稱為<strong>右旋</strong>，記為 <strong>(+)</strong> 或 <strong>d-</strong>）。</li>
+                    <li>那麼它的對映異構體，必定會使偏振光向左旋轉<strong>完全相同的角度</strong>（稱為<strong>左旋</strong>，記為 <strong>(-)</strong> 或 <strong>l-</strong>）。</li>
+                </ul>
+            </div>
+
+            <!-- 3D Canvas Area -->
+            <div id="sim-canvas-container">
+                <div id="label-A" class="mol-label">原分子 (+)</div>
+                <div id="label-B" class="mol-label">鏡像分子 (-)</div>
+            </div>
+
+            <!-- Controls -->
+            <div class="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <label class="block text-gray-700 font-bold mb-2 text-center">嘗試將鏡像分子疊加到原分子上</label>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-500">分開</span>
+                    <input type="range" id="superimpose-slider" min="0" max="100" value="0">
+                    <span class="text-sm text-gray-500">重疊</span>
+                </div>
+                <div class="text-center mt-4">
+                    <button id="reset-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-full transition shadow">
+                        🔄 重置視角
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 2: CHALLENGE AREA (QUIZ)
+         ========================================== -->
+    <section id="sec-challenge" class="hidden fade-in">
+        <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 min-h-[50vh] flex flex-col items-center justify-center">
+            
+            <!-- Step 1: Login/Name Input -->
+            <div id="quiz-start" class="w-full max-w-md text-center">
+                <div class="text-6xl mb-4">👩‍🔬👨‍🔬</div>
+                <h2 class="text-2xl font-bold mb-2">準備好接受挑戰了嗎？</h2>
+                <p class="text-gray-500 mb-6">測試你對手性和對映異構體的理解。</p>
+                
+                <div class="mb-4 text-left">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="playerName">請輸入挑戰者名字：</label>
+                    <input class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="playerName" type="text" placeholder="你的名字">
+                </div>
+                
+                <button onclick="startQuiz()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg text-lg">
+                    開始挑戰 🚀
+                </button>
+            </div>
+
+            <!-- Step 2: Questions -->
+            <div id="quiz-questions" class="hidden w-full max-w-xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-gray-700" id="quiz-progress">問題 1 / 3</h3>
+                    <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded" id="quiz-score-live">得分: 0</span>
+                </div>
+
+                <!-- Question Container -->
+                <div id="question-container" class="mb-8">
+                    <!-- SVG Visuals will be injected here -->
+                    <div id="q-visual" class="flex justify-center mb-6 space-x-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    </div>
+                    <h4 id="q-text" class="text-xl font-semibold mb-6 text-gray-800 leading-relaxed"></h4>
+                    
+                    <div id="q-options" class="space-y-3">
+                        <!-- Options will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Results -->
+            <div id="quiz-results" class="hidden w-full max-w-md text-center">
+                <div id="result-icon" class="text-7xl mb-4">🏆</div>
+                <h2 class="text-3xl font-bold mb-2" id="result-title">挑戰完成！</h2>
+                <p class="text-xl mb-6 text-gray-600">挑戰者：<span id="result-name" class="font-bold text-blue-600"></span></p>
+                
+                <div class="bg-blue-50 rounded-lg p-6 mb-6">
+                    <p class="text-gray-500 text-sm mb-1">最終得分</p>
+                    <p class="text-5xl font-extrabold text-blue-700" id="result-score">3 / 3</p>
+                </div>
+
+                <p id="result-message" class="text-lg font-medium text-gray-700 mb-8"></p>
+
+                <button onclick="resetQuiz()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-lg transition shadow-lg w-full">
+                    再次挑戰 🔄
+                </button>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ==========================================
+         JAVASCRIPT LOGIC
+         ========================================== -->
+    <script>
+        // --- 1. Tab Navigation Logic ---
+        function switchTab(tabId) {
+            document.getElementById('sec-simulator').classList.add('hidden');
+            document.getElementById('sec-challenge').classList.add('hidden');
+            document.getElementById('tab-simulator').classList.remove('active');
+            document.getElementById('tab-challenge').classList.remove('active');
+
+            document.getElementById(`sec-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+
+            // Force resize trigger for Three.js canvas to fix aspect ratio when unhidden
+            if(tabId === 'simulator') {
+                window.dispatchEvent(new Event('resize'));
+            }
+        }
+
+        // --- 2. Three.js Simulator Logic ---
+        let scene, camera, renderer;
+        let moleculeA, moleculeB;
+        let mirrorPlane;
+        
+        // Base positions (將距離稍微縮短，適應較窄的螢幕)
+        const POS_A = -2.5;
+        const POS_B_START = 2.5;
+
+        // Colors for atoms to clearly show chirality
+        const colorCenter = 0x333333; // Carbon (Black/Gray)
+        const color1 = 0xff3b30;      // Red
+        const color2 = 0x34c759;      // Green
+        const color3 = 0x007aff;      // Blue
+        const color4 = 0xffcc00;      // Yellow
+
+        // Lactic Acid Colors (Simplified representation)
+        const colorOH = 0xff3b30;     // Red (Hydroxyl)
+        const colorCH3 = 0x8e8e93;    // Grayish (Methyl)
+        const colorH = 0xffffff;      // White (Hydrogen)
+        const colorCOOH = 0xff9500;   // Orange (Carboxyl)
+
+        // Interaction state
+        let isDraggingA = false;
+        let isDraggingB = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        window.onload = function() {
+            initThreeJS();
+            animate();
+            // 延遲一點點觸發重新計算尺寸，確保行動裝置上畫布能正確展開
+            setTimeout(onWindowResize, 100);
+        };
+
+        function initThreeJS() {
+            const container = document.getElementById('sim-canvas-container');
+            
+            // Scene Setup
+            scene = new THREE.Scene();
+            // Transparent background to show CSS gradient
+            
+            // Camera Setup
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.z = 13; // 將鏡頭往後退 (原本為 10)，確保整個分子都能進入畫面
+            camera.position.y = 1;
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // optimize for mobile
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            // Create initial Molecules
+            moleculeA = createMolecule(false, 'generic');
+            moleculeA.position.x = POS_A;
+            scene.add(moleculeA);
+
+            moleculeB = createMolecule(true, 'generic');
+            moleculeB.position.x = POS_B_START;
+            scene.add(moleculeB);
+
+            // Add Mirror Plane (稍微放大鏡面，配合拉遠的鏡頭)
+            const planeGeo = new THREE.PlaneGeometry(10, 10);
+            const planeMat = new THREE.MeshBasicMaterial({ 
+                color: 0x88ccff, 
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.3 
+            });
+            mirrorPlane = new THREE.Mesh(planeGeo, planeMat);
+            mirrorPlane.position.set(0, 0, 0);
+            mirrorPlane.rotation.y = Math.PI / 2; // Face sideways
+            scene.add(mirrorPlane);
+
+            // Event Listeners for Interaction
+            window.addEventListener('resize', onWindowResize, false);
+            setupTouchAndMouse(container);
+            
+            // Slider Event
+            const slider = document.getElementById('superimpose-slider');
+            slider.addEventListener('input', (e) => {
+                const val = e.target.value / 100; // 0 to 1
+                // Move Molecule B towards Molecule A
+                moleculeB.position.x = POS_B_START - val * (POS_B_START - POS_A);
+                
+                // Fade out mirror plane when sliding
+                mirrorPlane.material.opacity = 0.3 * (1 - val);
+            });
+
+            // Reset Button
+            document.getElementById('reset-btn').addEventListener('click', () => {
+                moleculeA.rotation.set(0,0,0);
+                moleculeB.rotation.set(0,0,0);
+                slider.value = 0;
+                moleculeB.position.x = POS_B_START;
+                mirrorPlane.material.opacity = 0.3;
+            });
+        }
+
+        function createMolecule(isMirror, type = 'generic') {
+            const group = new THREE.Group();
+            
+            // Determine colors based on molecule type
+            let c1 = color1, c2 = color2, c3 = color3, c4 = color4;
+            
+            if (type === 'achiral') {
+                // Make two groups the same color (e.g., two greens)
+                c3 = color2; 
+            } else if (type === 'lactic') {
+                c1 = colorOH;
+                c2 = colorCH3;
+                c3 = colorH;
+                c4 = colorCOOH;
+            }
+
+            // Materials
+            const matCenter = new THREE.MeshPhongMaterial({ color: colorCenter, shininess: 100 });
+            const mat1 = new THREE.MeshPhongMaterial({ color: c1 });
+            const mat2 = new THREE.MeshPhongMaterial({ color: c2 });
+            const mat3 = new THREE.MeshPhongMaterial({ color: c3 });
+            const mat4 = new THREE.MeshPhongMaterial({ color: c4 });
+            const matBond = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+
+            // Geometries
+            const geoCenter = new THREE.SphereGeometry(0.5, 32, 32);
+            // Adjust size slightly for Hydrogen in lactic acid
+            const r1 = 0.4, r2 = 0.4, r3 = (type === 'lactic') ? 0.25 : 0.4, r4 = 0.4;
+            
+            const geo1 = new THREE.SphereGeometry(r1, 32, 32);
+            const geo2 = new THREE.SphereGeometry(r2, 32, 32);
+            const geo3 = new THREE.SphereGeometry(r3, 32, 32);
+            const geo4 = new THREE.SphereGeometry(r4, 32, 32);
+
+            const geoBond = new THREE.CylinderGeometry(0.1, 0.1, 1.5, 16);
+            geoBond.translate(0, 0.75, 0); // shift origin to base
+
+            // Center Atom
+            const center = new THREE.Mesh(geoCenter, matCenter);
+            group.add(center);
+
+            // Tetrahedral vectors (approximate 109.5 degrees)
+            // Base vectors
+            const v1 = new THREE.Vector3(0, 1.5, 0);
+            const v2 = new THREE.Vector3(1.414, -0.5, 0);
+            const v3 = new THREE.Vector3(-0.707, -0.5, 1.225);
+            const v4 = new THREE.Vector3(-0.707, -0.5, -1.225);
+
+            // Apply mirror transformation if needed (invert X axis)
+            if (isMirror) {
+                v1.x *= -1;
+                v2.x *= -1;
+                v3.x *= -1;
+                v4.x *= -1;
+            }
+
+            const vectors = [v1, v2, v3, v4];
+            const materials = [mat1, mat2, mat3, mat4];
+            const geometries = [geo1, geo2, geo3, geo4];
+
+            vectors.forEach((vec, index) => {
+                // Add atom
+                const atom = new THREE.Mesh(geometries[index], materials[index]);
+                atom.position.copy(vec);
+                group.add(atom);
+
+                // Add bond
+                const bond = new THREE.Mesh(geoBond, matBond);
+                bond.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vec.clone().normalize());
+                group.add(bond);
+            });
+
+            return group;
+        }
+
+        function updateMoleculeType() {
+            const type = document.getElementById('mol-selector').value;
+            
+            // Remove old molecules
+            scene.remove(moleculeA);
+            scene.remove(moleculeB);
+            
+            // Create new molecules
+            moleculeA = createMolecule(false, type);
+            moleculeA.position.x = POS_A;
+            scene.add(moleculeA);
+
+            moleculeB = createMolecule(true, type);
+            moleculeB.position.x = POS_B_START;
+            scene.add(moleculeB);
+
+            // Reset UI
+            document.getElementById('superimpose-slider').value = 0;
+            mirrorPlane.material.opacity = 0.3;
+            
+            // Update labels and annotations
+            const labelA = document.getElementById('label-A');
+            const labelB = document.getElementById('label-B');
+            const annotation = document.getElementById('mol-annotation');
+
+            if (type === 'generic') {
+                labelA.innerText = '原分子 (+)';
+                labelB.innerText = '鏡像分子 (-)';
+                annotation.innerHTML = '<span class="font-bold text-blue-600">一般手性分子：</span> 中心碳原子連接著四個完全不同的基團（以四種不同顏色表示）。無論你如何旋轉，它的鏡像都無法與原分子完全重疊，這就是「對映異構體」。';
+            } else if (type === 'achiral') {
+                labelA.innerText = '原分子';
+                labelB.innerText = '鏡像分子 (可重疊)';
+                annotation.innerHTML = '<span class="font-bold text-green-600">非手性分子：</span> 注意看，這個分子有兩個相同的綠色基團。這使得它具有「對稱面」，因此它和它的鏡像<strong>可以完全重疊</strong>，也就是說，它們其實是同一個分子！不會有旋光性。';
+            } else if (type === 'lactic') {
+                labelA.innerText = '(+)-乳酸 (d-)';
+                labelB.innerText = '(-)-乳酸 (l-)';
+                annotation.innerHTML = '<span class="font-bold text-orange-600">真實對映異構體 (乳酸)：</span> 白球代表氫(H)，紅球代表羥基(OH)，橘球代表羧基(COOH)，灰球代表甲基(CH3)。這對對映異構體在純水中的溶解度、沸點完全一樣，但(+)-乳酸會讓偏振光右旋，(-)-乳酸會讓偏振光左旋相同的角度。';
+            }
+        }
+
+        function setupTouchAndMouse(container) {
+            // Touch events
+            container.addEventListener('touchstart', onPointerDown, {passive: false});
+            container.addEventListener('touchmove', onPointerMove, {passive: false});
+            container.addEventListener('touchend', onPointerUp, {passive: false});
+            
+            // Mouse events
+            container.addEventListener('mousedown', onPointerDown);
+            container.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp); // window to catch outside release
+        }
+
+        function onPointerDown(e) {
+            e.preventDefault();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const rect = document.getElementById('sim-canvas-container').getBoundingClientRect();
+            
+            // Determine which side was clicked/touched
+            const relX = clientX - rect.left;
+            const width = rect.width;
+
+            if (relX < width / 2) {
+                isDraggingA = true;
+            } else {
+                isDraggingB = true;
+            }
+
+            previousMousePosition = { x: clientX, y: clientY };
+        }
+
+        function onPointerMove(e) {
+            if (!isDraggingA && !isDraggingB) return;
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const deltaMove = {
+                x: clientX - previousMousePosition.x,
+                y: clientY - previousMousePosition.y
+            };
+
+            const rotationSpeed = 0.01;
+
+            if (isDraggingA) {
+                // Rotate around world axes for intuitive trackball feel
+                rotateAroundWorldAxis(moleculeA, new THREE.Vector3(0, 1, 0), deltaMove.x * rotationSpeed);
+                rotateAroundWorldAxis(moleculeA, new THREE.Vector3(1, 0, 0), deltaMove.y * rotationSpeed);
+            }
+            if (isDraggingB) {
+                rotateAroundWorldAxis(moleculeB, new THREE.Vector3(0, 1, 0), deltaMove.x * rotationSpeed);
+                rotateAroundWorldAxis(moleculeB, new THREE.Vector3(1, 0, 0), deltaMove.y * rotationSpeed);
+            }
+
+            previousMousePosition = { x: clientX, y: clientY };
+        }
+
+        function onPointerUp(e) {
+            isDraggingA = false;
+            isDraggingB = false;
+        }
+
+        // Helper to rotate object in global space so rotation feels natural regardless of current orientation
+        function rotateAroundWorldAxis(object, axis, radians) {
+            let q = new THREE.Quaternion();
+            q.setFromAxisAngle(axis, radians);
+            object.quaternion.premultiply(q);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('sim-canvas-container');
+            if(!container) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            // Slight auto-rotation if not interacting to make it look alive
+            if(!isDraggingA && !isDraggingB) {
+                // moleculeA.rotation.y += 0.002;
+                // moleculeB.rotation.y -= 0.002;
+            }
+            renderer.render(scene, camera);
+        }
+
+
+        // --- 3. Challenge (Quiz) Logic ---
+        let playerName = "";
+        let currentQuestionIndex = 0;
+        let score = 0;
+
+        const quizData = [
+            {
+                text: "這兩個分子互為鏡像，它們是對映異構體嗎？<br><span class='text-sm text-gray-500'>（注意：碳原子上連有四個不同的基團）</span>",
+                visual: `
+                    <!-- Chiral Molecule SVG -->
+                    <svg width="100" height="120" viewBox="0 0 100 120" class="drop-shadow-md">
+                        <circle cx="50" cy="60" r="15" fill="#333"/> <!-- C -->
+                        <line x1="50" y1="45" x2="50" y2="20" stroke="#ccc" stroke-width="4"/>
+                        <circle cx="50" cy="15" r="10" fill="#ff3b30"/> <!-- Red -->
+                        
+                        <line x1="40" y1="70" x2="20" y2="90" stroke="#ccc" stroke-width="4"/>
+                        <circle cx="15" cy="95" r="10" fill="#34c759"/> <!-- Green -->
+                        
+                        <!-- Wedge -->
+                        <polygon points="60,70 85,85 80,95" fill="#ccc"/>
+                        <circle cx="85" cy="95" r="10" fill="#007aff"/> <!-- Blue -->
+                        
+                        <!-- Dash -->
+                        <line x1="60" y1="60" x2="85" y2="50" stroke="#ccc" stroke-width="2" stroke-dasharray="4"/>
+                        <circle cx="90" cy="45" r="10" fill="#ffcc00"/> <!-- Yellow -->
+                    </svg>
+                    <!-- Mirror Line -->
+                    <div class="border-r-4 border-dashed border-gray-400 my-4"></div>
+                    <!-- Mirror Image SVG -->
+                    <svg width="100" height="120" viewBox="0 0 100 120" class="drop-shadow-md">
+                        <circle cx="50" cy="60" r="15" fill="#333"/> <!-- C -->
+                        <line x1="50" y1="45" x2="50" y2="20" stroke="#ccc" stroke-width="4"/>
+                        <circle cx="50" cy="15" r="10" fill="#ff3b30"/> <!-- Red -->
+                        
+                        <!-- Mirrored Green -->
+                        <line x1="60" y1="70" x2="80" y2="90" stroke="#ccc" stroke-width="4"/>
+                        <circle cx="85" cy="95" r="10" fill="#34c759"/> 
+                        
+                        <!-- Mirrored Blue -->
+                        <polygon points="40,70 15,85 20,95" fill="#ccc"/>
+                        <circle cx="15" cy="95" r="10" fill="#007aff"/> 
+                        
+                        <!-- Mirrored Yellow -->
+                        <line x1="40" y1="60" x2="15" y2="50" stroke="#ccc" stroke-width="2" stroke-dasharray="4"/>
+                        <circle cx="10" cy="45" r="10" fill="#ffcc00"/> 
+                    </svg>
+                `,
+                options: [
+                    { label: "是，它們不能完全重疊", isCorrect: true },
+                    { label: "不是，它們是同一個分子（可重疊）", isCorrect: false }
+                ],
+                explanation: "正確！因為中心碳連接了四個不同的基團，它是手性分子，其鏡像無法與原分子重疊。"
+            },
+            {
+                text: "觀察這個分子（有兩個綠色基團相同）。它和它的鏡像能重疊嗎？因此它們是對映異構體嗎？",
+                visual: `
+                    <svg width="100" height="120" viewBox="0 0 100 120" class="drop-shadow-md">
+                        <circle cx="50" cy="60" r="15" fill="#333"/> 
+                        <line x1="50" y1="45" x2="50" y2="20" stroke="#ccc" stroke-width="4"/>
+                        <circle cx="50" cy="15" r="10" fill="#ff3b30"/> 
+                        
+                        <line x1="40" y1="70" x2="20" y2="90" stroke="#ccc" stroke-width="4"/>
+                        <circle cx="15" cy="95" r="10" fill="#34c759"/> <!-- Green 1 -->
+                        
+                        <polygon points="60,70 85,85 80,95" fill="#ccc"/>
+                        <circle cx="85" cy="95" r="10" fill="#34c759"/> <!-- Green 2 (Same!) -->
+                        
+                        <line x1="60" y1="60" x2="85" y2="50" stroke="#ccc" stroke-width="2" stroke-dasharray="4"/>
+                        <circle cx="90" cy="45" r="10" fill="#ffcc00"/> 
+                    </svg>
+                `,
+                options: [
+                    { label: "不能重疊，它們是對映異構體", isCorrect: false },
+                    { label: "能重疊，它們不是對映異構體（是同一分子）", isCorrect: true }
+                ],
+                explanation: "正確！因為有兩個相同的綠色基團，分子內部存在對稱面（非手性）。它的鏡像旋轉後可以與原分子完全重疊。"
+            },
+            {
+                text: "概念題：一對對映異構體（例如 D 型和 L 型分子），在非手性環境下，哪一項物理性質會不同？",
+                visual: `<div class="text-6xl text-center w-full py-4 text-gray-300">💡</div>`,
+                options: [
+                    { label: "A. 熔點和沸點", isCorrect: false },
+                    { label: "B. 在純水中的溶解度", isCorrect: false },
+                    { label: "C. 旋轉偏振光的方向（旋光性）", isCorrect: true },
+                    { label: "D. 密度", isCorrect: false }
+                ],
+                explanation: "正確！對映異構體的大多數物理和化學性質都相同，唯獨對偏振光的旋轉方向相反。"
+            },
+            {
+                text: "應用題：已知 (+)-乳酸 的比旋光度為 +3.8°。請問它的對映異構體 (-)-乳酸 的比旋光度會是多少？",
+                visual: `
+                    <div class="flex justify-center items-center space-x-4">
+                        <div class="bg-blue-100 p-4 rounded-lg text-center shadow">
+                            <span class="font-bold text-blue-800">(+)-乳酸</span><br>
+                            <span class="text-xl">+3.8°</span>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-400">?</div>
+                        <div class="bg-red-100 p-4 rounded-lg text-center shadow border-2 border-dashed border-red-300">
+                            <span class="font-bold text-red-800">(-)-乳酸</span><br>
+                            <span class="text-xl text-red-400">???</span>
+                        </div>
+                    </div>
+                `,
+                options: [
+                    { label: "+3.8°", isCorrect: false },
+                    { label: "0°", isCorrect: false },
+                    { label: "-3.8°", isCorrect: true },
+                    { label: "無法確定", isCorrect: false }
+                ],
+                explanation: "正確！對映異構體的旋光度數值大小完全相同，但旋轉方向相反。因此一個是 +3.8°，它的鏡像必然是 -3.8°。"
+            },
+            {
+                text: "判斷題：要判斷一個碳原子是否為「手性中心 (Chiral Center)」，該碳原子必須符合什麼條件？",
+                visual: `<div class="text-6xl text-center w-full py-4 text-gray-300">🔍</div>`,
+                options: [
+                    { label: "A. 必須連接 4 個相同的基團", isCorrect: false },
+                    { label: "B. 必須連接 3 個不同的基團", isCorrect: false },
+                    { label: "C. 必須包含雙鍵", isCorrect: false },
+                    { label: "D. 必須連接 4 個互不相同的基團", isCorrect: true }
+                ],
+                explanation: "正確！當一個碳原子連接著 4 個互不相同的基團時，它就沒有對稱面，形成手性中心，其鏡像無法與原分子重疊。"
+            }
+        ];
+
+        function startQuiz() {
+            const nameInput = document.getElementById('playerName').value.trim();
+            if(nameInput === "") {
+                alert("請先輸入你的名字！");
+                return;
+            }
+            playerName = nameInput;
+            currentQuestionIndex = 0;
+            score = 0;
+            
+            document.getElementById('quiz-start').classList.add('hidden');
+            document.getElementById('quiz-questions').classList.remove('hidden');
+            
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const q = quizData[currentQuestionIndex];
+            
+            document.getElementById('quiz-progress').innerText = `問題 ${currentQuestionIndex + 1} / ${quizData.length}`;
+            document.getElementById('quiz-score-live').innerText = `得分: ${score}`;
+            
+            document.getElementById('q-text').innerHTML = q.text;
+            document.getElementById('q-visual').innerHTML = q.visual;
+            
+            const optionsContainer = document.getElementById('q-options');
+            optionsContainer.innerHTML = '';
+            
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left bg-white border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-700 font-semibold py-4 px-6 rounded-lg transition duration-200";
+                btn.innerHTML = opt.label;
+                btn.onclick = () => handleAnswer(opt.isCorrect, btn, q.explanation);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(isCorrect, buttonEl, explanation) {
+            // Disable all buttons
+            const buttons = document.getElementById('q-options').querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            });
+
+            // Highlight answer
+            buttonEl.classList.remove('opacity-50');
+            if (isCorrect) {
+                buttonEl.classList.remove('border-gray-200', 'hover:border-blue-500', 'hover:bg-blue-50');
+                buttonEl.classList.add('border-green-500', 'bg-green-100', 'text-green-800');
+                score++;
+            } else {
+                buttonEl.classList.remove('border-gray-200', 'hover:border-blue-500', 'hover:bg-blue-50');
+                buttonEl.classList.add('border-red-500', 'bg-red-100', 'text-red-800');
+            }
+
+            // Show Explanation & Next Button
+            const expDiv = document.createElement('div');
+            expDiv.className = `mt-4 p-4 rounded-lg font-medium text-sm ${isCorrect ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
+            expDiv.innerHTML = `${isCorrect ? '✅ ' : '❌ 錯誤。'}${explanation}`;
+            
+            const nextBtn = document.createElement('button');
+            nextBtn.className = "mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition shadow";
+            nextBtn.innerText = currentQuestionIndex === quizData.length - 1 ? "查看結果" : "下一題";
+            nextBtn.onclick = nextQuestion;
+
+            document.getElementById('q-options').appendChild(expDiv);
+            document.getElementById('q-options').appendChild(nextBtn);
+            
+            document.getElementById('quiz-score-live').innerText = `得分: ${score}`;
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if(currentQuestionIndex < quizData.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            document.getElementById('quiz-questions').classList.add('hidden');
+            document.getElementById('quiz-results').classList.remove('hidden');
+            
+            document.getElementById('result-name').innerText = playerName;
+            document.getElementById('result-score').innerText = `${score} / ${quizData.length}`;
+            
+            const messageEl = document.getElementById('result-message');
+            const iconEl = document.getElementById('result-icon');
+            
+            if (score === quizData.length) {
+                iconEl.innerText = "🌟";
+                messageEl.innerText = "太棒了！你已經完全掌握了對映異構體的概念。";
+                messageEl.className = "text-lg font-bold text-green-600 mb-8";
+            } else if (score > 0) {
+                iconEl.innerText = "👍";
+                messageEl.innerText = "表現不錯！但還有進步空間，建議多利用模擬器觀察分子的空間結構。";
+                messageEl.className = "text-lg font-medium text-blue-600 mb-8";
+            } else {
+                iconEl.innerText = "📚";
+                messageEl.innerText = "別灰心！立體化學需要多點空間想像力，回到模擬器再試著旋轉看看吧！";
+                messageEl.className = "text-lg font-medium text-orange-600 mb-8";
+            }
+        }
+
+        function resetQuiz() {
+            document.getElementById('quiz-results').classList.add('hidden');
+            document.getElementById('quiz-start').classList.remove('hidden');
+            document.getElementById('playerName').value = ""; // Clear name for new attempt
+        }
+    </script>
+</body>
+</html>

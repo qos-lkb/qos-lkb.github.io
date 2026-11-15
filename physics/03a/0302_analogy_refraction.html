@@ -1,15 +1,61 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>物理教學：光的折射 (車輛模型)</title>
+    <title>折射類比（車輛模型） / Refraction Analogy (Vehicle Model)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 MathJax 用於顯示數學公式 -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        /* 自定義 Slider 樣式 */
+        body { font-family: 'Noto Sans TC', "PingFang TC", "Microsoft JhengHei", 'Segoe UI', sans-serif; }
         input[type=range] {
             -webkit-appearance: none;
             background: transparent;
@@ -32,194 +78,453 @@
             background: #e5e7eb;
             border-radius: 2px;
         }
-        /* 禁止選取文字，讓操作更順暢 */
         .no-select {
             user-select: none;
             -webkit-user-select: none;
         }
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
+        .mj-calc .MathJax { font-size: 0.95em !important; }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans h-screen flex flex-col overflow-hidden no-select">
+<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden no-select">
 
-    <!-- 頂部標題列 -->
-    <header class="bg-slate-900 text-white p-4 shadow-lg flex justify-between items-center z-20 shrink-0">
-        <div class="flex items-center gap-3">
-            <div class="bg-blue-500 p-2 rounded-lg">
+    <header class="bg-slate-900 text-white p-3 sm:p-4 shadow-lg flex flex-wrap justify-between items-center gap-2 z-20 shrink-0">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="bg-blue-500 p-2 rounded-lg shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
             </div>
-            <div>
-                <h1 class="text-xl font-bold tracking-wide">光的折射原理</h1>
-                <p class="text-xs text-slate-400">車輛模型比喻：從快介質進入慢介質</p>
+            <div class="min-w-0">
+                <h1 id="title" class="text-lg sm:text-xl font-bold tracking-wide truncate">折射類比（車輛模型）</h1>
+                <p id="subtitle" class="text-xs text-slate-400 truncate max-w-xl">車輛模型比喻：從快介質進入慢介質</p>
             </div>
+            <span id="badge-subject" class="text-xs bg-sky-600 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">科學</span>
         </div>
-        <div class="text-right hidden sm:block pr-4">
-            <!-- 使用 MathJax 顯示公式 -->
-            <div class="text-sm text-yellow-400">
-                \( n_1 \sin \theta_1 = n_2 \sin \theta_2 \)
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-600"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-md text-xs sm:text-sm font-semibold transition-colors">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs sm:text-sm font-semibold transition-colors">重置</button>
+            <div class="text-right hidden md:block pl-2">
+                <div class="text-sm text-yellow-400">
+                    \( n_1 \sin \theta_1 = n_2 \sin \theta_2 \)
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- 主內容區 -->
-    <div class="flex flex-1 h-full overflow-hidden">
-        
-        <!-- 左側控制面板 -->
-        <aside class="w-80 bg-white shadow-xl flex flex-col z-10 border-r border-gray-200 overflow-y-auto">
-            <div class="p-6 space-y-6">
-                
-                <!-- 1. 地面材質選擇 -->
-                <div class="space-y-3">
-                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider">
-                        1. 選擇介質 2 (下方地面)
-                    </label>
-                    <div class="relative">
-                        <select id="surfaceSelect" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-medium">
-                            <option value="0.9">混凝土路 (速度 90%) - 輕微折射</option>
-                            <option value="0.6" selected>泥地 (速度 60%) - 明顯折射</option>
-                            <option value="0.4">鬆軟沙地 (速度 40%) - 強烈折射</option>
-                            <option value="0.25">黏稠沼澤 (速度 25%) - 極端折射</option>
-                        </select>
-                        <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    <div class="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
+        <div class="h-full max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+            <section class="order-1 lg:col-span-8 relative bg-gray-200 rounded-xl overflow-hidden shadow-md min-h-[280px] lg:min-h-0">
+                <canvas id="simCanvas" class="block w-full h-full cursor-crosshair"></canvas>
+
+                <div id="hud" class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 w-64 hidden">
+                    <h4 id="hudTitle" class="text-xs font-bold text-gray-400 uppercase mb-2">實時狀態</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span id="hudLocLabel" class="text-sm text-gray-600">當前位置:</span>
+                            <span id="hudLocation" class="text-xs font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-800">柏油路</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="hudSpeedLabel" class="text-sm text-gray-600">當前速率:</span>
+                            <div class="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div id="hudSpeedBar" class="h-full bg-blue-500 transition-all duration-300" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center pt-1">
+                            <span id="hudLeftLabel" class="text-sm text-gray-600">左輪狀態:</span>
+                            <span id="hudLeftWheel" class="w-3 h-3 rounded-full bg-green-500"></span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="hudRightLabel" class="text-sm text-gray-600">右輪狀態:</span>
+                            <span id="hudRightWheel" class="w-3 h-3 rounded-full bg-green-500"></span>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-500 pl-1">
-                        * 上方預設為 <span class="font-bold text-slate-700">柏油路 (速度 100%)</span>
-                    </p>
+                    <div id="turnAlert" class="mt-3 text-xs bg-yellow-50 text-yellow-700 p-2 rounded border border-yellow-100 hidden"></div>
                 </div>
 
-                <!-- 2. 入射角 Slidebar -->
-                <div class="space-y-4">
-                    <div class="flex justify-between items-center">
-                        <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider">
-                            2. 設定入射角 (\(\theta_1\))
+                <div class="absolute bottom-4 right-4 flex flex-col gap-2 pointer-events-none">
+                    <div class="bg-white/80 backdrop-blur px-3 py-2 rounded-lg text-xs text-gray-600 border border-gray-200 shadow-sm">
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="w-3 h-3 bg-gray-800 rounded"></div> <span id="legendFast">柏油路 (快)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div id="legendSurfaceColor" class="w-3 h-3 bg-amber-700 rounded"></div> <span id="legendSlow">選定材質 (慢)</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="order-2 lg:col-span-4 bg-white shadow-xl flex flex-col z-10 border border-gray-200 rounded-xl overflow-y-auto min-h-0">
+                <div class="p-5 space-y-5">
+
+                    <div class="space-y-3">
+                        <label id="labelSurface" class="block text-sm font-bold text-slate-700 uppercase tracking-wider">
+                            1. 選擇介質 2 (下方地面)
                         </label>
-                        <span id="angleValue" class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">30°</span>
-                    </div>
-                    <div class="relative h-6 flex items-center">
-                        <input type="range" id="angleInput" min="0" max="75" value="30" step="1" class="w-full z-20 relative">
-                        <!-- 刻度 -->
-                        <div class="absolute w-full flex justify-between text-[10px] text-gray-400 top-6 px-1">
-                            <span>0°</span>
-                            <span>15°</span>
-                            <span>30°</span>
-                            <span>45°</span>
-                            <span>60°</span>
-                            <span>75°</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 4. 顯示設定 -->
-                <div class="space-y-3 pt-2">
-                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider">
-                        顯示設定
-                    </label>
-                    <label class="flex items-center space-x-3 cursor-pointer group">
                         <div class="relative">
-                            <input id="showPathCheck" type="checkbox" checked class="sr-only peer">
-                            <div class="w-10 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <select id="surfaceSelect" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-medium">
+                                <option value="0.9" id="optConcrete">混凝土路 (速度 90%) - 輕微折射</option>
+                                <option value="0.6" id="optMud" selected>泥地 (速度 60%) - 明顯折射</option>
+                                <option value="0.4" id="optSand">鬆軟沙地 (速度 40%) - 強烈折射</option>
+                                <option value="0.25" id="optSwamp">黏稠沼澤 (速度 25%) - 極端折射</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
                         </div>
-                        <span class="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition">顯示路徑、法線與角度</span>
-                    </label>
-                </div>
+                        <p id="hintMedium1" class="text-xs text-slate-500 pl-1">
+                            * 上方預設為 <span class="font-bold text-slate-700">柏油路 (速度 100%)</span>
+                        </p>
+                    </div>
 
-                <!-- 數據面板 -->
-                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase border-b border-slate-200 pb-2">預測數據</h3>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-600">介質速率 (\(v_2\)):</span>
-                        <span id="speedDisplay" class="font-mono font-bold text-slate-800">60%</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-600">折射角 (\(\theta_2\)):</span>
-                        <span id="refractionAngleDisplay" class="font-mono font-bold text-red-600">--°</span>
-                    </div>
-                    
-                    <!-- 新增：折射率計算 -->
-                    <div class="mt-4 pt-2 border-t border-slate-200">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">折射率計算 (斯涅耳定律)</h3>
-                        <div id="calculationDisplay" class="text-xs font-mono text-slate-700 bg-white p-2 rounded border border-slate-100 leading-relaxed overflow-x-auto">
-                            <!-- JS將在此填入內容 -->
-                            計算中...
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <label id="labelAngle" class="block text-sm font-bold text-slate-700 uppercase tracking-wider">
+                                2. 設定入射角 (\(\theta_1\))
+                            </label>
+                            <span id="angleValue" class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">30°</span>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. 開始按鈕 -->
-            <div class="mt-auto p-6 border-t border-gray-100 bg-gray-50 space-y-3">
-                <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                    </svg>
-                    開始模擬
-                </button>
-                <button id="resetBtn" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 px-4 rounded-xl hover:bg-gray-50 transition-colors">
-                    重置
-                </button>
-            </div>
-        </aside>
-
-        <!-- 右側 Canvas 區域 -->
-        <main class="flex-1 relative bg-gray-200">
-            <canvas id="simCanvas" class="block w-full h-full cursor-crosshair"></canvas>
-            
-            <!-- 實時狀態浮層 (HUD) -->
-            <div id="hud" class="absolute top-6 left-6 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 w-64 hidden">
-                <h4 class="text-xs font-bold text-gray-400 uppercase mb-2">實時狀態</h4>
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">當前位置:</span>
-                        <span id="hudLocation" class="text-xs font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-800">柏油路</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">當前速率:</span>
-                        <div class="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div id="hudSpeedBar" class="h-full bg-blue-500 transition-all duration-300" style="width: 100%"></div>
+                        <div class="relative h-6 flex items-center mb-4">
+                            <input type="range" id="angleInput" min="0" max="75" value="30" step="1" class="w-full z-20 relative">
+                            <div class="absolute w-full flex justify-between text-[10px] text-gray-400 top-6 px-1">
+                                <span>0°</span>
+                                <span>15°</span>
+                                <span>30°</span>
+                                <span>45°</span>
+                                <span>60°</span>
+                                <span>75°</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex justify-between items-center pt-1">
-                        <span class="text-sm text-gray-600">左輪狀態:</span>
-                        <span id="hudLeftWheel" class="w-3 h-3 rounded-full bg-green-500"></span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">右輪狀態:</span>
-                        <span id="hudRightWheel" class="w-3 h-3 rounded-full bg-green-500"></span>
-                    </div>
-                </div>
-                <div id="turnAlert" class="mt-3 text-xs bg-yellow-50 text-yellow-700 p-2 rounded border border-yellow-100 hidden">
-                    ⚡ 右輪進入慢速區，車身向右旋轉！
-                </div>
-            </div>
 
-            <!-- 圖例 -->
-            <div class="absolute bottom-6 right-6 flex flex-col gap-2 pointer-events-none">
-                <div class="bg-white/80 backdrop-blur px-3 py-2 rounded-lg text-xs text-gray-600 border border-gray-200 shadow-sm">
-                    <div class="flex items-center gap-2 mb-1">
-                        <div class="w-3 h-3 bg-gray-800 rounded"></div> <span>柏油路 (快)</span>
+                    <div class="space-y-3 pt-2">
+                        <label id="labelDisplay" class="block text-sm font-bold text-slate-700 uppercase tracking-wider">
+                            顯示設定
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <div class="relative">
+                                <input id="showPathCheck" type="checkbox" checked class="sr-only peer">
+                                <div class="w-10 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </div>
+                            <span id="labelShowPath" class="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition">顯示路徑、法線與角度</span>
+                        </label>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <div id="legendSurfaceColor" class="w-3 h-3 bg-amber-700 rounded"></div> <span>選定材質 (慢)</span>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                        <h3 id="predictTitle" class="text-xs font-bold text-slate-400 uppercase border-b border-slate-200 pb-2">預測數據</h3>
+                        <div class="flex justify-between text-sm">
+                            <span id="labelV2" class="text-slate-600">介質速率 (\(v_2\)):</span>
+                            <span id="speedDisplay" class="font-mono font-bold text-slate-800">60%</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span id="labelTheta2" class="text-slate-600">折射角 (\(\theta_2\)):</span>
+                            <span id="refractionAngleDisplay" class="font-mono font-bold text-red-600">--°</span>
+                        </div>
+
+                        <div class="mt-4 pt-2 border-t border-slate-200">
+                            <h3 id="calcTitle" class="text-xs font-bold text-slate-400 uppercase mb-2">折射率計算 (斯涅耳定律)</h3>
+                            <div id="calculationDisplay" class="mj-calc text-xs font-mono text-slate-700 bg-white p-2 rounded border border-slate-100 leading-relaxed overflow-x-auto">
+                                計算中...
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </main>
+
+                <div class="mt-auto p-5 border-t border-gray-100 bg-gray-50 space-y-3">
+                    <button type="button" id="startBtn" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                        </svg>
+                        <span id="startBtnLabel">開始模擬</span>
+                    </button>
+                    <button type="button" id="btn-reset-panel" class="w-full bg-white border border-gray-300 text-gray-700 font-bold py-2 px-4 rounded-xl hover:bg-gray-50 transition-colors">
+                        重置
+                    </button>
+                </div>
+            </aside>
+        </div>
     </div>
 
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+      </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200">
+          <h2 id="principle-title" class="text-lg font-bold text-teal-700">原理解說</h2>
+          <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+        </div>
+        <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+      </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+        <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+          <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300 font-semibold">顯示參考答案</button>
+            <button type="button" class="modal-close text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" aria-label="Close">&times;</button>
+          </div>
+        </div>
+        <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+      </div>
+    </div>
+
+
     <script>
-        // --- 變數與設定 ---
+        const i18n = {
+            zh: {
+                langBtn: "中 / EN",
+                title: "折射類比（車輛模型）",
+                subtitle: "車輛模型比喻：從快介質進入慢介質",
+                badge: "科學",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
+                stepsTitle: "觀察步驟",
+                principleTitle: "原理解說",
+                quizTitle: "課堂問題",
+                showAns: "顯示參考答案",
+                hideAns: "隱藏參考答案",
+                labelSurface: "1. 選擇介質 2 (下方地面)",
+                optConcrete: "混凝土路 (速度 90%) - 輕微折射",
+                optMud: "泥地 (速度 60%) - 明顯折射",
+                optSand: "鬆軟沙地 (速度 40%) - 強烈折射",
+                optSwamp: "黏稠沼澤 (速度 25%) - 極端折射",
+                hintMedium1: '* 上方預設為 <span class="font-bold text-slate-700">柏油路 (速度 100%)</span>',
+                labelAngle: "2. 設定入射角 (\\(\\theta_1\\))",
+                labelDisplay: "顯示設定",
+                labelShowPath: "顯示路徑、法線與角度",
+                predictTitle: "預測數據",
+                labelV2: "介質速率 (\\(v_2\\)):",
+                labelTheta2: "折射角 (\\(\\theta_2\\)):",
+                calcTitle: "折射率計算 (斯涅耳定律)",
+                calcPending: "計算中...",
+                startBtn: "開始模擬",
+                startRunning: "行駛中...",
+                startReplay: "重新播放",
+                hudTitle: "實時狀態",
+                hudLocLabel: "當前位置:",
+                hudSpeedLabel: "當前速率:",
+                hudLeftLabel: "左輪狀態:",
+                hudRightLabel: "右輪狀態:",
+                locAsphalt: "柏油路 (介質 1)",
+                locAsphaltShort: "柏油路",
+                locCrossing: "穿越邊界中...",
+                legendFast: "柏油路 (快)",
+                legendSlow: "選定材質 (慢)",
+                canvasMed1: "介質 1: 柏油路",
+                canvasMed2Prefix: "介質 2: ",
+                turnRight: "⚡ 右輪進入慢速區，車身向右旋轉！",
+                turnRightDetail: "⚡ 左輪尚在快區，右輪已入慢區，車身<b>右轉</b>！",
+                turnGeneric: "⚡ 轉向中...",
+                calcVertTitle: "垂直入射 (\\(\\theta_1 = 0^\\circ\\))",
+                calcKnown: "已知 \\(n_1 \\approx 1.0\\) (柏油路)",
+                calcSnell: "根據斯涅耳定律："
+            },
+            en: {
+                langBtn: "中 / EN",
+                title: "Refraction Analogy (Vehicle Model)",
+                subtitle: "Vehicle analogy: fast medium → slow medium",
+                badge: "Science",
+                btnSteps: "Steps",
+                btnPrinciple: "Principles",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
+                stepsTitle: "Observation steps",
+                principleTitle: "Principles",
+                quizTitle: "Quiz",
+                showAns: "Show answers",
+                hideAns: "Hide answers",
+                labelSurface: "1. Choose medium 2 (lower surface)",
+                optConcrete: "Concrete (90% speed) — mild refraction",
+                optMud: "Mud (60% speed) — clear refraction",
+                optSand: "Soft sand (40% speed) — strong refraction",
+                optSwamp: "Viscous swamp (25% speed) — extreme refraction",
+                hintMedium1: '* Top is fixed <span class="font-bold text-slate-700">asphalt (100% speed)</span>',
+                labelAngle: "2. Angle of incidence (\\(\\theta_1\\))",
+                labelDisplay: "Display",
+                labelShowPath: "Show path, normal & angles",
+                predictTitle: "Predicted data",
+                labelV2: "Medium speed (\\(v_2\\)):",
+                labelTheta2: "Angle of refraction (\\(\\theta_2\\)):",
+                calcTitle: "Refractive index (Snell's law)",
+                calcPending: "Calculating...",
+                startBtn: "Start",
+                startRunning: "Running...",
+                startReplay: "Replay",
+                hudTitle: "Live status",
+                hudLocLabel: "Location:",
+                hudSpeedLabel: "Speed:",
+                hudLeftLabel: "Left wheel:",
+                hudRightLabel: "Right wheel:",
+                locAsphalt: "Asphalt (medium 1)",
+                locAsphaltShort: "Asphalt",
+                locCrossing: "Crossing boundary...",
+                legendFast: "Asphalt (fast)",
+                legendSlow: "Selected surface (slow)",
+                canvasMed1: "Medium 1: Asphalt",
+                canvasMed2Prefix: "Medium 2: ",
+                turnRight: "⚡ Right wheel enters slow zone — body yaws right!",
+                turnRightDetail: "⚡ Left wheel still fast, right wheel slow — body <b>yaws right</b>!",
+                turnGeneric: "⚡ Turning...",
+                calcVertTitle: "Normal incidence (\\(\\theta_1 = 0^\\circ\\))",
+                calcKnown: "Given \\(n_1 \\approx 1.0\\) (asphalt)",
+                calcSnell: "By Snell's law:"
+            }
+        };
+
+        const STEPS = [
+          {
+            zh: '按<strong>重置</strong>。確認：介質 2＝泥地（速度 60%）、入射角 \\(\\theta_1=30^\\circ\\)、已勾選「顯示路徑、法線與角度」、語言<strong>不變</strong>。上方是柏油路（快），下方是慢介質；黃線為理論光路，紅車為類比。確認本檔是 <strong>折射車輛類比</strong>（slug <code>analogy-refraction</code>），不是 <code>snells-law</code> 測 \\(n\\) 實驗，也不是 <code>laws-of-reflection</code> 反射。',
+            en: 'Press <strong>Reset</strong>. Confirm medium 2＝mud (60% speed), \\(\\theta_1=30^\\circ\\), path／normal／angles <strong>on</strong>, <strong>language unchanged</strong>. Top＝fast asphalt; bottom＝slow surface; yellow＝theory rays; red car＝analogy. This file is the <strong>vehicle refraction analogy</strong> (slug <code>analogy-refraction</code>), not <code>snells-law</code> or <code>laws-of-reflection</code>.'
+          },
+          {
+            zh: '在側欄讀「折射角 \\(\\theta_2\\)」與計算面板（約 \\(\\theta_2 < 30^\\circ\\)）。按<strong>開始模擬</strong>，觀察車斜向駛入邊界：HUD 顯示右輪先入慢區、車身<strong>右轉</strong>，進入下方後速率條變短。',
+            en: 'Read predicted \\(\\theta_2\\)（should be \\(<30^\\circ\\)）and the calculation panel. Press <strong>Start</strong>. Watch the car cross the boundary: HUD shows the right wheel entering the slow zone first and the body <strong>yawing right</strong>; speed bar shortens below.'
+          },
+          {
+            zh: '重置後，把介質 2 改成<strong>黏稠沼澤（25%）</strong>，比較新的 \\(\\theta_2\\)（應更小）再開始模擬——轉向與減速應比泥地更明顯。可再試混凝土（90%）見較輕微折射。',
+            en: 'After Reset, set medium 2 to <strong>swamp (25%)</strong>, compare the smaller \\(\\theta_2\\), then Start—yaw／slowdown should be stronger than mud. Try concrete (90%) for a milder bend.'
+          },
+          {
+            zh: '將 \\(\\theta_1\\) 設為 <strong>0°</strong>，讀 \\(\\theta_2\\)（應為 0°）。開始模擬：車應沿法線直入，<strong>無</strong>左右轉向提示。這對應「垂直入射不折射轉向」。',
+            en: 'Set \\(\\theta_1=0^\\circ\\); \\(\\theta_2\\) should be 0°. Start: the car goes straight along the normal with <strong>no</strong> left／right yaw alert—normal incidence.'
+          },
+          {
+            zh: '取消再勾選「顯示路徑、法線與角度」，對照黃理論線／角標與白車跡。用自己的話複述：快→慢、先入慢側減速→靠近法線。再<strong>重置</strong>（語言不變）。打開原理解說與課堂問題——主軸是車輛折射類比，不是測 \\(n\\) 表或平面鏡反射。',
+            en: 'Toggle path／normal／angles off／on; compare yellow theory rays with the white car trail. Restate fast→slow and “first slow wheel → bend toward the normal.” <strong>Reset</strong> again (<strong>language unchanged</strong>). Open Principles／Quiz—focus this vehicle analogy, not \\(n\\)-tables or plane-mirror reflection.'
+          }
+        ];
+
+        const PRINCIPLE = {
+          zh: {
+            conceptTitle: '概念',
+            concept: '<strong>折射類比（車輛模型）</strong>（slug <code>analogy-refraction</code>）用雙輪車從快路面駛入慢路面，比喻光線由光疏（快）介質進入光密（慢）介質時方向改變。真實光線遵循斯涅耳定律 \\(n_1\\sin\\theta_1=n_2\\sin\\theta_2\\)；本模擬以速度比 \\(v_2/v_1\\) 近似 \\(n\\propto 1/v\\)，讓學生先建立「減速差 → 轉向」的圖像，再對接公式。',
+            mechTitle: '機制／流程',
+            mech: [
+              '<strong>介質設定</strong>：介質 1 固定為柏油路（\\(v_1=100\\%\\)，\\(n_1\\approx 1\\)）；介質 2 可選混凝土／泥地／沙地／沼澤（\\(v_2\\) 愈小 → \\(n_2\\) 愈大）。',
+              '<strong>入射角</strong>：\\(\\theta_1\\) 相對<strong>法線</strong>（畫布鉛直虛線）；0° 為垂直入射。',
+              '<strong>預測</strong>：\\(\\sin\\theta_2=\\sin\\theta_1\\cdot(v_2/v_1)\\)（在可計算範圍內）；側欄顯示 \\(\\theta_2\\) 與 \\(n_2\\) 演算。',
+              '<strong>類比動畫</strong>：斜向穿越時，先進入慢區的一側輪減速，車身旋轉，使行進方向靠近法線（\\(\\theta_2<\\theta_1\\)）。',
+              '<strong>顯示層</strong>：黃線＝理論光路；白虛線＝車跡；HUD＝即時輪態／速率。',
+              '<strong>範圍</strong>：課堂類比示意——<strong>不是</strong>精確電磁波動力學，<strong>不是</strong> <code>snells-law</code> 半圓玻璃測 \\(n\\)／\\(\\sin i\\)–\\(\\sin r\\) 擬合，<strong>不是</strong> <code>laws-of-reflection</code> 反射定律，<strong>不是</strong>全反射專題。'
+            ],
+            egTitle: '日常／課堂例子',
+            eg: '車輛斜向駛入泥地時會「扭轉」方向；泳池底看起來變淺／筷子「折斷」，都與光在不同介質中的速度與折射有關。課堂用加速的車輛動畫，比只看靜態光線圖更容易記住「為什麼會轉」。'
+          },
+          en: {
+            conceptTitle: 'Concept',
+            concept: 'This <strong>refraction analogy (vehicle model)</strong> (slug <code>analogy-refraction</code>) uses a two-wheel car moving from a fast surface into a slow one to picture light bending from a faster medium into a slower one. Real rays obey Snell’s law \\(n_1\\sin\\theta_1=n_2\\sin\\theta_2\\); the sim approximates \\(n\\propto 1/v\\) via the speed ratio \\(v_2/v_1\\) so learners first grasp “speed difference → turn,” then connect the formula.',
+            mechTitle: 'Mechanism／workflow',
+            mech: [
+              '<strong>Media</strong>: medium 1 is fixed asphalt (\\(v_1=100\\%\\), \\(n_1\\approx 1\\)); medium 2 is concrete／mud／sand／swamp (smaller \\(v_2\\) → larger \\(n_2\\)).',
+              '<strong>Incidence</strong>: \\(\\theta_1\\) is measured from the <strong>normal</strong> (dashed vertical); 0° is normal incidence.',
+              '<strong>Prediction</strong>: \\(\\sin\\theta_2=\\sin\\theta_1\\cdot(v_2/v_1)\\) within range; the panel shows \\(\\theta_2\\) and an \\(n_2\\) walkthrough.',
+              '<strong>Analogy animation</strong>: on an oblique crossing, the first wheel into the slow zone slows, the body yaws, and the path bends <strong>toward the normal</strong> (\\(\\theta_2<\\theta_1\\)).',
+              '<strong>Display layers</strong>: yellow＝theory rays; white dashed＝car trail; HUD＝wheel／speed state.',
+              '<strong>Scope</strong>: classroom analogy—<strong>not</strong> full EM wave mechanics, <strong>not</strong> the <code>snells-law</code> semicircle \\(n\\) lab／\\(\\sin i\\)–\\(\\sin r\\) fit, <strong>not</strong> <code>laws-of-reflection</code>, <strong>not</strong> a TIR special.'
+            ],
+            egTitle: 'Everyday／class example',
+            eg: 'A vehicle veering as it enters mud, or a stick looking “broken” in water, links to different speeds and refraction. Speeding up the car in class makes the “why it turns” stick better than a static ray diagram alone.'
+          }
+        };
+
+        const QUIZ = [
+          {
+            q: {
+              zh: '按<strong>重置</strong>後，不改任何控件。哪項最符合本模擬（<code>analogy-refraction</code>）的預設？',
+              en: 'After <strong>Reset</strong>, without changing controls, which best matches this <code>analogy-refraction</code> default?'
+            },
+            choices: [
+              { zh: '介質 2＝泥地（約 60% 速）、\\(\\theta_1=30^\\circ\\)、顯示路徑已勾選', en: 'Medium 2＝mud (~60% speed), \\(\\theta_1=30^\\circ\\), path display on' },
+              { zh: '介質 2＝沼澤（25%）、\\(\\theta_1=0^\\circ\\)、路徑強制關閉', en: 'Medium 2＝swamp (25%), \\(\\theta_1=0^\\circ\\), path forced off' },
+              { zh: '本模擬預設進入平面鏡反射模式且 \\(i=r\\)', en: 'Default enters plane-mirror mode with \\(i=r\\)' },
+              { zh: '預設會自動打開 <code>snells-law</code> 數據表並記錄 \\(\\sin i\\)', en: 'Default auto-opens the <code>snells-law</code> data table and logs \\(\\sin i\\)' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。對應預設泥地 0.6、\\(\\theta_1=30^\\circ\\)、路徑勾選；C／D 為 sibling 離題。',
+              en: 'A. Defaults: mud 0.6, \\(\\theta_1=30^\\circ\\), path on; C／D are sibling distractors.'
+            }
+          },
+          {
+            q: {
+              zh: '維持預設（泥地、30°），先<strong>預測</strong>斜向從快區進入慢區時 HUD 與車身會如何，再按<strong>開始模擬</strong>核對。',
+              en: 'Keep defaults (mud, 30°). <strong>Predict</strong> what the HUD and car do on an oblique fast→slow crossing, then press <strong>Start</strong> to check.'
+            },
+            choices: null,
+            explain: {
+              zh: '先入慢區的一側輪減速，車身轉向使路徑靠近法線（\\(\\theta_2<\\theta_1\\)）；右輪先入慢區時車身右轉。',
+              en: 'The first wheel into the slow zone slows; the path bends toward the normal (\\(\\theta_2<\\theta_1\\)); with the right wheel entering first the body yaws right.'
+            }
+          },
+          {
+            q: {
+              zh: '重置後，先看泥地（60%）的預測 \\(\\theta_2\\)，再改為<strong>沼澤（25%）</strong>（\\(\\theta_1\\) 仍 30°）。哪項正確？',
+              en: 'After Reset, note \\(\\theta_2\\) for mud (60%), then switch to <strong>swamp (25%)</strong> with \\(\\theta_1\\) still 30°. Which is correct?'
+            },
+            choices: [
+              { zh: '沼澤的預測 \\(\\theta_2\\) 更小（更靠近法線），動畫轉向／減速更明顯', en: 'Swamp predicts a <strong>smaller</strong> \\(\\theta_2\\) (closer to the normal) and a stronger yaw／slowdown' },
+              { zh: '沼澤的 \\(\\theta_2\\) 一定變成 90°', en: 'Swamp must make \\(\\theta_2=90^\\circ\\)' },
+              { zh: '改介質只改顏色，從不改 \\(\\theta_2\\)', en: 'Changing medium only recolors the canvas; \\(\\theta_2\\) never changes' },
+              { zh: '選沼澤會自動切換到 <code>laws-of-reflection</code> 鏡面滑桿', en: 'Choosing swamp jumps into the <code>laws-of-reflection</code> mirror slider' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。\\(\\sin\\theta_2=\\sin\\theta_1\\times\\) ratio，0.25＜0.6 → \\(\\theta_2\\) 更小。',
+              en: 'A. \\(\\sin\\theta_2=\\sin\\theta_1\\times\\) ratio; 0.25＜0.6 → smaller \\(\\theta_2\\).'
+            }
+          },
+          {
+            q: {
+              zh: '將入射角設為 <strong>0°</strong>，先讀預測 \\(\\theta_2\\) 並<strong>預測</strong>車身會否轉向，再按<strong>開始模擬</strong>核對。',
+              en: 'Set incidence to <strong>0°</strong>, read predicted \\(\\theta_2\\), <strong>predict</strong> whether the car will yaw, then <strong>Start</strong> to check.'
+            },
+            choices: null,
+            explain: {
+              zh: '\\(\\theta_2=0^\\circ\\)，車沿法線直入，無左右轉向提示（垂直入射）。',
+              en: '\\(\\theta_2=0^\\circ\\); the car goes straight along the normal with no left／right yaw alert (normal incidence).'
+            }
+          },
+          {
+            q: {
+              zh: '先把介質改成沙地、入射角拉到約 60° 並開始模擬，再按<strong>重置</strong>。哪項最符合重置後狀態？',
+              en: 'Set sand, \\(\\theta_1\\approx 60^\\circ\\), Start, then <strong>Reset</strong>. Which best matches the state after Reset?'
+            },
+            choices: [
+              { zh: '介質回泥地 60%、\\(\\theta_1\\) 回 30°、路徑勾選恢復、車回起點；<strong>不</strong>切換語言', en: 'Medium back to mud 60%, \\(\\theta_1=30^\\circ\\), path on, car at start; language <strong>unchanged</strong>' },
+              { zh: '仍保持沙地 40% 與 \\(\\theta_1\\approx 60^\\circ\\)', en: 'Still sand 40% and \\(\\theta_1\\approx 60^\\circ\\)' },
+              { zh: '重置會強制切換為英文並打開 <code>snells-law</code> 數據表', en: 'Reset forces English and opens the <code>snells-law</code> data table' },
+              { zh: '重置後變成平面鏡反射量角模式（<code>laws-of-reflection</code>）', en: 'Reset becomes plane-mirror reflection-angle mode (<code>laws-of-reflection</code>)' }
+            ],
+            ans: 0,
+            explain: {
+              zh: 'A。對應預設泥地／30°／路徑勾選；本模擬主軸是快→慢介質的車輛折射類比（slug <code>analogy-refraction</code>），不是測 \\(n\\) 或平面鏡反射。',
+              en: 'A. Matches default mud／30°／path on; focus is the fast→slow vehicle refraction analogy (slug <code>analogy-refraction</code>), not the \\(n\\) lab or plane-mirror reflection.'
+            }
+          }
+        ];
+
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
-        
-        // UI 元素
         const surfaceSelect = document.getElementById('surfaceSelect');
         const angleInput = document.getElementById('angleInput');
         const angleValue = document.getElementById('angleValue');
         const startBtn = document.getElementById('startBtn');
-        const resetBtn = document.getElementById('resetBtn');
         const showPathCheck = document.getElementById('showPathCheck');
         const speedDisplay = document.getElementById('speedDisplay');
         const rAngleDisplay = document.getElementById('refractionAngleDisplay');
@@ -232,136 +537,264 @@
         const turnAlert = document.getElementById('turnAlert');
         const legendSurfaceColor = document.getElementById('legendSurfaceColor');
 
-        // 物理常數
-        const CAR_WIDTH = 50;  // 車寬
-        const CAR_LENGTH = 80; // 車長
-        const BASE_SPEED = 5;  // 基礎像素/幀
-        
-        // 狀態變數
+        const CAR_WIDTH = 50;
+        const CAR_LENGTH = 80;
+        const BASE_SPEED = 5;
+
         let animationId = null;
         let isRunning = false;
-        let boundaryY = 0; // 地面交界線 Y 座標
+        let boundaryY = 0;
+        let startBtnState = 'idle';
 
-        // 車輛物件 - 預先定義，避免初始化時 undefined
-        let car = {
-            x: 0,
-            y: 0,
-            angle: 0,      
-            speed: 0,
-            path: [],      
-            state: 'asphalt', 
-            ratio: 0.6 // 預設值
-        };
+        let car = { x: 0, y: 0, angle: 0, speed: 0, path: [], state: 'asphalt', ratio: 0.6 };
 
-        // 材質顏色映射
         const surfaceColors = {
-            '0.9': '#94a3b8', // 混凝土 (灰藍)
-            '0.6': '#b45309', // 泥地 (棕)
-            '0.4': '#d97706', // 沙地 (橘黃)
-            '0.25': '#365314' // 沼澤 (深綠)
+            '0.9': '#94a3b8',
+            '0.6': '#b45309',
+            '0.4': '#d97706',
+            '0.25': '#365314'
         };
 
-        // --- 核心邏輯 ---
+        const SURFACE_SHORT = {
+            zh: { '0.9': '混凝土路', '0.6': '泥地', '0.4': '鬆軟沙地', '0.25': '黏稠沼澤' },
+            en: { '0.9': 'Concrete', '0.6': 'Mud', '0.4': 'Soft sand', '0.25': 'Swamp' }
+        };
 
-        // 初始化 Canvas 大小
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let modalTimer = null;
+
+        function t() { return i18n[currentLang]; }
+
+        function setStartBtnUI(state) {
+            startBtnState = state;
+            const tt = t();
+            const playSvg = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>';
+            const replaySvg = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>';
+            const spinSvg = '<svg class="animate-spin -ml-1 mr-1 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            if (state === 'running') {
+                startBtn.innerHTML = spinSvg + '<span id="startBtnLabel">' + tt.startRunning + '</span>';
+                startBtn.classList.add('opacity-75', 'cursor-not-allowed');
+            } else if (state === 'replay') {
+                startBtn.innerHTML = replaySvg + '<span id="startBtnLabel">' + tt.startReplay + '</span>';
+                startBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            } else {
+                startBtn.innerHTML = playSvg + '<span id="startBtnLabel">' + tt.startBtn + '</span>';
+                startBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        function typeset(el) {
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise(el ? [el] : undefined).catch(function(){});
+            }
+        }
+
+        function applyLanguage() {
+            const tt = t();
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            document.title = tt.title + ' / ' + (currentLang === 'zh' ? i18n.en.title : i18n.zh.title);
+            document.getElementById('btn-lang').textContent = tt.langBtn;
+            document.getElementById('title').textContent = tt.title;
+            document.getElementById('subtitle').textContent = tt.subtitle;
+            document.getElementById('badge-subject').textContent = tt.badge;
+            document.getElementById('btn-steps').textContent = tt.btnSteps;
+            document.getElementById('btn-principle').textContent = tt.btnPrinciple;
+            document.getElementById('btn-quiz').textContent = tt.btnQuiz;
+            document.getElementById('btn-reset').textContent = tt.btnReset;
+            const rp = document.getElementById('btn-reset-panel');
+            if (rp) rp.textContent = tt.btnReset;
+            document.getElementById('labelSurface').textContent = tt.labelSurface;
+            document.getElementById('optConcrete').textContent = tt.optConcrete;
+            document.getElementById('optMud').textContent = tt.optMud;
+            document.getElementById('optSand').textContent = tt.optSand;
+            document.getElementById('optSwamp').textContent = tt.optSwamp;
+            document.getElementById('hintMedium1').innerHTML = tt.hintMedium1;
+            document.getElementById('labelAngle').innerHTML = tt.labelAngle;
+            document.getElementById('labelDisplay').textContent = tt.labelDisplay;
+            document.getElementById('labelShowPath').textContent = tt.labelShowPath;
+            document.getElementById('predictTitle').textContent = tt.predictTitle;
+            document.getElementById('labelV2').innerHTML = tt.labelV2;
+            document.getElementById('labelTheta2').innerHTML = tt.labelTheta2;
+            document.getElementById('calcTitle').textContent = tt.calcTitle;
+            document.getElementById('hudTitle').textContent = tt.hudTitle;
+            document.getElementById('hudLocLabel').textContent = tt.hudLocLabel;
+            document.getElementById('hudSpeedLabel').textContent = tt.hudSpeedLabel;
+            document.getElementById('hudLeftLabel').textContent = tt.hudLeftLabel;
+            document.getElementById('hudRightLabel').textContent = tt.hudRightLabel;
+            document.getElementById('legendFast').textContent = tt.legendFast;
+            document.getElementById('legendSlow').textContent = tt.legendSlow;
+            document.getElementById('steps-title').textContent = tt.stepsTitle;
+            document.getElementById('principle-title').textContent = tt.principleTitle;
+            document.getElementById('quiz-title').textContent = tt.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            setStartBtnUI(startBtnState);
+            if (!isRunning) {
+                initSimulation();
+            } else {
+                if (car.state === 'asphalt') hudLocation.textContent = tt.locAsphalt;
+                else if (car.state === 'crossing') hudLocation.textContent = tt.locCrossing;
+                else {
+                    const short = SURFACE_SHORT[currentLang][String(car.ratio)] || '';
+                    hudLocation.textContent = short;
+                }
+                drawStatic();
+                drawCar(car);
+            }
+            refreshOpenTeachModals();
+            typeset(document.getElementById('labelAngle'));
+            typeset(document.getElementById('labelV2'));
+            typeset(document.getElementById('labelTheta2'));
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        }
+
+        function fillStepsBody() {
+            const body = document.getElementById('steps-body');
+            body.innerHTML = STEPS.map(function(s, i) {
+                return '<div class="p-3 bg-indigo-50 rounded-lg border border-indigo-100"><div class="font-bold text-indigo-700 mb-1">' + (i + 1) + '.</div><div>' + s[currentLang] + '</div></div>';
+            }).join('');
+            typeset(body);
+        }
+
+        function fillPrincipleBody() {
+            const p = PRINCIPLE[currentLang];
+            const body = document.getElementById('principle-body');
+            body.innerHTML =
+                '<div><h3 class="font-bold text-teal-700 mb-1">' + p.conceptTitle + '</h3><p>' + p.concept + '</p></div>' +
+                '<div><h3 class="font-bold text-teal-700 mb-1">' + p.mechTitle + '</h3><ol class="list-decimal pl-5 space-y-2">' +
+                p.mech.map(function(m) { return '<li>' + m + '</li>'; }).join('') +
+                '</ol></div>' +
+                '<div><h3 class="font-bold text-teal-700 mb-1">' + p.egTitle + '</h3><p>' + p.eg + '</p></div>';
+            typeset(body);
+        }
+
+        function fillQuizBody() {
+            const body = document.getElementById('quiz-body');
+            const letters = ['A', 'B', 'C', 'D'];
+            const tt = t();
+            const openHint = currentLang === 'zh' ? '先預測，再操作本模擬核對。' : 'Predict first, then use the sim to check.';
+            const refLabel = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+            body.innerHTML = QUIZ.map(function(item, i) {
+                const n = i + 1;
+                const isOpen = n === 2 || n === 4;
+                const qid = 'q' + n;
+                let html = '<div class="mb-4 p-3 bg-violet-50 rounded-lg border border-violet-100">';
+                html += '<div class="font-semibold text-violet-800 mb-2">Q' + n + '. ' + item.q[currentLang] + '</div>';
+                if (!isOpen && item.choices) {
+                    html += '<div class="grid gap-1.5">';
+                    item.choices.forEach(function(c, j) {
+                        html += '<label class="flex items-start gap-2 rounded-lg border border-violet-200 bg-white p-2 cursor-pointer hover:bg-violet-50/50"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span><span class="font-mono font-bold text-violet-600">' + letters[j] + '.</span> ' + c[currentLang] + '</span></label>';
+                    });
+                    html += '</div>';
+                } else if (isOpen) {
+                    html += '<p class="text-xs text-slate-500 italic">' + openHint + '</p>';
+                }
+                if (quizReveal) {
+                    html += '<div class="mt-2 text-sm bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg p-2"><strong>' + refLabel + '：</strong> ' + item.explain[currentLang] + '</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? tt.hideAns : tt.showAns;
+            typeset(body);
+        }
+
+        function refreshOpenTeachModals() {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) fillStepsBody();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) fillPrincipleBody();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) fillQuizBody();
+        }
+
+        function closeAllModals(exceptId) {
+            if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+                if (id !== exceptId) document.getElementById(id).classList.add('hidden');
+            });
+        }
+
+        function openModal(id) {
+            closeAllModals(id);
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'modal-steps') fillStepsBody();
+            if (id === 'modal-principle') fillPrincipleBody();
+            if (id === 'modal-quiz') fillQuizBody();
+        }
+
         function resizeCanvas() {
-            if (!canvas.parentElement) return; 
+            if (!canvas.parentElement) return;
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = canvas.parentElement.clientHeight;
             boundaryY = canvas.height / 2;
-            drawStatic(); // 繪製背景
+            drawStatic();
+            if (car) drawCar(car);
         }
         window.addEventListener('resize', resizeCanvas);
 
-        // 更新數學計算顯示
         function updateCalculation(angle1Deg, angle2Deg, n1, ratio) {
+            const tt = t();
             let htmlContent = '';
-
-            // 避免除以零
             if (Math.abs(angle2Deg) < 0.1) {
-                // 垂直入射情況
                 const n2 = n1 / ratio;
-                htmlContent = `
-                    <div class="flex flex-col gap-1 text-center">
-                        <div class="mb-1">垂直入射 (\\(\\theta_1 = 0^\\circ\\))</div>
-                        <div>\\(\\theta_2 = 0^\\circ\\)</div>
-                        <div class="mt-2 text-blue-600 font-bold text-sm">
-                        \\[
-                        \\begin{align*}
-                        n_2 &= \\frac{v_1}{v_2} n_1 \\\\
-                        &= \\frac{1}{${ratio}} \\\\
-                        &\\approx ${n2.toFixed(2)}
-                        \\end{align*}
-                        \\]
-                        </div>
-                    </div>
-                `;
+                htmlContent =
+                    '<div class="flex flex-col gap-1 text-center">' +
+                    '<div class="mb-1">' + tt.calcVertTitle + '</div>' +
+                    '<div>\\(\\theta_2 = 0^\\circ\\)</div>' +
+                    '<div class="mt-2 text-blue-600 font-bold text-sm">' +
+                    '\\[\\begin{align*} n_2 &= \\frac{v_1}{v_2} n_1 \\\\ &= \\frac{1}{' + ratio + '} \\\\ &\\approx ' + n2.toFixed(2) + ' \\end{align*}\\]' +
+                    '</div></div>';
             } else {
                 const sin1 = Math.sin(angle1Deg * Math.PI / 180).toFixed(3);
                 const sin2 = Math.sin(angle2Deg * Math.PI / 180).toFixed(3);
                 const n2 = (n1 * Math.sin(angle1Deg * Math.PI / 180) / Math.sin(angle2Deg * Math.PI / 180)).toFixed(2);
-                
-                // 使用 MathJax 語法顯示詳細運算步驟，並使用 align* 環境對齊等號
-                htmlContent = `
-                    <div class="flex flex-col gap-1 text-center">
-                        <div>已知 \\(n_1 \\approx 1.0\\) (柏油路)</div>
-                        <div>\\(\\theta_1 = ${angle1Deg}^\\circ\\), \\(\\theta_2 \\approx ${angle2Deg}^\\circ\\)</div>
-                        <div class="border-t border-gray-200 my-1"></div>
-                        <div class="text-sm">根據斯涅耳定律：</div>
-                        <div class="overflow-x-auto overflow-y-hidden text-sm">
-                        \\[
-                        \\begin{align*}
-                        n_1 \\sin \\theta_1 &= n_2 \\sin \\theta_2 \\\\
-                        1.0 \\sin ${angle1Deg}^\\circ &= n_2 \\sin ${angle2Deg}^\\circ \\\\
-                        1.0 \\times ${sin1} &\\approx n_2 \\times ${sin2} \\\\
-                        n_2 &\\approx \\frac{1.0 \\times ${sin1}}{${sin2}} \\\\
-                        n_2 &\\approx \\mathbf{${n2}}
-                        \\end{align*}
-                        \\]
-                        </div>
-                    </div>
-                `;
+                htmlContent =
+                    '<div class="flex flex-col gap-1 text-center">' +
+                    '<div>' + tt.calcKnown + '</div>' +
+                    '<div>\\(\\theta_1 = ' + angle1Deg + '^\\circ\\), \\(\\theta_2 \\approx ' + angle2Deg + '^\\circ\\)</div>' +
+                    '<div class="border-t border-gray-200 my-1"></div>' +
+                    '<div class="text-sm">' + tt.calcSnell + '</div>' +
+                    '<div class="overflow-x-auto overflow-y-hidden text-sm">' +
+                    '\\[\\begin{align*}' +
+                    'n_1 \\sin \\theta_1 &= n_2 \\sin \\theta_2 \\\\' +
+                    '1.0 \\sin ' + angle1Deg + '^\\circ &= n_2 \\sin ' + angle2Deg + '^\\circ \\\\' +
+                    '1.0 \\times ' + sin1 + ' &\\approx n_2 \\times ' + sin2 + ' \\\\' +
+                    'n_2 &\\approx \\frac{1.0 \\times ' + sin1 + '}{' + sin2 + '} \\\\' +
+                    'n_2 &\\approx \\mathbf{' + n2 + '}' +
+                    '\\end{align*}\\]' +
+                    '</div></div>';
             }
-
             calculationDisplay.innerHTML = htmlContent;
-            
-            // 觸發 MathJax 渲染新內容
-            if (window.MathJax) {
-               MathJax.typesetPromise([calculationDisplay]).catch(()=>{});
-            }
+            typeset(calculationDisplay);
         }
 
-        // 重置模擬
         function initSimulation() {
-            // 停止動畫
             if (animationId) cancelAnimationFrame(animationId);
             isRunning = false;
             hud.classList.add('hidden');
+            turnAlert.classList.add('hidden');
 
             boundaryY = canvas.height / 2;
             const incidenceAngleDeg = parseInt(angleInput.value);
             const incidenceAngleRad = incidenceAngleDeg * Math.PI / 180;
             const surfaceRatio = parseFloat(surfaceSelect.value);
 
-            // 更新 UI 顯示數值
             speedDisplay.textContent = (surfaceRatio * 100).toFixed(0) + "%";
             legendSurfaceColor.style.backgroundColor = surfaceColors[surfaceSelect.value];
-            
-            // 計算折射角 (Snell's Law: n1 sin1 = n2 sin2 => sin1/v1 = sin2/v2)
-            // v1 = 1, v2 = ratio. sin2 = sin1 * ratio
+
             const sinRefracted = Math.sin(incidenceAngleRad) * surfaceRatio;
             const refractedAngleRad = Math.asin(sinRefracted);
             const refractedAngleDeg = (refractedAngleRad * 180 / Math.PI).toFixed(1);
             rAngleDisplay.textContent = refractedAngleDeg + "°";
 
-            // 更新計算面板
-            updateCalculation(incidenceAngleDeg, refractedAngleDeg, 1.0, surfaceRatio);
+            updateCalculation(incidenceAngleDeg, parseFloat(refractedAngleDeg), 1.0, surfaceRatio);
 
-            // 設定車輛起始位置
             const startY = 80;
             const dy = boundaryY - startY;
             const dx = dy * Math.tan(incidenceAngleRad);
-            
+
             car = {
                 x: (canvas.width / 2) - dx,
                 y: startY,
@@ -372,38 +805,39 @@
                 ratio: surfaceRatio,
                 targetAngle: refractedAngleRad
             };
-
-            // 初始路徑點
             car.path.push({x: car.x, y: car.y});
-            
+
             drawStatic();
             drawCar(car);
         }
 
-        // 動畫循環
+        function fullReset() {
+            closeAllModals(null);
+            quizReveal = false;
+            document.getElementById('btn-quiz-answers').textContent = t().showAns;
+            surfaceSelect.value = '0.6';
+            angleInput.value = '30';
+            angleValue.textContent = '30°';
+            showPathCheck.checked = true;
+            initSimulation();
+            setStartBtnUI('idle');
+        }
+
         function animate() {
             if (!isRunning) return;
-
             updatePhysics();
             drawStatic();
             drawCar(car);
-
-            // 邊界檢查
             if (car.y > canvas.height + 100 || car.x > canvas.width + 100 || car.x < -100) {
                 isRunning = false;
-                startBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                    重新播放
-                `;
+                setStartBtnUI('replay');
             } else {
                 animationId = requestAnimationFrame(animate);
             }
         }
 
-        // 物理計算更新
         function updatePhysics() {
+            const tt = t();
             car.x += car.speed * Math.sin(car.angle);
             car.y += car.speed * Math.cos(car.angle);
 
@@ -414,50 +848,48 @@
 
             const distToBoundary = car.y - boundaryY;
             hud.classList.remove('hidden');
-            
+
             if (distToBoundary < -CAR_LENGTH/2) {
                 car.speed = BASE_SPEED;
                 car.state = 'asphalt';
-                hudLocation.textContent = "柏油路 (介質 1)";
+                hudLocation.textContent = tt.locAsphalt;
                 hudLocation.className = "text-xs font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-800";
                 hudSpeedBar.style.width = "100%";
                 hudSpeedBar.className = "h-full bg-blue-500";
-                hudLeftWheel.className = "w-3 h-3 rounded-full bg-green-500"; 
+                hudLeftWheel.className = "w-3 h-3 rounded-full bg-green-500";
                 hudRightWheel.className = "w-3 h-3 rounded-full bg-green-500";
                 turnAlert.classList.add('hidden');
-
             } else if (distToBoundary >= -CAR_LENGTH/2 && distToBoundary <= CAR_LENGTH/2) {
                 car.state = 'crossing';
-                const progress = (distToBoundary + CAR_LENGTH/2) / CAR_LENGTH; 
+                const progress = (distToBoundary + CAR_LENGTH/2) / CAR_LENGTH;
                 const angleDiff = car.targetAngle - parseFloat(angleInput.value * Math.PI / 180);
                 car.speed = BASE_SPEED * (1 - progress * (1 - car.ratio));
-                
+
                 if (Math.abs(car.targetAngle) > 0.01) {
                     const startAngle = parseFloat(angleInput.value * Math.PI / 180);
                     car.angle = startAngle + (angleDiff * progress);
                     turnAlert.classList.remove('hidden');
-                    if(car.angle > startAngle) {
-                        turnAlert.innerHTML = "⚡ 左輪尚在快區，右輪已入慢區，車身<b>右轉</b>！";
+                    if (car.angle > startAngle) {
+                        turnAlert.innerHTML = tt.turnRightDetail;
                     } else {
-                         turnAlert.innerHTML = "⚡ 轉向中...";
+                        turnAlert.innerHTML = tt.turnGeneric;
                     }
                 }
 
-                hudLocation.textContent = "穿越邊界中...";
+                hudLocation.textContent = tt.locCrossing;
                 hudLocation.className = "text-xs font-bold px-2 py-0.5 rounded bg-yellow-100 text-yellow-800";
                 hudSpeedBar.style.width = (car.speed / BASE_SPEED * 100) + "%";
-                
-                if (car.angle > 0) {
-                     hudLeftWheel.className = "w-3 h-3 rounded-full bg-green-500"; 
-                     hudRightWheel.className = "w-3 h-3 rounded-full bg-red-500 animate-pulse";   
-                }
 
+                if (car.angle > 0) {
+                    hudLeftWheel.className = "w-3 h-3 rounded-full bg-green-500";
+                    hudRightWheel.className = "w-3 h-3 rounded-full bg-red-500 animate-pulse";
+                }
             } else {
                 car.speed = BASE_SPEED * car.ratio;
-                car.angle = car.targetAngle; 
+                car.angle = car.targetAngle;
                 car.state = 'surface2';
-                
-                hudLocation.textContent = surfaceSelect.options[surfaceSelect.selectedIndex].text.split('(')[0];
+                const short = SURFACE_SHORT[currentLang][String(car.ratio)] || SURFACE_SHORT[currentLang][surfaceSelect.value] || '';
+                hudLocation.textContent = short;
                 hudLocation.className = "text-xs font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-800";
                 hudSpeedBar.style.width = (car.ratio * 100) + "%";
                 hudSpeedBar.className = "h-full bg-red-500";
@@ -467,74 +899,55 @@
             }
         }
 
-        // --- 繪圖函數 (助手函數) ---
-        
-        // 繪製箭頭
-        function drawArrow(ctx, fromX, fromY, toX, toY) {
-            const headlen = 10; 
+        function drawArrow(c, fromX, fromY, toX, toY) {
+            const headlen = 10;
             const angle = Math.atan2(toY - fromY, toX - fromX);
-            
-            // 線
-            ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(toX, toY);
-            ctx.stroke();
-
-            // 箭頭頭部 (放在線的中點)
+            c.beginPath();
+            c.moveTo(fromX, fromY);
+            c.lineTo(toX, toY);
+            c.stroke();
             const midX = (fromX + toX) / 2;
             const midY = (fromY + toY) / 2;
-            
-            ctx.beginPath();
-            ctx.moveTo(midX, midY);
-            ctx.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.moveTo(midX, midY);
-            ctx.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.stroke();
+            c.beginPath();
+            c.moveTo(midX, midY);
+            c.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
+            c.moveTo(midX, midY);
+            c.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
+            c.stroke();
         }
 
-        // 繪製角度扇形
-        function drawAngleArc(ctx, x, y, radius, startAngle, endAngle, label, color) {
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.arc(x, y, radius, startAngle, endAngle, startAngle > endAngle); 
-            
-            ctx.fillStyle = color;
-            ctx.globalAlpha = 0.3;
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-            ctx.strokeStyle = color.replace('0.3', '1.0');
-            ctx.stroke();
-
-            // 標籤文字
+        function drawAngleArc(c, x, y, radius, startAngle, endAngle, label, color) {
+            c.beginPath();
+            c.moveTo(x, y);
+            c.arc(x, y, radius, startAngle, endAngle, startAngle > endAngle);
+            c.fillStyle = color;
+            c.globalAlpha = 0.3;
+            c.fill();
+            c.globalAlpha = 1.0;
+            c.strokeStyle = color.replace('0.3', '1.0');
+            c.stroke();
             const midAngle = (startAngle + endAngle) / 2;
             const textRadius = radius + 25;
             const textX = x + Math.cos(midAngle) * textRadius;
             const textY = y + Math.sin(midAngle) * textRadius;
-
-            ctx.fillStyle = "#ffffff";
-            // 修改字型為斜體 serif，使其看起來更像物理公式
-            ctx.font = "bold italic 16px 'Times New Roman', serif";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            
-            const textWidth = ctx.measureText(label).width;
-            ctx.fillStyle = "rgba(0,0,0,0.5)";
-            ctx.fillRect(textX - textWidth/2 - 4, textY - 10, textWidth + 8, 20);
-            
-            ctx.fillStyle = "#ffffff";
-            ctx.fillText(label, textX, textY);
+            c.font = "bold italic 16px 'Times New Roman', serif";
+            c.textAlign = "center";
+            c.textBaseline = "middle";
+            const textWidth = c.measureText(label).width;
+            c.fillStyle = "rgba(0,0,0,0.5)";
+            c.fillRect(textX - textWidth/2 - 4, textY - 10, textWidth + 8, 20);
+            c.fillStyle = "#ffffff";
+            c.fillText(label, textX, textY);
         }
 
-
         function drawStatic() {
+            const tt = t();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製背景
-            ctx.fillStyle = '#334155'; 
+            ctx.fillStyle = '#334155';
             ctx.fillRect(0, 0, canvas.width, boundaryY);
-            
-            // 下半部：選擇的材質
-            let safeRatio = '0.6'; 
+
+            let safeRatio = '0.6';
             if (typeof car !== 'undefined' && car && car.ratio !== undefined && car.ratio !== null) {
                 safeRatio = car.ratio;
             } else if (surfaceSelect && surfaceSelect.value) {
@@ -545,7 +958,6 @@
             ctx.fillStyle = surfaceColors[ratioStr] || '#b45309';
             ctx.fillRect(0, boundaryY, canvas.width, canvas.height - boundaryY);
 
-            // 2. 繪製邊界線
             ctx.beginPath();
             ctx.moveTo(0, boundaryY);
             ctx.lineTo(canvas.width, boundaryY);
@@ -553,24 +965,18 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // 新增：繪製介質文字標籤
-            const selectedText = surfaceSelect.options[surfaceSelect.selectedIndex].text.split('(')[0].trim();
-            ctx.font = "bold 16px Arial";
+            const selectedText = SURFACE_SHORT[currentLang][surfaceSelect.value] || SURFACE_SHORT[currentLang][ratioStr] || '';
+            ctx.font = "bold 16px 'Noto Sans TC', Arial, sans-serif";
             ctx.fillStyle = "rgba(255,255,255,0.7)";
             ctx.textAlign = "right";
-            // 上方
-            ctx.fillText("介質 1: 柏油路", canvas.width - 20, boundaryY - 15);
-            // 下方
+            ctx.fillText(tt.canvasMed1, canvas.width - 20, boundaryY - 15);
             ctx.fillStyle = "rgba(255,255,255,0.9)";
-            ctx.fillText(`介質 2: ${selectedText}`, canvas.width - 20, boundaryY + 25);
+            ctx.fillText(tt.canvasMed2Prefix + selectedText, canvas.width - 20, boundaryY + 25);
 
-
-            // 3. 繪製光線圖 (法線、角度、光線路徑)
             if (showPathCheck.checked) {
                 const centerX = canvas.width / 2;
                 const centerY = boundaryY;
-                
-                // --- A. 法線 ---
+
                 ctx.beginPath();
                 ctx.setLineDash([5, 5]);
                 ctx.moveTo(centerX, 0);
@@ -578,43 +984,32 @@
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
                 ctx.lineWidth = 1;
                 ctx.stroke();
-                ctx.setLineDash([]); 
+                ctx.setLineDash([]);
 
-                // 取得角度資料
                 const angleI_Deg = parseInt(angleInput.value);
                 const angleI_Rad = angleI_Deg * Math.PI / 180;
-                
-                // 計算折射角 (用於繪製理論路徑)
                 const currentRatio = parseFloat(ratioStr);
                 const angleR_Rad = Math.asin(Math.sin(angleI_Rad) * currentRatio);
                 const angleR_Deg = (angleR_Rad * 180 / Math.PI).toFixed(1);
 
-                // --- B. 繪製理論光線 (黃色線 + 箭頭) ---
-                ctx.strokeStyle = 'rgba(255, 223, 0, 0.6)'; // 金黃色
+                ctx.strokeStyle = 'rgba(255, 223, 0, 0.6)';
                 ctx.lineWidth = 3;
-
-                // 入射光線
                 const rayLen = 300;
                 const startX = centerX - rayLen * Math.sin(angleI_Rad);
                 const startY = centerY - rayLen * Math.cos(angleI_Rad);
                 drawArrow(ctx, startX, startY, centerX, centerY);
-
-                // 折射光線
                 const endX = centerX + rayLen * Math.sin(angleR_Rad);
                 const endY = centerY + rayLen * Math.cos(angleR_Rad);
                 drawArrow(ctx, centerX, centerY, endX, endY);
 
-                // --- C. 繪製角度扇形 ---
-                // 使用小寫 theta 並使用 Unicode 下標
                 if (angleI_Deg > 0) {
-                    drawAngleArc(ctx, centerX, centerY, 60, -Math.PI/2 - angleI_Rad, -Math.PI/2, `θ₁=${angleI_Deg}°`, 'rgba(59, 130, 246, 0.5)'); // Blue
+                    drawAngleArc(ctx, centerX, centerY, 60, -Math.PI/2 - angleI_Rad, -Math.PI/2, 'θ₁=' + angleI_Deg + '°', 'rgba(59, 130, 246, 0.5)');
                 }
                 if (angleR_Rad > 0) {
-                    drawAngleArc(ctx, centerX, centerY, 60, Math.PI/2 - angleR_Rad, Math.PI/2, `θ₂=${angleR_Deg}°`, 'rgba(239, 68, 68, 0.5)'); // Red
+                    drawAngleArc(ctx, centerX, centerY, 60, Math.PI/2 - angleR_Rad, Math.PI/2, 'θ₂=' + angleR_Deg + '°', 'rgba(239, 68, 68, 0.5)');
                 }
             }
-            
-            // 4. 繪製實際車輛軌跡 (白色虛線)
+
             if (showPathCheck.checked && car && car.path && car.path.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(car.path[0].x, car.path[0].y);
@@ -623,42 +1018,35 @@
                 }
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
                 ctx.lineWidth = 2;
-                ctx.setLineDash([2, 4]); // 虛線區分
+                ctx.setLineDash([2, 4]);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
         }
 
         function drawCar(carObj) {
-            if (!carObj) return; 
+            if (!carObj) return;
             ctx.save();
             ctx.translate(carObj.x, carObj.y);
             ctx.rotate(-carObj.angle);
-
             ctx.shadowColor = 'rgba(0,0,0,0.5)';
             ctx.shadowBlur = 10;
             ctx.shadowOffsetY = 5;
-
-            ctx.fillStyle = '#ef4444'; 
+            ctx.fillStyle = '#ef4444';
             ctx.fillRect(-CAR_WIDTH/2, -CAR_LENGTH/2, CAR_WIDTH, CAR_LENGTH);
-            
             ctx.fillStyle = '#7f1d1d';
             ctx.fillRect(-CAR_WIDTH/2 + 5, -CAR_LENGTH/4, CAR_WIDTH - 10, CAR_LENGTH/2);
-            ctx.shadowBlur = 0; 
+            ctx.shadowBlur = 0;
 
-            const wheelW = 10;
-            const wheelH = 18;
-            const wheelX = CAR_WIDTH/2; 
-            const wheelY = CAR_LENGTH/3;
-
-            const getWheelColor = (isFront, isRight) => {
+            const wheelW = 10, wheelH = 18;
+            const wheelX = CAR_WIDTH/2, wheelY = CAR_LENGTH/3;
+            const getWheelColor = function(isFront, isRight) {
                 if (carObj.state === 'crossing') {
-                    if (isFront && isRight && carObj.angle > 0) return '#450a0a'; 
+                    if (isFront && isRight && carObj.angle > 0) return '#450a0a';
                 }
                 if (carObj.state === 'surface2') return '#450a0a';
-                return '#000000'; 
+                return '#000000';
             };
-
             ctx.fillStyle = getWheelColor(true, false);
             ctx.fillRect(-wheelX - wheelW/2, wheelY - wheelH/2, wheelW, wheelH);
             ctx.fillStyle = getWheelColor(true, true);
@@ -685,71 +1073,62 @@
             ctx.moveTo(0, 20);
             ctx.lineTo(4, 16);
             ctx.stroke();
-
             ctx.restore();
         }
 
-        // --- 事件監聽 ---
-        
-        angleInput.addEventListener('input', (e) => {
+        angleInput.addEventListener('input', function(e) {
             angleValue.textContent = e.target.value + "°";
-            initSimulation();
+            if (!isRunning) initSimulation();
         });
 
-        surfaceSelect.addEventListener('change', () => {
-            initSimulation();
+        surfaceSelect.addEventListener('change', function() {
+            if (!isRunning) initSimulation();
         });
 
-        showPathCheck.addEventListener('change', () => {
+        showPathCheck.addEventListener('change', function() {
             if (!isRunning) {
                 drawStatic();
                 drawCar(car);
             }
         });
 
-        startBtn.addEventListener('click', () => {
+        startBtn.addEventListener('click', function() {
             if (isRunning) return;
-            
-            startBtn.innerHTML = `
-                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                行駛中...
-            `;
-            startBtn.classList.add('opacity-75', 'cursor-not-allowed');
-            
-            initSimulation(); 
+            setStartBtnUI('running');
+            initSimulation();
             isRunning = true;
             animate();
         });
 
-        setInterval(() => {
-            if (!isRunning && startBtn.innerText.includes("行駛中")) {
-                 startBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                    重新播放
-                `;
-                startBtn.classList.remove('opacity-75', 'cursor-not-allowed');
-            }
-        }, 500);
+        document.getElementById('btn-reset').addEventListener('click', fullReset);
+        document.getElementById('btn-reset-panel').addEventListener('click', fullReset);
+        document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+        document.getElementById('btn-steps').addEventListener('click', function() { openModal('modal-steps'); });
+        document.getElementById('btn-principle').addEventListener('click', function() { openModal('modal-principle'); });
+        document.getElementById('btn-quiz').addEventListener('click', function() { openModal('modal-quiz'); });
+        document.getElementById('btn-quiz-answers').addEventListener('click', function() {
+            quizReveal = !quizReveal;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? t().hideAns : t().showAns;
+            fillQuizBody();
+        });
 
-        resetBtn.addEventListener('click', () => {
-            initSimulation();
-            startBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                </svg>
-                開始模擬
-            `;
-            startBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+        document.querySelectorAll('.modal-close').forEach(function(btn) {
+            btn.addEventListener('click', function() { closeAllModals(null); });
+        });
+        ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+            document.getElementById(id).addEventListener('click', function(e) {
+                if (e.target === this) closeAllModals(null);
+            });
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeAllModals(null);
         });
 
         resizeCanvas();
+        applyLanguage();
+        setStartBtnUI('idle');
         initSimulation();
-
     </script>
+
 </body>
 </html>

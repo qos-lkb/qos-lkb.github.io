@@ -1,753 +1,1998 @@
-<!DOCTYPE html><html lang="en"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sound Interference: Analysis &amp; Graph</title>
+    <title>聲音的干涉現象 | Sound Interference</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
     <style>
-        :root {
-            --bg-color: #1a1a1a;
-            --panel-bg: #2d2d2d;
-            --text-color: #f0f0f0;
-            --accent-color: #4CAF50;
-            --danger-color: #ff5252;
-            --graph-color: #FFC107;
+        html, body { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background: #f1f5f9; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        canvas { display: block; touch-action: none; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 6px; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #fff; border: 2px solid #7c3aed; margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .25); cursor: pointer;
         }
-
-        body {
-            font-family: 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+        input[type=range]::-moz-range-track { height: 6px; background: #cbd5e1; border-radius: 3px; border: none; }
+        input[type=range]::-moz-range-thumb {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #fff; border: 2px solid #7c3aed; cursor: pointer;
         }
-
-        header {
-            background-color: var(--panel-bg);
-            width: 100%;
-            padding: 15px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        .preset-btn { padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #334155; text-align: left; width: 100%; }
+        .preset-btn:hover { background: #f5f3ff; border-color: #c4b5fd; }
+        .preset-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .wave-btn { border: 2px solid #e2e8f0; transition: all .15s; font-size: 11px; font-weight: 700; background: #f8fafc; color: #475569; }
+        .wave-btn:hover { border-color: #a78bfa; color: #7c3aed; background: #f5f3ff; }
+        .wave-btn.active { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+        .spk-btn { border: 2px solid #e2e8f0; transition: all .15s; font-size: 12px; font-weight: 800; background: #f8fafc; color: #475569; }
+        .spk-btn:hover { border-color: #a78bfa; }
+        .spk-btn.on-a { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .spk-btn.on-b { background: #059669; border-color: #059669; color: #fff; }
+        .spk-btn.on-both { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+        .check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; }
+        .check-row input { width: 15px; height: 15px; margin-top: 2px; accent-color: #7c3aed; flex-shrink: 0; }
+        .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; text-align: center; }
+        .oscilloscope-bg {
+            background:
+                radial-gradient(ellipse at 50% 45%, #0a2e1a 0%, #03140c 70%, #010805 100%);
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, .55);
         }
-
-        h1 { margin: 0; font-size: 1.5rem; }
-        p { margin: 5px 0 0; color: #aaa; font-size: 0.9rem; }
-
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-            padding: 20px;
-            width: 100%;
-            max-width: 1200px;
+        .scope-chassis {
+            background: linear-gradient(160deg, #3f3f46 0%, #27272a 40%, #18181b 100%);
+            border: 1px solid #52525b;
+            box-shadow: 0 10px 28px -8px rgba(15, 23, 42, .45), inset 0 1px 0 rgba(255,255,255,.08);
         }
-
-        /* Canvas Area */
-        .vis-column {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            flex: 2;
-            min-width: 300px;
+        .scope-knob-label { font-size: 9px; font-weight: 800; letter-spacing: .04em; color: #a1a1aa; text-transform: uppercase; }
+        .scope-chip {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px; font-weight: 700;
+            background: #09090b; color: #4ade80;
+            border: 1px solid #3f3f46; border-radius: 6px;
+            padding: 3px 7px; white-space: nowrap;
         }
-
-        .canvas-wrapper {
-            position: relative;
-            border: 2px solid #444;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: crosshair;
-            background: #000;
-            touch-action: none;
+        .scope-btn {
+            font-size: 10px; font-weight: 800; border-radius: 8px;
+            border: 1px solid #52525b; background: #3f3f46; color: #e4e4e7;
+            padding: 5px 8px; transition: background .12s, border-color .12s, color .12s;
         }
-
-        canvas { display: block; width: 100%; }
-
-        .overlay-msg {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            pointer-events: none;
-            user-select: none;
+        .scope-btn:hover { background: #52525b; }
+        .scope-btn.active { background: #15803d; border-color: #22c55e; color: #fff; }
+        .scope-btn.danger.active { background: #b91c1c; border-color: #f87171; }
+        .scope-select {
+            width: 100%; font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+            background: #18181b; color: #fafafa; border: 1px solid #52525b;
+            border-radius: 8px; padding: 5px 6px;
         }
-
-        /* Graph & Analysis Area */
-        .secondary-panel {
-            background: var(--panel-bg);
-            border: 1px solid #444;
-            border-radius: 8px;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .panel-title {
-            font-size: 0.95rem;
-            font-weight: bold;
-            color: #ddd;
-            border-bottom: 1px solid #444;
-            padding-bottom: 5px;
-            margin-bottom: 5px;
-        }
-
-        /* Calculation Display Styles */
-        .calc-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            font-size: 0.9rem;
-            font-family: monospace;
-        }
-        .calc-row { grid-column: span 2; display: flex; justify-content: space-between; }
-        .calc-val { color: var(--accent-color); }
-        
-        .result-box {
-            grid-column: span 2;
-            background: rgba(0,0,0,0.3);
-            padding: 10px;
-            border-radius: 4px;
-            text-align: center;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-
-        /* Controls Area */
-        .controls {
-            flex: 1;
-            min-width: 280px;
-            background-color: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            height: fit-content;
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #444;
-        }
-
-        label { font-weight: bold; display: flex; justify-content: space-between; }
-        .val-display { color: var(--accent-color); font-family: monospace; }
-
-        input[type="range"] { width: 100%; accent-color: var(--accent-color); cursor: pointer; }
-
-        button {
-            padding: 12px;
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover { background-color: #43a047; }
-        button.stop { background-color: var(--danger-color); }
-        button.stop:hover { background-color: #e04040; }
-
-        .mode-switch {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            background: rgba(0,0,0,0.2);
-            padding: 10px;
-            border-radius: 6px;
-        }
-        .radio-label {
-            font-weight: normal;
-            font-size: 0.9rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .hidden { display: none; }
-
+        .scope-range { accent-color: #22c55e; }
+        input[type=range].scope-range::-webkit-slider-runnable-track { background: #3f3f46; }
+        input[type=range].scope-range::-webkit-slider-thumb { border-color: #22c55e; background: #fafafa; }
+        .mj-box { overflow-x: auto; background: #0f172a; color: #c4b5fd; border-radius: 10px; padding: 8px 12px; font-size: 13px; text-align: center; }
+        .mj-box mjx-container { color: #c4b5fd !important; }
+        .modal-backdrop { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .25s ease, visibility .25s ease; }
+        .modal-backdrop.open { opacity: 1; pointer-events: auto; visibility: visible; }
+        .modal-content { transition: transform .25s ease, opacity .25s ease; opacity: 0; transform: scale(.95); }
+        .modal-backdrop.open .modal-content { transform: none; opacity: 1; }
+        .lab-stage { background:
+            linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 8%, #94a3b8 10%, #64748b 11%, #475569 100%);
+            border-radius: 1.25rem; }
+        .line-swatch { width: 18px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+        .swatch-anti { background: #f43f5e; }
+        .swatch-node { background: transparent; border-bottom: 2px dashed #64748b; height: 0; margin-top: 6px; }
     </style>
-<script src="https://puc.poecdn.net/authenticated_preview_page/syncedState.3f7572448765332f3047.js"></script></head>
-<body>
+</head>
+<body class="h-full flex flex-col text-slate-800">
 
-<header>
-    <h1>Sound Interference Lab</h1>
-    <p>Analyze Path Difference or Intensity Distribution</p>
+<header class="shrink-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+    <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 text-white flex items-center justify-center shadow-md shadow-violet-500/25 text-lg">🔊</div>
+            <div>
+                <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
+                    <span data-i18n="title">聲音的干涉現象</span>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold" data-i18n="badge">物理</span>
+                </h1>
+                <p class="text-xs text-slate-500" data-i18n="subtitle">雙揚聲器、路徑差與相長／相消干涉</p>
+            </div>
+        </div>
+        <button type="button" id="btn-lang-mobile" class="md:hidden px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+        <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-violet-50 text-violet-700 rounded-xl font-bold text-sm shadow-sm border border-violet-200 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            <span data-i18n="btnSteps">觀察步驟</span>
+        </button>
+        <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span data-i18n="btnPrinciple">原理解說</span>
+        </button>
+<button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+            <span data-i18n="btnQuiz">課堂問題</span>
+        </button>
+
+        <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+    </div>
 </header>
 
-<div class="container">
-    
-    <div class="vis-column">
-        <!-- Main Simulation Canvas -->
-        <div class="canvas-wrapper">
-            <canvas id="simCanvas" width="600" height="400"></canvas>
-            <div class="overlay-msg" id="instruction-msg">Click anywhere to move Microphone 🎤</div>
-        </div>
+<main class="flex-1 min-h-0 w-full max-w-7xl mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 overflow-auto lg:overflow-hidden">
+    <aside class="lg:col-span-4 flex flex-col gap-3 order-2 lg:order-1 lg:overflow-y-auto lg:max-h-full">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="font-bold text-slate-800 mb-3 text-sm" data-i18n="controlTitle">實驗控制</h2>
 
-        <!-- Dynamic Panel: Switches between Graph and Math Analysis -->
-        <div class="secondary-panel">
-            
-            <!-- Graph View (Line Mode) -->
-            <div id="view-graph" class="hidden">
-                <div class="panel-title" style="color: var(--graph-color);">Intensity Profile along Drawn Line</div>
-                <canvas id="graphCanvas" width="600" height="120"></canvas>
+            <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="presets">教學情境</p>
+            <div class="grid grid-cols-1 gap-1.5 mb-4">
+                <button type="button" class="preset-btn active" data-preset="standard" data-i18n="preStandard">① 標準雙源（1 kHz，d = 0.6 m）</button>
+                <button type="button" class="preset-btn" data-preset="lowf" data-i18n="preLowf">② 低頻 → 波長長、條紋疏</button>
+                <button type="button" class="preset-btn" data-preset="highf" data-i18n="preHighf">③ 高頻 → 波長短、條紋密</button>
+                <button type="button" class="preset-btn" data-preset="wide" data-i18n="preWide">④ 揚聲器距離加大</button>
+                <button type="button" class="preset-btn" data-preset="invert" data-i18n="preInvert">⑤ 反相驅動（節線過中軸）</button>
             </div>
 
-            <!-- Math Analysis View (Mic Mode) -->
-            <div id="view-math">
-                <div class="panel-title">Path Difference Calculation</div>
-                <div class="calc-grid">
-                    <div>Dist S1 to Mic (d₁): <span id="val-d1" class="calc-val">0.00 m</span></div>
-                    <div>Dist S2 to Mic (d₂): <span id="val-d2" class="calc-val">0.00 m</span></div>
-                    
-                    <div class="calc-row">
-                        <span>Path Diff (Δx = |d₁ - d₂|):</span>
-                        <span id="val-pdiff" class="calc-val">0.00 m</span>
-                    </div>
-                    
-                    <div class="calc-row">
-                        <span>Wavelength (λ):</span>
-                        <span id="val-calc-lambda" class="calc-val">1.00 m</span>
-                    </div>
+            <div class="flex gap-2 mb-3">
+                <button type="button" id="btn-power" class="flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white" data-i18n="powerOn">開啟訊號</button>
+                <button type="button" id="btn-reset" class="flex-1 py-2 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-900 text-white" data-i18n="reset">重置</button>
+            </div>
 
-                    <div class="calc-row" style="border-top: 1px solid #444; padding-top:5px;">
-                        <span>Ratio (Δx / λ):</span>
-                        <span id="val-ratio" class="calc-val" style="color: #fff;">0.00</span>
-                    </div>
+            <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="spkMode">揚聲器輸出</p>
+            <div class="grid grid-cols-3 gap-1.5 mb-4" id="spk-mode-btns">
+                <button type="button" class="spk-btn rounded-lg py-2" data-mode="a" data-i18n="spkA">僅 S₁</button>
+                <button type="button" class="spk-btn rounded-lg py-2" data-mode="b" data-i18n="spkB">僅 S₂</button>
+                <button type="button" class="spk-btn rounded-lg py-2 on-both" data-mode="both" data-i18n="spkBoth">S₁＋S₂</button>
+            </div>
 
-                    <div id="interference-result" class="result-box">
-                        Constructive Interference
-                    </div>
+            <label class="block mb-3">
+                <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                    <span data-i18n="labelFreq">頻率 \(f\)</span>
+                    <span id="disp-f" class="text-violet-700 font-mono">1000 Hz</span>
+                </span>
+                <input type="range" id="in-freq" min="200" max="4000" step="10" value="1000">
+            </label>
+
+            <label class="block mb-3">
+                <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                    <span data-i18n="labelAmp">響度（振幅）</span>
+                    <span id="disp-amp" class="text-violet-700 font-mono">70%</span>
+                </span>
+                <input type="range" id="in-amp" min="5" max="100" step="1" value="70">
+            </label>
+
+            <label class="block mb-3">
+                <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                    <span data-i18n="labelSep">揚聲器距離 \(d\)</span>
+                    <span id="disp-d" class="text-violet-700 font-mono">0.60 m</span>
+                </span>
+                <input type="range" id="in-d" min="0.20" max="1.20" step="0.02" value="0.60">
+            </label>
+
+            <label class="block mb-3">
+                <span class="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
+                    <span data-i18n="labelTemp">室溫（影響聲速）</span>
+                    <span id="disp-temp" class="text-violet-700 font-mono">20 °C</span>
+                </span>
+                <input type="range" id="in-temp" min="0" max="40" step="1" value="20">
+            </label>
+
+            <p class="text-[11px] font-bold text-slate-500 mb-1.5" data-i18n="waveLabel">波形</p>
+            <div class="grid grid-cols-4 gap-1.5 mb-3" id="wave-btns"></div>
+
+            <div class="space-y-1.5 mb-1">
+                <label class="check-row"><input type="checkbox" id="in-lines"><span data-i18n="showLines">顯示相長／相消干涉線</span></label>
+                <label class="check-row"><input type="checkbox" id="in-heat" checked><span data-i18n="showHeat">顯示聲強分佈圖</span></label>
+                <label class="check-row"><input type="checkbox" id="in-rings" checked><span data-i18n="showRings">顯示圓形波前</span></label>
+                <label class="check-row"><input type="checkbox" id="in-paths"><span data-i18n="showPaths">顯示路徑 S₁P、S₂P</span></label>
+                <label class="check-row"><input type="checkbox" id="in-ruler" checked><span data-i18n="showRuler">顯示尺規</span></label>
+                <label class="check-row"><input type="checkbox" id="in-invert"><span data-i18n="invertPhase">S₂ 反相（相位差 π）</span></label>
+                <label class="check-row"><input type="checkbox" id="in-audio" checked><span data-i18n="enableAudio">實聽（依咪高峰位置調響度）</span></label>
+            </div>
+            <p class="text-[10px] text-violet-700 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2 mt-2" data-i18n="micHint">拖曳咪高峰或尺規改變位置；示波器顯示咪高峰處聲波；兩源同時開啓時可聽／見干涉。</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs">
+            <div class="font-black text-violet-800 mb-2" data-i18n="liveTitle">即時數據</div>
+            <div class="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
+                <div class="stat-card py-2"><span>\(f\)</span><span id="val-f" class="block font-bold mt-0.5 font-mono">—</span></div>
+                <div class="stat-card py-2"><span>\(v\)</span><span id="val-v" class="block font-bold text-violet-700 mt-0.5 font-mono">—</span></div>
+                <div class="stat-card py-2"><span>\(\lambda\)</span><span id="val-lambda" class="block font-bold text-fuchsia-700 mt-0.5 font-mono">—</span></div>
+            </div>
+            <div class="space-y-1 border-t border-dashed border-slate-100 pt-2">
+                <div class="flex justify-between"><span data-i18n="statS1">S₁P</span><b id="val-s1p" class="font-mono">—</b></div>
+                <div class="flex justify-between"><span data-i18n="statS2">S₂P</span><b id="val-s2p" class="font-mono">—</b></div>
+                <div class="flex justify-between"><span class="mj-sym">\( \Delta = |S_1P - S_2P| \)</span><b id="val-delta" class="font-mono text-violet-700">—</b></div>
+                <div class="flex justify-between"><span>\(n=\Delta/\lambda\)</span><b id="val-n" class="font-mono">—</b></div>
+                <div class="flex justify-between"><span data-i18n="statI">相對聲強</span><b id="val-i" class="font-mono">—</b></div>
+            </div>
+            <div id="interf-badge" class="mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200">—</div>
+            <div class="mj-box mt-3 text-[12px]">\( \Delta = n\lambda \Rightarrow \) 相長；\( \Delta = (n+\tfrac12)\lambda \Rightarrow \) 相消</div>
+            <div class="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
+                <span class="flex items-center gap-1"><span class="line-swatch swatch-anti"></span><span data-i18n="legAnti">腹線（相長）</span></span>
+                <span class="flex items-center gap-1"><span class="line-swatch swatch-node"></span><span data-i18n="legNode">節線（相消）</span></span>
+            </div>
+        </div>
+    </aside>
+
+    <section class="lg:col-span-8 order-1 lg:order-2 flex flex-col gap-3 min-w-0 min-h-0">
+        <div class="lab-stage relative flex-1 min-h-[320px] sm:min-h-[420px] overflow-hidden border border-slate-400 shadow-inner">
+            <canvas id="lab-canvas" class="absolute inset-0 w-full h-full cursor-crosshair"></canvas>
+            <div class="absolute top-2 left-3 right-3 flex flex-wrap justify-between gap-2 pointer-events-none">
+                <div class="bg-white/90 backdrop-blur text-[10px] font-bold text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm" data-i18n="labLabel">實驗室俯視 · 拖曳咪高峰</div>
+                <div class="bg-slate-900/70 text-[10px] font-mono text-violet-200 px-2.5 py-1 rounded-lg" id="scale-label">1 m</div>
+            </div>
+            <div class="absolute bottom-2 left-3 right-3 flex flex-wrap gap-2 pointer-events-none text-[10px] font-bold">
+                <span class="bg-blue-600/90 text-white px-2 py-0.5 rounded">S₁</span>
+                <span class="bg-emerald-600/90 text-white px-2 py-0.5 rounded">S₂</span>
+                <span class="bg-amber-500/90 text-white px-2 py-0.5 rounded" data-i18n="legMic">咪高峰 P</span>
+                <span class="bg-violet-700/90 text-white px-2 py-0.5 rounded" data-i18n="legSg">訊號產生器</span>
+            </div>
+        </div>
+
+        <div class="scope-chassis rounded-2xl overflow-hidden shrink-0">
+            <div class="px-3 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-600/60">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" id="scope-led"></span>
+                    <div class="text-xs font-black text-zinc-100 tracking-wide" data-i18n="scopeTitle">示波器 · CH1（咪高峰）</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    <span class="scope-chip" id="chip-ch">CH1 DC</span>
+                    <span class="scope-chip" id="chip-vdiv">—</span>
+                    <span class="scope-chip" id="chip-tdiv">—</span>
+                    <span class="scope-chip" id="chip-trig">AUTO</span>
                 </div>
             </div>
-
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_210px] gap-0">
+                <div class="relative w-full h-44 sm:h-52 md:h-56 oscilloscope-bg border-b md:border-b-0 md:border-r border-zinc-700">
+                    <canvas id="scope-canvas" class="absolute inset-0 w-full h-full"></canvas>
+                    <div class="absolute top-2 left-2 right-2 flex justify-between gap-2 pointer-events-none text-[9px] font-mono font-bold">
+                        <span class="text-yellow-300/90" data-i18n="legWave">CH1 · 咪高峰</span>
+                        <span class="text-emerald-400/80" id="scope-status">RUN</span>
+                    </div>
+                    <div class="absolute bottom-2 left-2 right-2 flex justify-between gap-2 pointer-events-none text-[9px] font-mono text-emerald-500/70">
+                        <span id="scope-meas-vpp">V<sub>pp</sub> —</span>
+                        <span id="scope-meas-f">f —</span>
+                    </div>
+                </div>
+                <div class="p-3 flex flex-col gap-2.5 bg-zinc-900/80 text-zinc-200">
+                    <div>
+                        <div class="scope-knob-label mb-1" data-i18n="scopeTimeDiv">TIME / DIV</div>
+                        <select id="scope-tdiv" class="scope-select"></select>
+                    </div>
+                    <div>
+                        <div class="scope-knob-label mb-1" data-i18n="scopeVoltDiv">VOLTS / DIV</div>
+                        <select id="scope-vdiv" class="scope-select"></select>
+                    </div>
+                    <div>
+                        <div class="flex justify-between scope-knob-label mb-1">
+                            <span data-i18n="scopeVPos">POSITION</span>
+                            <span id="disp-vpos" class="font-mono text-emerald-400">0.0 div</span>
+                        </div>
+                        <input type="range" id="scope-vpos" class="scope-range" min="-3" max="3" step="0.1" value="0">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <div class="scope-knob-label mb-1" data-i18n="scopeCoupling">COUPLING</div>
+                            <select id="scope-coupling" class="scope-select">
+                                <option value="dc">DC</option>
+                                <option value="ac">AC</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="scope-knob-label mb-1" data-i18n="scopeTrigMode">TRIGGER</div>
+                            <select id="scope-trig-mode" class="scope-select">
+                                <option value="auto" data-i18n-opt="trigAuto">Auto</option>
+                                <option value="normal" data-i18n-opt="trigNormal">Normal</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between scope-knob-label mb-1">
+                            <span data-i18n="scopeTrigLevel">LEVEL</span>
+                            <span id="disp-trig" class="font-mono text-emerald-400">0.00 V</span>
+                        </div>
+                        <input type="range" id="scope-trig-level" class="scope-range" min="-2" max="2" step="0.05" value="0">
+                    </div>
+                    <div class="flex gap-1.5">
+                        <button type="button" id="scope-edge" class="scope-btn flex-1 active" data-edge="rise" title="Rising">↑ Rise</button>
+                        <button type="button" id="scope-run" class="scope-btn flex-1 active" data-i18n="scopeRun">RUN</button>
+                        <button type="button" id="scope-auto" class="scope-btn flex-1" data-i18n="scopeAuto">AUTO SET</button>
+                    </div>
+                    <label class="check-row text-zinc-300 !text-[11px]">
+                        <input type="checkbox" id="scope-env" checked>
+                        <span data-i18n="legEnv">顯示振幅包絡</span>
+                    </label>
+                </div>
+            </div>
         </div>
+    </section>
+</main>
+
+<!-- 觀察步驟 -->
+<div id="modal-steps" class="modal-backdrop fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+    <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-5 sm:p-6">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <h2 id="steps-title" class="text-lg font-black text-violet-800" data-i18n="stepsTitle">觀察步驟</h2>
+            <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+        </div>
+        <ol class="space-y-3 text-sm text-slate-700 list-decimal list-inside">
+            <li data-i18n="s1">按「開啟訊號」，先選「僅 S₁」或「僅 S₂」，拖曳咪高峰，觀察示波器振幅隨距離衰減。</li>
+            <li data-i18n="s2">改為「S₁＋S₂」，沿中軸左右移動咪高峰，找出示波器振幅最大（相長）與接近零（相消）的位置。</li>
+            <li data-i18n="s3">開啟「顯示相長／相消干涉線」與聲強分佈圖，對照路徑差 \(\Delta\) 與 \(n=\Delta/\lambda\)。</li>
+            <li data-i18n="s4">調高／調低頻率，或加大揚聲器距離 \(d\)，比較干涉條紋疏密；再試「S₂ 反相」看節線是否移到中軸。</li>
+        </ol>
     </div>
+</div>
 
-    <div class="controls">
-        <button id="audio-toggle">Start Audio Generator 🔊</button>
-
-        <div class="control-group">
-            <label>Interaction Mode</label>
-            <div class="mode-switch">
-                <label class="radio-label"><input type="radio" name="inter-mode" value="mic" checked=""> 🎤 <b>Microphone Mode</b><br><small style="margin-left: 24px; color:#aaa;">Click to place mic, see math</small></label>
-                <label class="radio-label"><input type="radio" name="inter-mode" value="line"> 📉 <b>Graph Mode</b><br><small style="margin-left: 24px; color:#aaa;">Click &amp; drag to plot intensity</small></label>
-            </div>
+<!-- 原理解說 -->
+<div id="modal-principle" class="modal-backdrop fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+    <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5 sm:p-6">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <h2 id="principle-title" class="text-lg font-black text-violet-800" data-i18n="principleTitle">原理解說</h2>
+            <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
         </div>
-
-        <div class="control-group">
-            <label>Frequency (f) <span id="val-freq" class="val-display">340 Hz</span></label>
-            <input type="range" id="input-freq" min="100" max="600" value="340" step="10">
-            <div style="font-size: 0.8rem; color: #888;">Wavelength (λ): <span id="val-lambda">1.00 m</span></div>
-        </div>
-
-        <div class="control-group">
-            <label>Speaker Separation (d) <span id="val-sep" class="val-display">2.0 m</span></label>
-            <input type="range" id="input-sep" min="0.5" max="3.5" value="2.0" step="0.1">
-        </div>
-
-        <div class="control-group">
-            <label>Visualization Background</label>
-            <div style="display: flex; gap: 10px;">
-                <label class="radio-label"><input type="radio" name="viz-mode" value="waves" checked=""> Waves</label>
-                <label class="radio-label"><input type="radio" name="viz-mode" value="intensity"> Heatmap</label>
-            </div>
+        <div class="space-y-4 text-sm text-slate-700 leading-relaxed">
+            <p data-i18n="p1">兩個揚聲器由<strong>同一訊號產生器</strong>驅動時，頻率、相位穩定，屬<strong>相干波源</strong>。空氣中聲波以聲速 \(v\) 傳播，波長 \(\lambda = v/f\)。</p>
+            <p data-i18n="p2">咪高峰所在點 P 到兩源的距離差稱為<strong>路徑差</strong> \(\Delta = |S_1P - S_2P|\)。路徑差決定兩列波到達時的相位差。</p>
+            <div class="mj-box">$$ \Delta = n\lambda \quad (n=0,1,2,\ldots) \Rightarrow \text{相長干涉（腹）} $$</div>
+            <div class="mj-box">$$ \Delta = \left(n+\tfrac{1}{2}\right)\lambda \Rightarrow \text{相消干涉（節）} $$</div>
+            <p data-i18n="p3">若其中一個揚聲器反相（相位差 \(\pi\)），條件對調：中軸由相長變為相消。聲強大致與振幅平方成正比；距離愈遠振幅愈小（球面波近似 \(A \propto 1/r\)）。</p>
+            <p data-i18n="p4"><strong>生活例子：</strong>禮堂兩側揚聲器、耳機立體聲、噪音主動消音（反相疊加）都與聲波干涉有關。</p>
+            <p class="text-xs text-slate-500" data-i18n="pNote">本模擬假設無牆面反射的自由場；室溫影響 \(v \approx 331 + 0.6\,T\)（m/s，\(T\) 為 °C）。</p>
         </div>
     </div>
 </div>
 
 <script>
-    // --- Physics Constants ---
-    const SPEED_OF_SOUND = 343; // m/s
-    const PIXELS_PER_METER = 80; // Scale: 80px = 1 meter
-    
-    // Controls how fast intensity drops over distance. 
-    // 0.15 is a gentle decay suitable for this canvas size.
-    const DISTANCE_DECAY_COEFF = 0.15; 
+(function () {
+    'use strict';
 
-    // --- State ---
-    let freq = 340; // Hz
-    let separation = 2.0; // meters
-    let lambda = SPEED_OF_SOUND / freq; // meters
-    let time = 0;
-    let vizMode = 'waves'; 
-    let interactionMode = 'mic'; 
-    
-    // Microphone Position
-    let listenerPos = { x: 300, y: 300 };
-    
-    // Line Analysis State
-    let lineStart = { x: 100, y: 350 };
-    let lineEnd = { x: 500, y: 350 };
-    let isDragging = false;
+    const ROOM = { w: 2.4, h: 1.8 }; // metres (lab bench area)
+    const MARGIN = { l: 0.18, r: 0.18, t: 0.22, b: 0.18 };
 
-    // Audio Context
-    let audioCtx = null;
-    let oscillator = null;
-    let gainNode = null;
-    let isAudioOn = false;
+    const WAVES = [
+        { id: 'sine', zh: '正弦', en: 'Sine' },
+        { id: 'square', zh: '方波', en: 'Square' },
+        { id: 'triangle', zh: '三角', en: 'Triangle' },
+        { id: 'sawtooth', zh: '鋸齒', en: 'Saw' }
+    ];
 
-    // --- DOM Elements ---
-    const simCanvas = document.getElementById('simCanvas');
-    const simCtx = simCanvas.getContext('2d');
-    const graphCanvas = document.getElementById('graphCanvas');
-    const graphCtx = graphCanvas.getContext('2d');
-    
-    const btnAudio = document.getElementById('audio-toggle');
-    const inputFreq = document.getElementById('input-freq');
-    const inputSep = document.getElementById('input-sep');
-    const valFreq = document.getElementById('val-freq');
-    const valSep = document.getElementById('val-sep');
-    const valLambda = document.getElementById('val-lambda');
-    const msgOverlay = document.getElementById('instruction-msg');
-    
-    // Panels
-    const viewMath = document.getElementById('view-math');
-    const viewGraph = document.getElementById('view-graph');
+    const PRESETS = {
+        standard: { f: 1000, d: 0.60, amp: 70, invert: false, wave: 'sine', mode: 'both' },
+        lowf: { f: 500, d: 0.60, amp: 70, invert: false, wave: 'sine', mode: 'both' },
+        highf: { f: 2000, d: 0.60, amp: 70, invert: false, wave: 'sine', mode: 'both' },
+        wide: { f: 1000, d: 1.00, amp: 70, invert: false, wave: 'sine', mode: 'both' },
+        invert: { f: 1000, d: 0.60, amp: 70, invert: true, wave: 'sine', mode: 'both' }
+    };
 
-    // Math Display Elements
-    const elD1 = document.getElementById('val-d1');
-    const elD2 = document.getElementById('val-d2');
-    const elPDiff = document.getElementById('val-pdiff');
-    const elCalcLambda = document.getElementById('val-calc-lambda');
-    const elRatio = document.getElementById('val-ratio');
-    const elResult = document.getElementById('interference-result');
-
-    const radioInterMode = document.querySelectorAll('input[name="inter-mode"]');
-    const radioVizMode = document.querySelectorAll('input[name="viz-mode"]');
-
-    // --- Audio System ---
-    function initAudio() {
-        if (!audioCtx) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
+    const i18n = {
+        zh: {
+            title: '聲音的干涉現象', badge: '物理', subtitle: '雙揚聲器、路徑差與相長／相消干涉',
+            btnSteps: '觀察步驟', btnPrinciple: '原理解說',
+            controlTitle: '實驗控制', presets: '教學情境',
+            preStandard: '① 標準雙源（1 kHz，d = 0.6 m）',
+            preLowf: '② 低頻 → 波長長、條紋疏',
+            preHighf: '③ 高頻 → 波長短、條紋密',
+            preWide: '④ 揚聲器距離加大',
+            preInvert: '⑤ 反相驅動（節線過中軸）',
+            powerOn: '開啟訊號', powerOff: '關閉訊號', reset: '重置',
+            spkMode: '揚聲器輸出', spkA: '僅 S₁', spkB: '僅 S₂', spkBoth: 'S₁＋S₂',
+            labelFreq: '頻率 \(f\)', labelAmp: '響度（振幅）', labelSep: '揚聲器距離 \(d\)',
+            labelTemp: '室溫（影響聲速）', waveLabel: '波形',
+            showLines: '顯示相長／相消干涉線', showHeat: '顯示聲強分佈圖',
+            showRings: '顯示圓形波前', showPaths: '顯示路徑 S₁P、S₂P',
+            showRuler: '顯示尺規',
+            invertPhase: 'S₂ 反相（相位差 π）', enableAudio: '實聽（依咪高峰位置調響度）',
+            micHint: '拖曳咪高峰或尺規改變位置；示波器顯示咪高峰處聲波；兩源同時開啓時可聽／見干涉。',
+            liveTitle: '即時數據', statS1: 'S₁P', statS2: 'S₂P', statI: '相對聲強',
+            legAnti: '腹線（相長）', legNode: '節線（相消）',
+            labLabel: '實驗室俯視 · 拖曳咪高峰／尺規', legMic: '咪高峰 P', legSg: '訊號產生器',
+            scopeTitle: '示波器 · CH1（咪高峰）', legWave: 'CH1 · 咪高峰', legEnv: '顯示振幅包絡',
+            scopeTimeDiv: 'TIME / DIV', scopeVoltDiv: 'VOLTS / DIV', scopeVPos: 'POSITION',
+            scopeCoupling: 'COUPLING', scopeTrigMode: 'TRIGGER', scopeTrigLevel: 'LEVEL',
+            scopeRun: 'RUN', scopeStop: 'STOP', scopeAuto: 'AUTO SET',
+            trigAuto: 'Auto', trigNormal: 'Normal',
+            stepsTitle: '觀察步驟',
+            s1: '按「開啟訊號」，先選「僅 S₁」或「僅 S₂」，拖曳咪高峰，觀察示波器振幅隨距離衰減。',
+            s2: '改為「S₁＋S₂」，沿中軸左右移動咪高峰，找出示波器振幅最大（相長）與接近零（相消）的位置。',
+            s3: '開啟「顯示相長／相消干涉線」與聲強分佈圖，對照路徑差 Δ 與 n＝Δ/λ。',
+            s4: '調高／調低頻率，或加大揚聲器距離 d，比較干涉條紋疏密；再試「S₂ 反相」看節線是否移到中軸。',
+            principleTitle: '原理解說',
+            p1: '兩個揚聲器由同一訊號產生器驅動時，頻率、相位穩定，屬相干波源。空氣中聲波以聲速 v 傳播，波長 λ = v/f。',
+            p2: '咪高峰所在點 P 到兩源的距離差稱為路徑差 Δ = |S₁P − S₂P|。路徑差決定兩列波到達時的相位差。',
+            p3: '若其中一個揚聲器反相（相位差 π），條件對調：中軸由相長變為相消。聲強大致與振幅平方成正比；距離愈遠振幅愈小（球面波近似 A ∝ 1/r）。',
+            p4: '生活例子：禮堂兩側揚聲器、耳機立體聲、噪音主動消音（反相疊加）都與聲波干涉有關。',
+            pNote: '本模擬假設無牆面反射的自由場；室溫影響 v ≈ 331 + 0.6 T（m/s，T 為 °C）。',
+            badgeConstructive: '相長干涉（接近腹）', badgeDestructive: '相消干涉（接近節）',
+            badgePartial: '部分干涉', badgeSingle: '單源（無干涉）', badgeOff: '訊號已關閉',
+            btnQuiz: '課堂問題',
+            quizTitle: '課堂問題',
+            quizShowAnswers: '顯示參考答案',
+            quizHideAnswers: '隱藏參考答案',
+            quizRef: '參考答案：',
+            quizQ1: '兩揚聲器同相、「S₁＋S₂」且咪高峰 P 在兩源正中央時，路徑差 Δ＝|S₁P−S₂P| 最接近？',
+            quizQ1a: '0',
+            quizQ1b: 'λ/2',
+            quizQ1c: 'λ',
+            quizQ1d: '2λ',
+            quizQ1ans: 'A。對稱時 S₁P＝S₂P，Δ＝0，屬相長干涉（腹）。',
+            quizQ2: '在「開啟訊號」且雙源運作下，只把頻率 f 滑桿從 1 kHz 改為 2 kHz（其餘不變），先預測波長 λ 與干涉條紋疏密，再操作並對照即時數據的 λ 與聲強圖。',
+            quizQ2ans: 'v 近似不變時 λ＝v/f 減半，同一區域內波腹／波節線更密。',
+            quizQ3: '勾選「S₂ 反相（相位差 π）」後，原本中軸上的相長點會變成？',
+            quizQ3a: '仍相長',
+            quizQ3b: '相消',
+            quizQ3c: '振幅加倍',
+            quizQ3d: '不干涉',
+            quizQ3ans: 'B。額外 π 相位差使 Δ＝0 時由建設性變破壞性。',
+            quizQ4: '先選「僅 S₁」，拖曳咪高峰至近處與遠處各一次；再改「S₁＋S₂」到中軸，比較示波器振幅與「相對聲強」讀數如何隨路徑改變。',
+            quizQ4ans: '單源時隨距離衰減；雙源時出現建設／破壞干涉，聲強可在同一距離上明顯高於或低於單源。',
+            quizQ5: '在固定 f 下增大揚聲器距離 d，俯視圖中干涉條紋一般會？',
+            quizQ5a: '變密',
+            quizQ5b: '變疏',
+            quizQ5c: '不變',
+            quizQ5d: '完全消失',
+            quizQ5ans: 'B。d 增大改變幾何路徑差分佈，條紋整體趨疏（與波長及幾何有關）。'
+        },
+        en: {
+            title: 'Sound Interference', badge: 'Physics', subtitle: 'Two speakers, path difference & interference',
+            btnSteps: 'Steps', btnPrinciple: 'Principles',
+            controlTitle: 'Controls', presets: 'Teaching presets',
+            preStandard: '① Standard (1 kHz, d = 0.6 m)',
+            preLowf: '② Low f → longer λ, wider fringes',
+            preHighf: '③ High f → shorter λ, denser fringes',
+            preWide: '④ Larger speaker spacing',
+            preInvert: '⑤ Phase-inverted S₂ (node on axis)',
+            powerOn: 'Power on', powerOff: 'Power off', reset: 'Reset',
+            spkMode: 'Speaker output', spkA: 'S₁ only', spkB: 'S₂ only', spkBoth: 'S₁＋S₂',
+            labelFreq: 'Frequency \(f\)', labelAmp: 'Loudness (amplitude)', labelSep: 'Speaker spacing \(d\)',
+            labelTemp: 'Room temp. (affects speed)', waveLabel: 'Waveform',
+            showLines: 'Show constructive / destructive lines', showHeat: 'Show intensity map',
+            showRings: 'Show circular wavefronts', showPaths: 'Show paths S₁P, S₂P',
+            showRuler: 'Show ruler',
+            invertPhase: 'Invert S₂ (phase π)', enableAudio: 'Hear audio (level follows mic)',
+            micHint: 'Drag the mic or ruler to move them. The scope shows the wave at the mic; with both speakers on you hear/see interference.',
+            liveTitle: 'Live data', statS1: 'S₁P', statS2: 'S₂P', statI: 'Relative intensity',
+            legAnti: 'Antinode (constructive)', legNode: 'Node (destructive)',
+            labLabel: 'Lab top view · drag mic / ruler', legMic: 'Mic P', legSg: 'Signal generator',
+            scopeTitle: 'Oscilloscope · CH1 (mic)', legWave: 'CH1 · Mic', legEnv: 'Show amplitude envelope',
+            scopeTimeDiv: 'TIME / DIV', scopeVoltDiv: 'VOLTS / DIV', scopeVPos: 'POSITION',
+            scopeCoupling: 'COUPLING', scopeTrigMode: 'TRIGGER', scopeTrigLevel: 'LEVEL',
+            scopeRun: 'RUN', scopeStop: 'STOP', scopeAuto: 'AUTO SET',
+            trigAuto: 'Auto', trigNormal: 'Normal',
+            stepsTitle: 'Observation steps',
+            s1: 'Power on. Choose S₁ or S₂ only, drag the mic, and watch amplitude fall with distance on the scope.',
+            s2: 'Switch to S₁＋S₂. Move the mic left/right of the centre line to find loud (constructive) and near-silent (destructive) spots.',
+            s3: 'Turn on interference lines and the intensity map; compare path difference Δ with n = Δ/λ.',
+            s4: 'Raise/lower frequency or increase d to change fringe spacing; try inverting S₂ to put a node on the axis.',
+            principleTitle: 'Principles',
+            p1: 'When both speakers are driven by the same generator they are coherent sources. Sound travels at speed v with wavelength λ = v/f.',
+            p2: 'The path difference at mic point P is Δ = |S₁P − S₂P| and sets the phase difference between the arriving waves.',
+            p3: 'Inverting one speaker swaps the conditions: the centre line becomes destructive. Intensity scales roughly with amplitude squared; amplitude falls as ~1/r for spherical waves.',
+            p4: 'Examples: PA speakers in a hall, stereo headphones, and active noise cancellation (anti-phase cancellation).',
+            pNote: 'Free-field (no wall reflections). Speed of sound v ≈ 331 + 0.6 T (m/s, T in °C).',
+            badgeConstructive: 'Constructive (near antinode)', badgeDestructive: 'Destructive (near node)',
+            badgePartial: 'Partial interference', badgeSingle: 'Single source (no interference)', badgeOff: 'Signal off',
+            btnQuiz: 'Quiz',
+            quizTitle: 'Classroom quiz',
+            quizShowAnswers: 'Show reference answers',
+            quizHideAnswers: 'Hide reference answers',
+            quizRef: 'Reference: ',
+            quizQ1: 'With in-phase speakers, S₁＋S₂ on, and mic P on the midline, path difference Δ＝|S₁P−S₂P| is closest to?',
+            quizQ1a: '0',
+            quizQ1b: 'λ/2',
+            quizQ1c: 'λ',
+            quizQ1d: '2λ',
+            quizQ1ans: 'A. Symmetry gives S₁P＝S₂P so Δ＝0 → constructive (antinode).',
+            quizQ2: 'With signal on, change only f from 1 kHz to 2 kHz. Predict λ and fringe spacing, then check live λ and the intensity map.',
+            quizQ2ans: 'With v roughly fixed, λ＝v/f halves so antinode/node lines pack closer.',
+            quizQ3: 'With “Invert S₂ (phase π)” checked, a former on-axis constructive point becomes?',
+            quizQ3a: 'Still constructive',
+            quizQ3b: 'Destructive',
+            quizQ3c: 'Double amplitude',
+            quizQ3d: 'No interference',
+            quizQ3ans: 'B. The extra π flips Δ＝0 from constructive to destructive.',
+            quizQ4: 'Try S₁ only at near/far mic positions, then S₁＋S₂ on the axis. Compare scope amplitude and relative intensity.',
+            quizQ4ans: 'Single source decays with distance; two sources give nodes/antinodes that can beat one-source levels.',
+            quizQ5: 'At fixed f, increasing speaker spacing d tends to make fringes?',
+            quizQ5a: 'Denser',
+            quizQ5b: 'Sparser',
+            quizQ5c: 'Unchanged',
+            quizQ5d: 'Vanish',
+            quizQ5ans: 'B. Larger d changes path-difference geometry; fringes spread out.'
         }
-        oscillator = audioCtx.createOscillator();
-        gainNode = audioCtx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.value = freq;
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
-        isAudioOn = true;
-        btnAudio.textContent = "Stop Audio Generator 🔇";
-        btnAudio.classList.add('stop');
-        updateAudio();
-    }
+    };
 
-    function stopAudio() {
-        if (oscillator) {
-            oscillator.stop();
-            oscillator.disconnect();
-            oscillator = null;
+    const state = {
+        lang: 'zh',
+        powered: false,
+        mode: 'both', // a | b | both
+        f: 1000,
+        amp: 0.70,
+        d: 0.60,
+        temp: 20,
+        wave: 'sine',
+        invert: false,
+        showLines: false,
+        showHeat: true,
+        showRings: true,
+        showPaths: false,
+        showRuler: true,
+        enableAudio: true,
+        mic: { x: 1.2, y: 1.15 },
+        ruler: { x: 0.20, y: 0.66, len: 2.0 }, // left end (m), length 2.0 m
+        t: 0,
+        dragging: null, // null | 'mic' | 'ruler'
+        dragOff: { x: 0, y: 0 },
+        preset: 'standard',
+        scope: {
+            timeDiv: 0.001,      // s / div  (1 ms)
+            voltDiv: 0.2,        // V / div
+            vPos: 0,             // divisions
+            coupling: 'dc',
+            trigMode: 'auto',    // auto | normal
+            trigLevel: 0,        // V
+            edge: 'rise',        // rise | fall
+            running: true,
+            showEnv: true,
+            freezeBuf: null,     // { t0, samples[] } when stopped
+            lastTrigOk: true
         }
-        isAudioOn = false;
-        btnAudio.textContent = "Start Audio Generator 🔊";
-        btnAudio.classList.remove('stop');
-    }
+    };
 
-    function updateAudio() {
-        if (!isAudioOn || !oscillator) return;
+    // Mic voltage scale: sim amplitude 1 → 2.5 V (preamp)
+    const MIC_V_SCALE = 2.5;
+    const SCOPE_H_DIV = 8;
+    const SCOPE_W_DIV = 10;
 
-        oscillator.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+    const TIME_DIV_OPTS = [
+        { v: 50e-6, label: '50 μs' },
+        { v: 100e-6, label: '100 μs' },
+        { v: 200e-6, label: '200 μs' },
+        { v: 500e-6, label: '500 μs' },
+        { v: 1e-3, label: '1 ms' },
+        { v: 2e-3, label: '2 ms' },
+        { v: 5e-3, label: '5 ms' },
+        { v: 10e-3, label: '10 ms' }
+    ];
+    const VOLT_DIV_OPTS = [
+        { v: 0.05, label: '50 mV' },
+        { v: 0.1, label: '100 mV' },
+        { v: 0.2, label: '200 mV' },
+        { v: 0.5, label: '500 mV' },
+        { v: 1, label: '1 V' },
+        { v: 2, label: '2 V' }
+    ];
 
-        const s1 = { x: simCanvas.width/2 - (separation * PIXELS_PER_METER)/2, y: 50 };
-        const s2 = { x: simCanvas.width/2 + (separation * PIXELS_PER_METER)/2, y: 50 };
+    let audioCtx = null, osc = null, gainNode = null, audioRunning = false;
 
-        const d1 = Math.hypot(listenerPos.x - s1.x, listenerPos.y - s1.y) / PIXELS_PER_METER;
-        const d2 = Math.hypot(listenerPos.x - s2.x, listenerPos.y - s2.y) / PIXELS_PER_METER;
-        
-        const pathDiff = Math.abs(d1 - d2);
-        const k = (2 * Math.PI) / lambda;
-        const phaseDiff = k * pathDiff;
-        
-        // Pure Interference Amplitude (0 to 1)
-        let interferenceAmp = Math.abs(Math.cos(phaseDiff / 2));
-        
-        // Distance decay (Intensity decreases with distance)
-        const avgDist = (d1 + d2) / 2;
-        const decayFactor = 1 / (1 + DISTANCE_DECAY_COEFF * avgDist);
-        
-        const finalVolume = interferenceAmp * decayFactor * 0.5; 
-        gainNode.gain.setTargetAtTime(finalVolume, audioCtx.currentTime, 0.1);
-    }
+    const labCanvas = document.getElementById('lab-canvas');
+    const labCtx = labCanvas.getContext('2d');
+    const scopeCanvas = document.getElementById('scope-canvas');
+    const scopeCtx = scopeCanvas.getContext('2d');
 
-    // --- Visualization ---
-    
-    function draw() {
-        simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+    function t(key) { return i18n[state.lang][key] || key; }
 
-        const s1 = { x: simCanvas.width/2 - (separation * PIXELS_PER_METER)/2, y: 50 };
-        const s2 = { x: simCanvas.width/2 + (separation * PIXELS_PER_METER)/2, y: 50 };
-
-        // 1. Draw Physics Background
-        if (vizMode === 'intensity') {
-            drawIntensityMap(s1, s2);
-        } else {
-            drawWaves(s1, s2);
-        }
-
-        // 2. Draw Speakers
-        drawSpeaker(s1.x, s1.y, "S1");
-        drawSpeaker(s2.x, s2.y, "S2");
-
-        // 3. Draw Interaction Elements
-        if (interactionMode === 'mic') {
-            drawListener(s1, s2);
-            updateMathAnalysis(s1, s2);
-        } else {
-            drawLineTool();
-            drawGraph(s1, s2);
-        }
-        
-        requestAnimationFrame(loop);
-    }
-
-    function drawSpeaker(x, y, label) {
-        simCtx.fillStyle = '#888';
-        simCtx.fillRect(x - 15, y - 15, 30, 30);
-        simCtx.fillStyle = '#000';
-        simCtx.beginPath();
-        simCtx.arc(x, y, 10, 0, Math.PI*2);
-        simCtx.fill();
-        simCtx.fillStyle = '#fff';
-        simCtx.font = "12px Arial";
-        simCtx.fillText(label, x - 8, y - 20);
-    }
-
-    function drawListener(s1, s2) {
-        simCtx.save();
-        simCtx.translate(listenerPos.x, listenerPos.y);
-        
-        const d1 = Math.hypot(listenerPos.x - s1.x, listenerPos.y - s1.y) / PIXELS_PER_METER;
-        const d2 = Math.hypot(listenerPos.x - s2.x, listenerPos.y - s2.y) / PIXELS_PER_METER;
-        const k = (2 * Math.PI) / lambda;
-        
-        // Calculate Intensity with Decay
-        const avgDist = (d1 + d2) / 2;
-        const decay = 1 / (1 + DISTANCE_DECAY_COEFF * avgDist);
-        const interference = Math.pow(Math.cos(k * Math.abs(d1-d2) / 2), 2);
-        const intensity = interference * decay;
-
-        // Visual pulse
-        // Radius and Opacity depend on intensity
-        simCtx.beginPath();
-        simCtx.arc(0, 0, 10 + intensity * 20, 0, Math.PI*2);
-        simCtx.strokeStyle = `rgba(76, 175, 80, ${intensity})`;
-        simCtx.lineWidth = 3;
-        simCtx.stroke();
-
-        // Icon
-        simCtx.font = "30px Arial";
-        simCtx.textAlign = "center";
-        simCtx.textBaseline = "middle";
-        simCtx.fillText("🎤", 0, 0);
-        
-        // Label coordinates
-        simCtx.fillStyle = "#fff";
-        simCtx.font = "10px monospace";
-        simCtx.fillText(`P`, 15, -15);
-        
-        simCtx.restore();
-
-        // Draw lines from speakers to listener
-        simCtx.setLineDash([5, 5]);
-        simCtx.strokeStyle = "rgba(255,255,255,0.3)";
-        simCtx.lineWidth = 1;
-        
-        simCtx.beginPath(); simCtx.moveTo(s1.x, s1.y); simCtx.lineTo(listenerPos.x, listenerPos.y); simCtx.stroke();
-        simCtx.beginPath(); simCtx.moveTo(s2.x, s2.y); simCtx.lineTo(listenerPos.x, listenerPos.y); simCtx.stroke();
-        simCtx.setLineDash([]);
-    }
-
-    function updateMathAnalysis(s1, s2) {
-        const d1 = Math.hypot(listenerPos.x - s1.x, listenerPos.y - s1.y) / PIXELS_PER_METER;
-        const d2 = Math.hypot(listenerPos.x - s2.x, listenerPos.y - s2.y) / PIXELS_PER_METER;
-        const pathDiff = Math.abs(d1 - d2);
-        const ratio = pathDiff / lambda;
-
-        elD1.textContent = d1.toFixed(2) + " m";
-        elD2.textContent = d2.toFixed(2) + " m";
-        elPDiff.textContent = pathDiff.toFixed(2) + " m";
-        elCalcLambda.textContent = lambda.toFixed(2) + " m";
-        elRatio.textContent = ratio.toFixed(2);
-
-        // Determine Interference Type
-        const remainder = ratio % 1;
-        let distFromInt = Math.abs(remainder - Math.round(remainder)); // 0 to 0.5
-        
-        if (distFromInt < 0.15) {
-            elResult.textContent = "CONSTRUCTIVE INTERFERENCE";
-            elResult.style.color = "#4CAF50"; // Green
-            elResult.style.border = "1px solid #4CAF50";
-        } else if (distFromInt > 0.35) {
-            elResult.textContent = "DESTRUCTIVE INTERFERENCE";
-            elResult.style.color = "#ff5252"; // Red
-            elResult.style.border = "1px solid #ff5252";
-        } else {
-            elResult.textContent = "Intermediate Intensity";
-            elResult.style.color = "#FFC107"; // Yellow
-            elResult.style.border = "1px solid #FFC107";
-        }
-    }
-
-    function drawLineTool() {
-        simCtx.beginPath();
-        simCtx.moveTo(lineStart.x, lineStart.y);
-        simCtx.lineTo(lineEnd.x, lineEnd.y);
-        simCtx.strokeStyle = '#FFC107';
-        simCtx.lineWidth = 3;
-        simCtx.setLineDash([5, 5]);
-        simCtx.stroke();
-        simCtx.setLineDash([]);
-
-        simCtx.fillStyle = '#FFC107';
-        simCtx.beginPath(); simCtx.arc(lineStart.x, lineStart.y, 5, 0, Math.PI*2); simCtx.fill();
-        simCtx.beginPath(); simCtx.arc(lineEnd.x, lineEnd.y, 5, 0, Math.PI*2); simCtx.fill();
-        
-        simCtx.fillStyle = '#FFF';
-        simCtx.font = "12px Arial";
-        simCtx.fillText("Start", lineStart.x + 8, lineStart.y);
-        simCtx.fillText("End", lineEnd.x + 8, lineEnd.y);
-    }
-
-    function drawWaves(s1, s2) {
-        const lambdaPx = lambda * PIXELS_PER_METER;
-        const maxDist = Math.hypot(simCanvas.width, simCanvas.height);
-        const phase = (time * 5) % lambdaPx; 
-
-        simCtx.lineWidth = 2;
-        
-        [s1, s2].forEach(s => {
-            for (let r = phase; r < maxDist; r += lambdaPx) {
-                // Alpha fades with distance naturally (visual representation of wavefront)
-                const alpha = Math.max(0, 1 - r/maxDist);
-                simCtx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
-                simCtx.beginPath();
-                simCtx.arc(s.x, s.y, r, 0, Math.PI*2);
-                simCtx.stroke();
-            }
+    function applyI18n() {
+        renderQuiz();
+        document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const k = el.getAttribute('data-i18n');
+            if (i18n[state.lang][k] != null) el.innerHTML = i18n[state.lang][k];
         });
-    }
-
-    function drawIntensityMap(s1, s2) {
-        const res = 5; 
-        const w = Math.ceil(simCanvas.width / res);
-        const h = Math.ceil(simCanvas.height / res);
-        const k = (2 * Math.PI) / lambda;
-
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                const px = x * res;
-                const py = y * res;
-                const d1 = Math.hypot(px - s1.x, py - s1.y) / PIXELS_PER_METER;
-                const d2 = Math.hypot(px - s2.x, py - s2.y) / PIXELS_PER_METER;
-                
-                // Interference term
-                const interference = Math.pow(Math.cos(k * (d1 - d2) / 2), 2);
-                
-                // Decay term
-                const avgDist = (d1 + d2) / 2;
-                const decay = 1 / (1 + DISTANCE_DECAY_COEFF * avgDist);
-                
-                const val = interference * decay;
-
-                const g = Math.floor(val * 150);
-                const b = Math.floor(val * 50);
-                simCtx.fillStyle = `rgb(0, ${g}, ${b})`;
-                simCtx.fillRect(px, py, res, res);
-            }
+        buildWaveButtons();
+        updatePowerBtn();
+        updateSpkModeBtns();
+        if (window.MathJax && MathJax.typesetPromise) {
+            MathJax.typesetPromise([document.body]).catch(() => {});
         }
     }
 
-    function drawGraph(s1, s2) {
-        const w = graphCanvas.width;
-        const h = graphCanvas.height;
-        graphCtx.clearRect(0, 0, w, h);
+    function soundSpeed() { return 331 + 0.6 * state.temp; }
+    function wavelength() { return soundSpeed() / state.f; }
 
-        graphCtx.strokeStyle = '#333';
-        graphCtx.lineWidth = 1;
-        graphCtx.beginPath();
-        graphCtx.moveTo(0, h/2); graphCtx.lineTo(w, h/2); 
-        graphCtx.stroke();
+    // Table occupies top of lab; speakers sit on the tabletop facing +y (into room)
+    const TABLE = { x0: 0.12, x1: 2.28, y0: 0.10, y1: 0.58 };
 
-        const numPoints = w; 
-        const lineDx = lineEnd.x - lineStart.x;
-        const lineDy = lineEnd.y - lineStart.y;
-        const lineLen = Math.hypot(lineDx, lineDy);
-        
-        if (lineLen === 0) return;
-
-        graphCtx.beginPath();
-        graphCtx.strokeStyle = '#FFC107';
-        graphCtx.lineWidth = 2;
-
-        const k = (2 * Math.PI) / lambda;
-
-        for (let i = 0; i <= numPoints; i++) {
-            const t = i / numPoints;
-            const px = lineStart.x + t * lineDx;
-            const py = lineStart.y + t * lineDy;
-
-            const d1 = Math.hypot(px - s1.x, py - s1.y) / PIXELS_PER_METER;
-            const d2 = Math.hypot(px - s2.x, py - s2.y) / PIXELS_PER_METER;
-            
-            // Interference term
-            const interference = Math.pow(Math.cos(k * (d1 - d2) / 2), 2);
-            
-            // Decay term
-            const avgDist = (d1 + d2) / 2;
-            const decay = 1 / (1 + DISTANCE_DECAY_COEFF * avgDist);
-            
-            const intensity = interference * decay;
-            
-            const gy = h - 10 - (intensity * (h - 20));
-            
-            if (i === 0) graphCtx.moveTo(i, gy);
-            else graphCtx.lineTo(i, gy);
-        }
-        graphCtx.stroke();
-    }
-
-    function loop() {
-        time += 0.05;
-        draw();
-        updateAudio();
-    }
-
-    // --- Interaction Handlers ---
-
-    btnAudio.addEventListener('click', () => {
-        if (isAudioOn) stopAudio();
-        else initAudio();
-    });
-
-    inputFreq.addEventListener('input', (e) => {
-        freq = parseInt(e.target.value);
-        lambda = SPEED_OF_SOUND / freq;
-        valFreq.textContent = freq + " Hz";
-        valLambda.textContent = lambda.toFixed(2) + " m";
-    });
-
-    inputSep.addEventListener('input', (e) => {
-        separation = parseFloat(e.target.value);
-        valSep.textContent = separation.toFixed(1) + " m";
-    });
-
-    radioVizMode.forEach(r => {
-        r.addEventListener('change', (e) => vizMode = e.target.value);
-    });
-
-    radioInterMode.forEach(r => {
-        r.addEventListener('change', (e) => {
-            interactionMode = e.target.value;
-            if (interactionMode === 'mic') {
-                msgOverlay.textContent = "Click anywhere to move Microphone 🎤";
-                viewMath.classList.remove('hidden');
-                viewGraph.classList.add('hidden');
-            } else {
-                msgOverlay.textContent = "Click and drag to draw a line 📉";
-                viewMath.classList.add('hidden');
-                viewGraph.classList.remove('hidden');
-            }
-        });
-    });
-
-    // --- MOUSE/TOUCH LOGIC ---
-
-    function getCanvasCoordinates(e) {
-        const rect = simCanvas.getBoundingClientRect();
-        let clientX, clientY;
-
-        if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
-        const scaleX = simCanvas.width / rect.width;
-        const scaleY = simCanvas.height / rect.height;
-
+    function speakerPositions() {
+        const cx = ROOM.w / 2;
+        const sy = (TABLE.y0 + TABLE.y1) / 2 + 0.02; // centre of tabletop
         return {
-            x: (clientX - rect.left) * scaleX,
-            y: (clientY - rect.top) * scaleY
+            s1: { x: cx - state.d / 2, y: sy },
+            s2: { x: cx + state.d / 2, y: sy },
+            sg: { x: cx, y: TABLE.y0 + 0.10 }
         };
     }
 
-    const startDrag = (e) => {
-        if (e.type === 'mousedown' && e.button !== 0) return;
+    function activeSources() {
+        if (!state.powered) return { a: false, b: false };
+        if (state.mode === 'a') return { a: true, b: false };
+        if (state.mode === 'b') return { a: false, b: true };
+        return { a: true, b: true };
+    }
 
-        e.preventDefault(); 
-        isDragging = true;
-        const pos = getCanvasCoordinates(e);
+    function dist(a, b) {
+        const dx = a.x - b.x, dy = a.y - b.y;
+        return Math.hypot(dx, dy);
+    }
 
-        if (interactionMode === 'mic') {
-            listenerPos = pos;
-        } else {
-            lineStart = pos;
-            lineEnd = pos;
+    function waveShape(phase, type) {
+        let p = phase % (2 * Math.PI);
+        if (p < 0) p += 2 * Math.PI;
+        if (type === 'square') return p < Math.PI ? 1 : -1;
+        if (type === 'triangle') return p < Math.PI ? (-1 + 2 * p / Math.PI) : (3 - 2 * p / Math.PI);
+        if (type === 'sawtooth') return -1 + p / Math.PI;
+        return Math.sin(phase);
+    }
+
+    /** Complex phasor sum for continuous-wave intensity / envelope */
+    function fieldAt(px, py) {
+        const sp = speakerPositions();
+        const src = activeSources();
+        const lam = wavelength();
+        const k = 2 * Math.PI / lam;
+        const A0 = state.amp;
+        const r0 = 0.08;
+        let re = 0, im = 0;
+        const add = (s, phase0) => {
+            const r = Math.max(dist(s, { x: px, y: py }), 0.04);
+            const A = A0 * r0 / r;
+            const ph = -k * r + phase0;
+            re += A * Math.cos(ph);
+            im += A * Math.sin(ph);
+            return r;
+        };
+        let r1 = 0, r2 = 0;
+        if (src.a) r1 = add(sp.s1, 0);
+        else r1 = dist(sp.s1, { x: px, y: py });
+        if (src.b) r2 = add(sp.s2, state.invert ? Math.PI : 0);
+        else r2 = dist(sp.s2, { x: px, y: py });
+        const amp = Math.hypot(re, im);
+        const delta = Math.abs(r1 - r2);
+        return { re, im, amp, intens: amp * amp, r1, r2, delta };
+    }
+
+    function sampleWaveAt(px, py, time) {
+        const sp = speakerPositions();
+        const src = activeSources();
+        const v = soundSpeed();
+        const w = 2 * Math.PI * state.f;
+        const A0 = state.amp;
+        const r0 = 0.08;
+        let y = 0;
+        if (src.a) {
+            const r = Math.max(dist(sp.s1, { x: px, y: py }), 0.04);
+            const A = A0 * r0 / r;
+            const phase = w * (time - r / v);
+            y += A * waveShape(phase, state.wave);
         }
+        if (src.b) {
+            const r = Math.max(dist(sp.s2, { x: px, y: py }), 0.04);
+            const A = A0 * r0 / r;
+            const phase = w * (time - r / v) + (state.invert ? Math.PI : 0);
+            y += A * waveShape(phase, state.wave);
+        }
+        return y;
+    }
+
+    /* ---------- layout map world ↔ canvas ---------- */
+    function layout() {
+        const rect = labCanvas.getBoundingClientRect();
+        const W = Math.max(1, Math.floor(rect.width * devicePixelRatio));
+        const H = Math.max(1, Math.floor(rect.height * devicePixelRatio));
+        if (labCanvas.width !== W || labCanvas.height !== H) {
+            labCanvas.width = W;
+            labCanvas.height = H;
+        }
+        const pad = 36 * devicePixelRatio;
+        const usableW = W - 2 * pad;
+        const usableH = H - 2 * pad;
+        const scale = Math.min(usableW / ROOM.w, usableH / ROOM.h);
+        const ox = (W - ROOM.w * scale) / 2;
+        const oy = (H - ROOM.h * scale) / 2;
+        return { W, H, scale, ox, oy, pad };
+    }
+
+    function worldToPx(x, y, L) {
+        return { x: L.ox + x * L.scale, y: L.oy + y * L.scale };
+    }
+
+    function pxToWorld(px, py, L) {
+        return {
+            x: Math.min(ROOM.w - 0.05, Math.max(0.05, (px - L.ox) / L.scale)),
+            y: Math.min(ROOM.h - 0.05, Math.max(0.05, (py - L.oy) / L.scale))
+        };
+    }
+
+    /* ---------- drawing ---------- */
+    function drawHeatmap(L) {
+        if (!state.showHeat || !state.powered) return;
+        const src = activeSources();
+        if (!src.a && !src.b) return;
+        const step = Math.max(4, Math.floor(8 * devicePixelRatio));
+        const img = labCtx.createImageData(L.W, L.H);
+        const data = img.data;
+        let maxI = 0;
+        const samples = [];
+        for (let py = 0; py < L.H; py += step) {
+            for (let px = 0; px < L.W; px += step) {
+                const w = pxToWorld(px, py, L);
+                if (w.x < 0 || w.y < 0 || w.x > ROOM.w || w.y > ROOM.h) continue;
+                const f = fieldAt(w.x, w.y);
+                samples.push({ px, py, i: f.intens });
+                if (f.intens > maxI) maxI = f.intens;
+            }
+        }
+        maxI = Math.max(maxI, 1e-6);
+        for (const s of samples) {
+            const tnorm = Math.min(1, s.i / maxI);
+            // violet → amber heat
+            const r = Math.floor(40 + 200 * tnorm);
+            const g = Math.floor(30 + 80 * tnorm * tnorm);
+            const b = Math.floor(90 + 40 * (1 - tnorm));
+            const a = Math.floor(30 + 140 * tnorm);
+            for (let dy = 0; dy < step; dy++) {
+                for (let dx = 0; dx < step; dx++) {
+                    const x = s.px + dx, y = s.py + dy;
+                    if (x >= L.W || y >= L.H) continue;
+                    const idx = (y * L.W + x) * 4;
+                    data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = a;
+                }
+            }
+        }
+        labCtx.putImageData(img, 0, 0);
+    }
+
+    function drawInterferenceLines(L) {
+        if (!state.showLines || !state.powered) return;
+        const src = activeSources();
+        if (!(src.a && src.b)) return;
+        const sp = speakerPositions();
+        const lam = wavelength();
+        const maxN = Math.ceil(state.d / lam) + 2;
+        const midX = (sp.s1.x + sp.s2.x) / 2;
+        const midY = (sp.s1.y + sp.s2.y) / 2;
+        const c = state.d / 2; // half focal distance
+
+        function strokeHyperbola(target, constructive) {
+            if (target < 1e-6) {
+                // central axis (Δ = 0)
+                if (constructive) {
+                    labCtx.strokeStyle = 'rgba(244, 63, 94, 0.9)';
+                    labCtx.lineWidth = 2.2 * devicePixelRatio;
+                    labCtx.setLineDash([]);
+                } else {
+                    labCtx.strokeStyle = 'rgba(100, 116, 139, 0.95)';
+                    labCtx.lineWidth = 1.6 * devicePixelRatio;
+                    labCtx.setLineDash([6 * devicePixelRatio, 5 * devicePixelRatio]);
+                }
+                const a = worldToPx(midX, sp.s1.y + 0.05, L);
+                const b = worldToPx(midX, ROOM.h - 0.05, L);
+                labCtx.beginPath();
+                labCtx.moveTo(a.x, a.y);
+                labCtx.lineTo(b.x, b.y);
+                labCtx.stroke();
+                labCtx.setLineDash([]);
+                return;
+            }
+            if (target >= state.d - 1e-4) return;
+            const a = target / 2;
+            const b2 = c * c - a * a;
+            if (b2 <= 0) return;
+            const b = Math.sqrt(b2);
+
+            if (constructive) {
+                labCtx.strokeStyle = 'rgba(244, 63, 94, 0.85)';
+                labCtx.lineWidth = 2 * devicePixelRatio;
+                labCtx.setLineDash([]);
+            } else {
+                labCtx.strokeStyle = 'rgba(100, 116, 139, 0.9)';
+                labCtx.lineWidth = 1.5 * devicePixelRatio;
+                labCtx.setLineDash([6 * devicePixelRatio, 5 * devicePixelRatio]);
+            }
+
+            // Two branches: xLocal = ±a cosh u, yLocal = b sinh u (speakers along x)
+            [-1, 1].forEach(sign => {
+                labCtx.beginPath();
+                let started = false;
+                for (let u = -2.8; u <= 2.8; u += 0.04) {
+                    const xLocal = sign * a * Math.cosh(u);
+                    const yLocal = b * Math.sinh(u);
+                    const wx = midX + xLocal;
+                    const wy = midY + yLocal;
+                    if (wx < 0.02 || wx > ROOM.w - 0.02 || wy < sp.s1.y + 0.04 || wy > ROOM.h - 0.02) {
+                        started = false;
+                        continue;
+                    }
+                    const p = worldToPx(wx, wy, L);
+                    if (!started) { labCtx.moveTo(p.x, p.y); started = true; }
+                    else labCtx.lineTo(p.x, p.y);
+                }
+                labCtx.stroke();
+            });
+            labCtx.setLineDash([]);
+        }
+
+        function drawContour(order, constructive) {
+            let target = constructive ? order * lam : (order + 0.5) * lam;
+            if (state.invert) {
+                target = constructive ? (order + 0.5) * lam : order * lam;
+            }
+            strokeHyperbola(target, constructive);
+        }
+
+        for (let n = 0; n <= maxN; n++) {
+            drawContour(n, true);
+            drawContour(n, false);
+        }
+    }
+
+    function drawRings(L) {
+        if (!state.showRings || !state.powered) return;
+        const sp = speakerPositions();
+        const src = activeSources();
+        const lam = wavelength();
+        const phase = (state.t * soundSpeed()) % lam;
+        const maxR = Math.hypot(ROOM.w, ROOM.h);
+
+        function rings(s, color) {
+            labCtx.strokeStyle = color;
+            labCtx.lineWidth = 1.2 * devicePixelRatio;
+            for (let r = phase; r < maxR; r += lam) {
+                const c = worldToPx(s.x, s.y, L);
+                labCtx.beginPath();
+                labCtx.arc(c.x, c.y, r * L.scale, 0, Math.PI * 2);
+                labCtx.globalAlpha = Math.max(0.08, 0.45 * (1 - r / maxR));
+                labCtx.stroke();
+            }
+            labCtx.globalAlpha = 1;
+        }
+        if (src.a) rings(sp.s1, 'rgba(37, 99, 235, 0.7)');
+        if (src.b) rings(sp.s2, 'rgba(5, 150, 105, 0.7)');
+    }
+
+    /** Top-view bookshelf speaker sitting on the table, cone facing +y (into room) */
+    function drawSpeaker(L, s, label, color, on) {
+        const p = worldToPx(s.x, s.y, L);
+        const bw = 0.14 * L.scale;  // cabinet width ~14 cm
+        const bh = 0.18 * L.scale;  // cabinet depth ~18 cm
+        const x0 = p.x - bw / 2;
+        const y0 = p.y - bh / 2;
+
+        // soft shadow on tabletop
+        labCtx.fillStyle = 'rgba(15, 23, 42, 0.28)';
+        roundRect(labCtx, x0 + 2 * devicePixelRatio, y0 + 3 * devicePixelRatio, bw, bh, 4 * devicePixelRatio);
+        labCtx.fill();
+
+        // wooden/plastic cabinet body
+        const bodyGrad = labCtx.createLinearGradient(x0, y0, x0 + bw, y0);
+        bodyGrad.addColorStop(0, '#1e293b');
+        bodyGrad.addColorStop(0.5, '#334155');
+        bodyGrad.addColorStop(1, '#1e293b');
+        labCtx.fillStyle = bodyGrad;
+        roundRect(labCtx, x0, y0, bw, bh, 4 * devicePixelRatio);
+        labCtx.fill();
+        labCtx.strokeStyle = '#0f172a';
+        labCtx.lineWidth = 1.5 * devicePixelRatio;
+        labCtx.stroke();
+
+        // accent side stripe
+        labCtx.fillStyle = on ? color : '#94a3b8';
+        labCtx.fillRect(x0 + 2 * devicePixelRatio, y0 + 4 * devicePixelRatio, 3 * devicePixelRatio, bh - 8 * devicePixelRatio);
+
+        // front baffle (south edge) with circular driver
+        const cx = p.x;
+        const cy = y0 + bh * 0.62;
+        const rOut = Math.min(bw, bh) * 0.32;
+        labCtx.fillStyle = '#0f172a';
+        labCtx.beginPath();
+        labCtx.arc(cx, cy, rOut, 0, Math.PI * 2);
+        labCtx.fill();
+        labCtx.strokeStyle = on ? color : '#64748b';
+        labCtx.lineWidth = 2 * devicePixelRatio;
+        labCtx.stroke();
+        // cone rings
+        labCtx.strokeStyle = on ? 'rgba(255,255,255,0.35)' : 'rgba(148,163,184,0.4)';
+        labCtx.lineWidth = 1 * devicePixelRatio;
+        for (let i = 1; i <= 3; i++) {
+            labCtx.beginPath();
+            labCtx.arc(cx, cy, rOut * (0.25 + i * 0.2), 0, Math.PI * 2);
+            labCtx.stroke();
+        }
+        labCtx.fillStyle = on ? color : '#94a3b8';
+        labCtx.beginPath();
+        labCtx.arc(cx, cy, rOut * 0.18, 0, Math.PI * 2);
+        labCtx.fill();
+
+        // label on rear of cabinet (north)
+        labCtx.fillStyle = '#f8fafc';
+        labCtx.font = `bold ${10 * devicePixelRatio}px "Noto Sans TC", sans-serif`;
+        labCtx.textAlign = 'center';
+        labCtx.textBaseline = 'middle';
+        labCtx.fillText(label, p.x, y0 + bh * 0.22);
+
+        // sound arcs when powered
+        if (on && state.powered) {
+            labCtx.strokeStyle = color;
+            labCtx.lineWidth = 1.5 * devicePixelRatio;
+            const pulse = 0.35 + 0.25 * Math.sin(state.t * state.f * 0.02);
+            labCtx.globalAlpha = pulse;
+            for (let i = 1; i <= 3; i++) {
+                labCtx.beginPath();
+                labCtx.arc(cx, cy + rOut * 0.2, rOut * (0.7 + i * 0.55), 0.15 * Math.PI, 0.85 * Math.PI);
+                labCtx.stroke();
+            }
+            labCtx.globalAlpha = 1;
+        }
+    }
+
+    function drawSignalGenerator(L, sg) {
+        const p = worldToPx(sg.x, sg.y, L);
+        const w = 0.22 * L.scale, h = 0.12 * L.scale;
+        // shadow
+        labCtx.fillStyle = 'rgba(15, 23, 42, 0.25)';
+        roundRect(labCtx, p.x - w / 2 + 2 * devicePixelRatio, p.y - h / 2 + 2 * devicePixelRatio, w, h, 5 * devicePixelRatio);
+        labCtx.fill();
+        labCtx.fillStyle = '#312e81';
+        roundRect(labCtx, p.x - w / 2, p.y - h / 2, w, h, 5 * devicePixelRatio);
+        labCtx.fill();
+        labCtx.strokeStyle = '#1e1b4b';
+        labCtx.lineWidth = 1.5 * devicePixelRatio;
+        labCtx.stroke();
+        // screen
+        labCtx.fillStyle = '#0f172a';
+        roundRect(labCtx, p.x - w * 0.12, p.y - h * 0.28, w * 0.42, h * 0.55, 3 * devicePixelRatio);
+        labCtx.fill();
+        labCtx.fillStyle = state.powered ? '#4ade80' : '#64748b';
+        labCtx.beginPath();
+        labCtx.arc(p.x - w * 0.32, p.y, 3.5 * devicePixelRatio, 0, Math.PI * 2);
+        labCtx.fill();
+        labCtx.fillStyle = '#e0e7ff';
+        labCtx.font = `bold ${8 * devicePixelRatio}px "JetBrains Mono", monospace`;
+        labCtx.textAlign = 'center';
+        labCtx.textBaseline = 'middle';
+        labCtx.fillText('SIG GEN', p.x + w * 0.12, p.y);
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+
+    function drawCables(L, sp) {
+        const g = worldToPx(sp.sg.x, sp.sg.y, L);
+        const a = worldToPx(sp.s1.x, sp.s1.y, L);
+        const b = worldToPx(sp.s2.x, sp.s2.y, L);
+        const rear = 0.09 * L.scale; // connect to rear of speaker cabinets
+        labCtx.strokeStyle = state.powered ? 'rgba(124, 58, 237, 0.75)' : 'rgba(100, 116, 139, 0.55)';
+        labCtx.lineWidth = 2 * devicePixelRatio;
+        labCtx.setLineDash([4 * devicePixelRatio, 3 * devicePixelRatio]);
+        labCtx.beginPath();
+        labCtx.moveTo(g.x - 0.06 * L.scale, g.y + 0.04 * L.scale);
+        labCtx.quadraticCurveTo(a.x, g.y + 0.08 * L.scale, a.x, a.y - rear);
+        labCtx.moveTo(g.x + 0.06 * L.scale, g.y + 0.04 * L.scale);
+        labCtx.quadraticCurveTo(b.x, g.y + 0.08 * L.scale, b.x, b.y - rear);
+        labCtx.stroke();
+        labCtx.setLineDash([]);
+    }
+
+    /** Top-view handheld mic: grille capsule + handle + cable (sense point = capsule centre) */
+    function drawMic(L) {
+        const p = worldToPx(state.mic.x, state.mic.y, L);
+        const s = L.scale;
+        const rHead = 0.055 * s;
+        const ang = Math.PI * 0.28;
+        const handleLen = 0.13 * s;
+        const nx = Math.cos(ang), ny = Math.sin(ang);
+        const px = -ny, py = nx;
+        const hw = 0.018 * s;
+        const hx = p.x + nx * (rHead * 0.55 + handleLen);
+        const hy = p.y + ny * (rHead * 0.55 + handleLen);
+
+        // cable from handle end to scope corner
+        labCtx.strokeStyle = 'rgba(71, 85, 105, 0.75)';
+        labCtx.lineWidth = 2 * devicePixelRatio;
+        labCtx.setLineDash([]);
+        labCtx.beginPath();
+        labCtx.moveTo(hx + nx * 0.01 * s, hy + ny * 0.01 * s);
+        labCtx.quadraticCurveTo(
+            hx + 0.25 * s, hy + 0.15 * s,
+            L.W - 18 * devicePixelRatio, L.H - 18 * devicePixelRatio
+        );
+        labCtx.stroke();
+
+        // soft shadow
+        labCtx.fillStyle = 'rgba(15, 23, 42, 0.22)';
+        labCtx.beginPath();
+        labCtx.arc(p.x + 2 * devicePixelRatio, p.y + 2 * devicePixelRatio, rHead, 0, Math.PI * 2);
+        labCtx.fill();
+
+        // handle body
+        labCtx.fillStyle = '#1e293b';
+        labCtx.beginPath();
+        labCtx.moveTo(p.x + nx * rHead * 0.35 + px * hw, p.y + ny * rHead * 0.35 + py * hw);
+        labCtx.lineTo(hx + px * hw * 0.7, hy + py * hw * 0.7);
+        labCtx.lineTo(hx - px * hw * 0.7, hy - py * hw * 0.7);
+        labCtx.lineTo(p.x + nx * rHead * 0.35 - px * hw, p.y + ny * rHead * 0.35 - py * hw);
+        labCtx.closePath();
+        labCtx.fill();
+        labCtx.strokeStyle = '#0f172a';
+        labCtx.lineWidth = 1 * devicePixelRatio;
+        labCtx.stroke();
+
+        // grip rings
+        labCtx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+        for (let i = 1; i <= 3; i++) {
+            const t = 0.25 + i * 0.18;
+            const cx = p.x + nx * (rHead * 0.35 + handleLen * t);
+            const cy = p.y + ny * (rHead * 0.35 + handleLen * t);
+            labCtx.beginPath();
+            labCtx.moveTo(cx + px * hw * 0.85, cy + py * hw * 0.85);
+            labCtx.lineTo(cx - px * hw * 0.85, cy - py * hw * 0.85);
+            labCtx.stroke();
+        }
+
+        // basket rim
+        labCtx.fillStyle = '#94a3b8';
+        labCtx.beginPath();
+        labCtx.arc(p.x, p.y, rHead * 1.05, 0, Math.PI * 2);
+        labCtx.fill();
+
+        // mesh grille capsule
+        const mesh = labCtx.createRadialGradient(
+            p.x - rHead * 0.25, p.y - rHead * 0.25, rHead * 0.1,
+            p.x, p.y, rHead
+        );
+        mesh.addColorStop(0, '#e2e8f0');
+        mesh.addColorStop(0.55, '#94a3b8');
+        mesh.addColorStop(1, '#475569');
+        labCtx.fillStyle = mesh;
+        labCtx.beginPath();
+        labCtx.arc(p.x, p.y, rHead, 0, Math.PI * 2);
+        labCtx.fill();
+        labCtx.strokeStyle = '#334155';
+        labCtx.lineWidth = 1.5 * devicePixelRatio;
+        labCtx.stroke();
+
+        // mesh holes
+        labCtx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+        const step = rHead * 0.28;
+        for (let gy = -2; gy <= 2; gy++) {
+            for (let gx = -2; gx <= 2; gx++) {
+                const mx = p.x + gx * step * 0.85;
+                const my = p.y + gy * step * 0.85;
+                if (Math.hypot(mx - p.x, my - p.y) < rHead * 0.78) {
+                    labCtx.beginPath();
+                    labCtx.arc(mx, my, rHead * 0.07, 0, Math.PI * 2);
+                    labCtx.fill();
+                }
+            }
+        }
+
+        // amber accent ring
+        labCtx.strokeStyle = '#f59e0b';
+        labCtx.lineWidth = 2 * devicePixelRatio;
+        labCtx.beginPath();
+        labCtx.arc(p.x, p.y, rHead + 2 * devicePixelRatio, 0, Math.PI * 2);
+        labCtx.stroke();
+
+        labCtx.fillStyle = '#fbbf24';
+        labCtx.font = `bold ${9 * devicePixelRatio}px "Noto Sans TC", sans-serif`;
+        labCtx.textAlign = 'center';
+        labCtx.textBaseline = 'bottom';
+        labCtx.fillText('P', p.x - rHead * 0.9, p.y - rHead * 0.85);
+
+        if (state.showPaths && state.powered) {
+            const sp = speakerPositions();
+            const a = worldToPx(sp.s1.x, sp.s1.y, L);
+            const b = worldToPx(sp.s2.x, sp.s2.y, L);
+            labCtx.setLineDash([5 * devicePixelRatio, 4 * devicePixelRatio]);
+            labCtx.strokeStyle = 'rgba(37, 99, 235, 0.8)';
+            labCtx.beginPath(); labCtx.moveTo(a.x, a.y); labCtx.lineTo(p.x, p.y); labCtx.stroke();
+            labCtx.strokeStyle = 'rgba(5, 150, 105, 0.8)';
+            labCtx.beginPath(); labCtx.moveTo(b.x, b.y); labCtx.lineTo(p.x, p.y); labCtx.stroke();
+            labCtx.setLineDash([]);
+        }
+    }
+
+    function drawTable(L) {
+        const tl = worldToPx(TABLE.x0, TABLE.y0, L);
+        const br = worldToPx(TABLE.x1, TABLE.y1, L);
+        const tw = br.x - tl.x, th = br.y - tl.y;
+        // tabletop wood
+        const wood = labCtx.createLinearGradient(tl.x, tl.y, tl.x, br.y);
+        wood.addColorStop(0, '#a16207');
+        wood.addColorStop(0.45, '#ca8a04');
+        wood.addColorStop(1, '#854d0e');
+        labCtx.fillStyle = wood;
+        roundRect(labCtx, tl.x, tl.y, tw, th, 8 * devicePixelRatio);
+        labCtx.fill();
+        // grain lines
+        labCtx.strokeStyle = 'rgba(69, 26, 3, 0.18)';
+        labCtx.lineWidth = 1;
+        for (let i = 1; i < 6; i++) {
+            const y = tl.y + (th * i) / 6;
+            labCtx.beginPath();
+            labCtx.moveTo(tl.x + 8 * devicePixelRatio, y);
+            labCtx.lineTo(br.x - 8 * devicePixelRatio, y);
+            labCtx.stroke();
+        }
+        // front edge (thicker)
+        labCtx.fillStyle = 'rgba(69, 26, 3, 0.45)';
+        labCtx.fillRect(tl.x, br.y - 6 * devicePixelRatio, tw, 6 * devicePixelRatio);
+        labCtx.strokeStyle = 'rgba(41, 37, 36, 0.55)';
+        labCtx.lineWidth = 2 * devicePixelRatio;
+        roundRect(labCtx, tl.x, tl.y, tw, th, 8 * devicePixelRatio);
+        labCtx.stroke();
+        // table label
+        labCtx.fillStyle = 'rgba(255,255,255,0.55)';
+        labCtx.font = `bold ${9 * devicePixelRatio}px "Noto Sans TC", sans-serif`;
+        labCtx.textAlign = 'left';
+        labCtx.textBaseline = 'top';
+        labCtx.fillText(state.lang === 'zh' ? '實驗桌' : 'Bench', tl.x + 8 * devicePixelRatio, tl.y + 5 * devicePixelRatio);
+    }
+
+    function drawRuler(L) {
+        if (!state.showRuler) return;
+        const r = state.ruler;
+        const x0 = r.x;
+        const x1 = r.x + r.len;
+        const yWorld = r.y;
+        const a = worldToPx(x0, yWorld, L);
+        const b = worldToPx(x1, yWorld, L);
+        const h = 16 * devicePixelRatio;
+
+        // drag affordance glow when hovered/dragged
+        if (state.dragging === 'ruler') {
+            labCtx.shadowColor = 'rgba(251, 191, 36, 0.55)';
+            labCtx.shadowBlur = 10 * devicePixelRatio;
+        }
+
+        labCtx.fillStyle = 'rgba(254, 243, 199, 0.97)';
+        labCtx.strokeStyle = '#78350f';
+        labCtx.lineWidth = 1.5 * devicePixelRatio;
+        roundRect(labCtx, a.x, a.y - h / 2, b.x - a.x, h, 3 * devicePixelRatio);
+        labCtx.fill();
+        labCtx.stroke();
+        labCtx.shadowBlur = 0;
+
+        // grip notches at ends
+        labCtx.fillStyle = '#a16207';
+        labCtx.fillRect(a.x + 2 * devicePixelRatio, a.y - h * 0.35, 4 * devicePixelRatio, h * 0.7);
+        labCtx.fillRect(b.x - 6 * devicePixelRatio, a.y - h * 0.35, 4 * devicePixelRatio, h * 0.7);
+
+        labCtx.strokeStyle = '#78350f';
+        labCtx.fillStyle = '#78350f';
+        labCtx.font = `bold ${8 * devicePixelRatio}px "JetBrains Mono", monospace`;
+        labCtx.textAlign = 'center';
+        labCtx.textBaseline = 'middle';
+
+        const len = r.len;
+        for (let cm = 0; cm <= Math.round(len * 100); cm += 5) {
+            const xw = x0 + cm / 100;
+            const p = worldToPx(xw, yWorld, L);
+            const major = cm % 50 === 0;
+            const mid = cm % 10 === 0;
+            const tick = major ? h * 0.85 : mid ? h * 0.55 : h * 0.32;
+            labCtx.beginPath();
+            labCtx.moveTo(p.x, a.y + h / 2);
+            labCtx.lineTo(p.x, a.y + h / 2 - tick);
+            labCtx.lineWidth = major ? 1.5 * devicePixelRatio : 1 * devicePixelRatio;
+            labCtx.stroke();
+            if (major) {
+                labCtx.fillText((cm / 100).toFixed(1), p.x, a.y - 3 * devicePixelRatio);
+            }
+        }
+        // unit label
+        labCtx.font = `bold ${8 * devicePixelRatio}px "Noto Sans TC", sans-serif`;
+        labCtx.fillText('m', b.x - 14 * devicePixelRatio, a.y - h * 0.15);
+    }
+
+    function drawRoom(L) {
+        // floor
+        labCtx.fillStyle = '#64748b';
+        const tl = worldToPx(0, 0, L);
+        labCtx.fillRect(tl.x, tl.y, ROOM.w * L.scale, ROOM.h * L.scale);
+        // subtle floor tiles
+        labCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+        labCtx.lineWidth = 1;
+        for (let x = 0; x <= ROOM.w + 1e-6; x += 0.2) {
+            const a = worldToPx(x, 0, L), b = worldToPx(x, ROOM.h, L);
+            labCtx.beginPath(); labCtx.moveTo(a.x, a.y); labCtx.lineTo(b.x, b.y); labCtx.stroke();
+        }
+        for (let y = 0; y <= ROOM.h + 1e-6; y += 0.2) {
+            const a = worldToPx(0, y, L), b = worldToPx(ROOM.w, y, L);
+            labCtx.beginPath(); labCtx.moveTo(a.x, a.y); labCtx.lineTo(b.x, b.y); labCtx.stroke();
+        }
+        drawTable(L);
+        // border
+        labCtx.strokeStyle = 'rgba(15, 23, 42, 0.5)';
+        labCtx.lineWidth = 2 * devicePixelRatio;
+        labCtx.strokeRect(tl.x, tl.y, ROOM.w * L.scale, ROOM.h * L.scale);
+        document.getElementById('scale-label').textContent = 'λ = ' + wavelength().toFixed(3) + ' m';
+    }
+
+    function drawLab() {
+        const L = layout();
+        labCtx.clearRect(0, 0, L.W, L.H);
+        drawRoom(L);
+        drawHeatmap(L);
+        drawRings(L);
+        drawInterferenceLines(L);
+        drawRuler(L);
+        const sp = speakerPositions();
+        drawCables(L, sp);
+        drawSignalGenerator(L, sp.sg);
+        const src = activeSources();
+        drawSpeaker(L, sp.s1, 'S₁', '#2563eb', src.a);
+        drawSpeaker(L, sp.s2, 'S₂', '#059669', src.b);
+        drawMic(L);
+    }
+
+    function fmtTimeDiv(s) {
+        if (s < 1e-3) return (s * 1e6).toFixed(0) + ' μs';
+        if (s < 1) return (s * 1e3).toFixed(s * 1e3 < 10 ? 1 : 0) + ' ms';
+        return s.toFixed(2) + ' s';
+    }
+    function fmtVoltDiv(v) {
+        if (v < 1) return Math.round(v * 1000) + ' mV';
+        return v + ' V';
+    }
+
+    function micVoltsAt(time) {
+        let v = sampleWaveAt(state.mic.x, state.mic.y, time) * MIC_V_SCALE;
+        if (state.scope.coupling === 'ac') {
+            // AC coupling: remove slow DC offset (none in this sim, but keep for realism)
+            // envelope bias is already ~0; leave as-is
+        }
+        return v;
+    }
+
+    function voltToY(volts, H) {
+        const sc = state.scope;
+        const pxPerDiv = H / SCOPE_H_DIV;
+        const center = H / 2 - sc.vPos * pxPerDiv;
+        return center - (volts / sc.voltDiv) * pxPerDiv;
+    }
+
+    function findTriggerTime(tEnd, window) {
+        const sc = state.scope;
+        const level = sc.trigLevel;
+        const lookBack = window * 1.5;
+        const t0 = tEnd - lookBack;
+        const steps = 400;
+        const dt = lookBack / steps;
+        let prev = micVoltsAt(t0);
+        for (let i = 1; i <= steps; i++) {
+            const tt = t0 + i * dt;
+            const cur = micVoltsAt(tt);
+            const crossed = sc.edge === 'rise'
+                ? (prev < level && cur >= level)
+                : (prev > level && cur <= level);
+            if (crossed) {
+                sc.lastTrigOk = true;
+                // Place trigger at 1 division from left
+                return tt - sc.timeDiv;
+            }
+            prev = cur;
+        }
+        sc.lastTrigOk = false;
+        if (sc.trigMode === 'normal') return null;
+        // Auto: free-run
+        return tEnd - window;
+    }
+
+    function updateScopeChips() {
+        const sc = state.scope;
+        document.getElementById('chip-ch').textContent = 'CH1 ' + sc.coupling.toUpperCase();
+        document.getElementById('chip-vdiv').textContent = fmtVoltDiv(sc.voltDiv) + '/div';
+        document.getElementById('chip-tdiv').textContent = fmtTimeDiv(sc.timeDiv) + '/div';
+        const trigTxt = (sc.trigMode === 'auto' ? 'AUTO' : 'NORM') +
+            (sc.edge === 'rise' ? ' ↑' : ' ↓') +
+            (sc.lastTrigOk || sc.trigMode === 'auto' ? '' : ' ?');
+        document.getElementById('chip-trig').textContent = trigTxt;
+        document.getElementById('disp-vpos').textContent = (sc.vPos >= 0 ? '+' : '') + sc.vPos.toFixed(1) + ' div';
+        document.getElementById('disp-trig').textContent = (sc.trigLevel >= 0 ? '+' : '') + sc.trigLevel.toFixed(2) + ' V';
+        const led = document.getElementById('scope-led');
+        led.className = 'w-2 h-2 rounded-full ' + (sc.running
+            ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+            : 'bg-rose-500 shadow-[0_0_8px_#f87171]');
+        const st = document.getElementById('scope-status');
+        st.textContent = sc.running ? 'RUN' : 'STOP';
+        st.className = sc.running ? 'text-emerald-400/80' : 'text-rose-400/90';
+        const runBtn = document.getElementById('scope-run');
+        runBtn.textContent = sc.running ? t('scopeRun') : t('scopeStop');
+        runBtn.classList.toggle('active', sc.running);
+        runBtn.classList.toggle('danger', !sc.running);
+        const edgeBtn = document.getElementById('scope-edge');
+        edgeBtn.textContent = sc.edge === 'rise' ? '↑ Rise' : '↓ Fall';
+        edgeBtn.classList.toggle('active', true);
+    }
+
+    function drawScope() {
+        const rect = scopeCanvas.getBoundingClientRect();
+        const W = Math.max(1, Math.floor(rect.width * devicePixelRatio));
+        const H = Math.max(1, Math.floor(rect.height * devicePixelRatio));
+        if (scopeCanvas.width !== W || scopeCanvas.height !== H) {
+            scopeCanvas.width = W;
+            scopeCanvas.height = H;
+        }
+        const ctx = scopeCtx;
+        const sc = state.scope;
+        const window = sc.timeDiv * SCOPE_W_DIV;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // phosphor glow backdrop
+        ctx.fillStyle = 'rgba(4, 30, 18, 0.35)';
+        ctx.fillRect(0, 0, W, H);
+
+        // graticule: 10 × 8 divisions
+        const dx = W / SCOPE_W_DIV;
+        const dy = H / SCOPE_H_DIV;
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= SCOPE_W_DIV; i++) {
+            const x = i * dx;
+            ctx.strokeStyle = i === SCOPE_W_DIV / 2 ? 'rgba(74, 222, 128, 0.35)' : 'rgba(34, 197, 94, 0.12)';
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+            // minor ticks on centre axes
+            if (i === SCOPE_W_DIV / 2) {
+                ctx.strokeStyle = 'rgba(74, 222, 128, 0.45)';
+                for (let m = 1; m < 5; m++) {
+                    for (let j = 0; j < SCOPE_H_DIV; j++) {
+                        const yy = j * dy + m * dy / 5;
+                        ctx.beginPath();
+                        ctx.moveTo(x - 3 * devicePixelRatio, yy);
+                        ctx.lineTo(x + 3 * devicePixelRatio, yy);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        for (let j = 0; j <= SCOPE_H_DIV; j++) {
+            const y = j * dy;
+            ctx.strokeStyle = j === SCOPE_H_DIV / 2 ? 'rgba(74, 222, 128, 0.35)' : 'rgba(34, 197, 94, 0.12)';
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+            if (j === SCOPE_H_DIV / 2) {
+                ctx.strokeStyle = 'rgba(74, 222, 128, 0.45)';
+                for (let m = 1; m < 5; m++) {
+                    for (let i = 0; i < SCOPE_W_DIV; i++) {
+                        const xx = i * dx + m * dx / 5;
+                        ctx.beginPath();
+                        ctx.moveTo(xx, y - 3 * devicePixelRatio);
+                        ctx.lineTo(xx, y + 3 * devicePixelRatio);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // trigger level dashed line
+        const trigY = voltToY(sc.trigLevel, H);
+        if (trigY > 0 && trigY < H) {
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.55)';
+            ctx.lineWidth = 1 * devicePixelRatio;
+            ctx.setLineDash([4 * devicePixelRatio, 4 * devicePixelRatio]);
+            ctx.beginPath(); ctx.moveTo(0, trigY); ctx.lineTo(W, trigY); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(250, 204, 21, 0.85)';
+            ctx.font = `bold ${9 * devicePixelRatio}px "JetBrains Mono", monospace`;
+            ctx.textAlign = 'left';
+            ctx.fillText('T', 4 * devicePixelRatio, trigY - 3 * devicePixelRatio);
+        }
+
+        updateScopeChips();
+
+        if (!state.powered) {
+            document.getElementById('scope-meas-vpp').innerHTML = 'V<sub>pp</sub> —';
+            document.getElementById('scope-meas-f').textContent = 'f —';
+            return;
+        }
+
+        let tStart;
+        let samples;
+
+        if (!sc.running && sc.freezeBuf) {
+            tStart = sc.freezeBuf.t0;
+            samples = sc.freezeBuf.samples;
+        } else {
+            const tEnd = state.t;
+            tStart = findTriggerTime(tEnd, window);
+            if (tStart == null) {
+                // Normal mode, waiting for trigger — blank trace
+                document.getElementById('scope-meas-vpp').innerHTML = 'V<sub>pp</sub> —';
+                document.getElementById('scope-meas-f').textContent = 'f —  (wait trig)';
+                return;
+            }
+            samples = new Float32Array(W);
+            for (let x = 0; x < W; x++) {
+                const tt = tStart + (x / W) * window;
+                samples[x] = micVoltsAt(tt);
+            }
+            if (sc.running) {
+                sc.freezeBuf = { t0: tStart, samples: samples.slice() };
+            }
+        }
+
+        // measurements
+        let vmin = Infinity, vmax = -Infinity;
+        for (let i = 0; i < samples.length; i++) {
+            if (samples[i] < vmin) vmin = samples[i];
+            if (samples[i] > vmax) vmax = samples[i];
+        }
+        const vpp = vmax - vmin;
+        document.getElementById('scope-meas-vpp').innerHTML =
+            'V<sub>pp</sub> ' + (vpp < 1 ? (vpp * 1000).toFixed(0) + ' mV' : vpp.toFixed(2) + ' V');
+        document.getElementById('scope-meas-f').textContent =
+            'f ' + state.f + ' Hz  ·  ' + fmtTimeDiv(sc.timeDiv) + '/div';
+
+        // envelope
+        if (sc.showEnv) {
+            const fld = fieldAt(state.mic.x, state.mic.y);
+            const envV = fld.amp * MIC_V_SCALE;
+            ctx.strokeStyle = 'rgba(244, 114, 182, 0.45)';
+            ctx.lineWidth = 1.2 * devicePixelRatio;
+            ctx.setLineDash([5 * devicePixelRatio, 4 * devicePixelRatio]);
+            const yHi = voltToY(envV, H);
+            const yLo = voltToY(-envV, H);
+            ctx.beginPath(); ctx.moveTo(0, yHi); ctx.lineTo(W, yHi); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, yLo); ctx.lineTo(W, yLo); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // CH1 trace (yellow phosphor)
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2 * devicePixelRatio;
+        ctx.shadowColor = 'rgba(250, 204, 21, 0.45)';
+        ctx.shadowBlur = 4 * devicePixelRatio;
+        ctx.beginPath();
+        for (let x = 0; x < samples.length; x++) {
+            const py = voltToY(samples[x], H);
+            if (x === 0) ctx.moveTo(x, py); else ctx.lineTo(x, py);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // ground marker (←)
+        const gY = voltToY(0, H);
+        if (gY > 4 && gY < H - 4) {
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.moveTo(0, gY);
+            ctx.lineTo(8 * devicePixelRatio, gY - 5 * devicePixelRatio);
+            ctx.lineTo(8 * devicePixelRatio, gY + 5 * devicePixelRatio);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+
+    function buildScopeSelects() {
+        const tSel = document.getElementById('scope-tdiv');
+        const vSel = document.getElementById('scope-vdiv');
+        tSel.innerHTML = '';
+        TIME_DIV_OPTS.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.v;
+            opt.textContent = o.label + '/div';
+            if (Math.abs(o.v - state.scope.timeDiv) < 1e-12) opt.selected = true;
+            tSel.appendChild(opt);
+        });
+        vSel.innerHTML = '';
+        VOLT_DIV_OPTS.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.v;
+            opt.textContent = o.label + '/div';
+            if (Math.abs(o.v - state.scope.voltDiv) < 1e-12) opt.selected = true;
+            vSel.appendChild(opt);
+        });
+    }
+
+    function autoSetScope() {
+        const fld = fieldAt(state.mic.x, state.mic.y);
+        const peak = Math.max(fld.amp * MIC_V_SCALE, 0.02);
+        // Aim for ~3 divisions peak-to-peak → voltDiv ≈ 2*peak / 3
+        const wantV = (2 * peak) / 3;
+        let bestV = VOLT_DIV_OPTS[VOLT_DIV_OPTS.length - 1].v;
+        for (let i = 0; i < VOLT_DIV_OPTS.length; i++) {
+            if (VOLT_DIV_OPTS[i].v >= wantV * 0.85) { bestV = VOLT_DIV_OPTS[i].v; break; }
+        }
+        state.scope.voltDiv = bestV;
+        // ~2–4 cycles on screen
+        const period = 1 / Math.max(state.f, 1);
+        const wantT = (3 * period) / SCOPE_W_DIV;
+        let bestT = TIME_DIV_OPTS[TIME_DIV_OPTS.length - 1].v;
+        for (let i = 0; i < TIME_DIV_OPTS.length; i++) {
+            if (TIME_DIV_OPTS[i].v >= wantT * 0.7) { bestT = TIME_DIV_OPTS[i].v; break; }
+        }
+        state.scope.timeDiv = bestT;
+        state.scope.vPos = 0;
+        state.scope.trigLevel = 0;
+        state.scope.trigMode = 'auto';
+        state.scope.running = true;
+        document.getElementById('scope-vpos').value = 0;
+        document.getElementById('scope-trig-level').value = 0;
+        document.getElementById('scope-trig-mode').value = 'auto';
+        buildScopeSelects();
+        updateScopeChips();
+    }
+
+    function updateLive() {
+        const fld = fieldAt(state.mic.x, state.mic.y);
+        const lam = wavelength();
+        const v = soundSpeed();
+        document.getElementById('disp-f').textContent = state.f + ' Hz';
+        document.getElementById('disp-amp').textContent = Math.round(state.amp * 100) + '%';
+        document.getElementById('disp-d').textContent = state.d.toFixed(2) + ' m';
+        document.getElementById('disp-temp').textContent = state.temp + ' °C';
+        document.getElementById('val-f').textContent = state.f + ' Hz';
+        document.getElementById('val-v').textContent = v.toFixed(1) + ' m/s';
+        document.getElementById('val-lambda').textContent = lam.toFixed(3) + ' m';
+        document.getElementById('val-s1p').textContent = fld.r1.toFixed(3) + ' m';
+        document.getElementById('val-s2p').textContent = fld.r2.toFixed(3) + ' m';
+        document.getElementById('val-delta').textContent = fld.delta.toFixed(3) + ' m';
+        document.getElementById('val-n').textContent = (fld.delta / lam).toFixed(3);
+        document.getElementById('val-i').textContent = fld.intens.toFixed(3);
+
+        const badge = document.getElementById('interf-badge');
+        const src = activeSources();
+        if (!state.powered) {
+            badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200';
+            badge.textContent = t('badgeOff');
+        } else if (!(src.a && src.b)) {
+            badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200';
+            badge.textContent = t('badgeSingle');
+        } else {
+            const n = fld.delta / lam;
+            const frac = ((n % 1) + 1) % 1;
+            // Without invert: Δ≈nλ constructive; with invert conditions swap
+            let constructiveFrac, destructiveFrac;
+            if (state.invert) {
+                constructiveFrac = Math.abs(frac - 0.5);
+                destructiveFrac = Math.min(frac, 1 - frac);
+            } else {
+                constructiveFrac = Math.min(frac, 1 - frac);
+                destructiveFrac = Math.abs(frac - 0.5);
+            }
+            if (constructiveFrac < 0.12) {
+                badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200';
+                badge.textContent = t('badgeConstructive');
+            } else if (destructiveFrac < 0.12) {
+                badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-slate-200 text-slate-700 border border-slate-300';
+                badge.textContent = t('badgeDestructive');
+            } else {
+                badge.className = 'mt-2 text-center text-[11px] font-bold py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200';
+                badge.textContent = t('badgePartial');
+            }
+        }
+    }
+
+    /* ---------- audio (heard at mic) ---------- */
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function stopAudio() {
+        if (osc) {
+            try { osc.stop(); } catch (e) {}
+            try { osc.disconnect(); } catch (e) {}
+            osc = null;
+        }
+        if (gainNode) {
+            try { gainNode.disconnect(); } catch (e) {}
+            gainNode = null;
+        }
+        audioRunning = false;
+    }
+
+    function startAudio() {
+        if (!state.enableAudio || !state.powered) { stopAudio(); return; }
+        initAudio();
+        stopAudio();
+        // Use oscillator + gain; level follows mic intensity (envelope)
+        osc = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+        if (state.wave === 'sine' || state.wave === 'square' || state.wave === 'triangle' || state.wave === 'sawtooth') {
+            osc.type = state.wave;
+        } else {
+            osc.type = 'sine';
+        }
+        osc.frequency.setValueAtTime(state.f, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        audioRunning = true;
+        updateAudioLevel();
+    }
+
+    function updateAudioLevel() {
+        if (!audioRunning || !gainNode || !audioCtx) return;
+        const fld = fieldAt(state.mic.x, state.mic.y);
+        // Soften to avoid clipping; constructive peaks louder
+        const level = Math.min(0.35, fld.amp * 0.55);
+        gainNode.gain.setTargetAtTime(state.enableAudio && state.powered ? level : 0, audioCtx.currentTime, 0.03);
+        if (osc) {
+            osc.frequency.setTargetAtTime(state.f, audioCtx.currentTime, 0.02);
+            if (osc.type !== state.wave && ['sine', 'square', 'triangle', 'sawtooth'].includes(state.wave)) {
+                osc.type = state.wave;
+            }
+        }
+    }
+
+    function syncAudio() {
+        if (state.powered && state.enableAudio) {
+            if (!audioRunning) startAudio();
+            else updateAudioLevel();
+        } else {
+            stopAudio();
+        }
+    }
+
+    /* ---------- UI ---------- */
+    function updatePowerBtn() {
+        const btn = document.getElementById('btn-power');
+        if (state.powered) {
+            btn.textContent = t('powerOff');
+            btn.className = 'flex-1 py-2 rounded-xl font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white';
+        } else {
+            btn.textContent = t('powerOn');
+            btn.className = 'flex-1 py-2 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white';
+        }
+    }
+
+    function updateSpkModeBtns() {
+        document.querySelectorAll('#spk-mode-btns .spk-btn').forEach(btn => {
+            const m = btn.dataset.mode;
+            btn.classList.remove('on-a', 'on-b', 'on-both');
+            if (m === state.mode) {
+                if (m === 'a') btn.classList.add('on-a');
+                else if (m === 'b') btn.classList.add('on-b');
+                else btn.classList.add('on-both');
+            }
+            btn.textContent = t(m === 'a' ? 'spkA' : m === 'b' ? 'spkB' : 'spkBoth');
+        });
+    }
+
+    function buildWaveButtons() {
+        const box = document.getElementById('wave-btns');
+        box.innerHTML = '';
+        WAVES.forEach(w => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'wave-btn rounded-lg py-2' + (state.wave === w.id ? ' active' : '');
+            btn.textContent = state.lang === 'zh' ? w.zh : w.en;
+            btn.onclick = () => {
+                state.wave = w.id;
+                buildWaveButtons();
+                syncAudio();
+            };
+            box.appendChild(btn);
+        });
+    }
+
+    function loadPreset(name) {
+        const p = PRESETS[name];
+        if (!p) return;
+        state.preset = name;
+        state.f = p.f;
+        state.d = p.d;
+        state.amp = p.amp / 100;
+        state.invert = p.invert;
+        state.wave = p.wave;
+        state.mode = p.mode;
+        document.getElementById('in-freq').value = p.f;
+        document.getElementById('in-d').value = p.d;
+        document.getElementById('in-amp').value = p.amp;
+        document.getElementById('in-invert').checked = p.invert;
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+        buildWaveButtons();
+        updateSpkModeBtns();
+        syncAudio();
+        updateLive();
+    }
+
+    function resetAll() {
+        state.powered = false;
+        state.temp = 20;
+        state.mic = { x: 1.2, y: 1.15 };
+        state.ruler = { x: 0.20, y: 0.66, len: 2.0 };
+        state.dragging = null;
+        state.showLines = false;
+        state.showHeat = true;
+        state.showRings = true;
+        state.showPaths = false;
+        state.showRuler = true;
+        state.enableAudio = true;
+        state.scope.timeDiv = 0.001;
+        state.scope.voltDiv = 0.2;
+        state.scope.vPos = 0;
+        state.scope.coupling = 'dc';
+        state.scope.trigMode = 'auto';
+        state.scope.trigLevel = 0;
+        state.scope.edge = 'rise';
+        state.scope.running = true;
+        state.scope.showEnv = true;
+        state.scope.freezeBuf = null;
+        document.getElementById('in-temp').value = 20;
+        document.getElementById('in-lines').checked = false;
+        document.getElementById('in-heat').checked = true;
+        document.getElementById('in-rings').checked = true;
+        document.getElementById('in-paths').checked = false;
+        document.getElementById('in-ruler').checked = true;
+        document.getElementById('in-audio').checked = true;
+        document.getElementById('scope-vpos').value = 0;
+        document.getElementById('scope-trig-level').value = 0;
+        document.getElementById('scope-coupling').value = 'dc';
+        document.getElementById('scope-trig-mode').value = 'auto';
+        document.getElementById('scope-env').checked = true;
+        buildScopeSelects();
+        loadPreset('standard');
+        updatePowerBtn();
+        updateScopeChips();
+        stopAudio();
+    }
+
+    /* ---------- pointer / drag ---------- */
+    function eventToWorld(e) {
+        const L = layout();
+        const rect = labCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const px = (clientX - rect.left) * devicePixelRatio;
+        const py = (clientY - rect.top) * devicePixelRatio;
+        return pxToWorld(px, py, L);
+    }
+
+    function nearMic(w) {
+        return dist(w, state.mic) < 0.14;
+    }
+
+    function nearRuler(w) {
+        if (!state.showRuler) return false;
+        const r = state.ruler;
+        return w.x >= r.x - 0.04 && w.x <= r.x + r.len + 0.04 && Math.abs(w.y - r.y) < 0.07;
+    }
+
+    function clampRuler(x, y) {
+        const len = state.ruler.len;
+        state.ruler.x = Math.min(ROOM.w - len - 0.05, Math.max(0.05, x));
+        state.ruler.y = Math.min(ROOM.h - 0.08, Math.max(TABLE.y1 + 0.04, y));
+    }
+
+    function onPointerDown(e) {
+        const w = eventToWorld(e);
+        if (nearMic(w)) {
+            state.dragging = 'mic';
+            labCanvas.style.cursor = 'grabbing';
+            e.preventDefault();
+        } else if (nearRuler(w)) {
+            state.dragging = 'ruler';
+            state.dragOff = { x: w.x - state.ruler.x, y: w.y - state.ruler.y };
+            labCanvas.style.cursor = 'grabbing';
+            e.preventDefault();
+        }
+    }
+    function onPointerMove(e) {
+        const w = eventToWorld(e);
+        if (state.dragging === 'mic') {
+            state.mic.x = Math.min(ROOM.w - 0.05, Math.max(0.05, w.x));
+            state.mic.y = Math.min(ROOM.h - 0.05, Math.max(TABLE.y1 + 0.05, w.y));
+            updateAudioLevel();
+            updateLive();
+            e.preventDefault();
+        } else if (state.dragging === 'ruler') {
+            clampRuler(w.x - state.dragOff.x, w.y - state.dragOff.y);
+            e.preventDefault();
+        } else {
+            labCanvas.style.cursor = (nearMic(w) || nearRuler(w)) ? 'grab' : 'crosshair';
+        }
+    }
+    function onPointerUp() {
+        state.dragging = null;
+        labCanvas.style.cursor = 'crosshair';
+    }
+
+    labCanvas.addEventListener('mousedown', onPointerDown);
+    labCanvas.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+    labCanvas.addEventListener('touchstart', onPointerDown, { passive: false });
+    labCanvas.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+
+    /* ---------- controls ---------- */
+    document.getElementById('btn-power').onclick = () => {
+        state.powered = !state.powered;
+        updatePowerBtn();
+        syncAudio();
+        updateLive();
+    };
+    document.getElementById('btn-reset').onclick = resetAll;
+
+    document.querySelectorAll('#spk-mode-btns .spk-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.mode = btn.dataset.mode;
+            updateSpkModeBtns();
+            syncAudio();
+            updateLive();
+        };
+    });
+
+    document.getElementById('in-freq').oninput = e => {
+        state.f = +e.target.value;
+        syncAudio();
+        updateLive();
+    };
+    document.getElementById('in-amp').oninput = e => {
+        state.amp = +e.target.value / 100;
+        updateAudioLevel();
+        updateLive();
+    };
+    document.getElementById('in-d').oninput = e => {
+        state.d = +e.target.value;
+        updateLive();
+    };
+    document.getElementById('in-temp').oninput = e => {
+        state.temp = +e.target.value;
+        updateLive();
+    };
+    document.getElementById('in-lines').onchange = e => { state.showLines = e.target.checked; };
+    document.getElementById('in-heat').onchange = e => { state.showHeat = e.target.checked; };
+    document.getElementById('in-rings').onchange = e => { state.showRings = e.target.checked; };
+    document.getElementById('in-paths').onchange = e => { state.showPaths = e.target.checked; };
+    document.getElementById('in-ruler').onchange = e => { state.showRuler = e.target.checked; };
+    document.getElementById('in-invert').onchange = e => {
+        state.invert = e.target.checked;
+        updateLive();
+    };
+    document.getElementById('in-audio').onchange = e => {
+        state.enableAudio = e.target.checked;
+        syncAudio();
     };
 
-    const doDrag = (e) => {
-        if (!isDragging) return;
-        
-        const rect = simCanvas.getBoundingClientRect();
-        let clientX, clientY;
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.onclick = () => loadPreset(btn.dataset.preset);
+    });
 
-        if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
-        const scaleX = simCanvas.width / rect.width;
-        const scaleY = simCanvas.height / rect.height;
-
-        let x = (clientX - rect.left) * scaleX;
-        let y = (clientY - rect.top) * scaleY;
-
-        x = Math.max(0, Math.min(simCanvas.width, x));
-        y = Math.max(0, Math.min(simCanvas.height, y));
-
-        if (interactionMode === 'mic') {
-            listenerPos = { x, y };
-        } else {
-            lineEnd = { x, y };
-        }
+    document.getElementById('scope-tdiv').onchange = e => {
+        state.scope.timeDiv = +e.target.value;
+        updateScopeChips();
+    };
+    document.getElementById('scope-vdiv').onchange = e => {
+        state.scope.voltDiv = +e.target.value;
+        updateScopeChips();
+    };
+    document.getElementById('scope-vpos').oninput = e => {
+        state.scope.vPos = +e.target.value;
+        updateScopeChips();
+    };
+    document.getElementById('scope-coupling').onchange = e => {
+        state.scope.coupling = e.target.value;
+        updateScopeChips();
+    };
+    document.getElementById('scope-trig-mode').onchange = e => {
+        state.scope.trigMode = e.target.value;
+        updateScopeChips();
+    };
+    document.getElementById('scope-trig-level').oninput = e => {
+        state.scope.trigLevel = +e.target.value;
+        updateScopeChips();
+    };
+    document.getElementById('scope-edge').onclick = () => {
+        state.scope.edge = state.scope.edge === 'rise' ? 'fall' : 'rise';
+        updateScopeChips();
+    };
+    document.getElementById('scope-run').onclick = () => {
+        state.scope.running = !state.scope.running;
+        if (state.scope.running) state.scope.freezeBuf = null;
+        updateScopeChips();
+    };
+    document.getElementById('scope-auto').onclick = () => autoSetScope();
+    document.getElementById('scope-env').onchange = e => {
+        state.scope.showEnv = e.target.checked;
     };
 
-    const endDrag = () => {
-        isDragging = false;
-    };
+    function toggleLang() {
+        state.lang = state.lang === 'zh' ? 'en' : 'zh';
+        applyI18n();
+        updateLive();
+        updateScopeChips();
+    }
+    document.getElementById('btn-lang').onclick = toggleLang;
+    document.getElementById('btn-lang-mobile').onclick = toggleLang;
 
-    simCanvas.addEventListener('mousedown', startDrag);
-    simCanvas.addEventListener('touchstart', startDrag, {passive: false});
+    
+let quizAnswersVisible = false;
+function renderQuiz() {
+  const box = document.getElementById('quiz-list');
+  if (!box) return;
+  const L = (typeof state !== 'undefined' && state.lang) ? state.lang : ((typeof getLang === 'function') ? getLang() : ((typeof lang !== 'undefined') ? lang : 'zh'));
+  const pack = (typeof platformI18n !== 'undefined' && platformI18n[L]) ? platformI18n[L] : ((typeof i18n !== 'undefined' && i18n[L]) ? i18n[L] : null);
+  function tq(k) {
+    if (pack && pack[k] != null) return pack[k];
+    return k;
+  }
+  const mkChoice = (qid) => ['A','B','C','D'].map(ch => {
+    const key = 'quizQ' + qid.slice(1) + ch.toLowerCase();
+    return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="${qid}" class="mt-1 accent-rose-600"><span>${ch}. ${tq(key)}</span></label>`;
+  }).join('');
+  const ans = (n) => quizAnswersVisible ? `<div class="mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 p-2"><strong>${tq('quizRef')}</strong> ${tq('quizQ'+n+'ans')}</div>` : '';
+  box.innerHTML = [1,2,3,4,5].map(n => {
+    const open = n === 2 || n === 4;
+    return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-slate-800 mb-2">Q${n}. ${tq('quizQ'+n)}</p>${open ? '' : `<div class="grid gap-1.5">${mkChoice('q'+n)}</div>`}${ans(n)}</div>`;
+  }).join('');
+  const btn = document.getElementById('btn-quiz-answers');
+  if (btn) btn.textContent = quizAnswersVisible ? tq('quizHideAnswers') : tq('quizShowAnswers');
+  if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([box]).catch(() => {});
+}
 
-    window.addEventListener('mousemove', doDrag);
-    window.addEventListener('touchmove', doDrag, {passive: false});
+function openModal(id) {
+        document.getElementById(id).classList.add('open');
+    }
+    function closeModals() {
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('open'));
+    }
+    document.getElementById('btn-steps').onclick = () => openModal('modal-steps');
+    document.getElementById('btn-quiz').onclick = () => { closeModals(); openModal('modal-quiz'); renderQuiz(); };
+    document.getElementById('btn-principle').onclick = () => openModal('modal-principle');
+    document.querySelectorAll('.btn-close-modal').forEach(b => b.onclick = closeModals);
+    document.querySelectorAll('.modal-backdrop').forEach(m => {
+        m.addEventListener('click', e => { if (e.target === m) closeModals(); });
+    });
+    document.getElementById('btn-quiz-answers')?.addEventListener('click', () => {
+        quizAnswersVisible = !quizAnswersVisible;
+        renderQuiz();
+        if (window.MathJax?.typesetPromise) MathJax.typesetPromise([document.getElementById('modal-quiz')]).catch(() => {});
+    });
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
 
-    window.addEventListener('mouseup', endDrag);
-    window.addEventListener('touchend', endDrag);
+    /* ---------- loop ---------- */
+    let last = performance.now();
+    function frame(now) {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        if (state.powered) state.t += dt;
+        drawLab();
+        drawScope();
+        updateLive();
+        if (audioRunning) updateAudioLevel();
+        requestAnimationFrame(frame);
+    }
 
-    loop();
-
+    buildWaveButtons();
+    buildScopeSelects();
+    updateSpkModeBtns();
+    updatePowerBtn();
+    updateScopeChips();
+    applyI18n();
+    updateLive();
+    requestAnimationFrame(frame);
+})();
 </script>
+<!-- 課堂問題 -->
+<div id="modal-quiz" class="modal-backdrop fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+    <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5 sm:p-6">
+        <div class="flex justify-between items-start gap-3 mb-4 flex-wrap">
+            <h2 id="quiz-title" class="text-lg font-black text-rose-800" data-i18n="quizTitle">課堂問題</h2>
+            <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 text-xs font-semibold shrink-0" data-i18n="quizShowAnswers">顯示參考答案</button>
+            <button type="button" class="btn-close-modal text-slate-400 hover:text-slate-700 text-2xl leading-none ml-auto" aria-label="Close">&times;</button>
+        </div>
+        <div id="quiz-list" class="space-y-4 text-sm text-slate-700"></div>
+    </div>
+</div>
 
-
-</body></html>
+</body>
+</html>

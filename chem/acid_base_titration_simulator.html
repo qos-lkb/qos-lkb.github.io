@@ -1,18 +1,27 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="zh-Hant" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Acid-Base Titration Simulator (25.0 °C Isothermal)</title>
+  <title>酸鹼滴定模擬器｜Acid-Base Titration Simulator</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- MathJax tex-chtml (teaching formulas) -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      chtml: { scale: 1.0 }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Custom Tailwind Configuration -->
   <script>
@@ -21,7 +30,7 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            sans: ['Noto Sans TC', 'Plus Jakarta Sans', 'sans-serif'],
             mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
@@ -44,7 +53,7 @@
 
   <style>
     body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: 'Noto Sans TC', 'Plus Jakarta Sans', sans-serif;
       background-color: #060b19;
       color: #f1f5f9;
       overflow-x: hidden;
@@ -89,6 +98,17 @@
       color: #ffffff;
       box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
     }
+  
+    /* Teaching shell modals */
+    .teach-modal {
+      transition: opacity 0.2s ease;
+      z-index: 60;
+    }
+    .teach-modal.hidden { display: none; }
+    .quiz-answer { display: none; }
+    .quiz-opt.selected-correct { outline: 2px solid #22c55e; background: rgba(34,197,94,0.15); }
+    .quiz-opt.selected-wrong { outline: 2px solid #f87171; background: rgba(248,113,113,0.12); }
+
   </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between text-slate-100 selection:bg-sky-500 selection:text-white">
@@ -104,10 +124,11 @@
           </svg>
         </div>
         <div>
-          <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-400 via-cyan-300 to-teal-300 bg-clip-text text-transparent">
-            Acid-Base Titration Simulator
+          <h1 id="sim-title" class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-400 via-cyan-300 to-teal-300 bg-clip-text text-transparent" data-i18n="title">
+            酸鹼滴定模擬器
           </h1>
-          <p class="text-xs text-slate-400 font-medium">Isothermal Quantitative Equilibrium Laboratory</p>
+          <p id="sim-subtitle" class="text-xs text-slate-400 font-medium" data-i18n="subtitle">等溫定量平衡實驗</p>
+          <span id="badge-subject" class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700" data-i18n="badgeSubject">化學｜Chemistry</span>
         </div>
       </div>
 
@@ -122,7 +143,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
           <div>
-            <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Isothermal Condition</div>
+            <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider" data-i18n="isoLabel">等溫條件</div>
             <div class="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1.5">
               <span>T = 25.0 °C (298.15 K)</span>
               <span class="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-700/50">CONST K<sub>w</sub></span>
@@ -138,26 +159,31 @@
       <!-- Navigation Tabs -->
       <nav class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
         <button id="tabBtnLab" onclick="switchTab('lab')" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 nav-tab-active flex items-center gap-1.5">
-          <span>🧪 Lab Simulation</span>
+          <span data-i18n="tabLab">🧪 實驗台</span>
         </button>
         <button id="tabBtnData" onclick="switchTab('data')" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 text-slate-400 hover:text-white flex items-center gap-1.5">
-          <span>📊 Data Table</span>
+          <span data-i18n="tabData">📊 數據表</span>
         </button>
         <button id="tabBtnPractice" onclick="switchTab('practice')" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 text-slate-400 hover:text-white flex items-center gap-1.5">
-          <span>🎯 Unknown Challenge</span>
+          <span data-i18n="tabPractice">🎯 未知濃度挑戰</span>
         </button>
         <button id="tabBtnGuide" onclick="switchTab('guide')" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 text-slate-400 hover:text-white flex items-center gap-1.5">
-          <span>📖 Chemical Reference</span>
+          <span data-i18n="tabGuide">📖 化學參考</span>
         </button>
       </nav>
 
-      <!-- Global Actions -->
-      <div class="flex items-center space-x-2">
-        <button onclick="resetExperiment()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors text-xs font-bold flex items-center gap-1.5" title="Reset Experiment">
+      <!-- Global Actions: teaching shell + lang + reset -->
+      <div class="flex flex-wrap items-center gap-2 justify-end">
+        <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-xl border border-indigo-500 transition-colors text-xs font-bold" data-i18n="btnSteps">觀察步驟</button>
+        <button type="button" id="btn-principle" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl border border-emerald-500 transition-colors text-xs font-bold" data-i18n="btnPrinciple">原理解說</button>
+        <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-700 hover:bg-violet-600 text-white rounded-xl border border-violet-500 transition-colors text-xs font-bold" data-i18n="btnQuiz">課堂問題</button>
+        <span class="hidden sm:inline text-slate-600">|</span>
+        <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl border border-slate-600 transition-colors text-xs font-bold" data-i18n="btnLang">中 / EN</button>
+        <button type="button" id="btn-reset" onclick="resetExperiment()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors text-xs font-bold flex items-center gap-1.5" data-i18n-title="resetTitle" title="重置實驗">
           <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          <span>Reset Lab</span>
+          <span data-i18n="btnReset">重置實驗</span>
         </button>
       </div>
 
@@ -172,7 +198,7 @@
     <div id="viewLab" class="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
       
       <!-- LEFT COLUMN: Apparatus Visualizer (4 Cols) -->
-      <section class="lg:col-span-4 flex flex-col gap-4">
+      <section class="order-1 lg:col-span-4 flex flex-col gap-4">
         
         <div class="glass-panel rounded-2xl p-4 flex flex-col items-center relative overflow-hidden min-h-[580px]">
           
@@ -180,10 +206,10 @@
           <div class="w-full flex justify-between items-center z-10 mb-2">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
-              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Virtual Apparatus</span>
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider" data-i18n="virtualApparatus">虛擬裝置</span>
             </div>
             <div class="flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-800">
-              <span>Burette Volume:</span>
+              <span data-i18n="buretteVol">滴定管體積：</span>
               <span id="buretteVolDisplay" class="text-sky-400 font-bold">50.00 mL</span>
             </div>
           </div>
@@ -274,7 +300,7 @@
       </section>
 
       <!-- MIDDLE COLUMN: Chemical Customization & Controls (4 Cols) -->
-      <section class="lg:col-span-4 flex flex-col gap-4">
+      <section class="order-2 lg:col-span-4 flex flex-col gap-4">
         
         <div class="glass-panel rounded-2xl p-4 flex flex-col gap-4">
           <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
@@ -294,10 +320,10 @@
             <label class="block text-xs font-semibold text-slate-300 mb-1.5">Apparatus Setup Orientation</label>
             <div class="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
               <button id="orientAcidInBurette" onclick="setOrientation('acid_in_burette')" class="py-2 px-2 text-xs font-bold rounded-lg transition-all bg-sky-600 text-white">
-                Acid in Burette<br><span class="text-[9px] font-normal opacity-80">Base in Flask</span>
+                <span data-i18n="acidInBurette">酸在滴定管</span><br><span class="text-[9px] font-normal opacity-80" data-i18n="baseInFlask">錐形瓶：鹼</span>
               </button>
               <button id="orientBaseInBurette" onclick="setOrientation('base_in_burette')" class="py-2 px-2 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white">
-                Base in Burette<br><span class="text-[9px] font-normal opacity-80">Acid in Flask</span>
+                <span data-i18n="baseInBurette">鹼在滴定管</span><br><span class="text-[9px] font-normal opacity-80" data-i18n="acidInFlask">錐形瓶：酸</span>
               </button>
             </div>
           </div>
@@ -346,7 +372,7 @@
             <!-- Titrant Molarity -->
             <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 flex flex-col gap-1">
               <div class="flex justify-between items-center text-xs">
-                <label class="text-slate-400 font-medium">Titrant [M]</label>
+                <label class="text-slate-400 font-medium" data-i18n="titrantM">滴定劑濃度 (M)</label>
                 <span id="titrantMolarityVal" class="font-mono font-bold text-sky-400">0.10 M</span>
               </div>
               <input type="range" id="titrantMolarityInput" min="0.01" max="2.00" step="0.01" value="0.10" oninput="onParamChange()" class="w-full accent-sky-500 cursor-pointer h-1.5 rounded-lg bg-slate-800">
@@ -356,7 +382,7 @@
             <!-- Analyte Molarity -->
             <div id="analyteMolarityBox" class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 flex flex-col gap-1">
               <div class="flex justify-between items-center text-xs">
-                <label class="text-slate-400 font-medium">Analyte [M]</label>
+                <label class="text-slate-400 font-medium" data-i18n="analyteM">分析物濃度 (M)</label>
                 <span id="analyteMolarityVal" class="font-mono font-bold text-cyan-400">0.10 M</span>
               </div>
               <input type="range" id="analyteMolarityInput" min="0.01" max="2.00" step="0.01" value="0.10" oninput="onParamChange()" class="w-full accent-cyan-500 cursor-pointer h-1.5 rounded-lg bg-slate-800">
@@ -366,7 +392,7 @@
             <!-- Initial Analyte Volume -->
             <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 flex flex-col gap-1.5 col-span-2">
               <div class="flex justify-between items-center text-xs">
-                <label class="text-slate-400 font-medium">Initial Analyte Volume (V<sub>0</sub>)</label>
+                <label class="text-slate-400 font-medium" data-i18n="analyteV">分析物體積 V₀ (mL)</label>
                 <span id="analyteVolVal" class="font-mono font-bold text-emerald-400">25.0 mL</span>
               </div>
               <input type="range" id="analyteVolInput" min="10.0" max="100.0" step="1.0" value="25.0" oninput="onParamChange()" class="w-full accent-emerald-500 cursor-pointer h-1.5 rounded-lg bg-slate-800">
@@ -449,14 +475,14 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <span>Auto-Titrate to V<sub>eq</sub></span>
+              <span data-i18n="autoEq">自動滴定至等當點</span>
             </button>
 
             <button onclick="refillBurette()" class="py-2 bg-slate-900 hover:bg-slate-800 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              <span>Refill Burette</span>
+              <span><span data-i18n="refillBtn">重填滴定管</span></span>
             </button>
           </div>
 
@@ -465,7 +491,7 @@
       </section>
 
       <!-- RIGHT COLUMN: Chart & Real-Time Log (4 Cols) -->
-      <section class="lg:col-span-4 flex flex-col gap-4">
+      <section class="order-3 lg:col-span-4 flex flex-col gap-4">
         
         <!-- Graph Card -->
         <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3">
@@ -482,7 +508,7 @@
             <!-- Derivative Checkbox -->
             <label class="flex items-center gap-1.5 text-xs text-slate-300 font-medium cursor-pointer">
               <input type="checkbox" id="chkDerivative" onchange="toggleDerivative()" class="rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0">
-              <span>First Derivative (dpH/dV)</span>
+              <span data-i18n="chkDerivative">一階導數 dpH/dV</span>
             </label>
           </div>
 
@@ -697,6 +723,48 @@
 
       </div>
     </div>
+
+  
+  <!-- Teaching Modals -->
+  <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900/95">
+        <h2 id="steps-title" class="text-lg font-bold text-sky-300" data-i18n="stepsTitle">觀察步驟</h2>
+        <button type="button" class="modal-close px-2 py-1 text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-4 text-sm text-slate-200 leading-relaxed" id="steps-body"></div>
+      <div class="px-5 py-3 border-t border-slate-700 flex justify-end">
+        <button type="button" class="modal-close px-4 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold" data-i18n="btnClose">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900/95">
+        <h2 id="principle-title" class="text-lg font-bold text-emerald-300" data-i18n="principleTitle">原理解說</h2>
+        <button type="button" class="modal-close px-2 py-1 text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-4 text-sm text-slate-200 leading-relaxed" id="principle-body"></div>
+      <div class="px-5 py-3 border-t border-slate-700 flex justify-end">
+        <button type="button" class="modal-close px-4 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold" data-i18n="btnClose">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900/95">
+        <h2 id="quiz-title" class="text-lg font-bold text-violet-300" data-i18n="quizTitle">課堂問題</h2>
+        <button type="button" class="modal-close px-2 py-1 text-slate-400 hover:text-white text-xl leading-none" aria-label="Close">&times;</button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-5 text-sm text-slate-200" id="quiz-body"></div>
+      <div class="px-5 py-3 border-t border-slate-700 flex flex-wrap gap-2 justify-between">
+        <button type="button" id="btn-quiz-answers" class="px-4 py-1.5 rounded-lg bg-violet-700 hover:bg-violet-600 text-xs font-bold" data-i18n="btnShowAnswers">顯示參考答案</button>
+        <button type="button" class="modal-close px-4 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold" data-i18n="btnClose">關閉</button>
+      </div>
+    </div>
+  </div>
 
   </main>
 
@@ -1274,7 +1342,7 @@
     function addTitrant(vol) {
       if (appState.titrantAddedVol >= appState.buretteCapacity) {
         setFlowMode('stop');
-        alert('Burette is empty! Refilling burette.');
+        alert(t('alertBuretteEmpty'));
         return;
       }
 
@@ -1431,13 +1499,13 @@
       // Status Tag
       const statusTag = document.getElementById('solutionStatusTag');
       if (Math.abs(appState.titrantAddedVol - veq) < 0.1) {
-        statusTag.innerText = 'EQUIVALENCE POINT';
+        statusTag.innerText = t('statusEq');
         statusTag.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 animate-pulse';
       } else if (appState.titrantAddedVol < veq) {
-        statusTag.innerText = 'PRE-EQUIVALENCE (BUFFER/UNREACTED)';
+        statusTag.innerText = t('statusPre');
         statusTag.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800';
       } else {
-        statusTag.innerText = 'POST-EQUIVALENCE (EXCESS TITRANT)';
+        statusTag.innerText = t('statusPost');
         statusTag.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800';
       }
 
@@ -1497,7 +1565,7 @@
 
     function exportToCSV() {
       if (appState.dataPoints.length === 0) {
-        alert('No data logged to export.');
+        alert(t('alertNoData'));
         return;
       }
 
@@ -1533,7 +1601,7 @@
       }
 
       updateReactionText();
-      resetExperiment();
+      softResetTitration();
     }
 
     function onChemicalChange() {
@@ -1547,7 +1615,7 @@
       document.getElementById('baseBadge').innerText = `${base.type === 'SB' ? 'Strong' : 'Weak Kb=' + base.kb.toExponential(1)} (${base.hydroxides} OH⁻)`;
 
       updateReactionText();
-      resetExperiment();
+      softResetTitration();
     }
 
     function updateReactionText() {
@@ -1648,7 +1716,7 @@
       
       document.getElementById('challengeSolutionBody').innerHTML = `<p class="text-slate-500 italic">Submit your challenge answer to reveal the detailed stoichiometric calculation steps.</p>`;
 
-      resetExperiment();
+      softResetTitration();
     }
 
     function submitChallengeAnswer() {
@@ -1656,7 +1724,7 @@
       const actualVal = appState.challenge.hiddenMolarity;
 
       if (isNaN(userVal) || userVal <= 0) {
-        alert('Please enter a valid positive number for molarity.');
+        alert(t('alertInvalidM'));
         return;
       }
 
@@ -1698,7 +1766,7 @@
       `;
     }
 
-    function resetExperiment() {
+    function softResetTitration() {
       setFlowMode('stop');
       appState.titrantAddedVol = 0.0;
       appState.dataPoints = [];
@@ -1711,11 +1779,582 @@
     /* =========================================================================
        10. WINDOW ONLOAD INITIALIZATION
        ========================================================================= */
+
+    /* ===== Teaching shell: i18n + modals + expanded reset ===== */
+    let currentLang = 'zh';
+    let quizReveal = false;
+    let _modalCloseTimer = null;
+
+    const dict = {
+      zh: {
+        title: '酸鹼滴定模擬器',
+        subtitle: '等溫定量平衡實驗',
+        badgeSubject: '化學｜Chemistry',
+        isoLabel: '等溫條件',
+        btnSteps: '觀察步驟',
+        btnPrinciple: '原理解說',
+        btnQuiz: '課堂問題',
+        btnLang: '中 / EN',
+        btnReset: '重置實驗',
+        btnClose: '關閉',
+        btnShowAnswers: '顯示參考答案',
+        stepsTitle: '觀察步驟',
+        principleTitle: '原理解說',
+        quizTitle: '課堂問題',
+        tabLab: '實驗台',
+        tabData: '數據表',
+        tabPractice: '未知濃度挑戰',
+        tabGuide: '化學參考',
+        virtualApparatus: '虛擬裝置',
+        buretteVol: '滴定管體積：',
+        setupTitle: '實驗設置',
+        orientLabel: '滴定取向',
+        acidInBurette: '酸在滴定管',
+        baseInBurette: '鹼在滴定管',
+        acidSelect: '酸（分析物／滴定劑）',
+        baseSelect: '鹼（分析物／滴定劑）',
+        titrantM: '滴定劑濃度 (M)',
+        analyteM: '分析物濃度 (M)',
+        analyteV: '分析物體積 V₀ (mL)',
+        indicator: '指示劑',
+        dosingTitle: '滴加滴定劑',
+        flowStop: '停止',
+        flowSlow: '慢滴',
+        flowFast: '快滴',
+        flowStream: '連續',
+        autoEq: '自動滴定至等當點',
+        refill: '重填滴定管',
+        stirrer: '攪拌',
+        stirOff: '關',
+        stirLow: '慢',
+        stirMed: '中',
+        stirHigh: '快',
+        chartTitle: '滴定曲線',
+        chkDerivative: '一階導數 dpH/dV',
+        statusPre: '等當點前',
+        statusEq: '等當點',
+        statusPost: '等當點後',
+        veqLabel: '等當體積 Veq',
+        alertBuretteEmpty: '滴定管已空！正在重填。',
+        alertNoData: '尚無數據可匯出。',
+        alertInvalidM: '請輸入有效的正數濃度。',
+        chartPh: 'pH',
+        chartDph: 'dpH / dV',
+        chartX: '滴定劑體積 (mL)',
+        chartY: 'pH',
+        strong: '強',
+        weak: '弱',
+        guideTitle: '化學參考',
+        practiceTitle: '未知濃度挑戰',
+        resetTitle: '重置實驗',
+        baseInFlask: '錐形瓶：鹼',
+        acidInFlask: '錐形瓶：酸',
+        firstDeriv: '一階導數 dpH/dV',
+        refillBtn: '重填滴定管',
+        autoEqBtn: '自動滴定至等當點'
+      },
+      en: {
+        title: 'Acid-Base Titration Simulator',
+        subtitle: 'Isothermal Quantitative Equilibrium Laboratory',
+        badgeSubject: 'Chemistry｜化學',
+        isoLabel: 'Isothermal Condition',
+        btnSteps: 'Steps',
+        btnPrinciple: 'Principles',
+        btnQuiz: 'Quiz',
+        btnLang: '中 / EN',
+        btnReset: 'Reset Lab',
+        btnClose: 'Close',
+        btnShowAnswers: 'Show answers',
+        stepsTitle: 'Observation Steps',
+        principleTitle: 'Principles',
+        quizTitle: 'Classroom Quiz',
+        tabLab: 'Lab',
+        tabData: 'Data Table',
+        tabPractice: 'Unknown Challenge',
+        tabGuide: 'Chemical Reference',
+        virtualApparatus: 'Virtual Apparatus',
+        buretteVol: 'Burette Volume:',
+        setupTitle: 'Experiment Setup',
+        orientLabel: 'Orientation',
+        acidInBurette: 'Acid in burette',
+        baseInBurette: 'Base in burette',
+        acidSelect: 'Acid (analyte / titrant)',
+        baseSelect: 'Base (analyte / titrant)',
+        titrantM: 'Titrant molarity (M)',
+        analyteM: 'Analyte molarity (M)',
+        analyteV: 'Analyte volume V₀ (mL)',
+        indicator: 'Indicator',
+        dosingTitle: 'Add titrant',
+        flowStop: 'Stop',
+        flowSlow: 'Slow',
+        flowFast: 'Fast',
+        flowStream: 'Stream',
+        autoEq: 'Auto-titrate to Veq',
+        refill: 'Refill burette',
+        stirrer: 'Stirrer',
+        stirOff: 'Off',
+        stirLow: 'Low',
+        stirMed: 'Med',
+        stirHigh: 'High',
+        chartTitle: 'Titration Curve',
+        chkDerivative: 'First derivative dpH/dV',
+        statusPre: 'PRE-EQUIVALENCE',
+        statusEq: 'EQUIVALENCE',
+        statusPost: 'POST-EQUIVALENCE',
+        veqLabel: 'Equivalence volume Veq',
+        alertBuretteEmpty: 'Burette is empty! Refilling burette.',
+        alertNoData: 'No data logged to export.',
+        alertInvalidM: 'Please enter a valid positive number for molarity.',
+        chartPh: 'pH',
+        chartDph: 'dpH / dV',
+        chartX: 'Titrant volume (mL)',
+        chartY: 'pH',
+        strong: 'Strong',
+        weak: 'Weak',
+        guideTitle: 'Chemical Reference',
+        practiceTitle: 'Unknown Challenge',
+        resetTitle: 'Reset Experiment',
+        baseInFlask: 'Base in Flask',
+        acidInFlask: 'Acid in Flask',
+        firstDeriv: 'First derivative dpH/dV',
+        refillBtn: 'Refill burette',
+        autoEqBtn: 'Auto-titrate to Veq'
+      }
+    };
+
+
+    const STEPS_CONTENT = {
+      zh: [
+        '確認預設：<strong>酸在滴定管</strong>、<strong>HCl＋NaOH</strong>、兩者約 <strong>0.10 M</strong>、分析物 <strong>25.0 mL</strong>、指示劑<strong>酚酞</strong>。側欄 <strong>$V_{\\rm eq}$</strong> 應約 <strong>25.00 mL</strong>。用 <strong>+1.00 mL</strong> 或 Slow Drip 加入滴定劑：觀察 pH 計、錐形瓶顏色、滴定曲線與狀態標籤（PRE → EQUIVALENCE → POST）。在 $V\\approx25\\,\\mathrm{mL}$ 時 pH 應接近 <strong>7</strong>（強酸強鹼）。',
+        '按重置後，把酸改為 <strong>CH₃COOH（弱酸）</strong>，鹼仍為 <strong>NaOH</strong>。再次滴定至等當點附近：等當點 <strong>pH 應明顯大於 7</strong>；曲線在緩衝區較平、等當點附近仍有躍變。對照強強與弱酸強鹼的差異。',
+        '保持某組弱酸強鹼（或強強），把指示劑改為 <strong>甲基橙</strong> 再改回 <strong>酚酞</strong>：觀察變色範圍標籤與錐形瓶顏色是否在等當點附近才合適。思考：終點（變色）應盡量接近等當點。可勾選 <strong>First Derivative</strong> 看 $\\mathrm{d}pH/\\mathrm{d}V$ 峰是否靠近 $V_{\\rm eq}$。',
+        '改 <strong>取向</strong>（鹼在滴定管）或改濃度／$V_0$，觀察 <strong>$V_{\\rm eq}$</strong> 如何依 $M_{\\rm t}V_{\\rm eq}n_{\\rm t}=M_{\\rm a}V_0 n_{\\rm a}$ 改變。按<strong>重置</strong>：回 HCl／NaOH／0.10 M／25.0 mL／酚酞／酸在滴定管／滴定劑體積 0；<strong>語言不變</strong>。打開原理解說與課堂問題：對照等當點、指示劑、等溫 $K_w$，並確認本模擬<strong>不是</strong>電解、金屬置換或氧化還原電池。'
+      ],
+      en: [
+        'Confirm defaults: <strong>acid in burette</strong>, <strong>HCl＋NaOH</strong>, both ~<strong>0.10 M</strong>, analyte <strong>25.0 mL</strong>, <strong>phenolphthalein</strong>. <strong>$V_{\\rm eq}$</strong> should read ~<strong>25.00 mL</strong>. Add titrant with <strong>+1.00 mL</strong> or Slow Drip: watch the pH meter, flask color, curve, and status (PRE → EQUIVALENCE → POST). Near $V\\approx25\\,\\mathrm{mL}$, pH should be near <strong>7</strong> (strong–strong).',
+        'After Reset, switch the acid to <strong>CH₃COOH (weak)</strong> with <strong>NaOH</strong>. Titrate to near equivalence: equivalence <strong>pH should be clearly &gt; 7</strong>; note the buffer region versus the jump. Compare with the strong–strong case.',
+        'Keep one acid–base pair and switch the indicator to <strong>methyl orange</strong>, then back to <strong>phenolphthalein</strong>: check whether the color-change band sits near equivalence. Optionally enable <strong>First Derivative</strong> and see whether the $\\mathrm{d}pH/\\mathrm{d}V$ peak is near $V_{\\rm eq}$.',
+        'Change <strong>orientation</strong> (base in burette) or concentrations／$V_0$ and watch <strong>$V_{\\rm eq}$</strong> follow $M_{\\rm t}V_{\\rm eq}n_{\\rm t}=M_{\\rm a}V_0 n_{\\rm a}$. <strong>Reset</strong>: restore HCl／NaOH／0.10 M／25.0 mL／phenolphthalein／acid in burette／zero titrant; <strong>language unchanged</strong>. Open Principles and Quiz—this lab is titration／stoichiometry, <strong>not</strong> electrolysis, metal displacement, or a galvanic cell.'
+      ]
+    };
+
+    const PRINCIPLE_CONTENT = {
+      zh: {
+        conceptTitle: '概念',
+        concept: '<strong>酸鹼滴定</strong>用已知濃度的滴定劑，測定未知（或設定）分析物的濃度。邊滴加邊監測 <strong>pH</strong>（本模擬提供數字 pH 計與可選指示劑顏色）。當酸、鹼的有效 $\\mathrm{H}^+$／$\\mathrm{OH}^-$ 量剛好相等時，稱為<strong>等當點</strong>；指示劑變色的那一刻稱為<strong>終點</strong>，理想上應盡量接近等當點。',
+        mechTitle: '機制',
+        mech: [
+          '<strong>化學計量</strong>：$M_{\\rm titrant} V_{\\rm eq} n_{\\rm titrant} = M_{\\rm analyte} V_0 n_{\\rm analyte}$。',
+          '<strong>等溫水的離子積</strong>：$T=25.0\\,^\\circ\\mathrm{C}$ 時 $K_w=[{\\rm H}^+][{\\rm OH}^-]=1.00\\times10^{-14}$。',
+          '<strong>強酸＋強鹼</strong>：等當點 pH≈7，曲線在等當點陡峭。',
+          '<strong>弱酸＋強鹼</strong>：等當點前為緩衝區；等當點時共軛鹼水解 → pH&gt;7。',
+          '<strong>強酸＋弱鹼</strong>：等當點 pH&lt;7。',
+          '<strong>指示劑</strong>：在特定 pH 區間變色；選錯指示劑會使終點偏離等當點。',
+          '<strong>假設</strong>：理想溶液、固定 $T$／$K_w$、忽略空氣 CO₂ 等——示意課堂模型，<strong>不是</strong>電解槽、金屬活性序實驗或原電池。'
+        ],
+        everydayTitle: '日常例子',
+        everyday: '食醋中醋酸含量測定、泳池／水族箱水質滴定、工業鹼液濃度品管、胃藥抗酸成分分析。勿把本模擬與「電解／電鍍」「金屬置換產氫」「銅鋅電池／Nernst」當成同一組操作目標。'
+      },
+      en: {
+        conceptTitle: 'Concept',
+        concept: 'An <strong>acid–base titration</strong> uses a titrant of known concentration to determine an analyte’s concentration. pH is tracked with a meter and／or an <strong>indicator</strong>. The <strong>equivalence point</strong> is when acid and base reactive capacities match; the <strong>end point</strong> is the indicator color change and should lie close to equivalence.',
+        mechTitle: 'Mechanism',
+        mech: [
+          '<strong>Stoichiometry</strong>: $M_{\\rm titrant} V_{\\rm eq} n_{\\rm titrant} = M_{\\rm analyte} V_0 n_{\\rm analyte}$.',
+          '<strong>Isothermal $K_w$</strong>: at $25.0\\,^\\circ\\mathrm{C}$, $K_w=1.00\\times10^{-14}$.',
+          '<strong>Strong–strong</strong>: equivalence pH≈7 with a steep jump.',
+          '<strong>Weak acid–strong base</strong>: buffer region, then hydrolysis → pH&gt;7 at equivalence.',
+          '<strong>Strong acid–weak base</strong>: equivalence pH&lt;7.',
+          '<strong>Indicators</strong> change over a pH band; a poor choice shifts the end point.',
+          '<strong>Idealizations</strong>: ideal mixing, fixed $T$／$K_w$—classroom model, <strong>not</strong> electrolysis, metal displacement, or a galvanic cell.'
+        ],
+        everydayTitle: 'Everyday example',
+        everyday: 'Assaying acetic acid in vinegar, pool／aquarium water checks, industrial base QC, antacid analysis. Do not merge this lab with electrolysis／electroplating, metal–acid displacement, or Daniell／Nernst cell work as the same learning goal.'
+      }
+    };
+
+
+    const QUIZ = [
+      {
+        id: 1,
+        type: 'mc',
+        q: {
+          zh: '使用預設（酸在滴定管、HCl＋NaOH、約 0.10 M、分析物 25.0 mL）。側欄顯示的等當體積 $V_{\\rm eq}$ 最接近下列哪一項？',
+          en: 'With defaults (acid in burette, HCl＋NaOH, ~0.10 M, analyte 25.0 mL), which value is closest to the displayed $V_{\\rm eq}$?'
+        },
+        options: [
+          { zh: '約 25.00 mL', en: 'about 25.00 mL' },
+          { zh: '約 0 mL（尚未反應就等當）', en: 'about 0 mL' },
+          { zh: '固定永遠 50.00 mL（滴定管容量）', en: 'always exactly 50.00 mL (burette capacity)' },
+          { zh: '約 7.00 mL（因為中性 pH 是 7）', en: 'about 7.00 mL because neutral pH is 7' }
+        ],
+        answer: 0,
+        explain: {
+          zh: 'A。$0.10\\times V_{\\rm eq}\\times1=0.10\\times25.0\\times1$ → $V_{\\rm eq}=25.0\\,\\mathrm{mL}$。',
+          en: 'A. $0.10\\times V_{\\rm eq}\\times1=0.10\\times25.0\\times1$ → $V_{\\rm eq}=25.0\\,\\mathrm{mL}$.'
+        }
+      },
+      {
+        id: 2,
+        type: 'short',
+        q: {
+          zh: '重置後選 <strong>CH₃COOH＋NaOH</strong>（其餘濃度維持約 0.10 M、$V_0=25\\,\\mathrm{mL}$）。先預測等當點 pH 是否等於 7，再滴定至 EQUIVALENCE（或 Auto-Titrate）核對並說明原因。',
+          en: 'After Reset, choose <strong>CH₃COOH＋NaOH</strong> (~0.10 M, $V_0=25\\,\\mathrm{mL}$). Predict whether equivalence pH equals 7, then titrate to EQUIVALENCE (or Auto-Titrate), check, and explain.'
+        },
+        options: [],
+        answer: null,
+        explain: {
+          zh: '弱酸強鹼等當點為共軛鹼（CH₃COO⁻）水解，pH<strong>明顯大於 7</strong>，不是強強的 7。',
+          en: 'Weak acid–strong base equivalence leaves conjugate base (CH₃COO⁻) hydrolysis, so pH is <strong>clearly above 7</strong>, not 7 like strong–strong.'
+        }
+      },
+      {
+        id: 3,
+        type: 'mc',
+        q: {
+          zh: '在<strong>強酸＋強鹼</strong>滴定中，比較 <strong>酚酞</strong>（約 pH 8.2–10.0）與 <strong>甲基橙</strong>（約 pH 3.1–4.4）。哪項最合理？',
+          en: 'For a <strong>strong acid–strong base</strong> titration, compare <strong>phenolphthalein</strong> (~pH 8.2–10.0) and <strong>methyl orange</strong> (~pH 3.1–4.4). Which is most reasonable?'
+        },
+        options: [
+          { zh: '兩者變色範圍不同；應選變色區間較接近等當點陡升區的指示劑，終點才贴近等當點', en: 'Their bands differ; pick an indicator whose transition lies near the steep jump so the end point tracks equivalence' },
+          { zh: '指示劑只改語言，永不改顏色', en: 'Indicators only change language, never color' },
+          { zh: '甲基橙的變色範圍是 pH 12–14', en: 'Methyl orange changes only at pH 12–14' },
+          { zh: '酚酞專門用於電解食鹽水產氯', en: 'Phenolphthalein is only for electrolyzing brine to make chlorine' }
+        ],
+        answer: 0,
+        explain: {
+          zh: 'A。對照指示劑範圍標籤與曲線陡升位置。',
+          en: 'A. Compare the indicator band label with the steep jump on the curve.'
+        }
+      },
+      {
+        id: 4,
+        type: 'short',
+        q: {
+          zh: '先記下預設 $V_{\\rm eq}$。把分析物濃度改為約 <strong>0.20 M</strong>（或改取向為鹼在滴定管）觀察 $V_{\\rm eq}$ 變化；再按重置。用自己的話寫：（1）濃度（或取向）改變時 $V_{\\rm eq}$ 應如何 qualitatively 變；（2）重置後酸／鹼／濃度／$V_0$／指示劑／滴定劑已加體積／語言應如何（本設計預期）。',
+          en: 'Note default $V_{\\rm eq}$. Change analyte molarity to ~<strong>0.20 M</strong> (or switch to base-in-burette) and watch $V_{\\rm eq}$; then Reset. In your own words: (1) how $V_{\\rm eq}$ should change qualitatively; (2) after Reset, what happens to chemicals／concentrations／$V_0$／indicator／titrant volume／language (per this design).'
+        },
+        options: [],
+        answer: null,
+        explain: {
+          zh: '（1）由 $M_{\\rm t}V_{\\rm eq}n_{\\rm t}=M_{\\rm a}V_0 n_{\\rm a}$——$M_{\\rm a}$ 加倍則 $V_{\\rm eq}$ 約加倍（其他不變）；改取向會對調誰是滴定劑並重算。（2）回 HCl／NaOH／0.10 M／25.0 mL／酚酞／酸在滴定管／已加體積 0；<strong>不</strong>切換中／EN。',
+          en: '(1) From $M_{\\rm t}V_{\\rm eq}n_{\\rm t}=M_{\\rm a}V_0 n_{\\rm a}$—doubling $M_{\\rm a}$ roughly doubles $V_{\\rm eq}$; orientation swaps which reagent is titrant. (2) Restore HCl／NaOH／0.10 M／25.0 mL／phenolphthalein／acid in burette／zero added volume; Reset must <strong>not</strong> switch language.'
+        }
+      },
+      {
+        id: 5,
+        type: 'mc',
+        q: {
+          zh: '根據本模擬控件與設計，哪項最正確？',
+          en: 'Using this sim’s controls and design, which is most correct?'
+        },
+        options: [
+          { zh: '可調酸／鹼、取向、濃度與 $V_0$、指示劑與滴加，讀 pH／$V_{\\rm eq}$／曲線，並有步驟／原理／五題／中EN／重置——主題是酸鹼滴定與化學計量，不是電解、不是金屬置換、也不是氧化還原電池', en: 'You can tune acids／bases, orientation, concentrations／$V_0$, indicator and dosing, read pH／$V_{\\rm eq}$／curve, with steps／principle／five quiz items／zh-EN／reset—this is acid–base titration／stoichiometry, not electrolysis, metal displacement, or a galvanic cell' },
+          { zh: '主要用來畫電解槽陰極析氫與陽極析氯', en: 'It mainly diagrams cathode H₂ and anode Cl₂ in an electrolytic cell' },
+          { zh: '重置會強制改成英文並刪除所有滑桿', en: 'Reset always switches to English and deletes all sliders' },
+          { zh: '主要計算銅鋅電池的標準電動勢 $E^\\circ$', en: 'It mainly computes the Daniell cell standard EMF $E^\\circ$' }
+        ],
+        answer: 0,
+        explain: {
+          zh: 'A。隔離電解／金屬／原電池；Reset 不改語言、不刪控件。',
+          en: 'A. Keep electrolysis／metal／galvanic topics out; Reset does not change language or remove controls.'
+        }
+      }
+    ];
+
+
+    function t(key) {
+      const d = dict[currentLang] || dict.zh;
+      return (d && d[key] != null) ? d[key] : key;
+    }
+
+    function typesetMath(root) {
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise(root ? [root] : undefined).catch(function(){});
+      }
+    }
+
+    function closeAllModals(exceptId) {
+      if (_modalCloseTimer) {
+        clearTimeout(_modalCloseTimer);
+        _modalCloseTimer = null;
+      }
+      ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+        if (exceptId && id === exceptId) return;
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+    }
+
+    function openModal(id) {
+      closeAllModals(id);
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('hidden');
+      if (id === 'modal-steps') renderSteps();
+      if (id === 'modal-principle') renderPrinciple();
+      if (id === 'modal-quiz') renderQuiz();
+      typesetMath(el);
+    }
+
+    function renderSteps() {
+      const body = document.getElementById('steps-body');
+      if (!body) return;
+      const steps = STEPS_CONTENT[currentLang] || STEPS_CONTENT.zh;
+      body.innerHTML = steps.map(function(s, i) {
+        return '<div class="rounded-xl border border-slate-700 bg-slate-950/50 p-3"><div class="text-xs font-bold text-sky-400 mb-1">' +
+          (currentLang === 'zh' ? ('步驟 ' + (i + 1)) : ('Step ' + (i + 1))) +
+          '</div><div>' + s + '</div></div>';
+      }).join('');
+    }
+
+    function renderPrinciple() {
+      const body = document.getElementById('principle-body');
+      if (!body) return;
+      const p = PRINCIPLE_CONTENT[currentLang] || PRINCIPLE_CONTENT.zh;
+      let html = '<div><h3 class="font-bold text-emerald-300 mb-1">' + p.conceptTitle + '</h3><p>' + p.concept + '</p></div>';
+      html += '<div><h3 class="font-bold text-emerald-300 mb-1">' + p.mechTitle + '</h3><ol class="list-decimal pl-5 space-y-1">';
+      p.mech.forEach(function(m) { html += '<li>' + m + '</li>'; });
+      html += '</ol></div>';
+      html += '<div><h3 class="font-bold text-emerald-300 mb-1">' + p.everydayTitle + '</h3><p>' + p.everyday + '</p></div>';
+      body.innerHTML = html;
+    }
+
+    function renderQuiz() {
+      const body = document.getElementById('quiz-body');
+      const d = dict[currentLang] || dict.zh;
+      const ansBtn = document.getElementById('btn-quiz-answers');
+      if (ansBtn) ansBtn.textContent = quizReveal ? (d.btnHideAnswers || '隱藏參考答案') : (d.btnShowAnswers || '顯示參考答案');
+      if (!body) return;
+      const ref = currentLang === 'en' ? 'Reference answer' : '參考答案';
+      const hint = currentLang === 'en' ? 'Predict, then use the sim controls to check. Write in your own words.' : '先預測，再操作畫面控件核對，用自己的話作答。';
+      body.innerHTML = QUIZ.map(function(item, idx) {
+        const qNum = idx + 1;
+        const isOpen = (qNum === 2 || qNum === 4);
+        const q = item.q[currentLang] || item.q.zh;
+        let opts = '';
+        if (!isOpen && item.type === 'mc' && item.options && item.options.length) {
+          const qName = 'q' + qNum;
+          opts = '<div class="mt-2 grid gap-1.5">' + item.options.map(function(opt, oi) {
+            const label = opt[currentLang] || opt.zh;
+            const letter = String.fromCharCode(65 + oi);
+            return '<label class="flex items-start gap-2 rounded-lg border border-slate-700 bg-slate-950/40 hover:border-violet-500 px-3 py-2 text-xs cursor-pointer"><input type="radio" name="' + qName + '" class="mt-0.5 accent-violet-500"><span><span class="font-bold text-violet-300 mr-2">' + letter + '.</span>' + label + '</span></label>';
+          }).join('') + '</div>';
+        } else if (isOpen || item.type === 'short') {
+          opts = '<p class="mt-2 text-xs text-slate-400 italic">' + hint + '</p>';
+        }
+        let ansBlock = '';
+        if (quizReveal) {
+          const exp = item.explain[currentLang] || item.explain.zh;
+          ansBlock = '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + exp + '</div>';
+        }
+        return '<div class="rounded-xl border border-slate-700 bg-slate-950/50 p-3">' +
+          '<div class="text-xs font-bold text-violet-300 mb-1">Q' + qNum + '</div>' +
+          '<div class="mb-1">' + q + '</div>' + opts + ansBlock + '</div>';
+      }).join('');
+    }
+
+    function softResetTitration() {
+      setFlowMode('stop');
+      appState.titrantAddedVol = 0.0;
+      appState.dataPoints = [];
+      appState.droplets = [];
+      appState.ripples = [];
+      appState.colorSwirls = [];
+      recalculateState();
+    }
+
+    function resetExperiment() {
+      /* Full Reset Lab: restore chemical defaults; does NOT reset language */
+      setFlowMode('stop');
+
+      if (appState.challenge && appState.challenge.active) {
+        appState.challenge.active = false;
+        appState.challenge.userAnswer = null;
+        const analyteBlock = document.getElementById('analyteMolarityBlock') || document.getElementById('analyteControls');
+        /* reveal analyte molarity controls if challenge hid them */
+        const aRange = document.getElementById('analyteMolarityInput');
+        const aNum = document.getElementById('analyteMolarityNum');
+        if (aRange && aRange.parentElement) aRange.parentElement.classList.remove('hidden');
+        if (aNum && aNum.closest) {
+          const wrap = aNum.closest('.hidden');
+          /* best-effort: remove hidden from common wrappers */
+        }
+        document.querySelectorAll('[data-challenge-hide]').forEach(function(el){ el.classList.remove('hidden'); });
+        /* practice UI may hide analyte group — restore display */
+        const labAnalyteLabel = document.getElementById('analyteMolarityInput');
+        if (labAnalyteLabel) {
+          let p = labAnalyteLabel.parentElement;
+          while (p && p !== document.body) {
+            if (p.classList && p.classList.contains('hidden')) p.classList.remove('hidden');
+            p = p.parentElement;
+            if (p && p.id === 'viewLab') break;
+          }
+        }
+      }
+
+      appState.orientation = 'acid_in_burette';
+      appState.selectedAcidKey = 'HCl';
+      appState.selectedBaseKey = 'NaOH';
+      appState.titrantMolarity = 0.10;
+      appState.analyteMolarity = 0.10;
+      appState.initialAnalyteVol = 25.0;
+      appState.selectedIndicator = 'phenolphthalein';
+      appState.showDerivative = false;
+      appState.titrantAddedVol = 0.0;
+      appState.dataPoints = [];
+      appState.droplets = [];
+      appState.ripples = [];
+      appState.colorSwirls = [];
+
+      const acidSel = document.getElementById('acidSelect');
+      const baseSel = document.getElementById('baseSelect');
+      const indSel = document.getElementById('indicatorSelect');
+      if (acidSel) acidSel.value = 'HCl';
+      if (baseSel) baseSel.value = 'NaOH';
+      if (indSel) indSel.value = 'phenolphthalein';
+
+      const tRange = document.getElementById('titrantMolarityInput');
+      const tNum = document.getElementById('titrantMolarityNum');
+      const aRange = document.getElementById('analyteMolarityInput');
+      const aNum = document.getElementById('analyteMolarityNum');
+      const v0 = document.getElementById('analyteVolInput');
+      if (tRange) tRange.value = 0.10;
+      if (tNum) tNum.value = 0.10;
+      if (aRange) { aRange.value = 0.10; aRange.disabled = false; }
+      if (aNum) { aNum.value = 0.10; aNum.disabled = false; }
+      if (v0) v0.value = 25.0;
+
+      const chk = document.getElementById('chkDerivative');
+      if (chk) chk.checked = false;
+      if (chartInstance) {
+        chartInstance.data.datasets[1].hidden = true;
+        chartInstance.update('none');
+      }
+
+      /* sync orientation buttons without calling soft/full reset recursively */
+      const btnAcid = document.getElementById('orientAcidInBurette');
+      const btnBase = document.getElementById('orientBaseInBurette');
+      if (btnAcid && btnBase) {
+        btnAcid.className = "py-2 px-2 text-xs font-bold rounded-lg transition-all bg-sky-600 text-white shadow";
+        btnBase.className = "py-2 px-2 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-white";
+      }
+
+      setStirrerSpeed(1);
+      updateReactionText();
+      onIndicatorChange();
+      recalculateState();
+      if (typeof switchTab === 'function') switchTab('lab');
+      /* language intentionally unchanged */
+    }
+
+
+    function updateUI() {
+      const d = dict[currentLang] || dict.zh;
+      document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n');
+        if (d[key] != null) el.textContent = d[key];
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (d[key] != null) el.setAttribute('placeholder', d[key]);
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n-title');
+        if (d[key] != null) el.setAttribute('title', d[key]);
+      });
+
+      /* Chart axes / legend */
+      if (chartInstance) {
+        try {
+          chartInstance.data.datasets[0].label = d.chartPh;
+          chartInstance.data.datasets[1].label = d.chartDph;
+          if (chartInstance.options.scales.x) {
+            chartInstance.options.scales.x.title = chartInstance.options.scales.x.title || {};
+            chartInstance.options.scales.x.title.text = d.chartX;
+          }
+          if (chartInstance.options.scales.ypH) {
+            chartInstance.options.scales.ypH.title = chartInstance.options.scales.ypH.title || {};
+            chartInstance.options.scales.ypH.title.text = d.chartY;
+          }
+          chartInstance.update('none');
+        } catch (e) {}
+      }
+
+      /* Re-render open teaching modals */
+      const stepsOpen = document.getElementById('modal-steps');
+      const prinOpen = document.getElementById('modal-principle');
+      const quizOpen = document.getElementById('modal-quiz');
+      if (stepsOpen && !stepsOpen.classList.contains('hidden')) { renderSteps(); typesetMath(stepsOpen); }
+      if (prinOpen && !prinOpen.classList.contains('hidden')) { renderPrinciple(); typesetMath(prinOpen); }
+      if (quizOpen && !quizOpen.classList.contains('hidden')) { renderQuiz(); typesetMath(quizOpen); }
+
+      /* Refresh badges that embed Strong/Weak */
+      if (typeof onChemicalChange === 'function') {
+        /* avoid soft reset: only update badge text */
+        try {
+          const acid = ACIDS[appState.selectedAcidKey];
+          const base = BASES[appState.selectedBaseKey];
+          const ab = document.getElementById('acidBadge');
+          const bb = document.getElementById('baseBadge');
+          if (ab && acid) ab.innerText = (acid.type === 'SA' ? d.strong : (d.weak + ' Ka=' + acid.ka.toExponential(1))) + ' (' + acid.protons + ' H⁺)';
+          if (bb && base) bb.innerText = (base.type === 'SB' ? d.strong : (d.weak + ' Kb=' + base.kb.toExponential(1))) + ' (' + base.hydroxides + ' OH⁻)';
+        } catch (e) {}
+      }
+      if (typeof recalculateState === 'function') recalculateState();
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      updateUI();
+    }
+
+    function wireTeachingShell() {
+      const bs = document.getElementById('btn-steps');
+      const bp = document.getElementById('btn-principle');
+      const bq = document.getElementById('btn-quiz');
+      const bl = document.getElementById('btn-lang');
+      const br = document.getElementById('btn-reset');
+      if (bs) bs.addEventListener('click', function(){ openModal('modal-steps'); });
+      if (bp) bp.addEventListener('click', function(){ openModal('modal-principle'); });
+      if (bq) bq.addEventListener('click', function(){ quizReveal = false; openModal('modal-quiz'); });
+      if (bl) bl.addEventListener('click', toggleLanguage);
+      /* btn-reset uses onclick=resetExperiment() */
+
+      document.querySelectorAll('.modal-close').forEach(function(btn) {
+        btn.addEventListener('click', function(){ closeAllModals(); });
+      });
+      ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', function(ev) {
+          if (ev.target === el) closeAllModals();
+        });
+      });
+      document.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Escape') closeAllModals();
+      });
+      const showAns = document.getElementById('btn-quiz-answers');
+      if (showAns) showAns.addEventListener('click', function() {
+        quizReveal = !quizReveal;
+        renderQuiz();
+        const quizOpen = document.getElementById('modal-quiz');
+        if (quizOpen) typesetMath(quizOpen);
+      });
+    }
+
+    /* Patch alert strings via wrappers once DOM ready — monkeypatch at call sites replaced in build */
+
     window.onload = function() {
       initChart();
+      wireTeachingShell();
+      updateUI();
       onChemicalChange();
       onIndicatorChange();
       onParamChange();
+      setStirrerSpeed(1);
       animateApparatus();
     };
   </script>

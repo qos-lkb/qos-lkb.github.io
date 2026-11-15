@@ -1,645 +1,803 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>盧瑟福金箔實驗模擬 (Rutherford Gold Foil Experiment)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #0f172a; /* Slate 900 */
-            color: #e2e8f0;
-        }
-        canvas {
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-        }
-        /* 自定義滾動條 */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1e293b; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #475569; 
-            border-radius: 3px;
-        }
-        /* Modal 動畫 */
-        .modal-enter {
-            opacity: 0;
-            transform: scale(0.95);
-        }
-        .modal-enter-active {
-            opacity: 1;
-            transform: scale(1);
-            transition: opacity 300ms, transform 300ms;
-        }
-        .modal-exit {
-            opacity: 1;
-        }
-        .modal-exit-active {
-            opacity: 0;
-            transition: opacity 200ms;
-        }
-    </style>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>盧瑟福金箔實驗模擬</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+body { font-family: 'Noto Sans TC', system-ui, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+canvas { background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1e293b; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+.modal-panel { transition: opacity 0.25s ease; }
+.modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+.quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #334155; }
+.quiz-item .q-stem { font-weight: 600; color: #e2e8f0; margin-bottom: 0.5rem; }
+.quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+.quiz-options button {
+  text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+  border: 1px solid #475569; background: #1e293b; font-size: 0.875rem; color: #e2e8f0; transition: all 0.15s;
+}
+.quiz-options button:hover { border-color: #6366f1; background: #312e81; }
+.quiz-options button.selected { border-color: #818cf8; background: #3730a3; }
+.quiz-options button.correct { border-color: #16a34a; background: #14532d; }
+.quiz-options button.wrong { border-color: #dc2626; background: #7f1d1d; }
+.quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #0f172a; border-radius: 0.5rem; font-size: 0.85rem; color: #cbd5e1; }
+.quiz-answer.show { display: block; }
+.teach-btn {
+  font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.7rem; border-radius: 0.5rem;
+  border: 1px solid; transition: background-color 0.15s, color 0.15s;
+}
+</style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
 
-    <!-- 頂部標題欄 -->
-    <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center shadow-md z-10">
-        <div>
-            <h1 class="text-2xl font-bold text-yellow-400">盧瑟福金箔實驗模擬</h1>
-            <p class="text-xs text-slate-400">Alpha 粒子散射物理模型 (全角度圖表版)</p>
-        </div>
-        <div class="flex gap-2">
-            <button id="btn-toggle" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-medium transition shadow-lg flex items-center">
-                <span id="btn-icon" class="mr-2">▶</span> <span id="btn-text">開始發射</span>
-            </button>
-            <button id="btn-reset" class="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded font-medium transition border border-slate-500">
-                重置數據
-            </button>
-            <button id="btn-explain" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-medium transition border border-blue-500 ml-2 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                實驗原理
-            </button>
-        </div>
-    </header>
+<header class="bg-slate-800 border-b border-slate-700 p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 shadow-md z-10">
+  <div class="min-w-0">
+    <h1 class="text-xl sm:text-2xl font-bold text-yellow-400" data-i18n="appTitle">盧瑟福金箔實驗模擬</h1>
+    <p class="text-xs text-slate-400" data-i18n="appSubtitle">Alpha 粒子散射物理模型（全角度圖表版）</p>
+  </div>
+  <div class="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+    <button id="btn-toggle" type="button" class="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded font-medium transition shadow-lg flex items-center text-sm">
+      <span id="btn-icon" class="mr-1.5">▶</span> <span id="btn-text" data-i18n="btnStart">開始發射</span>
+    </button>
+    <button id="btn-reset" type="button" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded font-medium transition border border-slate-500 text-sm" data-i18n="btnReset">重置</button>
+    <span class="hidden sm:inline text-slate-600 mx-0.5">|</span>
+    <button type="button" id="btn-steps" class="teach-btn border-indigo-400 bg-indigo-900/40 text-indigo-200 hover:bg-indigo-800/60" data-i18n="btnSteps">觀察步驟</button>
+    <button type="button" id="btn-principle" class="teach-btn border-blue-400 bg-blue-900/40 text-blue-200 hover:bg-blue-800/60" data-i18n="btnPrinciple">原理解說</button>
+    <button type="button" id="btn-quiz" class="teach-btn border-violet-400 bg-violet-900/40 text-violet-200 hover:bg-violet-800/60" data-i18n="btnQuiz">課堂問題</button>
+    <button type="button" id="btn-lang" class="teach-btn border-slate-500 bg-slate-700 text-slate-200 hover:bg-slate-600">中 / EN</button>
+  </div>
+</header>
 
-    <!-- 主內容區 -->
-    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        
-        <!-- 左側：模擬畫布 -->
-        <div class="relative flex-1 bg-black flex items-center justify-center overflow-hidden p-4">
-            <div class="absolute top-4 left-4 text-xs text-slate-500 pointer-events-none select-none">
-                <p>發射源 (Alpha Source)</p>
-                <div class="w-16 h-1 bg-gradient-to-r from-red-500 to-transparent mt-1"></div>
-            </div>
-            
-            <!-- Canvas -->
-            <canvas id="simCanvas" class="rounded-lg border border-slate-700 w-full h-full max-w-5xl max-h-[80vh]"></canvas>
-            
-            <!-- 浮動說明 -->
-            <div class="absolute bottom-6 left-6 bg-slate-800/80 backdrop-blur p-3 rounded border border-slate-600 text-xs text-slate-300 max-w-xs pointer-events-none">
-                <p class="mb-1"><span class="text-yellow-400">●</span> 金原子核 (帶正電)</p>
-                <p class="mb-1"><span class="text-red-400">●</span> Alpha 粒子</p>
-                <p class="italic opacity-70 text-[10px] mt-2">
-                    * 模型已應用電子屏蔽效應。<br>
-                    大部分粒子將穿越原子間的真空區而不受力。
-                </p>
-            </div>
-        </div>
-
-        <!-- 右側：數據儀表板 -->
-        <div class="w-full lg:w-96 bg-slate-800 border-l border-slate-700 flex flex-col shadow-xl z-20">
-            
-            <!-- 參數控制區 -->
-            <div class="p-6 border-b border-slate-700 shrink-0">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2">實驗參數</h2>
-                    <div class="text-xs text-slate-400">總粒子數: <span id="stat-total-count" class="text-white font-mono text-sm">0</span></div>
-                </div>
-                
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">發射頻率 (Particles/Frame)</label>
-                    <input type="range" id="input-rate" min="1" max="15" value="8" class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                    <div class="flex justify-between text-xs text-slate-500 mt-1">
-                        <span>低</span>
-                        <span>極速</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 統計與圖表區 (Flex Container) -->
-            <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-                
-                <!-- 上方：即時分佈圖 (移至此處) -->
-                <div class="bg-slate-900 p-4 border-b border-slate-700 shrink-0">
-                    <h2 class="text-sm font-semibold text-white mb-2 border-l-4 border-green-500 pl-2">偏折角度分佈 (-180° 至 180°)</h2>
-                    <div class="relative w-full h-40 bg-slate-800 rounded border border-slate-700 overflow-hidden">
-                        <canvas id="chartCanvas" class="w-full h-full block"></canvas>
-                        <!-- 軸標籤 -->
-                        <div class="absolute bottom-1 left-2 text-[10px] text-slate-500">-180°</div>
-                        <div class="absolute bottom-1 left-1/2 transform -translate-x-1/2 text-[10px] text-slate-500">0°</div>
-                        <div class="absolute bottom-1 right-2 text-[10px] text-slate-500">+180°</div>
-                    </div>
-                </div>
-
-                <!-- 下方：詳細列表 (可滾動) -->
-                <div class="flex-1 overflow-y-auto p-6">
-                    <h2 class="text-sm font-semibold text-white mb-3 border-l-4 border-purple-500 pl-2 sticky top-0 bg-slate-800 z-10 pb-2">詳細統計數據 (每10度)</h2>
-                    <div id="distribution-list" class="space-y-3 text-xs pr-2">
-                        <div class="text-slate-500 text-center py-4">等待數據...</div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </main>
-
-    <!-- 實驗原理 Modal (保持不變) -->
-    <div id="info-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden transition-opacity duration-300 flex items-center justify-center p-4 opacity-0">
-        <div class="bg-slate-800 border border-slate-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-300" id="info-modal-content">
-            <!-- Modal Header -->
-            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 rounded-t-lg">
-                <h2 class="text-xl font-bold text-white flex items-center">
-                    <span class="text-yellow-400 mr-2">★</span> 盧瑟福實驗原理與結論
-                </h2>
-                <button id="btn-close-modal" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
-            </div>
-            <!-- Modal Content -->
-            <div class="p-6 overflow-y-auto text-slate-300 space-y-6 custom-scrollbar">
-                <section>
-                    <h3 class="text-lg font-bold text-white mb-2 border-l-4 border-blue-500 pl-2">1. 實驗背景與原理</h3>
-                    <p class="leading-relaxed mb-2">
-                        1909年，歐內斯特·盧瑟福 (Ernest Rutherford) 指導學生漢斯·蓋格和歐內斯特·馬斯登進行了這個著名的實驗。他們將帶正電的 <strong>Alpha 粒子 (氦原子核)</strong> 高速射向極薄的金箔。
-                    </p>
-                </section>
-                <section>
-                    <h3 class="text-lg font-bold text-white mb-2 border-l-4 border-green-500 pl-2">2. 實驗結果</h3>
-                    <ul class="space-y-3">
-                        <li class="flex items-start">
-                            <span class="bg-green-500/20 text-green-400 font-bold px-2 py-0.5 rounded text-xs mr-2 mt-1">現象 A</span>
-                            <span><strong>絕大多數 (>99%)</strong> 的粒子直接穿透金箔，幾乎沒有任何偏折。這顯示原子內部非常空曠。</span>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="bg-yellow-500/20 text-yellow-400 font-bold px-2 py-0.5 rounded text-xs mr-2 mt-1">現象 B</span>
-                            <span><strong>少數</strong> 粒子發生了顯著的角度偏折。</span>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="bg-red-500/20 text-red-400 font-bold px-2 py-0.5 rounded text-xs mr-2 mt-1">現象 C</span>
-                            <span><strong>極少數 (約 1/8000)</strong> 的粒子被大角度反彈回來 (>90°)。</span>
-                        </li>
-                    </ul>
-                </section>
-                <section>
-                    <h3 class="text-lg font-bold text-white mb-2 border-l-4 border-purple-500 pl-2">3. 科學結論：核式結構</h3>
-                    <p class="leading-relaxed mb-2">為了解釋這個驚人的結果，盧瑟福推翻了舊模型，提出了<strong>核式原子模型</strong>：</p>
-                    <ul class="list-disc pl-5 space-y-1 text-slate-300">
-                        <li><strong class="text-white">原子大部分是空心的：</strong>這解釋了為何絕大多數粒子能無阻礙穿透。</li>
-                        <li><strong class="text-white">原子核的存在：</strong>原子的所有正電荷和絕大部分質量都集中在中心一個極小的區域，稱為「原子核」。</li>
-                    </ul>
-                </section>
-            </div>
-            <!-- Modal Footer -->
-            <div class="p-4 border-t border-slate-700 flex justify-end bg-slate-800 rounded-b-lg">
-                <button id="btn-close-modal-bottom" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded transition shadow-lg">了解，回到實驗</button>
-            </div>
-        </div>
+<main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+  <div class="relative flex-1 order-1 bg-black flex items-center justify-center overflow-hidden p-4 min-h-0">
+    <div class="absolute top-4 left-4 text-xs text-slate-500 pointer-events-none select-none">
+      <p data-i18n="sourceLabel">發射源 (Alpha Source)</p>
+      <div class="w-16 h-1 bg-gradient-to-r from-red-500 to-transparent mt-1"></div>
     </div>
+    <canvas id="simCanvas" class="rounded-lg border border-slate-700 w-full h-full max-w-5xl max-h-[80vh]"></canvas>
+    <div class="absolute bottom-6 left-6 bg-slate-800/80 backdrop-blur p-3 rounded border border-slate-600 text-xs text-slate-300 max-w-xs pointer-events-none">
+      <p class="mb-1"><span class="text-yellow-400">●</span> <span data-i18n="legendGold">金原子核 (帶正電)</span></p>
+      <p class="mb-1"><span class="text-red-400">●</span> <span data-i18n="legendAlpha">Alpha 粒子</span></p>
+      <p class="italic opacity-70 text-[10px] mt-2" data-i18n="legendNote">* 模型已應用電子屏蔽效應。大部分粒子將穿越原子間的真空區而不受力。</p>
+    </div>
+  </div>
+
+  <!-- Scheme C: aside ~300–320px (migrated from illegal lg:w-96) -->
+  <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-2 bg-slate-800 border-l border-slate-700 flex flex-col shadow-xl z-20 max-h-[45vh] lg:max-h-none">
+    <div class="p-4 sm:p-5 border-b border-slate-700 shrink-0">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-base font-semibold text-white border-l-4 border-blue-500 pl-2" data-i18n="paramsTitle">實驗參數</h2>
+        <div class="text-xs text-slate-400"><span data-i18n="totalLabel">總粒子數</span>: <span id="stat-total-count" class="text-white font-mono text-sm">0</span></div>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1" data-i18n="rateLabel">發射頻率 (Particles/Frame)</label>
+        <input type="range" id="input-rate" min="1" max="15" value="8" class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500">
+        <div class="flex justify-between text-xs text-slate-500 mt-1">
+          <span data-i18n="rateLow">低</span>
+          <span data-i18n="rateHigh">極速</span>
+        </div>
+      </div>
+    </div>
+    <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div class="bg-slate-900 p-3 sm:p-4 border-b border-slate-700 shrink-0">
+        <h2 class="text-sm font-semibold text-white mb-2 border-l-4 border-green-500 pl-2" data-i18n="chartTitle">偏折角度分佈 (−180° 至 180°)</h2>
+        <div class="relative w-full h-36 sm:h-40 bg-slate-800 rounded border border-slate-700 overflow-hidden">
+          <canvas id="chartCanvas" class="w-full h-full block"></canvas>
+          <div class="absolute bottom-1 left-2 text-[10px] text-slate-500">−180°</div>
+          <div class="absolute bottom-1 left-1/2 transform -translate-x-1/2 text-[10px] text-slate-500">0°</div>
+          <div class="absolute bottom-1 right-2 text-[10px] text-slate-500">+180°</div>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4 sm:p-5">
+        <h2 class="text-sm font-semibold text-white mb-3 border-l-4 border-purple-500 pl-2 sticky top-0 bg-slate-800 z-10 pb-2" data-i18n="listTitle">詳細統計數據 (每10度)</h2>
+        <div id="distribution-list" class="space-y-3 text-xs pr-2">
+          <div class="text-slate-500 text-center py-4" data-i18n="waitingData">等待數據...</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- Modal: Steps -->
+<div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div data-modal-panel class="bg-slate-800 border border-slate-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 rounded-t-lg">
+      <h2 id="steps-title" class="text-xl font-bold text-white" data-i18n="stepsTitle">觀察步驟</h2>
+      <button type="button" class="text-slate-400 hover:text-white text-2xl leading-none" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+    </div>
+    <ol id="steps-body" class="p-6 overflow-y-auto text-slate-300 space-y-3 list-decimal pl-10 text-sm leading-relaxed"></ol>
+    <div class="p-4 border-t border-slate-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-steps" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Principle -->
+<div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div data-modal-panel class="bg-slate-800 border border-slate-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 rounded-t-lg">
+      <h2 id="principle-title" class="text-xl font-bold text-white flex items-center"><span class="text-yellow-400 mr-2">★</span><span data-i18n="principleTitle">原理解說</span></h2>
+      <button type="button" class="text-slate-400 hover:text-white text-2xl leading-none" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+    </div>
+    <div id="principle-body" class="p-6 overflow-y-auto text-slate-300 space-y-4 text-sm leading-relaxed"></div>
+    <div class="p-4 border-t border-slate-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-principle" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Quiz -->
+<div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div data-modal-panel class="bg-slate-800 border border-slate-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-slate-700 flex justify-between items-center gap-2 flex-wrap bg-slate-900/50 rounded-t-lg">
+      <h2 id="quiz-title" class="text-xl font-bold text-violet-300" data-i18n="quizTitle">課堂問題</h2>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+        <button type="button" class="text-slate-400 hover:text-white text-2xl leading-none" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div id="quiz-body" class="p-6 overflow-y-auto text-sm"></div>
+    <div class="p-4 border-t border-slate-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-quiz" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
 
 <script>
-/**
- * 盧瑟福散射模擬器邏輯 - 全角度統計版
- */
-
-// --- 配置與常數 ---
 const CONFIG = {
-    goldRadius: 2,
-    goldCharge: 800,
-    cutoffRadius: 13,
-    alphaRadius: 1.2,
-    alphaCharge: 1,         
-    initialVelocity: 30,
-    particleLife: 500,      
-    maxParticles: 800,
-    physicsSteps: 5
+  goldRadius: 2,
+  goldCharge: 800,
+  cutoffRadius: 13,
+  alphaRadius: 1.2,
+  alphaCharge: 1,
+  initialVelocity: 30,
+  particleLife: 500,
+  maxParticles: 800,
+  physicsSteps: 5
 };
 
-// --- 狀態管理 ---
 const state = {
-    isRunning: false,
-    particles: [],
-    nuclei: [],
-    stats: {
-        total: 0,
-        // 絕對角度區間統計 (0-10, 10-20...)
-        binsAbs: new Array(19).fill(0), 
-        // 簽名角度統計 (-180 到 180) 用於圖表
-        // 範圍 360度，每 2 度一個 bin，共 181 個 bins (含端點)
-        chartData: new Array(181).fill(0) 
-    },
-    emissionRate: 8,
-    canvasWidth: 0,
-    canvasHeight: 0
+  isRunning: false,
+  particles: [],
+  nuclei: [],
+  stats: {
+    total: 0,
+    binsAbs: new Array(19).fill(0),
+    chartData: new Array(181).fill(0)
+  },
+  emissionRate: 8,
+  canvasWidth: 0,
+  canvasHeight: 0
 };
 
-// --- DOM 元素 ---
+let currentLang = 'zh';
+const quizState = { selections: {}, showAnswers: false };
+
+const translations = {
+  zh: {
+    pageTitle: '盧瑟福金箔實驗模擬',
+    appTitle: '盧瑟福金箔實驗模擬',
+    appSubtitle: 'Alpha 粒子散射物理模型（全角度圖表版）',
+    btnStart: '開始發射',
+    btnPause: '暫停實驗',
+    btnContinue: '繼續實驗',
+    btnReset: '重置',
+    btnSteps: '觀察步驟',
+    btnPrinciple: '原理解說',
+    btnQuiz: '課堂問題',
+    stepsTitle: '觀察步驟',
+    principleTitle: '原理解說',
+    quizTitle: '課堂問題',
+    showAnswers: '顯示參考答案',
+    hideAnswers: '隱藏參考答案',
+    closeBtn: '關閉',
+    shortHint: '請操作本模擬後簡答。',
+    sourceLabel: '發射源 (Alpha Source)',
+    legendGold: '金原子核 (帶正電)',
+    legendAlpha: 'Alpha 粒子',
+    legendNote: '* 模型已應用電子屏蔽效應。大部分粒子將穿越原子間的真空區而不受力。',
+    paramsTitle: '實驗參數',
+    totalLabel: '總粒子數',
+    rateLabel: '發射頻率 (Particles/Frame)',
+    rateLow: '低',
+    rateHigh: '極速',
+    chartTitle: '偏折角度分佈 (−180° 至 180°)',
+    listTitle: '詳細統計數據 (每10度)',
+    waitingData: '等待數據...',
+    binGt90: '> 90°',
+    step1: '按<strong>開始發射</strong>，觀察左側舞台：多數 α 粒子幾乎直線穿過金核之間的空隙（偏綠細軌跡）。約跑數秒後看右側總粒子數上升，角分佈在 <strong>0°</strong> 附近應明顯較高。',
+    step2: '繼續觀察是否出現<strong>偏紅粗軌跡</strong>與較大偏折。對照右側列表：小角（如 0–10°）百分比應遠高於 <code>&gt;90°</code>。可把游標移到圖例，回想「原子大部分是空的」。',
+    step3: '拖動<strong>發射頻率</strong>滑桿（例如先調到較低再調高），比較總計數累積快慢；<strong>不要</strong>以為調頻率會改變單次散射物理定律——它主要改發射密度。然後按<strong>重置</strong>：粒子與統計應清零、發射應停止、頻率回到預設 8，語言維持不變。',
+    step4: '對照原理：為何大角／反彈支持「正電集中在小核」而非均勻散佈？本模擬假設：2D 示意、固定 <code>CONFIG</code> 力與截止半徑、六角疏排金核、出界才記角度、教學用屏蔽截止——不是真實金箔厚度或實驗室截面測量。',
+    principleConceptTitle: '概念',
+    principleConcept: '盧瑟福金箔實驗用高速帶正電的 α 粒子（氦核）轟擊極薄金箔。觀測到多數粒子幾乎直穿、少數偏折、極少數大角度反彈。這迫使人們放棄「正電均勻散佈」的圖像，改為<strong>核式原子模型</strong>：正電荷與大部分質量集中在極小的原子核，電子在外圍，原子內部大部分是空的。',
+    principleMechTitle: '機制',
+    principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>庫侖排斥</strong>：α 與金核皆帶正電；距離越近，排斥力越大（教學上 $\\propto 1/r^{2}$；本模擬另設截止半徑近似屏蔽）。</li><li><strong>空曠原子</strong>：多數入射參數遠離核 → 受力極弱 → 近直穿（圖上小角高峰、綠軌跡）。</li><li><strong>近核散射</strong>：少數粒子瞄得夠近 → 顯著偏折；極少數幾乎對頭 → 可 $>90^{\\circ}$ 甚至反彈（紅軌跡、圖上紅柱稀少）。</li><li><strong>對舊模型的否證</strong>：若正電均勻散在原子體積內，無法產生如此強烈的大角事件。</li><li><strong>假設</strong>：2D Canvas；固定電荷／速度／截止；疏排多核示意；統計角度由速度方向估算；非真實計數器環或微分截面。</li></ol>',
+    principleExampleTitle: '日常例子',
+    principleExample: '教科書原子結構單元、科學館「擊中原子核」互動展、後續發展至核物理／加速器散射思想實驗。勿與 GM 管 αβγ 穿透實驗、發射線譜／能階躍遷、或光電效應控件混為同一套操作。',
+    q1: '開始發射數秒後，觀察舞台軌跡與右側角分佈。哪項最符合本模擬？',
+    q1a: 'A. 多數粒子近直穿，角分佈在 0° 附近最高',
+    q1b: 'B. 幾乎所有粒子都立刻以 >90° 反彈',
+    q1c: 'C. 本模擬沒有角分佈圖',
+    q1d: 'D. 粒子只會停在金核表面不會離開畫布',
+    q1ans: '參考答案：A。對應多數綠軌跡＋ chartData 中心高峰。',
+    q2: '讓總粒子數累積到較多（例如數百以上）後，先預測列表中 0–10° 與 >90° 哪一段百分比較高，再對照列表驗證。',
+    q2a: 'A. 小角百分比通常遠大於 >90°，大角／反彈相對稀少',
+    q2b: 'B. >90° 永遠剛好佔 50%',
+    q2c: 'C. 列表不會顯示任何百分比',
+    q2d: 'D. 只有調成英文後才會出現大角',
+    q2ans: '參考答案：A。對應歷史「約 1/8000」量級教學敘事與本模擬紅柱稀少（不要求數出精確 1/8000）。',
+    q3: '先重置，再把發射頻率調到較低與較高各跑一小段（時間大致相近）。最可能观察到？',
+    q3a: 'A. 頻率較高時總粒子數通常累積更快；它主要改變發射密度，不是把「核很小」變成「核很大」',
+    q3b: 'B. 調高頻率會強制所有粒子變成 >90°',
+    q3c: 'C. 調頻率會自動切換語言',
+    q3d: 'D. 本模擬沒有發射頻率滑桿',
+    q3ans: '參考答案：A。#input-rate → state.emissionRate；CONFIG 力參數不變。',
+    q4: '開始發射並看到至少一些偏折後：用自己的話寫（1）大角／反彈支持什麼原子圖像；（2）按重置後，發射狀態、統計、發射頻率與語言應如何（本設計預期）。',
+    q4ans: '參考答案：（1）正電與質量集中在極小核，原子大部分空曠；（2）應停止發射、統計歸零、頻率回到 8；不應切換中／EN。',
+    q5: '根據本模擬控件與設計，哪項最正確？',
+    q5a: 'A. 可發射 α、調頻率、看軌跡與角分佈、重置，並有步驟／原理／五題／中EN——主題是金箔散射與核式結構，不是 GM 穿透、發射線譜或光電效應',
+    q5b: 'B. 主要用來量雙縫條紋間距求波長',
+    q5c: 'C. 重置會強制改成英文並刪除所有金核',
+    q5d: 'D. 主要展示太陽夫朗和斐吸收線與 H／He 對齊',
+    q5ans: '參考答案：A。隔離 GM／光譜／光電／雙縫；Reset 不改語言、不刪 state.nuclei 排佈邏輯。'
+  },
+  en: {
+    pageTitle: 'Rutherford Gold Foil Experiment',
+    appTitle: 'Rutherford Gold Foil Experiment',
+    appSubtitle: 'Alpha-particle scattering model (full-angle chart)',
+    btnStart: 'Start',
+    btnPause: 'Pause',
+    btnContinue: 'Resume',
+    btnReset: 'Reset',
+    btnSteps: 'Steps',
+    btnPrinciple: 'Principle',
+    btnQuiz: 'Quiz',
+    stepsTitle: 'Observation steps',
+    principleTitle: 'Principle',
+    quizTitle: 'Class quiz',
+    showAnswers: 'Show model answers',
+    hideAnswers: 'Hide model answers',
+    closeBtn: 'Close',
+    shortHint: 'Operate the sim, then answer briefly.',
+    sourceLabel: 'Alpha source',
+    legendGold: 'Gold nucleus (positive)',
+    legendAlpha: 'Alpha particle',
+    legendNote: '* Electron-screening cutoff applied. Most particles cross empty space between atoms with little force.',
+    paramsTitle: 'Parameters',
+    totalLabel: 'Total',
+    rateLabel: 'Emission rate (particles/frame)',
+    rateLow: 'Low',
+    rateHigh: 'Max',
+    chartTitle: 'Deflection angle (−180° to 180°)',
+    listTitle: 'Detailed stats (per 10°)',
+    waitingData: 'Waiting for data...',
+    binGt90: '> 90°',
+    step1: 'Press <strong>Start</strong>, watch the stage: most α particles pass nearly straight between gold nuclei (thin greenish trails). After a few seconds, total count rises and the angle chart should peak near <strong>0°</strong>.',
+    step2: 'Look for <strong>reddish thick trails</strong> and larger deflections. On the list, small-angle bins (e.g. 0–10°) should dominate <code>&gt;90°</code>. Recall: most of the atom is empty space.',
+    step3: 'Move <strong>emission rate</strong> lower then higher and compare how fast totals grow; rate changes flux, not the scattering law itself. Then <strong>Reset</strong>: particles and stats clear, emission stops, rate returns to 8, language unchanged.',
+    step4: 'Link to the principle: why do large-angle／backscatters support a tiny positive nucleus rather than a uniform pudding? Idealizations: 2D sketch, fixed <code>CONFIG</code> force／cutoff, sparse hexagonal nuclei, angle logged on exit, teaching cutoff—not real foil thickness or lab cross-sections.',
+    principleConceptTitle: 'Concept',
+    principleConcept: 'Rutherford’s gold-foil experiment fired fast positive α particles (helium nuclei) at a thin gold foil. Most went nearly straight; some deflected; a very few bounced at large angles. That ruled out a uniform positive “pudding” and supported the <strong>nuclear atom</strong>: positive charge and most mass sit in a tiny nucleus, with mostly empty space around it.',
+    principleMechTitle: 'Mechanism',
+    principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>Coulomb repulsion</strong>: α and gold nuclei are positive; force grows as they approach (teaching $\\propto 1/r^{2}$; this sim adds a cutoff for screening).</li><li><strong>Empty atom</strong>: most trajectories miss the nucleus → weak force → near-forward scatter (green trails, peak near 0°).</li><li><strong>Close encounters</strong>: rare near-hits → large deflections; head-ons can exceed $90^{\\circ}$ (red trails, sparse red chart bars).</li><li><strong>Against the old model</strong>: a smeared-out positive cloud cannot produce such violent large-angle events.</li><li><strong>Idealizations</strong>: 2D canvas; fixed charge／speed／cutoff; sparse multi-nucleus sketch; angle from exit velocity; not a real detector ring or differential cross-section.</li></ol>',
+    principleExampleTitle: 'Everyday example',
+    principleExample: 'Textbook atomic-structure units, science-museum “hit the nucleus” interactives, the conceptual root of later nuclear／accelerator scattering. Do not merge with GM α／β／γ absorption labs, emission-line／level sims, or photoelectric controls.',
+    q1: 'After starting emission for a few seconds, compare trails and the angle chart. Which best matches this sim?',
+    q1a: 'A. Most particles go nearly straight; the chart peaks near 0°',
+    q1b: 'B. Almost every particle immediately backscatters >90°',
+    q1c: 'C. This sim has no angle-distribution chart',
+    q1d: 'D. Particles stick on nuclei and never leave the canvas',
+    q1ans: 'Model answer: A. Matches mostly green trails and the chartData peak near center.',
+    q2: 'After a large total count (e.g. hundreds+), predict which is higher on the list—0–10° or >90°—then check the list.',
+    q2a: 'A. Small-angle % is usually much larger than >90°; large-angle／backscatter is rare',
+    q2b: 'B. >90° is always exactly 50%',
+    q2c: 'C. The list never shows percentages',
+    q2d: 'D. Large angles appear only after switching to English',
+    q2ans: 'Model answer: A. Matches the historical ~1/8000 teaching story and sparse red bars (exact 1/8000 not required).',
+    q3: 'Reset, then run briefly at a low emission rate and at a high rate for similar durations. What is most likely?',
+    q3a: 'A. Higher rate usually grows the total faster; it mainly changes flux, not the nuclear-size conclusion',
+    q3b: 'B. Raising the rate forces every particle to >90°',
+    q3c: 'C. Changing rate switches the UI language',
+    q3d: 'D. This sim has no emission-rate slider',
+    q3ans: 'Model answer: A. #input-rate → state.emissionRate; CONFIG force parameters stay fixed.',
+    q4: 'After starting and seeing some deflections, in your own words: (1) what large-angle／backscatter supports about the atom; (2) after Reset, what should happen to running state, stats, emission rate, and language (per this design).',
+    q4ans: 'Model answer: (1) Positive charge／mass concentrated in a tiny nucleus; atom mostly empty; (2) emission stops, stats clear, rate back to 8; Reset must not switch language.',
+    q5: 'Using this sim’s controls and design, which is most correct?',
+    q5a: 'A. You can fire α particles, change rate, read trails／angle stats, reset, with steps／principle／five quiz items／zh-EN—this is gold-foil scattering and the nuclear atom, not GM absorption, emission spectra, or photoelectric effect',
+    q5b: 'B. It is mainly for measuring double-slit fringe spacing to find λ',
+    q5c: 'C. Reset always switches to English and deletes all gold nuclei',
+    q5d: 'D. It mainly shows solar Fraunhofer lines matched to H／He',
+    q5ans: 'Model answer: A. Isolates GM／spectra／photoelectric／double-slit; Reset does not change language or delete nuclei layout logic.'
+  }
+};
+
+const QUIZ_META = [
+  { id: 'q1', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' },
+  { id: 'q2', type: 'short' },
+  { id: 'q3', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' },
+  { id: 'q4', type: 'short' },
+  { id: 'q5', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' }
+];
+
+function t(key) {
+  return (translations[currentLang] && translations[currentLang][key]) || (translations.zh[key] || key);
+}
+
+function typesetMath(root) {
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise(root ? [root] : undefined).catch(() => {});
+  }
+}
+
+function updateLanguage() {
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+  document.title = t('pageTitle');
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (translations[currentLang][key] != null) el.textContent = translations[currentLang][key];
+  });
+  syncToggleButton();
+  updateStatsUI();
+  renderSteps();
+  renderPrinciple();
+  renderQuiz();
+  const ansBtn = document.getElementById('btn-quiz-answers');
+  if (ansBtn) ansBtn.textContent = quizState.showAnswers ? t('hideAnswers') : t('showAnswers');
+}
+
+function renderSteps() {
+  const ol = document.getElementById('steps-body');
+  if (!ol) return;
+  ol.innerHTML = [1, 2, 3, 4].map(n => `<li>${t('step' + n)}</li>`).join('');
+}
+
+function renderPrinciple() {
+  const body = document.getElementById('principle-body');
+  if (!body) return;
+  body.innerHTML = `
+    <section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-blue-500 pl-2">${t('principleConceptTitle')}</h3><p>${t('principleConcept')}</p></section>
+    <section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-green-500 pl-2">${t('principleMechTitle')}</h3>${t('principleMech')}</section>
+    <section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-purple-500 pl-2">${t('principleExampleTitle')}</h3><p>${t('principleExample')}</p></section>
+  `;
+  typesetMath(body);
+}
+
+function renderQuiz() {
+  const body = document.getElementById('quiz-body');
+  if (!body) return;
+  const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+  const mkChoice = (qid) => {
+    const meta = QUIZ_META.find(q => q.id === qid);
+    if (!meta || meta.type !== 'mc') return '';
+    return '<div class="grid gap-1.5 mt-1">' + meta.options.map(opt => {
+      const key = qid + opt;
+      return '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer hover:bg-slate-800/50">' +
+        '<input type="radio" name="' + qid + '" class="mt-0.5">' +
+        '<span class="text-sm">' + t(key) + '</span></label>';
+    }).join('') + '</div>';
+  };
+  const ans = (key) => quizState.showAnswers
+    ? '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + t(key) + '</div>'
+    : '';
+  const layout = [
+    { id: 'q1', mc: true }, { id: 'q2', mc: false }, { id: 'q3', mc: true }, { id: 'q4', mc: false }, { id: 'q5', mc: true }
+  ];
+  body.innerHTML = layout.map((b, idx) =>
+    '<div class="quiz-item" data-quiz="' + b.id + '">' +
+    '<div class="q-stem">Q' + (idx + 1) + '. ' + t(b.id) + '</div>' +
+    (b.mc ? mkChoice(b.id) : '<p class="text-xs text-slate-500 mb-1">' + t('shortHint') + '</p>') +
+    ans(b.id + 'ans') + '</div>'
+  ).join('');
+  const ansBtn = document.getElementById('btn-quiz-answers');
+  if (ansBtn) ansBtn.textContent = quizState.showAnswers ? t('hideAnswers') : t('showAnswers');
+  typesetMath(body);
+}
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    el.classList.remove('opacity-0');
+    const panel = el.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.remove('scale-95');
+  });
+  if (id === 'modal-principle') typesetMath(document.getElementById('principle-body'));
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('opacity-0');
+  const panel = el.querySelector('[data-modal-panel]');
+  if (panel) panel.classList.add('scale-95');
+  setTimeout(() => el.classList.add('hidden'), 200);
+}
+
+function closeAllModals() {
+  ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+}
+
 const canvas = document.getElementById('simCanvas');
 const chartCanvas = document.getElementById('chartCanvas');
 const ctx = canvas.getContext('2d', { alpha: false });
 const chartCtx = chartCanvas.getContext('2d');
-
 const btnToggle = document.getElementById('btn-toggle');
 const btnReset = document.getElementById('btn-reset');
 const inputRate = document.getElementById('input-rate');
-
 const elDistributionList = document.getElementById('distribution-list');
 const elTotalCount = document.getElementById('stat-total-count');
 
-// Modal DOM
-const btnExplain = document.getElementById('btn-explain');
-const modal = document.getElementById('info-modal');
-const modalContent = document.getElementById('info-modal-content');
-const btnCloseModal = document.getElementById('btn-close-modal');
-const btnCloseModalBottom = document.getElementById('btn-close-modal-bottom');
-
-// --- 類別定義 ---
-
 class Nucleus {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    draw(ctx) {
-        // 繪製交互作用範圍
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, CONFIG.cutoffRadius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 215, 0, 0.05)'; 
-        ctx.fill();
-
-        // 繪製核心光暈
-        const gradient = ctx.createRadialGradient(this.x, this.y, 0.5, this.x, this.y, CONFIG.goldRadius * 3);
-        gradient.addColorStop(0, 'rgba(255, 215, 0, 1)');
-        gradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, CONFIG.goldRadius * 3, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
-
-        // 實體核心
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, CONFIG.goldRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#fbbf24'; 
-        ctx.fill();
-    }
+  constructor(x, y) { this.x = x; this.y = y; }
+  draw(c) {
+    c.beginPath();
+    c.arc(this.x, this.y, CONFIG.cutoffRadius, 0, Math.PI * 2);
+    c.fillStyle = 'rgba(255, 215, 0, 0.05)';
+    c.fill();
+    const gradient = c.createRadialGradient(this.x, this.y, 0.5, this.x, this.y, CONFIG.goldRadius * 3);
+    gradient.addColorStop(0, 'rgba(255, 215, 0, 1)');
+    gradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+    c.beginPath();
+    c.arc(this.x, this.y, CONFIG.goldRadius * 3, 0, Math.PI * 2);
+    c.fillStyle = gradient;
+    c.fill();
+    c.beginPath();
+    c.arc(this.x, this.y, CONFIG.goldRadius, 0, Math.PI * 2);
+    c.fillStyle = '#fbbf24';
+    c.fill();
+  }
 }
 
 class AlphaParticle {
-    constructor(y) {
-        this.x = 0;
-        this.y = y;
-        this.vx = CONFIG.initialVelocity;
-        this.vy = 0;
-        this.trail = []; 
-        this.active = true;
-        this.color = `hsl(${Math.random() * 10 + 350}, 90%, 75%)`; // 偏紅
-        this.interacted = false; 
+  constructor(y) {
+    this.x = 0;
+    this.y = y;
+    this.vx = CONFIG.initialVelocity;
+    this.vy = 0;
+    this.trail = [];
+    this.active = true;
+    this.color = `hsl(${Math.random() * 10 + 350}, 90%, 75%)`;
+    this.interacted = false;
+  }
+  update() {
+    if (!this.active) return;
+    for (let i = 0; i < CONFIG.physicsSteps; i++) {
+      let ax = 0, ay = 0;
+      for (const n of state.nuclei) {
+        const dx = this.x - n.x;
+        const dy = this.y - n.y;
+        const distSq = dx * dx + dy * dy;
+        const cutoffSq = CONFIG.cutoffRadius * CONFIG.cutoffRadius;
+        if (distSq > cutoffSq) continue;
+        if (distSq < 0.5) continue;
+        this.interacted = true;
+        const dist = Math.sqrt(distSq);
+        const force = (CONFIG.goldCharge * CONFIG.alphaCharge) / distSq;
+        ax += (dx / dist) * force;
+        ay += (dy / dist) * force;
+      }
+      this.vx += ax / CONFIG.physicsSteps;
+      this.vy += ay / CONFIG.physicsSteps;
+      this.x += this.vx / CONFIG.physicsSteps;
+      this.y += this.vy / CONFIG.physicsSteps;
     }
-
-    update() {
-        if (!this.active) return;
-
-        for (let i = 0; i < CONFIG.physicsSteps; i++) {
-            let ax = 0;
-            let ay = 0;
-
-            for (const n of state.nuclei) {
-                const dx = this.x - n.x;
-                const dy = this.y - n.y;
-                const distSq = dx*dx + dy*dy;
-                const cutoffSq = CONFIG.cutoffRadius * CONFIG.cutoffRadius;
-
-                if (distSq > cutoffSq) continue; 
-                if (distSq < 0.5) continue; 
-
-                this.interacted = true; 
-
-                const dist = Math.sqrt(distSq);
-                const force = (CONFIG.goldCharge * CONFIG.alphaCharge) / (distSq);
-                
-                ax += (dx / dist) * force;
-                ay += (dy / dist) * force;
-            }
-
-            this.vx += ax / CONFIG.physicsSteps;
-            this.vy += ay / CONFIG.physicsSteps;
-
-            this.x += this.vx / CONFIG.physicsSteps;
-            this.y += this.vy / CONFIG.physicsSteps;
-        }
-
-        const recordChance = this.interacted ? 0.8 : 0.2;
-        if (Math.random() < recordChance) {
-            this.trail.push({x: this.x, y: this.y});
-            if (this.trail.length > 30) this.trail.shift();
-        }
-
-        if (this.x > state.canvasWidth || this.x < 0 || this.y > state.canvasHeight || this.y < 0) {
-            this.active = false;
-            this.recordStats();
-        }
+    const recordChance = this.interacted ? 0.8 : 0.2;
+    if (Math.random() < recordChance) {
+      this.trail.push({ x: this.x, y: this.y });
+      if (this.trail.length > 30) this.trail.shift();
     }
-
-    draw(ctx) {
-        if (this.trail.length > 1) {
-            ctx.beginPath();
-            ctx.moveTo(this.trail[0].x, this.trail[0].y);
-            for (let p of this.trail) {
-                ctx.lineTo(p.x, p.y);
-            }
-            ctx.strokeStyle = this.interacted ? '#ff4444' : '#4ade80'; 
-            ctx.lineWidth = this.interacted ? 1.5 : 0.5;
-            ctx.globalAlpha = this.interacted ? 0.8 : 0.3;
-            ctx.stroke();
-            ctx.globalAlpha = 1.0;
-        }
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, CONFIG.alphaRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
+    if (this.x > state.canvasWidth || this.x < 0 || this.y > state.canvasHeight || this.y < 0) {
+      this.active = false;
+      this.recordStats();
     }
-
-    recordStats() {
-        // 計算有正負號的角度 (弧度 -PI ~ PI)
-        let angleRad = Math.atan2(this.vy, this.vx);
-        // 轉為度數 (-180 ~ 180)
-        let angleDegSigned = angleRad * (180 / Math.PI);
-        // 絕對值角度 (0 ~ 180) 用於列表
-        let angleDegAbs = Math.abs(angleDegSigned);
-        
-        state.stats.total++;
-
-        // 1. 更新列表數據 (0-10, 10-20...)
-        // 索引 = floor(角度/10)
-        let binIndex = Math.min(Math.floor(angleDegAbs / 10), 18);
-        state.stats.binsAbs[binIndex]++;
-
-        // 2. 更新上方圖表數據 (-180 到 180)
-        // 映射公式：(角度 + 180) / 2
-        // 角度 -180 => index 0
-        // 角度 0 => index 90
-        // 角度 180 => index 180
-        if (angleDegSigned >= -180 && angleDegSigned <= 180) {
-            let chartIndex = Math.floor((angleDegSigned + 180) / 2);
-            if(chartIndex >= 0 && chartIndex < state.stats.chartData.length) {
-                state.stats.chartData[chartIndex]++;
-            }
-        }
+  }
+  draw(c) {
+    if (this.trail.length > 1) {
+      c.beginPath();
+      c.moveTo(this.trail[0].x, this.trail[0].y);
+      for (let p of this.trail) c.lineTo(p.x, p.y);
+      c.strokeStyle = this.interacted ? '#ff4444' : '#4ade80';
+      c.lineWidth = this.interacted ? 1.5 : 0.5;
+      c.globalAlpha = this.interacted ? 0.8 : 0.3;
+      c.stroke();
+      c.globalAlpha = 1.0;
     }
-}
-
-// --- 系統函數 ---
-
-function init() {
-    resizeCanvas();
-    resizeChartCanvas();
-    window.addEventListener('resize', () => {
-        resizeCanvas();
-        resizeChartCanvas();
-    });
-    
-    setupNuclei();
-    animate();
-    
-    // 初始繪製UI
-    updateStatsUI();
-    
-    btnToggle.addEventListener('click', toggleSim);
-    btnReset.addEventListener('click', resetSim);
-    inputRate.addEventListener('input', (e) => {
-        state.emissionRate = parseInt(e.target.value);
-    });
-
-    // Modal Listeners
-    btnExplain.addEventListener('click', openModal);
-    btnCloseModal.addEventListener('click', closeModal);
-    btnCloseModalBottom.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
-    });
-}
-
-function openModal() {
-    modal.classList.remove('hidden');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        modalContent.classList.remove('scale-95');
-        modalContent.classList.add('scale-100');
-    }, 10);
-}
-
-function closeModal() {
-    modal.classList.add('opacity-0');
-    modalContent.classList.remove('scale-100');
-    modalContent.classList.add('scale-95');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-    }, 300);
+    c.beginPath();
+    c.arc(this.x, this.y, CONFIG.alphaRadius, 0, Math.PI * 2);
+    c.fillStyle = '#fff';
+    c.fill();
+  }
+  recordStats() {
+    let angleRad = Math.atan2(this.vy, this.vx);
+    let angleDegSigned = angleRad * (180 / Math.PI);
+    let angleDegAbs = Math.abs(angleDegSigned);
+    state.stats.total++;
+    let binIndex = Math.min(Math.floor(angleDegAbs / 10), 18);
+    state.stats.binsAbs[binIndex]++;
+    if (angleDegSigned >= -180 && angleDegSigned <= 180) {
+      let chartIndex = Math.floor((angleDegSigned + 180) / 2);
+      if (chartIndex >= 0 && chartIndex < state.stats.chartData.length) {
+        state.stats.chartData[chartIndex]++;
+      }
+    }
+  }
 }
 
 function resizeCanvas() {
-    const rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    state.canvasWidth = rect.width;
-    state.canvasHeight = rect.height;
-    setupNuclei();
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  state.canvasWidth = rect.width;
+  state.canvasHeight = rect.height;
+  setupNuclei();
 }
 
 function resizeChartCanvas() {
-    const rect = chartCanvas.parentElement.getBoundingClientRect();
-    chartCanvas.width = rect.width;
-    chartCanvas.height = rect.height;
+  const rect = chartCanvas.parentElement.getBoundingClientRect();
+  chartCanvas.width = rect.width;
+  chartCanvas.height = rect.height;
 }
 
 function setupNuclei() {
-    state.nuclei = [];
-    const centerX = state.canvasWidth / 2;
-    const centerY = state.canvasHeight / 2;
-    const spacing = 220; 
-    
-    for (let col = -1; col <= 1; col++) {
-        for (let row = -2; row <= 2; row++) {
-            let offsetX = (row % 2 === 0) ? 0 : spacing / 2;
-            state.nuclei.push(new Nucleus(
-                centerX + col * spacing + offsetX,
-                centerY + row * spacing * 0.866 
-            ));
-        }
+  state.nuclei = [];
+  const centerX = state.canvasWidth / 2;
+  const centerY = state.canvasHeight / 2;
+  const spacing = 220;
+  for (let col = -1; col <= 1; col++) {
+    for (let row = -2; row <= 2; row++) {
+      let offsetX = (row % 2 === 0) ? 0 : spacing / 2;
+      state.nuclei.push(new Nucleus(
+        centerX + col * spacing + offsetX,
+        centerY + row * spacing * 0.866
+      ));
     }
+  }
 }
 
 function spawnParticles() {
-    const rangeY = 600; 
-    const centerY = state.canvasHeight / 2;
-    for(let i=0; i<state.emissionRate; i++) {
-        const y = centerY + (Math.random() - 0.5) * rangeY;
-        state.particles.push(new AlphaParticle(y));
-    }
+  const rangeY = 600;
+  const centerY = state.canvasHeight / 2;
+  for (let i = 0; i < state.emissionRate; i++) {
+    const y = centerY + (Math.random() - 0.5) * rangeY;
+    state.particles.push(new AlphaParticle(y));
+  }
 }
 
 function update() {
-    state.particles = state.particles.filter(p => p.active);
-    if (state.isRunning && state.particles.length < CONFIG.maxParticles) {
-        spawnParticles();
-    }
-    state.particles.forEach(p => p.update());
+  state.particles = state.particles.filter(p => p.active);
+  if (state.isRunning && state.particles.length < CONFIG.maxParticles) spawnParticles();
+  state.particles.forEach(p => p.update());
 }
 
 function draw() {
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, state.canvasWidth, state.canvasHeight);
-
-    state.nuclei.forEach(n => n.draw(ctx));
-    state.particles.forEach(p => p.draw(ctx));
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, state.canvasWidth, state.canvasHeight);
+  state.nuclei.forEach(n => n.draw(ctx));
+  state.particles.forEach(p => p.draw(ctx));
 }
 
 function drawChart() {
-    // 繪製上方圖表
-    const w = chartCanvas.width;
-    const h = chartCanvas.height;
-    
-    chartCtx.fillStyle = '#1e293b'; // bg-slate-800
-    chartCtx.fillRect(0, 0, w, h);
-
-    // 畫軸
-    chartCtx.strokeStyle = '#475569';
-    chartCtx.lineWidth = 1;
-    
-    // X軸
-    chartCtx.beginPath();
-    chartCtx.moveTo(0, h - 20);
-    chartCtx.lineTo(w, h - 20);
-    chartCtx.stroke();
-    
-    // 中心線 (0度)
-    chartCtx.beginPath();
-    chartCtx.moveTo(w/2, 0);
-    chartCtx.lineTo(w/2, h - 20);
-    chartCtx.strokeStyle = '#334155'; 
-    chartCtx.setLineDash([5, 5]);
-    chartCtx.stroke();
-    chartCtx.setLineDash([]);
-
-    // 繪製數據
-    const data = state.stats.chartData;
-    const maxVal = Math.max(...data, 10); // 避免初始max為0
-    const barWidth = w / data.length;
-
-    for (let i = 0; i < data.length; i++) {
-        const count = data[i];
-        const barHeight = (count / maxVal) * (h - 40); // 留出上下邊距
-        const x = i * barWidth;
-        const y = h - 20 - barHeight;
-
-        // 顏色邏輯 (中心為90)
-        // 1度 = 0.5 index
-        // 10度 = 5 indices
-        // 90度 = 45 indices
-        const distFromCenter = Math.abs(i - 90);
-        
-        // > 10度 (index diff > 5) 設為黃色
-        // > 90度 (index diff > 45) 設為紅色
-        if (distFromCenter > 45) chartCtx.fillStyle = '#f87171'; // red
-        else if (distFromCenter > 5) chartCtx.fillStyle = '#fbbf24'; // yellow
-        else chartCtx.fillStyle = '#4ade80'; // green
-
-        // 為了讓細微的bar也能看到，最小高度設為1px (如果有count)
-        if (count > 0 && barHeight < 1) {
-             chartCtx.fillRect(x, h - 21, barWidth, 1);
-        } else {
-             chartCtx.fillRect(x, y, barWidth, barHeight);
-        }
-    }
+  const w = chartCanvas.width;
+  const h = chartCanvas.height;
+  chartCtx.fillStyle = '#1e293b';
+  chartCtx.fillRect(0, 0, w, h);
+  chartCtx.strokeStyle = '#475569';
+  chartCtx.lineWidth = 1;
+  chartCtx.beginPath();
+  chartCtx.moveTo(0, h - 20);
+  chartCtx.lineTo(w, h - 20);
+  chartCtx.stroke();
+  chartCtx.beginPath();
+  chartCtx.moveTo(w / 2, 0);
+  chartCtx.lineTo(w / 2, h - 20);
+  chartCtx.strokeStyle = '#334155';
+  chartCtx.setLineDash([5, 5]);
+  chartCtx.stroke();
+  chartCtx.setLineDash([]);
+  const data = state.stats.chartData;
+  const maxVal = Math.max(...data, 10);
+  const barWidth = w / data.length;
+  for (let i = 0; i < data.length; i++) {
+    const count = data[i];
+    const barHeight = (count / maxVal) * (h - 40);
+    const x = i * barWidth;
+    const y = h - 20 - barHeight;
+    const distFromCenter = Math.abs(i - 90);
+    if (distFromCenter > 45) chartCtx.fillStyle = '#f87171';
+    else if (distFromCenter > 5) chartCtx.fillStyle = '#fbbf24';
+    else chartCtx.fillStyle = '#4ade80';
+    if (count > 0 && barHeight < 1) chartCtx.fillRect(x, h - 21, barWidth, 1);
+    else chartCtx.fillRect(x, y, barWidth, barHeight);
+  }
 }
 
 function animate() {
-    update();
-    draw();
-    
-    if (state.stats.total % 5 === 0) { // 稍微提高UI更新頻率
-        updateStatsUI();
-        drawChart();
-    }
-    
-    requestAnimationFrame(animate);
+  update();
+  draw();
+  if (state.stats.total % 5 === 0) {
+    updateStatsUI();
+    drawChart();
+  }
+  requestAnimationFrame(animate);
 }
 
 function updateStatsUI() {
-    elTotalCount.innerText = state.stats.total;
-
-    // 生成列表HTML
-    let html = '';
-    const total = state.stats.total > 0 ? state.stats.total : 1;
-
-    // 只顯示前9個區間 (0-90度) 和最後一個 (>90) 避免列表過長
-    for(let i=0; i<10; i++) {
-        // 獲取數據
-        let count = 0;
-        let label = "";
-        
-        if (i < 9) {
-            count = state.stats.binsAbs[i];
-            label = `${i*10}° - ${(i+1)*10}°`;
-        } else {
-            // 匯總 > 90 的所有數據
-            for(let j=9; j<state.stats.binsAbs.length; j++) {
-                count += state.stats.binsAbs[j];
-            }
-            label = `> 90°`;
-        }
-
-        const pct = (count / total * 100).toFixed(1);
-        const width = Math.max(pct, 0.5); // 最小寬度
-        
-        // 顏色邏輯
-        let barColor = 'bg-green-500';
-        if (i >= 1 && i <= 3) barColor = 'bg-yellow-400'; // 10-40
-        if (i >= 4) barColor = 'bg-red-500'; // >40
-
-        html += `
-            <div>
-                <div class="flex justify-between mb-1 text-[10px] text-slate-400">
-                    <span>${label}</span>
-                    <span>${count} (${pct}%)</span>
-                </div>
-                <div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                    <div class="${barColor} h-1.5 rounded-full transition-all duration-300" style="width: ${width}%"></div>
-                </div>
-            </div>
-        `;
+  elTotalCount.innerText = state.stats.total;
+  if (state.stats.total === 0) {
+    elDistributionList.innerHTML = `<div class="text-slate-500 text-center py-4">${t('waitingData')}</div>`;
+    return;
+  }
+  let html = '';
+  const total = state.stats.total > 0 ? state.stats.total : 1;
+  for (let i = 0; i < 10; i++) {
+    let count = 0;
+    let label = '';
+    if (i < 9) {
+      count = state.stats.binsAbs[i];
+      label = `${i * 10}° - ${(i + 1) * 10}°`;
+    } else {
+      for (let j = 9; j < state.stats.binsAbs.length; j++) count += state.stats.binsAbs[j];
+      label = t('binGt90');
     }
-    elDistributionList.innerHTML = html;
+    const pct = (count / total * 100).toFixed(1);
+    const width = Math.max(pct, 0.5);
+    let barColor = 'bg-green-500';
+    if (i >= 1 && i <= 3) barColor = 'bg-yellow-400';
+    if (i >= 4) barColor = 'bg-red-500';
+    html += `<div>
+      <div class="flex justify-between mb-1 text-[10px] text-slate-400">
+        <span>${label}</span>
+        <span>${count} (${pct}%)</span>
+      </div>
+      <div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
+        <div class="${barColor} h-1.5 rounded-full transition-all duration-300" style="width: ${width}%"></div>
+      </div>
+    </div>`;
+  }
+  elDistributionList.innerHTML = html;
+}
+
+function syncToggleButton() {
+  const btnText = document.getElementById('btn-text');
+  const btnIcon = document.getElementById('btn-icon');
+  if (state.isRunning) {
+    btnText.textContent = t('btnPause');
+    btnIcon.textContent = '⏸';
+    btnToggle.classList.remove('bg-green-600', 'hover:bg-green-500');
+    btnToggle.classList.add('bg-yellow-600', 'hover:bg-yellow-500');
+  } else {
+    const started = state.stats.total > 0 || state.particles.length > 0;
+    btnText.textContent = started ? t('btnContinue') : t('btnStart');
+    btnIcon.textContent = '▶';
+    btnToggle.classList.remove('bg-yellow-600', 'hover:bg-yellow-500');
+    btnToggle.classList.add('bg-green-600', 'hover:bg-green-500');
+  }
 }
 
 function toggleSim() {
-    state.isRunning = !state.isRunning;
-    const btnText = document.getElementById('btn-text');
-    const btnIcon = document.getElementById('btn-icon');
-    
-    if (state.isRunning) {
-        btnText.innerText = "暫停實驗";
-        btnIcon.innerText = "⏸";
-        btnToggle.classList.replace('bg-green-600', 'bg-yellow-600');
-        btnToggle.classList.replace('hover:bg-green-500', 'hover:bg-yellow-500');
-    } else {
-        btnText.innerText = "繼續實驗";
-        btnIcon.innerText = "▶";
-        btnToggle.classList.replace('bg-yellow-600', 'bg-green-600');
-        btnToggle.classList.replace('hover:bg-yellow-500', 'hover:bg-green-500');
-    }
+  state.isRunning = !state.isRunning;
+  syncToggleButton();
 }
 
 function resetSim() {
-    state.particles = [];
-    state.stats.total = 0;
-    state.stats.binsAbs.fill(0);
-    state.stats.chartData.fill(0);
-    
-    updateStatsUI();
-    drawChart();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  state.particles = [];
+  state.stats.total = 0;
+  state.stats.binsAbs.fill(0);
+  state.stats.chartData.fill(0);
+  state.isRunning = false;
+  state.emissionRate = 8;
+  inputRate.value = '8';
+  syncToggleButton();
+  updateStatsUI();
+  drawChart();
+  // do NOT reset currentLang
+}
+
+function initTeachingShell() {
+  document.getElementById('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  document.getElementById('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  document.getElementById('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  document.getElementById('btn-lang').addEventListener('click', () => {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    updateLanguage();
+  });
+  document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+    quizState.showAnswers = !quizState.showAnswers;
+    renderQuiz();
+  });
+  document.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
+  });
+  ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('click', e => { if (e.target === el) closeModal(id); });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeAllModals();
+  });
+}
+
+function init() {
+  resizeCanvas();
+  resizeChartCanvas();
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    resizeChartCanvas();
+  });
+  setupNuclei();
+  animate();
+  updateStatsUI();
+  btnToggle.addEventListener('click', toggleSim);
+  btnReset.addEventListener('click', resetSim);
+  inputRate.addEventListener('input', e => {
+    state.emissionRate = parseInt(e.target.value, 10);
+  });
+  initTeachingShell();
+  updateLanguage();
 }
 
 init();
-
 </script>
 </body>
 </html>

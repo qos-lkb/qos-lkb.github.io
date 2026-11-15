@@ -64,6 +64,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                 <span data-i18n="btnPrinciple">原理解說</span>
             </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-xl font-bold text-sm border border-rose-300"><span data-i18n="btnQuiz">課堂問題</span></button>
             <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
         </div>
     </header>
@@ -151,7 +152,18 @@
                 <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-cyan-300"></span><span data-i18n="legCoax">共軸（同向、同 ω）</span></span>
             </div>
         </section>
-    </main>
+    
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-rose-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center gap-2 flex-wrap shrink-0">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25" aria-label="close">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end"><button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button></div>
+        </div>
+    </div>
 
     <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
@@ -216,6 +228,30 @@ const SNAP_MESH = 18;
 const SNAP_COAX = 20;
 const MESH_EPS = 6;
 
+
+let quizAnswersVisible = false;
+function renderQuiz() {
+  const box = document.getElementById('quiz-list');
+  if (!box) return;
+  const pack = i18n[lang];
+  const tq = k => pack[k] != null ? pack[k] : k;
+  const mk = qid => ['A','B','C','D'].map((L,i) => `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-slate-50"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-600"><span>${L}. ${tq('quizQ'+qid.slice(1)+'abcd'[i])}</span></label>`).join('');
+  const ans = n => quizAnswersVisible ? `<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${tq('quizRef')}：</strong> ${tq('quizQ'+n+'ans')}</div>` : '';
+  box.innerHTML = [1,2,3,4,5].map(n => { const open=n===2||n===4; return `<div class="rounded-xl border border-slate-200 p-3"><p class="font-semibold text-rose-700 mb-2">Q${n}. ${tq('quizQ'+n)}</p>${open?'':`<div class="grid gap-1.5">${mk('q'+n)}</div>`}${ans(n)}</div>`; }).join('');
+  const btn = document.getElementById('btn-quiz-answers');
+  if (btn) btn.textContent = quizAnswersVisible ? tq('quizHideAnswers') : tq('quizShowAnswers');
+  const mq = document.getElementById('modal-quiz');
+  if (quizAnswersVisible && mq && !mq.classList.contains('pointer-events-none') && window.MathJax?.typesetPromise) MathJax.typesetPromise([mq]).catch(() => {});
+}
+function openQuizModal() {
+  [modalPrinciple, modalSteps].forEach(m => closeModal(m));
+  quizAnswersVisible = false;
+  renderQuiz();
+  openModal(document.getElementById('modal-quiz'));
+}
+function closeQuizModal() { closeModal(document.getElementById('modal-quiz')); }
+
+
 const i18n = {
     zh: {
         title: '齒輪傳動與齒輪比', badge: '物理', subtitle: '嚙合傳動、惰輪與共軸複合；齒輪比／速率比／力矩比',
@@ -253,7 +289,17 @@ const i18n = {
         sameDir: '輸出與輸入同向',
         oppDir: '輸出與輸入反向',
         ccw: '逆時針',
-        cw: '順時針'
+        cw: '順時針',btnQuiz:'課堂問題',quizTitle:'課堂問題',quizShowAnswers:'顯示參考答案',quizHideAnswers:'隱藏參考答案',quizRef:'參考答案',
+        quizQ1:'20 齒驅動 40 齒時，理想齒輪比 i 為',quizQ1a:'0.5',quizQ1b:'2',quizQ1c:'20',quizQ1d:'40',
+        quizQ1ans:'B. i = N_driven/N_driver = 40/20 = 2（lblGearRatio）。',
+        quizQ2:'只載入情境②惰輪預設，先預測首末輪旋向與 i，再對照動畫與讀數。',
+        quizQ2ans:'惰輪改旋向但 i 仍由首末齒數決定；讀 sameDir/oppDir 與 i。',
+        quizQ3:'共軸鎖定的兩輪，角速度 ω 關係為',quizQ3a:'相反',quizQ3b:'相同',quizQ3c:'乘齒輪比',quizQ3d:'零',
+        quizQ3ans:'B. 共軸剛性連接，ω 相同（legCoax）。',
+        quizQ4:'比較情境①與③：哪個輸出角速度較慢？操作後說明總齒輪比。',
+        quizQ4ans:'③複合減速總 i 更大 → ω_out 更慢、τ_out 更大。',
+        quizQ5:'理想無摩擦嚙合時，力矩比 τ_out/τ_in 與 i',quizQ5a:'相等',quizQ5b:'互為倒數',quizQ5c:'無關',quizQ5d:'恆為 1',
+        quizQ5ans:'A. 減速增力矩：τ_out/τ_in = i（eqTau）。'
     },
     en: {
         title: 'Gear trains & gear ratio', badge: 'Physics', subtitle: 'Meshing, idlers and compound gears; ratio, speed and torque',
@@ -317,6 +363,7 @@ function pitchR(N) { return MODULE * N / 2; }
 function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = b; b = a % b; a = t; } return a || 1; }
 
 function applyLang() {
+    renderQuiz();
     document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
     document.title = lang === 'zh' ? '齒輪傳動與齒輪比 | Gear Train & Gear Ratio' : 'Gear trains & gear ratio | 齒輪傳動與齒輪比';
     document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -833,12 +880,15 @@ function closeModal(el) {
 const modalPrinciple = document.getElementById('modal-principle');
 const modalSteps = document.getElementById('modal-steps');
 document.getElementById('btn-principle').addEventListener('click', () => openModal(modalPrinciple));
+document.getElementById('btn-quiz').addEventListener('click', openQuizModal);
+document.getElementById('btn-quiz-answers').addEventListener('click', () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+['quiz-close','quiz-confirm'].forEach(id => document.getElementById(id).addEventListener('click', closeQuizModal));
 document.getElementById('btn-steps').addEventListener('click', () => openModal(modalSteps));
 ['modal-close', 'modal-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(modalPrinciple)));
 ['steps-close', 'steps-confirm'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(modalSteps)));
 [modalPrinciple, modalSteps].forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m); }));
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(modalPrinciple); closeModal(modalSteps); }
+    if (e.key === 'Escape') { closeModal(modalPrinciple); closeModal(modalSteps); closeQuizModal(); }
 });
 
 window.addEventListener('resize', () => { resize(); });

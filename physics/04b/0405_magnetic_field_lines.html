@@ -1,10 +1,68 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D 立體磁場模擬實驗室</title>
-    
+
+    <!--
+      Layout note: Three.js fullscreen magnetic-field-lines lab layout exemption.
+      Full-viewport WebGL (#canvas-container) + absolute top bar + left glass toolbox
+      (w-80 ≈ 320px) + bottom-right legend — not standard A/B/C grid. Teaching
+      controls (steps / principle / quiz / lang / reset) are NOT exempt and live in
+      the top Actions bar. Modals use z-index ≥ 100 above the canvas.
+    -->
+
+    <!-- Noto Sans TC (P2) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -13,7 +71,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DragControls.js"></script>
 
-    <!-- MathJax -->
+    <!-- MathJax tex-mml-chtml (no KaTeX; no new tex-svg) -->
     <script>
         MathJax = {
             tex: {
@@ -21,7 +79,6 @@
             },
             startup: {
                 ready: () => {
-                    console.log('MathJax is loaded');
                     MathJax.startup.defaultReady();
                 }
             }
@@ -51,7 +108,7 @@
             z-index: 50; color: white; pointer-events: none; opacity: 0; transition: opacity 0.3s;
         }
 
-        /* Modal Styles */
+        /* Modal Styles — z-index ≥ 100 above Three.js canvas / floating panels */
         .modal-bg {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); z-index: 100;
@@ -64,6 +121,23 @@
         input[type="radio"] {
             accent-color: #0ea5e9;
         }
+
+        .quiz-opt {
+            display: block; width: 100%; text-align: left;
+            padding: 0.5rem 0.75rem; margin-top: 0.35rem;
+            border-radius: 0.5rem; border: 1px solid rgba(71,85,105,0.6);
+            background: rgba(15,23,42,0.6); color: #cbd5e1; font-size: 0.875rem;
+            cursor: pointer; transition: background 0.15s, border-color 0.15s;
+        }
+        .quiz-opt:hover { background: rgba(30,41,59,0.9); border-color: #38bdf8; }
+        .quiz-opt.selected { border-color: #38bdf8; background: rgba(14,165,233,0.15); color: #e0f2fe; }
+        .quiz-opt.correct { border-color: #34d399; background: rgba(16,185,129,0.15); color: #a7f3d0; }
+        .quiz-opt.wrong { border-color: #f87171; background: rgba(239,68,68,0.12); color: #fecaca; }
+        .quiz-answer { margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            background: rgba(15,23,42,0.8); border: 1px dashed rgba(100,116,139,0.5);
+            color: #94a3b8; font-size: 0.8rem; display: none; }
+        .quiz-answer.visible { display: block; }
+
     </style>
 </head>
 <body>
@@ -74,84 +148,123 @@
     </div>
 
     <!-- Top Navigation Bar -->
-    <div class="absolute top-0 left-0 w-full h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-700 flex items-center justify-between px-6 z-40 shadow-lg">
-        <!-- Left: Title -->
+    <div class="absolute top-0 left-0 w-full min-h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-700 flex items-center justify-between px-4 sm:px-6 py-2 z-40 shadow-lg flex-wrap gap-2">
         <div class="flex items-center gap-3">
             <span class="text-2xl">🧲</span>
-            <h1 class="text-xl font-bold text-sky-400 tracking-wide" data-i18n="appTitle">磁場實驗室</h1>
+            <h1 class="text-lg sm:text-xl font-bold text-sky-400 tracking-wide" data-i18n="appTitle">磁場實驗室</h1>
+            <span class="hidden sm:inline text-[10px] uppercase tracking-wider text-slate-500 border border-slate-700 rounded px-1.5 py-0.5" data-i18n="subjectBadge">物理</span>
         </div>
 
-        <!-- Right: Actions -->
-        <div class="flex items-center gap-4 text-slate-200">
-            <!-- View Toggle (Outlined) -->
-            <button onclick="app.toggleView()" class="flex items-center gap-2 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-sky-500 hover:text-white px-3 py-1.5 rounded transition shadow-sm text-sm">
+        <div class="flex items-center gap-2 sm:gap-3 text-slate-200 flex-wrap justify-end">
+            <button type="button" onclick="app.toggleView()" class="flex items-center gap-1.5 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-sky-500 hover:text-white px-2.5 py-1.5 rounded transition shadow-sm text-xs sm:text-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                 <span data-i18n="viewToggle">視角: 3D</span>
             </button>
 
-            <!-- Principle (Outlined) -->
-            <button onclick="app.toggleModal('principle-modal')" class="flex items-center gap-2 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-indigo-500 hover:text-white px-3 py-1.5 rounded transition shadow-sm text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                <span data-i18n="principle">原理</span>
+            <button type="button" id="btn-steps" onclick="app.openModal('modal-steps')" class="flex items-center gap-1.5 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-amber-500 hover:text-white px-2.5 py-1.5 rounded transition shadow-sm text-xs sm:text-sm">
+                <span data-i18n="btnSteps">觀察步驟</span>
             </button>
-            
-            <div class="w-px h-6 bg-slate-600 mx-1"></div>
 
-            <!-- Language -->
-            <button onclick="app.toggleLanguage()" class="hover:text-emerald-400 transition font-mono text-sm border border-slate-600 px-3 py-1.5 rounded bg-slate-800">
+            <button type="button" id="btn-principle" onclick="app.openModal('modal-principle')" class="flex items-center gap-1.5 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-indigo-500 hover:text-white px-2.5 py-1.5 rounded transition shadow-sm text-xs sm:text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                <span data-i18n="principle">原理解說</span>
+            </button>
+
+            <button type="button" id="btn-quiz" onclick="app.openModal('modal-quiz')" class="flex items-center gap-1.5 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-rose-500 hover:text-white px-2.5 py-1.5 rounded transition shadow-sm text-xs sm:text-sm">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+
+            <button type="button" id="btn-reset" onclick="app.resetScene()" class="flex items-center gap-1.5 border border-slate-600 bg-slate-800 hover:bg-slate-700 hover:border-emerald-500 hover:text-white px-2.5 py-1.5 rounded transition shadow-sm text-xs sm:text-sm">
+                <span data-i18n="btnReset">重置</span>
+            </button>
+
+            <div class="w-px h-6 bg-slate-600 mx-0.5 hidden sm:block"></div>
+
+            <button type="button" id="btn-lang" onclick="app.toggleLanguage()" class="hover:text-emerald-400 transition font-mono text-xs sm:text-sm border border-slate-600 px-2.5 py-1.5 rounded bg-slate-800">
                 中 / EN
             </button>
         </div>
     </div>
 
-    <!-- Principle Modal -->
-    <div id="principle-modal" class="modal-bg hidden-modal" onclick="if(event.target === this) app.toggleModal('principle-modal')">
+    <!-- Observation Steps Modal -->
+    <div id="modal-steps" class="modal-bg hidden-modal" role="dialog" aria-modal="true" aria-labelledby="steps-title" onclick="if(event.target === this) app.closeModal('modal-steps')">
         <div class="glass-panel p-6 rounded-2xl max-w-2xl w-full mx-4 relative text-slate-100 max-h-[80vh] overflow-y-auto">
-            <button onclick="app.toggleModal('principle-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+            <button type="button" onclick="app.closeModal('modal-steps')" class="absolute top-4 right-4 text-slate-400 hover:text-white" aria-label="Close">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h2 class="text-2xl font-bold mb-4 text-sky-400" data-i18n="principleTitle">磁場疊加原理</h2>
+            <h2 id="steps-title" class="text-2xl font-bold mb-4 text-amber-400" data-i18n="stepsTitle">觀察步驟</h2>
+            <ol class="space-y-4 text-slate-300 leading-relaxed list-decimal list-inside">
+                <li data-i18n="step1">場景應有一塊**棒狀磁鐵**（紅 N／藍 S）。確認顯示模式為「**顯示磁力線**」。緩慢**拖曳**磁鐵，觀察場線如何跟隨；場線箭頭大致由 **N 指向 S**（磁鐵外）。按**重置**可回到單一磁鐵起始狀態。</li>
+                <li data-i18n="step2">再按「**＋新增磁鐵**」，把兩塊磁鐵**同極相對**（例如 N 對 N）靠近，再改為**異極相對**。比較場線在間隙是「撐開／排斥」還是「連通／吸引」的形態差異，用一句話連到**磁場疊加**。</li>
+                <li data-i18n="step3">按「**清除全部**」或刪到只剩空場後，「**＋新增直導線**」。切到**俯視**，觀察場線是否大致呈**同心圓**；在 Inspector 把電流調成**負值**，看方向是否反轉（對照黃箭頭）。</li>
+                <li data-i18n="step4">改顯示模式為「**小磁鐵**」與「**鐵粉末**」（可先重置回單磁鐵）。說明：三種模式畫的是**同一淨磁場**的不同可視化。總結本模擬假設：教學標度 MU₀=1、磁鐵雙極近似、導線無限直導線公式、線圈離散 Biot–Savart、場線數值積分非解析解。</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Principle Modal (standardised from soft #principle-modal) -->
+    <div id="modal-principle" class="modal-bg hidden-modal" role="dialog" aria-modal="true" aria-labelledby="principle-title" onclick="if(event.target === this) app.closeModal('modal-principle')">
+        <div class="glass-panel p-6 rounded-2xl max-w-2xl w-full mx-4 relative text-slate-100 max-h-[80vh] overflow-y-auto">
+            <button type="button" onclick="app.closeModal('modal-principle')" class="absolute top-4 right-4 text-slate-400 hover:text-white" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h2 id="principle-title" class="text-2xl font-bold mb-4 text-sky-400" data-i18n="principleTitle">磁場與磁力線</h2>
             <div class="space-y-4 text-slate-300 leading-relaxed">
-                <p data-i18n="principleP1">
-                    本模擬器展示了磁場的**向量疊加特性**。空間中任意一點的總磁場向量 $\vec{B}_{total}$ 等於所有磁源（磁鐵、導線、線圈）在該點產生的磁場向量總和：
-                </p>
+                <h3 class="text-sm font-bold text-sky-300 uppercase tracking-wider" data-i18n="principleConceptH">概念</h3>
+                <p data-i18n="principleConcept">磁場是矢量場：空間每一點有方向與大小的 $\vec{B}$。**磁力線**是沿 $\vec{B}$ 方向畫出的曲線，箭頭表示方向；在永久磁鐵外部由 N 極指向 S 極。本實驗室可放置棒狀磁鐵、長直載流導線與圓形線圈，即時用數值積分追蹤淨場的流線，或改以小磁針／鐵粉平面顯示同一場。</p>
+
+                <h3 class="text-sm font-bold text-sky-300 uppercase tracking-wider" data-i18n="principleMechH">機制</h3>
+                <p data-i18n="principleP1">1. **疊加原理**：$\vec{B}_{total}=\sum_i\vec{B}_i$。多個磁源時，場線形態由各來源向量相加決定，而非「只畫最強那一個」。</p>
                 <div class="bg-slate-800 p-3 rounded text-center my-2">
                     $$ \vec{B}_{total} = \sum_{i} \vec{B}_i $$
                 </div>
-                <p data-i18n="principleP2">
-                    **磁力線 (Field Lines)**：我們從物體周圍選取多個「種子點」，並沿著合成磁場向量的方向進行數值積分（追蹤），繪製出流線。
-                </p>
-                <p data-i18n="principleP3">
-                    **方向性**：場線上的箭頭指示磁場方向，由 N 極指向 S 極。
-                </p>
+                <p data-i18n="principleP2">2. **場線追蹤**：從各物件附近的種子點出發，沿當前淨 $\vec{B}$ 走一小步並重複——得到流線；線密處通常表示場較強（定性）。</p>
+                <p data-i18n="principleP3">3. **棒狀磁鐵**：以 N／S 兩極近似；近極強、遠極弱。場線上的箭頭指示磁場方向，由 N 極指向 S 極（磁鐵外）。</p>
                 <ul class="list-disc list-inside space-y-1 ml-2 text-sm text-slate-400">
-                    <li data-i18n="item1">棒狀磁鐵：近似為兩個單極子模型。</li>
-                    <li data-i18n="item2">長直導線：遵循安培定律 (Ampère's Law)。</li>
-                    <li data-i18n="item3">圓形線圈：遵循必歐-沙伐定律 (Biot–Savart law)。</li>
+                    <li data-i18n="item1">棒狀磁鐵：近似為兩個單極子（雙極對）模型。</li>
+                    <li data-i18n="item2">長直導線：教學式 $B=\mu_0 I/(2\pi r)$，方向用右手定則；電流反向則場向反向。</li>
+                    <li data-i18n="item3">圓形線圈：離散 Biot–Savart 求和；中心附近場大致沿軸。</li>
+                    <li data-i18n="item4">假設：教學標度 MU₀=1、無磁滯／無鐵芯細節、場線為數值近似、compass／filings 僅取近地平面採樣。</li>
                 </ul>
+
+                <h3 class="text-sm font-bold text-sky-300 uppercase tracking-wider" data-i18n="principleExH">日常例子</h3>
+                <p data-i18n="principleExample">指南針指向地磁場；條形磁鐵吸鐵粉呈「花紋」；輸電纜附近指南針微偏（安全距離外通常很弱）。勿把本檔與螺線管內部勻強場專題、庫侖定律電場線、或電動機轉矩實驗室混為同一套控件。</p>
             </div>
         </div>
     </div>
 
-    <!-- UI Overlay (Left) -->
-    <!-- Positioned lower to clear the top bar -->
-    <div class="absolute top-20 left-4 z-10 w-80 flex flex-col gap-4">
+    <!-- Quiz Modal — exactly 5 items -->
+    <div id="modal-quiz" class="modal-bg hidden-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-title" onclick="if(event.target === this) app.closeModal('modal-quiz')">
+        <div class="glass-panel p-6 rounded-2xl max-w-2xl w-full mx-4 relative text-slate-100 max-h-[80vh] overflow-y-auto">
+            <button type="button" onclick="app.closeModal('modal-quiz')" class="absolute top-4 right-4 text-slate-400 hover:text-white" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div class="flex items-center justify-between gap-3 mb-4 pr-8 flex-wrap">
+                <h2 id="quiz-title" class="text-2xl font-bold text-rose-400" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" onclick="app.toggleQuizAnswers()" class="px-3 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-semibold transition" data-i18n="quizShowAnswers">顯示參考答案</button>
+            </div>
+            <div id="quiz-list" class="space-y-5 text-slate-300"></div>
+        </div>
+    </div>
+
+    <!-- UI Overlay (Left) — toolbox w-80 under Three.js fullscreen exemption -->
+    <div class="absolute top-20 left-4 z-10 w-80 flex flex-col gap-4 max-h-[calc(100vh-6rem)] overflow-y-auto">
         
         <!-- Controls Panel -->
         <div class="glass-panel rounded-xl p-5 text-slate-100">
             <h2 class="text-sm font-bold mb-3 text-slate-400 uppercase tracking-wider" data-i18n="tools">工具箱</h2>
             
             <div class="grid grid-cols-2 gap-2 mb-4">
-                <button onclick="app.addMagnet()" class="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="addMagnet">
+                <button type="button" onclick="app.addMagnet()" class="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="addMagnet">
                     + 新增磁鐵
                 </button>
-                <button onclick="app.addWire()" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="addWire">
+                <button type="button" onclick="app.addWire()" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="addWire">
                     + 新增直導線
                 </button>
-                <button onclick="app.addCoil()" class="bg-amber-600 hover:bg-amber-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="addCoil">
+                <button type="button" onclick="app.addCoil()" class="bg-amber-600 hover:bg-amber-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="addCoil">
                     + 新增線圈
                 </button>
-                <button onclick="app.clearScene()" class="bg-red-600 hover:bg-red-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="clearAll">
+                <button type="button" onclick="app.clearScene()" class="bg-red-600 hover:bg-red-500 text-white p-2 rounded transition text-sm font-medium" data-i18n="clearAll">
                     清除全部
                 </button>
             </div>
@@ -181,7 +294,7 @@
         <div id="inspector" class="glass-panel rounded-xl p-5 text-slate-100 hidden">
             <h2 class="text-lg font-bold mb-3 text-sky-300 flex justify-between items-center">
                 <span id="obj-type">物件屬性</span>
-                <button onclick="app.deleteSelected()" class="text-xs text-red-400 hover:text-red-300 border border-red-500/50 px-2 py-1 rounded" data-i18n="delete">刪除</button>
+                <button type="button" onclick="app.deleteSelected()" class="text-xs text-red-400 hover:text-red-300 border border-red-500/50 px-2 py-1 rounded" data-i18n="delete">刪除</button>
             </h2>
             
             <div id="controls-container" class="space-y-4">
@@ -220,6 +333,7 @@
         const DICT = {
             zh: {
                 appTitle: "磁場實驗室",
+                subjectBadge: "物理",
                 tools: "實驗工具",
                 addMagnet: "+ 新增磁鐵",
                 addWire: "+ 新增直導線",
@@ -231,16 +345,33 @@
                 modeFilings: "顯示鐵粉末 (平面)",
                 hint: "提示：拖曳物件以觀察場線變化。點擊物件可調整參數。",
                 computing: "正在計算...",
-                principle: "原理",
+                principle: "原理解說",
+                btnSteps: "觀察步驟",
+                btnQuiz: "課堂問題",
+                btnReset: "重置",
                 viewToggle: "視角: 3D",
                 viewToggleTop: "視角: 俯視",
-                principleTitle: "磁場疊加原理",
-                principleP1: "本模擬器展示了磁場的**向量疊加特性**。空間中任意一點的總磁場向量 $\\vec{B}_{total}$ 等於所有磁源在該點產生的磁場向量總和：",
-                principleP2: "**磁力線**：我們從物體周圍選取多個「種子點」，並沿著合成磁場向量的方向進行追蹤。",
-                principleP3: "**方向性**：場線上的箭頭指示磁場方向，由 N 極指向 S 極。",
-                item1: "棒狀磁鐵：近似為兩個單極子模型。",
-                item2: "長直導線：遵循安培定律。",
-                item3: "圓形線圈：遵循必歐-沙伐定律。",
+                stepsTitle: "觀察步驟",
+                step1: "場景應有一塊**棒狀磁鐵**（紅 N／藍 S）。確認顯示模式為「**顯示磁力線**」。緩慢**拖曳**磁鐵，觀察場線如何跟隨；場線箭頭大致由 **N 指向 S**（磁鐵外）。按**重置**可回到單一磁鐵起始狀態。",
+                step2: "再按「**＋新增磁鐵**」，把兩塊磁鐵**同極相對**（例如 N 對 N）靠近，再改為**異極相對**。比較場線在間隙是「撐開／排斥」還是「連通／吸引」的形態差異，用一句話連到**磁場疊加**。",
+                step3: "按「**清除全部**」或刪到只剩空場後，「**＋新增直導線**」。切到**俯視**，觀察場線是否大致呈**同心圓**；在 Inspector 把電流調成**負值**，看方向是否反轉（對照黃箭頭）。",
+                step4: "改顯示模式為「**小磁鐵**」與「**鐵粉末**」（可先重置回單磁鐵）。說明：三種模式畫的是**同一淨磁場**的不同可視化。總結本模擬假設：教學標度 MU₀=1、磁鐵雙極近似、導線無限直導線公式、線圈離散 Biot–Savart、場線數值積分非解析解。",
+                principleTitle: "磁場與磁力線",
+                principleConceptH: "概念",
+                principleConcept: "磁場是矢量場：空間每一點有方向與大小的 $\\vec{B}$。**磁力線**是沿 $\\vec{B}$ 方向畫出的曲線，箭頭表示方向；在永久磁鐵外部由 N 極指向 S 極。本實驗室可放置棒狀磁鐵、長直載流導線與圓形線圈，即時用數值積分追蹤淨場的流線，或改以小磁針／鐵粉平面顯示同一場。",
+                principleMechH: "機制",
+                principleP1: "1. **疊加原理**：$\\vec{B}_{total}=\\sum_i\\vec{B}_i$。多個磁源時，場線形態由各來源向量相加決定，而非「只畫最強那一個」。",
+                principleP2: "2. **場線追蹤**：從各物件附近的種子點出發，沿當前淨 $\\vec{B}$ 走一小步並重複——得到流線；線密處通常表示場較強（定性）。",
+                principleP3: "3. **棒狀磁鐵**：以 N／S 兩極近似；近極強、遠極弱。場線上的箭頭指示磁場方向，由 N 極指向 S 極（磁鐵外）。",
+                item1: "棒狀磁鐵：近似為兩個單極子（雙極對）模型。",
+                item2: "長直導線：教學式 $B=\\mu_0 I/(2\\pi r)$，方向用右手定則；電流反向則場向反向。",
+                item3: "圓形線圈：離散 Biot–Savart 求和；中心附近場大致沿軸。",
+                item4: "假設：教學標度 MU₀=1、無磁滯／無鐵芯細節、場線為數值近似、compass／filings 僅取近地平面採樣。",
+                principleExH: "日常例子",
+                principleExample: "指南針指向地磁場；條形磁鐵吸鐵粉呈「花紋」；輸電纜附近指南針微偏（安全距離外通常很弱）。勿把本檔與螺線管內部勻強場專題、庫侖定律電場線、或電動機轉矩實驗室混為同一套控件。",
+                quizTitle: "課堂問題",
+                quizShowAnswers: "顯示參考答案",
+                quizHideAnswers: "隱藏參考答案",
                 delete: "刪除",
                 formulaTitle: "物理公式 (近似)：",
                 rotation: "旋轉角度 (Z軸)",
@@ -254,6 +385,7 @@
             },
             en: {
                 appTitle: "Mag Lab 3D",
+                subjectBadge: "Physics",
                 tools: "Tools",
                 addMagnet: "+ Add Magnet",
                 addWire: "+ Add Wire",
@@ -265,16 +397,33 @@
                 modeFilings: "Iron Filings (Plane)",
                 hint: "Tip: Drag objects to see field changes. Click to edit.",
                 computing: "Calculating...",
-                principle: "Theory",
+                principle: "Principle",
+                btnSteps: "Steps",
+                btnQuiz: "Quiz",
+                btnReset: "Reset",
                 viewToggle: "View: 3D",
                 viewToggleTop: "View: Top",
-                principleTitle: "Superposition Principle",
-                principleP1: "This simulator demonstrates **Vector Superposition**. The net magnetic field $\\vec{B}_{total}$ at any point is the vector sum of fields from all sources:",
-                principleP2: "**Field Lines**: We trace streamlines from seed points following the net magnetic field vector.",
-                principleP3: "**Direction**: Arrows on lines indicate field direction from N to S.",
-                item1: "Bar Magnet: Approximated by two monopoles.",
-                item2: "Straight Wire: Follows Ampère's Law.",
-                item3: "Circular Coil: Follows Biot–Savart Law.",
+                stepsTitle: "Observation Steps",
+                step1: "You should see one **bar magnet** (red N／blue S). Keep viz mode on **Field Lines**. Slowly **drag** the magnet and watch lines follow; outside the magnet, arrows run roughly **N → S**. **Reset** restores the single-magnet start state.",
+                step2: "Click **+ Add Magnet**. Bring like poles together (e.g. N–N), then opposite poles (N–S). Compare whether lines in the gap look “pushed apart” or “connected,” and link this to **field superposition**.",
+                step3: "Clear or delete to an empty scene, then **+ Add Wire**. Switch to **top view**; check roughly **concentric** loops. In the inspector set current **negative** and see the sense reverse (compare the yellow arrow).",
+                step4: "Switch viz to **Small Magnets** and **Iron Filings** (Reset to one magnet first if needed). State that all three modes show the **same net field** differently. Idealizations: teaching MU₀=1, dipole-pair magnet, infinite-wire formula, discrete Biot–Savart coil, numerically integrated lines (not closed-form).",
+                principleTitle: "Magnetic Fields & Field Lines",
+                principleConceptH: "Concept",
+                principleConcept: "A magnetic field is a vector field: each point has a $\\vec{B}$ with direction and magnitude. **Field lines** follow $\\vec{B}$; arrows show sense; outside a permanent magnet they run from N to S. This lab places bar magnets, straight current-carrying wires, and circular coils, then traces net-field streamlines numerically—or shows the same field with planar compass needles／iron filings.",
+                principleMechH: "Mechanism",
+                principleP1: "1. **Superposition**: $\\vec{B}_{total}=\\sum_i\\vec{B}_i$. Multi-source patterns come from vector sums, not “only the strongest source.”",
+                principleP2: "2. **Line tracing**: from seed points near each object, step repeatedly along net $\\vec{B}$ to build streamlines; denser lines often mean stronger field (qualitative).",
+                principleP3: "3. **Bar magnet**: N／S pole-pair approximation; stronger near poles. Arrows on lines indicate field direction from N to S (outside the magnet).",
+                item1: "Bar magnet: approximated by an N／S monopole pair.",
+                item2: "Straight wire: teaching form $B=\\mu_0 I/(2\\pi r)$ with right-hand sense; reversing $I$ reverses $\\vec{B}$.",
+                item3: "Circular coil: discrete Biot–Savart sum; near-center field roughly axial.",
+                item4: "Idealizations: teaching MU₀=1, no hysteresis／core detail, numerical lines, planar-only compass／filings sampling.",
+                principleExH: "Everyday example",
+                principleExample: "A compass follows Earth’s field; iron filings around a bar magnet form familiar patterns; a compass near a power cable may deflect slightly (usually weak at safe distance). Do not merge this file with a solenoid uniform-interior lab, Coulomb electric-field diagrams, or the DC-motor torque simulator.",
+                quizTitle: "Classroom Quiz",
+                quizShowAnswers: "Show reference answers",
+                quizHideAnswers: "Hide reference answers",
                 delete: "Delete",
                 formulaTitle: "Physics Formula (Approx):",
                 rotation: "Rotation (Z-Axis)",
@@ -287,6 +436,110 @@
                 sLegend: "is Blue (South)"
             }
         };
+
+        /** Exactly 5 bilingual quiz items from designer spec §7 */
+        const QUIZ = [
+            {
+                type: 'mc',
+                q: {
+                    zh: '重置（或確保只有一塊棒狀磁鐵），顯示模式選「磁力線」。關於磁鐵**外部**場線箭頭，哪項最合理？',
+                    en: 'Reset (or keep a single bar magnet) with Field Lines on. About arrows **outside** the magnet, which is most reasonable?'
+                },
+                opts: {
+                    zh: [
+                        '大致由 N（紅）指向 S（藍）',
+                        '一律由 S 指向 N，且與電流無關的電場相同',
+                        '場線只存在於磁鐵內部，外部完全空白',
+                        '本模擬沒有 N／S 顏色區分'
+                    ],
+                    en: [
+                        'They run roughly from N (red) toward S (blue)',
+                        'Always S → N, identical to an electric field with no current',
+                        'Lines exist only inside the magnet; outside is empty',
+                        'This sim never colour-codes N／S'
+                    ]
+                },
+                correct: 0,
+                ans: {
+                    zh: 'A。圖例與雙極模型：外場 N→S。',
+                    en: 'A. Legend and dipole model: external field N→S.'
+                }
+            },
+            {
+                type: 'short',
+                q: {
+                    zh: '新增第二塊磁鐵，先讓兩 N 極靠近，再改為 N 對 S 靠近。先預測場線圖差異，再操作後用一兩句描述疊加。',
+                    en: 'Add a second magnet. First bring two N poles close, then N facing S. Predict how the field-line pattern differs, operate, then describe superposition in one or two sentences.'
+                },
+                ans: {
+                    zh: '同極靠近時間隙場線較「互斥／撐開」；異極靠近時較易「連通」——$\\vec{B}_{total}=\\sum\\vec{B}_i$ 的可視後果。',
+                    en: 'Like poles show a more repelling gap pattern; opposite poles connect more readily—visible consequence of $\\vec{B}_{total}=\\sum\\vec{B}_i$.'
+                }
+            },
+            {
+                type: 'mc',
+                q: {
+                    zh: '清除後新增直導線，切到俯視，顯示磁力線。把 Inspector 電流從正值調到明顯負值。哪項最正確？',
+                    en: 'Clear, add a straight wire, top view, Field Lines. Drag inspector current from clearly positive to clearly negative. Which is most correct?'
+                },
+                opts: {
+                    zh: [
+                        '俯視下場線大致呈環繞導線的同心圓；電流反向後環繞方向反轉（可對照黃箭頭）',
+                        '直導線的場線永遠是從 N 到 S 的直線，與電流無關',
+                        '俯視會刪除導線物件',
+                        '負電流會把顯示模式強制改成鐵粉末'
+                    ],
+                    en: [
+                        'Top view shows roughly concentric loops around the wire; reversing current reverses the sense (compare the yellow arrow)',
+                        'Wire lines are always straight N→S paths independent of current',
+                        'Top view deletes the wire',
+                        'Negative current forces Iron Filings mode'
+                    ]
+                },
+                correct: 0,
+                ans: {
+                    zh: 'A。安培圓周場＋右手定則（本檔切向實作）。',
+                    en: 'A. Ampère circular field + right-hand rule (tangential implementation here).'
+                }
+            },
+            {
+                type: 'short',
+                q: {
+                    zh: '先重置回單磁鐵與磁力線模式，再依次切換「小磁鐵」「鐵粉末」，最後按重置。用自己的話寫：（1）三種模式是否在描述同一淨磁場；（2）重置後大約回到什麼場景；（3）重置應否改變中／EN（本設計預期）。',
+                    en: 'Reset to one magnet and Field Lines, then switch to Small Magnets, then Iron Filings, then Reset again. In your own words: (1) do the three modes describe the same net field; (2) about what scene Reset restores; (3) should Reset change zh／EN (per this design)?'
+                },
+                ans: {
+                    zh: '（1）是，同一 $\\vec{B}$ 的不同可視化；（2）單一棒狀磁鐵＋磁力線模式（相機可回 3D）；（3）重置**不**應切換語言。',
+                    en: '(1) Yes—same net $\\vec{B}$, different viz; (2) single bar magnet + Field Lines (camera may return to 3D); (3) Reset should **not** switch language.'
+                }
+            },
+            {
+                type: 'mc',
+                q: {
+                    zh: '根據本模擬控件與設計，哪項最正確？',
+                    en: 'Using this sim’s controls and design, which is most correct?'
+                },
+                opts: {
+                    zh: [
+                        '可放置磁鐵／直導線／線圈，拖曳並調磁矩或電流，用磁力線／小磁針／鐵粉看淨場疊加；有步驟／原理／五題／中EN／重置——主題是磁力線與磁場疊加，不是螺線管專題、庫侖電場或電動機',
+                        '本檔提供匝數與鐵芯 μ 滑桿並驗證理想螺線管 $B=\\mu_0 n I$',
+                        '重置會強制改成英文並刪除 MathJax',
+                        '主要展示氣體定律 $PV=nRT$'
+                    ],
+                    en: [
+                        'You can place magnets／wires／coils, drag and tune moment or current, view net superposition via lines／compass／filings; steps／principle／five quiz items／zh-EN／reset—this is field lines and magnetic superposition, not a solenoid-only lab, Coulomb electric fields, or a motor',
+                        'This file offers turn-density and core-μ sliders checking ideal solenoid $B=\\mu_0 n I$',
+                        'Reset always switches to English and removes MathJax',
+                        'It mainly shows the ideal-gas law $PV=nRT$'
+                    ]
+                },
+                correct: 0,
+                ans: {
+                    zh: 'A。隔離 solenoid／coulomb／dc-motor／gas_laws；Reset 不改語言。',
+                    en: 'A. Isolated from solenoid／coulomb／dc-motor／gas_laws; Reset does not change language.'
+                }
+            }
+        ];
 
         /**
          * 物理常數與計算核心
@@ -459,8 +712,10 @@
                 
                 this.needsUpdate = false;
                 this.vizMode = 'lines'; // 'lines', 'compass', 'filings'
-                this.lang = 'zh'; 
-                this.isTopView = false; 
+                this.lang = 'zh';
+                this.isTopView = false;
+                this.quizAnswersVisible = false;
+                this.quizSelections = {};
 
                 this.init();
             }
@@ -508,9 +763,14 @@
 
                 window.addEventListener('resize', () => this.onResize());
                 this.renderer.domElement.addEventListener('pointerdown', (e) => this.onPointerDown(e));
-                
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') this.closeAllModals();
+                });
+
+                document.documentElement.lang = 'zh-Hant';
                 this.initDragControls();
-                this.addMagnet();
+                this.addMagnet(true); // fixed (0,2,0) for reproducible classroom start
+                this.renderQuiz();
                 this.animate();
             }
 
@@ -535,14 +795,21 @@
 
             toggleLanguage() {
                 this.lang = this.lang === 'zh' ? 'en' : 'zh';
+                document.documentElement.lang = this.lang === 'zh' ? 'zh-Hant' : 'en';
                 this.updateUIText();
                 if (this.selectedObject) this.updateInspector(this.selectedObject);
-                
+
                 const btnSpan = document.querySelector('[data-i18n="viewToggle"]');
                 const dict = DICT[this.lang];
                 if(btnSpan) {
                     btnSpan.innerText = this.isTopView ? dict.viewToggleTop : dict.viewToggle;
                 }
+
+                const ansBtn = document.getElementById('btn-quiz-answers');
+                if (ansBtn) {
+                    ansBtn.textContent = this.quizAnswersVisible ? dict.quizHideAnswers : dict.quizShowAnswers;
+                }
+                this.renderQuiz();
             }
 
             updateUIText() {
@@ -562,9 +829,99 @@
                 }
             }
 
+            openModal(id) {
+                this.closeAllModals();
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.remove('hidden-modal');
+                if (id === 'modal-quiz') this.renderQuiz();
+                this.typesetModal(el);
+            }
+
+            closeModal(id) {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden-modal');
+            }
+
+            closeAllModals() {
+                ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(id => this.closeModal(id));
+            }
+
+            typesetModal(el) {
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    MathJax.typesetPromise(el ? [el] : undefined).catch(() => {});
+                }
+            }
+
+            /** @deprecated use openModal/closeModal */
             toggleModal(id) {
                 const el = document.getElementById(id);
-                el.classList.toggle('hidden-modal');
+                if (!el) return;
+                if (el.classList.contains('hidden-modal')) this.openModal(id);
+                else this.closeModal(id);
+            }
+
+            fmt(text) {
+                return String(text).replace(/\*\*(.*?)\*\*/g, '<b class="text-sky-300">$1</b>');
+            }
+
+            renderQuiz() {
+                const list = document.getElementById('quiz-list');
+                if (!list) return;
+                const lang = this.lang;
+                const letters = ['A', 'B', 'C', 'D'];
+                const ref = lang === 'zh' ? '參考答案' : 'Reference answer';
+                const openHint = lang === 'zh' ? '（先預測，再操作模擬核對，然後用筆記作答）' : '(Predict first, operate the sim, then answer in your notes.)';
+                list.innerHTML = QUIZ.map((item, qi) => {
+                    const n = qi + 1;
+                    const qHtml = this.fmt(item.q[lang]);
+                    let body = '';
+                    if (item.type === 'mc') {
+                        const qid = 'q' + n;
+                        body = '<div class="grid gap-1.5">' + item.opts[lang].map((opt, oi) =>
+                            `<label class="flex items-start gap-2 rounded-lg border border-slate-700 p-2 cursor-pointer hover:bg-slate-900/60"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-500"><span>${letters[oi]}. ${this.fmt(opt)}</span></label>`
+                        ).join('') + '</div>';
+                    } else {
+                        body = `<p class="text-xs text-slate-500 mt-1">${openHint}</p>`;
+                    }
+                    const ansBlock = this.quizAnswersVisible
+                        ? `<div class="mt-2 text-[11px] text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>${ref}：</strong> ${this.fmt(item.ans[lang])}</div>` : '';
+                    return `<div class="border border-slate-700/80 rounded-xl p-4 bg-slate-900/40">
+                        <div class="text-sm font-semibold text-rose-200 mb-2">Q${n}. ${qHtml}</div>
+                        ${body}
+                        ${ansBlock}
+                    </div>`;
+                }).join('');
+                this.typesetModal(document.getElementById('modal-quiz'));
+            }
+
+            toggleQuizAnswers() {
+                this.quizAnswersVisible = !this.quizAnswersVisible;
+                const dict = DICT[this.lang];
+                const ansBtn = document.getElementById('btn-quiz-answers');
+                if (ansBtn) {
+                    ansBtn.textContent = this.quizAnswersVisible ? dict.quizHideAnswers : dict.quizShowAnswers;
+                }
+                this.renderQuiz();
+            }
+
+            /**
+             * Reset = classroom start (single bar magnet + field lines + 3D camera).
+             * Does NOT reset language. Distinct from clearScene() (empty lab).
+             */
+            resetScene() {
+                this.clearScene();
+                this.vizMode = 'lines';
+                const radio = document.querySelector('input[name="viz-mode"][value="lines"]');
+                if (radio) radio.checked = true;
+                this.isTopView = false;
+                this.camera.position.set(10, 10, 15);
+                this.camera.lookAt(0, 0, 0);
+                this.controls.target.set(0, 0, 0);
+                this.controls.update();
+                const btnSpan = document.querySelector('[data-i18n="viewToggle"]');
+                if (btnSpan) btnSpan.innerText = DICT[this.lang].viewToggle;
+                this.addMagnet(true);
             }
 
             initDragControls() {
@@ -642,7 +999,8 @@
                 return sprite;
             }
 
-            addMagnet() {
+            /** @param {boolean} [fixed=false] fixed (0,2,0) for Reset / initial classroom state */
+            addMagnet(fixed = false) {
                 const group = new THREE.Group();
                 const geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 32);
                 const materialTop = new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.4 }); // N
@@ -655,7 +1013,11 @@
                 
                 group.add(nMesh);
                 group.add(sMesh);
-                group.position.set((Math.random()-0.5)*5, 2, (Math.random()-0.5)*5);
+                if (fixed) {
+                    group.position.set(0, 2, 0);
+                } else {
+                    group.position.set((Math.random()-0.5)*5, 2, (Math.random()-0.5)*5);
+                }
                 group.rotation.z = Math.PI / 2;
 
                 nMesh.castShadow = true; sMesh.castShadow = true;

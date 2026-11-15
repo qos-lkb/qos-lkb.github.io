@@ -1,161 +1,297 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>風力發電物理模型</title>
+    <title>風能發電物理模型 | Wind Power Physics Model</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 加入 MathJax 用於顯示 LaTeX 公式 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
         MathJax = {
             tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']]
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
             }
         };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-
     <style>
-        /* 自定義滑桿樣式 */
+        body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
         input[type=range] {
-            -webkit-appearance: none; 
-            background: transparent; 
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
         }
-        
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
+            appearance: none;
             height: 20px;
             width: 20px;
             border-radius: 50%;
-            background: #34d399; /* emerald-400 */
+            background: #34d399;
             cursor: pointer;
-            margin-top: -8px; 
+            margin-top: -8px;
             box-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
-
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
             height: 4px;
             cursor: pointer;
-            background: #4b5563; /* gray-600 */
+            background: #4b5563;
             border-radius: 2px;
         }
-
-        input[type=range]:focus {
-            outline: none;
+        input[type=range]:focus { outline: none; }
+        .teach-btn {
+            font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid; transition: background-color 0.15s, color 0.15s;
         }
+        .step-card {
+            background: #1e2937; border: 1px solid #334155; border-radius: 0.75rem;
+            padding: 1rem; margin-bottom: 0.75rem;
+        }
+        .quiz-item {
+            margin-bottom: 1.25rem; padding: 1rem; background: #1e2937;
+            border: 1px solid #334155; border-radius: 0.75rem;
+        }
+        .quiz-item .q-stem { font-weight: 600; color: #f1f5f9; margin-bottom: 0.75rem; }
+        .quiz-options { display: flex; flex-direction: column; gap: 0.5rem; }
+        .quiz-options button {
+            text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid #475569; background: #0f172a; font-size: 0.875rem;
+            color: #cbd5e1; transition: all 0.15s;
+        }
+        .quiz-options button:hover { border-color: #34d399; background: #064e3b; }
+        .quiz-options button.selected { border-color: #34d399; background: #065f46; }
+        .quiz-options button.correct { border-color: #16a34a; background: #14532d; }
+        .quiz-options button.wrong { border-color: #dc2626; background: #7f1d1d; }
+        .quiz-answer {
+            display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+            background: #0f172a; border-radius: 0.5rem; font-size: 0.85rem; color: #94a3b8;
+        }
+        .quiz-answer.show { display: block; }
+        .short-answer-box {
+            width: 100%; min-height: 4rem; margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem; border: 1px solid #475569; background: #0f172a;
+            color: #e2e8f0; font-size: 0.875rem;
+        }
+        .math-container { overflow-x: auto; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
-    <!-- Header -->
-    <header class="bg-slate-800 p-4 border-b border-slate-700 shadow-lg">
-        <div class="container mx-auto flex items-center justify-between">
-            <h1 class="text-2xl font-bold text-emerald-400">🌬️ 風能發電物理模型</h1>
-            <span class="text-sm text-slate-400 hidden sm:block">物理教學互動教具</span>
+    <header class="bg-slate-800 p-3 sm:p-4 border-b border-slate-700 shadow-lg z-20">
+        <div class="container mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div class="min-w-0">
+                <span class="inline-block text-[10px] font-bold uppercase tracking-wider bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded mb-0.5" data-i18n="badge">物理</span>
+                <h1 class="text-lg sm:text-2xl font-bold text-emerald-400 truncate" data-i18n="title">🌬️ 風能發電物理模型</h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <button type="button" id="btn-steps" class="teach-btn border-indigo-400 bg-slate-700 text-indigo-200 hover:bg-slate-600" data-i18n="btnSteps">觀察步驟</button>
+                <button type="button" id="btn-principle" class="teach-btn border-yellow-400 bg-slate-700 text-yellow-200 hover:bg-slate-600" data-i18n="btnPrinciple">原理解說</button>
+                <button type="button" id="btn-quiz" class="teach-btn border-violet-400 bg-slate-700 text-violet-200 hover:bg-slate-600" data-i18n="btnQuiz">課堂問題</button>
+                <span class="hidden sm:inline text-slate-500 mx-0.5">|</span>
+                <button type="button" id="btn-lang" class="teach-btn border-blue-400 bg-blue-600 text-white hover:bg-blue-500 font-medium">中 / EN</button>
+            </div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="flex-grow container mx-auto p-4 flex flex-col lg:flex-row gap-6">
-        
-        <!-- Left Column: Controls & Data -->
-        <div class="w-full lg:w-1/3 flex flex-col gap-6">
-            
-            <!-- Controls Card -->
+    <!-- Scheme B: lg:grid-cols-3 (controls 1, viz 2); narrow: viz order-1, controls order-2 -->
+    <main class="flex-grow container mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Viz -->
+        <section class="order-1 lg:order-2 lg:col-span-2 bg-black rounded-xl shadow-2xl overflow-hidden relative border border-slate-600 h-[500px] lg:h-auto min-h-[420px]">
+            <div class="absolute top-4 right-4 bg-black/50 backdrop-blur px-3 py-1 rounded text-xs text-slate-400 z-10 pointer-events-none" data-i18n="overlay">
+                視覺模擬
+            </div>
+            <canvas id="simCanvas" class="w-full h-full block"></canvas>
+        </section>
+
+        <!-- Controls -->
+        <aside class="order-2 lg:order-1 lg:col-span-1 flex flex-col gap-6">
+
             <div class="bg-slate-800 p-6 rounded-xl shadow-xl border border-slate-700">
-                <h2 class="text-xl font-semibold mb-4 text-emerald-300 border-b border-slate-600 pb-2">參數設定</h2>
-                
-                <!-- Slider 1: Wind Speed -->
+                <h2 class="text-xl font-semibold mb-4 text-emerald-300 border-b border-slate-600 pb-2" data-i18n="controlsHeader">參數設定</h2>
+
+                <button type="button" id="btn-reset" class="mb-4 w-full py-2 rounded-lg text-sm font-bold border border-red-500/50 text-red-300 hover:bg-red-900/40 hover:border-red-400 transition">
+                    <span data-i18n="btnReset">重置</span>
+                </button>
+
                 <div class="mb-6">
                     <div class="flex justify-between mb-2">
-                        <label class="text-sm font-medium text-slate-300">風速 ($v$)</label>
+                        <label class="text-sm font-medium text-slate-300" data-i18n="labelSpeed">風速 ($v$)</label>
                         <span class="text-emerald-400 font-mono"><span id="val-speed">10.0</span> m/s</span>
                     </div>
                     <input type="range" id="slider-speed" min="0" max="30" step="0.1" value="10.0" class="w-full">
                 </div>
 
-                <!-- Slider 2: Blade Length -->
                 <div class="mb-6">
                     <div class="flex justify-between mb-2">
-                        <label class="text-sm font-medium text-slate-300">扇葉長度/半徑 ($r$)</label>
+                        <label class="text-sm font-medium text-slate-300" data-i18n="labelRadius">扇葉半徑 ($r$)</label>
                         <span class="text-emerald-400 font-mono"><span id="val-length">15.0</span> m</span>
                     </div>
                     <input type="range" id="slider-length" min="1" max="30" step="0.5" value="15.0" class="w-full">
                 </div>
 
-                <!-- Slider 3: Air Density -->
                 <div class="mb-6">
                     <div class="flex justify-between mb-2">
-                        <label class="text-sm font-medium text-slate-300">空氣密度 ($\rho$)</label>
+                        <label class="text-sm font-medium text-slate-300" data-i18n="labelDensity">空氣密度 ($\rho$)</label>
                         <span class="text-emerald-400 font-mono"><span id="val-density">1.225</span> kg/m³</span>
                     </div>
                     <input type="range" id="slider-density" min="1.0" max="1.4" step="0.001" value="1.225" class="w-full">
-                    <p class="text-xs text-slate-500 mt-1">*標準大氣壓約為 1.225 kg/m³</p>
+                    <p class="text-xs text-slate-500 mt-1" data-i18n="noteDensity">*標準大氣壓約為 1.225 kg/m³</p>
                 </div>
 
-                <!-- Slider 4: Efficiency -->
                 <div class="mb-2">
                     <div class="flex justify-between mb-2">
-                        <label class="text-sm font-medium text-slate-300">系統總效率 ($\eta$)</label>
+                        <label class="text-sm font-medium text-slate-300" data-i18n="labelEta">系統總效率 ($\eta$)</label>
                         <span class="text-emerald-400 font-mono"><span id="val-efficiency">30</span>%</span>
                     </div>
-                    <!-- Update: Max efficiency increased to 60% -->
                     <input type="range" id="slider-efficiency" min="0" max="60" step="1" value="30" class="w-full">
-                    <p class="text-xs text-slate-500 mt-1">*Betz 極限理論上限約 59.3%</p>
+                    <p class="text-xs text-slate-500 mt-1" data-i18n="noteBetz">*Betz 極限理論上限約 59.3%</p>
                 </div>
             </div>
 
-            <!-- Physics & Calculation Card -->
             <div class="bg-slate-800 p-6 rounded-xl shadow-xl border border-slate-700 flex-grow flex flex-col justify-center">
-                <h2 class="text-xl font-semibold mb-4 text-blue-300 border-b border-slate-600 pb-2">功率計算</h2>
-                
-                <div class="mb-4 bg-slate-900 p-3 rounded border border-slate-600 flex flex-col items-center justify-center min-h-[100px]">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300 border-b border-slate-600 pb-2" data-i18n="powerHeader">功率計算</h2>
+
+                <div class="mb-4 bg-slate-900 p-3 rounded border border-slate-600 flex flex-col items-center justify-center min-h-[100px] math-container">
                     <p class="text-lg mb-2">
                         $$P = \frac{1}{2} \rho A v^3 \eta$$
                     </p>
                     <p class="text-sm text-slate-400">
-                        $$A = \pi r^2 \text{ (掃掠面積)}$$
+                        $$A = \pi r^2$$
                     </p>
+                    <p class="text-xs text-slate-500 mt-1" data-i18n="sweptNote">（掃掠面積）</p>
                 </div>
 
                 <div class="space-y-2 text-sm text-slate-300 mb-4">
                     <div class="flex justify-between items-center">
-                        <span>掃掠面積 ($A$):</span>
+                        <span data-i18n="labelArea">掃掠面積 ($A$):</span>
                         <span class="font-mono text-blue-200"><span id="display-area">0</span> m²</span>
                     </div>
                     <div class="flex justify-between items-center">
-                        <span>風能功率 ($P_{wind}$):</span>
+                        <span data-i18n="labelWindPower">風能功率 ($P_{wind}$):</span>
                         <span class="font-mono text-blue-200"><span id="display-wind-power">0</span></span>
                     </div>
                 </div>
 
                 <div class="mt-auto bg-emerald-900/30 border border-emerald-500/50 p-4 rounded-lg text-center">
-                    <h3 class="text-emerald-200 text-sm uppercase tracking-wider mb-1">輸出功率 Output Power</h3>
+                    <h3 class="text-emerald-200 text-sm uppercase tracking-wider mb-1" data-i18n="labelOutput">輸出功率</h3>
                     <p class="text-4xl font-bold text-emerald-400 font-mono" id="display-output">0 kW</p>
                 </div>
             </div>
-
-        </div>
-
-        <!-- Right Column: Animation -->
-        <div class="w-full lg:w-2/3 bg-black rounded-xl shadow-2xl overflow-hidden relative border border-slate-600 h-[500px] lg:h-auto">
-            <!-- Overlay Info -->
-            <div class="absolute top-4 right-4 bg-black/50 backdrop-blur px-3 py-1 rounded text-xs text-slate-400 z-10 pointer-events-none">
-                視覺模擬 Visual Simulation
-            </div>
-            
-            <canvas id="simCanvas" class="w-full h-full block"></canvas>
-        </div>
+        </aside>
     </main>
 
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" data-modal-panel>
+            <div class="flex justify-between items-center p-5 border-b border-slate-700">
+                <h3 class="text-xl font-bold text-white" id="steps-title" data-i18n="stepsTitle">觀察步驟</h3>
+                <button type="button" class="text-slate-400 hover:text-white text-2xl leading-none" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+            </div>
+            <div id="steps-body" class="p-5 text-sm text-slate-300 leading-relaxed"></div>
+            <div class="px-5 pb-5 flex justify-end">
+                <button type="button" class="px-5 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm" data-close-modal="modal-steps" data-i18n="btnClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Principle -->
+    <div id="modal-principle" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" data-modal-panel>
+            <div class="flex justify-between items-center p-5 border-b border-slate-700">
+                <h3 class="text-xl font-bold text-white" id="principle-title" data-i18n="principleTitle">原理解說</h3>
+                <button type="button" class="text-slate-400 hover:text-white text-2xl leading-none" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            </div>
+            <div id="principle-body" class="p-5 text-sm text-slate-300 leading-relaxed space-y-4"></div>
+            <div class="px-5 pb-5 flex justify-end">
+                <button type="button" class="px-5 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm" data-close-modal="modal-principle" data-i18n="btnGotIt">明白</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" data-modal-panel>
+            <div class="flex justify-between items-center p-5 border-b border-slate-700 flex-wrap gap-2">
+                <h3 class="text-xl font-bold text-white" id="quiz-title" data-i18n="quizTitle">課堂問題</h3>
+                <div class="flex items-center gap-2 ml-auto">
+                    <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-violet-600/30 text-violet-200 border border-violet-500/40 text-xs font-semibold" data-i18n="btnShowAnswer">顯示參考答案</button>
+                    <button type="button" class="text-slate-400 hover:text-white text-2xl leading-none" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div id="quiz-body" class="p-5 text-sm text-slate-300 leading-relaxed"></div>
+            <div class="px-5 pb-5 flex justify-end">
+                <button type="button" class="px-5 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm" data-close-modal="modal-quiz" data-i18n="btnClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // --- 常數與變數初始化 ---
+        const DEFAULTS = { v: 10.0, r: 15.0, rho: 1.225, eta: 30 };
         const PI = Math.PI;
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
 
-        // DOM 元素
         const inputs = {
             speed: document.getElementById('slider-speed'),
             length: document.getElementById('slider-length'),
@@ -173,63 +309,275 @@
             output: document.getElementById('display-output')
         };
 
-        // 模擬狀態
+        let quizAnswersVisible = false;
+
         let state = {
-            v: parseFloat(inputs.speed.value),      // 風速 m/s
-            r: parseFloat(inputs.length.value),     // 半徑 m
-            rho: parseFloat(inputs.density.value),  // 密度 kg/m^3
-            eta: parseFloat(inputs.efficiency.value), // 效率 %
-            angle: 0,                               // 扇葉角度
-            particles: []                           // 風粒子陣列
+            v: DEFAULTS.v,
+            r: DEFAULTS.r,
+            rho: DEFAULTS.rho,
+            eta: DEFAULTS.eta,
+            angle: 0,
+            particles: [],
+            lang: 'zh'
         };
 
-        // --- 物理計算功能 ---
+        const STEPS = {
+            zh: [
+                '確認預設約 <strong>$v=10.0\\,\\mathrm{m/s}$</strong>、$r=15.0\\,\\mathrm{m}$、$\\rho=1.225\\,\\mathrm{kg/m^3}$、$\\eta=30\\%$。記下左側 <strong>掃掠面積 $A$</strong>（應約 $706.9\\,\\mathrm{m^2}$）與 <strong>輸出功率</strong>。把 <strong>風速 $v$</strong> 明顯調高：輸出功率應近似按 $v^{3}$ 急升；Canvas 風粒子加快、葉片轉得更快。把 $v$ 調到 <strong>0</strong>：葉片應停止、功率為 0。',
+                '保持其他大致不變，把 <strong>扇葉半徑 $r$</strong> 調大：葉片視覺變長；$A=\\pi r^{2}$ 與輸出功率應明顯上升（$P\\propto r^{2}$）。再把 $r$ 調小，確認 $A$ 與 $P$ 下降。',
+                '微調 <strong>空氣密度 $\\rho$</strong>（對照旁註標準約 1.225）：觀察輸出隨 $\\rho$ 近似正比變化。再掃 <strong>效率 $\\eta$</strong>：輸出隨 $\\eta$ 上升；讀取 Betz 極限旁註（約 59.3%），確認滑桿上限為 60%（示意，勿當作真實風機可穩定達標的保證）。',
+                '按<strong>重置</strong>：四個滑桿與 $A$／功率顯示應回預設；<strong>語言不變</strong>。打開原理解說與課堂問題：對照 $P=\\frac12\\rho A v^{3}\\eta$、$A=\\pi r^{2}$、Betz 極限，以及本模擬假設（均勻來流、圓盤掃掠、視覺轉速示意；<strong>非</strong> CFD／變槳控制；<strong>非</strong>熱傳導傅立葉定律、<strong>非</strong> OTTV、<strong>非</strong>車輛再生制動）。'
+            ],
+            en: [
+                'Note defaults ~<strong>$v=10.0\\,\\mathrm{m/s}$</strong>, $r=15.0\\,\\mathrm{m}$, $\\rho=1.225\\,\\mathrm{kg/m^3}$, $\\eta=30\\%$. Record <strong>swept area $A$</strong> (~$706.9\\,\\mathrm{m^2}$) and <strong>output power</strong>. Raise <strong>wind speed $v$</strong>: output should surge roughly as $v^{3}$; particles speed up and blades spin faster. Set $v$ to <strong>0</strong>: blades stop and power is 0.',
+                'Keep other inputs roughly fixed; raise <strong>blade radius $r$</strong>: blades lengthen on canvas; $A=\\pi r^{2}$ and output rise ($P\\propto r^{2}$). Lower $r$ and watch $A$ and $P$ fall.',
+                'Nudge <strong>air density $\\rho$</strong> (note the ~1.225 standard hint): output scales roughly with $\\rho$. Sweep <strong>efficiency $\\eta$</strong>: output rises with $\\eta$; read the Betz-limit note (~59.3%) and confirm the slider max is 60% (schematic—not a promise that real turbines steadily reach it).',
+                '<strong>Reset</strong>: sliders and $A$/power readouts return to defaults; <strong>language unchanged</strong>. Open Principles and Quiz: match $P=\\frac12\\rho A v^{3}\\eta$, $A=\\pi r^{2}$, the Betz limit, and the idealizations (uniform inflow, disk sweep, schematic spin—<strong>not</strong> CFD/pitch control; <strong>not</strong> Fourier conduction, <strong>not</strong> OTTV, <strong>not</strong> vehicle regen braking).'
+            ]
+        };
+
+        const PRINCIPLE = {
+            zh: {
+                conceptTitle: '概念',
+                concept: '<strong>風力發電</strong>把氣流的<strong>動能</strong>經風機葉片轉為機械能，再經發電機轉為電能。課堂常用理想模型：單位時間通過掃掠面積 $A$ 的風所攜帶的動能通量為 $P_{\\mathrm{wind}}=\\frac12\\rho A v^{3}$；實際可輸出功率再乘系統總效率 $\\eta$。',
+                mechTitle: '機制',
+                mech: [
+                    '<strong>掃掠面積</strong>：$A=\\pi r^{2}$（葉尖劃出的圓盤）。$r$↑ → $A$↑ → 可攔截更多風 → $P\\propto r^{2}$。',
+                    '<strong>風速立方律</strong>：$P_{\\mathrm{wind}}\\propto v^{3}$——風速稍增，功率可大幅上升；無風（$v=0$）則無功率。',
+                    '<strong>空氣密度 $\\rho$</strong>：質量通量與動能皆與密度有關；$P\\propto\\rho$。海平面標準約 $1.225\\,\\mathrm{kg/m^{3}}$（本模擬可調範圍示意）。',
+                    '<strong>效率 $\\eta$</strong>：含葉片氣動、機械傳動、發電機等總損失。<strong>Betz 極限</strong>指出理想致動盤最多取走約 $16/27\\approx 59.3\\%$ 的風動能通量；真實機組通常低於此外再扣系統損失。本模擬以 0–60% 單一滑桿示意。',
+                    '<strong>假設</strong>：均勻來流、穩態圓盤、無偏航／變槳細節；Canvas 轉速僅視覺近似（與 tip-speed ratio 控制迴路無關）——<strong>非</strong> CFD。'
+                ],
+                egTitle: '日常例子',
+                eg: '沿海／山頂風場選址重視平均風速（立方律）；大型風機用更長葉片增大 $A$；空氣密度隨海拔／氣溫略變。勿把本模擬與「固體熱傳導 $P=\\kappa A\\Delta T/d$」「建築 OTTV／窗牆比」「電油／電動／混能車再生制動」當成同一組操作目標。'
+            },
+            en: {
+                conceptTitle: 'Concept',
+                concept: '<strong>Wind power</strong> converts the <strong>kinetic energy</strong> of airflow into mechanical work via blades, then into electricity in a generator. The classroom ideal model uses the kinetic power flux through swept area $A$: $P_{\\mathrm{wind}}=\\frac12\\rho A v^{3}$; the delivered electrical power multiplies by a system efficiency $\\eta$.',
+                mechTitle: 'Mechanism',
+                mech: [
+                    '<strong>Swept area</strong>: $A=\\pi r^{2}$ (disk traced by the blade tips). Larger $r$ → larger $A$ → $P\\propto r^{2}$.',
+                    '<strong>Cube law</strong>: $P_{\\mathrm{wind}}\\propto v^{3}$—a modest speed rise can sharply raise power; $v=0$ ⇒ no power.',
+                    '<strong>Air density $\\rho$</strong>: both mass flux and kinetic energy scale with density; $P\\propto\\rho$. Sea-level standard is about $1.225\\,\\mathrm{kg/m^{3}}$ (this sim’s range is schematic).',
+                    '<strong>Efficiency $\\eta$</strong>: lumps aerodynamic, mechanical, and electrical losses. The <strong>Betz limit</strong> says an ideal actuator disk can extract at most $16/27\\approx 59.3\\%$ of the wind’s kinetic flux; real machines sit lower still after system losses. This sim uses a single 0–60% slider.',
+                    '<strong>Idealizations</strong>: uniform inflow, steady disk, no yaw／pitch detail; canvas spin is visual only (not a tip-speed-ratio control loop)—<strong>not</strong> CFD.'
+                ],
+                egTitle: 'Everyday example',
+                eg: 'Coastal／ridge siting cares about mean wind speed (cube law); utility turbines use longer blades to grow $A$; density shifts mildly with altitude／temperature. Do not merge this lab with solid Fourier conduction $P=\\kappa A\\Delta T/d$, building OTTV／WWR, or petrol／EV／hybrid regen-braking labs as the same learning goal.'
+            }
+        };
+
+        const QUIZ = [
+            {
+                type: 'mc',
+                stem: {
+                    zh: '在其他參數大致維持預設時，把 <strong>風速 $v$</strong> 明顯調高。哪項最符合本模擬？',
+                    en: 'With other inputs near defaults, raise <strong>wind speed $v$</strong> clearly. Which best matches this sim?'
+                },
+                options: {
+                    zh: [
+                        '輸出功率近似按 $v^{3}$ 急升；風粒子加快、葉片轉得更快',
+                        '$v$ 只改變語言，永不影響功率',
+                        '增大 $v$ 一定把 $\\eta$ 自動重設為 0',
+                        '本模擬沒有風速滑桿'
+                    ],
+                    en: [
+                        'Output surges roughly as $v^{3}$; particles and blade spin speed up',
+                        '$v$ only switches language and never affects power',
+                        'Raising $v$ always resets $\\eta$ to 0',
+                        'This sim has no wind-speed slider'
+                    ]
+                },
+                correct: 0,
+                answer: {
+                    zh: 'A。對應 $P\\propto v^{3}$ 與粒子／角速度視覺。',
+                    en: 'A. Matches $P\\propto v^{3}$ and particle／spin visuals.'
+                }
+            },
+            {
+                type: 'short',
+                stem: {
+                    zh: '保持其他參數不變，先把扇葉半徑 $r$ 維持預設記下輸出功率；再把 $r$ 明顯調大。先預測葉片視覺與功率如何變，再操作驗證。',
+                    en: 'Keep other inputs fixed, note output at default $r$; then raise $r$ clearly. Predict blade visuals and output, then verify.'
+                },
+                answer: {
+                    zh: '葉片變長；$A=\\pi r^{2}$ 與輸出上升（$P\\propto r^{2}$）。',
+                    en: 'Blades lengthen; $A=\\pi r^{2}$ and output rise ($P\\propto r^{2}$).'
+                }
+            },
+            {
+                type: 'mc',
+                stem: {
+                    zh: '先把 <strong>$\\rho$</strong> 略為調高，再把 <strong>$\\eta$</strong> 調向接近滑桿上限，並讀取 Betz 旁註。哪項最合理？',
+                    en: 'First raise <strong>$\\rho$</strong> slightly, then move <strong>$\\eta$</strong> toward the slider max, and read the Betz note. Which is most reasonable?'
+                },
+                options: {
+                    zh: [
+                        '輸出隨 $\\rho$ 與 $\\eta$ 上升；Betz 理論上限約 59.3%，本滑桿上限為 60%（示意）',
+                        '$\\eta=0$ 時輸出仍等於 $P_{\\mathrm{wind}}$',
+                        '只有英文介面才計算 $\\rho$',
+                        '調 $\\eta$ 會強制把 $v$ 鎖死在 30'
+                    ],
+                    en: [
+                        'Output rises with $\\rho$ and $\\eta$; Betz limit ≈59.3%, slider max is 60% (schematic)',
+                        'At $\\eta=0$, output still equals $P_{\\mathrm{wind}}$',
+                        '$\\rho$ is computed only in the English UI',
+                        'Changing $\\eta$ locks $v$ at 30'
+                    ]
+                },
+                correct: 0,
+                answer: {
+                    zh: 'A。$\\mathrm{output} = P_{\\mathrm{wind}} \\times (\\eta/100)$；旁註與 max=60 對齊 Betz 示意。',
+                    en: 'A. $\\mathrm{output} = P_{\\mathrm{wind}} \\times (\\eta/100)$; note and max=60 match schematic Betz.'
+                }
+            },
+            {
+                type: 'short',
+                stem: {
+                    zh: '先隨意改動四個滑桿，再按重置。用自己的話寫：（1）重置後 $v$／$r$／$\\rho$／$\\eta$ 與語言應如何（本設計預期）；（2）寫出本模擬用來算輸出功率的公式，並指出哪一項對風速最敏感（最高次方）。',
+                    en: 'Change all four sliders, then Reset. In your own words: (1) after Reset, what should happen to $v$／$r$／$\\rho$／$\\eta$ and language (per this design); (2) write the formula this sim uses for output power, and name which factor is most sensitive to wind speed (highest power).'
+                },
+                answer: {
+                    zh: '（1）回預設 10.0／15.0／1.225／30；<strong>不</strong>切換中／EN。（2）$P=\\frac12\\rho A v^{3}\\eta$（$A=\\pi r^{2}$）；對風速最敏感的是 <strong>$v^{3}$</strong>（立方律）。',
+                    en: '(1) Restore defaults 10.0／15.0／1.225／30; Reset must <strong>not</strong> switch language. (2) $P=\\frac12\\rho A v^{3}\\eta$ ($A=\\pi r^{2}$); most sensitive to wind speed is <strong>$v^{3}$</strong> (cube law).'
+                }
+            },
+            {
+                type: 'mc',
+                stem: {
+                    zh: '根據本模擬控件與設計，哪項最正確？',
+                    en: 'Using this sim’s controls and design, which is most correct?'
+                },
+                options: {
+                    zh: [
+                        '可調 $v$／$r$／$\\rho$／$\\eta$，觀察 $A$、$P_{\\mathrm{wind}}$、輸出功率與 Canvas 風機／風粒子，並有步驟／原理／五題／中EN／重置——主題是風力發電功率模型（含 Betz 示意），不是建築 OTTV、不是車輛能源轉換／再生制動，也不是固體熱傳導傅立葉定律',
+                        '主要用來計算建築窗牆比 WWR 與 OTTV',
+                        '重置會強制改成英文並刪除所有滑桿',
+                        '主要展示金屬塊兩端溫差下的傅立葉熱流 $P=\\kappa A\\Delta T/d$'
+                    ],
+                    en: [
+                        'You can tune $v$／$r$／$\\rho$／$\\eta$, watch $A$, $P_{\\mathrm{wind}}$, output, and the canvas turbine／particles, with steps／principle／five quiz items／zh-EN／reset—this is a wind-power model (with schematic Betz), not building OTTV, not vehicle energy／regen, nor solid Fourier conduction',
+                        'It mainly computes building WWR and OTTV',
+                        'Reset always switches to English and deletes all sliders',
+                        'It mainly shows Fourier heat flow $P=\\kappa A\\Delta T/d$ through a metal block with end $\\Delta T$'
+                    ]
+                },
+                correct: 0,
+                answer: {
+                    zh: 'A。隔離 OTTV／車輛／熱傳導 sibling；Reset 不改語言、不刪滑桿。',
+                    en: 'A. Isolated from OTTV／cars／conduction siblings; Reset does not change language or remove sliders.'
+                }
+            }
+        ];
+
+        const i18n = {
+            zh: {
+                title: '🌬️ 風能發電物理模型',
+                badge: '物理',
+                btnSteps: '觀察步驟',
+                btnPrinciple: '原理解說',
+                btnQuiz: '課堂問題',
+                btnReset: '重置',
+                btnClose: '關閉',
+                btnGotIt: '明白',
+                btnShowAnswer: '顯示參考答案',
+                btnHideAnswer: '隱藏參考答案',
+                controlsHeader: '參數設定',
+                powerHeader: '功率計算',
+                labelSpeed: '風速 ($v$)',
+                labelRadius: '扇葉半徑 ($r$)',
+                labelDensity: '空氣密度 ($\\rho$)',
+                labelEta: '系統總效率 ($\\eta$)',
+                noteDensity: '*標準大氣壓約為 1.225 kg/m³',
+                noteBetz: '*Betz 極限理論上限約 59.3%',
+                labelArea: '掃掠面積 ($A$):',
+                labelWindPower: '風能功率 ($P_{wind}$):',
+                labelOutput: '輸出功率',
+                sweptNote: '（掃掠面積）',
+                overlay: '視覺模擬',
+                stepsTitle: '觀察步驟',
+                principleTitle: '原理解說',
+                quizTitle: '課堂問題',
+                stepLabel: '步驟'
+            },
+            en: {
+                title: '🌬️ Wind Power Physics Model',
+                badge: 'Physics',
+                btnSteps: 'Steps',
+                btnPrinciple: 'Principles',
+                btnQuiz: 'Quiz',
+                btnReset: 'Reset',
+                btnClose: 'Close',
+                btnGotIt: 'Got it',
+                btnShowAnswer: 'Show answer',
+                btnHideAnswer: 'Hide answer',
+                controlsHeader: 'Parameters',
+                powerHeader: 'Power Calculation',
+                labelSpeed: 'Wind speed ($v$)',
+                labelRadius: 'Blade radius ($r$)',
+                labelDensity: 'Air density ($\\rho$)',
+                labelEta: 'System efficiency ($\\eta$)',
+                noteDensity: '*Standard atmosphere ≈ 1.225 kg/m³',
+                noteBetz: '*Betz limit theoretical max ≈ 59.3%',
+                labelArea: 'Swept area ($A$):',
+                labelWindPower: 'Wind power ($P_{wind}$):',
+                labelOutput: 'Output Power',
+                sweptNote: '(swept area)',
+                overlay: 'Visual Simulation',
+                stepsTitle: 'Observation Steps',
+                principleTitle: 'Principles',
+                quizTitle: 'Quiz',
+                stepLabel: 'Step'
+            }
+        };
+
         function calculate() {
-            // 1. 更新狀態
             state.v = parseFloat(inputs.speed.value);
             state.r = parseFloat(inputs.length.value);
             state.rho = parseFloat(inputs.density.value);
             state.eta = parseFloat(inputs.efficiency.value);
 
-            // 2. 更新 UI 數值顯示
             displays.speed.textContent = state.v.toFixed(1);
             displays.length.textContent = state.r.toFixed(1);
             displays.density.textContent = state.rho.toFixed(3);
             displays.efficiency.textContent = state.eta.toFixed(0);
 
-            // 3. 物理計算
             const area = PI * Math.pow(state.r, 2);
             const etaDecimal = state.eta / 100;
-            
-            // 風中蘊含的總功率 P_wind = 0.5 * rho * A * v^3
             const rawWindPower = 0.5 * state.rho * area * Math.pow(state.v, 3);
-            
-            // 實際輸出功率
             const outputPower = rawWindPower * etaDecimal;
 
-            // 4. 顯示計算結果 (Area)
             displays.area.textContent = area.toFixed(1);
-
-            // 格式化功率顯示 (W -> kW -> MW)
             displays.windPower.textContent = formatPower(rawWindPower);
             displays.output.textContent = formatPower(outputPower);
         }
 
         function formatPower(watts) {
             if (watts >= 1000000) {
-                return (watts / 1000000).toFixed(2) + " MW";
+                return (watts / 1000000).toFixed(2) + ' MW';
             } else if (watts >= 1000) {
-                return (watts / 1000).toFixed(2) + " kW";
+                return (watts / 1000).toFixed(2) + ' kW';
             } else {
-                return watts.toFixed(1) + " W";
+                return watts.toFixed(1) + ' W';
             }
         }
 
-        // --- Canvas 動畫功能 ---
+        function resetSimulation() {
+            inputs.speed.value = String(DEFAULTS.v);
+            inputs.length.value = String(DEFAULTS.r);
+            inputs.density.value = String(DEFAULTS.rho);
+            inputs.efficiency.value = String(DEFAULTS.eta);
+            state.v = DEFAULTS.v;
+            state.r = DEFAULTS.r;
+            state.rho = DEFAULTS.rho;
+            state.eta = DEFAULTS.eta;
+            state.angle = 0;
+            calculate();
+        }
 
-        // 初始化粒子
         function initParticles() {
-            for(let i=0; i<50; i++) {
+            state.particles = [];
+            for (let i = 0; i < 50; i++) {
                 state.particles.push({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height,
@@ -239,101 +587,73 @@
             }
         }
 
-        // 調整 Canvas 大小
         function resizeCanvas() {
             const parent = canvas.parentElement;
             canvas.width = parent.clientWidth;
             canvas.height = parent.clientHeight;
         }
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas(); // 初始呼叫
-        initParticles(); // 初始粒子
 
         function draw() {
-            // 清除背景
-            ctx.fillStyle = '#0f172a'; // slate-900
+            ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const centerX = canvas.width * 0.6; // 發電機稍微靠右
-            const centerY = canvas.height * 0.6; // 地面在下方，中心稍微靠下
-            
-            // 視覺比例縮放因子 (將真實米數轉換為像素)
-            // 假設最大 30m 半徑佔據畫面的 40% 高度
-            const scaleFactor = (canvas.height * 0.4) / 30; 
+            const centerX = canvas.width * 0.6;
+            const centerY = canvas.height * 0.6;
+            const scaleFactor = (canvas.height * 0.4) / 30;
             const visualRadius = state.r * scaleFactor;
             const hubRadius = visualRadius * 0.1 > 5 ? visualRadius * 0.1 : 5;
 
-            // --- 1. 繪製風粒子 (背景) ---
-            ctx.strokeStyle = `rgba(167, 243, 208, ${state.rho - 0.8})`; // 顏色隨密度微調透明度
+            ctx.strokeStyle = 'rgba(167, 243, 208, ' + (state.rho - 0.8) + ')';
             ctx.lineWidth = 1;
-            
-            // 粒子移動速度係數 (視覺用)
-            const particleSpeed = state.v * 0.5; 
+            const particleSpeed = state.v * 0.5;
 
-            state.particles.forEach(p => {
+            state.particles.forEach(function (p) {
                 ctx.beginPath();
                 ctx.moveTo(p.x, p.y);
                 ctx.lineTo(p.x + p.len, p.y);
                 ctx.stroke();
-
-                // 移動
                 p.x += particleSpeed * p.speedOffset;
-
-                // 循環
                 if (p.x > canvas.width) {
                     p.x = -50;
                     p.y = Math.random() * canvas.height;
                 }
             });
 
-            // --- 2. 繪製塔架 ---
             const towerWidthTop = hubRadius * 1.5;
             const towerWidthBottom = hubRadius * 3;
-            
             const gradTower = ctx.createLinearGradient(centerX - 20, 0, centerX + 20, 0);
             gradTower.addColorStop(0, '#334155');
             gradTower.addColorStop(0.5, '#64748b');
             gradTower.addColorStop(1, '#334155');
-
             ctx.fillStyle = gradTower;
             ctx.beginPath();
-            ctx.moveTo(centerX - towerWidthTop/2, centerY);
-            ctx.lineTo(centerX + towerWidthTop/2, centerY);
-            ctx.lineTo(centerX + towerWidthBottom/2, canvas.height);
-            ctx.lineTo(centerX - towerWidthBottom/2, canvas.height);
+            ctx.moveTo(centerX - towerWidthTop / 2, centerY);
+            ctx.lineTo(centerX + towerWidthTop / 2, centerY);
+            ctx.lineTo(centerX + towerWidthBottom / 2, canvas.height);
+            ctx.lineTo(centerX - towerWidthBottom / 2, canvas.height);
             ctx.closePath();
             ctx.fill();
 
-            // --- 3. 繪製旋轉的扇葉 ---
             ctx.save();
             ctx.translate(centerX, centerY);
             ctx.rotate(state.angle);
-
-            // 扇葉樣式
-            const bladeColor = '#f1f5f9'; // slate-100
-            ctx.fillStyle = bladeColor;
+            ctx.fillStyle = '#f1f5f9';
             ctx.shadowColor = 'rgba(0,0,0,0.5)';
             ctx.shadowBlur = 10;
-
             for (let i = 0; i < 3; i++) {
                 ctx.beginPath();
-                // 繪製單個扇葉 (類似機翼形狀)
                 ctx.moveTo(0, 0);
-                ctx.quadraticCurveTo(hubRadius, 0, hubRadius, -hubRadius/2);
-                ctx.lineTo(visualRadius, -hubRadius/4); // 尖端
-                ctx.lineTo(visualRadius, hubRadius/4);  // 尖端
-                ctx.quadraticCurveTo(hubRadius, hubRadius/2, 0, 0);
+                ctx.quadraticCurveTo(hubRadius, 0, hubRadius, -hubRadius / 2);
+                ctx.lineTo(visualRadius, -hubRadius / 4);
+                ctx.lineTo(visualRadius, hubRadius / 4);
+                ctx.quadraticCurveTo(hubRadius, hubRadius / 2, 0, 0);
                 ctx.fill();
-                
-                // 旋轉 120 度
                 ctx.rotate((2 * Math.PI) / 3);
             }
-
-            // 恢復陰影設定
             ctx.shadowBlur = 0;
             ctx.restore();
 
-            // --- 4. 繪製中心軸 (Hub) ---
             ctx.beginPath();
             ctx.arc(centerX, centerY, hubRadius, 0, Math.PI * 2);
             const gradHub = ctx.createRadialGradient(centerX, centerY, 2, centerX, centerY, hubRadius);
@@ -342,12 +662,7 @@
             ctx.fillStyle = gradHub;
             ctx.fill();
 
-            // --- 更新旋轉角度 ---
-            // 轉速與風速成正比 (這只是一個視覺近似，真實物理更複雜)
-            // 當風速為0時不轉
-            if(state.v > 0) {
-                // 簡單模擬：角速度 = 風速 * 常數 / 半徑 (半徑大轉得慢)
-                // 為了視覺效果，加一個基礎調整值
+            if (state.v > 0) {
                 const angularVelocity = (state.v * 0.05) / (Math.sqrt(state.r) * 0.3);
                 state.angle += angularVelocity;
             }
@@ -355,15 +670,149 @@
             requestAnimationFrame(draw);
         }
 
-        // --- 事件監聽 ---
-        Object.values(inputs).forEach(input => {
+        function typeset(nodes) {
+            if (window.MathJax && MathJax.typesetPromise) {
+                return MathJax.typesetPromise(nodes || undefined).catch(function () {});
+            }
+            return Promise.resolve();
+        }
+
+        function renderSteps() {
+            const t = i18n[state.lang];
+            const steps = STEPS[state.lang];
+            const body = document.getElementById('steps-body');
+            body.innerHTML = steps.map(function (html, i) {
+                return '<div class="step-card"><div class="text-indigo-300 font-bold mb-2">' + t.stepLabel + ' ' + (i + 1) + '</div><div>' + html + '</div></div>';
+            }).join('');
+            typeset([body]);
+        }
+
+        function renderPrinciple() {
+            const p = PRINCIPLE[state.lang];
+            const body = document.getElementById('principle-body');
+            let html = '';
+            html += '<div><h4 class="text-yellow-300 font-bold mb-2">' + p.conceptTitle + '</h4><p>' + p.concept + '</p></div>';
+            html += '<div class="bg-slate-900 rounded p-4 text-center border border-slate-700 math-container text-emerald-300">$$ P = \\frac{1}{2} \\rho A v^{3} \\eta \\quad , \\quad A = \\pi r^{2} $$</div>';
+            html += '<div><h4 class="text-yellow-300 font-bold mb-2">' + p.mechTitle + '</h4><ol class="list-decimal pl-5 space-y-2">';
+            p.mech.forEach(function (item) { html += '<li>' + item + '</li>'; });
+            html += '</ol></div>';
+            html += '<div><h4 class="text-yellow-300 font-bold mb-2">' + p.egTitle + '</h4><p>' + p.eg + '</p></div>';
+            body.innerHTML = html;
+            typeset([body]);
+        }
+
+        function renderQuiz() {
+            const t = i18n[state.lang];
+            const lang = state.lang;
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const ref = lang === 'zh' ? '參考答案' : 'Reference answer';
+            const shortNote = lang === 'zh' ? '先預測，再操作本模擬核對。' : 'Predict first, then verify on the sim.';
+            body.innerHTML = QUIZ.map(function (q, qi) {
+                const n = qi + 1;
+                const name = 'q' + n;
+                let opts = '';
+                if (q.type === 'mc') {
+                    opts = '<div class="grid gap-1.5 mt-1">' + q.options[lang].map(function (text, oi) {
+                        const L = String.fromCharCode(65 + oi);
+                        return '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer"><input type="radio" name="' + name + '" class="mt-0.5"><span>' + L + '. ' + text + '</span></label>';
+                    }).join('') + '</div>';
+                } else {
+                    opts = '<p class="text-xs text-slate-400 mb-1">' + shortNote + '</p>';
+                }
+                const ans = quizAnswersVisible ? '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + q.answer[lang] + '</div>' : '';
+                return '<div class="quiz-item mb-4"><p class="q-stem font-semibold mb-2"><span class="text-violet-300">Q' + n + '.</span> ' + q.stem[lang] + '</p>' + opts + ans + '</div>';
+            }).join('');
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t.btnHideAnswer : t.btnShowAnswer;
+            typeset([body]);
+        }
+
+        function applyLanguage() {
+            const t = i18n[state.lang];
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+            document.querySelectorAll('[data-i18n]').forEach(function (el) {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.textContent = t[key];
+            });
+            // Re-apply MathJax labels that use $ in data-i18n text
+            document.querySelectorAll('[data-i18n="labelSpeed"],[data-i18n="labelRadius"],[data-i18n="labelDensity"],[data-i18n="labelEta"],[data-i18n="labelArea"],[data-i18n="labelWindPower"]').forEach(function (el) {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.innerHTML = t[key];
+            });
+            document.title = state.lang === 'zh'
+                ? '風能發電物理模型 | Wind Power Physics Model'
+                : 'Wind Power Physics Model | 風能發電物理模型';
+
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+            typeset([document.body]);
+        }
+
+        function closeAllModals(exceptId) {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+                if (exceptId && id === exceptId) return;
+                const modal = document.getElementById(id);
+                if (modal) modal.classList.add('hidden');
+            });
+        }
+
+        function openModal(id) {
+            closeAllModals(id);
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            if (id === 'modal-steps') renderSteps();
+            if (id === 'modal-principle') renderPrinciple();
+            if (id === 'modal-quiz') renderQuiz();
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.add('hidden');
+        }
+
+        Object.values(inputs).forEach(function (input) {
             input.addEventListener('input', calculate);
         });
 
-        // 啟動
-        calculate();
-        draw();
+        document.getElementById('btn-lang').addEventListener('click', function () {
+            state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        });
+        document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+        document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+        document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+        document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+        document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+            quizAnswersVisible = !quizAnswersVisible;
+            renderQuiz();
+        });
 
+        document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                closeModal(btn.getAttribute('data-close-modal'));
+            });
+        });
+
+        ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+            const modal = document.getElementById(id);
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) closeModal(id);
+            });
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeAllModals();
+        });
+
+        resizeCanvas();
+        initParticles();
+        calculate();
+        applyLanguage();
+        draw();
     </script>
 </body>
 </html>

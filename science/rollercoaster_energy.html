@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>過山車能量守恆 | Roller Coaster Energy</title>
+    
+    
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MathJax for Physics Formulas -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- Import Map for Three.js to resolve bare module specifiers -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f0f4f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        
+        /* iPhone style toggle switch */
+        .toggle-checkbox:checked { right: 0; border-color: #68D391; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #68D391; }
+        .toggle-checkbox:checked + .toggle-label:after { transform: translateX(100%); }
+        .toggle-label { width: 3rem; height: 1.5rem; background-color: #CBD5E0; border-radius: 9999px; position: relative; cursor: pointer; transition: background-color .3s; }
+        .toggle-label:after { content: ''; position: absolute; top: 2px; left: 2px; width: 1.25rem; height: 1.25rem; background-color: white; border-radius: 50%; transition: transform .3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        
+        /* Custom Slider */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #3182ce; cursor: pointer; margin-top: -8px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #e2e8f0; border-radius: 3px; }
+        input[type=range]:focus { outline: none; }
+        
+        /* UI Layer */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; box-sizing: border-box; }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Glassmorphism */
+        .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15); }
+        
+        /* Physics Variables */
+        .physics-var { font-family: "Times New Roman", Times, serif; font-style: italic; }
+        
+        /* Bar Chart Transitions */
+        .energy-bar { border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; }
+    </style>
+</head>
+<body>
+
+<style id="ccss-chrome-style">
+  #ccss-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,.94); color: #f8fafc; font-family: "Noto Sans TC", "PingFang TC", sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+  #ccss-bar strong { font-size: 14px; margin-right: 8px; }
+  #ccss-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f766e; }
+  #ccss-bar button, .ccss-modal button { font: inherit; cursor: pointer; }
+  #ccss-bar .ccss-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  #ccss-bar .ccss-actions button, #btn-quiz-answers, .ccss-modal .ccss-x { border: 0; border-radius: 8px; padding: 6px 10px; background: #e2e8f0; color: #0f172a; }
+  #btn-principle { background: #0f766e !important; color: white !important; }
+  .ccss-modal[hidden] { display: none !important; }
+  .ccss-modal { position: fixed; inset: 0; z-index: 110; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ccss-panel { width: min(640px, 100%); max-height: min(80vh, 720px); overflow: auto; background: white; color: #0f172a; border-radius: 16px; padding: 16px 18px 20px; font-family: "Noto Sans TC", "PingFang TC", sans-serif; }
+  .ccss-panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .ccss-panel li, .ccss-panel p { line-height: 1.55; margin: 0 0 8px; }
+  .ccss-panel article { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .ccss-choices { display: grid; gap: 6px; }
+  .ccss-choices label { display: flex; gap: 6px; align-items: flex-start; }
+  .ccss-answer { margin-top: 8px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px; font-size: 13px; }
+  .ccss-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+</style>
+<header id="ccss-bar">
+  <div><strong id="ccss-title"></strong><span id="ccss-badge"></span></div>
+  <div class="ccss-actions">
+    <button type="button" id="btn-steps">觀察步驟</button>
+    <button type="button" id="btn-principle">原理解說</button>
+    <button type="button" id="btn-quiz">課堂問題</button>
+    <button type="button" id="btn-ccss-lang">中 / EN</button>
+  </div>
+</header>
+<div id="modal-steps" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="steps-title">觀察步驟</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <ol id="steps-body"></ol>
+  </div>
+</div>
+<div id="modal-principle" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="principle-title">原理解說</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="principle-body"></div>
+  </div>
+</div>
+<div id="modal-quiz" class="ccss-modal" hidden role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div class="ccss-panel">
+    <div class="ccss-head"><h2 id="quiz-title">課堂問題</h2><button type="button" class="ccss-x" data-ccss-close>✕</button></div>
+    <div id="quiz-list"></div>
+    <button type="button" id="btn-quiz-answers">顯示參考答案</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pack = {"title": {"zh": "過山車能量守恆", "en": "Roller Coaster Energy"}, "grade": {"zh": "中一科學", "en": "S1 Science"}, "steps": {"zh": ["設定較大的初始高度和較小的摩擦力，按播放。", "看最高點位能最大、速度最小；最低點相反。", "只把摩擦力調高，再播一次，比較能否沖上下一個坡。", "按重置後把高度調低，預測會否沖不到頂。"], "en": ["Set a large starting height and small friction, then play.", "At the top the potential energy is largest and the speed is smallest. The bottom is the opposite.", "Raise only the friction and play again. See whether the car still climbs the next hill.", "Reset, lower the height, and predict whether it fails to reach the top."]}, "principle": {"zh": ["只有重力而且沒有摩擦時，動能加重力勢位能守恆。高度換來速率。", "有摩擦力時，一部分機械能變成熱，所以後來的坡可能沖不上去。", "真實過山車會在起步時被拉上第一個坡，之後主要靠這份位能，沿途再因摩擦損失能量。"], "en": ["With gravity alone, kinetic energy plus gravitational potential energy is conserved.", "Friction turns some mechanical energy into heat, so a later hill may be too high.", "A real coaster is pulled up the first hill. After that it spends that potential energy and loses some to friction."]}, "quiz": [{"zh": "摩擦接近 0 時，軌道最低處的速率應該？", "en": "With friction near zero, the speed at the lowest point should be?", "azh": "B。位能轉成動能。", "aen": "B. Potential energy has become kinetic energy.", "czh": ["最小", "這一段裡最大", "一定是零", "跟高度無關"], "cen": ["Smallest", "The largest on this part of the track", "Certainly zero", "Independent of height"], "ans": 1}, {"zh": "先預測摩擦力調高後，車子較難沖上後段高坡，再只調摩擦力並播放。", "en": "Predict that higher friction makes the later hill harder to climb, then raise only friction and play.", "azh": "摩擦把機械能轉成熱，剩下的動能可能不夠。", "aen": "Friction turns mechanical energy into heat, so the remaining kinetic energy may not be enough."}, {"zh": "最高點附近，動能通常？", "en": "Near the highest point, the kinetic energy is usually?", "azh": "B。", "aen": "B.", "czh": ["最大", "較小", "等於摩擦力乘質量", "跟高度無關"], "cen": ["Largest", "Smaller", "Equal to friction times mass", "Independent of height"], "ans": 1}, {"zh": "比較初始高度 18 m 和較低高度。先預測低高度可能過不了下一個坡，再各播一次。", "en": "Compare a start at 18 m with a lower start. Predict that the lower start may miss the next hill, then play both.", "azh": "起步位能較少，換成的動能較少。", "aen": "A lower start stores less potential energy, so less becomes kinetic energy."}, {"zh": "有摩擦時，機械能？", "en": "When there is friction, the mechanical energy?", "azh": "B。", "aen": "B.", "czh": ["守恆", "減少，因為有一部分變成熱", "一定增加", "變成電荷"], "cen": ["Is conserved", "Decreases because some becomes heat", "Must increase", "Becomes electric charge"], "ans": 1}]};
+  let lang = 'zh';
+  let quizAnswers = false;
+  const $ = (id) => document.getElementById(id);
+  function L(obj) { return obj[lang] || obj.zh || ''; }
+  function openModal(id) {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = mid !== id;
+    });
+  }
+  function closeModals() {
+    ['modal-steps','modal-principle','modal-quiz'].forEach((mid) => {
+      const el = $(mid);
+      if (el) el.hidden = true;
+    });
+  }
+  function renderLists() {
+    $('steps-body').innerHTML = pack.steps[lang].map((s, i) => '<li>' + (i + 1) + '. ' + s + '</li>').join('');
+    $('principle-body').innerHTML = pack.principle[lang].map((s) => '<p>' + s + '</p>').join('');
+    $('ccss-title').textContent = pack.title[lang];
+    $('ccss-badge').textContent = pack.grade[lang];
+    $('btn-steps').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('btn-principle').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('btn-quiz').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    $('steps-title').textContent = lang === 'zh' ? '觀察步驟' : 'Steps';
+    $('principle-title').textContent = lang === 'zh' ? '原理解說' : 'Principle';
+    $('quiz-title').textContent = lang === 'zh' ? '課堂問題' : 'Quiz';
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  }
+  function renderQuiz() {
+    const box = $('quiz-list');
+    const labels = ['A','B','C','D'];
+    box.innerHTML = pack.quiz.map((q, idx) => {
+      const n = idx + 1;
+      const open = n === 2 || n === 4;
+      let choices = '';
+      if (!open) {
+        const arr = lang === 'zh' ? q.czh : q.cen;
+        choices = '<div class="ccss-choices">' + arr.map((text, i) =>
+          '<label><input type="radio" name="q' + n + '"> <span>' + labels[i] + '. ' + text + '</span></label>'
+        ).join('') + '</div>';
+      }
+      const ans = quizAnswers
+        ? '<div class="ccss-answer"><strong>' + (lang === 'zh' ? '參考答案' : 'Answer') + '</strong> ' + (lang === 'zh' ? q.azh : q.aen) + '</div>'
+        : '';
+      return '<article><p><strong>Q' + n + '.</strong> ' + (lang === 'zh' ? q.zh : q.en) + '</p>' + choices + ans + '</article>';
+    }).join('');
+    $('btn-quiz-answers').textContent = quizAnswers
+      ? (lang === 'zh' ? '隱藏參考答案' : 'Hide answers')
+      : (lang === 'zh' ? '顯示參考答案' : 'Show answers');
+  }
+  function apply() { renderLists(); renderQuiz(); }
+  $('btn-steps').addEventListener('click', () => openModal('modal-steps'));
+  $('btn-principle').addEventListener('click', () => openModal('modal-principle'));
+  $('btn-quiz').addEventListener('click', () => openModal('modal-quiz'));
+  $('btn-ccss-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(); });
+  $('btn-quiz-answers').addEventListener('click', () => { quizAnswers = !quizAnswers; renderQuiz(); });
+  document.querySelectorAll('[data-ccss-close]').forEach((btn) => btn.addEventListener('click', closeModals));
+  document.querySelectorAll('.ccss-modal').forEach((el) => el.addEventListener('click', (e) => { if (e.target === el) closeModals(); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  apply();
+})();
+</script>
+
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        
+        <!-- Top Header -->
+        <div class="flex justify-between items-start pointer-events-auto w-full max-w-7xl mx-auto">
+            <div class="glass px-4 py-2 rounded-2xl">
+                <h1 id="app-title" class="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">過山車能量守恆</h1>
+                <p class="text-xs text-gray-500 mt-1 hidden md:block" id="app-subtitle">Physics Simulation</p>
+            </div>
+            
+            <div class="flex gap-3 items-center">
+                <!-- Bilingual Toggle -->
+                <div class="glass px-3 py-1.5 rounded-full flex items-center shadow-sm cursor-pointer" id="lang-toggle">
+                    <span class="text-sm font-semibold text-blue-600 mr-2" id="lang-zh">中</span>
+                    <div class="w-10 h-5 bg-gray-200 rounded-full relative transition-colors duration-300" id="lang-track">
+                        <div class="w-4 h-4 bg-white rounded-full absolute top-0.5 left-0.5 shadow-md transition-transform duration-300" id="lang-thumb"></div>
+                    </div>
+                    <span class="text-sm font-semibold text-gray-400 ml-2" id="lang-en">EN</span>
+                </div>
+
+                <!-- AI Tutor Button -->
+                <button id="ai-btn" class="glass px-3 py-1.5 rounded-full hover:bg-indigo-50 transition-all shadow-sm flex items-center gap-2 border-indigo-200">
+                    <span>🤖</span>
+                    <span id="label-ai" class="text-sm font-semibold text-indigo-600">AI 導師</span>
+                </button>
+
+                <!-- Gear Button -->
+                <button id="gear-btn" class="glass p-2.5 rounded-full hover:bg-white/90 transition-all shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-700 hover:rotate-90 transition-transform duration-300"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Middle Area (Play Control & Settings Panel) -->
+        <div class="flex-1 relative w-full max-w-7xl mx-auto pointer-events-none">
+            
+            <!-- Settings Panel (Draggable & Toggleable) -->
+            <div id="settings-panel" class="absolute top-4 right-0 glass w-72 rounded-2xl p-5 shadow-xl transition-all duration-300 transform scale-95 opacity-0 pointer-events-none origin-top-right">
+                
+                <!-- Settings Drag Handle -->
+                <h3 id="drag-handle-controls" class="cursor-grab active:cursor-grabbing text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2 select-none" title="拖曳移動 Drag to move">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 opacity-80"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>
+                    <span id="label-controls">控制面板 Control Panel</span>
+                </h3>
+                
+                <div class="mb-5">
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                        <span id="label-height">初始高度 Initial Height (<span class="physics-var">h</span>)</span>
+                        <span id="height-val" class="text-blue-600 font-bold">18 m</span>
+                    </label>
+                    <input type="range" id="height-slider" min="14" max="25" value="18" step="1" class="w-full">
+                </div>
+
+                <div class="mb-5">
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                        <span id="label-friction">摩擦力 Friction (<span class="physics-var">f</span>)</span>
+                        <span id="friction-val" class="text-orange-500 font-bold">15 N</span>
+                    </label>
+                    <input type="range" id="friction-slider" min="0" max="40" value="15" step="1" class="w-full">
+                </div>
+
+                <!-- NEW: Simulation Speed Slider -->
+                <div class="mb-5">
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                        <span id="label-sim-speed">播放速度 Playback Speed (<span class="physics-var">x</span>)</span>
+                        <span id="sim-speed-val" class="text-green-600 font-bold">1.0 x</span>
+                    </label>
+                    <input type="range" id="sim-speed-slider" min="0.1" max="3.0" value="1.0" step="0.1" class="w-full">
+                </div>
+
+                <!-- Collapsible Formula Section -->
+                <div class="mb-5 border border-indigo-100 rounded-lg overflow-hidden bg-white/50">
+                    <button id="btn-toggle-formula" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] md:text-xs font-bold py-2 px-3 flex justify-between items-center transition-colors">
+                        <span id="label-formula-toggle">物理公式 Physics Formula</span>
+                        <svg id="icon-formula-toggle" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-300 transform rotate-180"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div id="formula-container" class="transition-all duration-300">
+                        <p class="text-[11px] text-gray-700 font-serif text-center py-2" id="desc-energy">
+                            $$E_{total} = P.E. + K.E. + W_f$$
+                            $$mgh_0 = mgh + \frac{1}{2}mv^2 + f \cdot d$$
+                        </p>
+                    </div>
+                </div>
+
+                <!-- NEW: API Key Input Box -->
+                <div class="mb-5 border-t pt-3 border-gray-200">
+                    <label class="flex justify-between text-[11px] font-bold text-indigo-700 mb-1">
+                        <span id="label-api-setting">Gemini API 金鑰設定</span>
+                    </label>
+                    <input type="password" id="api-key-input" placeholder="請貼上 AIza... 開頭的金鑰" class="w-full text-[11px] px-2 py-1.5 border border-indigo-200 rounded focus:outline-none focus:border-indigo-500 bg-white shadow-inner">
+                    <p class="text-[9px] text-gray-500 mt-1" id="desc-api-setting">若 AI 無法連線 (如顯示 400 錯誤)，請在此貼上你專屬的有效金鑰。</p>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="btn-play" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded-xl shadow transition-colors flex items-center justify-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <span id="label-play" class="text-sm">播放</span>
+                    </button>
+                    <button id="btn-pause" class="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-xl shadow transition-colors flex items-center justify-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                        <span id="label-pause" class="text-sm">暫停</span>
+                    </button>
+                    <button id="btn-reset" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-3 rounded-xl shadow transition-colors flex items-center justify-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                        <span id="label-reset" class="text-sm">重置</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Tutor Modal -->
+        <div id="ai-modal" class="absolute top-20 right-4 w-80 glass rounded-2xl shadow-2xl p-5 border border-indigo-200 opacity-0 scale-95 pointer-events-none transition-all duration-300 origin-top-right flex flex-col z-50">
+            <div class="flex justify-between items-center mb-3 border-b border-indigo-100 pb-2">
+                <h3 class="font-bold text-indigo-700 flex items-center gap-2"><span>🤖</span> <span id="label-ai-title">AI 物理導師</span></h3>
+                <button id="close-ai" class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="ai-content" class="text-sm text-gray-700 min-h-[100px] max-h-[300px] overflow-y-auto">
+                <p id="ai-placeholder" class="text-gray-400 italic text-center mt-8">點擊下方按鈕獲取當前狀態的 AI 分析...</p>
+                <div id="ai-loading" class="hidden flex justify-center items-center h-20">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+                <div id="ai-response" class="hidden prose prose-sm prose-indigo leading-relaxed"></div>
+            </div>
+            <button id="btn-ask-ai" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl shadow transition-colors text-sm">
+                <span id="label-ask-ai">分析當前狀態</span>
+            </button>
+        </div>
+
+        <!-- Bottom Area (Energy Bars) - Draggable -->
+        <div id="energy-draggable" class="fixed bottom-4 left-4 md:left-auto md:bottom-6 md:right-8 pointer-events-auto z-40 touch-none transform">
+            <div class="glass p-2.5 md:p-5 rounded-2xl shadow-xl flex flex-col items-center min-w-[220px] md:min-w-[360px] border border-white/60 transition-shadow">
+                
+                <!-- Drag Handle -->
+                <h3 id="drag-handle" class="cursor-grab active:cursor-grabbing text-[10px] md:text-sm font-extrabold text-gray-700 mb-2 md:mb-4 w-full text-center border-b border-gray-200 pb-1 md:pb-2 uppercase tracking-widest select-none flex justify-center items-center gap-1 md:gap-2" title="拖曳移動 Drag to move">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 opacity-80"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>
+                    <span id="label-energy-chart">能量分佈 Energy Distribution</span>
+                </h3>
+                
+                <div class="flex items-end justify-between w-full h-28 md:h-48 gap-1.5 md:gap-3 px-1 md:px-2">
+                    
+                    <!-- PE Bar -->
+                    <div class="flex flex-col items-center w-1/4 group h-full">
+                        <div class="w-full bg-gray-100 rounded-lg md:rounded-xl flex-1 relative flex items-end overflow-hidden border border-gray-200 shadow-inner">
+                            <div class="absolute w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNjY2MiLz4KPC9zdmc+')] opacity-20 z-0"></div>
+                            <div id="bar-pe" class="w-full bg-gradient-to-t from-blue-600 to-cyan-400 energy-bar z-10 rounded-t-lg md:rounded-t-xl relative shadow-[0_-4px_10px_rgba(56,189,248,0.3)] group-hover:brightness-110" style="height: 100%;"></div>
+                        </div>
+                        <span class="text-[9px] md:text-[11px] font-bold mt-1 md:mt-2 text-gray-600">P.E.</span>
+                        <span id="val-pe" class="text-[8px] md:text-[10px] text-blue-700 font-bold font-mono bg-blue-50 px-1 py-0.5 rounded mt-0.5 md:mt-1">0 J</span>
+                    </div>
+                    
+                    <!-- KE Bar -->
+                    <div class="flex flex-col items-center w-1/4 group h-full">
+                        <div class="w-full bg-gray-100 rounded-lg md:rounded-xl flex-1 relative flex items-end overflow-hidden border border-gray-200 shadow-inner">
+                            <div class="absolute w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNjY2MiLz4KPC9zdmc+')] opacity-20 z-0"></div>
+                            <div id="bar-ke" class="w-full bg-gradient-to-t from-red-600 to-orange-400 energy-bar z-10 rounded-t-lg md:rounded-t-xl relative shadow-[0_-4px_10px_rgba(251,146,60,0.3)] group-hover:brightness-110" style="height: 0%;"></div>
+                        </div>
+                        <span class="text-[9px] md:text-[11px] font-bold mt-1 md:mt-2 text-gray-600">K.E.</span>
+                        <span id="val-ke" class="text-[8px] md:text-[10px] text-red-700 font-bold font-mono bg-red-50 px-1 py-0.5 rounded mt-0.5 md:mt-1">0 J</span>
+                    </div>
+
+                    <!-- Thermal Energy (Heat) Bar -->
+                    <div class="flex flex-col items-center w-1/4 group h-full">
+                        <div class="w-full bg-gray-100 rounded-lg md:rounded-xl flex-1 relative flex items-end overflow-hidden border border-gray-200 shadow-inner">
+                            <div class="absolute w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNjY2MiLz4KPC9zdmc+')] opacity-20 z-0"></div>
+                            <div id="bar-th" class="w-full bg-gradient-to-t from-amber-500 to-yellow-400 energy-bar z-10 rounded-t-lg md:rounded-t-xl relative shadow-[0_-4px_10px_rgba(250,204,21,0.3)] group-hover:brightness-110" style="height: 0%;"></div>
+                        </div>
+                        <span class="text-[9px] md:text-[11px] font-bold mt-1 md:mt-2 text-gray-600">Heat</span>
+                        <span id="val-th" class="text-[8px] md:text-[10px] text-amber-700 font-bold font-mono bg-amber-50 px-1 py-0.5 rounded mt-0.5 md:mt-1">0 J</span>
+                    </div>
+
+                    <!-- Total Bar -->
+                    <div class="flex flex-col items-center w-1/4 group h-full">
+                        <div class="w-full bg-gray-100 rounded-lg md:rounded-xl flex-1 relative flex items-end overflow-hidden border border-gray-200 shadow-inner">
+                            <div class="absolute w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNjY2MiLz4KPC9zdmc+')] opacity-20 z-0"></div>
+                            <div id="bar-te" class="w-full bg-gradient-to-t from-emerald-600 to-green-400 energy-bar z-10 rounded-t-lg md:rounded-t-xl relative shadow-[0_-4px_10px_rgba(74,222,128,0.3)] group-hover:brightness-110" style="height: 100%;"></div>
+                        </div>
+                        <span class="text-[9px] md:text-[11px] font-bold mt-1 md:mt-2 text-gray-600">Total</span>
+                        <span id="val-te" class="text-[8px] md:text-[10px] text-green-700 font-bold font-mono bg-green-50 px-1 py-0.5 rounded mt-0.5 md:mt-1">0 J</span>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js App Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- I18N Data ---
+        const i18n = {
+            zh: {
+                title: "過山車能量守恆",
+                controls: "控制面板 Control Panel",
+                height: "初始高度 Initial Height (<span class='physics-var'>h</span>)",
+                friction: "摩擦力 Friction (<span class='physics-var'>f</span>)",
+                simSpeed: "播放速度 Playback Speed (<span class='physics-var'>x</span>)",
+                play: "播放",
+                pause: "暫停",
+                reset: "重置",
+                energyChart: "能量分佈 Energy Distribution",
+                aiTutor: "AI 導師",
+                aiTitle: "AI 物理導師",
+                askAi: "分析當前狀態",
+                aiError: "抱歉，AI 暫時無法回應，請稍後再試。",
+                formulaToggle: "物理公式 Physics Formula",
+                apiSetting: "Gemini API 金鑰 (選填)",
+                apiDesc: "若 AI 無法連線 (如顯示 400)，請在此貼上有效金鑰。"
+            },
+            en: {
+                title: "Roller Coaster Energy",
+                controls: "Control Panel",
+                height: "Initial Height (<span class='physics-var'>h</span>)",
+                friction: "Friction (<span class='physics-var'>f</span>)",
+                simSpeed: "Playback Speed (<span class='physics-var'>x</span>)",
+                play: "Play",
+                pause: "Pause",
+                reset: "Reset",
+                energyChart: "Energy Distribution",
+                aiTutor: "AI Tutor",
+                aiTitle: "AI Physics Tutor",
+                askAi: "Analyze Current State",
+                aiError: "Sorry, the AI is unavailable right now. Please try again later.",
+                formulaToggle: "Physics Formula",
+                apiSetting: "Gemini API Key (Optional)",
+                apiDesc: "Paste your valid API Key here if AI connection fails."
+            }
+        };
+        let currentLang = 'zh';
+
+        // --- DOM Elements ---
+        const sliderHeight = document.getElementById('height-slider');
+        const valHeight = document.getElementById('height-val');
+        const sliderFriction = document.getElementById('friction-slider');
+        const valFriction = document.getElementById('friction-val');
+        const sliderSimSpeed = document.getElementById('sim-speed-slider');
+        const valSimSpeed = document.getElementById('sim-speed-val');
+        const btnPlay = document.getElementById('btn-play');
+        const btnPause = document.getElementById('btn-pause');
+        const btnReset = document.getElementById('btn-reset');
+        const gearBtn = document.getElementById('gear-btn');
+        const settingsPanel = document.getElementById('settings-panel');
+        
+        const aiBtn = document.getElementById('ai-btn');
+        const aiModal = document.getElementById('ai-modal');
+        const closeAi = document.getElementById('close-ai');
+        const btnAskAi = document.getElementById('btn-ask-ai');
+        const aiPlaceholder = document.getElementById('ai-placeholder');
+        const aiLoading = document.getElementById('ai-loading');
+        const aiResponse = document.getElementById('ai-response');
+        
+        const barPE = document.getElementById('bar-pe');
+        const barKE = document.getElementById('bar-ke');
+        const barTH = document.getElementById('bar-th');
+        const barTE = document.getElementById('bar-te');
+        const valPE = document.getElementById('val-pe');
+        const valKE = document.getElementById('val-ke');
+        const valTH = document.getElementById('val-th');
+        const valTE = document.getElementById('val-te');
+
+        // Formula toggle & API elements
+        const btnToggleFormula = document.getElementById('btn-toggle-formula');
+        const formulaContainer = document.getElementById('formula-container');
+        const iconFormulaToggle = document.getElementById('icon-formula-toggle');
+        const apiKeyInput = document.getElementById('api-key-input');
+
+        // Load saved API key from local storage
+        if(localStorage.getItem('gemini_custom_api_key')) {
+            apiKeyInput.value = localStorage.getItem('gemini_custom_api_key');
+        }
+
+        // Save API key when user types
+        apiKeyInput.addEventListener('input', (e) => {
+            localStorage.setItem('gemini_custom_api_key', e.target.value.trim());
+        });
+
+        // --- Physics Variables ---
+        const g = 9.81;
+        const mass = 100; // kg, arbitrary for visualization
+        let initialHeight = parseFloat(sliderHeight.value);
+        let currentFriction = parseFloat(sliderFriction.value);
+        let simSpeedMultiplier = parseFloat(sliderSimSpeed.value);
+        let maxAvailableHeight = 25; // max slider value
+        
+        let isPlaying = false;
+        let currentDistance = 0; // distance along curve
+        let currentSpeed = 0;
+
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 35);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 + 0.1; // Don't go below ground too much
+        controls.target.set(0, 5, 0); // Look slightly up to see loop
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.top = 20;
+        dirLight.shadow.camera.bottom = -20;
+        dirLight.shadow.camera.left = -20;
+        dirLight.shadow.camera.right = 20;
+        scene.add(dirLight);
+
+        // --- Environment ---
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Grid helper for reference
+        const grid = new THREE.GridHelper(100, 20, 0x000000, 0x000000);
+        grid.material.opacity = 0.1;
+        grid.material.transparent = true;
+        scene.add(grid);
+
+        // --- Roller Coaster Elements ---
+        let trackCurve;
+        let trackMesh;
+        let curveFrames; // Store Frenet frames for cart orientation
+        let pillarGroup = new THREE.Group();
+        scene.add(pillarGroup);
+
+        const cartGeo = new THREE.BoxGeometry(1.4, 0.8, 2.2);
+        const cartMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.3, roughness: 0.4 }); // Red cart
+        const cart = new THREE.Mesh(cartGeo, cartMat);
+        cart.castShadow = true;
+        scene.add(cart);
+
+        // --- Track Generation ---
+        function generateTrack() {
+            if (trackMesh) scene.remove(trackMesh);
+            
+            // Clear pillars
+            while(pillarGroup.children.length > 0){ 
+                pillarGroup.remove(pillarGroup.children[0]); 
+            }
+
+            // Define control points WITH A VERTICAL LOOP
+            // P0's Y is dynamic based on slider
+            const p0 = new THREE.Vector3(-20, initialHeight, 0);
+            const p1 = new THREE.Vector3(-10, 1, 0); // Drop
+            const p2 = new THREE.Vector3(-4, 4, -2); // Loop bottom right
+            const p3 = new THREE.Vector3(-1, 12, 0); // Loop top
+            const p4 = new THREE.Vector3(2, 4, 2);   // Loop bottom left
+            const p5 = new THREE.Vector3(8, 1, 0);   // Exit loop
+            const p6 = new THREE.Vector3(14, 6, 0);  // Camelback hill
+            const p7 = new THREE.Vector3(22, 1, 0);  // End
+
+            trackCurve = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4, p5, p6, p7], false);
+            curveFrames = trackCurve.computeFrenetFrames(300, false);
+
+            const tubeGeo = new THREE.TubeGeometry(trackCurve, 300, 0.3, 8, false);
+            const tubeMat = new THREE.MeshStandardMaterial({ color: 0xeab308, metalness: 0.6, roughness: 0.3 }); // Golden yellow track
+            trackMesh = new THREE.Mesh(tubeGeo, tubeMat);
+            trackMesh.castShadow = true;
+            trackMesh.receiveShadow = true;
+            scene.add(trackMesh);
+
+            // Generate Pillars
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.8 }); // White pillars
+            const points = trackCurve.getSpacedPoints(30); // 30 pillars
+            points.forEach((p, index) => {
+                // Skip pillars right near the loop top to avoid messy intersections
+                if(p.y > 0.5 && !(p.y > 6 && p.x > -5 && p.x < 3)) {
+                    const pGeo = new THREE.CylinderGeometry(0.15, 0.2, p.y, 8);
+                    const pMesh = new THREE.Mesh(pGeo, pillarMat);
+                    pMesh.position.set(p.x, p.y/2, p.z);
+                    pMesh.castShadow = true;
+                    pillarGroup.add(pMesh);
+                }
+            });
+
+            // Reset Cart
+            resetCart();
+        }
+
+        function resetCart() {
+            currentDistance = 0;
+            currentSpeed = 0;
+            isPlaying = false;
+            updatePlayButtonUI();
+            
+            const startPos = trackCurve.getPointAt(0);
+            const normal = curveFrames.normals[0];
+            const tangent = trackCurve.getTangentAt(0);
+            
+            cart.position.copy(startPos).addScaledVector(normal, 0.4); // Sit on track
+            cart.up.copy(normal);
+            cart.lookAt(cart.position.clone().add(tangent));
+            
+            const TE = mass * g * initialHeight;
+            const PE = mass * g * startPos.y;
+            updateEnergyBars(PE, 0, 0, TE);
+        }
+
+        // --- Physics Logic ---
+        const clock = new THREE.Clock();
+
+        function updatePhysics() {
+            if (!isPlaying || !trackCurve) return;
+
+            const baseDt = Math.min(clock.getDelta(), 0.05); // cap delta time to prevent huge jumps
+            const dt = baseDt * simSpeedMultiplier; // Apply simulation speed multiplier
+            
+            const trackLength = trackCurve.getLength();
+            
+            // 1. Find current position parameter u (0 to 1) based on distance
+            let u = currentDistance / trackLength;
+            if (u > 1) u = 1;
+            
+            // 2. Get current height
+            const currentPos = trackCurve.getPointAt(u);
+            const h = currentPos.y;
+
+            // 3. Conservation of Energy with Friction
+            const TE = mass * g * initialHeight;
+            let PE = mass * g * h;
+            if (PE < 0) PE = 0; // 防止計算溢位
+            let ThE = currentFriction * currentDistance;
+            let KE = TE - PE - ThE;
+            
+            // 嚴格的能量守恆運算
+            if (KE <= 0.1) {
+                KE = 0;
+                currentSpeed = 0;
+                if (currentDistance > 0.5) {
+                    isPlaying = false; // Cart stops moving due to lack of energy
+                    updatePlayButtonUI();
+                }
+            } else {
+                currentSpeed = Math.sqrt((2 * KE) / mass);
+            }
+
+            // 4. Update distance
+            const visualSpeedFactor = 1.8; 
+            currentDistance += currentSpeed * visualSpeedFactor * dt;
+
+            if (currentDistance >= trackLength) {
+                currentDistance = trackLength;
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+
+            // 5. Update cart position and rotation with Frenet Frames
+            u = currentDistance / trackLength;
+            const newPos = trackCurve.getPointAt(u);
+            const tangent = trackCurve.getTangentAt(u);
+            
+            const frameIndex = Math.floor(u * 300);
+            const safeIndex = Math.min(frameIndex, curveFrames.normals.length - 1);
+            const normal = curveFrames.normals[safeIndex];
+
+            // Offset cart to sit on top of the track
+            cart.position.copy(newPos).addScaledVector(normal, 0.4);
+            
+            const lookAtPos = cart.position.clone().add(tangent);
+            cart.up.copy(normal);
+            cart.lookAt(lookAtPos);
+
+            // 6. 傳遞最精準的物理能量給 UI
+            updateEnergyBars(PE, KE, ThE, TE);
+        }
+
+        // --- UI Updates ---
+        function updateEnergyBars(PE, KE, ThE, TE) {
+            const safeTE = TE > 0 ? TE : 1;
+            
+            // 將目前的總能量視為完美的 100% 基準
+            const pePercent = (PE / safeTE) * 100;
+            const kePercent = (KE / safeTE) * 100;
+            const thPercent = (ThE / safeTE) * 100;
+            const tePercent = 100; // 總能量柱永遠維持 100% 滿載
+
+            barPE.style.height = `${Math.max(0, Math.min(100, pePercent))}%`;
+            barKE.style.height = `${Math.max(0, Math.min(100, kePercent))}%`;
+            barTH.style.height = `${Math.max(0, Math.min(100, thPercent))}%`;
+            barTE.style.height = `${tePercent}%`;
+
+            valPE.innerText = `${Math.round(PE)} J`;
+            valKE.innerText = `${Math.round(KE)} J`;
+            valTH.innerText = `${Math.round(ThE)} J`;
+            valTE.innerText = `${Math.round(TE)} J`;
+        }
+
+        function updatePlayButtonUI() {
+            if(isPlaying){
+                btnPlay.classList.replace('bg-blue-500', 'bg-gray-400');
+                btnPlay.classList.replace('hover:bg-blue-600', 'hover:bg-gray-500');
+                btnPause.classList.replace('bg-gray-400', 'bg-yellow-500');
+                btnPause.classList.replace('hover:bg-gray-500', 'hover:bg-yellow-600');
+            } else {
+                btnPlay.classList.replace('bg-gray-400', 'bg-blue-500');
+                btnPlay.classList.replace('hover:bg-gray-500', 'hover:bg-blue-600');
+                btnPause.classList.replace('bg-yellow-500', 'bg-gray-400');
+                btnPause.classList.replace('hover:bg-yellow-600', 'hover:bg-gray-500');
+            }
+        }
+
+        // --- Event Listeners ---
+        sliderHeight.addEventListener('input', (e) => {
+            initialHeight = parseFloat(e.target.value);
+            valHeight.innerText = `${initialHeight} m`;
+            generateTrack(); // Rebuild track when height changes
+        });
+
+        sliderFriction.addEventListener('input', (e) => {
+            currentFriction = parseFloat(e.target.value);
+            valFriction.innerText = `${currentFriction} N`;
+            if(!isPlaying && currentDistance > 0) resetCart(); // Reset to observe new friction effect
+        });
+
+        // Simulation Speed Logic
+        sliderSimSpeed.addEventListener('input', (e) => {
+            simSpeedMultiplier = parseFloat(e.target.value);
+            valSimSpeed.innerText = `${simSpeedMultiplier.toFixed(1)} x`;
+        });
+
+        // Formula Toggle Logic
+        btnToggleFormula.addEventListener('click', () => {
+            formulaContainer.classList.toggle('hidden');
+            iconFormulaToggle.classList.toggle('rotate-180');
+        });
+
+        btnPlay.addEventListener('click', () => {
+            if (currentDistance >= trackCurve.getLength() && !isPlaying) {
+                resetCart(); // Auto reset if at end
+            }
+            if (!isPlaying) {
+                isPlaying = true;
+                if (currentDistance === 0) {
+                    currentDistance = 0.05; 
+                }
+                clock.getDelta(); // Clear accumulated time
+                updatePlayButtonUI();
+            }
+        });
+
+        btnPause.addEventListener('click', () => {
+            if (isPlaying) {
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            resetCart();
+        });
+
+        gearBtn.addEventListener('click', () => {
+            const isHidden = settingsPanel.classList.contains('opacity-0');
+            if (isHidden) {
+                settingsPanel.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
+                settingsPanel.classList.add('opacity-100', 'scale-100', 'pointer-events-auto');
+                // Hide AI
+                aiModal.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+                aiModal.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+            } else {
+                settingsPanel.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+                settingsPanel.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+            }
+        });
+
+        // --- AI Tutor Logic ---
+        aiBtn.addEventListener('click', () => {
+            const isHidden = aiModal.classList.contains('opacity-0');
+            if (isHidden) {
+                aiModal.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
+                aiModal.classList.add('opacity-100', 'scale-100', 'pointer-events-auto');
+                // Hide settings
+                settingsPanel.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+                settingsPanel.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+            } else {
+                aiModal.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+                aiModal.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+            }
+        });
+
+        closeAi.addEventListener('click', () => {
+            aiModal.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+            aiModal.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+        });
+
+        // --- Reusable Drag System (相容 Tailwind 的 transform 機制) ---
+        function makeDraggable(panelId, handleId) {
+            const panel = document.getElementById(panelId);
+            const handle = document.getElementById(handleId);
+            if (!panel || !handle) return;
+
+            let isDragging = false;
+            let startX, startY;
+            let translateX = 0, translateY = 0;
+
+            function onStart(e) {
+                if (e.target !== handle && !handle.contains(e.target)) return;
+                isDragging = true;
+                handle.classList.replace('cursor-grab', 'cursor-grabbing');
+                
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                startX = clientX - translateX;
+                startY = clientY - translateY;
+                
+                if (!e.touches) e.preventDefault();
+            }
+
+            function onMove(e) {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                translateX = clientX - startX;
+                translateY = clientY - startY;
+                
+                // 使用 Tailwind 的 CSS 變數，完美相容現有的動畫與縮放效果
+                panel.style.setProperty('--tw-translate-x', `${translateX}px`);
+                panel.style.setProperty('--tw-translate-y', `${translateY}px`);
+            }
+
+            function onEnd() {
+                if (!isDragging) return;
+                isDragging = false;
+                handle.classList.replace('cursor-grabbing', 'cursor-grab');
+            }
+
+            // Mouse Events
+            handle.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+
+            // Touch Events (手機拖曳)
+            handle.addEventListener('touchstart', onStart, { passive: false });
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onEnd);
+        }
+
+        // 套用拖曳功能到兩個面板
+        makeDraggable('energy-draggable', 'drag-handle');
+        makeDraggable('settings-panel', 'drag-handle-controls');
+
+
+        async function fetchGeminiWithRetry(prompt, retries = 5) {
+            // ============================================================================
+            // 動態讀取 API Key：優先使用使用者在畫面上輸入的 Key，如果沒輸入就使用預設的。
+            // ============================================================================
+            const defaultKey = "AIzaSyBK_4xOjCUIe3lclM3X7iD6fuLUpZBbx4o"; 
+            const userKey = apiKeyInput.value.trim();
+            const apiKey = userKey ? userKey : defaultKey;
+
+            // 檢查如果使用者輸入了 AQ 開頭的無效金鑰，提早阻擋並給予提示
+            if (apiKey.startsWith('AQ.')) {
+                throw new Error("400 - 你輸入的似乎是 OAuth Token (AQ...)，請前往 Google AI Studio 申請標準的 API Key (AIza...)。");
+            }
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            
+            // 為了確保最高相容性，將 System Prompt 直接融入使用者對話中，避免引發 Schema 報錯
+            const fullPrompt = `【系統指令：你是一位具啟發性的高中物理老師。請用2-3句話，簡單直觀地解釋目前過山車能量守恆的狀態。不要使用複雜的數學公式。】\n\n${prompt}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: fullPrompt }] }]
+            };
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(`${response.status} - ${errData.error?.message || '未知連線錯誤'}`);
+                    }
+                    
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || i18n[currentLang].aiError;
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delays[i]));
+                }
+            }
+        }
+
+        btnAskAi.addEventListener('click', async () => {
+            aiPlaceholder.classList.add('hidden');
+            aiResponse.classList.add('hidden');
+            aiLoading.classList.remove('hidden');
+            
+            const prompt = `
+                Current physics simulation state:
+                - Initial Height (h0): ${initialHeight} m
+                - Friction Force (f): ${currentFriction} N
+                - Current Cart Speed (v): ${currentSpeed.toFixed(2)} m/s
+                - Potential Energy (P.E.): ${valPE.innerText}
+                - Kinetic Energy (K.E.): ${valKE.innerText}
+                - Thermal Energy Lost (Heat): ${valTH.innerText}
+                - Total Energy: ${valTE.innerText}
+                
+                Please act as a tutor and explain what's happening to the energy right now. Respond entirely in ${currentLang === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English'}.
+            `;
+
+            try {
+                const answer = await fetchGeminiWithRetry(prompt);
+                const formattedAnswer = answer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+                aiResponse.innerHTML = formattedAnswer;
+                aiLoading.classList.add('hidden');
+                aiResponse.classList.remove('hidden');
+            } catch(e) {
+                // 將真實的系統錯誤訊息顯示在畫面上，方便排錯 (Debug)
+                aiResponse.innerHTML = `<span class="text-red-600 font-bold">⚠️ AI 連線失敗</span><br><span class="text-xs text-red-500 block mt-2 bg-red-50 p-2 rounded">錯誤代碼: ${e.message}</span>`;
+                aiLoading.classList.add('hidden');
+                aiResponse.classList.remove('hidden');
+            }
+        });
+
+        // Bilingual Toggle Logic
+        const langToggle = document.getElementById('lang-toggle');
+        const langThumb = document.getElementById('lang-thumb');
+        const langTrack = document.getElementById('lang-track');
+        const langZh = document.getElementById('lang-zh');
+        const langEn = document.getElementById('lang-en');
+
+        langToggle.addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            
+            // Animate toggle pill
+            if (currentLang === 'en') {
+                langThumb.style.transform = 'translateX(20px)';
+                langTrack.classList.add('bg-blue-500');
+                langTrack.classList.remove('bg-gray-200');
+                langZh.classList.replace('text-blue-600', 'text-gray-400');
+                langEn.classList.replace('text-gray-400', 'text-blue-600');
+            } else {
+                langThumb.style.transform = 'translateX(0)';
+                langTrack.classList.remove('bg-blue-500');
+                langTrack.classList.add('bg-gray-200');
+                langZh.classList.replace('text-gray-400', 'text-blue-600');
+                langEn.classList.replace('text-blue-600', 'text-gray-400');
+            }
+
+            // Update Text
+            document.getElementById('app-title').innerText = i18n[currentLang].title;
+            document.getElementById('label-controls').innerText = i18n[currentLang].controls;
+            document.getElementById('label-height').innerHTML = i18n[currentLang].height;
+            document.getElementById('label-friction').innerHTML = i18n[currentLang].friction;
+            document.getElementById('label-sim-speed').innerHTML = i18n[currentLang].simSpeed;
+            document.getElementById('label-energy-chart').innerText = i18n[currentLang].energyChart;
+            document.getElementById('label-play').innerText = i18n[currentLang].play;
+            document.getElementById('label-pause').innerText = i18n[currentLang].pause;
+            document.getElementById('label-reset').innerText = i18n[currentLang].reset;
+            document.getElementById('label-ai').innerText = i18n[currentLang].aiTutor;
+            document.getElementById('label-ai-title').innerText = i18n[currentLang].aiTitle;
+            document.getElementById('label-ask-ai').innerText = i18n[currentLang].askAi;
+            document.getElementById('label-formula-toggle').innerText = i18n[currentLang].formulaToggle;
+            document.getElementById('label-api-setting').innerText = i18n[currentLang].apiSetting;
+            document.getElementById('desc-api-setting').innerText = i18n[currentLang].apiDesc;
+            updatePlayButtonUI();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Initialization ---
+        generateTrack();
+
+        // Reveal settings panel initially for discoverability
+        setTimeout(() => {
+            settingsPanel.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
+            settingsPanel.classList.add('opacity-100', 'scale-100', 'pointer-events-auto');
+        }, 500);
+
+        // --- Main Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePhysics();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+    </script>
+</body>
+</html>

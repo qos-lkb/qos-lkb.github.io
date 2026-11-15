@@ -1,40 +1,85 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>弗朗荷夫線 (Fraunhofer Lines) 實驗室</title>
+    <title>夫朗和斐線 (Fraunhofer Lines) 實驗室</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
+        /*
+         * Layout note — spectrum-stack vertical exemption:
+         * Full-width vertical stack of solar absorption + H/He emission spectra
+         * (not Scheme A/B/C aside/section) so Canvas correspondence lines stay aligned.
+         * Teaching controls (steps / principle / quiz / lang / reset) are NOT exempt.
+         */
         body {
             font-family: 'Noto Sans TC', sans-serif;
         }
-        /* 自定義光譜漸層 */
         .spectrum-gradient {
-            background: linear-gradient(to right, 
-                #4b0082, /* 400nm Violet */
-                #0000ff, /* Blue */
-                #00ff00, /* Green */
-                #ffff00, /* Yellow */
-                #ff7f00, /* Orange */
-                #ff0000  /* 700nm Red */
+            background: linear-gradient(to right,
+                #4b0082,
+                #0000ff,
+                #00ff00,
+                #ffff00,
+                #ff7f00,
+                #ff0000
             );
         }
-        
-        /* 發光效果 */
         .emission-line {
             box-shadow: 0 0 8px currentColor;
             transition: height 0.2s, transform 0.2s;
         }
-        
         .emission-line:hover {
-            height: 120% !important; /* Hover 時稍微變長，增加互動感 */
+            height: 120% !important;
             top: -10% !important;
             z-index: 50;
         }
-
-        /* 太陽光束動畫 */
         @keyframes beam-travel {
             0% { opacity: 0; transform: translateX(0); }
             20% { opacity: 1; }
@@ -44,8 +89,6 @@
         .beam-particle {
             animation: beam-travel 2.5s infinite linear;
         }
-        
-        /* 大氣層脈動 */
         @keyframes atmosphere-pulse {
             0%, 100% { transform: translate(-50%, -50%) scale(1); border-color: rgba(148, 163, 184, 0.3); }
             50% { transform: translate(-50%, -50%) scale(1.05); border-color: rgba(148, 163, 184, 0.5); }
@@ -53,8 +96,6 @@
         .atmosphere-ring {
             animation: atmosphere-pulse 4s infinite ease-in-out;
         }
-        
-        /* 點擊彈出的 Tooltip 動畫 */
         @keyframes pop-in {
             0% { transform: translate(-50%, 10px) scale(0.8); opacity: 0; }
             100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
@@ -62,102 +103,113 @@
         .click-tooltip {
             animation: pop-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
+        .modal-panel {
+            transition: opacity 0.25s ease;
+        }
+        .modal-panel.hidden {
+            display: none;
+        }
+        body.modal-active {
+            overflow: hidden;
+        }
+        .quiz-opt {
+            display: block; width: 100%; text-align: left;
+            padding: 0.5rem 0.75rem; margin: 0.25rem 0;
+            border: 1px solid #334155; border-radius: 0.5rem;
+            background: #1e293b; cursor: pointer; font-size: 0.875rem;
+            color: #e2e8f0;
+        }
+        .quiz-opt:hover { background: #1e3a5f; border-color: #60a5fa; }
+        .quiz-opt.selected { background: #1e3a5f; border-color: #3b82f6; }
+        .quiz-opt.correct { background: #14532d; border-color: #22c55e; }
+        .quiz-opt.wrong { background: #7f1d1d; border-color: #ef4444; }
+        .quiz-answer {
+            display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+            background: #0f172a; border-left: 3px solid #6366f1; border-radius: 0.25rem;
+            font-size: 0.875rem; color: #cbd5e1;
+        }
+        .quiz-answer.show { display: block; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-200 min-h-screen flex flex-col">
 
-    <!-- 導航欄 -->
+    <!-- 導航欄：強制教學控件 -->
     <nav class="bg-slate-800 border-b border-slate-700 p-4 shadow-md sticky top-0 z-50">
-        <div class="container mx-auto flex justify-between items-center">
+        <div class="container mx-auto flex flex-wrap justify-between items-center gap-3">
             <div class="flex items-center space-x-3">
                 <div class="w-8 h-8 bg-yellow-500 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.6)]"></div>
-                <h1 class="text-xl font-bold text-white">物理實驗室：弗朗荷夫線</h1>
+                <h1 class="text-xl font-bold text-white"><span data-i18n="app-title">物理實驗室：夫朗和斐線</span></h1>
+                <span class="hidden sm:inline-block text-xs px-2 py-0.5 rounded bg-amber-900/60 text-amber-200 border border-amber-700/50" data-i18n="badge-physics">物理</span>
             </div>
-            <button onclick="toggleModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition duration-200 flex items-center gap-2 text-sm font-medium">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                </svg>
-                實驗原理
-            </button>
+            <div class="flex flex-wrap items-center gap-2 justify-end">
+                <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition text-sm font-medium" data-i18n="btn-steps">觀察步驟</button>
+                <button type="button" id="btn-principle" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition text-sm font-medium" data-i18n="btn-principle">原理解說</button>
+                <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition text-sm font-medium" data-i18n="btn-quiz">課堂問題</button>
+                <span class="text-slate-600 hidden sm:inline">|</span>
+                <button type="button" id="btn-lang" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition text-sm font-bold">中 / EN</button>
+                <button type="button" id="btn-reset" class="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition text-sm font-medium" data-i18n="btn-reset">重置</button>
+            </div>
         </div>
     </nav>
 
     <main class="flex-grow container mx-auto p-4 md:p-8 space-y-8">
 
-        <!-- 第一部分：太陽光模型 -->
+        <!-- §1 光的路徑模型 -->
         <section class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 relative overflow-hidden">
             <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl font-bold select-none">Sun</div>
             <h2 class="text-lg font-semibold mb-6 text-blue-300 flex items-center">
                 <span class="bg-blue-900 text-blue-300 w-6 h-6 rounded-full inline-flex items-center justify-center mr-2 text-xs">1</span>
-                光的路徑模型
+                <span data-i18n="sec1-title">光的路徑模型</span>
             </h2>
-            
+
             <div class="flex items-center justify-between gap-4 md:gap-12 py-8 relative px-4 md:px-20">
-                <!-- 太陽系統 (包含大氣層) -->
                 <div class="text-center z-10 relative group">
-                    <!-- 使用獨立的容器來定位太陽與大氣，確保圓心對齊 -->
                     <div class="relative w-32 h-32 mx-auto flex items-center justify-center">
-                        
-                        <!-- 外層：太陽大氣 (吸收層) -->
-                        <div class="absolute top-1/2 left-1/2 w-40 h-40 rounded-full border-4 border-dashed border-slate-500 bg-slate-800/30 atmosphere-ring flex items-center justify-center pointer-events-none">
-                        </div>
-                        
-                        <!-- 標籤：大氣層 (浮動於上方) -->
-                        <div class="absolute -top-8 left-1/2 -translate-x-1/2 w-max bg-slate-700 text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 z-20">
+                        <div class="absolute top-1/2 left-1/2 w-40 h-40 rounded-full border-4 border-dashed border-slate-500 bg-slate-800/30 atmosphere-ring flex items-center justify-center pointer-events-none"></div>
+                        <div class="absolute -top-8 left-1/2 -translate-x-1/2 w-max bg-slate-700 text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 z-20" data-i18n="label-atmosphere">
                             外圍：冷氣體吸收層 (H, He)
                         </div>
-
-                        <!-- 核心：太陽光球 -->
                         <div class="w-24 h-24 bg-yellow-400 rounded-full shadow-[0_0_60px_rgba(250,204,21,0.8)] relative flex items-center justify-center z-10">
-                            <span class="text-yellow-900 font-bold text-lg drop-shadow-sm">太陽</span>
+                            <span class="text-yellow-900 font-bold text-lg drop-shadow-sm" data-i18n="label-sun">太陽</span>
                         </div>
                     </div>
-                    
-                    <p class="mt-4 text-sm text-slate-400">光源中心 (連續光譜)</p>
+                    <p class="mt-4 text-sm text-slate-400" data-i18n="label-photosphere">光源中心 (連續光譜)</p>
                 </div>
 
-                <!-- 光線路徑 -->
                 <div class="flex-1 relative h-24 flex items-center mx-4">
-                    <!-- 箭頭背景 -->
                     <div class="w-full h-1 bg-gradient-to-r from-yellow-400 to-blue-400 opacity-20"></div>
-                    
-                    <!-- 粒子動畫 -->
                     <div class="absolute inset-0 overflow-hidden">
                         <div class="absolute top-1/2 left-0 w-2 h-2 bg-white rounded-full beam-particle" style="animation-delay: 0s;"></div>
                         <div class="absolute top-1/2 left-0 w-2 h-2 bg-white rounded-full beam-particle" style="animation-delay: 0.8s;"></div>
                         <div class="absolute top-1/2 left-0 w-2 h-2 bg-white rounded-full beam-particle" style="animation-delay: 1.6s;"></div>
                     </div>
-
-                    <!-- 說明標籤 -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-8 text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded whitespace-nowrap">
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-8 text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded whitespace-nowrap" data-i18n="label-beam">
                         光子穿越大氣後射向地球
                     </div>
                 </div>
 
-                <!-- 地球/觀察者 -->
                 <div class="text-center z-10">
                     <div class="w-32 h-32 mx-auto flex items-center justify-center">
                         <div class="w-20 h-20 bg-blue-600 rounded-full shadow-[0_0_30px_rgba(37,99,235,0.4)] flex items-center justify-center overflow-hidden relative border-2 border-blue-400/30">
                             <div class="absolute w-full h-full bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/240px-The_Earth_seen_from_Apollo_17.jpg')] bg-cover bg-center opacity-90"></div>
-                            <span class="relative z-10 font-bold text-white drop-shadow-md">地球</span>
+                            <span class="relative z-10 font-bold text-white drop-shadow-md" data-i18n="label-earth">地球</span>
                         </div>
                     </div>
-                    <p class="mt-4 text-sm text-slate-400">觀察者 (接收光譜)</p>
+                    <p class="mt-4 text-sm text-slate-400" data-i18n="label-observer">觀察者 (接收光譜)</p>
                 </div>
             </div>
         </section>
 
-        <!-- 第二部分：光譜展示區 -->
+        <!-- §2 光譜分析（spectrum-stack vertical exemption） -->
         <section class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700">
-            <div class="flex justify-between items-end mb-6">
+            <div class="flex flex-wrap justify-between items-end gap-3 mb-6">
                 <h2 class="text-lg font-semibold text-blue-300 flex items-center">
                     <span class="bg-blue-900 text-blue-300 w-6 h-6 rounded-full inline-flex items-center justify-center mr-2 text-xs">2</span>
-                    光譜分析與比較
+                    <span data-i18n="sec2-title">光譜分析與比較</span>
                 </h2>
-                
-                <!-- 控制開關 -->
+
                 <label class="flex items-center cursor-pointer gap-3 bg-slate-900 px-4 py-2 rounded-lg border border-slate-700 hover:border-blue-500 transition select-none">
-                    <span class="text-sm font-medium text-slate-300">顯示對應關係</span>
+                    <span class="text-sm font-medium text-slate-300" data-i18n="toggle-match">顯示對應關係</span>
                     <div class="relative">
                         <input type="checkbox" id="matchToggle" class="sr-only" onchange="toggleMatchLines()">
                         <div class="w-10 h-6 bg-slate-700 rounded-full shadow-inner transition-colors duration-300" id="toggleBg"></div>
@@ -166,22 +218,16 @@
                 </label>
             </div>
 
-            <!-- 光譜堆疊容器 -->
-            <!-- 這裡需要一個相對定位的父容器來放置 Canvas -->
             <div class="relative space-y-8 pb-4 main-spectrum-container">
-                <!-- 連線層 Canvas (絕對定位覆蓋整個堆疊區域) -->
                 <canvas id="connectionCanvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-30 opacity-0 transition-opacity duration-500"></canvas>
 
-                <!-- 1. 太陽光譜 (吸收) -->
                 <div class="relative group">
                     <div class="flex justify-between text-xs text-slate-400 mb-1 px-1 font-mono">
                         <span>400nm</span>
-                        <span class="font-bold text-white font-sans">太陽可見光譜 (吸收光譜)</span>
+                        <span class="font-bold text-white font-sans" data-i18n="label-solar">太陽可見光譜 (吸收光譜)</span>
                         <span>700nm</span>
                     </div>
-                    
                     <div class="h-20 w-full rounded bg-slate-900 relative">
-                        <!-- 刻度尺 -->
                         <div class="absolute -top-1 left-0 w-full h-full flex justify-between px-[1px] opacity-20 z-0 pointer-events-none">
                             <div class="w-px h-full bg-white"></div>
                             <div class="w-px h-full bg-white"></div>
@@ -189,177 +235,449 @@
                             <div class="w-px h-full bg-white"></div>
                             <div class="w-px h-full bg-white"></div>
                         </div>
-                        <!-- 光譜本體 -->
-                        <div class="h-full w-full rounded border border-slate-500 shadow-inner spectrum-gradient relative overflow-hidden z-10" id="solarSpectrum">
-                            <!-- 吸收線將由 JS 生成 -->
-                        </div>
+                        <div class="h-full w-full rounded border border-slate-500 shadow-inner spectrum-gradient relative overflow-hidden z-10" id="solarSpectrum"></div>
                     </div>
-                    
-                    <div class="text-xs text-yellow-500 mt-1 opacity-0 group-hover:opacity-100 transition text-center">
+                    <div class="text-xs text-yellow-500 mt-1 opacity-0 group-hover:opacity-100 transition text-center" data-i18n="hint-dark-lines">
                         * 黑線顯示被吸收的特定波長
                     </div>
                 </div>
 
-                <!-- 2. 氫光譜 -->
                 <div class="relative">
                     <div class="flex justify-between text-xs text-slate-400 mb-1 px-1 font-mono">
                         <span>400nm</span>
-                        <span class="font-bold text-blue-400 font-sans">氫 (Hydrogen) 發射光譜 <span class="text-xs font-normal text-slate-500 ml-2">(點擊亮線查看波長)</span></span>
+                        <span class="font-bold text-blue-400 font-sans"><span data-i18n="label-hydrogen">氫 (Hydrogen) 發射光譜</span> <span class="text-xs font-normal text-slate-500 ml-2" data-i18n="hint-click-line">(點擊亮線查看波長)</span></span>
                         <span>700nm</span>
                     </div>
-                    <div class="h-16 w-full bg-black rounded border border-slate-600 shadow-inner relative overflow-visible" id="hydrogenSpectrum">
-                        <!-- 發射線由 JS 生成 -->
-                    </div>
+                    <div class="h-16 w-full bg-black rounded border border-slate-600 shadow-inner relative overflow-visible" id="hydrogenSpectrum"></div>
                 </div>
 
-                <!-- 3. 氦光譜 -->
                 <div class="relative">
                     <div class="flex justify-between text-xs text-slate-400 mb-1 px-1 font-mono">
                         <span>400nm</span>
-                        <span class="font-bold text-green-400 font-sans">氦 (Helium) 發射光譜 <span class="text-xs font-normal text-slate-500 ml-2">(點擊亮線查看波長)</span></span>
+                        <span class="font-bold text-green-400 font-sans"><span data-i18n="label-helium">氦 (Helium) 發射光譜</span> <span class="text-xs font-normal text-slate-500 ml-2" data-i18n="hint-click-line">(點擊亮線查看波長)</span></span>
                         <span>700nm</span>
                     </div>
-                    <div class="h-16 w-full bg-black rounded border border-slate-600 shadow-inner relative overflow-visible" id="heliumSpectrum">
-                        <!-- 發射線由 JS 生成 -->
-                    </div>
+                    <div class="h-16 w-full bg-black rounded border border-slate-600 shadow-inner relative overflow-visible" id="heliumSpectrum"></div>
                 </div>
             </div>
-            
-            <p class="mt-4 text-sm text-slate-400 text-center italic bg-slate-900/50 p-2 rounded">
+
+            <p class="mt-4 text-sm text-slate-400 text-center italic bg-slate-900/50 p-2 rounded" data-i18n="obs-hint">
                 觀察重點：請注意下方元素的亮線（發射線）與上方太陽光譜中的黑線（吸收線）在垂直位置上是否完全吻合。
             </p>
         </section>
 
-        <!-- 底部資訊 -->
         <footer class="text-center text-slate-500 text-sm py-4">
-            <p>© 物理教學演示模型 | Fraunhofer Lines Experiment</p>
+            <p data-i18n="footer">© 物理教學演示模型 | Fraunhofer Lines Experiment</p>
         </footer>
-
     </main>
 
-    <!-- Modal (實驗原理) -->
-    <div id="infoModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <!-- 背景遮罩 -->
-        <div class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm transition-opacity" onclick="toggleModal()"></div>
+    <!-- modal-steps -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 bg-black/70 z-[100] flex items-center justify-center hidden opacity-0" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-slate-800 p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto border border-slate-600" data-modal-panel onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b border-slate-600 pb-2 mb-4">
+                <h2 id="steps-title" class="text-2xl font-bold text-indigo-300" data-i18n="steps-title">觀察步驟</h2>
+                <button type="button" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-close-modal="modal-steps" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <ol class="list-decimal pl-5 space-y-3 text-slate-300 leading-relaxed text-sm" id="steps-body"></ol>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-steps" data-i18n="modal-close">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        <div class="fixed inset-0 z-10 overflow-y-auto">
-            <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-                <div class="relative transform overflow-hidden rounded-2xl bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-slate-600">
-                    
-                    <!-- Modal Header -->
-                    <div class="bg-slate-700 px-4 py-3 sm:px-6 flex justify-between items-center">
-                        <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">關於 Fraunhofer Lines</h3>
-                        <button onclick="toggleModal()" class="text-slate-400 hover:text-white transition">
-                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
+    <!-- modal-principle -->
+    <div id="modal-principle" class="modal-panel fixed inset-0 bg-black/70 z-[100] flex items-center justify-center hidden opacity-0" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-slate-800 p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto border border-slate-600" data-modal-panel onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b border-slate-600 pb-2 mb-4">
+                <h2 id="principle-title" class="text-2xl font-bold text-indigo-300" data-i18n="principle-title">原理解說</h2>
+                <button type="button" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-close-modal="modal-principle" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="principle-body" class="space-y-4 text-slate-300 leading-relaxed text-sm"></div>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-principle" data-i18n="modal-close">關閉</button>
+            </div>
+        </div>
+    </div>
 
-                    <!-- Modal Body -->
-                    <div class="px-4 py-5 sm:p-6 text-slate-300 space-y-4 max-h-[70vh] overflow-y-auto">
-                        <div>
-                            <h4 class="text-blue-400 font-bold mb-2">歷史背景</h4>
-                            <p class="text-sm leading-relaxed">
-                                1814年，德國物理學家 <strong>約瑟夫·馮·弗朗荷夫 (Joseph von Fraunhofer)</strong> 發明了分光儀，他在觀察太陽光譜時，發現彩虹般的連續光譜中夾雜著數百條細微的黑線。他仔細測量了其中最明顯的 574 條線的波長，這些線後來被稱為「弗朗荷夫線」。
-                            </p>
-                        </div>
-
-                        <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                            <h4 class="text-yellow-400 font-bold mb-2">實驗原理：克希荷夫定律</h4>
-                            <p class="text-sm leading-relaxed mb-2">
-                                後來，克希荷夫 (Kirchhoff) 和 本生 (Bunsen) 發現了光譜分析的關鍵秘密：
-                            </p>
-                            <ul class="list-disc list-inside text-sm space-y-1 ml-2">
-                                <li><span class="text-white">熱的固體/液體</span> 會發出連續光譜（彩虹）。</li>
-                                <li><span class="text-white">熱的稀薄氣體</span> 會發出特定波長的亮線（發射光譜）。</li>
-                                <li><span class="text-white">冷氣體位於連續光源前</span> 會吸收它能發出的特定波長，形成黑線（吸收光譜）。</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h4 class="text-green-400 font-bold mb-2">這說明了什麼？</h4>
-                            <p class="text-sm leading-relaxed">
-                                當我們看到太陽光譜中的黑線（吸收線）與地球上氫氣或氦氣加熱時發出的亮線（發射線）位置完全重合時，我們就能斷定：<strong>太陽的大氣層中含有氫和氦</strong>。這就是人類如何在不飛向太陽的情況下，知道恆星成分的方法。
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Modal Footer -->
-                    <div class="bg-slate-700/50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                        <button type="button" onclick="toggleModal()" class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 sm:ml-3 sm:w-auto">
-                            明白了
-                        </button>
-                    </div>
-                </div>
+    <!-- modal-quiz -->
+    <div id="modal-quiz" class="modal-panel fixed inset-0 bg-black/70 z-[100] flex items-center justify-center hidden opacity-0" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-slate-800 p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto border border-slate-600" data-modal-panel onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b border-slate-600 pb-2 mb-4">
+                <h2 id="quiz-title" class="text-2xl font-bold text-violet-300" data-i18n="quiz-title">課堂問題</h2>
+                <button type="button" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-close-modal="modal-quiz" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="mb-3">
+                <button type="button" id="btn-quiz-answers" class="bg-slate-600 hover:bg-slate-500 text-white text-sm font-bold py-2 px-4 rounded"></button>
+            </div>
+            <div id="quiz-body"></div>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-violet-600 hover:bg-violet-500 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-quiz" data-i18n="modal-close">關閉</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 配置數據
-        const MIN_WAVELENGTH = 400;
-        const MAX_WAVELENGTH = 700;
-        
-        // 主要的 Fraunhofer 線
-        const spectralData = [
-            { label: 'G', wavelength: 430, element: 'Fe/Ca', color: '#4b0082', type: 'other' }, 
-            { label: 'h', wavelength: 410, element: 'H', color: '#7a26c9', type: 'H' },   
-            { label: 'g', wavelength: 434, element: 'H', color: '#0000ff', type: 'H' },   
-            { label: 'F', wavelength: 486, element: 'H', color: '#00ffff', type: 'H' },   
-            { label: 'b', wavelength: 517, element: 'Mg', color: '#00ff00', type: 'other' }, 
-            { label: 'E', wavelength: 527, element: 'Fe', color: '#33ff00', type: 'other' }, 
-            { label: 'D3', wavelength: 587.6, element: 'He', color: '#ffff00', type: 'He' }, 
-            { label: 'D', wavelength: 589, element: 'Na', color: '#ffcc00', type: 'other' }, 
-            { label: 'C', wavelength: 656, element: 'H', color: '#ff0000', type: 'H' },   
-            { label: 'r', wavelength: 667.8, element: 'He', color: '#ff2200', type: 'He' }, 
-            { label: 'B', wavelength: 687, element: 'O2', color: '#cc0000', type: 'other' },
-            { label: 'He-B', wavelength: 447.1, element: 'He', color: '#0033ff', type: 'He' }, 
-            { label: 'He-G', wavelength: 501.6, element: 'He', color: '#00ff99', type: 'He' }, 
-            { label: 'He-Y', wavelength: 706.5, element: 'He', color: '#990000', type: 'He' }  
+        const translations = {
+            zh: {
+                'app-title': '物理實驗室：夫朗和斐線',
+                'badge-physics': '物理',
+                'btn-steps': '觀察步驟',
+                'btn-principle': '原理解說',
+                'btn-quiz': '課堂問題',
+                'btn-reset': '重置',
+                'sec1-title': '光的路徑模型',
+                'sec2-title': '光譜分析與比較',
+                'label-atmosphere': '外圍：冷氣體吸收層 (H, He)',
+                'label-sun': '太陽',
+                'label-photosphere': '光源中心 (連續光譜)',
+                'label-beam': '光子穿越大氣後射向地球',
+                'label-earth': '地球',
+                'label-observer': '觀察者 (接收光譜)',
+                'toggle-match': '顯示對應關係',
+                'label-solar': '太陽可見光譜 (吸收光譜)',
+                'hint-dark-lines': '* 黑線顯示被吸收的特定波長',
+                'label-hydrogen': '氫 (Hydrogen) 發射光譜',
+                'label-helium': '氦 (Helium) 發射光譜',
+                'hint-click-line': '(點擊亮線查看波長)',
+                'obs-hint': '觀察重點：請注意下方元素的亮線（發射線）與上方太陽光譜中的黑線（吸收線）在垂直位置上是否完全吻合。',
+                'footer': '© 物理教學演示模型 | Fraunhofer Lines Experiment',
+                'modal-close': '關閉',
+                'steps-title': '觀察步驟',
+                'principle-title': '原理解說',
+                'quiz-title': '課堂問題',
+                'show-answers': '顯示參考答案',
+                'hide-answers': '隱藏參考答案',
+                'concept-label': '概念',
+                'mechanism-label': '機制',
+                'example-label': '日常例子',
+                'short-hint': '（短答：請在筆記本作答，再對照參考答案）',
+                'page-title': '夫朗和斐線 (Fraunhofer Lines) 實驗室',
+                'step1': '看 §1「光的路徑模型」：光球發出連續光譜，外圍標示冷氣體吸收層。再看 §2 最上方<strong>太陽可見光譜</strong>：確認彩虹連續底上有多條<strong>黑線</strong>（夫朗和斐／吸收線）。可把游標移到某條黑線上看元素與波長提示。',
+                'step2': '向下看<strong>氫</strong>與<strong>氦</strong>發射光譜（黑底上的彩色亮線）。先<strong>不要</strong>開「顯示對應關係」。目測幾條亮線是否大致落在上方某條黑線的正下方。點一條氫亮線，讀出波長（例如接近 486 nm 或 656 nm）。',
+                'step3': '打開<strong>顯示對應關係</strong>，觀察虛線如何把太陽吸收線與 H／He 發射線<strong>垂直連起來</strong>。確認對齊後，用自己的話說：同一波長既可被吸收也可被發射時，代表什麼（連到克希荷夫）。再按<strong>重置</strong>：對應開關應關閉、tooltip 清除，語言維持不變。',
+                'step4': '對照原理：為什麼太陽譜是「連續＋黑線」而不是只有亮線？冷的太陽大氣位於熱光球之前時，會吸收哪些波長？總結本模擬假設：可見光軸 400–700 nm、教學用稀疏線表（非完整太陽線表）、連線僅針對 type 為 H／He 的線、706.5 nm 可能因上界而不繪出。',
+                'principle-concept': '夫朗和斐線是太陽（或其他恆星）可見光譜中，疊在連續彩虹底上的暗線。它們標示外層較冷氣體吸收了特定波長的光。把這些吸收線與實驗室中元素的發射亮線對齊，就能在不飛到太陽的情況下推斷大氣成分。',
+                'principle-mechanism': '<ol class="list-decimal pl-5 space-y-2"><li><strong>連續光譜</strong>：高溫光球（近似熱固體／稠密氣體）發出可見光連續譜。</li><li><strong>發射光譜</strong>：受激發的稀薄氣體只在特定波長發光 → 黑底亮線（本模擬氫、氦）。</li><li><strong>吸收光譜／夫朗和斐線</strong>：連續光穿過較冷的稀薄氣體時，氣體吸收它「也會發射」的那些波長 → 連續底上出現黑線。克希荷夫定律把「能發射 ↔ 能吸收」連在同一組波長上。</li><li><strong>對齊推論</strong>：若太陽黑線與 H／He 亮線位置重合，則太陽大氣含氫與氦（本譜另標 Na、Fe、Mg 等，對照列以 H／He 為操作焦點）。</li><li><strong>假設</strong>：波長軸 400–700 nm；線表為課堂精簡版；Canvas 連線僅 H／He；外連地球圖僅裝飾；非高解析分光儀數據還原。</li></ol>',
+                'principle-example': '天文台恆星分類、化學火焰試驗／光譜管辨識元素、天文館太陽光譜展示。勿與雙縫干涉、衍射光柵測波長專題、或光電效應截止電壓混為同一套控件。',
+                'q1': '看 §2 最上方太陽可見光譜與下方氫發射光譜。哪項描述最正確？',
+                'q1a': 'A. 太陽譜是連續底上有黑線（吸收）；氫譜是黑底上有亮線（發射）',
+                'q1b': 'B. 兩者都只有連續彩虹、完全沒有線',
+                'q1c': 'C. 太陽譜是黑底亮線，氫譜是連續吸收',
+                'q1d': 'D. 本模擬沒有太陽光譜區塊',
+                'q1ans': '參考答案：A。對應太陽漸層＋黑線 vs 氫黑底亮線。',
+                'q2': '先關閉「顯示對應關係」，再打開它。先預測太陽吸收線與恆星發射線之間的連接是否出現，再操作驗證。',
+                'q2a': 'A. 出現垂直虛線，把太陽吸收線與氫／氦發射線在相同波長位置連起來',
+                'q2b': 'B. 三層光譜會全部變成灰階且無法再點擊',
+                'q2c': 'C. 語言會自動切成英文',
+                'q2d': 'D. 地球圖會從頁面移除',
+                'q2ans': '參考答案：A。對應連線僅對 type 為 H／He 的線畫虛線。',
+                'q3': '在氫發射光譜上點一條亮線（例如偏青藍或偏紅的一條），讀 tooltip 波長。哪項最合理？',
+                'q3a': 'A. 會顯示約數百 nm 的可見光波長（如接近 486 或 656 nm 量級），對應 Balmer 線教學值',
+                'q3b': 'B. tooltip 只會顯示「He」且波長永遠是 100 nm',
+                'q3c': 'C. 點擊會強制下載 CSV',
+                'q3d': 'D. 本模擬發射線不可點擊',
+                'q3ans': '參考答案：A。點擊顯示波長（nm）；H 線含 410／434／486／656 等。',
+                'q4': '打開「顯示對應關係」，確認至少一條氫或氦連線對齊後：用自己的話寫（1）黑線與亮線位置相同說明什麼；（2）按重置後，對應開關與語言應如何（本設計預期）。',
+                'q4ans': '參考答案：（1）同一波長可被該元素吸收與發射 → 太陽大氣含該元素（克希荷夫）；（2）對應關係關閉、tooltip 清除；不應切換中／EN。',
+                'q5': '根據本模擬控件與設計，哪項最正確？',
+                'q5a': 'A. 可對照太陽吸收譜與 H／He 發射譜、開對應連線、點亮線讀波長，並有步驟／原理／五題／中EN／重置——主題是夫朗和斐線與成分推論，不是雙縫干涉或光電效應',
+                'q5b': 'B. 主要用來量雙縫條紋間距求波長',
+                'q5c': 'C. 重置會強制改成英文並刪除所有光譜線',
+                'q5d': 'D. 主要展示蓋革計數器 αβγ 穿透',
+                'q5ans': '參考答案：A。隔離雙縫／光電／GM；Reset 不改語言、不刪光譜線資料。'
+            },
+            en: {
+                'app-title': 'Physics Lab: Fraunhofer Lines',
+                'badge-physics': 'Physics',
+                'btn-steps': 'Steps',
+                'btn-principle': 'Principle',
+                'btn-quiz': 'Quiz',
+                'btn-reset': 'Reset',
+                'sec1-title': 'Light Path Model',
+                'sec2-title': 'Spectrum Analysis & Comparison',
+                'label-atmosphere': 'Outer: cool absorbing atmosphere (H, He)',
+                'label-sun': 'Sun',
+                'label-photosphere': 'Photosphere (continuous spectrum)',
+                'label-beam': 'Photons reach Earth after the atmosphere',
+                'label-earth': 'Earth',
+                'label-observer': 'Observer (receives spectrum)',
+                'toggle-match': 'Show correspondences',
+                'label-solar': 'Solar visible spectrum (absorption)',
+                'hint-dark-lines': '* Dark lines mark absorbed wavelengths',
+                'label-hydrogen': 'Hydrogen emission spectrum',
+                'label-helium': 'Helium emission spectrum',
+                'hint-click-line': '(click a bright line for wavelength)',
+                'obs-hint': 'Focus: check whether bright emission lines below align vertically with dark absorption lines in the solar spectrum above.',
+                'footer': '© Physics teaching demo | Fraunhofer Lines Experiment',
+                'modal-close': 'Close',
+                'steps-title': 'Observation Steps',
+                'principle-title': 'Principle',
+                'quiz-title': 'Classroom Quiz',
+                'show-answers': 'Show model answers',
+                'hide-answers': 'Hide model answers',
+                'concept-label': 'Concept',
+                'mechanism-label': 'Mechanism',
+                'example-label': 'Everyday example',
+                'short-hint': '(Short answer: write in your notebook, then check the model answer.)',
+                'page-title': 'Fraunhofer Lines Laboratory',
+                'step1': 'In §1, note the photosphere (continuous spectrum) and the cool absorbing atmosphere. In §2, inspect the <strong>solar visible spectrum</strong>: a rainbow continuum with many <strong>dark lines</strong> (Fraunhofer／absorption). Hover a dark line for element and wavelength.',
+                'step2': 'View the <strong>Hydrogen</strong> and <strong>Helium</strong> emission spectra (bright lines on black). Keep <strong>Show correspondences</strong> off first. Eye-check whether bright lines sit under solar dark lines. Click a hydrogen line and read its wavelength (e.g. near 486 nm or 656 nm).',
+                'step3': 'Turn on <strong>Show correspondences</strong> and watch dashed lines join solar absorption lines to H／He emission lines. After confirming alignment, state what matching absorb／emit wavelengths imply (Kirchhoff). Then <strong>Reset</strong>: the toggle should turn off, tooltips clear, language unchanged.',
+                'step4': 'Link to the principle: why is the solar spectrum continuum＋dark lines rather than emission-only? Which wavelengths does a cool atmosphere in front of a hot photosphere absorb? Idealizations: 400–700 nm axis, sparse teaching line list (not a full solar atlas), connectors only for type H／He, 706.5 nm may be omitted past the upper bound.',
+                'principle-concept': 'Fraunhofer lines are the dark lines across the continuous rainbow of the Sun (or other stars). They mark wavelengths absorbed by cooler outer gases. Matching those absorption lines to laboratory emission lines of elements lets us infer atmospheric composition without flying to the Sun.',
+                'principle-mechanism': '<ol class="list-decimal pl-5 space-y-2"><li><strong>Continuous spectrum</strong>: the hot photosphere emits a visible continuum.</li><li><strong>Emission spectrum</strong>: excited thin gases glow only at discrete wavelengths → bright lines on black (H and He here).</li><li><strong>Absorption／Fraunhofer lines</strong>: when continuum light passes through cooler thin gas, the gas absorbs the same wavelengths it can emit → dark lines on the continuum. Kirchhoff’s laws tie “can emit ↔ can absorb” at those wavelengths.</li><li><strong>Matching inference</strong>: if solar dark lines coincide with H／He bright lines, the solar atmosphere contains hydrogen and helium (Na, Fe, Mg appear as labels; H／He are the hands-on focus).</li><li><strong>Idealizations</strong>: 400–700 nm axis; sparse teaching line list; connectors only for H／He; decorative Earth image; not a high-resolution spectrograph atlas.</li></ol>',
+                'principle-example': 'Stellar classification, flame tests／gas-discharge tubes for element ID, planetarium solar-spectrum demos. Do not merge with double-slit interference, diffraction-grating wavelength labs, or photoelectric cut-off voltage controls.',
+                'q1': 'Compare the top solar visible spectrum with the hydrogen emission spectrum below. Which description is most correct?',
+                'q1a': 'A. Solar = continuum with dark (absorption) lines; hydrogen = bright (emission) lines on black',
+                'q1b': 'B. Both are pure rainbows with no lines at all',
+                'q1c': 'C. Solar is emission-on-black; hydrogen is continuous absorption',
+                'q1d': 'D. This sim has no solar spectrum panel',
+                'q1ans': 'Model answer: A. Solar gradient＋dark lines vs hydrogen bright lines on black.',
+                'q2': 'Turn Show correspondences off, then on. Predict whether connectors between solar absorption and stellar emission lines appear, then verify.',
+                'q2a': 'A. Dashed vertical lines join solar absorption lines to H／He emission lines at matching wavelengths',
+                'q2b': 'B. All three spectra turn greyscale and become unclickable',
+                'q2c': 'C. The UI language switches to English automatically',
+                'q2d': 'D. The Earth image is removed from the page',
+                'q2ans': 'Model answer: A. Dashed connectors only for type H／He lines.',
+                'q3': 'Click a bright line on the hydrogen emission spectrum (e.g. a cyan-ish or red-ish one) and read the tooltip wavelength. Which is most reasonable?',
+                'q3a': 'A. It shows a visible wavelength of a few hundred nm (e.g. near 486 or 656 nm), matching teaching Balmer values',
+                'q3b': 'B. The tooltip only ever shows “He” at 100 nm',
+                'q3c': 'C. Clicking forces a CSV download',
+                'q3d': 'D. Emission lines are not clickable in this sim',
+                'q3ans': 'Model answer: A. Click shows wavelength in nm; H lines include 410／434／486／656 etc.',
+                'q4': 'Turn on <strong>Show correspondences</strong> and confirm at least one H or He connector. In your own words: (1) what matching dark and bright line positions mean; (2) after Reset, what should happen to the toggle and to the language (per this design).',
+                'q4ans': 'Model answer: (1) The element can absorb and emit at that wavelength → that element is in the solar atmosphere (Kirchhoff); (2) correspondences toggle off, tooltips clear; Reset must not switch language.',
+                'q5': "Using this sim’s controls and design, which is most correct?",
+                'q5a': 'A. You can compare solar absorption with H／He emission, show connectors, click lines for wavelength, with steps／principle／five quiz items／zh-EN／reset—this is Fraunhofer lines and composition inference, not double-slit or photoelectric effect',
+                'q5b': 'B. It is mainly for measuring double-slit fringe spacing to find λ',
+                'q5c': 'C. Reset always switches to English and deletes all spectral lines',
+                'q5d': 'D. It mainly shows GM-counter α／β／γ penetration',
+                'q5ans': 'Model answer: A. Isolate double-slit／photoelectric／GM; Reset does not change language or clear spectralData.'
+            }
+        };
+
+        let currentLang = 'zh';
+        let quizAnswersVisible = false;
+        const quizSelections = {};
+
+        const quizItems = [
+            { q: 'q1', opts: ['q1a', 'q1b', 'q1c', 'q1d'], correct: 0, ans: 'q1ans', type: 'mc' },
+            { q: 'q2', opts: [], correct: -1, ans: 'q2ans', type: 'short' },
+            { q: 'q3', opts: ['q3a', 'q3b', 'q3c', 'q3d'], correct: 0, ans: 'q3ans', type: 'mc' },
+            { q: 'q4', opts: [], correct: -1, ans: 'q4ans', type: 'short' },
+            { q: 'q5', opts: ['q5a', 'q5b', 'q5c', 'q5d'], correct: 0, ans: 'q5ans', type: 'mc' }
         ];
 
-        // 初始化 DOM
+        function t(key) {
+            const pack = translations[currentLang] || translations.zh;
+            return pack[key] !== undefined ? pack[key] : (translations.zh[key] || key);
+        }
+
+        function applyI18n() {
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+            document.title = t('page-title');
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                const val = t(key);
+                if (val !== undefined) el.innerHTML = val;
+            });
+            renderSteps();
+            renderPrinciple();
+            renderQuiz();
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t('hide-answers') : t('show-answers');
+        }
+
+        function renderSteps() {
+            const body = document.getElementById('steps-body');
+            if (!body) return;
+            body.innerHTML = ['step1', 'step2', 'step3', 'step4'].map(k => '<li>' + t(k) + '</li>').join('');
+        }
+
+        function renderPrinciple() {
+            const body = document.getElementById('principle-body');
+            if (!body) return;
+            body.innerHTML =
+                '<div><h4 class="text-blue-400 font-bold mb-2">' + t('concept-label') + '</h4><p>' + t('principle-concept') + '</p></div>' +
+                '<div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700"><h4 class="text-yellow-400 font-bold mb-2">' + t('mechanism-label') + '</h4>' + t('principle-mechanism') + '</div>' +
+                '<div><h4 class="text-green-400 font-bold mb-2">' + t('example-label') + '</h4><p>' + t('principle-example') + '</p></div>';
+        }
+
+        function renderQuiz() {
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+            body.innerHTML = quizItems.map((item, qi) => {
+                const n = qi + 1;
+                const name = 'q' + n;
+                let html = '<div class="mb-5 pb-4 border-b border-slate-700"><p class="font-semibold text-slate-100 mb-2">Q' + n + '. ' + t(item.q) + '</p>';
+                if (item.type === 'short') {
+                    html += '<p class="text-xs text-slate-400 mb-2">' + t('short-hint') + '</p>';
+                } else {
+                    html += '<div class="grid gap-1.5">';
+                    item.opts.forEach((ok, oi) => {
+                        const L = String.fromCharCode(65 + oi);
+                        html += '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer hover:bg-slate-800/40"><input type="radio" name="' + name + '" class="mt-0.5"><span class="text-sm">' + t(ok) + '</span></label>';
+                    });
+                    html += '</div>';
+                }
+                if (quizAnswersVisible) {
+                    html += '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + t(item.ans) + '</div>';
+                }
+                return html + '</div>';
+            }).join('');
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t('hide-answers') : t('show-answers');
+        }
+
+        const modalHideTimers = Object.create(null);
+
+        function openModal(id) {
+            closeAllModals(id);
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (modalHideTimers[id]) {
+                clearTimeout(modalHideTimers[id]);
+                delete modalHideTimers[id];
+            }
+            el.classList.remove('hidden', 'opacity-0');
+            el.style.opacity = '1';
+            el.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-active');
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (modalHideTimers[id]) {
+                clearTimeout(modalHideTimers[id]);
+                delete modalHideTimers[id];
+            }
+            el.classList.add('opacity-0');
+            el.style.opacity = '';
+            el.setAttribute('aria-hidden', 'true');
+            modalHideTimers[id] = setTimeout(() => {
+                delete modalHideTimers[id];
+                // Do not hide if this modal was re-opened while exiting
+                if (el.getAttribute('aria-hidden') === 'false' || !el.classList.contains('opacity-0')) return;
+                el.classList.add('hidden');
+                if (!document.querySelector('.modal-panel:not(.hidden)')) {
+                    document.body.classList.remove('modal-active');
+                }
+            }, 200);
+        }
+
+        function closeAllModals(exceptId) {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(mid => {
+                if (exceptId && mid === exceptId) return;
+                closeModal(mid);
+            });
+        }
+
+        function wireTeachingShell() {
+            const stepsBtn = document.getElementById('btn-steps');
+            const principleBtn = document.getElementById('btn-principle');
+            const quizBtn = document.getElementById('btn-quiz');
+            const langBtn = document.getElementById('btn-lang');
+            const resetBtn = document.getElementById('btn-reset');
+            if (stepsBtn) stepsBtn.addEventListener('click', () => openModal('modal-steps'));
+            if (principleBtn) principleBtn.addEventListener('click', () => openModal('modal-principle'));
+            if (quizBtn) quizBtn.addEventListener('click', () => openModal('modal-quiz'));
+            if (langBtn) langBtn.addEventListener('click', () => {
+                currentLang = currentLang === 'zh' ? 'en' : 'zh';
+                applyI18n();
+            });
+            if (resetBtn) resetBtn.addEventListener('click', resetSim);
+            document.querySelectorAll('[data-close-modal]').forEach(btn => {
+                btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
+            });
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (modal) modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal(id);
+                });
+            });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllModals(); });
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) {
+                ansBtn.addEventListener('click', () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); });
+                    if (showAnswers) renderQuiz();
+                    else {
+                        document.querySelectorAll('.quiz-opt').forEach(b => {
+                            b.classList.remove('correct', 'wrong');
+                        });
+                    }
+                });
+            }
+        }
+
+        function resetSim() {
+            const checkbox = document.getElementById('matchToggle');
+            if (checkbox) {
+                checkbox.checked = false;
+                toggleMatchLines();
+            }
+            document.querySelectorAll('.click-tooltip').forEach(el => el.remove());
+            // Do NOT reset language
+        }
+
+        // --- Spectral physics (preserved) ---
+        const MIN_WAVELENGTH = 400;
+        const MAX_WAVELENGTH = 700;
+
+        const spectralData = [
+            { label: 'G', wavelength: 430, element: 'Fe/Ca', color: '#4b0082', type: 'other' },
+            { label: 'h', wavelength: 410, element: 'H', color: '#7a26c9', type: 'H' },
+            { label: 'g', wavelength: 434, element: 'H', color: '#0000ff', type: 'H' },
+            { label: 'F', wavelength: 486, element: 'H', color: '#00ffff', type: 'H' },
+            { label: 'b', wavelength: 517, element: 'Mg', color: '#00ff00', type: 'other' },
+            { label: 'E', wavelength: 527, element: 'Fe', color: '#33ff00', type: 'other' },
+            { label: 'D3', wavelength: 587.6, element: 'He', color: '#ffff00', type: 'He' },
+            { label: 'D', wavelength: 589, element: 'Na', color: '#ffcc00', type: 'other' },
+            { label: 'C', wavelength: 656, element: 'H', color: '#ff0000', type: 'H' },
+            { label: 'r', wavelength: 667.8, element: 'He', color: '#ff2200', type: 'He' },
+            { label: 'B', wavelength: 687, element: 'O2', color: '#cc0000', type: 'other' },
+            { label: 'He-B', wavelength: 447.1, element: 'He', color: '#0033ff', type: 'He' },
+            { label: 'He-G', wavelength: 501.6, element: 'He', color: '#00ff99', type: 'He' },
+            { label: 'He-Y', wavelength: 706.5, element: 'He', color: '#990000', type: 'He' }
+        ];
+
         const solarContainer = document.getElementById('solarSpectrum');
         const hContainer = document.getElementById('hydrogenSpectrum');
         const heContainer = document.getElementById('heliumSpectrum');
-        
-        // 計算百分比位置
+
         function getPosition(nm) {
             return ((nm - MIN_WAVELENGTH) / (MAX_WAVELENGTH - MIN_WAVELENGTH)) * 100;
         }
 
-        // 繪製光譜線
         function drawSpectra() {
-            // 清空容器
             solarContainer.innerHTML = '';
             hContainer.innerHTML = '';
             heContainer.innerHTML = '';
 
             spectralData.forEach(line => {
                 const pos = getPosition(line.wavelength);
-                if(pos < 0 || pos > 100) return;
+                if (pos < 0 || pos > 100) return;
 
-                // 1. 繪製太陽光譜中的吸收線
                 const solarLine = document.createElement('div');
                 solarLine.className = 'absolute top-0 bottom-0 bg-black/80 w-[2px] z-20 flex flex-col items-center group cursor-help';
                 solarLine.style.left = `${pos}%`;
-                
-                // Tooltip
                 solarLine.innerHTML = `
                     <div class="opacity-0 group-hover:opacity-100 absolute bottom-full mb-2 bg-black text-white text-[10px] px-2 py-1 rounded whitespace-nowrap transition-opacity pointer-events-none border border-slate-600 z-30">
                         ${line.element} (${line.wavelength}nm)
                     </div>
                 `;
-                
-                // 加粗特定線條
                 if (['C', 'F', 'D', 'G'].includes(line.label)) {
                     solarLine.classList.add('w-[3px]', 'bg-black');
                 }
-                
                 solarContainer.appendChild(solarLine);
 
-                // 2. 繪製元素發射光譜 (亮線)
                 if (line.type === 'H') {
                     createEmissionLine(hContainer, pos, line.color, line.wavelength);
                 } else if (line.type === 'He') {
@@ -370,46 +688,32 @@
 
         function createEmissionLine(container, pos, color, wavelength) {
             const lineDiv = document.createElement('div');
-            lineDiv.className = 'absolute top-0 bottom-0 w-[3px] emission-line z-10 cursor-pointer'; 
+            lineDiv.className = 'absolute top-0 bottom-0 w-[3px] emission-line z-10 cursor-pointer';
             lineDiv.style.left = `${pos}%`;
             lineDiv.style.backgroundColor = color;
-            lineDiv.style.color = color; 
-            
-            // 點擊事件
+            lineDiv.style.color = color;
+
             lineDiv.onclick = (e) => {
-                e.stopPropagation(); // 防止事件冒泡
-                
-                // 移除該容器中現有的 tooltip
+                e.stopPropagation();
                 const existing = container.querySelectorAll('.click-tooltip');
                 existing.forEach(el => el.remove());
 
-                // 創建新的 tooltip
                 const tip = document.createElement('div');
                 tip.className = 'click-tooltip absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white text-slate-900 text-xs px-3 py-1 rounded font-bold shadow-lg z-50 whitespace-nowrap border border-slate-300';
                 tip.innerHTML = `<span style="color:${color}">●</span> ${wavelength} nm`;
-                
-                // 將 tooltip 加入到 lineDiv 內部
                 lineDiv.appendChild(tip);
 
-                // 3秒後自動消失
                 setTimeout(() => {
-                    if(tip.parentNode) tip.remove();
+                    if (tip.parentNode) tip.remove();
                 }, 3000);
             };
 
             container.appendChild(lineDiv);
         }
 
-        // 點擊空白處清除 Tooltip
         document.addEventListener('click', () => {
-             const tooltips = document.querySelectorAll('.click-tooltip');
-             tooltips.forEach(t => t.remove());
+            document.querySelectorAll('.click-tooltip').forEach(t => t.remove());
         });
-
-        function toggleModal() {
-            const modal = document.getElementById('infoModal');
-            modal.classList.toggle('hidden');
-        }
 
         function toggleMatchLines() {
             const checkbox = document.getElementById('matchToggle');
@@ -433,63 +737,41 @@
             }
         }
 
-        // 重寫的繪製連接線函數 (基於數學位置計算，確保絕對垂直)
         function drawConnections() {
             const canvas = document.getElementById('connectionCanvas');
             const ctx = canvas.getContext('2d');
-            
-            // 獲取主容器和子容器的資訊
             const mainContainer = document.querySelector('.main-spectrum-container');
-            
-            // 設定 Canvas 解析度匹配容器寬高
+
             canvas.width = mainContainer.offsetWidth;
             canvas.height = mainContainer.offsetHeight;
 
-            // 獲取各光譜容器的垂直位置
             const solarRect = solarContainer.getBoundingClientRect();
             const hRect = hContainer.getBoundingClientRect();
             const heRect = heContainer.getBoundingClientRect();
             const mainRect = mainContainer.getBoundingClientRect();
 
-            // 計算各個容器相對於 Canvas 的 Y 軸位置
             const solarBottomY = solarRect.bottom - mainRect.top;
             const hBottomY = hRect.bottom - mainRect.top;
             const heBottomY = heRect.bottom - mainRect.top;
 
-            // 設定虛線樣式
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.lineWidth = 1.5;
             ctx.setLineDash([6, 4]);
 
-            // 計算 X 軸可用寬度 (扣除邊框)
-            // solarContainer 繼承了父層 w-full, 但有 1px 邊框. 
-            // 光譜線 left: % 是相對於 content box 的
-            const contentWidth = solarContainer.clientWidth; 
-            
-            // 計算偏移量: Canvas 左上角到 solarContainer 內容左邊緣的距離
-            // solarRect.left 包含了邊框，所以要加邊框寬度 (clientLeft)
+            const contentWidth = solarContainer.clientWidth;
             const xOffset = (solarRect.left + solarContainer.clientLeft) - mainRect.left;
 
             spectralData.forEach(line => {
                 const pos = getPosition(line.wavelength);
-                if(pos < 0 || pos > 100) return;
+                if (pos < 0 || pos > 100) return;
 
                 if (line.type === 'H' || line.type === 'He') {
-                    // 計算精確的 X 座標
-                    // 公式: 偏移 + (內容寬度 * 百分比) + 線寬修正(1.5px 是 3px 線的中心)
                     const x = xOffset + (contentWidth * (pos / 100)) + 1.5;
-                    
-                    // 繪製垂直線
                     ctx.beginPath();
                     ctx.moveTo(x, solarBottomY);
-
                     let endY = 0;
-                    if (line.type === 'H') {
-                        endY = hBottomY;
-                    } else if (line.type === 'He') {
-                        endY = heBottomY;
-                    }
-
+                    if (line.type === 'H') endY = hBottomY;
+                    else if (line.type === 'He') endY = heBottomY;
                     ctx.lineTo(x, endY);
                     ctx.stroke();
                 }
@@ -497,14 +779,14 @@
         }
 
         drawSpectra();
+        wireTeachingShell();
+        applyI18n();
 
-        // 監聽 Resize
         window.addEventListener('resize', () => {
-            if(document.getElementById('matchToggle').checked) {
+            if (document.getElementById('matchToggle').checked) {
                 drawConnections();
             }
         });
-
     </script>
 </body>
 </html>

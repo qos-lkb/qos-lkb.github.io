@@ -1,601 +1,844 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>原子電子躍遷模擬實驗</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* 自定義滾動條 */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-        
-        /* 螢光文字效果 */
-        .neon-text { text-shadow: 0 0 5px currentColor; }
-        
-        /* 箭頭互動效果 */
-        .transition-arrow {
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            opacity: 0.5; /* 預設稍微透明一點，避免太雜亂 */
-        }
-        .transition-arrow:hover {
-            opacity: 1;
-            stroke-width: 3;
-            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
-            z-index: 20;
-        }
-        .transition-arrow.active {
-            opacity: 1;
-            stroke-width: 4;
-            filter: drop-shadow(0 0 10px currentColor);
-            z-index: 20;
-        }
-
-        /* 光子發射動畫 */
-        @keyframes flyRight {
-            0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
-            10% { opacity: 1; transform: translate(20px, 0) scale(1); }
-            100% { transform: translate(600px, 0) scale(1); opacity: 0; }
-        }
-        .photon-wave {
-            pointer-events: none;
-        }
-        .animate-fly {
-            animation: flyRight 1.5s linear forwards;
-        }
-        
-        /* 提示框淡入 */
-        .tooltip {
-            pointer-events: none;
-            transition: opacity 0.2s;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原子電子躍遷模擬</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #111827; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+.neon-text { text-shadow: 0 0 5px currentColor; }
+.transition-arrow {
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.5;
+}
+.transition-arrow:hover {
+  opacity: 1;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+  z-index: 20;
+}
+.transition-arrow.active {
+  opacity: 1;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 10px currentColor);
+  z-index: 20;
+}
+@keyframes flyRight {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  10% { opacity: 1; transform: translate(20px, 0) scale(1); }
+  100% { transform: translate(600px, 0) scale(1); opacity: 0; }
+}
+.photon-wave { pointer-events: none; }
+.animate-fly { animation: flyRight 1.5s linear forwards; }
+.tooltip { pointer-events: none; transition: opacity 0.2s; }
+.modal-panel { transition: opacity 0.25s ease; }
+.modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+.quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #374151; }
+.quiz-item .q-stem { font-weight: 600; color: #e5e7eb; margin-bottom: 0.5rem; }
+.quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+.quiz-options button {
+  text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+  border: 1px solid #4b5563; background: #1f2937; font-size: 0.875rem; color: #e5e7eb; transition: all 0.15s;
+}
+.quiz-options button:hover { border-color: #6366f1; background: #312e81; }
+.quiz-options button.selected { border-color: #818cf8; background: #3730a3; }
+.quiz-options button.correct { border-color: #16a34a; background: #14532d; }
+.quiz-options button.wrong { border-color: #dc2626; background: #7f1d1d; }
+.quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #111827; border-radius: 0.5rem; font-size: 0.85rem; color: #cbd5e1; }
+.quiz-answer.show { display: block; }
+.teach-btn {
+  font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.7rem; border-radius: 0.5rem;
+  border: 1px solid; transition: background-color 0.15s, color 0.15s;
+}
+</style>
 </head>
-<body class="bg-black text-gray-200 font-sans h-screen flex flex-col overflow-hidden">
+<body class="bg-black text-gray-200 h-screen flex flex-col overflow-hidden">
 
-    <!-- 頂部標題 -->
-    <header class="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center shadow-lg z-20 shrink-0 h-16">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+<header class="bg-gray-900 border-b border-gray-800 p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 shadow-lg z-20 shrink-0">
+  <div class="flex items-center gap-3 min-w-0">
+    <div class="w-8 h-8 shrink-0 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+    </div>
+    <div class="min-w-0">
+      <h1 class="text-lg sm:text-xl font-bold tracking-wider text-gray-100 truncate" data-i18n="appTitle">原子電子躍遷</h1>
+      <p class="text-xs font-normal text-gray-500" data-i18n="appSubtitle">Atomic Electron Transitions Sim</p>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+    <button type="button" id="btn-reset" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded font-medium transition border border-slate-500 text-sm" data-i18n="btnReset">重置</button>
+    <span class="hidden sm:inline text-gray-700 mx-0.5">|</span>
+    <button type="button" id="btn-steps" class="teach-btn border-indigo-400 bg-indigo-900/40 text-indigo-200 hover:bg-indigo-800/60" data-i18n="btnSteps">觀察步驟</button>
+    <button type="button" id="btn-principle" class="teach-btn border-blue-400 bg-blue-900/40 text-blue-200 hover:bg-blue-800/60" data-i18n="btnPrinciple">原理解說</button>
+    <button type="button" id="btn-quiz" class="teach-btn border-violet-400 bg-violet-900/40 text-violet-200 hover:bg-violet-800/60" data-i18n="btnQuiz">課堂問題</button>
+    <button type="button" id="btn-lang" class="teach-btn border-slate-500 bg-slate-700 text-slate-200 hover:bg-slate-600">中 / EN</button>
+  </div>
+</header>
+
+<main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+  <!-- Scheme C: aside ~300–320px (migrated from illegal w-80) -->
+  <aside class="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-2 bg-gray-900 border-t lg:border-t-0 lg:border-r border-gray-800 flex flex-col shadow-2xl z-10 max-h-[45vh] lg:max-h-none">
+    <div class="p-4 sm:p-5 flex flex-col gap-6 h-full overflow-y-auto">
+      <section>
+        <h2 class="text-xs font-bold text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+          <span data-i18n="selectAtom">選擇原子模型</span>
+        </h2>
+        <div class="grid grid-cols-1 gap-3">
+          <button type="button" onclick="loadElement('H')" id="btn-H" class="element-btn group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800 p-3 sm:p-4 text-left transition hover:border-blue-500">
+            <div class="relative z-10 flex justify-between items-center">
+              <span class="font-bold text-base sm:text-lg" data-i18n="elH">氫 (Hydrogen)</span>
+              <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Z=1</span>
             </div>
-            <h1 class="text-xl font-bold tracking-wider text-gray-100">原子光譜物理實驗室 <span class="text-xs font-normal text-gray-500 ml-2">Atomic Transitions Sim</span></h1>
+            <div class="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+          </button>
+          <button type="button" onclick="loadElement('Na')" id="btn-Na" class="element-btn group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800 p-3 sm:p-4 text-left transition hover:border-yellow-500">
+            <div class="relative z-10 flex justify-between items-center">
+              <span class="font-bold text-base sm:text-lg" data-i18n="elNa">鈉 (Sodium)</span>
+              <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Z=11</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-r from-yellow-900/20 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+          </button>
+          <button type="button" onclick="loadElement('Ne')" id="btn-Ne" class="element-btn group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800 p-3 sm:p-4 text-left transition hover:border-red-500">
+            <div class="relative z-10 flex justify-between items-center">
+              <span class="font-bold text-base sm:text-lg" data-i18n="elNe">氖 (Neon)</span>
+              <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Z=10</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-r from-red-900/20 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+          </button>
         </div>
-        <div class="text-xs text-gray-500 font-mono border border-gray-700 px-2 py-1 rounded">Physics Engine v2.1</div>
-    </header>
+      </section>
 
-    <!-- 主畫面：左右佈局 -->
-    <main class="flex-1 flex overflow-hidden">
-        
-        <!-- 左側：控制面板 (固定寬度) -->
-        <aside class="w-80 bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl z-10">
-            <div class="p-6 flex flex-col gap-8 h-full overflow-y-auto">
-                
-                <!-- 1. 元素選擇 -->
-                <section>
-                    <h2 class="text-xs font-bold text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                        選擇原子模型
-                    </h2>
-                    <div class="grid grid-cols-1 gap-3">
-                        <button onclick="loadElement('H')" id="btn-H" class="element-btn group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800 p-4 text-left transition hover:border-blue-500 hover:bg-gray-750">
-                            <div class="relative z-10 flex justify-between items-center">
-                                <span class="font-bold text-lg">氫 (Hydrogen)</span>
-                                <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Z=1</span>
-                            </div>
-                            <div class="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
-                        </button>
-                        
-                        <button onclick="loadElement('Na')" id="btn-Na" class="element-btn group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800 p-4 text-left transition hover:border-yellow-500 hover:bg-gray-750">
-                            <div class="relative z-10 flex justify-between items-center">
-                                <span class="font-bold text-lg">鈉 (Sodium)</span>
-                                <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Z=11</span>
-                            </div>
-                            <div class="absolute inset-0 bg-gradient-to-r from-yellow-900/20 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
-                        </button>
-                        
-                        <button onclick="loadElement('Ne')" id="btn-Ne" class="element-btn group relative overflow-hidden rounded-xl border border-gray-700 bg-gray-800 p-4 text-left transition hover:border-red-500 hover:bg-gray-750">
-                            <div class="relative z-10 flex justify-between items-center">
-                                <span class="font-bold text-lg">氖 (Neon)</span>
-                                <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">Z=10</span>
-                            </div>
-                            <div class="absolute inset-0 bg-gradient-to-r from-red-900/20 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
-                        </button>
-                    </div>
-                </section>
+      <hr class="border-gray-800">
 
-                <hr class="border-gray-800">
-
-                <!-- 2. 實驗數據顯示 -->
-                <section class="flex-1">
-                    <h2 class="text-xs font-bold text-green-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                        躍遷測量結果
-                    </h2>
-                    
-                    <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 space-y-5 shadow-inner">
-                        
-                        <!-- 躍遷名稱 -->
-                        <div>
-                            <div class="text-[10px] text-gray-500 uppercase mb-1">躍遷名稱 (Transition)</div>
-                            <div id="trans-name" class="text-sm font-mono text-white truncate border-b border-gray-700 pb-1">請點擊右側箭頭</div>
-                        </div>
-
-                        <!-- 能量差 -->
-                        <div class="flex justify-between items-end">
-                            <div class="text-[10px] text-gray-500 uppercase">能量差 (ΔE)</div>
-                            <div class="text-right">
-                                <div id="energy-val" class="text-2xl font-bold font-mono text-green-400">0.00</div>
-                                <div class="text-[10px] text-gray-500">eV (電子伏特)</div>
-                            </div>
-                        </div>
-
-                        <!-- 波長 -->
-                        <div class="flex justify-between items-end">
-                            <div class="text-[10px] text-gray-500 uppercase">波長 (Wavelength)</div>
-                            <div class="text-right">
-                                <div id="wave-val" class="text-2xl font-bold font-mono text-blue-400">---</div>
-                                <div class="text-[10px] text-gray-500">nm (奈米)</div>
-                            </div>
-                        </div>
-
-                        <!-- 光子能量 -->
-                        <div class="flex justify-between items-end">
-                            <div class="text-[10px] text-gray-500 uppercase">光子能量 (E=hf)</div>
-                            <div class="text-right">
-                                <div id="photon-val" class="text-lg font-mono text-purple-400">---</div>
-                                <div class="text-[10px] text-gray-500">Joules</div>
-                            </div>
-                        </div>
-
-                        <!-- 顏色展示區 -->
-                        <div class="mt-4 pt-4 border-t border-gray-700">
-                            <div class="text-[10px] text-gray-500 uppercase mb-2">電磁波顏色預覽</div>
-                            <div class="flex items-stretch h-12 rounded-lg overflow-hidden border border-gray-600">
-                                <div id="color-box" class="w-16 bg-gray-900 transition-colors duration-500 border-r border-gray-700"></div>
-                                <div class="flex-1 bg-gray-900 flex items-center justify-center">
-                                    <span id="spectrum-text" class="text-xs font-bold text-gray-500">等待數據</span>
-                                </div>
-                            </div>
-                            <div class="text-[10px] text-gray-600 mt-1 text-right">* 紫外線與紅外線顯示為黑色</div>
-                        </div>
-                    </div>
-                    
-                    <!-- 公式提示 -->
-                    <div class="mt-4 text-[10px] text-gray-600 text-center font-mono">
-                        λ = hc / ΔE &nbsp;|&nbsp; E = hf
-                    </div>
-                </section>
+      <section class="flex-1">
+        <h2 class="text-xs font-bold text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span data-i18n="measureTitle">躍遷測量結果</span>
+        </h2>
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-4 sm:p-5 space-y-4 shadow-inner">
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase mb-1" data-i18n="labelTrans">躍遷名稱 (Transition)</div>
+            <div id="trans-name" class="text-sm font-mono text-white truncate border-b border-gray-700 pb-1">請點擊右側箭頭</div>
+          </div>
+          <div class="flex justify-between items-end">
+            <div class="text-[10px] text-gray-500 uppercase" data-i18n="labelDE">能量差 (ΔE)</div>
+            <div class="text-right">
+              <div id="energy-val" class="text-2xl font-bold font-mono text-green-400">0.00</div>
+              <div class="text-[10px] text-gray-500" data-i18n="unitEV">eV (電子伏特)</div>
             </div>
-        </aside>
-
-        <!-- 右側：能階圖 (自適應寬度) -->
-        <section class="flex-1 bg-black relative overflow-hidden flex flex-col">
-            <!-- 背景網格裝飾 -->
-            <div class="absolute inset-0 opacity-10 pointer-events-none" 
-                 style="background-image: linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px); background-size: 40px 40px;">
+          </div>
+          <div class="flex justify-between items-end">
+            <div class="text-[10px] text-gray-500 uppercase" data-i18n="labelWave">波長 (Wavelength)</div>
+            <div class="text-right">
+              <div id="wave-val" class="text-2xl font-bold font-mono text-blue-400">---</div>
+              <div class="text-[10px] text-gray-500" data-i18n="unitNM">nm (奈米)</div>
             </div>
-
-            <!-- 標題 -->
-            <div class="absolute top-6 left-8 z-10 pointer-events-none">
-                <h2 class="text-3xl font-bold text-white opacity-80">能階圖 (Energy Level Diagram)</h2>
-                <p class="text-gray-500 mt-1">已顯示所有可能的向下躍遷，請點擊箭頭查看詳情</p>
+          </div>
+          <div class="flex justify-between items-end">
+            <div class="text-[10px] text-gray-500 uppercase" data-i18n="labelPhoton">光子能量 (E=hf)</div>
+            <div class="text-right">
+              <div id="photon-val" class="text-lg font-mono text-purple-400">---</div>
+              <div class="text-[10px] text-gray-500">Joules</div>
             </div>
-
-            <!-- 能階 SVG 容器 -->
-            <div id="diagram-container" class="flex-1 w-full h-full relative cursor-crosshair">
-                <svg id="energy-svg" class="w-full h-full absolute inset-0 preserve-3d">
-                    <!-- 內容由 JS 動態生成 -->
-                    <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
-                        refX="0" refY="3.5" orient="auto">
-                          <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
-                        </marker>
-                    </defs>
-                </svg>
-                
-                <!-- 滑鼠懸停提示框 -->
-                <div id="tooltip" class="tooltip absolute bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1 opacity-0 shadow-xl z-50 whitespace-nowrap"></div>
+          </div>
+          <div class="mt-2 pt-3 border-t border-gray-700">
+            <div class="text-[10px] text-gray-500 uppercase mb-2" data-i18n="labelColor">電磁波顏色預覽</div>
+            <div class="flex items-stretch h-12 rounded-lg overflow-hidden border border-gray-600">
+              <div id="color-box" class="w-16 bg-gray-900 transition-colors duration-500 border-r border-gray-700"></div>
+              <div class="flex-1 bg-gray-900 flex items-center justify-center">
+                <span id="spectrum-text" class="text-xs font-bold text-gray-500">等待數據</span>
+              </div>
             </div>
-            
-            <!-- 底部光譜條裝飾 -->
-            <div class="h-2 w-full bg-gradient-to-r from-purple-900 via-blue-800 to-red-900 opacity-30"></div>
-        </section>
+            <div class="text-[10px] text-gray-600 mt-1 text-right" data-i18n="uvIrNote">* 紫外線與紅外線顯示為黑色</div>
+          </div>
+        </div>
+        <div class="mt-3 text-[10px] text-gray-600 text-center font-mono" data-i18n="formulaNote">λ = hc / ΔE &nbsp;|&nbsp; E = hf</div>
+      </section>
+    </div>
+  </aside>
 
-    </main>
+  <section class="flex-1 order-1 bg-black relative overflow-hidden flex flex-col min-h-0">
+    <div class="absolute inset-0 opacity-10 pointer-events-none"
+         style="background-image: linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px); background-size: 40px 40px;">
+    </div>
+    <div class="absolute top-4 left-4 sm:top-6 sm:left-8 z-10 pointer-events-none">
+      <h2 class="text-xl sm:text-3xl font-bold text-white opacity-80" data-i18n="diagramTitle">能階圖 (Energy Level Diagram)</h2>
+      <p class="text-gray-500 mt-1 text-xs sm:text-sm" data-i18n="diagramHint">已顯示所有可能的向下躍遷，請點擊箭頭查看詳情</p>
+    </div>
+    <div id="diagram-container" class="flex-1 w-full h-full relative cursor-crosshair">
+      <svg id="energy-svg" class="w-full h-full absolute inset-0 preserve-3d">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
+          </marker>
+        </defs>
+      </svg>
+      <div id="tooltip" class="tooltip absolute bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1 opacity-0 shadow-xl z-50 whitespace-nowrap"></div>
+    </div>
+    <div class="h-2 w-full bg-gradient-to-r from-purple-900 via-blue-800 to-red-900 opacity-30"></div>
+  </section>
+</main>
+
+<!-- Modal: Steps -->
+<div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+  <div data-modal-panel class="bg-gray-900 border border-gray-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-950/50 rounded-t-lg">
+      <h2 id="steps-title" class="text-xl font-bold text-white" data-i18n="stepsTitle">觀察步驟</h2>
+      <button type="button" class="text-gray-400 hover:text-white text-2xl leading-none" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+    </div>
+    <ol id="steps-body" class="p-6 overflow-y-auto text-gray-300 space-y-3 list-decimal pl-10 text-sm leading-relaxed"></ol>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-steps" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Principle -->
+<div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+  <div data-modal-panel class="bg-gray-900 border border-gray-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-950/50 rounded-t-lg">
+      <h2 id="principle-title" class="text-xl font-bold text-white flex items-center"><span class="text-yellow-400 mr-2">★</span><span data-i18n="principleTitle">原理解說</span></h2>
+      <button type="button" class="text-gray-400 hover:text-white text-2xl leading-none" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+    </div>
+    <div id="principle-body" class="p-6 overflow-y-auto text-gray-300 space-y-4 text-sm leading-relaxed"></div>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-principle" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Quiz -->
+<div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+  <div data-modal-panel class="bg-gray-900 border border-gray-600 rounded-lg max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] scale-95">
+    <div class="p-4 border-b border-gray-700 flex justify-between items-center gap-2 flex-wrap bg-gray-950/50 rounded-t-lg">
+      <h2 id="quiz-title" class="text-xl font-bold text-violet-300" data-i18n="quizTitle">課堂問題</h2>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+        <button type="button" class="text-gray-400 hover:text-white text-2xl leading-none" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div id="quiz-body" class="p-6 overflow-y-auto text-sm"></div>
+    <div class="p-4 border-t border-gray-700 flex justify-end">
+      <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded" data-close-modal="modal-quiz" data-i18n="closeBtn">關閉</button>
+    </div>
+  </div>
+</div>
 
 <script>
-/**
- * 物理引擎與數據
- */
 const HC_CONST = 1240; // eV * nm
 const E_CHARGE = 1.6e-19; // J/eV
 
-// 原子數據庫 (僅保留基本定義，Transitions 改為動態生成或混合)
 const ELEMENTS = {
-    'H': {
-        name: '氫 (Hydrogen)',
-        bgClass: 'border-blue-500',
-        levels: [-13.6, -3.4, -1.51, -0.85, -0.54], 
-        levelLabels: ['n=1', 'n=2', 'n=3', 'n=4', 'n=5'],
-        // 特殊命名的躍遷，其他會自動補齊
-        specialTransitions: [
-            {from: 1, to: 0, label: 'Lyman-α (UV)'}, 
-            {from: 2, to: 0, label: 'Lyman-β (UV)'},
-            {from: 2, to: 1, label: 'Balmer H-α (Red)'}, 
-            {from: 3, to: 1, label: 'Balmer H-β (Cyan)'}, 
-            {from: 4, to: 1, label: 'Balmer H-γ (Violet)'}, 
-            {from: 3, to: 2, label: 'Paschen-α (IR)'}
-        ]
-    },
-    'Na': {
-        name: '鈉 (Sodium)',
-        bgClass: 'border-yellow-500',
-        levels: [-5.14, -3.04, -1.93, -1.51, -1.38, -0.8],
-        levelLabels: ['3s', '3p', '4s', '3d', '4p', '5s'],
-        specialTransitions: [
-            {from: 1, to: 0, label: 'D-Line (Yellow Doublet)'}, 
-            {from: 2, to: 1, label: 'IR Transition'}, 
-            {from: 3, to: 1, label: 'Visible Orange'}
-        ]
-    },
-    'Ne': {
-        name: '氖 (Neon)',
-        bgClass: 'border-red-500',
-        // 簡化能階
-        levels: [-21.56, -18.6, -16.7, -16.6], 
-        levelLabels: ['Ground', '3s', '2p', '3p'],
-        specialTransitions: [
-            {from: 3, to: 2, label: 'He-Ne Laser (Red)'}, 
-            {from: 2, to: 1, label: 'Green Line'},
-            {from: 1, to: 0, label: 'Deep UV'}
-        ]
-    }
+  'H': {
+    nameKey: 'elH',
+    bgClass: 'border-blue-500',
+    levels: [-13.6, -3.4, -1.51, -0.85, -0.54],
+    levelLabels: ['n=1', 'n=2', 'n=3', 'n=4', 'n=5'],
+    specialTransitions: [
+      {from: 1, to: 0, label: 'Lyman-α (UV)'},
+      {from: 2, to: 0, label: 'Lyman-β (UV)'},
+      {from: 2, to: 1, label: 'Balmer H-α (Red)'},
+      {from: 3, to: 1, label: 'Balmer H-β (Cyan)'},
+      {from: 4, to: 1, label: 'Balmer H-γ (Violet)'},
+      {from: 3, to: 2, label: 'Paschen-α (IR)'}
+    ]
+  },
+  'Na': {
+    nameKey: 'elNa',
+    bgClass: 'border-yellow-500',
+    levels: [-5.14, -3.04, -1.93, -1.51, -1.38, -0.8],
+    levelLabels: ['3s', '3p', '4s', '3d', '4p', '5s'],
+    specialTransitions: [
+      {from: 1, to: 0, label: 'D-Line (Yellow Doublet)'},
+      {from: 2, to: 1, label: 'IR Transition'},
+      {from: 3, to: 1, label: 'Visible Orange'}
+    ]
+  },
+  'Ne': {
+    nameKey: 'elNe',
+    bgClass: 'border-red-500',
+    levels: [-21.56, -18.6, -16.7, -16.6],
+    levelLabels: ['Ground', '3s', '2p', '3p'],
+    specialTransitions: [
+      {from: 3, to: 2, label: 'He-Ne Laser (Red)'},
+      {from: 2, to: 1, label: 'Green Line'},
+      {from: 1, to: 0, label: 'Deep UV'}
+    ]
+  }
 };
 
 let currentElementKey = 'H';
+let currentLang = 'zh';
+let lastTransitionData = null;
+const quizState = { selections: {}, showAnswers: false };
 
-/**
- * 初始化
- */
-window.onload = () => {
-    loadElement('H');
-    window.addEventListener('resize', drawEnergyDiagram);
+const translations = {
+  zh: {
+    pageTitle: '原子電子躍遷模擬',
+    appTitle: '原子電子躍遷',
+    appSubtitle: 'Atomic Electron Transitions Sim',
+    btnReset: '重置',
+    btnSteps: '觀察步驟',
+    btnPrinciple: '原理解說',
+    btnQuiz: '課堂問題',
+    stepsTitle: '觀察步驟',
+    principleTitle: '原理解說',
+    quizTitle: '課堂問題',
+    showAnswers: '顯示參考答案',
+    hideAnswers: '隱藏參考答案',
+    closeBtn: '關閉',
+    shortHint: '請操作本模擬後簡答。',
+    selectAtom: '選擇原子模型',
+    elH: '氫 (Hydrogen)',
+    elNa: '鈉 (Sodium)',
+    elNe: '氖 (Neon)',
+    measureTitle: '躍遷測量結果',
+    labelTrans: '躍遷名稱 (Transition)',
+    labelDE: '能量差 (ΔE)',
+    unitEV: 'eV (電子伏特)',
+    labelWave: '波長 (Wavelength)',
+    unitNM: 'nm (奈米)',
+    labelPhoton: '光子能量 (E=hf)',
+    labelColor: '電磁波顏色預覽',
+    uvIrNote: '* 紫外線與紅外線顯示為黑色',
+    formulaNote: 'λ = hc / ΔE  |  E = hf',
+    diagramTitle: '能階圖 (Energy Level Diagram)',
+    diagramHint: '已顯示所有可能的向下躍遷，請點擊箭頭查看詳情',
+    clickArrow: '請點擊右側箭頭',
+    waitData: '等待數據',
+    noSignal: '無訊號',
+    typeUV: '紫外線 (UV)',
+    typeIR: '紅外線 (IR)',
+    typeVisible: '可見光 (Visible)',
+    step1: '確認左側已選<strong>氫 (H)</strong>（預設）。在右側能階圖找到標為 <strong>Balmer H-α (Red)</strong> 的箭頭（約 n=3→n=2），點擊它。左側應顯示能量差約 <strong>1.89 eV</strong>、波長約 <strong>656 nm</strong>，顏色預覽為可見紅光，並有光子飛出動畫。',
+    step2: '再點 <strong>Lyman-α (UV)</strong>（n=2→n=1）。比較：ΔE 更大（約 10.2 eV）、λ 更短（約 122 nm）；光譜類型應為<strong>紫外線</strong>，色盒偏黑（本模擬對 UV／IR 不顯示可見色）。想想：$\\lambda=hc/\\Delta E$。',
+    step3: '改選<strong>鈉 (Na)</strong>，點 <strong>D-Line (Yellow Doublet)</strong>（3p→3s）。觀察黃光預覽與 λ（約 590 nm 量級）。再按<strong>重置</strong>：測量面板應清空、箭頭取消選取、光子動畫消失；<strong>仍停留在鈉</strong>；語言不變。',
+    step4: '對照原理：為何不同元素／不同躍遷會有不同顏色與波長？本模擬假設：預置離散能階、顯示所有向下組合、Na／Ne 簡化、可見色為近似映射、1240／ΔE 教學常數——不是完整譜線強度表或實驗室攝譜。勿與「整條發射線指紋」或「發射光子／電子做激發」那兩個 sibling 控件混用。',
+    principleConceptTitle: '概念',
+    principleConcept: '原子中的電子只能處於某些允許的<strong>能階</strong>。當電子從較高能階躍遷到較低能階時，多餘能量以<strong>光子</strong>放出。光子能量等於兩能階差 $|\\Delta E|$，對應一定的頻率與波長，因而形成該躍遷特有的光譜特徵（顏色或 UV／IR）。',
+    principleMechTitle: '機制',
+    principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>能量差</strong>：$\\Delta E = |E_\\mathrm{high}-E_\\mathrm{low}|$（本模擬只畫向下發射躍遷）。</li><li><strong>波長</strong>：教學上 $\\lambda(\\mathrm{nm}) = 1240 / \\Delta E(\\mathrm{eV})$（本檔 <code>HC_CONST</code>）。ΔE 越大 → λ 越短。</li><li><strong>光子能量</strong>：亦可寫 $E=hf$（面板另以 Joule＝eV×$1.6\\times10^{-19}$ 顯示）。</li><li><strong>波段</strong>：λ 落在可見光則顯示近似顏色；UV／IR 本模擬以黑盒＋文字標示（箭頭用虛線）。</li><li><strong>假設</strong>：H／Na／Ne 預置能階；箭頭含全部向下組合；特殊名稱（如 Balmer、D-Line）僅標籤；非選擇定則過濾、非真實相對強度。</li></ol>',
+    principleExampleTitle: '日常例子',
+    principleExample: '霓虹燈／鈉燈顏色、氫放電管教學、He-Ne 激光紅光概念引入。勿與 sibling「整條發射線光譜指紋」、或「用入射光子／電子打原子看吸收與碰撞激發」混為同一套操作。',
+    q1: '選氫，點擊 <strong>Balmer H-α (Red)</strong>。哪項最符合本模擬顯示？',
+    q1a: 'A. ΔE 約 1.89 eV，λ 約 656 nm，預覽為可見紅光',
+    q1b: 'B. 一定顯示紫外線且 λ≈122 nm',
+    q1c: 'C. 本模擬沒有波長讀數',
+    q1d: 'D. 點 H-α 會強制改選氖原子',
+    q1ans: '參考答案：A。對應 H levels n=3→n=2 與 1240/1.89。',
+    q2: '在氫原子圖上先點 H-α 記下 ΔE／λ／顏色，再點 Lyman-α (UV)。先預測哪一躍遷光子能量較大、波長較短，再對照讀數驗證。',
+    q2a: 'A. ΔE 更大、λ 更短，光譜類型為紫外線，色盒不顯示可見彩色',
+    q2b: 'B. Lyman-α 的波長一定比 H-α 更長',
+    q2c: 'C. 兩者 ΔE 必須完全相同',
+    q2d: 'D. 只有切換英文後才會出現 UV',
+    q2ans: '參考答案：A。n=2→n=1，ΔE≈10.2 eV，λ≈122 nm，type===\'uv\'。',
+    q3: '改選鈉，點擊 <strong>D-Line (Yellow Doublet)</strong>。最可能观察到？',
+    q3a: 'A. 躍遷為 3p→3s 一類標籤，λ 約在黃光（約 590 nm 量級），顏色預覽偏黃',
+    q3b: 'B. 鈉沒有任何可點箭頭',
+    q3c: 'C. D-Line 固定顯示為深 UV 且 λ<100 nm',
+    q3d: 'D. 選鈉會刪除能階圖只留標題',
+    q3ans: '參考答案：A。Na special {from:1,to:0}；dE=2.10；λ≈590.5 nm。',
+    q4: '先點任一躍遷看到讀數後：用自己的話寫（1）ΔE 與 λ 在本模擬中的關係；（2）按重置後，測量面板、箭頭選取、目前元素與語言應如何（本設計預期）。',
+    q4ans: '參考答案：（1）$\\lambda=1240/\\Delta E$（eV·nm 教學常數），ΔE 越大 λ 越短；（2）面板清空、取消選取／動畫；保持目前元素；不切換中／EN。',
+    q5: '根據本模擬控件與設計，哪項最正確？',
+    q5a: 'A. 可選 H／Na／Ne、點躍遷箭頭讀 ΔE／λ／光子能量與顏色，並有步驟／原理／五題／中EN——主題是電子躍遷讀數，不是整條發射線指紋，也不是發射光子／電子做碰撞激發',
+    q5b: 'B. 主要用來量雙縫條紋間距求波長',
+    q5c: 'C. 重置會強制改成英文並刪除所有能階',
+    q5d: 'D. 主要展示 α 粒子金箔散射與核式結構',
+    q5ans: '參考答案：A。隔離 emission_line_spectra／quantum_energy_level／Rutherford／雙縫；Reset 不改語言、不刪 ELEMENTS 數據。'
+  },
+  en: {
+    pageTitle: 'Atomic Electron Transitions',
+    appTitle: 'Atomic Electron Transitions',
+    appSubtitle: 'Atomic Electron Transitions Sim',
+    btnReset: 'Reset',
+    btnSteps: 'Steps',
+    btnPrinciple: 'Principle',
+    btnQuiz: 'Quiz',
+    stepsTitle: 'Observation steps',
+    principleTitle: 'Principle',
+    quizTitle: 'Class quiz',
+    showAnswers: 'Show model answers',
+    hideAnswers: 'Hide model answers',
+    closeBtn: 'Close',
+    shortHint: 'Operate the sim, then answer briefly.',
+    selectAtom: 'Select atom model',
+    elH: 'Hydrogen (H)',
+    elNa: 'Sodium (Na)',
+    elNe: 'Neon (Ne)',
+    measureTitle: 'Transition readout',
+    labelTrans: 'Transition name',
+    labelDE: 'Energy gap (ΔE)',
+    unitEV: 'eV',
+    labelWave: 'Wavelength',
+    unitNM: 'nm',
+    labelPhoton: 'Photon energy (E=hf)',
+    labelColor: 'EM-wave color preview',
+    uvIrNote: '* UV and IR shown as black',
+    formulaNote: 'λ = hc / ΔE  |  E = hf',
+    diagramTitle: 'Energy Level Diagram',
+    diagramHint: 'All downward transitions shown — click an arrow for details',
+    clickArrow: 'Click an arrow on the diagram',
+    waitData: 'Waiting for data',
+    noSignal: 'No signal',
+    typeUV: 'Ultraviolet (UV)',
+    typeIR: 'Infrared (IR)',
+    typeVisible: 'Visible light',
+    step1: 'Keep <strong>Hydrogen (H)</strong> selected (default). On the diagram, click <strong>Balmer H-α (Red)</strong> (about n=3→n=2). The panel should show ΔE ≈ <strong>1.89 eV</strong>, λ ≈ <strong>656 nm</strong>, a visible red preview, and a flying-photon animation.',
+    step2: 'Next click <strong>Lyman-α (UV)</strong> (n=2→n=1). Compare: larger ΔE (~10.2 eV), shorter λ (~122 nm); type should be <strong>ultraviolet</strong>, color box dark (this sim shows black for UV／IR). Recall $\\lambda=hc/\\Delta E$.',
+    step3: 'Switch to <strong>Sodium (Na)</strong> and click <strong>D-Line (Yellow Doublet)</strong> (3p→3s). Note the yellow preview and λ (~590 nm scale). Then <strong>Reset</strong>: panel clears, selection／photon animation gone; <strong>stay on Na</strong>; language unchanged.',
+    step4: 'Link to the principle: why do different elements／transitions show different colors and wavelengths? Idealizations: preset discrete levels, all downward pairs, simplified Na／Ne, approximate RGB, teaching 1240／ΔE—not full intensity tables or lab spectrographs. Do not merge with the emission-line-fingerprint or Bohr／collision-excitation sibling sims.',
+    principleConceptTitle: 'Concept',
+    principleConcept: 'Electrons in an atom occupy allowed <strong>energy levels</strong>. A jump from a higher level to a lower one releases a <strong>photon</strong> whose energy equals $|\\Delta E|$, so each transition has a characteristic frequency／wavelength (color or UV／IR).',
+    principleMechTitle: 'Mechanism',
+    principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>Level gap</strong>: $\\Delta E = |E_\\mathrm{high}-E_\\mathrm{low}|$ (this sim draws downward emission only).</li><li><strong>Wavelength</strong>: teaching $\\lambda(\\mathrm{nm}) = 1240 / \\Delta E(\\mathrm{eV})$ (<code>HC_CONST</code> here). Larger ΔE → shorter λ.</li><li><strong>Photon energy</strong>: also $E=hf$ (panel shows Joules＝eV×$1.6\\times10^{-19}$).</li><li><strong>Band</strong>: visible λ → approximate RGB; UV／IR → dark box＋label (dashed arrows).</li><li><strong>Idealizations</strong>: preset H／Na／Ne levels; all downward pairs; special names are labels only; not selection rules or real intensities.</li></ol>',
+    principleExampleTitle: 'Everyday example',
+    principleExample: 'Neon／sodium lamp colors, hydrogen discharge tubes in class, He-Ne laser red-line intuition. Do not merge with the sibling emission-line fingerprint sim or the Bohr／particle-excitation collision sim.',
+    q1: 'Select Hydrogen and click <strong>Balmer H-α (Red)</strong>. Which best matches this sim?',
+    q1a: 'A. ΔE ≈ 1.89 eV, λ ≈ 656 nm, visible red preview',
+    q1b: 'B. It always shows UV with λ≈122 nm',
+    q1c: 'C. This sim has no wavelength readout',
+    q1d: 'D. Clicking H-α forces a switch to Neon',
+    q1ans: 'Model answer: A. Matches H levels n=3→n=2 and 1240/1.89.',
+    q2: 'On Hydrogen, click H-α and note ΔE／λ／color, then Lyman-α (UV). Predict which transition has higher photon energy and shorter λ, then verify the readouts.',
+    q2a: 'A. Larger ΔE, shorter λ, type ultraviolet, color box not a visible hue',
+    q2b: 'B. Lyman-α must have a longer wavelength than H-α',
+    q2c: 'C. Both must show exactly the same ΔE',
+    q2d: 'D. UV appears only after switching to English',
+    q2ans: 'Model answer: A. n=2→n=1, ΔE≈10.2 eV, λ≈122 nm, type===\'uv\'.',
+    q3: 'Switch to Sodium and click <strong>D-Line (Yellow Doublet)</strong>. What is most likely?',
+    q3a: 'A. A 3p→3s-type label, λ on a yellow (~590 nm) scale, yellowish preview',
+    q3b: 'B. Sodium has no clickable arrows',
+    q3c: 'C. D-Line is fixed as deep UV with λ<100 nm',
+    q3d: 'D. Choosing Na deletes the diagram and leaves only the title',
+    q3ans: 'Model answer: A. Na special {from:1,to:0}; dE=2.10; λ≈590.5 nm.',
+    q4: 'After clicking any transition and seeing readouts, in your own words: (1) how ΔE and λ relate in this sim; (2) after Reset, what should happen to the panel, arrow selection, current element, and language (per this design).',
+    q4ans: 'Model answer: (1) $\\lambda=1240/\\Delta E$ (teaching eV·nm); larger ΔE → shorter λ; (2) panel clears, selection／animation cleared; keep current element; Reset must not switch language.',
+    q5: 'Using this sim’s controls and design, which is most correct?',
+    q5a: 'A. You can pick H／Na／Ne, click transition arrows for ΔE／λ／photon energy／color, with steps／principle／five quiz items／zh-EN—this is electron-transition readouts, not a full emission-line fingerprint, nor firing photons／electrons for collision excitation',
+    q5b: 'B. It is mainly for measuring double-slit fringe spacing to find λ',
+    q5c: 'C. Reset always switches to English and deletes all levels',
+    q5d: 'D. It mainly shows α gold-foil scattering and the nuclear atom',
+    q5ans: 'Model answer: A. Isolates emission_line_spectra／quantum_energy_level／Rutherford／double-slit; Reset does not change language or delete ELEMENTS data.'
+  }
 };
 
-/**
- * 載入元素
- */
-function loadElement(key) {
-    currentElementKey = key;
-    
-    // 1. UI 狀態更新
-    document.querySelectorAll('.element-btn').forEach(btn => {
-        btn.classList.remove('border-blue-500', 'border-yellow-500', 'border-red-500', 'bg-gray-700');
-        btn.classList.add('border-gray-700', 'bg-gray-800');
+const QUIZ_META = [
+  { id: 'q1', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' },
+  { id: 'q2', type: 'short' },
+  { id: 'q3', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' },
+  { id: 'q4', type: 'short' },
+  { id: 'q5', type: 'mc', options: ['a', 'b', 'c', 'd'], correct: 'a' }
+];
+
+function t(key) {
+  return (translations[currentLang] && translations[currentLang][key]) || (translations.zh[key] || key);
+}
+
+function typesetMath(root) {
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise(root ? [root] : undefined).catch(function () {});
+  }
+}
+
+function updateLanguage() {
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+  document.title = t('pageTitle');
+  document.querySelectorAll('[data-i18n]').forEach(function (el) {
+    var key = el.dataset.i18n;
+    if (translations[currentLang][key] != null) el.textContent = translations[currentLang][key];
+  });
+  if (lastTransitionData) {
+    applySpectrumLabels(lastTransitionData);
+  } else {
+    document.getElementById('trans-name').innerText = t('clickArrow');
+    var specText = document.getElementById('spectrum-text');
+    if (specText && (specText.innerText === t('noSignal') || specText.innerText === translations.zh.noSignal || specText.innerText === translations.en.noSignal || specText.innerText === translations.zh.waitData || specText.innerText === translations.en.waitData || !lastTransitionData)) {
+      if (document.getElementById('wave-val').innerText === '---') {
+        document.getElementById('trans-name').innerText = t('clickArrow');
+        specText.innerText = t('noSignal');
+        specText.style.color = '#6b7280';
+      }
+    }
+  }
+  renderSteps();
+  renderPrinciple();
+  renderQuiz();
+  var ansBtn = document.getElementById('btn-quiz-answers');
+  if (ansBtn) ansBtn.textContent = quizState.showAnswers ? t('hideAnswers') : t('showAnswers');
+}
+
+function renderSteps() {
+  var ol = document.getElementById('steps-body');
+  if (!ol) return;
+  ol.innerHTML = [1, 2, 3, 4].map(function (n) { return '<li>' + t('step' + n) + '</li>'; }).join('');
+  typesetMath(ol);
+}
+
+function renderPrinciple() {
+  var body = document.getElementById('principle-body');
+  if (!body) return;
+  body.innerHTML =
+    '<section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-blue-500 pl-2">' + t('principleConceptTitle') + '</h3><p>' + t('principleConcept') + '</p></section>' +
+    '<section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-green-500 pl-2">' + t('principleMechTitle') + '</h3>' + t('principleMech') + '</section>' +
+    '<section><h3 class="text-lg font-bold text-white mb-2 border-l-4 border-purple-500 pl-2">' + t('principleExampleTitle') + '</h3><p>' + t('principleExample') + '</p></section>';
+  typesetMath(body);
+}
+
+function renderQuiz() {
+  const body = document.getElementById('quiz-body');
+  if (!body) return;
+  const ref = currentLang === 'zh' ? '參考答案' : 'Reference answer';
+  const mkChoice = (qid) => {
+    const meta = QUIZ_META.find(q => q.id === qid);
+    if (!meta || meta.type !== 'mc') return '';
+    return '<div class="grid gap-1.5 mt-1">' + meta.options.map(opt => {
+      const key = qid + opt;
+      return '<label class="flex items-start gap-2 rounded-lg border border-slate-600 p-2 cursor-pointer hover:bg-slate-800/50">' +
+        '<input type="radio" name="' + qid + '" class="mt-0.5">' +
+        '<span class="text-sm">' + t(key) + '</span></label>';
+    }).join('') + '</div>';
+  };
+  const ans = (key) => quizState.showAnswers
+    ? '<div class="mt-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg p-2"><strong>' + ref + '：</strong> ' + t(key) + '</div>'
+    : '';
+  const layout = [
+    { id: 'q1', mc: true }, { id: 'q2', mc: false }, { id: 'q3', mc: true }, { id: 'q4', mc: false }, { id: 'q5', mc: true }
+  ];
+  body.innerHTML = layout.map((b, idx) =>
+    '<div class="quiz-item" data-quiz="' + b.id + '">' +
+    '<div class="q-stem">Q' + (idx + 1) + '. ' + t(b.id) + '</div>' +
+    (b.mc ? mkChoice(b.id) : '<p class="text-xs text-slate-500 mb-1">' + t('shortHint') + '</p>') +
+    ans(b.id + 'ans') + '</div>'
+  ).join('');
+  const ansBtn = document.getElementById('btn-quiz-answers');
+  if (ansBtn) ansBtn.textContent = quizState.showAnswers ? t('hideAnswers') : t('showAnswers');
+  typesetMath(body);
+}
+
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  requestAnimationFrame(function () {
+    el.classList.remove('opacity-0');
+    var panel = el.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.remove('scale-95');
+  });
+  if (id === 'modal-principle') typesetMath(document.getElementById('principle-body'));
+  if (id === 'modal-steps') typesetMath(document.getElementById('steps-body'));
+  if (id === 'modal-quiz') typesetMath(document.getElementById('quiz-body'));
+}
+
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('opacity-0');
+  var panel = el.querySelector('[data-modal-panel]');
+  if (panel) panel.classList.add('scale-95');
+  setTimeout(function () { el.classList.add('hidden'); }, 200);
+}
+
+function closeAllModals() {
+  ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+}
+
+window.onload = function () {
+  document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+  document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+  document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+  document.getElementById('btn-lang').addEventListener('click', function () {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    updateLanguage();
+  });
+  document.getElementById('btn-reset').addEventListener('click', doReset);
+  document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+    quizState.showAnswers = !quizState.showAnswers;
+    renderQuiz();
+  });
+  document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+  });
+  ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('click', function (e) {
+      if (e.target === el) closeModal(id);
     });
-    
-    const activeBtn = document.getElementById(`btn-${key}`);
-    const activeClass = ELEMENTS[key].bgClass;
-    activeBtn.classList.remove('border-gray-700', 'bg-gray-800');
-    activeBtn.classList.add(activeClass, 'bg-gray-750', 'shadow-lg');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeAllModals();
+  });
 
-    // 2. 重置數據
-    resetData();
+  updateLanguage();
+  loadElement('H');
+  window.addEventListener('resize', drawEnergyDiagram);
+};
 
-    // 3. 繪圖
-    drawEnergyDiagram();
+function loadElement(key) {
+  currentElementKey = key;
+  document.querySelectorAll('.element-btn').forEach(function (btn) {
+    btn.classList.remove('border-blue-500', 'border-yellow-500', 'border-red-500', 'bg-gray-700');
+    btn.classList.add('border-gray-700', 'bg-gray-800');
+  });
+  var activeBtn = document.getElementById('btn-' + key);
+  var activeClass = ELEMENTS[key].bgClass;
+  activeBtn.classList.remove('border-gray-700', 'bg-gray-800');
+  activeBtn.classList.add(activeClass, 'bg-gray-750', 'shadow-lg');
+  resetData();
+  drawEnergyDiagram();
 }
 
 function resetData() {
-    document.getElementById('trans-name').innerText = "請點擊右側箭頭";
-    document.getElementById('energy-val').innerText = "0.00";
-    document.getElementById('wave-val').innerText = "---";
-    document.getElementById('photon-val').innerText = "---";
-    
-    const colorBox = document.getElementById('color-box');
-    const specText = document.getElementById('spectrum-text');
-    colorBox.style.backgroundColor = '#111827';
-    colorBox.style.boxShadow = 'none';
-    specText.innerText = "無訊號";
-    specText.style.color = '#6b7280';
+  lastTransitionData = null;
+  document.getElementById('trans-name').innerText = t('clickArrow');
+  document.getElementById('energy-val').innerText = '0.00';
+  document.getElementById('wave-val').innerText = '---';
+  document.getElementById('photon-val').innerText = '---';
+  var colorBox = document.getElementById('color-box');
+  var specText = document.getElementById('spectrum-text');
+  colorBox.style.backgroundColor = '#111827';
+  colorBox.style.boxShadow = 'none';
+  specText.innerText = t('noSignal');
+  specText.style.color = '#6b7280';
 }
 
-/**
- * 獲取所有可能的躍遷
- */
+function doReset() {
+  resetData();
+  document.querySelectorAll('.transition-arrow.active').forEach(function (el) {
+    el.classList.remove('active');
+  });
+  document.querySelectorAll('.photon-group').forEach(function (p) { p.remove(); });
+  drawEnergyDiagram();
+}
+
 function getAllTransitions(key) {
-    const el = ELEMENTS[key];
-    const levels = el.levels;
-    const special = el.specialTransitions || [];
-    const all = [];
-
-    // 遍歷所有組合：從高能階(i) 到 低能階(j)
-    // 為了圖表美觀，我們按「終點能階(to)」分組，從最低能階開始
-    for (let j = 0; j < levels.length - 1; j++) { // to (低)
-        for (let i = j + 1; i < levels.length; i++) { // from (高)
-            
-            // 1. 檢查是否有特殊定義的名稱
-            const custom = special.find(t => t.from === i && t.to === j);
-            
-            // 2. 計算物理量以決定顏色
-            const dE = Math.abs(levels[i] - levels[j]);
-            const lambda = 1240 / dE;
-            
-            // 3. 決定顯示屬性
-            let displayLabel = custom ? custom.label : `${el.levelLabels[i]} → ${el.levelLabels[j]}`;
-            let colorData = getWavelengthColorData(lambda);
-            
-            // 如果特殊定義有指定顏色(雖然現在數據結構沒指定，但保留彈性)，可在此覆蓋
-            
-            all.push({
-                from: i,
-                to: j,
-                label: displayLabel,
-                lambda: lambda,
-                dE: dE,
-                color: colorData.arrowColor,
-                isSpecial: !!custom,
-                type: colorData.type
-            });
-        }
+  var el = ELEMENTS[key];
+  var levels = el.levels;
+  var special = el.specialTransitions || [];
+  var all = [];
+  for (var j = 0; j < levels.length - 1; j++) {
+    for (var i = j + 1; i < levels.length; i++) {
+      var custom = special.find(function (tr) { return tr.from === i && tr.to === j; });
+      var dE = Math.abs(levels[i] - levels[j]);
+      var lambda = HC_CONST / dE;
+      var displayLabel = custom ? custom.label : (el.levelLabels[i] + ' → ' + el.levelLabels[j]);
+      var colorData = getWavelengthColorData(lambda);
+      all.push({
+        from: i,
+        to: j,
+        label: displayLabel,
+        lambda: lambda,
+        dE: dE,
+        color: colorData.arrowColor,
+        isSpecial: !!custom,
+        type: colorData.type
+      });
     }
-    return all;
+  }
+  return all;
 }
 
-/**
- * 繪製能階圖
- */
 function drawEnergyDiagram() {
-    const container = document.getElementById('diagram-container');
-    const svg = document.getElementById('energy-svg');
-    
-    // 清除舊內容 (保留 defs)
-    while (svg.lastChild && svg.lastChild.tagName !== 'defs') {
-        svg.removeChild(svg.lastChild);
-    }
+  var container = document.getElementById('diagram-container');
+  var svg = document.getElementById('energy-svg');
+  while (svg.lastChild && svg.lastChild.tagName !== 'defs') {
+    svg.removeChild(svg.lastChild);
+  }
+  var width = container.clientWidth;
+  var height = container.clientHeight;
+  if (width < 10 || height < 10) return;
+  var data = ELEMENTS[currentElementKey];
+  var levels = data.levels;
+  var minE = Math.min.apply(null, levels);
+  var maxE = Math.max.apply(null, levels);
+  var paddingY = 100;
+  var availableH = height - 2 * paddingY;
+  var getY = function (e) {
+    if (maxE === minE) return height / 2;
+    var ratio = (e - minE) / (maxE - minE);
+    return height - paddingY - (ratio * availableH);
+  };
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    const data = ELEMENTS[currentElementKey];
-    const levels = data.levels;
-    
-    // 計算縮放
-    const minE = Math.min(...levels);
-    const maxE = Math.max(...levels);
-    const paddingY = 100; 
-    const availableH = height - 2 * paddingY;
-    
-    const getY = (e) => {
-        if (maxE === minE) return height / 2;
-        const ratio = (e - minE) / (maxE - minE); 
-        return height - paddingY - (ratio * availableH);
+  levels.forEach(function (e, i) {
+    var y = getY(e);
+    var line = createSVG('line', {
+      x1: 80, y1: y,
+      x2: width - 50, y2: y,
+      stroke: 'rgba(255,255,255,0.3)',
+      'stroke-width': 2
+    });
+    svg.appendChild(line);
+    var textL = createSVG('text', {
+      x: 70, y: y + 5,
+      fill: '#9ca3af',
+      'text-anchor': 'end',
+      'font-family': 'monospace',
+      'font-size': '14'
+    });
+    textL.textContent = data.levelLabels[i] || ('n=' + (i + 1));
+    svg.appendChild(textL);
+    var textR = createSVG('text', {
+      x: width - 40, y: y + 5,
+      fill: '#4ade80',
+      'text-anchor': 'start',
+      'font-family': 'monospace',
+      'font-size': '12',
+      opacity: 0.7
+    });
+    textR.textContent = e.toFixed(2) + ' eV';
+    svg.appendChild(textR);
+  });
+
+  var allTrans = getAllTransitions(currentElementKey);
+  var startX = 120;
+  var endX = width - 100;
+  var totalSpace = endX - startX;
+  var spacing = totalSpace / (allTrans.length + 1);
+
+  allTrans.forEach(function (tr, i) {
+    var yTop = getY(levels[tr.from]);
+    var yBot = getY(levels[tr.to]);
+    var x = startX + (i + 1) * spacing;
+    var displayColor = tr.color;
+    var g = createSVG('g', {
+      class: 'transition-arrow group',
+      'data-label': tr.label
+    });
+    g.onmouseenter = function (evt) { showTooltip(evt, tr.label, tr.lambda); };
+    g.onmouseleave = hideTooltip;
+    g.onclick = function () {
+      document.querySelectorAll('.transition-arrow').forEach(function (el) { el.classList.remove('active'); });
+      g.classList.add('active');
+      displayResult(tr, x, (yTop + yBot) / 2);
     };
-
-    // 1. 繪製能階線
-    levels.forEach((e, i) => {
-        const y = getY(e);
-        
-        // 線
-        const line = createSVG('line', {
-            x1: 80, y1: y,
-            x2: width - 50, y2: y,
-            stroke: 'rgba(255,255,255,0.3)',
-            'stroke-width': 2
-        });
-        svg.appendChild(line);
-
-        // Label
-        const textL = createSVG('text', {
-            x: 70, y: y + 5,
-            fill: '#9ca3af',
-            'text-anchor': 'end',
-            'font-family': 'monospace',
-            'font-size': '14'
-        });
-        textL.textContent = data.levelLabels[i] || `n=${i+1}`;
-        svg.appendChild(textL);
-
-        // Energy Value
-        const textR = createSVG('text', {
-            x: width - 40, y: y + 5,
-            fill: '#4ade80',
-            'text-anchor': 'start',
-            'font-family': 'monospace',
-            'font-size': '12',
-            opacity: 0.7
-        });
-        textR.textContent = `${e.toFixed(2)} eV`;
-        svg.appendChild(textR);
+    var arrowLine = createSVG('line', {
+      x1: x, y1: yTop,
+      x2: x, y2: yBot - 8,
+      stroke: displayColor,
+      'stroke-width': 2,
+      'stroke-dasharray': (tr.type === 'uv' || tr.type === 'ir') ? '4,2' : 'none'
     });
-
-    // 2. 繪製躍遷箭頭
-    const allTrans = getAllTransitions(currentElementKey);
-    
-    // 佈局計算：把寬度均分給所有箭頭
-    // 我們需要一個稍微聰明一點的算法來防止過度擁擠，但在這個簡單模擬中，均分通常足夠
-    const startX = 120;
-    const endX = width - 100;
-    const totalSpace = endX - startX;
-    const spacing = totalSpace / (allTrans.length + 1);
-
-    allTrans.forEach((t, i) => {
-        const yTop = getY(levels[t.from]);
-        const yBot = getY(levels[t.to]);
-        const x = startX + (i + 1) * spacing;
-
-        const displayColor = t.color;
-        
-        // Group wrapper
-        const g = createSVG('g', { 
-            class: 'transition-arrow group',
-            'data-label': t.label
-        });
-
-        // Hover logic for Tooltip
-        g.onmouseenter = (evt) => showTooltip(evt, t.label, t.lambda);
-        g.onmouseleave = hideTooltip;
-
-        // Click logic
-        g.onclick = (e) => {
-            // 清除其他 Active
-            document.querySelectorAll('.transition-arrow').forEach(el => el.classList.remove('active'));
-            g.classList.add('active');
-            
-            // 執行顯示
-            displayResult(t, x, (yTop + yBot)/2);
-        };
-
-        // Arrow Line
-        const arrowLine = createSVG('line', {
-            x1: x, y1: yTop,
-            x2: x, y2: yBot - 8,
-            stroke: displayColor,
-            'stroke-width': 2,
-            'stroke-dasharray': (t.type === 'uv' || t.type === 'ir') ? '4,2' : 'none'
-        });
-        g.appendChild(arrowLine);
-
-        // Arrow Head
-        const arrowHead = createSVG('path', {
-            d: `M ${x-5} ${yBot-8} L ${x+5} ${yBot-8} L ${x} ${yBot} Z`,
-            fill: displayColor
-        });
-        g.appendChild(arrowHead);
-
-        // Small Label on top if special
-        /*
-        if (t.isSpecial) {
-            const circle = createSVG('circle', {
-                cx: x, cy: yTop - 5, r: 2, fill: displayColor
-            });
-            g.appendChild(circle);
-        }
-        */
-
-        svg.appendChild(g);
+    g.appendChild(arrowLine);
+    var arrowHead = createSVG('path', {
+      d: 'M ' + (x - 5) + ' ' + (yBot - 8) + ' L ' + (x + 5) + ' ' + (yBot - 8) + ' L ' + x + ' ' + yBot + ' Z',
+      fill: displayColor
     });
+    g.appendChild(arrowHead);
+    svg.appendChild(g);
+  });
 }
 
 function createSVG(tag, attrs) {
-    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-    for (const k in attrs) {
-        el.setAttribute(k, attrs[k]);
-    }
-    return el;
+  var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (var k in attrs) {
+    el.setAttribute(k, attrs[k]);
+  }
+  return el;
 }
 
-/**
- * 顯示結果
- */
+function applySpectrumLabels(data) {
+  var colorBox = document.getElementById('color-box');
+  var specText = document.getElementById('spectrum-text');
+  var finalBoxColor = '#000000';
+  var text = '';
+  var textColor = '#fff';
+  if (data.type === 'uv') {
+    text = t('typeUV');
+    textColor = '#a855f7';
+  } else if (data.type === 'ir') {
+    text = t('typeIR');
+    textColor = '#ef4444';
+  } else {
+    finalBoxColor = data.color;
+    text = t('typeVisible');
+    textColor = finalBoxColor;
+  }
+  colorBox.style.backgroundColor = finalBoxColor;
+  if (finalBoxColor === '#000000') {
+    colorBox.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.1)';
+  } else {
+    colorBox.style.boxShadow = '0 0 20px ' + finalBoxColor;
+  }
+  specText.innerText = text;
+  specText.style.color = textColor;
+}
+
 function displayResult(data, xPos, yPos) {
-    const joules = data.dE * E_CHARGE;
-    
-    // 1. 填充面板
-    document.getElementById('trans-name').innerText = data.label;
-    document.getElementById('energy-val').innerText = data.dE.toFixed(3);
-    document.getElementById('wave-val').innerText = data.lambda.toFixed(1);
-    document.getElementById('photon-val').innerText = joules.toExponential(2);
-
-    // 2. 顏色框
-    const colorBox = document.getElementById('color-box');
-    const specText = document.getElementById('spectrum-text');
-    
-    let finalBoxColor = '#000000';
-    let text = '';
-    let textColor = '#fff';
-
-    if (data.type === 'uv') {
-        text = '紫外線 (UV)';
-        textColor = '#a855f7'; // Purple text
-    } else if (data.type === 'ir') {
-        text = '紅外線 (IR)';
-        textColor = '#ef4444'; // Red text
-    } else {
-        finalBoxColor = data.color; // 使用箭頭顏色(即真實光色)
-        text = '可見光 (Visible)';
-        textColor = finalBoxColor;
-    }
-
-    colorBox.style.backgroundColor = finalBoxColor;
-    
-    // 光暈效果
-    if (finalBoxColor === '#000000') {
-        colorBox.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.1)';
-    } else {
-        colorBox.style.boxShadow = `0 0 20px ${finalBoxColor}`;
-    }
-    
-    specText.innerText = text;
-    specText.style.color = textColor;
-
-    // 3. 動畫
-    animatePhoton(xPos, yPos, (data.type === 'uv' || data.type === 'ir') ? data.color : finalBoxColor);
+  lastTransitionData = data;
+  var joules = data.dE * E_CHARGE;
+  document.getElementById('trans-name').innerText = data.label;
+  document.getElementById('energy-val').innerText = data.dE.toFixed(3);
+  document.getElementById('wave-val').innerText = data.lambda.toFixed(1);
+  document.getElementById('photon-val').innerText = joules.toExponential(2);
+  applySpectrumLabels(data);
+  animatePhoton(xPos, yPos, (data.type === 'uv' || data.type === 'ir') ? data.color : data.color);
 }
 
-/**
- * 波長顏色計算工具
- * 返回: { arrowColor: hex, type: 'uv'|'ir'|'visible' }
- */
 function getWavelengthColorData(wl) {
-    if (wl < 380) return { arrowColor: '#d8b4fe', type: 'uv' }; // UV Arrow: Light Purple
-    if (wl > 750) return { arrowColor: '#6b7280', type: 'ir' }; // IR Arrow: Gray
-    
-    // Visible Calculation
-    let r, g, b;
-    if (wl >= 380 && wl < 440) { r = -(wl - 440) / (60); g = 0; b = 1; }
-    else if (wl >= 440 && wl < 490) { r = 0; g = (wl - 440) / (50); b = 1; }
-    else if (wl >= 490 && wl < 510) { r = 0; g = 1; b = -(wl - 510) / (20); }
-    else if (wl >= 510 && wl < 580) { r = (wl - 510) / (70); g = 1; b = 0; }
-    else if (wl >= 580 && wl < 645) { r = 1; g = -(wl - 645) / (65); b = 0; }
-    else if (wl >= 645 && wl <= 750) { r = 1; g = 0; b = 0; }
-    
-    const toHex = (v) => {
-        const hex = Math.round(v * 255).toString(16);
-        return hex.length === 1 ? '0' + hex : hex;
-    };
-    
-    return { 
-        arrowColor: `#${toHex(r)}${toHex(g)}${toHex(b)}`, 
-        type: 'visible' 
-    };
+  if (wl < 380) return { arrowColor: '#d8b4fe', type: 'uv' };
+  if (wl > 750) return { arrowColor: '#6b7280', type: 'ir' };
+  var r, g, b;
+  if (wl >= 380 && wl < 440) { r = -(wl - 440) / 60; g = 0; b = 1; }
+  else if (wl >= 440 && wl < 490) { r = 0; g = (wl - 440) / 50; b = 1; }
+  else if (wl >= 490 && wl < 510) { r = 0; g = 1; b = -(wl - 510) / 20; }
+  else if (wl >= 510 && wl < 580) { r = (wl - 510) / 70; g = 1; b = 0; }
+  else if (wl >= 580 && wl < 645) { r = 1; g = -(wl - 645) / 65; b = 0; }
+  else if (wl >= 645 && wl <= 750) { r = 1; g = 0; b = 0; }
+  else { r = 1; g = 1; b = 1; }
+  var toHex = function (v) {
+    var hex = Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+  return {
+    arrowColor: '#' + toHex(r) + toHex(g) + toHex(b),
+    type: 'visible'
+  };
 }
 
 function animatePhoton(x, y, color) {
-    const svg = document.getElementById('energy-svg');
-    document.querySelectorAll('.photon-group').forEach(p => p.remove());
-
-    const g = createSVG('g', {
-        class: 'photon-group animate-fly',
-        transform: `translate(${x}, ${y})`
-    });
-    
-    const wave = createSVG('path', {
-        d: "M0,0 Q5,-10 10,0 T20,0 T30,0 T40,0",
-        stroke: color,
-        fill: 'none',
-        'stroke-width': 3,
-        'stroke-linecap': 'round',
-        filter: 'drop-shadow(0 0 5px currentColor)'
-    });
-    
-    g.appendChild(wave);
-    svg.appendChild(g);
+  var svg = document.getElementById('energy-svg');
+  document.querySelectorAll('.photon-group').forEach(function (p) { p.remove(); });
+  var g = createSVG('g', {
+    class: 'photon-group animate-fly',
+    transform: 'translate(' + x + ', ' + y + ')'
+  });
+  var wave = createSVG('path', {
+    d: 'M0,0 Q5,-10 10,0 T20,0 T30,0 T40,0',
+    stroke: color,
+    fill: 'none',
+    'stroke-width': 3,
+    'stroke-linecap': 'round',
+    filter: 'drop-shadow(0 0 5px currentColor)'
+  });
+  g.appendChild(wave);
+  svg.appendChild(g);
 }
 
-// Tooltip Logic
 function showTooltip(evt, text, lambda) {
-    const tt = document.getElementById('tooltip');
-    tt.innerHTML = `<span class="font-bold">${text}</span><br/>λ = ${lambda.toFixed(1)} nm`;
-    tt.style.left = (evt.clientX + 15) + 'px';
-    tt.style.top = (evt.clientY + 15) + 'px';
-    tt.style.opacity = 1;
+  var tt = document.getElementById('tooltip');
+  var rect = document.getElementById('diagram-container').getBoundingClientRect();
+  tt.innerHTML = '<span class="font-bold">' + text + '</span><br/>λ = ' + lambda.toFixed(1) + ' nm';
+  tt.style.left = (evt.clientX - rect.left + 15) + 'px';
+  tt.style.top = (evt.clientY - rect.top + 15) + 'px';
+  tt.style.opacity = 1;
 }
 function hideTooltip() {
-    const tt = document.getElementById('tooltip');
-    tt.style.opacity = 0;
+  document.getElementById('tooltip').style.opacity = 0;
 }
 </script>
 </body>

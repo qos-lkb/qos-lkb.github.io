@@ -1,44 +1,117 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>平面鏡反射 - 光線圖模擬</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
-        
+        /*
+         * Layout exemption: fullscreen plane-mirror ray-diagram float-panel layout exemption
+         * (full-viewport Canvas 2D + absolute top-left teaching card). Not A/B/C grid.
+         * Teaching controls (steps / principle / quiz / lang / reset) are NOT exempt.
+         */
         body {
-            font-family: 'Noto Sans TC', sans-serif;
-            overflow: hidden; /* Prevent scrolling when dragging on touch devices */
+            font-family: 'Noto Sans TC', system-ui, sans-serif;
+            overflow: hidden;
             touch-action: none;
         }
-
         .cursor-grab { cursor: grab; }
         .cursor-grabbing { cursor: grabbing; }
-
-        /* Custom hatch pattern for the back of the mirror */
-        .mirror-back {
-            background-image: repeating-linear-gradient(
-                -45deg,
-                transparent,
-                transparent 5px,
-                #9CA3AF 5px,
-                #9CA3AF 6px
-            );
+        .modal-panel { transition: opacity 0.25s ease; }
+        .modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+        .quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; }
+        .quiz-item .q-stem { font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; }
+        .quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+        .quiz-options button {
+            text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid #cbd5e1; background: #f8fafc; font-size: 0.875rem; transition: all 0.15s;
+            color: #1e293b;
+        }
+        .quiz-options button:hover { border-color: #6366f1; background: #eef2ff; }
+        .quiz-options button.selected { border-color: #4f46e5; background: #e0e7ff; }
+        .quiz-options button.correct { border-color: #16a34a; background: #dcfce7; }
+        .quiz-options button.wrong { border-color: #dc2626; background: #fee2e2; }
+        .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f1f5f9; border-radius: 0.5rem; font-size: 0.85rem; color: #334155; }
+        .quiz-answer.show { display: block; }
+        .teach-btn {
+            font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 0.5rem;
+            border: 1px solid; transition: background-color 0.15s, color 0.15s;
         }
     </style>
 </head>
 <body class="bg-gray-100 h-screen w-screen flex flex-col select-none">
 
-    <!-- Header / Controls -->
-    <div class="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 max-w-sm">
-        <h1 class="text-xl font-bold text-gray-800 mb-2">平面鏡反射 (Reflection by Plane Mirror)</h1>
-        <div class="text-sm text-gray-600 space-y-1">
-            <p>🔴 <span class="font-bold">物體 (Object)</span>: 拖曳以改變位置</p>
-            <p class="text-gray-500 text-xs mt-2">* 留意 u (物距) 和 v (像距) 的關係</p>
+    <!-- Floating teaching card (layout exemption: float-panel over fullscreen canvas) -->
+    <div class="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 max-w-md w-[min(100%,28rem)]">
+        <div class="flex items-start justify-between gap-2 flex-wrap mb-2">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h1 id="app-title" class="text-lg sm:text-xl font-bold text-gray-800" data-i18n="appTitle">平面鏡反射</h1>
+                    <span class="text-[10px] bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold" data-i18n="badge">物理</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-0.5" data-i18n="appSubtitle">平面鏡光線圖｜虛像與 |u| = |v|</p>
+            </div>
         </div>
-        <!-- 頂部數值顯示可保留也可移除，這裡保留作為輔助 -->
+        <div class="flex flex-wrap items-center gap-1.5 mb-3">
+            <button type="button" id="btn-steps" class="teach-btn border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100" data-i18n="btnSteps">觀察步驟</button>
+            <button type="button" id="btn-principle" class="teach-btn border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100" data-i18n="btnPrinciple">原理解說</button>
+            <button type="button" id="btn-quiz" class="teach-btn border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100" data-i18n="btnQuiz">課堂問題</button>
+            <button type="button" id="btn-reset" class="teach-btn border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100" data-i18n="btnReset">重置</button>
+            <button type="button" id="btn-lang" class="teach-btn border-slate-300 bg-white text-slate-600 hover:bg-slate-100">中 / EN</button>
+        </div>
+        <div class="text-sm text-gray-600 space-y-1">
+            <p>🔴 <span class="font-bold" data-i18n="hintObject">物體</span>: <span data-i18n="hintDrag">拖曳以改變位置</span></p>
+            <p class="text-gray-500 text-xs mt-1" data-i18n="hintUV">* 留意 u（物距）和 v（像距）的關係</p>
+        </div>
         <div class="mt-3 flex items-center space-x-4 text-sm font-mono bg-gray-50 p-2 rounded">
             <div class="text-red-600">u = <span id="dist-u">0</span> cm</div>
             <div class="text-gray-400">|</div>
@@ -51,380 +124,438 @@
         <canvas id="simulationCanvas" class="block w-full h-full"></canvas>
     </div>
 
-    <script>
-        const canvas = document.getElementById('simulationCanvas');
-        const ctx = canvas.getContext('2d');
-        const container = document.getElementById('canvas-container');
-        const uLabel = document.getElementById('dist-u');
-        const vLabel = document.getElementById('dist-v');
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="steps-title" class="text-xl font-bold text-indigo-700" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+            </div>
+            <ol id="steps-body" class="list-decimal pl-5 space-y-3 text-sm leading-relaxed"></ol>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-steps" data-i18n="closeBtn">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        // State
-        let width, height, mirrorX;
-        let scale = 1; // Pixels per logical unit
-        const gridSpacing = 40; // Pixels
-        const cmRatio = 40; // 40px = 1 unit (cm)
-        
-        // Positions (Initialize in resize)
-        let objectPos = { x: 0, y: 0 };
-        
-        // Interaction State
-        let isDraggingObject = false;
-        const hitRadius = 30; // Easy to touch on iPad
+    <!-- Modal: Principle -->
+    <div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="principle-title" class="text-xl font-bold text-indigo-700" data-i18n="principleTitle">原理解說</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            </div>
+            <div id="principle-body" class="space-y-4 text-sm leading-relaxed"></div>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-principle" data-i18n="closeBtn">關閉</button>
+            </div>
+        </div>
+    </div>
 
-        function init() {
-            window.addEventListener('resize', resize);
-            
-            // Mouse Events
-            canvas.addEventListener('mousedown', handleStart);
-            window.addEventListener('mousemove', handleMove);
-            window.addEventListener('mouseup', handleEnd);
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <h2 id="quiz-title" class="text-xl font-bold text-violet-700" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+                    <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div id="quiz-body" class="text-sm"></div>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-quiz" data-i18n="closeBtn">關閉</button>
+            </div>
+        </div>
+    </div>
 
-            // Touch Events (Passive false for preventing scroll)
-            canvas.addEventListener('touchstart', handleStart, { passive: false });
-            window.addEventListener('touchmove', handleMove, { passive: false });
-            window.addEventListener('touchend', handleEnd);
+<script>
+/**
+ * physics-03a-0301_plane_mirror_ray_diagram2
+ * Plane-mirror ray diagram: drag point object O, virtual image I, three rays, |u|=|v|.
+ * Layout: fullscreen canvas + float-panel (A/B/C exempt); teaching shell mandatory.
+ * No MathJax (Unicode |u| = |v|). Sibling isolation: not plane-mirror-ray-diagram / laws-of-reflection.
+ */
+(function () {
+    const canvas = document.getElementById('simulationCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+    const uLabel = document.getElementById('dist-u');
+    const vLabel = document.getElementById('dist-v');
 
-            resize();
-            loop();
+    let width, height, mirrorX;
+    const gridSpacing = 40;
+    const cmRatio = 40; // 40 px = 1 cm
+    let objectPos = { x: 0, y: 0 };
+    let isDraggingObject = false;
+    const hitRadius = 30;
+
+    const i18n = {
+        zh: {
+            appTitle: '平面鏡反射',
+            appSubtitle: '平面鏡光線圖｜虛像與 |u| = |v|',
+            badge: '物理',
+            hintObject: '物體',
+            hintDrag: '拖曳以改變位置',
+            hintUV: '* 留意 u（物距）和 v（像距）的關係',
+            btnSteps: '觀察步驟',
+            btnPrinciple: '原理解說',
+            btnQuiz: '課堂問題',
+            btnReset: '重置',
+            stepsTitle: '觀察步驟',
+            principleTitle: '原理解說',
+            quizTitle: '課堂問題',
+            showAnswers: '顯示參考答案',
+            hideAnswers: '隱藏參考答案',
+            closeBtn: '關閉',
+            shortHint: '請操作模擬後以短答作答。',
+            canvasFront: '鏡前',
+            canvasBack: '鏡後',
+            canvasObject: '物體',
+            canvasImage: '虛像',
+            pageTitle: '平面鏡反射 - 光線圖模擬',
+            step1: '找到紅色<strong>物體 O</strong>，水平拖近平面鏡，再拖遠。觀察左上（或尺寸線）的 <strong>u</strong> 與 <strong>v</strong>：是否大致<strong>相等</strong>且同增同減？用一句話寫出「像距等於物距」。按<strong>重置</strong>可回約 5 cm 初始位置。',
+            step2: '把物體<strong>上下</strong>拖動。觀察虛像 <strong>I</strong> 的高度是否跟隨 O，且仍在鏡的<strong>另一側</strong>對稱位置。指出三條<strong>灰虛線</strong>是延長線（光線並未進入鏡後）。',
+            step3: '注視一條<strong>紅實線</strong>：從 O 射到鏡面，再沿反射方向射向左側。想像延長該反射線穿過鏡面——是否指向 <strong>I</strong>？說明「反射光線看起來像從虛像發出」。',
+            step4: '對照標籤「鏡前／鏡後」與 hatch（鏡背）。總結本模擬假設：理想薄平面鏡、點物、三線固定射向鏡中央附近、顯示用 cm（40 px＝1 cm）、無眼睛視差控件、不示範橫向倒置細節。',
+            principleConceptTitle: '概念',
+            principleConcept: '平面鏡把光線按<strong>反射定律</strong>折回物側。我們在鏡後看到的「像」其實是眼睛把反射光線<strong>反向延長</strong>後相交而成的<strong>虛像</strong>——光線並未到達鏡後空間。本實驗室可拖曳點物 O，即時看見對稱虛像 I、三組入射／反射／虛延長線，以及物距 u 與像距 v 的讀數。',
+            principleMechTitle: '機制',
+            principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>對稱成像</strong>：若取鏡面為垂直軸，像的座標滿足與物等距、等高度 → 課堂常寫 <strong>|u| = |v|</strong>（本檔顯示為正值 cm）。</li><li><strong>光線圖</strong>：實線＝真實光路（入射、反射）；虛線＝為找像而畫的延長線。反射線的反向延長交於 I，故「看起來從 I 發出」。</li><li><strong>本檔三線策略</strong>：三條入射線射向鏡面中央附近固定偏移，方便同時看出匯聚於同一虛像，而非掃描整面鏡。</li><li><strong>法線示意</strong>：物體到鏡的水平連線與鏡面交點附近的直角符號，提醒量物距／像距時取<strong>垂直於鏡</strong>的距離。</li><li><strong>假設</strong>：理想平面鏡、無厚度光學、點物、無像差／無半透、無眼睛位置控件；標度 cmRatio=40。</li></ol>',
+            principleExampleTitle: '日常例子',
+            principleExample: '梳妝鏡裡的自己在「鏡子後面」；救護車鏡面字「AMBULANCE」因橫向倒置而在駕駛人前方鏡中讀得順（本點物檔不演示倒置字形，細節見 sibling 箭咀檔）。勿把本檔與透鏡公式 1/u+1/v=1/f、全內反射臨界角，或可拖眼睛的另一平面鏡光線圖混為同一套控件。',
+            q1: '拖動物體到某個鏡前位置，讀取 u 與 v。最可能观察到？',
+            q1a: 'A. u 與 v 的數值大致相等（像距等於物距）',
+            q1b: 'B. v 永遠固定為 5.0 cm，與 u 無關',
+            q1c: 'C. 把物體拖近鏡子會讓 v 變成負的透鏡焦距',
+            q1d: 'D. 本模擬沒有顯示 u 或 v',
+            q1ans: '參考答案：A。對稱成像 ⇒ |u|=|v|；讀數隨拖曳同步變。',
+            q2: '把物體上下移動。先預測虛像 I 與物 O 的相對位置，再拖曳核對光線圖。',
+            q2a: 'A. I 在鏡後，高度跟隨 O，是虛像（灰虛線為延長線）',
+            q2b: 'B. I 是可被光屏接收的實像，且永遠貼在鏡面上',
+            q2c: 'C. 上下移動 O 時 I 的 x 會跳到鏡前',
+            q2d: 'D. I 只在按下重置後才出現',
+            q2ans: '參考答案：A。虛像在鏡後對稱處；虛線非真實光路。',
+            q3: '觀察一組紅實線與灰虛線。哪項描述最合理？',
+            q3a: 'A. 紅實線是實際入射／反射光路；灰虛線是為了顯示「看似來自 I」的延長線',
+            q3b: 'B. 灰虛線代表紫外線，紅實線代表紅外線',
+            q3c: 'C. 只有灰虛線能被眼睛接收，紅實線只是裝飾',
+            q3d: 'D. 三條線的命中點會隨時間自動掃描整面鏡',
+            q3ans: '參考答案：A。對應本檔 incident／reflected vs virtual 繪製邏輯。',
+            q4: '先把物體拖到與初始明顯不同的位置，記下 u、v；再按<strong>重置</strong>。用自己的話描述重置後位置與讀數大約回到什麼狀態，以及重置是否應改語言（本設計預期）。',
+            q4ans: '參考答案：O 回到鏡前約 5 cm、垂直置中；u≈v≈5.0（允許一位小數顯示）；重置<strong>不</strong>應切換中／EN。',
+            q5: '根據本模擬控件與設計，哪項最正確？',
+            q5a: 'A. 可拖點物看對稱虛像與三組光線，讀 u／v；有步驟／原理／五題／中EN／重置——主題是平面鏡光線圖與 |u|=|v|，不是可拖眼睛的另一檔，也不是透鏡或全內反射',
+            q5b: 'B. 本檔提供焦距 f 滑桿並驗證 1/u+1/v=1/f',
+            q5c: 'C. 重置會強制改成英文並刪除虛像',
+            q5d: 'D. 主要展示氣體定律 PV=nRT',
+            q5ans: '參考答案：A。隔離 sibling plane-mirror-ray-diagram／透鏡／TIR／gas_laws；Reset 不改語言。'
+        },
+        en: {
+            appTitle: 'Reflection by Plane Mirror',
+            appSubtitle: 'Plane-mirror ray diagram | virtual image & |u| = |v|',
+            badge: 'Physics',
+            hintObject: 'Object',
+            hintDrag: 'Drag to change position',
+            hintUV: '* Watch how u (object distance) relates to v (image distance)',
+            btnSteps: 'Steps',
+            btnPrinciple: 'Principle',
+            btnQuiz: 'Quiz',
+            btnReset: 'Reset',
+            stepsTitle: 'Observation steps',
+            principleTitle: 'Principle',
+            quizTitle: 'Class quiz',
+            showAnswers: 'Show model answers',
+            hideAnswers: 'Hide model answers',
+            closeBtn: 'Close',
+            shortHint: 'Operate the sim, then answer briefly.',
+            canvasFront: 'Front',
+            canvasBack: 'Back',
+            canvasObject: 'Object',
+            canvasImage: 'Image',
+            pageTitle: 'Plane Mirror Reflection — Ray Diagram',
+            step1: 'Find the red <strong>object O</strong>. Drag it horizontally closer to the mirror, then farther away. Watch <strong>u</strong> and <strong>v</strong>: are they roughly <strong>equal</strong> and rise/fall together? State “image distance equals object distance.” <strong>Reset</strong> returns to the ~5 cm start pose.',
+            step2: 'Drag the object <strong>up and down</strong>. Check that virtual image <strong>I</strong> tracks O’s height and stays symmetrically on the other side of the mirror. Note the three <strong>grey dashed</strong> segments are extensions (no real light behind the mirror).',
+            step3: 'Focus on one <strong>solid red</strong> path: O → mirror → out to the left. Mentally extend the reflected ray through the mirror—does it aim at <strong>I</strong>? Explain that reflected rays appear to come from the virtual image.',
+            step4: 'Use Front／Back labels and the hatch (mirror back). State idealizations: ideal thin plane mirror, point object, three rays aimed near mid-mirror, cm via 40 px＝1 cm, no movable eye, no lateral-inversion demo for structured arrows.',
+            principleConceptTitle: 'Concept',
+            principleConcept: 'A plane mirror returns light to the object side by the <strong>law of reflection</strong>. The “image” behind the mirror is a <strong>virtual image</strong> formed where backward extensions of reflected rays meet—no light travels behind the glass. This lab lets you drag point object O and see symmetric image I, three incident／reflected／virtual-extension bundles, and readouts for object distance u and image distance v.',
+            principleMechTitle: 'Mechanism',
+            principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>Mirror symmetry</strong>: with the mirror as a vertical axis, the image matches the object in distance and height → classroom form <strong>|u| = |v|</strong> (this file shows positive cm).</li><li><strong>Ray diagram</strong>: solid = real paths (incident, reflected); dashed = construction extensions. Backward extensions of reflected rays meet at I, so rays “appear to come from I.”</li><li><strong>Three-ray scheme</strong>: incident rays aim near mid-mirror at fixed offsets so students see one shared virtual image.</li><li><strong>Normal cue</strong>: the right-angle mark near the object–mirror foot reminds that u／v are measured <strong>perpendicular</strong> to the mirror.</li><li><strong>Idealizations</strong>: ideal plane mirror, no thickness optics, point object, no aberration／semi-silvering, no eye control; scale cmRatio=40.</li></ol>',
+            principleExampleTitle: 'Everyday example',
+            principleExample: 'Your face in a bathroom mirror seems “behind” the glass; ambulance lettering uses lateral inversion (not shown with this point object—see the sibling arrow／eye diagram). Do not merge this file with thin-lens 1/u+1/v=1/f, TIR critical-angle labs, or the other plane-mirror diagram that drags an eye.',
+            q1: 'Drag the object to some position in front of the mirror and read u and v. What is most likely?',
+            q1a: 'A. u and v are roughly equal (image distance equals object distance)',
+            q1b: 'B. v is always fixed at 5.0 cm no matter where O is',
+            q1c: 'C. Moving closer makes v a negative lens focal length',
+            q1d: 'D. This sim never shows u or v',
+            q1ans: 'Model answer: A. Symmetry ⇒ |u|=|v|; readouts change together as you drag.',
+            q2: 'Move the object up and down. Predict how the virtual image I relates to object O, then drag and check the ray diagram.',
+            q2a: 'A. I is behind the mirror, tracks O’s height, and is virtual (grey dashes are extensions)',
+            q2b: 'B. I is a real screen-catchable image stuck on the mirror surface',
+            q2c: 'C. Moving O vertically flips I to the front of the mirror',
+            q2d: 'D. I appears only after Reset',
+            q2ans: 'Model answer: A. Virtual image is symmetric behind the mirror; dashes are not real paths.',
+            q3: 'Look at one solid-red pair and its grey dashes. Which description is most reasonable?',
+            q3a: 'A. Solid red = real incident／reflected paths; grey dashes = extensions showing rays “appear to come from I”',
+            q3b: 'B. Grey dashes are UV and solid red is IR',
+            q3c: 'C. Only grey dashes reach the eye; solid red is decoration',
+            q3d: 'D. The three hit points automatically scan the whole mirror over time',
+            q3ans: 'Model answer: A. Matches this file’s incident／reflected vs virtual drawing logic.',
+            q4: 'Drag the object far from the start pose, note u and v, then press <strong>Reset</strong>. In your own words, describe about where O and the readouts return, and whether Reset should change the UI language (per this design).',
+            q4ans: 'Model answer: O returns ~5 cm in front, vertically centered; u≈v≈5.0 (one-decimal display OK); Reset should <strong>not</strong> switch language.',
+            q5: 'Using this sim’s controls and design, which is most correct?',
+            q5a: 'A. You can drag a point object to see a symmetric virtual image and three ray bundles, read u／v; steps／principle／five quiz items／zh-EN／reset—this is plane-mirror ray diagram and |u|=|v|, not the eye-draggable sibling, nor lenses or TIR',
+            q5b: 'B. This file offers a focal-length slider and checks 1/u+1/v=1/f',
+            q5c: 'C. Reset always switches to English and deletes the virtual image',
+            q5d: 'D. It mainly shows the ideal-gas law PV=nRT',
+            q5ans: 'Model answer: A. Isolates sibling plane-mirror-ray-diagram／lenses／TIR／gas_laws; Reset does not change language.'
         }
+    };
 
-        function resize() {
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-            
-            mirrorX = width / 2;
+    const quizState = { selections: {}, showAnswers: false };
+    let currentLang = 'zh';
 
-            // Initial positions if not set or out of bounds
-            // Reset to 5cm in front of mirror (5 * cmRatio), vertically centered
-            if (objectPos.x === 0 || objectPos.x > mirrorX) {
-                objectPos = { x: mirrorX - (5 * cmRatio), y: height / 2 };
-            }
+    function t(key) {
+        return (i18n[currentLang] && i18n[currentLang][key]) || (i18n.zh[key] || key);
+    }
 
-            draw();
-        }
+    function updateLang() {
+        document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+        document.title = t('pageTitle');
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.dataset.i18n;
+            if (i18n[currentLang][key] != null) el.textContent = i18n[currentLang][key];
+        });
+        renderSteps();
+        renderPrinciple();
+        renderQuiz();
+        const ansBtn = document.getElementById('btn-quiz-answers');
+        if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t('hideAnswers') : t('showAnswers');
+    }
 
-        function getPos(e) {
-            const rect = canvas.getBoundingClientRect();
-            let clientX = e.clientX;
-            let clientY = e.clientY;
-            
-            if (e.touches && e.touches.length > 0) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            }
+    function renderSteps() {
+        const ol = document.getElementById('steps-body');
+        if (!ol) return;
+        ol.innerHTML = [1, 2, 3, 4].map(n => `<li>${t('step' + n)}</li>`).join('');
+    }
 
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
+    function renderPrinciple() {
+        const body = document.getElementById('principle-body');
+        if (!body) return;
+        body.innerHTML = `
+            <div><h3 class="font-bold text-indigo-700 mb-1">${t('principleConceptTitle')}</h3><p>${t('principleConcept')}</p></div>
+            <div><h3 class="font-bold text-indigo-700 mb-1">${t('principleMechTitle')}</h3>${t('principleMech')}</div>
+            <div><h3 class="font-bold text-indigo-700 mb-1">${t('principleExampleTitle')}</h3><p>${t('principleExample')}</p></div>
+        `;
+    }
+
+    let quizAnswersVisible = false;
+
+        function renderQuiz() {
+            const texts = i18n[currentLang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const langIsZh = (currentLang === 'zh');
+            const ref = texts.quizRef || (langIsZh ? '參考答案' : 'Reference answer');
+            const optKey = (qid, L) => {
+                const lower = qid + L.toLowerCase();
+                const upper = qid + L.toUpperCase();
+                return texts[lower] != null ? lower : upper;
             };
-        }
-
-        function handleStart(e) {
-            e.preventDefault(); // Prevent scrolling on iPad
-            const pos = getPos(e);
-            const distObj = Math.hypot(pos.x - objectPos.x, pos.y - objectPos.y);
-
-            if (distObj < hitRadius) {
-                isDraggingObject = true;
-                container.classList.add('cursor-grabbing');
-            }
-        }
-
-        function handleMove(e) {
-            if (!isDraggingObject) return;
-            e.preventDefault();
-            
-            const pos = getPos(e);
-
-            // Clamp positions to stay in front of mirror (Left side) + padding
-            const maxX = mirrorX - 10;
-            const minX = 10;
-            const minY = 10;
-            const maxY = height - 10;
-
-            const clampedX = Math.max(minX, Math.min(pos.x, maxX));
-            const clampedY = Math.max(minY, Math.min(pos.y, maxY));
-
-            objectPos = { x: clampedX, y: clampedY };
-        }
-
-        function handleEnd() {
-            isDraggingObject = false;
-            container.classList.remove('cursor-grabbing');
-        }
-
-        function drawGrid() {
-            ctx.strokeStyle = '#e5e7eb'; // Light gray like graph paper
-            ctx.lineWidth = 1;
-            
-            // Vertical lines
-            for (let x = mirrorX; x < width; x += gridSpacing) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-            }
-            for (let x = mirrorX; x > 0; x -= gridSpacing) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-            }
-
-            // Horizontal lines
-            const centerY = height / 2;
-            for (let y = centerY; y < height; y += gridSpacing) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-            }
-            for (let y = centerY; y > 0; y -= gridSpacing) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-            }
-        }
-
-        function drawMirror() {
-            // Mirror Line
-            ctx.beginPath();
-            ctx.moveTo(mirrorX, 0);
-            ctx.lineTo(mirrorX, height);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            // Hatches (Back of mirror - Right side)
-            ctx.strokeStyle = '#6b7280';
-            ctx.lineWidth = 2;
-            for (let y = 0; y < height; y += 20) {
-                ctx.beginPath();
-                ctx.moveTo(mirrorX, y);
-                ctx.lineTo(mirrorX + 15, y + 15);
-                ctx.stroke();
-            }
-
-            // Labels
-            ctx.fillStyle = '#374151';
-            ctx.font = '14px "Noto Sans TC"';
-            ctx.fillText('Front (鏡前)', mirrorX - 80, 30);
-            ctx.fillText('Back (鏡後)', mirrorX + 15, 30);
-        }
-
-        function drawArrow(fromX, fromY, toX, toY, color) {
-            const headlen = 10; // length of head in pixels
-            const dx = toX - fromX;
-            const dy = toY - fromY;
-            const angle = Math.atan2(dy, dx);
-            
-            // Midpoint for the arrow
-            const midX = (fromX + toX) / 2;
-            const midY = (fromY + toY) / 2;
-
-            ctx.beginPath();
-            ctx.moveTo(midX, midY);
-            ctx.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.moveTo(midX, midY);
-            ctx.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
-
-        function drawRay(start, end, type) {
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            ctx.lineTo(end.x, end.y);
-            
-            if (type === 'virtual') {
-                ctx.setLineDash([5, 5]);
-                ctx.strokeStyle = '#9CA3AF'; // Gray dashed
-            } else if (type === 'incident') {
-                ctx.setLineDash([]);
-                ctx.strokeStyle = '#DC2626'; // Red
-            } else if (type === 'reflected') {
-                ctx.setLineDash([]);
-                ctx.strokeStyle = '#DC2626'; // Red
-            }
-            
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.setLineDash([]); // Reset
-
-            // Draw arrow in middle if solid
-            if (type === 'incident' || type === 'reflected') {
-                drawArrow(start.x, start.y, end.x, end.y, '#DC2626');
-            }
-        }
-
-        function drawDimensionLine(x1, x2, y, label, color) {
-            const tickSize = 5;
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([]);
-
-            // Main line
-            ctx.beginPath();
-            ctx.moveTo(x1, y);
-            ctx.lineTo(x2, y);
-            ctx.stroke();
-
-            // Ticks at ends
-            ctx.beginPath();
-            ctx.moveTo(x1, y - tickSize);
-            ctx.lineTo(x1, y + tickSize);
-            ctx.moveTo(x2, y - tickSize);
-            ctx.lineTo(x2, y + tickSize);
-            ctx.stroke();
-
-            // Arrowheads (optional, but good for dimension)
-            // Left arrow
-            ctx.beginPath();
-            ctx.moveTo(x1, y);
-            ctx.lineTo(x1 + 5, y - 3);
-            ctx.lineTo(x1 + 5, y + 3);
-            ctx.fill();
-             // Right arrow
-            ctx.beginPath();
-            ctx.moveTo(x2, y);
-            ctx.lineTo(x2 - 5, y - 3);
-            ctx.lineTo(x2 - 5, y + 3);
-            ctx.fill();
-
-            // Text Label
-            ctx.font = 'bold 14px "Noto Sans TC"';
-            ctx.textAlign = 'center';
-            // Determine if label fits or needs offset
-            const midX = (x1 + x2) / 2;
-            // Draw background for text to read easier over grid
-            const textWidth = ctx.measureText(label).width;
-            ctx.fillStyle = 'rgba(243, 244, 246, 0.8)'; // light gray bg
-            ctx.fillRect(midX - textWidth/2 - 4, y - 10, textWidth + 8, 20);
-            
-            ctx.fillStyle = color;
-            ctx.fillText(label, midX, y + 5);
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, width, height);
-
-            drawGrid();
-            drawMirror();
-
-            // 1. Calculate Image Position
-            // The image is equidistant from the mirror on the opposite side.
-            const objectDistance = mirrorX - objectPos.x;
-            const imagePos = {
-                x: mirrorX + objectDistance,
-                y: objectPos.y
+            const mkChoice = (qid) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = optKey(qid, L);
+                return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span>' + (texts[key] || '') + '</span></label>';
+            }).join('');
+            const ans = (key) => quizAnswersVisible
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+            const openHint = texts.shortHint || texts.openHint || '';
+            const block = (n, qid, mc) => {
+                let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
+                if (mc) h += '<div class="grid gap-1.5">' + mkChoice(qid) + '</div>';
+                else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
+                return h + ans(qid + 'ans') + '</div>';
             };
-
-            // Values for display
-            const uVal = (objectDistance / cmRatio).toFixed(1);
-            const vVal = ((imagePos.x - mirrorX) / cmRatio).toFixed(1);
-
-            // Update UI Labels
-            uLabel.innerText = uVal;
-            vLabel.innerText = vVal;
-
-            // 2. Define Ray Targets (Hit points on mirror)
-            // Updated: Rays target the center of the mirror regardless of object position
-            // 三條入射線射向鏡面中央的位置
-            const mirrorCenterY = height / 2;
-            const hitYs = [mirrorCenterY - 60, mirrorCenterY, mirrorCenterY + 60]; 
-            
-            hitYs.forEach(y => {
-                const hitPoint = { x: mirrorX, y: y };
-
-                // A. Incident Ray (Object -> Mirror) / 入射線：從物體到鏡子
-                drawRay(objectPos, hitPoint, 'incident');
-
-                // B. Virtual Ray (Image -> Mirror) - Dashed extension / 虛線：從影像到鏡子
-                drawRay(imagePos, hitPoint, 'virtual');
-
-                // C. Reflected Ray (Mirror -> Outwards) / 反射線：從鏡子反射回左側
-                // The reflected ray appears to come FROM the Image, passing through the HitPoint
-                // But it travels to the LEFT (Real world side).
-                // 反射線看似來自影像，穿過入射點，射向真實世界（左側）
-                
-                const dx = hitPoint.x - imagePos.x; // Negative value (mirror is left of image)
-                const dy = hitPoint.y - imagePos.y;
-                
-                if (dx !== 0) {
-                    const slope = dy / dx;
-                    // We want to draw the ray extending to the Left edge of screen (x = 0)
-                    // Line eq: y - y1 = m(x - x1)
-                    // Calculate y at x = 0
-                    const endX = 0; 
-                    const endY = hitPoint.y + slope * (endX - hitPoint.x);
-                    
-                    drawRay(hitPoint, {x: endX, y: endY}, 'reflected');
-                }
-            });
-
-            // 3. Draw Axis Line (Object to Image)
-            ctx.beginPath();
-            ctx.moveTo(objectPos.x, objectPos.y);
-            ctx.lineTo(imagePos.x, objectPos.y); // Horizontal axis
-            ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.setLineDash([]);
-            
-            // Right angle symbol
-            const size = 10;
-            ctx.beginPath();
-            ctx.moveTo(mirrorX - size, objectPos.y);
-            ctx.lineTo(mirrorX - size, objectPos.y - size);
-            ctx.lineTo(mirrorX, objectPos.y - size);
-            ctx.strokeStyle = '#000';
-            ctx.stroke();
-
-            // 4. Draw Image (Virtual)
-            ctx.beginPath();
-            ctx.arc(imagePos.x, imagePos.y, 8, 0, Math.PI * 2);
-            ctx.strokeStyle = '#4B5563'; 
-            ctx.setLineDash([2, 2]);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.fill();
-            
-            ctx.fillStyle = '#4B5563';
-            ctx.textAlign = 'left';
-            ctx.font = 'italic 14px "Noto Sans TC"';
-            ctx.fillText('Image', imagePos.x + 15, imagePos.y - 15);
-            ctx.font = 'bold 14px "Noto Sans TC"';
-            ctx.fillText('I', imagePos.x - 4, imagePos.y + 4);
-
-            // 5. Draw Object (Real)
-            ctx.beginPath();
-            ctx.arc(objectPos.x, objectPos.y, 10, 0, Math.PI * 2);
-            ctx.fillStyle = '#DC2626'; 
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.fillStyle = '#DC2626';
-            ctx.textAlign = 'right';
-            ctx.font = 'bold 14px "Noto Sans TC"';
-            ctx.fillText('Object', objectPos.x - 15, objectPos.y - 15);
-            ctx.fillText('O', objectPos.x - 3, objectPos.y + 4);
-
-            // 6. Draw Dimension Lines (u and v)
-            // Position them slightly below the lowest ray or fixed below object
-            const dimY = objectPos.y + 100; // Shift down to avoid clutter
-            
-            // Draw u
-            drawDimensionLine(objectPos.x, mirrorX, dimY, `u = ${uVal} cm`, '#DC2626');
-            
-            // Draw v
-            drawDimensionLine(mirrorX, imagePos.x, dimY, `v = ${vVal} cm`, '#4F46E5'); // Indigo color for image
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? texts.hideAnswers : texts.showAnswers;
+            const modal = document.getElementById('modal-quiz');
+            if (quizAnswersVisible && typeof typesetMath === 'function' && modal) typesetMath(modal);
         }
 
-        function loop() {
-            draw();
-            requestAnimationFrame(loop);
+
+        ctx.fillStyle = '#374151';
+        ctx.font = '14px "Noto Sans TC"';
+        ctx.textAlign = 'left';
+        ctx.fillText(t('canvasFront'), mirrorX - 80, 30);
+        ctx.fillText(t('canvasBack'), mirrorX + 15, 30);
+    }
+
+    function drawArrow(fromX, fromY, toX, toY, color) {
+        const headlen = 10;
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const angle = Math.atan2(dy, dx);
+        const midX = (fromX + toX) / 2;
+        const midY = (fromY + toY) / 2;
+        ctx.beginPath();
+        ctx.moveTo(midX, midY);
+        ctx.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(midX, midY);
+        ctx.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    function drawRay(start, end, type) {
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        if (type === 'virtual') {
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#9CA3AF';
+        } else if (type === 'incident' || type === 'reflected') {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#DC2626';
         }
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (type === 'incident' || type === 'reflected') {
+            drawArrow(start.x, start.y, end.x, end.y, '#DC2626');
+        }
+    }
 
-        init();
+    function drawDimensionLine(x1, x2, y, label, color) {
+        const tickSize = 5;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x1, y - tickSize);
+        ctx.lineTo(x1, y + tickSize);
+        ctx.moveTo(x2, y - tickSize);
+        ctx.lineTo(x2, y + tickSize);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x1 + 5, y - 3);
+        ctx.lineTo(x1 + 5, y + 3);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x2, y);
+        ctx.lineTo(x2 - 5, y - 3);
+        ctx.lineTo(x2 - 5, y + 3);
+        ctx.fill();
+        ctx.font = 'bold 14px "Noto Sans TC"';
+        ctx.textAlign = 'center';
+        const midX = (x1 + x2) / 2;
+        const textWidth = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(243, 244, 246, 0.8)';
+        ctx.fillRect(midX - textWidth / 2 - 4, y - 10, textWidth + 8, 20);
+        ctx.fillStyle = color;
+        ctx.fillText(label, midX, y + 5);
+    }
 
-    </script>
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+        drawGrid();
+        drawMirror();
+
+        const objectDistance = mirrorX - objectPos.x;
+        const imagePos = {
+            x: mirrorX + objectDistance,
+            y: objectPos.y
+        };
+
+        const uVal = (objectDistance / cmRatio).toFixed(1);
+        const vVal = ((imagePos.x - mirrorX) / cmRatio).toFixed(1);
+        uLabel.innerText = uVal;
+        vLabel.innerText = vVal;
+
+        const mirrorCenterY = height / 2;
+        const hitYs = [mirrorCenterY - 60, mirrorCenterY, mirrorCenterY + 60];
+
+        hitYs.forEach(y => {
+            const hitPoint = { x: mirrorX, y: y };
+            drawRay(objectPos, hitPoint, 'incident');
+            drawRay(imagePos, hitPoint, 'virtual');
+            const dx = hitPoint.x - imagePos.x;
+            const dy = hitPoint.y - imagePos.y;
+            if (dx !== 0) {
+                const slope = dy / dx;
+                const endX = 0;
+                const endY = hitPoint.y + slope * (endX - hitPoint.x);
+                drawRay(hitPoint, { x: endX, y: endY }, 'reflected');
+            }
+        });
+
+        ctx.beginPath();
+        ctx.moveTo(objectPos.x, objectPos.y);
+        ctx.lineTo(imagePos.x, objectPos.y);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const size = 10;
+        ctx.beginPath();
+        ctx.moveTo(mirrorX - size, objectPos.y);
+        ctx.lineTo(mirrorX - size, objectPos.y - size);
+        ctx.lineTo(mirrorX, objectPos.y - size);
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(imagePos.x, imagePos.y, 8, 0, Math.PI * 2);
+        ctx.strokeStyle = '#4B5563';
+        ctx.setLineDash([2, 2]);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fill();
+
+        ctx.fillStyle = '#4B5563';
+        ctx.textAlign = 'left';
+        ctx.font = 'italic 14px "Noto Sans TC"';
+        ctx.fillText(t('canvasImage'), imagePos.x + 15, imagePos.y - 15);
+        ctx.font = 'bold 14px "Noto Sans TC"';
+        ctx.fillText('I', imagePos.x - 4, imagePos.y + 4);
+
+        ctx.beginPath();
+        ctx.arc(objectPos.x, objectPos.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#DC2626';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#DC2626';
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 14px "Noto Sans TC"';
+        ctx.fillText(t('canvasObject'), objectPos.x - 15, objectPos.y - 15);
+        ctx.fillText('O', objectPos.x - 3, objectPos.y + 4);
+
+        const dimY = objectPos.y + 100;
+        drawDimensionLine(objectPos.x, mirrorX, dimY, `u = ${uVal} cm`, '#DC2626');
+        drawDimensionLine(mirrorX, imagePos.x, dimY, `v = ${vVal} cm`, '#4F46E5');
+    }
+
+    function loop() {
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    init();
+})();
+</script>
 </body>
 </html>

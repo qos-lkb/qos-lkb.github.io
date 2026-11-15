@@ -1,10 +1,56 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>
+/* 舊畫布：位圖跟 devicePixelRatio，canvas.width 仍是 CSS 像素。 */
+(function () {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (dpr <= 1) return;
+  var orig = HTMLCanvasElement.prototype.getContext;
+  var descW = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+  var descH = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    var ctx = orig.call(this, type, attrs);
+    if (type !== '2d' || !ctx || this.__cssCanvas) return ctx;
+    this.__cssCanvas = true;
+    var canvas = this;
+    var cssW = descW.get.call(canvas);
+    var cssH = descH.get.call(canvas);
+    var lock = false;
+    var cssBox = /\b(?:w|h)-full\b|\b(?:w|h)-screen\b|\binset-0\b/.test(canvas.className || '') || !!(canvas.style && (canvas.style.width || canvas.style.height));
+    function apply() {
+      if (lock) return;
+      lock = true;
+      descW.set.call(canvas, Math.max(1, Math.round(cssW * dpr)));
+      descH.set.call(canvas, Math.max(1, Math.round(cssH * dpr)));
+      if (!cssBox) {
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lock = false;
+    }
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: function () { return cssW; },
+      set: function (v) { cssW = Number(v) || 0; apply(); }
+    });
+    Object.defineProperty(canvas, 'height', {
+      configurable: true,
+      get: function () { return cssH; },
+      set: function (v) { cssH = Number(v) || 0; apply(); }
+    });
+    if (cssW && cssH) apply();
+    return ctx;
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>蓋革-彌勒計數器模擬實驗 (GM Counter Simulation)</title>
+    <title>蓋革－米勒計數器模擬實驗 (GM Counter Simulation)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <!-- MathJax Configuration -->
     <script>
         window.MathJax = {
@@ -62,6 +108,31 @@
         body.modal-active {
             overflow: hidden;
         }
+        body {
+            font-family: 'Noto Sans TC', system-ui, sans-serif;
+        }
+        .modal-panel {
+            transition: opacity 0.25s ease;
+        }
+        .modal-panel.hidden {
+            display: none;
+        }
+        .quiz-opt {
+            display: block; width: 100%; text-align: left;
+            padding: 0.5rem 0.75rem; margin: 0.25rem 0;
+            border: 1px solid #e2e8f0; border-radius: 0.5rem;
+            background: #f8fafc; cursor: pointer; font-size: 0.875rem;
+        }
+        .quiz-opt:hover { background: #eff6ff; border-color: #93c5fd; }
+        .quiz-opt.selected { background: #dbeafe; border-color: #3b82f6; }
+        .quiz-opt.correct { background: #dcfce7; border-color: #22c55e; }
+        .quiz-opt.wrong { background: #fee2e2; border-color: #ef4444; }
+        .quiz-answer {
+            display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+            background: #f1f5f9; border-left: 3px solid #6366f1; border-radius: 0.25rem;
+            font-size: 0.875rem; color: #334155;
+        }
+        .quiz-answer.show { display: block; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col font-sans">
@@ -80,23 +151,22 @@
                 <!-- Blade 3 (240 to 300 deg) -->
                 <path d="M12,12 L22,12 A10,10 0 0,1 17,20.66 Z" transform="rotate(240, 12, 12)" />
             </svg>
-            <h1 class="text-xl font-bold tracking-wide"><span data-i18n="app-title">蓋革-彌勒計數器 (GM Counter)</span></h1>
+            <h1 class="text-xl font-bold tracking-wide"><span data-i18n="app-title">蓋革－米勒計數器 (GM Counter)</span></h1>
         </div>
-        <div class="flex items-center gap-3">
-            <button onclick="openInfoModal()" class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-3 py-1.5 rounded transition flex items-center gap-1">
-                <span>📖</span> <span data-i18n="btn-info">解說</span>
-            </button>
-            <button onclick="toggleLanguage()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-3 py-1.5 rounded transition">
-                <span>中 / Eng</span>
-            </button>
+        <div class="flex flex-wrap items-center gap-2 justify-end">
+            <button type="button" id="btn-steps" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-1.5 rounded transition" data-i18n="btn-steps">觀察步驟</button>
+            <button type="button" id="btn-principle" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-1.5 rounded transition" data-i18n="btn-principle">原理解說</button>
+            <button type="button" id="btn-quiz" class="bg-violet-600 hover:bg-violet-700 text-white text-sm px-3 py-1.5 rounded transition" data-i18n="btn-quiz">課堂問題</button>
+            <span class="text-slate-500 hidden sm:inline">|</span>
+            <button type="button" id="btn-lang" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-3 py-1.5 rounded transition">中 / EN</button>
         </div>
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-3 overflow-hidden min-h-0">
         
-        <!-- Left Panel: Controls -->
-        <aside class="w-full lg:w-1/3 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 overflow-y-auto z-10 shadow-lg">
+        <!-- Left Panel: Controls (Scheme B: 1 col) -->
+        <aside class="order-2 lg:order-none lg:col-span-1 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 overflow-y-auto z-10 shadow-lg min-h-0">
             
             <!-- 1. Source Selection -->
             <div class="space-y-3">
@@ -208,15 +278,15 @@
                     <svg id="icon-pause" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span id="text-toggle" data-i18n="btn-start">開始實驗</span>
                 </button>
-                <button onclick="resetExperiment()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-4 rounded-lg flex items-center justify-center transition" title="Reset">
+                <button type="button" id="btn-reset" onclick="resetExperiment()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-4 rounded-lg flex items-center justify-center transition" title="Reset" aria-label="Reset">
                     <!-- Reset Icon -->
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
             </div>
         </aside>
 
-        <!-- Right Panel: Visualization -->
-        <section class="w-full lg:w-2/3 flex flex-col bg-slate-100 h-full overflow-hidden relative">
+        <!-- Right Panel: Visualization (Scheme B: 2 cols); narrow: viz first -->
+        <section class="order-1 lg:order-none lg:col-span-2 flex flex-col bg-slate-100 h-full overflow-hidden relative min-h-0">
             
             <!-- Scene Visualization -->
             <div class="h-[40%] relative bg-slate-800 border-b border-slate-600 shadow-inner flex flex-col items-center justify-center overflow-hidden shrink-0">
@@ -277,52 +347,51 @@
         </section>
     </main>
 
-    <!-- Info Modal -->
-    <div id="info-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
-        <div class="modal-overlay absolute w-full h-full bg-black opacity-50" onclick="closeInfoModal()"></div>
-        
-        <div class="modal-content bg-white w-11/12 md:w-3/4 lg:w-1/2 max-h-[90vh] overflow-y-auto rounded shadow-lg z-50 transform scale-95">
-            <div class="flex justify-between items-center pb-3 px-6 pt-4 border-b">
-                <p class="text-xl font-bold text-slate-800" data-i18n="modal-title">實驗原理解說</p>
-                <div class="cursor-pointer z-50" onclick="closeInfoModal()">
-                    <svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">
-                        <path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path>
-                    </svg>
-                </div>
+    <!-- Teaching modals (mandatory shell) -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden opacity-0" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-modal-panel onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b pb-2 mb-4">
+                <h2 id="steps-title" class="text-2xl font-bold text-indigo-700" data-i18n="steps-title">觀察步驟</h2>
+                <button type="button" class="p-1 rounded hover:bg-slate-100" data-close-modal="modal-steps" aria-label="Close">
+                    <svg class="fill-current text-slate-700" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
+                </button>
             </div>
-            
-            <div class="px-6 py-4 space-y-4 text-slate-700">
-                
-                <div>
-                    <h3 class="font-bold text-lg text-blue-700 mb-2" data-i18n="modal-h1">1. 輻射種類 (Radiation Types)</h3>
-                    <ul class="list-disc pl-5 space-y-1 text-sm">
-                        <li><b class="text-red-500">Alpha (α)</b>: 氦原子核。射程極短 (空氣中約 3-5 cm)。穿透力弱，一張紙即可阻擋。 (例如: Am-241)</li>
-                        <li><b class="text-blue-500">Beta (β)</b>: 高速電子。射程中等 (空氣中約 1-2 m)。穿透力中等，5mm 鋁板可阻擋。 (例如: Sr-90)</li>
-                        <li><b class="text-yellow-600">Gamma (γ)</b>: 高頻電磁波。射程極長。穿透力極強，需要厚鉛塊才能顯著衰減。 (例如: Co-60)</li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 class="font-bold text-lg text-blue-700 mb-2" data-i18n="modal-h2">2. 蓋革-彌勒計數器 (GM Counter) 原理</h3>
-                    <p class="text-sm" data-i18n="modal-p1">
-                        GM 管內充滿惰性氣體（如氬氣）。當輻射粒子進入管中時，會使氣體電離，產生電子和離子。
-                        在高電壓下，電子加速撞擊其他氣體分子，產生「電子崩 (Avalanche)」，在電路中形成一個可被偵測的電流脈衝（即一次「計數」或「咔」聲）。
-                    </p>
-                </div>
-
-                <div>
-                    <h3 class="font-bold text-lg text-blue-700 mb-2" data-i18n="modal-h3">3. 實驗變因</h3>
-                    <ul class="list-disc pl-5 space-y-1 text-sm">
-                        <li><b data-i18n="modal-term-dist">距離</b>: 輻射強度大致遵循反平方定律 ($I \propto 1/r^2$)，距離越遠，計數率越低。</li>
-                        <li><b data-i18n="modal-term-abs">阻隔物</b>: 不同材質對不同輻射有不同的屏蔽效果（紙張擋 α，鋁擋 β，鉛擋 γ）。</li>
-                        <li><b data-i18n="modal-term-bg">本底輻射</b>: 即使沒有放射源，環境中仍存在微量輻射（來自宇宙射線、地殼等），約每秒 0.5-1 次。</li>
-                    </ul>
-                </div>
-
+            <ol class="list-decimal pl-5 space-y-3 text-slate-700 leading-relaxed text-sm" id="steps-body"></ol>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-steps" data-i18n="modal-close">關閉</button>
             </div>
-            
-            <div class="flex justify-end pt-2 px-6 pb-4">
-                <button class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded hover:bg-blue-600 transition" onclick="closeInfoModal()" data-i18n="modal-close">關閉</button>
+        </div>
+    </div>
+
+    <div id="modal-principle" class="modal-panel fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden opacity-0" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-modal-panel onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b pb-2 mb-4">
+                <h2 id="principle-title" class="text-2xl font-bold text-indigo-700" data-i18n="principle-title">原理解說</h2>
+                <button type="button" class="p-1 rounded hover:bg-slate-100" data-close-modal="modal-principle" aria-label="Close">
+                    <svg class="fill-current text-slate-700" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
+                </button>
+            </div>
+            <div id="principle-body" class="space-y-4 text-slate-700 leading-relaxed text-sm"></div>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-principle" data-i18n="modal-close">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-quiz" class="modal-panel fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden opacity-0" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-modal-panel onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b pb-2 mb-4">
+                <h2 id="quiz-title" class="text-2xl font-bold text-violet-700" data-i18n="quiz-title">課堂問題</h2>
+                <button type="button" class="p-1 rounded hover:bg-slate-100" data-close-modal="modal-quiz" aria-label="Close">
+                    <svg class="fill-current text-slate-700" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
+                </button>
+            </div>
+            <div class="mb-3">
+                <button type="button" id="btn-quiz-answers" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold py-2 px-4 rounded" data-i18n="show-answers">顯示參考答案</button>
+            </div>
+            <div id="quiz-body"></div>
+            <div class="mt-6 text-right">
+                <button type="button" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-6 rounded shadow" data-close-modal="modal-quiz" data-i18n="modal-close">關閉</button>
             </div>
         </div>
     </div>
@@ -331,18 +400,17 @@
         // --- Translations ---
         const translations = {
             'zh': {
-                'app-title': '蓋革-彌勒計數器 (GM Counter)',
-                'btn-info': '解說',
+                'app-title': '蓋革－米勒計數器 (GM Counter)',
+                'btn-steps': '觀察步驟',
+                'btn-principle': '原理解說',
+                'btn-quiz': '課堂問題',
                 'sec-source': '1. 選擇放射源',
                 'opt-none': '無 (本底輻射 Only)',
                 'opt-none-desc': '測量環境背景輻射',
                 'opt-rad-type': '主要輻射',
-                
-                // Element Names
                 'src-am': '鋂-241 (Am-241)',
                 'src-sr': '鍶-90 (Sr-90)',
                 'src-co': '鈷-60 (Co-60)',
-
                 'sec-absorber': '2. 選擇阻隔物',
                 'hint-absorber': '* 阻隔物固定放置於 3 cm 處',
                 'sec-params': '3. 實驗參數設定',
@@ -367,39 +435,68 @@
                 'graph-rate': '計數率 (CPM)',
                 'graph-total': '總計數 (Counts)',
                 'legend-data': '實驗數據',
-                
-                // Modal
-                'modal-title': '實驗原理解說',
-                'modal-h1': '1. 輻射種類 (Radiation Types)',
-                'modal-h2': '2. 蓋革-彌勒計數器 (GM Counter) 原理',
-                'modal-h3': '3. 實驗變因',
-                'modal-p1': 'GM 管內充滿惰性氣體（如氬氣）。當輻射粒子進入管中時，會使氣體電離，產生電子和離子。在高電壓下，電子加速撞擊其他氣體分子，產生「電子崩 (Avalanche)」，在電路中形成一個可被偵測的電流脈衝（即一次「計數」或「咔」聲）。',
-                'modal-term-dist': '距離',
-                'modal-term-abs': '阻隔物',
-                'modal-term-bg': '本底輻射',
                 'modal-close': '關閉',
-                
-                // Select Options (Dynamic handling needed)
+                'steps-title': '觀察步驟',
+                'principle-title': '原理解說',
+                'quiz-title': '課堂問題',
+                'show-answers': '顯示參考答案',
+                'hide-answers': '隱藏參考答案',
+                'concept-label': '概念',
+                'mechanism-label': '機制',
+                'example-label': '日常例子',
+                'short-hint': '（短答：請在筆記本作答，再對照參考答案）',
                 'opt-paper': '紙張 (Paper)',
                 'opt-al': '5mm 鋁板 (Aluminium)',
                 'opt-pb25': '25mm 鉛塊 (Lead)',
                 'opt-pb50': '50mm 鉛塊 (Lead)',
                 'opt-manual': '手動停止 (Manual)',
-                'opt-none-abs': '無 (None)'
+                'opt-none-abs': '無 (None)',
+                'step1': '選放射源 <strong>無 (本底)</strong>，阻隔 <strong>無</strong>，電壓約 <strong>400 V</strong>，計時可選 <strong>30 s</strong>。按<strong>開始實驗</strong>，觀察 TOTAL COUNTS 緩慢增加、RATE 約在本底量級。按<strong>重置</strong>清空後確認參數回到預設再繼續。',
+                'step2': '重置後選 <strong>Am-241</strong>，距離約 <strong>10 cm</strong>、阻隔先 <strong>無</strong>，開始計數；再改阻隔為 <strong>紙張</strong>（或任意阻隔），觀察計數率是否幾乎掉到本底——對照 α 極弱穿透。也可把距離拖到接近 <strong>8 cm</strong> 再拉開，感受 α 在空氣中射程很短（本模擬約 $r>4.5\\,\\mathrm{cm}$ 近乎無源貢獻）。',
+                'step3': '改選 <strong>Sr-90</strong>，阻隔 <strong>無</strong> 開始；再試 <strong>紙張</strong>（計數率應仍高）與 <strong>5 mm 鋁板</strong>（應接近本底）。之後改 <strong>Co-60</strong>：紙／鋁影響小，換 <strong>25 mm／50 mm 鉛</strong> 看衰減是否明顯（50 mm 更低）。',
+                'step4': '固定 Co-60、無阻隔。先把<strong>距離</strong>從約 10 cm 調到明顯更遠，看計數率下降（連到 $I\\propto 1/r^2$ 教學近似）。再把<strong>電壓</strong>調到約 <strong>310 V</strong>（幾乎無計數）、回到約 <strong>400 V</strong>（平台）、再試 <strong>&gt;470 V</strong>（雜訊升高）。總結假設：教學標度幾何與傳輸因子、阻隔固定於 3 cm、隨機泊松式咔聲、非真實死時間／淬滅電路細節。',
+                'principle-concept': '蓋革－米勒計數器（GM Counter）偵測電離輻射：粒子或光子進入 GM 管使氣體電離，高電壓下形成電子崩，產生可計數的脈衝（咔聲）。課堂上常用不同放射源與阻隔物比較 α、β、γ 的穿透力，並觀察距離與電壓對計數率的影響。',
+                'principle-mechanism': '<ol class="list-decimal pl-5 space-y-2"><li><strong>輻射種類</strong>：α（如 Am-241）為氦核，空氣中射程短，紙即可擋；β（如 Sr-90）為高速電子，鋁板可擋；γ（如 Co-60）為高能電磁波，需厚鉛才顯著衰減。</li><li><strong>GM 管</strong>：惰性氣體（如氬）＋高壓；電離 → 電子加速 → 雪崩 → 一次計數。電壓過低無計數；平台區計數率大致穩定；過高易連續放電／雜訊（本模擬以分段 vFactor 近似）。</li><li><strong>距離</strong>：點源近似下強度隨距離增大而下降，教學上常用 $I \\propto 1/r^2$（本引擎另含各源傳輸因子）。</li><li><strong>本底</strong>：無人工源時仍有環境輻射（本模擬約 $0.5\\,\\mathrm{CPS}$）。</li><li><strong>假設</strong>：阻隔固定於 3 cm、教學標度活度換算、無完整死時間模型、咔聲為示意音效、圖譜為即時取樣非實驗室級統計分析。</li></ol>',
+                'principle-example': '機場／口岸輻射檢測、實驗室安全巡檢、氡氣／環境監測。勿把本檔與「熱輻射顏色／黑體」模擬或專題半衰期曲線擬合混為同一套控件。',
+                'q1': '重置後選 Am-241，電壓維持約 400 V，距離約 10 cm。先無阻隔開始計數數秒，再改為紙張。最可能观察到？',
+                'q1a': 'A. 加紙後計數率明顯掉到接近本底，因為 α 幾乎被紙擋住',
+                'q1b': 'B. 紙會讓 α 計數率加倍',
+                'q1c': 'C. Am-241 在本模擬中主要是 γ，紙完全無效',
+                'q1d': 'D. 本模擬沒有紙張選項',
+                'q1ans': '參考答案：A。Am-241→α；任一阻隔（含紙）transmissionFactor=0。',
+                'q2': '選 Sr-90，阻隔先設「無」並開始計數記下 RATE；再試「紙張」與「5 mm 鋁板」。先預測哪一組計數率／較低，再依序操作驗證。',
+                'q2a': 'A. 紙幾乎擋不住 β，鋁板可使計數率接近本底',
+                'q2b': 'B. 紙與鋁對 Sr-90 效果完全相同且都為零衰減',
+                'q2c': 'C. 鋁板只會改變圖表顏色，不影響計數',
+                'q2d': 'D. 選 Sr-90 會強制把語言切成英文',
+                'q2ans': '參考答案：A。Sr-90：紙 ×0.95；鋁／鉛 → 0。',
+                'q3': '選 Co-60、無阻隔記下大致 RATE；再換 50 mm 鉛。另可選「無」源測本底。哪項最正確？',
+                'q3a': 'A. 50 mm 鉛會明顯降低 Co-60 計數率但仍可能高於純本底；無源時仍有少量本底計數',
+                'q3b': 'B. 鉛對 γ 完全無效，RATE 不變',
+                'q3c': 'C. 無源時 TOTAL COUNTS 永遠鎖定 00000',
+                'q3d': 'D. 本模擬沒有鉛塊選項',
+                'q3ans': '參考答案：A。lead-50×0.04；BG_RATE_CPS=0.5。',
+                'q4': '固定 Co-60、無阻隔。先在約 10 cm、400 V 開始記下 RATE；把距離明顯調遠；再把電壓調到約 310 V；最後按重置。用自己的話寫：（1）距離變遠時 RATE 大致如何變；（2）約 310 V 時為什麼幾乎沒有計數；（3）重置後計數與參數／語言應如何。',
+                'q4ans': '參考答案：（1）距離增大 → 幾何因子 $1/r^2$ 下降 → RATE 降低；（2）低於起始／平台區，vFactor≈0，管尚未正常計數；（3）計數／時間／圖點清零；還原 Am-241、無阻隔、185 kBq、10 cm、400 V、手動計時；不應切換中／EN。',
+                'q5': '根據本模擬控件與設計，哪項最正確？',
+                'q5a': 'A. 可選 α／β／γ 源與阻隔、調距離／電壓／活度與計時，用計數與圖譜比較穿透力與本底；有步驟／原理／五題／中EN／重置——主題是 GM 計數實驗，不是熱輻射顏色或半衰期擬合專題',
+                'q5b': 'B. 本檔主要展示黑體輻射顏色隨溫度改變',
+                'q5c': 'C. 重置會強制改成英文並移除 MathJax',
+                'q5d': 'D. 主要展示質譜儀同位素峰分離',
+                'q5ans': '參考答案：A。隔離 radiation_and_colour／半衰期專題／質譜儀；Reset 不改語言。'
             },
             'en': {
-                'app-title': 'Geiger-Müller Counter',
-                'btn-info': 'Info',
+                'app-title': 'Geiger–Müller Counter',
+                'btn-steps': 'Steps',
+                'btn-principle': 'Principle',
+                'btn-quiz': 'Quiz',
                 'sec-source': '1. Select Source',
                 'opt-none': 'None (Background Only)',
                 'opt-none-desc': 'Measure background radiation',
                 'opt-rad-type': 'Type',
-
-                // Element Names
                 'src-am': 'Americium-241 (Am-241)',
                 'src-sr': 'Strontium-90 (Sr-90)',
                 'src-co': 'Cobalt-60 (Co-60)',
-
                 'sec-absorber': '2. Select Absorber',
                 'hint-absorber': '* Absorber fixed at 3 cm',
                 'sec-params': '3. Parameters',
@@ -418,31 +515,61 @@
                 'lbl-source-short': 'Source',
                 'lbl-dist-short': 'Dist',
                 'lbl-abs-short': 'Absorber',
-                'msg-finished': 'Time\'s Up',
+                'msg-finished': "Time's Up",
                 'msg-paused': 'Experiment Paused',
                 'graph-title': 'Graph:',
                 'graph-rate': 'Rate (CPM)',
                 'graph-total': 'Total Counts',
                 'legend-data': 'Data',
-
-                // Modal
-                'modal-title': 'Experiment Info',
-                'modal-h1': '1. Radiation Types',
-                'modal-h2': '2. Principle of GM Counter',
-                'modal-h3': '3. Variables',
-                'modal-p1': 'The GM tube is filled with inert gas (e.g., Argon). When radiation enters, it ionizes the gas, creating electrons and ions. Under high voltage, electrons accelerate and collide with other molecules causing an "Electron Avalanche", creating a detectable current pulse (a "click").',
-                'modal-term-dist': 'Distance',
-                'modal-term-abs': 'Absorbers',
-                'modal-term-bg': 'Background',
                 'modal-close': 'Close',
-
-                 // Select Options
+                'steps-title': 'Observation Steps',
+                'principle-title': 'Principle',
+                'quiz-title': 'Classroom Quiz',
+                'show-answers': 'Show model answers',
+                'hide-answers': 'Hide model answers',
+                'concept-label': 'Concept',
+                'mechanism-label': 'Mechanism',
+                'example-label': 'Everyday example',
+                'short-hint': '(Short answer: write in your notebook, then check the model answer.)',
                 'opt-paper': 'Paper',
                 'opt-al': '5mm Aluminium',
                 'opt-pb25': '25mm Lead',
                 'opt-pb50': '50mm Lead',
                 'opt-manual': 'Manual Stop',
-                'opt-none-abs': 'None'
+                'opt-none-abs': 'None',
+                'step1': 'Select source <strong>None (background)</strong>, absorber <strong>None</strong>, voltage ≈ <strong>400 V</strong>, timer e.g. <strong>30 s</strong>. <strong>Start</strong> and watch TOTAL COUNTS rise slowly with RATE near background. <strong>Reset</strong> clears counts and restores defaults.',
+                'step2': 'After Reset, select <strong>Am-241</strong>, distance ≈ <strong>10 cm</strong>, absorber <strong>None</strong>, start counting; then set absorber to <strong>Paper</strong> (or any absorber) and check the rate falls near background—α is stopped easily. Optionally drag distance near <strong>8 cm</strong> then farther; α contribution nearly vanishes for $r>4.5\\,\\mathrm{cm}$ in this sim.',
+                'step3': 'Select <strong>Sr-90</strong>, absorber <strong>None</strong>, then try <strong>Paper</strong> (rate stays high) vs <strong>5 mm Al</strong> (near background). Switch to <strong>Co-60</strong>: paper／Al barely matter; try <strong>25 mm／50 mm Lead</strong> and see stronger attenuation (50 mm lower).',
+                'step4': 'Keep Co-60, no absorber. Raise <strong>distance</strong> clearly above ~10 cm and watch the rate fall (teaching $I\\propto 1/r^2$). Set <strong>voltage</strong> ≈ <strong>310 V</strong> (almost no counts), back to ≈ <strong>400 V</strong> (plateau), then <strong>&gt;470 V</strong> (extra noise). Idealizations: teaching-scale geometry／transmission, absorber fixed at 3 cm, stochastic clicks, no full dead-time／quench circuitry.',
+                'principle-concept': 'A Geiger–Müller (GM) counter detects ionizing radiation: particles or photons ionize gas in the tube; under high voltage an electron avalanche makes a countable pulse (“click”). Class labs compare α, β, and γ penetration with absorbers, and explore how distance and voltage change the count rate.',
+                'principle-mechanism': '<ol class="list-decimal pl-5 space-y-2"><li><strong>Radiation types</strong>: α (e.g. Am-241) — He nuclei, short air range, stopped by paper; β (e.g. Sr-90) — fast electrons, stopped by Al; γ (e.g. Co-60) — EM waves, need thick lead for strong attenuation.</li><li><strong>GM tube</strong>: inert gas (e.g. argon) + HV; ionization → avalanche → one count. Too-low V → no counts; plateau ≈ stable rate; too-high V → continuous discharge／noise (this sim uses a piecewise vFactor).</li><li><strong>Distance</strong>: intensity falls with distance; teaching form $I \\propto 1/r^2$ plus per-source transmission factors.</li><li><strong>Background</strong>: environmental radiation remains with no artificial source (~$0.5\\,\\mathrm{CPS}$ here).</li><li><strong>Idealizations</strong>: absorber fixed at 3 cm, teaching-scale activity mapping, no full dead-time model, illustrative click sound, live graph ≠ lab-grade statistics.</li></ol>',
+                'principle-example': 'Security screening, lab safety surveys, environmental／radon monitoring. Do not merge this file with a thermal-radiation-colour／blackbody sim or a dedicated half-life curve-fitting worksheet.',
+                'q1': 'Reset, select Am-241, keep V ≈ 400 V and distance ≈ 10 cm. Count briefly with no absorber, then switch to paper. What is most likely?',
+                'q1a': 'A. With paper, the rate falls near background because α is stopped by paper',
+                'q1b': 'B. Paper doubles the α count rate',
+                'q1c': 'C. Am-241 is mainly γ here so paper does nothing',
+                'q1d': 'D. This sim has no paper option',
+                'q1ans': 'Model answer: A. Am-241→α; any absorber (including paper) sets transmissionFactor=0.',
+                'q2': 'Select Sr-90: start with None and note RATE; then try Paper and 5 mm Aluminium. Predict which runs give higher／lower rates, then verify in order.',
+                'q2a': 'A. Paper barely stops β; Al drives the rate near background',
+                'q2b': 'B. Paper and Al have identical zero effect on Sr-90',
+                'q2c': 'C. Al only recolours the graph, not the counts',
+                'q2d': 'D. Choosing Sr-90 forces the UI into English',
+                'q2ans': 'Model answer: A. Sr-90: paper ×0.95; Al／lead → 0.',
+                'q3': 'Select Co-60 with no absorber and note RATE; then use 50 mm lead. Optionally measure background with None. Which is most correct?',
+                'q3a': 'A. 50 mm lead clearly lowers the Co-60 rate yet it may stay above pure background; None still shows some background',
+                'q3b': 'B. Lead never affects γ so RATE is unchanged',
+                'q3c': 'C. With no source TOTAL COUNTS is forever locked at 00000',
+                'q3d': 'D. This sim has no lead options',
+                'q3ans': 'Model answer: A. lead-50×0.04; BG_RATE_CPS=0.5.',
+                'q4': 'Keep Co-60, no absorber. Note RATE near 10 cm and 400 V; raise distance clearly; set V ≈ 310 V; then Reset. In your own words: (1) how RATE changes farther away; (2) why ~310 V gives almost no counts; (3) what Reset should restore about counts／parameters／language.',
+                'q4ans': 'Model answer: (1) Larger $r$ ⇒ smaller $1/r^2$ geometry ⇒ lower RATE; (2) below starting／plateau voltage vFactor≈0; (3) clear counts／time／graph; restore Am-241, no absorber, 185 kBq, 10 cm, 400 V, manual timer; Reset should not switch language.',
+                'q5': "Using this sim's controls and design, which is most correct?",
+                'q5a': 'A. You can pick α／β／γ sources and absorbers, tune distance／voltage／activity／timer, and read counts／graphs for penetration and background; steps／principle／five quiz items／zh-EN／reset—this is a GM counting lab, not thermal-radiation colour or half-life fitting',
+                'q5b': 'B. This file mainly shows blackbody colour vs temperature',
+                'q5c': 'C. Reset always switches to English and removes MathJax',
+                'q5d': 'D. It mainly shows mass-spectrometer isotope peak separation',
+                'q5ans': 'Model answer: A. Isolate radiation_and_colour／half-life fitting／mass spectrometer; Reset does not change language.'
             }
         };
 
@@ -493,28 +620,38 @@
         window.addEventListener('touchend', handleInputEnd);
 
         document.addEventListener('DOMContentLoaded', () => {
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+            wireTeachingShell();
             resizeCanvases();
-            updateLanguage(); // Apply default lang text
+            updateLanguage();
             updateSimulationParams(); 
             requestAnimationFrame(gameLoop);
             drawGraph();
+            typesetMath();
         });
 
         // --- Language & Modal Logic ---
+        let quizAnswersVisible = false;
 
         function toggleLanguage() {
             state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
             updateLanguage();
-            updateSimulationParams(); // Refresh dynamic labels
-            drawGraph(); // Refresh graph labels
+            updateSimulationParams();
+            drawGraph();
+            typesetMath();
+        }
+
+        function typesetMath() {
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise().catch(function () {});
+            }
         }
 
         function updateLanguage() {
             const t = translations[state.lang];
-            
-            // Switch button label code removed to keep "中 / Eng" static
-            
-            // Update all elements with data-i18n
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 if (t[key]) {
@@ -522,58 +659,125 @@
                 }
             });
 
-            // Update specific button states if needed
             const btnTextKey = state.isRunning ? 'btn-pause' : 'btn-start';
             const btnEl = document.getElementById('text-toggle');
-            if (btnEl) btnEl.textContent = t[btnTextKey];
+            if (btnEl) {
+                if (state.targetTime !== Infinity && state.elapsedTime >= state.targetTime && state.elapsedTime > 0 && !state.isRunning) {
+                    btnEl.textContent = t['btn-restart'];
+                } else if (!state.isRunning && state.elapsedTime > 0) {
+                    btnEl.textContent = t['btn-resume'];
+                } else {
+                    btnEl.textContent = t[btnTextKey];
+                }
+            }
 
-            // Update Modal List Content (Specific HTML update)
-            updateModalContent(state.lang);
+            renderSteps();
+            renderPrinciple();
+            renderQuiz();
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t['hide-answers'] : t['show-answers'];
         }
 
-        function updateModalContent(lang) {
-            const list1 = document.querySelector('ul.list-disc'); // First list (Types)
-            if (lang === 'zh') {
-                 list1.innerHTML = `
-                        <li><b class="text-red-500">Alpha (α)</b>: 氦原子核。射程極短 (空氣中約 3-5 cm)。穿透力弱，一張紙即可阻擋。 (例如: 鋂-241)</li>
-                        <li><b class="text-blue-500">Beta (β)</b>: 高速電子。射程中等 (空氣中約 1-2 m)。穿透力中等，5mm 鋁板可阻擋。 (例如: 鍶-90)</li>
-                        <li><b class="text-yellow-600">Gamma (γ)</b>: 高頻電磁波。射程極長。穿透力極強，需要厚鉛塊才能顯著衰減。 (例如: 鈷-60)</li>`;
-            } else {
-                 list1.innerHTML = `
-                        <li><b class="text-red-500">Alpha (α)</b>: Helium nucleus. Short range (~5cm in air). Low penetration (stopped by paper). (e.g., Am-241)</li>
-                        <li><b class="text-blue-500">Beta (β)</b>: Fast electron. Medium range (~1-2m in air). Medium penetration (stopped by 5mm Al). (e.g., Sr-90)</li>
-                        <li><b class="text-yellow-600">Gamma (γ)</b>: EM Wave. Long range. High penetration (reduced by thick Lead). (e.g., Co-60)</li>`;
-            }
-            
-            const list2 = document.querySelectorAll('ul.list-disc')[1]; // Second list (Variables)
-            if (lang === 'zh') {
-                list2.innerHTML = `
-                        <li><b>距離</b>: 輻射強度大致遵循反平方定律 ($I \\propto 1/r^2$)，距離越遠，計數率越低。</li>
-                        <li><b>阻隔物</b>: 不同材質對不同輻射有不同的屏蔽效果（紙張擋 α，鋁擋 β，鉛擋 γ）。</li>
-                        <li><b>本底輻射</b>: 即使沒有放射源，環境中仍存在微量輻射（來自宇宙射線、地殼等），約每秒 0.5-1 次。</li>`;
-            } else {
-                 list2.innerHTML = `
-                        <li><b>Distance</b>: Intensity follows Inverse Square Law ($I \\propto 1/r^2$). Further away = lower count rate.</li>
-                        <li><b>Absorbers</b>: Materials block different types (Paper stops α, Al stops β, Lead blocks γ).</li>
-                        <li><b>Background</b>: Low level radiation exists everywhere (Cosmic rays, etc.), ~0.5-1 CPS.</li>`;
-            }
-
-            // Trigger MathJax
-            if (window.MathJax) {
-                window.MathJax.typesetPromise();
-            }
+        function renderSteps() {
+            const t = translations[state.lang];
+            const body = document.getElementById('steps-body');
+            if (!body) return;
+            body.innerHTML = [t.step1, t.step2, t.step3, t.step4].map(s => '<li>' + s + '</li>').join('');
         }
 
-        function openInfoModal() {
-            const modal = document.getElementById('info-modal');
-            modal.classList.remove('opacity-0', 'pointer-events-none');
+        function renderPrinciple() {
+            const t = translations[state.lang];
+            const body = document.getElementById('principle-body');
+            if (!body) return;
+            body.innerHTML =
+                '<div><h3 class="font-bold text-lg text-blue-700 mb-2">' + t['concept-label'] + '</h3><p>' + t['principle-concept'] + '</p></div>' +
+                '<div><h3 class="font-bold text-lg text-blue-700 mb-2">' + t['mechanism-label'] + '</h3>' + t['principle-mechanism'] + '</div>' +
+                '<div><h3 class="font-bold text-lg text-blue-700 mb-2">' + t['example-label'] + '</h3><p>' + t['principle-example'] + '</p></div>';
+        }
+
+        function renderQuiz() {
+            const t = translations[state.lang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const ref = state.lang === 'zh' ? '參考答案' : 'Reference answer';
+            const items = [
+                { n: 1, q: 'q1', opts: ['q1a','q1b','q1c','q1d'], ans: 'q1ans', mc: true },
+                { n: 2, q: 'q2', ans: 'q2ans', mc: false },
+                { n: 3, q: 'q3', opts: ['q3a','q3b','q3c','q3d'], ans: 'q3ans', mc: true },
+                { n: 4, q: 'q4', ans: 'q4ans', mc: false },
+                { n: 5, q: 'q5', opts: ['q5a','q5b','q5c','q5d'], ans: 'q5ans', mc: true }
+            ];
+            const mkChoice = (name, optKeys) => optKeys.map((ok, oi) => {
+                const L = String.fromCharCode(65 + oi);
+                return '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 mb-1 cursor-pointer hover:bg-slate-50">' +
+                    '<input type="radio" name="' + name + '" class="mt-0.5">' +
+                    '<span class="text-sm">' + t[ok].replace(/^[A-D]\.\s*/, L + '. ') + '</span></label>';
+            }).join('');
+            const ans = (key) => quizAnswersVisible
+                ? '<div class="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>' + ref + '：</strong> ' + t[key] + '</div>'
+                : '';
+            body.innerHTML = items.map((item) => {
+                const name = 'q' + item.n;
+                let html = '<div class="mb-5 pb-4 border-b border-slate-100"><p class="font-semibold text-slate-800 mb-2">Q' + item.n + '. ' + t[item.q] + '</p>';
+                if (!item.mc) html += '<p class="text-xs text-slate-500 mb-2">' + t['short-hint'] + '</p>';
+                else html += '<div class="grid gap-1">' + mkChoice(name, item.opts) + '</div>';
+                html += ans(item.ans) + '</div>';
+                return html;
+            }).join('');
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = quizAnswersVisible ? t['hide-answers'] : t['show-answers'];
+        }
+
+        function openModal(id) {
+            closeAllModals();
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
             document.body.classList.add('modal-active');
+            if (id === 'modal-principle' || id === 'modal-steps') typesetMath();
+            if (id === 'modal-quiz') { renderQuiz(); typesetMath(document.getElementById('quiz-body')); }
         }
 
-        function closeInfoModal() {
-            const modal = document.getElementById('info-modal');
-            modal.classList.add('opacity-0', 'pointer-events-none');
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.add('hidden', 'opacity-0');
             document.body.classList.remove('modal-active');
+        }
+
+        function closeAllModals() {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+        }
+
+        function wireTeachingShell() {
+            const stepsBtn = document.getElementById('btn-steps');
+            const principleBtn = document.getElementById('btn-principle');
+            const quizBtn = document.getElementById('btn-quiz');
+            const langBtn = document.getElementById('btn-lang');
+            if (stepsBtn) stepsBtn.addEventListener('click', () => openModal('modal-steps'));
+            if (principleBtn) principleBtn.addEventListener('click', () => openModal('modal-principle'));
+            if (quizBtn) quizBtn.addEventListener('click', () => openModal('modal-quiz'));
+            if (langBtn) langBtn.addEventListener('click', toggleLanguage);
+
+            document.querySelectorAll('[data-close-modal]').forEach(btn => {
+                btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close-modal')));
+            });
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (modal) {
+                    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(id); });
+                }
+            });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllModals(); });
+
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) {
+                ansBtn.addEventListener('click', () => {
+                    quizAnswersVisible = !quizAnswersVisible;
+                    renderQuiz();
+                    typesetMath(document.getElementById('quiz-body'));
+                });
+            }
         }
 
         function resizeCanvases() {
@@ -789,13 +993,42 @@
 
         function resetExperiment() {
             const t = translations[state.lang];
+            // Do NOT reset state.lang / #btn-lang
             pauseExperiment();
             
             document.getElementById('notification-finished').classList.add('hidden');
             state.totalCounts = 0;
             state.elapsedTime = 0.0;
             state.dataPoints = [];
-            state.isRunning = false; 
+            state.isRunning = false;
+
+            // Restore parameter defaults (spec §4.2)
+            state.sourceType = 'Am-241';
+            state.absorber = 'none';
+            state.activity = 185;
+            state.distance = 10;
+            state.voltage = 400;
+            state.targetTime = Infinity;
+            state.graphMode = 'rate';
+
+            const amRadio = document.querySelector('input[name="source"][value="Am-241"]');
+            if (amRadio) amRadio.checked = true;
+            const absSel = document.getElementById('select-absorber');
+            if (absSel) absSel.value = 'none';
+            const act = document.getElementById('slider-activity');
+            if (act) act.value = 185;
+            const dist = document.getElementById('slider-distance');
+            if (dist) dist.value = 10;
+            const volt = document.getElementById('slider-voltage');
+            if (volt) volt.value = 400;
+            const timer = document.getElementById('select-timer');
+            if (timer) timer.value = 'manual';
+
+            document.getElementById('val-activity').textContent = '185';
+            document.getElementById('val-distance').textContent = '10';
+            document.getElementById('val-voltage').textContent = '400';
+
+            setGraphMode('rate');
 
             document.getElementById('text-toggle').textContent = t['btn-start']; 
             document.getElementById('btn-toggle').classList.replace('bg-yellow-600', 'bg-green-600');
@@ -806,6 +1039,7 @@
             updateSimulationParams();
             updateDisplays();
             graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            drawGraph();
         }
 
         // --- Physics Engine ---

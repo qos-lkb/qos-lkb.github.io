@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>電路的水流模型 | Water Model of a Circuit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; background: #e0f2fe; }
+        body { display: flex; flex-direction: column; }
+        header.app-header { flex-shrink: 0; z-index: 30; }
+        #stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+        #canvas-container, canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+        #labels-container { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 6; }
+        .lab {
+            position: absolute;
+            pointer-events: none;
+            transform: translate(-50%, -100%);
+            background: rgba(15, 23, 42, 0.78);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+            z-index: 5;
+        }
+        .lab.muted { background: rgba(14, 116, 144, 0.85); }
+        .mode-btn { flex: 1; padding: 8px; border-radius: 8px; font-weight: 800; font-size: 0.8rem; border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+        .mode-btn.active { background: #0284c7; color: #fff; border-color: #0284c7; }
+        input[type=range] { width: 100%; accent-color: #0284c7; }
+        .modal-backdrop { transition: opacity 0.25s ease, visibility 0.25s ease; }
+        .modal-content { transition: transform 0.25s ease, opacity 0.25s ease; }
+        .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 overflow-hidden">
+
+    <header class="app-header shrink-0 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start min-w-0">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 text-white flex items-center justify-center shadow-md shadow-sky-500/25">💧</div>
+                <div class="min-w-0">
+                    <h1 class="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2 flex-wrap">
+                        <span data-i18n="title">電路的水流模型</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold" data-i18n="badge">中二科學</span>
+                    </h1>
+                    <p class="text-xs text-slate-500" data-i18n="subtitle">電壓 = 高度，電流 = 流量</p>
+                </div>
+            </div>
+            <button type="button" id="btn-lang-mobile" class="md:hidden shrink-0 px-2.5 py-1.5 bg-slate-100 text-xs font-bold rounded-lg border border-slate-300">中 / EN</button>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-end shrink-0">
+            <button type="button" id="btn-steps" class="px-3.5 py-2 bg-white hover:bg-sky-50 text-sky-700 rounded-xl font-bold text-sm shadow-sm border border-sky-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                <span data-i18n="btnSteps">觀察步驟</span>
+            </button>
+            <button type="button" id="btn-principle" class="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span data-i18n="btnPrinciple">原理解說</span>
+            </button>
+            <button type="button" id="btn-quiz" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-700 rounded-xl font-bold text-sm shadow-sm border border-rose-200 flex items-center gap-2">
+                <span data-i18n="btnQuiz">課堂問題</span>
+            </button>
+            <button type="button" id="btn-lang" class="hidden md:flex px-3.5 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm border border-slate-300">中 / EN</button>
+        </div>
+    </header>
+
+    <div id="stage">
+        <div id="canvas-container"></div>
+        <div id="labels-container">
+            <div class="lab" id="lab-pump"></div>
+            <div class="lab" id="lab-r1"></div>
+            <div class="lab" id="lab-r2"></div>
+            <div class="lab muted" id="lab-high"></div>
+            <div class="lab muted" id="lab-mid"></div>
+            <div class="lab muted" id="lab-gnd"></div>
+        </div>
+
+        <aside class="absolute top-3 left-3 z-10 w-[min(100%-1.5rem,320px)] max-h-[calc(100%-1.5rem)] overflow-y-auto bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-white/70 p-4">
+            <div class="flex gap-2 mb-4">
+                <button type="button" id="btn-series" class="mode-btn active" data-i18n="modeSeries">串聯（階梯）</button>
+                <button type="button" id="btn-parallel" class="mode-btn" data-i18n="modeParallel">並聯（雙瀑布）</button>
+            </div>
+
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="flex justify-between text-xs font-bold text-slate-600"><span data-i18n="labelV">水泵揚程（電壓 V）</span><span id="disp-voltage" class="text-sky-600">12 V</span></span>
+                    <input type="range" id="in-voltage" min="4" max="24" value="12" step="1">
+                </label>
+                <label class="block">
+                    <span class="flex justify-between text-xs font-bold text-slate-600"><span data-i18n="labelR1">水車 1 阻力（R1）</span><span id="disp-r1" class="text-sky-600">10 Ω</span></span>
+                    <input type="range" id="in-r1" min="1" max="50" value="10">
+                </label>
+                <label class="block">
+                    <span class="flex justify-between text-xs font-bold text-slate-600"><span data-i18n="labelR2">水車 2 阻力（R2）</span><span id="disp-r2" class="text-sky-600">10 Ω</span></span>
+                    <input type="range" id="in-r2" min="1" max="50" value="10">
+                </label>
+                <label class="check-row pt-1"><input type="checkbox" id="in-switch" checked class="w-4 h-4 accent-emerald-600"><span data-i18n="labelMain">總閥門（開關）</span></label>
+                <div id="parallel-switches" class="hidden gap-3 pl-1">
+                    <label class="check-row text-xs"><input type="checkbox" id="in-s1" checked class="accent-sky-600"><span data-i18n="labelS1">支路 1</span></label>
+                    <label class="check-row text-xs"><input type="checkbox" id="in-s2" checked class="accent-sky-600"><span data-i18n="labelS2">支路 2</span></label>
+                </div>
+            </div>
+
+            <div class="mt-4 bg-sky-50 p-3 rounded-xl border border-sky-100 text-xs">
+                <div class="font-black text-sky-800 mb-1" data-i18n="liveTitle">即時數據</div>
+                <p id="formula" class="font-mono text-[11px] text-slate-600 mb-2">I = V / (R1+R2)</p>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-sky-100"><span data-i18n="statI">總電流（流量）</span><b id="stat-total-i">0.00 A</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-sky-100"><span data-i18n="statI1">支路 / 水車 1</span><b id="stat-i1">0.00 A</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-sky-100"><span data-i18n="statI2">支路 / 水車 2</span><b id="stat-i2">0.00 A</b></div>
+                <div class="flex justify-between py-0.5 border-b border-dashed border-sky-100"><span data-i18n="statV1">R1 壓降（高度）</span><b id="stat-v1">0.00 V</b></div>
+                <div class="flex justify-between py-0.5"><span data-i18n="statV2">R2 壓降（高度）</span><b id="stat-v2">0.00 V</b></div>
+            </div>
+
+            <table class="mt-3 w-full text-[11px] text-slate-600">
+                <thead><tr class="text-slate-400"><th class="text-left font-bold pb-1" data-i18n="mapC">電路</th><th class="text-left font-bold pb-1" data-i18n="mapW">水流</th></tr></thead>
+                <tbody>
+                    <tr><td data-i18n="map1a">電池／電壓</td><td data-i18n="map1b">水泵／高度</td></tr>
+                    <tr><td data-i18n="map2a">電流</td><td data-i18n="map2b">水流量</td></tr>
+                    <tr><td data-i18n="map3a">電阻</td><td data-i18n="map3b">水車阻力</td></tr>
+                    <tr><td data-i18n="map4a">開關</td><td data-i18n="map4b">閥門</td></tr>
+                </tbody>
+            </table>
+
+            <button type="button" id="resetBtn" class="mt-4 w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-xl text-sm" data-i18n="btnReset">重置模擬</button>
+            <p class="mt-2 text-[10px] text-slate-400 text-center" data-i18n="hintOrbit">拖曳旋轉 · 右鍵平移 · 滾輪縮放</p>
+        </aside>
+    </div>
+
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-cyan-600 p-5 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h2 id="modal-title" class="text-lg font-bold" data-i18n="modalTitle">水流模型與電路對應</h2>
+                    <p class="text-xs text-sky-100" data-i18n="modalSub">Voltage as height, current as flow</p>
+                </div>
+                <button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-700 leading-relaxed">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100">
+                    <h3 class="font-bold text-sky-900 mb-1" data-i18n="m1t">1. 為什麼用水流比喻電路？</h3>
+                    <p class="text-xs text-slate-600" data-i18n="m1d">電荷看不見，水卻看得見。把電路畫成封閉水管：水泵把水抬高，水再流回低處，就能對應「電池把電荷推到高電位，再經負載回到低電位」。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-2" data-i18n="m2t">2. 對應關係</h3>
+                    <ul class="text-xs space-y-1.5 text-slate-600 list-disc pl-5">
+                        <li data-i18n="m2a">電壓 V：兩點的<strong>高度差</strong>。水泵揚程愈高，推動力愈大。</li>
+                        <li data-i18n="m2b">電流 I：管內<strong>流量</strong>。粒子愈密、愈快，代表電流愈大。</li>
+                        <li data-i18n="m2c">電阻 R：水車／窄管的阻力。R 愈大，同一落差下流量愈小。</li>
+                    </ul>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                        <h4 class="font-bold text-amber-800 text-xs mb-1" data-i18n="m3t">串聯 = 階梯瀑布</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m3d">同一條水路，流量處處相同（I 相同）。總高度由兩個水車分擔，壓降與電阻成正比：V₁ = IR₁、V₂ = IR₂。</p>
+                    </div>
+                    <div class="bg-cyan-50 p-3 rounded-xl border border-cyan-100">
+                        <h4 class="font-bold text-cyan-800 text-xs mb-1" data-i18n="m4t">並聯 = 兩個等高瀑布</h4>
+                        <p class="text-[11px] text-slate-600" data-i18n="m4d">兩條支路從同一高水位落到同一低水位，所以電壓相同。流量分開：I = I₁ + I₂ = V/R₁ + V/R₂。</p>
+                    </div>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-emerald-900 mb-1" data-i18n="m5t">3. 生活例子</h3>
+                    <p class="text-xs text-emerald-800" data-i18n="m5d">水塔把水抬高，樓層愈高水壓愈大，就像電壓。兩條滑水道從同一平台滑下，高度相同但滑道寬窄不同，流量就不同——這就是並聯。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="modal-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-sky-500 to-cyan-600 p-5 text-white flex justify-between items-center shrink-0">
+                <h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-3 text-sm text-slate-700">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s1">1. 先試「串聯（階梯）」：調電壓與 R1、R2，看同一條水路流量是否處處相同。</div>
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-100 text-xs" data-i18n="s2">2. 改為「並聯（雙瀑布）」，比較兩支路流量如何隨 R1、R2 改變。</div>
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-xs" data-i18n="s3">3. 關閉總閥門或某一支路，觀察左欄即時數據與 3D 水流。</div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-xs" data-i18n="s4">4. 對照下方對照表：高度差＝電壓，流量＝電流，水車阻力＝電阻。</div>
+            </div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="steps-confirm" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-rose-100 scale-95 opacity-0 flex flex-col max-h-[88vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-5 text-white flex justify-between items-center gap-3 flex-wrap">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 shrink-0" aria-label="Close">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const i18n = {
+    zh: {
+        title: "電路的水流模型", badge: "中二科學", subtitle: "電壓 = 高度，電流 = 流量",
+        btnPrinciple: "原理解說", btnSteps: "觀察步驟", btnQuiz: "課堂問題",
+        quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案",
+        quizQ1: "串聯模式下，同一條水路各處的「總電流（流量）」與各段流量關係為何？",
+        quizQ1a: "每段流量不同，愈靠近水泵愈大", quizQ1b: "同一條路徑上流量處處相同（I 相同）", quizQ1c: "只有 R1 有水 flow、R2 沒有", quizQ1d: "與電壓無關，恆為 0",
+        quizQ1ans: "串聯同一條水路，流量處處相同，對應串聯電路電流 I 相同。",
+        quizQ2: "串聯模式只把「水泵揚程（電壓 V）」由 12 V 調高到 24 V（R1、R2 不變）：先預測總電流如何變，再拖滑桿核對左欄讀數。",
+        quizQ2ans: "V 加倍而 R 不變時 I = V/R 增大，總電流（流量）變大。",
+        quizQ3: "並聯模式下，兩條支路從同一高水位到同一低水位，代表電路中哪一個量相同？",
+        quizQ3a: "各支路電流 I₁、I₂ 必然相等", quizQ3b: "兩支路電壓相同", quizQ3c: "總電阻必為零", quizQ3d: "R1 壓降大於 R2 壓降",
+        quizQ3ans: "並聯兩端電位相同，故兩支路電壓相同；電流按 R 分配。",
+        quizQ4: "比較「串聯（階梯）」與「並聯（雙瀑布）」：預測 R1 變大時 I₁ 如何變，再切換模式調 R1 觀察。",
+        quizQ4ans: "串聯時 R1↑ 使總 R↑、總 I↓；並聯時 R1↑ 使該支路 I₁↓、另一支路可相對增加。",
+        quizQ5: "關閉「總閥門（開關）」後，3D 水流與「總電流」讀數應如何？",
+        quizQ5a: "水流加劇", quizQ5b: "流量趨於零，讀數近 0 A", quizQ5c: "只關一支路", quizQ5d: "電壓自動變為 0 V",
+        quizQ5ans: "總開關斷開，電路不閉合，無法有持續電流，流量趨零。",
+        modeSeries: "串聯（階梯）", modeParallel: "並聯（雙瀑布）",
+        labelV: "水泵揚程（電壓 V）", labelR1: "水車 1 阻力（R1）", labelR2: "水車 2 阻力（R2）",
+        labelMain: "總閥門（開關）", labelS1: "支路 1", labelS2: "支路 2",
+        liveTitle: "即時數據", statI: "總電流（流量）", statI1: "支路 / 水車 1", statI2: "支路 / 水車 2",
+        statV1: "R1 壓降（高度）", statV2: "R2 壓降（高度）",
+        mapC: "電路", mapW: "水流", map1a: "電池／電壓", map1b: "水泵／高度",
+        map2a: "電流", map2b: "水流量", map3a: "電阻", map3b: "水車阻力", map4a: "開關", map4b: "閥門",
+        btnReset: "重置模擬", hintOrbit: "拖曳旋轉 · 右鍵平移 · 滾輪縮放",
+        stepsTitle: "觀察步驟",
+        s1: "1. 先試「串聯（階梯）」：調電壓與 R1、R2，看同一條水路流量是否處處相同。",
+        s2: "2. 改為「並聯（雙瀑布）」，比較兩支路流量如何隨 R1、R2 改變。",
+        s3: "3. 關閉總閥門或某一支路，觀察左欄即時數據與 3D 水流。",
+        s4: "4. 對照下方對照表：高度差＝電壓，流量＝電流，水車阻力＝電阻。",
+        modalTitle: "水流模型與電路對應", modalSub: "電壓即高度，電流即流量", modalClose: "關閉",
+        m1t: "1. 為什麼用水流比喻電路？",
+        m1d: "電荷看不見，水卻看得見。把電路畫成封閉水管：水泵把水抬高，水再流回低處，就能對應「電池把電荷推到高電位，再經負載回到低電位」。",
+        m2t: "2. 對應關係",
+        m2a: "電壓 V：兩點的高度差。水泵揚程愈高，推動力愈大。",
+        m2b: "電流 I：管內流量。粒子愈快，代表電流愈大。",
+        m2c: "電阻 R：水車／窄管的阻力。R 愈大，同一落差下流量愈小。",
+        m3t: "串聯 = 階梯瀑布", m3d: "同一條水路，流量處處相同（I 相同）。總高度由兩個水車分擔，壓降與電阻成正比：V₁ = IR₁、V₂ = IR₂。",
+        m4t: "並聯 = 兩個等高瀑布", m4d: "兩條支路從同一高水位落到同一低水位，所以電壓相同。流量分開：I = I₁ + I₂ = V/R₁ + V/R₂。",
+        m5t: "3. 生活例子", m5d: "水塔把水抬高，樓層愈高水壓愈大，就像電壓。兩條滑水道從同一平台滑下，高度相同但滑道寬窄不同，流量就不同——這就是並聯。",
+        labPump: "水泵 = 電池", labR1: "R1 水車", labR2: "R2 水車", labHigh: "高電位", labMid: "中間電位", labGnd: "0 V 回水"
+    },
+    en: {
+        title: "Water Model of a Circuit", badge: "S2 Science", subtitle: "Voltage = height, current = flow",
+        btnPrinciple: "Theory", btnSteps: "Steps", btnQuiz: "Quiz",
+        quizTitle: "Classroom Quiz", quizShowAnswers: "Show reference answers", quizHideAnswers: "Hide reference answers", quizRef: "Reference",
+        quizQ1: "In series mode, how does total current (flow) relate along one path?",
+        quizQ1a: "Flow differs at each section", quizQ1b: "The same flow everywhere on one path (same I)", quizQ1c: "Only R1 has flow", quizQ1d: "Always zero",
+        quizQ1ans: "In series, one path — same flow everywhere (same current I).",
+        quizQ2: "In series, raise only pump head V from 12 V to 24 V (R1, R2 unchanged): predict total current, then check live data.",
+        quizQ2ans: "V doubles while R is fixed, so I = V/R increases.",
+        quizQ3: "In parallel, both branches drop from the same high to the same low level. Which quantity is the same?",
+        quizQ3a: "I₁ must equal I₂", quizQ3b: "Voltage across each branch is the same", quizQ3c: "Total R is zero", quizQ3d: "V₁ always exceeds V₂",
+        quizQ3ans: "Parallel branches share the same potential difference (same V); currents split by R.",
+        quizQ4: "Compare series vs parallel: predict how I₁ changes when R1 increases, then switch mode and adjust R1.",
+        quizQ4ans: "Series: larger R₁ lowers total I. Parallel: larger R₁ lowers I₁ while the other branch can carry more.",
+        quizQ5: "After closing the main valve (switch), what happens to flow and total current?",
+        quizQ5a: "Flow increases", quizQ5b: "Flow tends to zero; reading near 0 A", quizQ5c: "Only one branch stops", quizQ5d: "Voltage drops to 0 V automatically",
+        quizQ5ans: "An open main switch breaks the loop — no sustained current, flow stops.",
+        modeSeries: "Series (steps)", modeParallel: "Parallel (falls)",
+        labelV: "Pump head (voltage V)", labelR1: "Wheel 1 resistance (R1)", labelR2: "Wheel 2 resistance (R2)",
+        labelMain: "Main valve (switch)", labelS1: "Branch 1", labelS2: "Branch 2",
+        liveTitle: "Live data", statI: "Total current (flow)", statI1: "Branch / wheel 1", statI2: "Branch / wheel 2",
+        statV1: "R1 drop (height)", statV2: "R2 drop (height)",
+        mapC: "Circuit", mapW: "Water", map1a: "Cell / voltage", map1b: "Pump / height",
+        map2a: "Current", map2b: "Flow rate", map3a: "Resistance", map3b: "Wheel drag", map4a: "Switch", map4b: "Valve",
+        btnReset: "Reset", hintOrbit: "Drag to orbit · right-drag pan · scroll zoom",
+        stepsTitle: "What to watch",
+        s1: "1. Start in series mode: change voltage and R1/R2 — the same flow should appear everywhere on one path.",
+        s2: "2. Switch to parallel mode and compare how each branch flow changes with R1 and R2.",
+        s3: "3. Close the main valve or a branch and watch live data and the 3D flow.",
+        s4: "4. Use the mapping table: height difference = voltage, flow = current, wheel drag = resistance.",
+        modalTitle: "Water analogy of a circuit", modalSub: "Voltage as height, current as flow", modalClose: "Close",
+        m1t: "1. Why a water model?",
+        m1d: "Charge is invisible; water is not. A closed pipe loop maps to a circuit: the pump lifts water (the cell raises potential) and water returns downhill (charge returns to the low side).",
+        m2t: "2. The mapping",
+        m2a: "Voltage V is a height difference. A taller pump head means a stronger push.",
+        m2b: "Current I is the flow rate. Faster particles mean a larger current.",
+        m2c: "Resistance R is drag from a water wheel. Larger R gives less flow for the same drop.",
+        m3t: "Series = two steps", m3d: "One path, so I is the same everywhere. The total height is shared: V₁ = IR₁ and V₂ = IR₂.",
+        m4t: "Parallel = two equal falls", m4d: "Both branches start at the same high level and end at the same low level, so V is the same. Flow splits: I = V/R₁ + V/R₂.",
+        m5t: "3. Everyday example", m5d: "A water tower raises pressure with height, like voltage. Two slides from the same platform have the same drop but different widths — that is parallel flow.",
+        labPump: "Pump = cell", labR1: "R1 wheel", labR2: "R2 wheel", labHigh: "High V", labMid: "Mid V", labGnd: "0 V return"
+    }
+};
+
+const state = {
+    lang: "zh", mode: "series",
+    V: 12, R1: 10, R2: 10,
+    isMainOn: true, isS1On: true, isS2On: true,
+    I_total: 0, I1: 0, I2: 0, V1: 0, V2: 0,
+    pathSegments: [],
+    labelWorld: {}
+};
+
+const H0 = 1.8;
+const H_SCALE = 0.75;
+const PARTICLE_N = 900;
+const FLOW_K = 5.5;
+
+let scene, camera, renderer, controls, root;
+let particleMesh, particleData = [], dummy = new THREE.Object3D();
+const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
+const components = { pipes: [], elbows: [], turbines: [] };
+const mats = {};
+const clock = new THREE.Clock();
+
+function t(key) { return i18n[state.lang][key] || key; }
+
+let quizAnswersVisible = false;
+function renderQuiz() {
+    const box = document.getElementById("quiz-list");
+    if (!box) return;
+    const pack = i18n[state.lang];
+    const mkChoice = (qid, letters) => letters.map(L => {
+        const key = "quizQ" + qid.slice(1) + L.toLowerCase();
+        return `<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2 cursor-pointer hover:bg-rose-50/50"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-600"><span>${L}. ${pack[key]}</span></label>`;
+    }).join("");
+    const ans = (n) => quizAnswersVisible
+        ? `<div class="quiz-answer mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${pack.quizRef}：</strong> ${pack["quizQ" + n + "ans"]}</div>`
+        : "";
+    box.innerHTML = [1, 2, 3, 4, 5].map(n => {
+        const open = n === 2 || n === 4;
+        return `<div class="rounded-xl border border-slate-200 p-3 bg-slate-50/50"><p class="font-semibold text-rose-700 mb-2">Q${n}. ${pack["quizQ" + n]}</p>${open ? "" : `<div class="grid gap-1.5">${mkChoice("q" + n, ["A", "B", "C", "D"])}</div>`}${ans(n)}</div>`;
+    }).join("");
+    const ansBtn = document.getElementById("btn-quiz-answers");
+    if (ansBtn) ansBtn.textContent = quizAnswersVisible ? pack.quizHideAnswers : pack.quizShowAnswers;
+}
+
+function applyI18n() {
+    document.documentElement.lang = state.lang === "zh" ? "zh-Hant" : "en";
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (i18n[state.lang][key]) el.innerHTML = i18n[state.lang][key];
+    });
+    updateLabelsText();
+    calcPhysics();
+    renderQuiz();
+}
+
+function init() {
+    const container = document.getElementById("canvas-container");
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe0f2fe);
+    scene.fog = new THREE.Fog(0xe0f2fe, 45, 90);
+
+    camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
+    camera.position.set(16, 13, 20);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 6.5, 0);
+    controls.maxPolarAngle = Math.PI / 2 - 0.08;
+    controls.minDistance = 8;
+    controls.maxDistance = 55;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.65);
+    sun.position.set(12, 28, 14);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0xf1f5f9 }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    scene.add(new THREE.GridHelper(80, 40, 0xcbd5e1, 0xe2e8f0));
+
+    mats.pipe = new THREE.MeshPhysicalMaterial({ color: 0x7dd3fc, transmission: 0.55, opacity: 0.55, transparent: true, roughness: 0.12, metalness: 0.05 });
+    mats.pump = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 });
+    mats.turbine = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35 });
+    mats.metal = new THREE.MeshStandardMaterial({ color: 0x475569 });
+    mats.valveOn = new THREE.MeshStandardMaterial({ color: 0x22c55e });
+    mats.valveOff = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+    mats.ruler = new THREE.MeshStandardMaterial({ color: 0x0369a1 });
+
+    createParticles();
+    createSceneObjects();
+    setupUI();
+    resize();
+    calcPhysics();
+    updateGeometry();
+    distributeParticles();
+    window.addEventListener("resize", resize);
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(container);
+    applyI18n();
+    animate();
+}
+
+function resize() {
+    const r = document.getElementById("canvas-container").getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return;
+    camera.aspect = r.width / r.height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(r.width, r.height);
+}
+
+function setupUI() {
+    const sync = () => {
+        state.V = +document.getElementById("in-voltage").value;
+        state.R1 = +document.getElementById("in-r1").value;
+        state.R2 = +document.getElementById("in-r2").value;
+        state.isMainOn = document.getElementById("in-switch").checked;
+        state.isS1On = document.getElementById("in-s1").checked;
+        state.isS2On = document.getElementById("in-s2").checked;
+        document.getElementById("disp-voltage").textContent = state.V + " V";
+        document.getElementById("disp-r1").textContent = state.R1 + " Ω";
+        document.getElementById("disp-r2").textContent = state.R2 + " Ω";
+        calcPhysics();
+        updateGeometry();
+    };
+    ["in-voltage", "in-r1", "in-r2"].forEach(id => document.getElementById(id).addEventListener("input", sync));
+    ["in-switch", "in-s1", "in-s2"].forEach(id => document.getElementById(id).addEventListener("change", sync));
+    document.getElementById("btn-series").onclick = () => setMode("series");
+    document.getElementById("btn-parallel").onclick = () => setMode("parallel");
+    document.getElementById("resetBtn").onclick = resetSim;
+    document.getElementById("btn-lang").onclick = toggleLang;
+    document.getElementById("btn-lang-mobile").onclick = toggleLang;
+    document.getElementById("btn-principle").onclick = () => setModal("modal-principle", true);
+    document.getElementById("btn-steps").onclick = () => setModal("modal-steps", true);
+    document.getElementById("btn-quiz").onclick = () => { quizAnswersVisible = false; renderQuiz(); setModal("modal-quiz", true); };
+    document.getElementById("btn-quiz-answers").onclick = () => { quizAnswersVisible = !quizAnswersVisible; renderQuiz(); };
+    document.getElementById("quiz-close").onclick = document.getElementById("quiz-confirm").onclick = () => setModal("modal-quiz", false);
+    document.getElementById("modal-quiz").addEventListener("click", e => { if (e.target.id === "modal-quiz") setModal("modal-quiz", false); });
+    document.getElementById("modal-close").onclick = () => setModal("modal-principle", false);
+    document.getElementById("modal-confirm").onclick = () => setModal("modal-principle", false);
+    document.getElementById("steps-close").onclick = () => setModal("modal-steps", false);
+    document.getElementById("steps-confirm").onclick = () => setModal("modal-steps", false);
+    document.getElementById("modal-principle").addEventListener("click", e => { if (e.target.id === "modal-principle") setModal("modal-principle", false); });
+    document.getElementById("modal-steps").addEventListener("click", e => { if (e.target.id === "modal-steps") setModal("modal-steps", false); });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") { setModal("modal-principle", false); setModal("modal-steps", false); setModal("modal-quiz", false); }
+    });
+}
+
+function toggleLang() {
+    state.lang = state.lang === "zh" ? "en" : "zh";
+    applyI18n();
+}
+
+function setModal(id, open) {
+    const wrap = document.getElementById(id);
+    const box = wrap.querySelector(".modal-content");
+    if (open) {
+        wrap.classList.remove("opacity-0", "pointer-events-none");
+        box.classList.remove("opacity-0", "scale-95");
+    } else {
+        wrap.classList.add("opacity-0", "pointer-events-none");
+        box.classList.add("opacity-0", "scale-95");
+    }
+}
+
+function resetSim() {
+    state.mode = "series";
+    document.getElementById("in-voltage").value = 12;
+    document.getElementById("in-r1").value = 10;
+    document.getElementById("in-r2").value = 10;
+    document.getElementById("in-switch").checked = true;
+    document.getElementById("in-s1").checked = true;
+    document.getElementById("in-s2").checked = true;
+    setMode("series");
+    document.getElementById("in-voltage").dispatchEvent(new Event("input"));
+}
+
+function setMode(m) {
+    state.mode = m;
+    document.getElementById("btn-series").className = `mode-btn ${m === "series" ? "active" : ""}`;
+    document.getElementById("btn-parallel").className = `mode-btn ${m === "parallel" ? "active" : ""}`;
+    document.getElementById("parallel-switches").className = m === "parallel" ? "flex gap-3 pl-1" : "hidden gap-3 pl-1";
+    createSceneObjects();
+    calcPhysics();
+    updateGeometry();
+    distributeParticles();
+    frameCamera();
+}
+
+function frameCamera() {
+    if (state.mode === "series") {
+        camera.position.set(16, 13, 20);
+        controls.target.set(0, 6.5, 0);
+    } else {
+        camera.position.set(12, 15, 24);
+        controls.target.set(0, 6, 0);
+    }
+}
+
+function calcPhysics() {
+    if (!state.isMainOn) {
+        state.I_total = state.I1 = state.I2 = state.V1 = state.V2 = 0;
+    } else if (state.mode === "series") {
+        const Rt = state.R1 + state.R2;
+        state.I_total = state.I1 = state.I2 = state.V / Rt;
+        state.V1 = state.I_total * state.R1;
+        state.V2 = state.I_total * state.R2;
+    } else {
+        state.I1 = state.isS1On ? state.V / state.R1 : 0;
+        state.I2 = state.isS2On ? state.V / state.R2 : 0;
+        state.V1 = state.isS1On ? state.V : 0;
+        state.V2 = state.isS2On ? state.V : 0;
+        state.I_total = state.I1 + state.I2;
+    }
+    document.getElementById("stat-total-i").textContent = state.I_total.toFixed(2) + " A";
+    document.getElementById("stat-i1").textContent = state.I1.toFixed(2) + " A";
+    document.getElementById("stat-i2").textContent = state.I2.toFixed(2) + " A";
+    document.getElementById("stat-v1").textContent = state.V1.toFixed(2) + " V";
+    document.getElementById("stat-v2").textContent = state.V2.toFixed(2) + " V";
+    const f = document.getElementById("formula");
+    if (state.mode === "series") f.textContent = `I = V/(R1+R2) = ${state.V}/(${state.R1}+${state.R2})`;
+    else f.textContent = `I = V/R1 + V/R2`;
+}
+
+function disposeRoot() {
+    if (!root) return;
+    root.traverse(ch => {
+        if (ch.geometry) ch.geometry.dispose();
+    });
+    scene.remove(root);
+    root = null;
+}
+
+function mesh(geo, mat, parent) {
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    parent.add(m);
+    return m;
+}
+
+function makePipe() {
+    const geo = new THREE.CylinderGeometry(0.48, 0.48, 1, 14);
+    geo.translate(0, 0.5, 0);
+    geo.rotateX(Math.PI / 2);
+    return mesh(geo, mats.pipe, root);
+}
+
+function makeElbow() {
+    return mesh(new THREE.SphereGeometry(0.5, 12, 12), mats.pipe, root);
+}
+
+function makeTurbine() {
+    const g = new THREE.Group();
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 3.2, 8), mats.metal);
+    axle.rotation.z = Math.PI / 2;
+    g.add(axle);
+    const blades = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.35, 2.4, 0.8), mats.turbine);
+        blade.position.y = 1.15;
+        const wrap = new THREE.Group();
+        wrap.add(blade);
+        wrap.rotation.x = i * Math.PI / 2;
+        blades.add(wrap);
+    }
+    g.add(blades);
+    g.userData = { blades, speed: 0 };
+    root.add(g);
+    return g;
+}
+
+function setPipe(m, a, b) {
+    const len = tmpA.copy(b).sub(a).length();
+    m.position.copy(a);
+    m.lookAt(b);
+    m.scale.set(1, 1, Math.max(len, 0.001));
+    m.visible = len > 0.08;
+}
+
+function createSceneObjects() {
+    disposeRoot();
+    root = new THREE.Group();
+    scene.add(root);
+    components.pipes = [];
+    components.elbows = [];
+    components.turbines = [];
+
+    const pump = new THREE.Group();
+    root.add(pump);
+    components.pump = pump;
+    mesh(new THREE.SphereGeometry(1.55, 20, 16), mats.pump, pump);
+    const inlet = mesh(new THREE.CylinderGeometry(0.5, 0.5, 2.2, 12), mats.pump, pump);
+    inlet.rotation.z = Math.PI / 2;
+    inlet.position.set(1.4, 0, 0);
+    components.valve = mesh(new THREE.BoxGeometry(0.7, 1.4, 0.7), mats.valveOn, pump);
+    components.valve.position.set(3.2, 0, 0);
+
+    const nPipe = state.mode === "series" ? 7 : 13;
+    const nElbow = state.mode === "series" ? 6 : 10;
+    for (let i = 0; i < nPipe; i++) components.pipes.push(makePipe());
+    for (let i = 0; i < nElbow; i++) components.elbows.push(makeElbow());
+    components.turbines = [makeTurbine(), makeTurbine()];
+
+    const ruler = mesh(new THREE.CylinderGeometry(0.06, 0.06, 1, 8), mats.ruler, root);
+    ruler.geometry.translate(0, 0.5, 0);
+    components.ruler = ruler;
+}
+
+function hTop() { return H0 + state.V * H_SCALE; }
+function hMid() { return H0 + state.V2 * H_SCALE; }
+
+function updateGeometry() {
+    const ht = hTop();
+    const hm = hMid();
+    const pumpX = state.mode === "series" ? -11 : -13;
+    components.pump.position.set(pumpX, H0, 0);
+    components.valve.material = state.isMainOn ? mats.valveOn : mats.valveOff;
+    components.valve.rotation.z = state.isMainOn ? 0 : Math.PI / 2;
+
+    components.ruler.position.set(pumpX - 2.6, H0, 0);
+    components.ruler.scale.set(1, Math.max(ht - H0, 0.2), 1);
+
+    const pVolute = new THREE.Vector3(pumpX, H0, 0);
+    const pLift = new THREE.Vector3(pumpX, H0 + 1.55, 0);
+    const pTop = new THREE.Vector3(pumpX, ht, 0);
+    const pInlet = new THREE.Vector3(pumpX + 2.6, H0, 0);
+    const pMouth = new THREE.Vector3(pumpX + 1.55, H0, 0);
+
+    if (state.mode === "series") {
+        const r1x = 0, r2x = 11;
+        const a = pTop;
+        const b = new THREE.Vector3(r1x, ht, 0);
+        const c = new THREE.Vector3(r1x, hm, 0);
+        const d = new THREE.Vector3(r2x, hm, 0);
+        const e = new THREE.Vector3(r2x, H0, 0);
+        const pts = [pTop, b, c, d, e, pInlet];
+        const [lift, top, drop1, mid, drop2, ret, into] = components.pipes;
+        setPipe(lift, pLift, pTop);
+        setPipe(top, a, b);
+        setPipe(drop1, b, c);
+        setPipe(mid, c, d);
+        setPipe(drop2, d, e);
+        setPipe(ret, e, pInlet);
+        setPipe(into, pInlet, pMouth);
+        components.elbows.forEach((el, i) => { el.position.copy(pts[i]); el.visible = true; });
+
+        placeTurbine(components.turbines[0], b, c, state.I1);
+        placeTurbine(components.turbines[1], d, e, state.I2);
+
+        const I = state.I_total;
+        state.pathSegments = [
+            { start: pLift.clone(), end: pTop.clone(), I, seq: "lift" },
+            { start: a.clone(), end: b.clone(), I, seq: "top" },
+            { start: b.clone(), end: c.clone(), I, seq: "d1" },
+            { start: c.clone(), end: d.clone(), I, seq: "mid" },
+            { start: d.clone(), end: e.clone(), I, seq: "d2" },
+            { start: e.clone(), end: pInlet.clone(), I, seq: "ret" },
+            { start: pInlet.clone(), end: pMouth.clone(), I, seq: "in" }
+        ];
+        state.labelWorld = {
+            pump: pVolute.clone().setY(H0 + 2.2),
+            r1: new THREE.Vector3(r1x, (ht + hm) / 2, 1.6),
+            r2: new THREE.Vector3(r2x, (hm + H0) / 2, 1.6),
+            high: new THREE.Vector3((pumpX + r1x) / 2, ht + 0.9, 0),
+            mid: new THREE.Vector3((r1x + r2x) / 2, hm + 0.9, 0),
+            gnd: new THREE.Vector3((r2x + pumpX) / 2, H0 + 0.9, 0)
+        };
+    } else {
+        const splitX = -3, bx = 5, z = 6;
+        const split = new THREE.Vector3(splitX, ht, 0);
+        const b1t = new THREE.Vector3(bx, ht, -z);
+        const b1s = new THREE.Vector3(splitX, ht, -z);
+        const b1b = new THREE.Vector3(bx, H0, -z);
+        const b2t = new THREE.Vector3(bx, ht, z);
+        const b2s = new THREE.Vector3(splitX, ht, z);
+        const b2b = new THREE.Vector3(bx, H0, z);
+        const join = new THREE.Vector3(bx, H0, 0);
+        const [lift, top, z1, x1, d1, z2, x2, d2, j1, j2, ret, into, spare] = components.pipes;
+        spare.visible = false;
+        setPipe(lift, pLift, pTop);
+        setPipe(top, pTop, split);
+        setPipe(z1, split, b1s);
+        setPipe(x1, b1s, b1t);
+        setPipe(d1, b1t, b1b);
+        setPipe(z2, split, b2s);
+        setPipe(x2, b2s, b2t);
+        setPipe(d2, b2t, b2b);
+        setPipe(j1, b1b, join);
+        setPipe(j2, b2b, join);
+        setPipe(ret, join, pInlet);
+        setPipe(into, pInlet, pMouth);
+        const epos = [pTop, split, b1s, b1t, b1b, b2s, b2t, b2b, join, pInlet];
+        components.elbows.forEach((el, i) => {
+            if (epos[i]) { el.position.copy(epos[i]); el.visible = true; }
+            else el.visible = false;
+        });
+        placeTurbine(components.turbines[0], b1t, b1b, state.I1);
+        placeTurbine(components.turbines[1], b2t, b2b, state.I2);
+
+        state.pathSegments = [
+            { start: pLift.clone(), end: pTop.clone(), I: state.I_total },
+            { start: pTop.clone(), end: split.clone(), I: state.I_total },
+            { start: split.clone(), end: b1s.clone(), I: state.I1, branch: 1 },
+            { start: b1s.clone(), end: b1t.clone(), I: state.I1, branch: 1 },
+            { start: b1t.clone(), end: b1b.clone(), I: state.I1, branch: 1 },
+            { start: b1b.clone(), end: join.clone(), I: state.I1, branch: 1 },
+            { start: split.clone(), end: b2s.clone(), I: state.I2, branch: 2 },
+            { start: b2s.clone(), end: b2t.clone(), I: state.I2, branch: 2 },
+            { start: b2t.clone(), end: b2b.clone(), I: state.I2, branch: 2 },
+            { start: b2b.clone(), end: join.clone(), I: state.I2, branch: 2 },
+            { start: join.clone(), end: pInlet.clone(), I: state.I_total },
+            { start: pInlet.clone(), end: pMouth.clone(), I: state.I_total }
+        ];
+        state.labelWorld = {
+            pump: pVolute.clone().setY(H0 + 2.2),
+            r1: new THREE.Vector3(bx, (ht + H0) / 2, -z + 1.5),
+            r2: new THREE.Vector3(bx, (ht + H0) / 2, z + 1.5),
+            high: new THREE.Vector3((pumpX + splitX) / 2, ht + 0.9, 0),
+            mid: null,
+            gnd: new THREE.Vector3((bx + pumpX) / 2, H0 + 0.9, 0)
+        };
+    }
+    updateLabelsText();
+}
+
+function placeTurbine(t, top, bot, I) {
+    t.position.lerpVectors(top, bot, 0.5);
+    const h = Math.abs(top.y - bot.y);
+    const s = Math.max(0.35, Math.min(1, h / 5));
+    t.scale.setScalar(s);
+    t.userData.speed = I;
+    t.visible = h > 0.4;
+}
+
+function seriesSeq() { return [0, 1, 2, 3, 4, 5, 6]; }
+function branchSeq(b) { return b === 1 ? [0, 1, 2, 3, 4, 5, 10, 11] : [0, 1, 6, 7, 8, 9, 10, 11]; }
+
+function createParticles() {
+    const geo = new THREE.SphereGeometry(0.13, 6, 6);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    particleMesh = new THREE.InstancedMesh(geo, mat, PARTICLE_N);
+    particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(particleMesh);
+    particleData = [];
+    for (let i = 0; i < PARTICLE_N; i++) {
+        particleData.push({
+            seg: 0, t: Math.random(), branch: Math.random() < 0.5 ? 1 : 2,
+            jitter: new THREE.Vector3((Math.random() - 0.5) * 0.16, (Math.random() - 0.5) * 0.16, (Math.random() - 0.5) * 0.16)
+        });
+    }
+}
+
+function seqOf(p) {
+    return state.mode === "series" ? seriesSeq() : branchSeq(p.branch);
+}
+
+function placeOnPath(p, dist) {
+    const seq = seqOf(p);
+    let remain = dist;
+    for (const idx of seq) {
+        const seg = state.pathSegments[idx];
+        if (!seg) continue;
+        const L = seg.start.distanceTo(seg.end);
+        if (remain <= L || idx === seq[seq.length - 1]) {
+            p.seg = idx;
+            p.t = L > 0.001 ? Math.min(remain / L, 0.999) : 0;
+            return;
+        }
+        remain -= L;
+    }
+}
+
+function pathLen(p) {
+    let L = 0;
+    seqOf(p).forEach(i => {
+        const s = state.pathSegments[i];
+        if (s) L += s.start.distanceTo(s.end);
+    });
+    return Math.max(L, 0.01);
+}
+
+function pickBranch() {
+    if (state.I_total < 1e-4) return Math.random() < 0.5 ? 1 : 2;
+    return Math.random() < state.I1 / state.I_total ? 1 : 2;
+}
+
+function distributeParticles() {
+    if (!state.pathSegments.length) return;
+    particleData.forEach(p => {
+        p.branch = pickBranch();
+        placeOnPath(p, Math.random() * pathLen(p));
+    });
+}
+
+function nextSeg(p) {
+    if (state.mode === "series") {
+        p.seg = (p.seg + 1) % state.pathSegments.length;
+        return;
+    }
+    const map = { 0: 1, 1: p.branch === 1 ? 2 : 6, 2: 3, 3: 4, 4: 5, 5: 10, 6: 7, 7: 8, 8: 9, 9: 10, 10: 11, 11: 0 };
+    if (p.seg === 11) p.branch = pickBranch();
+    if (p.seg === 1) p.seg = p.branch === 1 ? 2 : 6;
+    else p.seg = map[p.seg];
+}
+
+const colHigh = new THREE.Color(0x38bdf8);
+const colLow = new THREE.Color(0x0369a1);
+const colTmp = new THREE.Color();
+
+function updateParticles(dt) {
+    if (!state.pathSegments.length) return;
+    const ht = hTop();
+    for (let i = 0; i < PARTICLE_N; i++) {
+        const p = particleData[i];
+        let seg = state.pathSegments[p.seg];
+        if (!seg) { p.seg = 0; p.t = 0; seg = state.pathSegments[0]; }
+        const len = Math.max(seg.start.distanceTo(seg.end), 0.05);
+        if (seg.I > 0.01 && state.isMainOn) {
+            p.t += (FLOW_K * seg.I * dt) / len;
+            while (p.t >= 1) {
+                p.t -= 1;
+                nextSeg(p);
+                seg = state.pathSegments[p.seg];
+                if (!seg || seg.I <= 0.01) break;
+            }
+        }
+        seg = state.pathSegments[p.seg];
+        if (seg && seg.I > 0.01 && state.isMainOn) {
+            tmpA.lerpVectors(seg.start, seg.end, p.t).add(p.jitter);
+            dummy.position.copy(tmpA);
+            dummy.scale.setScalar(1);
+            dummy.updateMatrix();
+            particleMesh.setMatrixAt(i, dummy.matrix);
+            const u = THREE.MathUtils.clamp((tmpA.y - H0) / Math.max(ht - H0, 0.01), 0, 1);
+            colTmp.copy(colLow).lerp(colHigh, u);
+            particleMesh.setColorAt(i, colTmp);
+        } else {
+            dummy.scale.setScalar(0);
+            dummy.updateMatrix();
+            particleMesh.setMatrixAt(i, dummy.matrix);
+        }
+    }
+    particleMesh.instanceMatrix.needsUpdate = true;
+    if (particleMesh.instanceColor) particleMesh.instanceColor.needsUpdate = true;
+}
+
+function projectLabel(el, world, show) {
+    if (!world || !show) { el.style.display = "none"; return; }
+    tmpB.copy(world).project(camera);
+    if (tmpB.z < -1 || tmpB.z > 1) { el.style.display = "none"; return; }
+    const rect = renderer.domElement.getBoundingClientRect();
+    el.style.display = "block";
+    el.style.left = ((tmpB.x * 0.5 + 0.5) * rect.width) + "px";
+    el.style.top = ((-tmpB.y * 0.5 + 0.5) * rect.height) + "px";
+}
+
+function updateLabelsText() {
+    document.getElementById("lab-pump").textContent = t("labPump");
+    document.getElementById("lab-r1").textContent = t("labR1") + ` ${state.V1.toFixed(1)} V`;
+    document.getElementById("lab-r2").textContent = t("labR2") + ` ${state.V2.toFixed(1)} V`;
+    document.getElementById("lab-high").textContent = `${t("labHigh")} ${state.V.toFixed(0)} V`;
+    document.getElementById("lab-mid").textContent = `${t("labMid")} ${state.V2.toFixed(1)} V`;
+    document.getElementById("lab-gnd").textContent = t("labGnd");
+}
+
+function updateLabels() {
+    const W = state.labelWorld;
+    if (!W) return;
+    projectLabel(document.getElementById("lab-pump"), W.pump, true);
+    projectLabel(document.getElementById("lab-r1"), W.r1, true);
+    projectLabel(document.getElementById("lab-r2"), W.r2, true);
+    projectLabel(document.getElementById("lab-high"), W.high, true);
+    projectLabel(document.getElementById("lab-mid"), W.mid, state.mode === "series" && state.isMainOn);
+    projectLabel(document.getElementById("lab-gnd"), W.gnd, true);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    if (components.turbines) {
+        components.turbines.forEach(t => {
+            if (t.userData.speed > 0.01) t.userData.blades.rotation.x -= t.userData.speed * 1.8 * dt;
+        });
+    }
+    updateParticles(dt);
+    updateLabels();
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+init();
+</script>
+</body>
+</html>

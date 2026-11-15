@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>比熱容量模擬實驗</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for Graphing -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* Custom animations for the simulation visuals */
+        body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
         @keyframes bubble {
             0% { transform: translateY(0) scale(1); opacity: 0; }
             50% { opacity: 1; }
@@ -26,46 +26,74 @@
         .beaker-liquid {
             transition: height 0.3s ease, background-color 0.5s ease;
         }
+        .modal-panel { transition: opacity 0.25s ease; }
+        .modal-panel [data-modal-panel] { transition: transform 0.25s ease; }
+        .quiz-item { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #e2e8f0; }
+        .quiz-item .q-stem { font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; }
+        .quiz-options { display: flex; flex-direction: column; gap: 0.4rem; }
+        .quiz-options button {
+            text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+            border: 1px solid #cbd5e1; background: #f8fafc; font-size: 0.875rem;
+            transition: all 0.15s; color: #1e293b;
+        }
+        .quiz-options button:hover { border-color: #6366f1; background: #eef2ff; }
+        .quiz-options button.selected { border-color: #4f46e5; background: #e0e7ff; }
+        .quiz-options button.correct { border-color: #16a34a; background: #dcfce7; }
+        .quiz-options button.wrong { border-color: #dc2626; background: #fee2e2; }
+        .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f1f5f9; border-radius: 0.5rem; font-size: 0.85rem; color: #334155; }
+        .quiz-answer.show { display: block; }
+        #toast-banner {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        #toast-banner.hidden-toast {
+            opacity: 0; pointer-events: none; transform: translateY(-8px);
+        }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans">
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
 
     <!-- Navbar -->
-    <nav class="bg-blue-600 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold"><i class="fa-solid fa-temperature-high mr-2"></i>物理實驗室：比熱容量</h1>
-            <span class="text-sm bg-blue-700 px-3 py-1 rounded-full">公式：E = mcΔT</span>
+    <nav class="bg-blue-600 text-white p-3 md:p-4 shadow-md sticky top-0 z-40">
+        <div class="container mx-auto flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+            <div class="flex items-center gap-2 flex-wrap min-w-0">
+                <h1 class="text-xl md:text-2xl font-bold"><i class="fa-solid fa-temperature-high mr-2"></i><span data-i18n="appTitle">物理實驗室：比熱容量</span></h1>
+                <span class="text-sm bg-blue-700 px-3 py-1 rounded-full" data-i18n="formulaBadge">公式：E = mcΔT</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" id="btn-steps" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnSteps">觀察步驟</button>
+                <button type="button" id="btn-principle" class="text-sm font-bold bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded border border-indigo-400 transition-colors" data-i18n="btnPrinciple">原理解說</button>
+                <button type="button" id="btn-quiz" class="text-sm font-bold bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded border border-violet-400 transition-colors" data-i18n="btnQuiz">課堂問題</button>
+                <button type="button" id="btn-lang" class="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 rounded text-sm font-bold border border-blue-400 transition-colors">中 / EN</button>
+            </div>
         </div>
     </nav>
 
+    <!-- Toast for max temp -->
+    <div id="toast-banner" class="hidden-toast fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-md w-[90%] bg-amber-50 border border-amber-400 text-amber-900 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-center" role="status" aria-live="polite"></div>
+
     <div class="container mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- Left Panel: Controls & Settings -->
-        <div class="lg:col-span-4 space-y-6">
-            
-            <!-- Control Card -->
+
+        <!-- Left Panel: Controls & Settings (Scheme A: col-span-4) -->
+        <div class="lg:col-span-4 space-y-6 order-2">
+
             <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
-                <h2 class="text-xl font-bold mb-4 text-gray-700">實驗設定</h2>
-                
-                <!-- Material Selection -->
+                <h2 class="text-xl font-bold mb-4 text-gray-700" data-i18n="settingsTitle">實驗設定</h2>
+
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-600 mb-2">選擇物質</label>
-                    <select id="materialSelect" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50">
-                        <!-- Options populated by JS -->
-                    </select>
+                    <label class="block text-sm font-medium text-gray-600 mb-2" data-i18n="labelMaterial">選擇物質</label>
+                    <select id="materialSelect" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50"></select>
                     <div class="mt-2 p-3 bg-blue-50 rounded-lg">
                         <p class="text-sm text-blue-800 font-semibold">
-                            比熱容量 (c): <span id="shcDisplay" class="text-lg font-bold">4200</span> J/kg°C
+                            <span data-i18n="labelSHC">比熱容量 (c)</span>: <span id="shcDisplay" class="text-lg font-bold">4200</span> J/kg°C
                         </p>
                     </div>
                 </div>
 
-                <!-- Mass Slider -->
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-600 mb-2">
-                        質量 (m): <span id="massValue" class="font-bold text-blue-600">1.0</span> kg
+                        <span data-i18n="labelMass">質量 (m)</span>: <span id="massValue" class="font-bold text-blue-600">1.0</span> kg
                     </label>
-                    <input type="range" id="massInput" min="0.1" max="5.0" step="0.1" value="1.0" 
+                    <input type="range" id="massInput" min="0.1" max="5.0" step="0.1" value="1.0"
                            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
                     <div class="flex justify-between text-xs text-gray-400 mt-1">
                         <span>0.1 kg</span>
@@ -73,106 +101,90 @@
                     </div>
                 </div>
 
-                <!-- Heater Power Slider -->
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-600 mb-2">
-                        加熱器功率 (P): <span id="powerValue" class="font-bold text-red-600">1000</span> W (J/s)
+                        <span data-i18n="labelPower">加熱器功率 (P)</span>: <span id="powerValue" class="font-bold text-red-600">1000</span> W (J/s)
                     </label>
-                    <input type="range" id="powerInput" min="500" max="2000" step="100" value="1000" 
+                    <input type="range" id="powerInput" min="500" max="2000" step="100" value="1000"
                            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500">
                 </div>
 
-                <!-- Action Buttons -->
                 <div class="grid grid-cols-2 gap-3">
-                    <button id="btnStart" class="bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-play"></i> 開始加熱
+                    <button type="button" id="btnStart" class="bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> <span data-i18n="btnStart">開始加熱</span>
                     </button>
-                    <button id="btnPause" class="bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 hidden">
-                        <i class="fa-solid fa-pause"></i> 暫停
+                    <button type="button" id="btnPause" class="bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 hidden">
+                        <i class="fa-solid fa-pause"></i> <span data-i18n="btnPause">暫停</span>
                     </button>
-                    <button id="btnReset" class="bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-rotate-right"></i> 重置
+                    <button type="button" id="btnReset" class="bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> <span data-i18n="btnReset">重置</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Real-time Data -->
             <div class="bg-white p-6 rounded-xl shadow-lg">
-                <h3 class="text-lg font-bold mb-3 text-gray-700">實時數據</h3>
+                <h3 class="text-lg font-bold mb-3 text-gray-700" data-i18n="dataTitle">實時數據</h3>
                 <div class="space-y-3">
                     <div class="flex justify-between items-center border-b pb-2">
-                        <span class="text-gray-600">溫度 (T)</span>
+                        <span class="text-gray-600" data-i18n="labelTemp">溫度 (T)</span>
                         <span class="font-mono font-bold text-xl text-red-600"><span id="tempDisplay">20.0</span>°C</span>
                     </div>
                     <div class="flex justify-between items-center border-b pb-2">
-                        <span class="text-gray-600">已輸入能量 (E)</span>
+                        <span class="text-gray-600" data-i18n="labelEnergy">已輸入能量 (E)</span>
                         <span class="font-mono font-bold text-xl text-blue-600"><span id="energyDisplay">0</span> J</span>
                     </div>
                     <div class="flex justify-between items-center">
-                        <span class="text-gray-600">加熱時間 (t)</span>
+                        <span class="text-gray-600" data-i18n="labelTime">加熱時間 (t)</span>
                         <span class="font-mono font-bold text-xl text-gray-800"><span id="timeDisplay">0.0</span> s</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Panel: Visualization & Graph -->
-        <div class="lg:col-span-8 space-y-6">
-            
-            <!-- Visual Simulation Area -->
+        <!-- Right Panel: Visualization & Graph (Scheme A: col-span-8) -->
+        <div class="lg:col-span-8 space-y-6 order-1">
+
             <div class="bg-white rounded-xl shadow-lg p-6 h-64 relative overflow-hidden flex items-end justify-center border-b-4 border-gray-300 bg-gradient-to-t from-gray-100 to-white">
-                
-                <!-- Heater Base -->
                 <div class="absolute bottom-0 w-48 h-4 bg-gray-800 rounded-t-lg z-10 flex justify-center items-center">
                     <div id="heaterCoil" class="w-40 h-2 bg-gray-600 rounded-full transition-colors duration-500"></div>
                 </div>
-                
-                <!-- Flame/Heat Effect -->
                 <div id="heatEffect" class="absolute bottom-4 w-48 h-12 opacity-0 transition-opacity duration-300 z-0 flex justify-center gap-2">
                     <div class="w-2 h-8 bg-red-500 rounded-full animate-pulse"></div>
                     <div class="w-2 h-10 bg-orange-500 rounded-full animate-pulse delay-75"></div>
                     <div class="w-2 h-6 bg-yellow-500 rounded-full animate-pulse delay-150"></div>
                 </div>
-
-                <!-- The Substance Block/Beaker -->
                 <div class="relative z-20 mb-4">
-                    <!-- Thermometer -->
                     <div class="absolute -right-16 bottom-0 h-48 w-8 bg-white border-2 border-gray-300 rounded-full shadow-md flex flex-col justify-end p-1">
                         <div id="thermometerLiquid" class="w-full bg-red-500 rounded-b-full rounded-t-sm transition-all duration-100" style="height: 20%;"></div>
                         <div class="absolute -right-8 top-0 text-xs text-gray-500">120°C</div>
                         <div class="absolute -right-8 bottom-0 text-xs text-gray-500">0°C</div>
                     </div>
-
-                    <!-- Material Container -->
                     <div id="substanceContainer" class="w-40 transition-all duration-300 border-2 border-gray-400 bg-blue-400/50 backdrop-blur-sm relative overflow-hidden rounded-lg flex items-center justify-center shadow-inner" style="height: 100px;">
                         <span class="text-white font-bold drop-shadow-md text-lg z-10 select-none" id="substanceLabel">水</span>
-                        <!-- Particle effects container -->
                         <div id="particleContainer" class="absolute inset-0 overflow-hidden opacity-50"></div>
                     </div>
                     <div class="text-center mt-1 text-sm text-gray-500 font-medium" id="massVisualLabel">1.0 kg</div>
                 </div>
             </div>
 
-            <!-- Graph Area -->
             <div class="bg-white p-4 rounded-xl shadow-lg">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-lg font-bold text-gray-700">能量 vs 溫度 關係圖</h3>
-                    <div class="text-xs text-gray-500">斜率 (Slope) = 1 / (mc)</div>
+                <div class="flex justify-between items-center mb-2 flex-wrap gap-1">
+                    <h3 class="text-lg font-bold text-gray-700" data-i18n="chartTitle">能量 vs 溫度 關係圖</h3>
+                    <div class="text-xs text-gray-500" data-i18n="chartSlopeNote">斜率 (Slope) = 1 / (mc)</div>
                 </div>
                 <div class="relative h-64 w-full">
                     <canvas id="chartCanvas"></canvas>
                 </div>
             </div>
 
-            <!-- Explanation Alert -->
             <div class="bg-blue-50 border-l-4 border-blue-600 p-4 rounded-r-lg">
                 <div class="flex">
                     <div class="flex-shrink-0">
                         <i class="fa-solid fa-lightbulb text-blue-600 text-xl"></i>
                     </div>
                     <div class="ml-3">
-                        <p class="text-sm text-blue-800">
-                            <span class="font-bold">觀察重點：</span> 
+                        <p class="text-sm text-blue-800" data-i18n="observeTip">
+                            <span class="font-bold">觀察重點：</span>
                             比熱容量 (<span class="font-serif italic">c</span>) 越大的物質（如水），溫度上升得越慢。這代表它能儲存更多的熱能。看看比較「水」和「銅」的圖線斜率有什麼不同？
                         </p>
                     </div>
@@ -182,300 +194,565 @@
         </div>
     </div>
 
-    <script>
-        // --- Data & Configuration ---
-        const materials = [
-            { id: 'water', name: '水 (Water)', c: 4200, color: '220, 38, 38', baseColor: '59, 130, 246', type: 'liquid' }, // Blue
-            { id: 'oil', name: '食用油 (Oil)', c: 2000, color: '234, 179, 8', baseColor: '250, 204, 21', type: 'liquid' }, // Yellow
-            { id: 'aluminum', name: '鋁 (Aluminum)', c: 900, color: '156, 163, 175', baseColor: '156, 163, 175', type: 'solid' }, // Gray
-            { id: 'iron', name: '鐵 (Iron)', c: 450, color: '75, 85, 99', baseColor: '107, 114, 128', type: 'solid' }, // Dark Gray
-            { id: 'copper', name: '銅 (Copper)', c: 385, color: '217, 119, 6', baseColor: '245, 158, 11', type: 'solid' }, // Bronze
-            { id: 'lead', name: '鉛 (Lead)', c: 130, color: '55, 65, 81', baseColor: '71, 85, 105', type: 'solid' } // Slate
-        ];
+    <!-- Modal: Steps -->
+    <div id="modal-steps" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="steps-title" class="text-xl font-bold" data-i18n="stepsTitle">觀察步驟</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-steps" aria-label="Close">&times;</button>
+            </div>
+            <ol id="steps-body" class="list-decimal pl-5 space-y-3 text-sm leading-relaxed"></ol>
+        </div>
+    </div>
 
-        const INITIAL_TEMP = 20; // °C
-        const MAX_TEMP = 120; // °C
-        const UPDATE_INTERVAL = 50; // ms
-        
-        // --- State ---
-        let state = {
-            material: materials[0],
-            mass: 1.0, // kg
-            power: 1000, // Watts (J/s)
-            currentTemp: INITIAL_TEMP,
-            totalEnergy: 0, // Joules
-            timeElapsed: 0, // Seconds
-            isRunning: false,
-            timerId: null,
-            dataPoints: [] // For chart {x: Energy, y: Temp}
-        };
+    <!-- Modal: Principle -->
+    <div id="modal-principle" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="principle-title" class="text-xl font-bold" data-i18n="principleTitle">原理解說</h2>
+                <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-principle" aria-label="Close">&times;</button>
+            </div>
+            <div id="principle-body" class="space-y-4 text-sm leading-relaxed"></div>
+        </div>
+    </div>
 
-        // --- DOM Elements ---
-        const els = {
-            select: document.getElementById('materialSelect'),
-            shcDisplay: document.getElementById('shcDisplay'),
-            massInput: document.getElementById('massInput'),
-            massValue: document.getElementById('massValue'),
-            massVisualLabel: document.getElementById('massVisualLabel'),
-            powerInput: document.getElementById('powerInput'),
-            powerValue: document.getElementById('powerValue'),
-            btnStart: document.getElementById('btnStart'),
-            btnPause: document.getElementById('btnPause'),
-            btnReset: document.getElementById('btnReset'),
-            tempDisplay: document.getElementById('tempDisplay'),
-            energyDisplay: document.getElementById('energyDisplay'),
-            timeDisplay: document.getElementById('timeDisplay'),
-            substanceContainer: document.getElementById('substanceContainer'),
-            substanceLabel: document.getElementById('substanceLabel'),
-            thermometerLiquid: document.getElementById('thermometerLiquid'),
-            heaterCoil: document.getElementById('heaterCoil'),
-            heatEffect: document.getElementById('heatEffect'),
-            particleContainer: document.getElementById('particleContainer'),
-            chartCanvas: document.getElementById('chartCanvas')
-        };
+    <!-- Modal: Quiz -->
+    <div id="modal-quiz" class="modal-panel fixed inset-0 z-50 hidden opacity-0 bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div data-modal-panel class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto scale-95 p-6 text-slate-800">
+            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <h2 id="quiz-title" class="text-xl font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-sm font-bold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500" data-i18n="showAnswers">顯示參考答案</button>
+                    <button type="button" class="text-slate-400 hover:text-slate-700 text-2xl leading-none px-2" data-close-modal="modal-quiz" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div id="quiz-body" class="text-sm"></div>
+        </div>
+    </div>
 
-        // --- Chart.js Initialization ---
-        let chart;
-        function initChart() {
-            const ctx = els.chartCanvas.getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        label: '溫度 vs 能量',
-                        data: [],
-                        borderColor: 'rgb(37, 99, 235)',
-                        backgroundColor: 'rgba(37, 99, 235, 0.5)',
-                        showLine: true,
-                        pointRadius: 0, // Hide points for smooth line
-                        borderWidth: 2
-                    }]
+<script>
+const materials = [
+    { id: 'water', nameZh: '水', nameEn: 'Water', c: 4200, color: '220, 38, 38', baseColor: '59, 130, 246', type: 'liquid' },
+    { id: 'oil', nameZh: '食用油', nameEn: 'Oil', c: 2000, color: '234, 179, 8', baseColor: '250, 204, 21', type: 'liquid' },
+    { id: 'aluminum', nameZh: '鋁', nameEn: 'Aluminum', c: 900, color: '156, 163, 175', baseColor: '156, 163, 175', type: 'solid' },
+    { id: 'iron', nameZh: '鐵', nameEn: 'Iron', c: 450, color: '75, 85, 99', baseColor: '107, 114, 128', type: 'solid' },
+    { id: 'copper', nameZh: '銅', nameEn: 'Copper', c: 385, color: '217, 119, 6', baseColor: '245, 158, 11', type: 'solid' },
+    { id: 'lead', nameZh: '鉛', nameEn: 'Lead', c: 130, color: '55, 65, 81', baseColor: '71, 85, 105', type: 'solid' }
+];
+
+const INITIAL_TEMP = 20;
+const MAX_TEMP = 120;
+const UPDATE_INTERVAL = 50;
+
+let currentLang = 'zh';
+let toastTimer = null;
+
+let state = {
+    material: materials[0],
+    mass: 1.0,
+    power: 1000,
+    currentTemp: INITIAL_TEMP,
+    totalEnergy: 0,
+    timeElapsed: 0,
+    isRunning: false,
+    timerId: null,
+    dataPoints: []
+};
+const quizState = { selections: {}, showAnswers: false };
+
+const translations = {
+    zh: {
+        appTitle: '物理實驗室：比熱容量',
+        formulaBadge: '公式：E = mcΔT',
+        btnSteps: '觀察步驟',
+        btnPrinciple: '原理解說',
+        btnQuiz: '課堂問題',
+        settingsTitle: '實驗設定',
+        labelMaterial: '選擇物質',
+        labelSHC: '比熱容量 (c)',
+        labelMass: '質量 (m)',
+        labelPower: '加熱器功率 (P)',
+        btnStart: '開始加熱',
+        btnPause: '暫停',
+        btnReset: '重置',
+        dataTitle: '實時數據',
+        labelTemp: '溫度 (T)',
+        labelEnergy: '已輸入能量 (E)',
+        labelTime: '加熱時間 (t)',
+        chartTitle: '能量 vs 溫度 關係圖',
+        chartSlopeNote: '斜率 (Slope) = 1 / (mc)',
+        chartDataset: '溫度 vs 能量',
+        chartX: '輸入能量 (Joules)',
+        chartY: '溫度 (°C)',
+        observeTip: '<span class="font-bold">觀察重點：</span> 比熱容量 (<span class="font-serif italic">c</span>) 越大的物質（如水），溫度上升得越慢。這代表它能儲存更多的熱能。看看比較「水」和「銅」的圖線斜率有什麼不同？',
+        maxTempMsg: '已達到最高模擬溫度（120°C）！',
+        stepsTitle: '觀察步驟',
+        principleTitle: '原理解說',
+        quizTitle: '課堂問題',
+        showAnswers: '顯示參考答案',
+        hideAnswers: '隱藏參考答案',
+        shortHint: '請操作模擬後以短答作答。',
+        step1: '選擇物質 <strong>水</strong>，質量約 <strong>1.0 kg</strong>、功率約 <strong>1000 W</strong>。按「重置」，確認溫度約 <strong>20°C</strong>、能量與時間為 0。按「開始加熱」，觀察溫度讀數、溫度計高度與右圖「能量 vs 溫度」線：水升溫是否相對緩慢？約加熱至 40–50°C 可暫停。',
+        step2: '按「重置」。改選 <strong>銅</strong>（或 <strong>鉛</strong>），維持質量約 1.0 kg、功率約 1000 W，再開始加熱。比較：同樣累積能量下，溫度升得是否比水快？圖線斜率是否較陡？（對照顯示的比熱數值。）',
+        step3: '選回 <strong>水</strong>，重置後把質量調到約 <strong>2.0 kg</strong>（功率維持約 1000 W）再跑一段；再重置改回約 <strong>0.5 kg</strong> 再跑。說明質量如何影響升溫快慢，以及右圖斜率（相對能量）如何變化。',
+        step4: '用 <strong>E = mcΔT</strong> 一句話總結：為什麼「比熱大的物質較難升溫」？並指出本模擬假設了什麼（恒功率加熱、忽略熱損失／相變，溫度上限 120°C 為模擬上限）。',
+        principleConceptTitle: '概念',
+        principleConcept: '<strong>比熱容量（specific heat capacity）c</strong> 描述：使 <strong>1 kg</strong> 物質溫度上升 <strong>1°C</strong> 大約需要多少焦耳的能量。不同物質的 c 差很多——水特別大，許多金屬較小。本模擬用可調質量 m、恒功率加熱器功率 P，以及六種物質的查表 c，讓你觀察溫度如何隨輸入能量上升。',
+        principleMechTitle: '機制',
+        principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>能量輸入</strong>：加熱器以功率 P（W = J/s）運作；經過時間 t 後，輸入能量近似 E = P·t（理想、無散失）。</li><li><strong>溫升公式</strong>：忽略相變與熱損失時，E = m c ΔT ⇒ ΔT = E / (m c)。因此固定 E 與 m 時，c 越大 → ΔT 越小。</li><li><strong>圖線意義</strong>：以「輸入能量」為橫軸、「溫度」為縱軸時，理想情況下接近直線，斜率約為 1/(m c)。水（大 c）線較平；鉛／銅（小 c）線較陡。加大 m 也會使斜率變小。</li><li><strong>功率的角色</strong>：P 較大時，同樣時鐘時間內 E 累積較快，溫度讀數升得較快；但若只看「對能量」的斜率，理論上仍由 m 與 c 決定（本模擬為教學示意）。</li><li><strong>視覺線索</strong>：容器色偏紅、溫度計液柱升高、粒子抖動加劇，皆對應溫度／「微觀動能」示意，不是精確分子動力學。</li></ol>',
+        principleExampleTitle: '日常例子',
+        principleExample: '沿海／湖泊氣候較溫和（水的比熱大，升溫降溫慢）；煮湯時水要加熱很久才沸騰；沙漠晝夜溫差大（沙／乾土比熱較小）；散熱片常用金屬（較易隨吸熱而溫升並再散熱——此處只借「金屬 c 較小」的直覺，勿與輻射顏色檔混談）。',
+        q1: '選擇 <strong>水</strong>，質量約 1.0 kg、功率約 1000 W，重置後開始加熱一小段。再重置改選 <strong>銅</strong>，相同質量與功率再加熱一小段。最可能觀察到？',
+        q1a: 'A. 銅的比熱顯示值較水小，同樣能量輸入下銅升溫較快，圖線較陡',
+        q1b: 'B. 水與銅的溫度永遠完全相同，曲線重合',
+        q1c: 'C. 銅的比熱一定大於水，所以銅升溫更慢',
+        q1d: 'D. 只有改功率才會改變任何溫度讀數，換物質無效',
+        q1ans: 'A。對應 c_water=4200 ≫ c_copper=385；ΔT = E/(m c)。',
+        q2: '固定物質為水、功率約 1000 W。比較 0.5 kg 與 2.0 kg 兩次加熱前，先預測 T–t 斜率差異，再操作核對。',
+        q2a: 'A. 質量較大時，同樣能量下溫升較小，能量–溫度圖線較平（斜率較小）',
+        q2b: 'B. 質量越大，斜率一定越陡',
+        q2c: 'C. 質量滑桿只改容器高度，從不影響溫度公式',
+        q2d: 'D. 必須先選鉛，質量才會進入 E = mcΔT',
+        q2ans: 'A。對齊 ΔT = E/(m c) 與圖註斜率 ≈ 1/(m c)。',
+        q3: '根據模擬內建數值，下列哪組「比熱由大到小」最接近？',
+        q3a: 'A. 水 > 食用油 > 鋁 > 鐵 > 銅 > 鉛',
+        q3b: 'B. 鉛 > 銅 > 鐵 > 鋁 > 油 > 水',
+        q3c: 'C. 所有物質的 c 在本模擬中都固定為 4200',
+        q3d: 'D. 只有固體才有比熱，液體沒有',
+        q3ans: 'A。直接對照 materials 表：4200, 2000, 900, 450, 385, 130。',
+        q4: '選同一物質（例如鋁），質量固定約 1.0 kg。先用功率約 <strong>500 W</strong> 加熱一小段，記下某能量下的溫度；重置後改約 <strong>1500 W</strong> 再跑到相近的輸入能量。用自己的話說明：功率主要改變了什麼？能量–溫度圖的斜率大致變了沒有？為什麼？',
+        q4ans: '功率改變「單位時間累積能量的快慢」（同樣時鐘時間內升溫快慢），但對「溫度對能量」的理想斜率 ≈ 1/(m c) 主要由 m、c 決定，功率不應大幅改變該斜率（本模擬教學近似）。',
+        q5: '關於本模擬所代表的關係，哪項最正確？',
+        q5a: 'A. 在忽略熱損失與相變的示意下，輸入能量、質量、比熱與溫升滿足 E = mcΔT；c 越大同條件下升溫越慢',
+        q5b: 'B. 本模擬主要展示啞黑／銀色表面的輻射發射與吸收',
+        q5c: 'C. 溫度曲線變陡只因為 Chart.js 強制把所有物質畫成同一條線',
+        q5d: 'D. 達 120°C 代表真實沸點，所有物質都會在此汽化',
+        q5ans: 'A。120°C 僅為模擬上限；勿與輻射顏色檔或潛熱相變檔混淆。'
+    },
+    en: {
+        appTitle: 'Physics Lab: Specific Heat Capacity',
+        formulaBadge: 'Formula: E = mcΔT',
+        btnSteps: 'Steps',
+        btnPrinciple: 'Principle',
+        btnQuiz: 'Quiz',
+        settingsTitle: 'Experiment settings',
+        labelMaterial: 'Select material',
+        labelSHC: 'Specific heat capacity (c)',
+        labelMass: 'Mass (m)',
+        labelPower: 'Heater power (P)',
+        btnStart: 'Start heating',
+        btnPause: 'Pause',
+        btnReset: 'Reset',
+        dataTitle: 'Live data',
+        labelTemp: 'Temperature (T)',
+        labelEnergy: 'Energy input (E)',
+        labelTime: 'Heating time (t)',
+        chartTitle: 'Energy vs Temperature',
+        chartSlopeNote: 'Slope ≈ 1 / (mc)',
+        chartDataset: 'Temperature vs Energy',
+        chartX: 'Energy input (Joules)',
+        chartY: 'Temperature (°C)',
+        observeTip: '<span class="font-bold">Focus:</span> Materials with larger specific heat capacity <span class="font-serif italic">c</span> (e.g. water) warm more slowly and store more thermal energy. Compare the chart slopes of water and copper.',
+        maxTempMsg: 'Maximum simulated temperature (120°C) reached!',
+        stepsTitle: 'Observation steps',
+        principleTitle: 'Principle',
+        quizTitle: 'Classroom quiz',
+        showAnswers: 'Show answers',
+        hideAnswers: 'Hide answers',
+        shortHint: 'Answer in your own words after using the sim.',
+        step1: 'Select <strong>water</strong>, mass ≈ <strong>1.0 kg</strong>, power ≈ <strong>1000 W</strong>. Press <strong>Reset</strong>; confirm ≈ <strong>20°C</strong> and energy/time at 0. Press <strong>Start heating</strong>. Watch the temperature readout, thermometer, and Energy–Temperature chart: does water warm relatively slowly? Pause around 40–50°C.',
+        step2: '<strong>Reset</strong>. Switch to <strong>copper</strong> (or <strong>lead</strong>), keep mass ≈ 1.0 kg and power ≈ 1000 W, then Start. Compare: for similar energy input, does temperature rise faster than water? Is the chart slope steeper? Match this to the displayed <em>c</em> value.',
+        step3: 'Select <strong>water</strong> again. After Reset, set mass ≈ <strong>2.0 kg</strong> (power ≈ 1000 W) and run; then Reset and try ≈ <strong>0.5 kg</strong>. Explain how mass changes the warming rate and the chart slope versus energy.',
+        step4: 'In one sentence using <strong>E = mcΔT</strong>, explain why a large specific heat capacity means slower warming. State the sim’s idealizations (constant power, ignore heat loss/phase change; 120°C is a sim cap).',
+        principleConceptTitle: 'Concept',
+        principleConcept: '<strong>Specific heat capacity <em>c</em></strong> is roughly the energy (in joules) needed to raise <strong>1 kg</strong> of a substance by <strong>1°C</strong>. Values differ a lot—water is especially large; many metals are smaller. This sim lets you change mass <em>m</em>, heater power <em>P</em>, and choose among six tabulated materials to watch temperature rise with energy input.',
+        principleMechTitle: 'Mechanism',
+        principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>Energy input</strong>: The heater runs at power P (W = J/s); after time t, input energy is approximately E = P·t (ideal, no losses).</li><li><strong>Temperature rise</strong>: With no phase change or heat loss, E = m c ΔT ⇒ ΔT = E / (m c). For fixed E and m, larger c means smaller ΔT.</li><li><strong>Chart meaning</strong>: Plotting temperature vs input energy gives a near-straight line with slope ≈ 1/(m c). Water (large c) is flatter; lead/copper (small c) steeper. Larger m also flattens the slope.</li><li><strong>Role of power</strong>: Higher P accumulates E faster in clock time, so the readout climbs faster; the slope <strong>versus energy</strong> is still set by m and c (teaching sketch).</li><li><strong>Visual cues</strong>: Redder fill, taller thermometer column, and livelier particles are qualitative temperature/“kinetic” cues—not full molecular dynamics.</li></ol>',
+        principleExampleTitle: 'Everyday example',
+        principleExample: 'Lakes moderate climate (large c of water); soup takes long to boil; deserts have large day–night swings (sand/dry soil often smaller c); metal heats quickly for the same energy input—do not mix this with the radiation-and-colour sim.',
+        q1: 'Select <strong>water</strong>, mass ≈ 1.0 kg, power ≈ 1000 W; Reset then Start briefly. Reset, switch to <strong>copper</strong>, same mass and power, Start again. What is most likely?',
+        q1a: 'A. Copper shows a smaller c than water, warms faster for similar energy, steeper chart slope',
+        q1b: 'B. Water and copper always share one identical temperature and overlapping curves',
+        q1c: 'C. Copper’s c must be larger than water’s, so copper warms more slowly',
+        q1d: 'D. Only power changes temperature; material choice does nothing',
+        q1ans: 'A. Matches c_water=4200 ≫ c_copper=385; ΔT = E/(m c).',
+        q2: 'Keep water and power ≈ 1000 W. Before comparing 0.5 kg vs 2.0 kg runs, predict how the T–t slope differs, then verify.',
+        q2a: 'A. Larger mass → smaller ΔT for the same energy → flatter Energy–Temperature slope',
+        q2b: 'B. Larger mass always makes the slope steeper',
+        q2c: 'C. The mass slider only changes beaker height and never affects the temperature formula',
+        q2d: 'D. Mass enters E = mcΔT only when lead is selected',
+        q2ans: 'A. Aligns with ΔT = E/(m c) and slope ≈ 1/(m c).',
+        q3: 'Using the sim’s built-in values, which order of specific heat capacity (largest → smallest) is closest?',
+        q3a: 'A. Water > oil > aluminum > iron > copper > lead',
+        q3b: 'B. Lead > copper > iron > aluminum > oil > water',
+        q3c: 'C. Every material is locked to c = 4200 in this sim',
+        q3d: 'D. Only solids have specific heat; liquids do not',
+        q3ans: 'A. Table values: 4200, 2000, 900, 450, 385, 130.',
+        q4: 'Keep one material (e.g. aluminum) and mass ≈ 1.0 kg. Run at ≈ <strong>500 W</strong> briefly and note temperature at some energy; Reset, then ≈ <strong>1500 W</strong> to a similar energy. In your own words: what does power mainly change? Does the Energy–Temperature slope change much? Why?',
+        q4ans: 'Power changes how fast energy accumulates in clock time; the ideal slope of T versus E ≈ 1/(m c) is set by m and c, so power should not greatly change that slope (teaching approximation).',
+        q5: 'Which statement best matches the relationship this sim represents?',
+        q5a: 'A. Ignoring losses and phase change, energy, mass, specific heat and temperature rise follow E = mcΔT; larger c means slower warming under the same conditions',
+        q5b: 'B. This sim mainly shows matte-black vs silver radiative emission and absorption',
+        q5c: 'C. Steeper curves happen only because Chart.js forces every material onto one identical line',
+        q5d: 'D. Reaching 120°C means real boiling; every material vaporizes there',
+        q5ans: 'A. 120°C is only a sim cap; do not confuse with radiation-colour or latent-heat sims.'
+    }
+};
+
+const els = {
+    select: document.getElementById('materialSelect'),
+    shcDisplay: document.getElementById('shcDisplay'),
+    massInput: document.getElementById('massInput'),
+    massValue: document.getElementById('massValue'),
+    massVisualLabel: document.getElementById('massVisualLabel'),
+    powerInput: document.getElementById('powerInput'),
+    powerValue: document.getElementById('powerValue'),
+    btnStart: document.getElementById('btnStart'),
+    btnPause: document.getElementById('btnPause'),
+    btnReset: document.getElementById('btnReset'),
+    tempDisplay: document.getElementById('tempDisplay'),
+    energyDisplay: document.getElementById('energyDisplay'),
+    timeDisplay: document.getElementById('timeDisplay'),
+    substanceContainer: document.getElementById('substanceContainer'),
+    substanceLabel: document.getElementById('substanceLabel'),
+    thermometerLiquid: document.getElementById('thermometerLiquid'),
+    heaterCoil: document.getElementById('heaterCoil'),
+    heatEffect: document.getElementById('heatEffect'),
+    particleContainer: document.getElementById('particleContainer'),
+    chartCanvas: document.getElementById('chartCanvas'),
+    toast: document.getElementById('toast-banner')
+};
+
+let chart;
+
+function materialLabel(mat) {
+    return currentLang === 'zh' ? mat.nameZh : mat.nameEn;
+}
+
+function showToast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.remove('hidden-toast');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+        els.toast.classList.add('hidden-toast');
+    }, 3500);
+}
+
+function populateMaterialSelect() {
+    const prev = els.select.value || state.material.id;
+    els.select.innerHTML = '';
+    materials.forEach(function (mat) {
+        const opt = document.createElement('option');
+        opt.value = mat.id;
+        opt.textContent = currentLang === 'zh'
+            ? mat.nameZh + ' (' + mat.nameEn + ')'
+            : mat.nameEn + ' (' + mat.nameZh + ')';
+        els.select.appendChild(opt);
+    });
+    els.select.value = prev;
+}
+
+function updateChartTexts() {
+    const t = translations[currentLang];
+    if (!chart) return;
+    chart.data.datasets[0].label = t.chartDataset;
+    chart.options.scales.x.title.text = t.chartX;
+    chart.options.scales.y.title.text = t.chartY;
+    chart.update('none');
+}
+
+function initChart() {
+    const ctx = els.chartCanvas.getContext('2d');
+    const t = translations[currentLang];
+    chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: t.chartDataset,
+                data: [],
+                borderColor: 'rgb(37, 99, 235)',
+                backgroundColor: 'rgba(37, 99, 235, 0.5)',
+                showLine: true,
+                pointRadius: 0,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+                x: {
+                    type: 'linear',
+                    position: 'bottom',
+                    title: { display: true, text: t.chartX },
+                    min: 0
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false, // Disable animation for performance
-                    scales: {
-                        x: {
-                            type: 'linear',
-                            position: 'bottom',
-                            title: { display: true, text: '輸入能量 (Joules)' },
-                            min: 0
-                        },
-                        y: {
-                            title: { display: true, text: '溫度 (°C)' },
-                            min: 0,
-                            max: MAX_TEMP
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `E: ${Math.round(context.parsed.x)} J, T: ${context.parsed.y.toFixed(1)}°C`;
-                                }
-                            }
+                y: {
+                    title: { display: true, text: t.chartY },
+                    min: 0,
+                    max: MAX_TEMP
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return 'E: ' + Math.round(context.parsed.x) + ' J, T: ' + context.parsed.y.toFixed(1) + '°C';
                         }
                     }
                 }
-            });
-        }
-
-        // --- Initialization ---
-        function init() {
-            // Populate Select
-            materials.forEach(mat => {
-                const opt = document.createElement('option');
-                opt.value = mat.id;
-                opt.textContent = mat.name;
-                els.select.appendChild(opt);
-            });
-
-            // Event Listeners
-            els.select.addEventListener('change', handleMaterialChange);
-            els.massInput.addEventListener('input', handleMassChange);
-            els.powerInput.addEventListener('input', handlePowerChange);
-            els.btnStart.addEventListener('click', toggleSimulation);
-            els.btnPause.addEventListener('click', toggleSimulation);
-            els.btnReset.addEventListener('click', resetSimulation);
-
-            // Initial Update
-            initChart();
-            updateUI();
-            createParticles();
-        }
-
-        // --- Core Physics Loop ---
-        function physicsLoop() {
-            if (!state.isRunning || state.currentTemp >= MAX_TEMP) {
-                if (state.currentTemp >= MAX_TEMP) {
-                    stopSimulation();
-                    alert('已達到最高模擬溫度！');
-                }
-                return;
-            }
-
-            // Physics Calculation
-            // E = P * t
-            // Energy added in this step (Joules)
-            const dt = UPDATE_INTERVAL / 1000; // seconds
-            const energyStep = state.power * dt;
-            
-            state.totalEnergy += energyStep;
-            state.timeElapsed += dt;
-
-            // dT = Q / (m * c)
-            const tempChange = energyStep / (state.mass * state.material.c);
-            state.currentTemp += tempChange;
-
-            // Update Chart Data
-            // Only push data every 5th frame to keep chart performant
-            if (state.totalEnergy % (state.power * 0.2) < energyStep * 2) {
-                 state.dataPoints.push({ x: state.totalEnergy, y: state.currentTemp });
-                 chart.data.datasets[0].data = state.dataPoints;
-                 chart.update();
-            }
-
-            updateUI();
-            updateVisuals();
-        }
-
-        // --- Event Handlers ---
-
-        function handleMaterialChange(e) {
-            const selectedId = e.target.value;
-            state.material = materials.find(m => m.id === selectedId);
-            resetSimulation();
-        }
-
-        function handleMassChange(e) {
-            state.mass = parseFloat(e.target.value);
-            resetSimulation(); // Changing mass during heating complicates the graph, simpler to reset
-        }
-
-        function handlePowerChange(e) {
-            state.power = parseInt(e.target.value);
-            els.powerValue.textContent = state.power;
-        }
-
-        function toggleSimulation() {
-            state.isRunning = !state.isRunning;
-            
-            if (state.isRunning) {
-                els.btnStart.classList.add('hidden');
-                els.btnPause.classList.remove('hidden');
-                els.heaterCoil.classList.replace('bg-gray-600', 'bg-red-600');
-                els.heatEffect.style.opacity = '1';
-                state.timerId = setInterval(physicsLoop, UPDATE_INTERVAL);
-            } else {
-                stopSimulation();
             }
         }
+    });
+}
 
-        function stopSimulation() {
-            state.isRunning = false;
-            clearInterval(state.timerId);
-            els.btnStart.classList.remove('hidden');
-            els.btnPause.classList.add('hidden');
-            els.heaterCoil.classList.replace('bg-red-600', 'bg-gray-600');
-            els.heatEffect.style.opacity = '0';
-        }
-
-        function resetSimulation() {
+function physicsLoop() {
+    if (!state.isRunning || state.currentTemp >= MAX_TEMP) {
+        if (state.currentTemp >= MAX_TEMP) {
             stopSimulation();
-            state.currentTemp = INITIAL_TEMP;
-            state.totalEnergy = 0;
-            state.timeElapsed = 0;
-            state.dataPoints = [{ x: 0, y: INITIAL_TEMP }];
-            
-            // Reset Chart
-            chart.data.datasets[0].data = state.dataPoints;
-            chart.scales.x.max = undefined; // Auto scale
-            chart.update();
+            showToast(translations[currentLang].maxTempMsg);
+        }
+        return;
+    }
+    const dt = UPDATE_INTERVAL / 1000;
+    const energyStep = state.power * dt;
+    state.totalEnergy += energyStep;
+    state.timeElapsed += dt;
+    const tempChange = energyStep / (state.mass * state.material.c);
+    state.currentTemp += tempChange;
+    if (state.totalEnergy % (state.power * 0.2) < energyStep * 2) {
+        state.dataPoints.push({ x: state.totalEnergy, y: state.currentTemp });
+        chart.data.datasets[0].data = state.dataPoints;
+        chart.update();
+    }
+    updateUI();
+    updateVisuals();
+}
 
-            updateUI();
-            updateVisuals();
+function handleMaterialChange(e) {
+    const selectedId = e.target.value;
+    state.material = materials.find(function (m) { return m.id === selectedId; });
+    resetSimulation();
+}
+
+function handleMassChange(e) {
+    state.mass = parseFloat(e.target.value);
+    resetSimulation();
+}
+
+function handlePowerChange(e) {
+    state.power = parseInt(e.target.value, 10);
+    els.powerValue.textContent = state.power;
+}
+
+function toggleSimulation() {
+    state.isRunning = !state.isRunning;
+    if (state.isRunning) {
+        els.btnStart.classList.add('hidden');
+        els.btnPause.classList.remove('hidden');
+        els.heaterCoil.classList.replace('bg-gray-600', 'bg-red-600');
+        els.heatEffect.style.opacity = '1';
+        state.timerId = setInterval(physicsLoop, UPDATE_INTERVAL);
+    } else {
+        stopSimulation();
+    }
+}
+
+function stopSimulation() {
+    state.isRunning = false;
+    clearInterval(state.timerId);
+    els.btnStart.classList.remove('hidden');
+    els.btnPause.classList.add('hidden');
+    els.heaterCoil.classList.replace('bg-red-600', 'bg-gray-600');
+    els.heatEffect.style.opacity = '0';
+}
+
+function resetSimulation() {
+    stopSimulation();
+    state.currentTemp = INITIAL_TEMP;
+    state.totalEnergy = 0;
+    state.timeElapsed = 0;
+    state.dataPoints = [{ x: 0, y: INITIAL_TEMP }];
+    chart.data.datasets[0].data = state.dataPoints;
+    chart.scales.x.max = undefined;
+    chart.update();
+    updateUI();
+    updateVisuals();
+}
+
+function updateUI() {
+    els.shcDisplay.textContent = state.material.c;
+    els.massValue.textContent = state.mass.toFixed(1);
+    els.massVisualLabel.textContent = state.mass.toFixed(1) + ' kg';
+    els.tempDisplay.textContent = state.currentTemp.toFixed(1);
+    els.energyDisplay.textContent = Math.floor(state.totalEnergy);
+    els.timeDisplay.textContent = state.timeElapsed.toFixed(1);
+}
+
+function updateVisuals() {
+    const progress = (state.currentTemp - 20) / 100;
+    const clampedProgress = Math.min(Math.max(progress, 0), 1);
+    const h = 40 + (state.mass * 30);
+    els.substanceContainer.style.height = h + 'px';
+    els.substanceContainer.style.width = state.material.type === 'liquid' ? '160px' : '120px';
+    const baseRGB = state.material.baseColor.split(',').map(Number);
+    const hotRGB = [255, 50, 50];
+    const currentR = Math.round(baseRGB[0] + (hotRGB[0] - baseRGB[0]) * clampedProgress);
+    const currentG = Math.round(baseRGB[1] + (hotRGB[1] - baseRGB[1]) * clampedProgress);
+    const currentB = Math.round(baseRGB[2] + (hotRGB[2] - baseRGB[2]) * clampedProgress);
+    els.substanceContainer.style.backgroundColor = 'rgba(' + currentR + ', ' + currentG + ', ' + currentB + ', 0.8)';
+    els.substanceLabel.textContent = materialLabel(state.material);
+    const thermHeight = (state.currentTemp / 120) * 100;
+    els.thermometerLiquid.style.height = Math.min(thermHeight, 100) + '%';
+    updateParticles(clampedProgress);
+}
+
+function createParticles() {
+    els.particleContainer.innerHTML = '';
+    for (let i = 0; i < 15; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = Math.random() * 6 + 4;
+        p.style.width = size + 'px';
+        p.style.height = size + 'px';
+        p.style.left = (Math.random() * 100) + '%';
+        p.style.top = (Math.random() * 100) + '%';
+        els.particleContainer.appendChild(p);
+    }
+}
+
+function updateParticles(heatProgress) {
+    const shake = heatProgress * 5;
+    const particles = els.particleContainer.children;
+    for (let p of particles) {
+        const dx = (Math.random() - 0.5) * shake;
+        const dy = (Math.random() - 0.5) * shake;
+        p.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+    }
+}
+
+function setDocumentLang() {
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+}
+
+function toggleLanguage() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    updateLanguageUI();
+}
+
+function renderSteps() {
+    const t = translations[currentLang];
+    document.getElementById('steps-body').innerHTML = [t.step1, t.step2, t.step3, t.step4].map(function (s) {
+        return '<li>' + s + '</li>';
+    }).join('');
+}
+
+function renderPrinciple() {
+    const t = translations[currentLang];
+    document.getElementById('principle-body').innerHTML =
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleConceptTitle + '</h3><p>' + t.principleConcept + '</p></div>' +
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleMechTitle + '</h3>' + t.principleMech + '</div>' +
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleExampleTitle + '</h3><p>' + t.principleExample + '</p></div>';
+}
+
+let quizAnswersVisible = false;
+
+        function renderQuiz() {
+            const texts = translations[currentLang];
+            const body = document.getElementById('quiz-body');
+            if (!body) return;
+            const langIsZh = (currentLang === 'zh');
+            const ref = texts.quizRef || (langIsZh ? '參考答案' : 'Reference answer');
+            const optKey = (qid, L) => {
+                const lower = qid + L.toLowerCase();
+                const upper = qid + L.toUpperCase();
+                return texts[lower] != null ? lower : upper;
+            };
+            const mkChoice = (qid) => ['A', 'B', 'C', 'D'].map(L => {
+                const key = optKey(qid, L);
+                return '<label class="flex items-start gap-2 rounded-lg border p-2 cursor-pointer"><input type="radio" name="' + qid + '" class="mt-1 accent-violet-600"><span>' + (texts[key] || '') + '</span></label>';
+            }).join('');
+            const vis = quizAnswersVisible;
+            const ans = (key) => vis
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+            const openHint = texts.shortHint || texts.openHint || '';
+            const block = (n, qid, mc) => {
+                let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
+                if (mc) h += '<div class="grid gap-1.5">' + mkChoice(qid) + '</div>';
+                else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
+                return h + ans(qid + 'ans') + '</div>';
+            };
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            const ansBtn = document.getElementById('btn-quiz-answers');
+            if (ansBtn) ansBtn.textContent = vis ? texts.hideAnswers : texts.showAnswers;
+            const modal = document.getElementById('modal-quiz');
+            if (vis && typeof typesetMath === 'function' && modal) typesetMath(modal);
         }
 
-        // --- UI & Visual Updates ---
 
-        function updateUI() {
-            els.shcDisplay.textContent = state.material.c;
-            els.massValue.textContent = state.mass.toFixed(1);
-            els.massVisualLabel.textContent = state.mass.toFixed(1) + ' kg';
-            
-            els.tempDisplay.textContent = state.currentTemp.toFixed(1);
-            els.energyDisplay.textContent = Math.floor(state.totalEnergy);
-            els.timeDisplay.textContent = state.timeElapsed.toFixed(1);
-        }
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    void modal.offsetWidth;
+    modal.classList.remove('opacity-0');
+    const panel = modal.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.remove('scale-95');
+}
 
-        function updateVisuals() {
-            // 1. Substance Appearance
-            // Change Color based on Temperature (Blue -> Red interpolation)
-            // Map temp 20-120 to hue 240 (blue) - 0 (red)
-            const progress = (state.currentTemp - 20) / (100); // 0 to 1
-            const clampedProgress = Math.min(Math.max(progress, 0), 1);
-            
-            // Substance Height based on mass (Linear scaling for visual)
-            // Min height 60px, Max height 180px
-            const h = 40 + (state.mass * 30);
-            els.substanceContainer.style.height = `${h}px`;
-            els.substanceContainer.style.width = state.material.type === 'liquid' ? '160px' : '120px'; // Solids are narrower blocks
-            
-            // Color Logic
-            // Base color defined in material, but we blend it with Red as it heats
-            const baseRGB = state.material.baseColor.split(',').map(Number);
-            const hotRGB = [255, 50, 50];
-            
-            const currentR = Math.round(baseRGB[0] + (hotRGB[0] - baseRGB[0]) * clampedProgress);
-            const currentG = Math.round(baseRGB[1] + (hotRGB[1] - baseRGB[1]) * clampedProgress);
-            const currentB = Math.round(baseRGB[2] + (hotRGB[2] - baseRGB[2]) * clampedProgress);
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal || modal.classList.contains('hidden')) return;
+    modal.classList.add('opacity-0');
+    const panel = modal.querySelector('[data-modal-panel]');
+    if (panel) panel.classList.add('scale-95');
+    setTimeout(function () { modal.classList.add('hidden'); }, 250);
+}
 
-            els.substanceContainer.style.backgroundColor = `rgba(${currentR}, ${currentG}, ${currentB}, 0.8)`;
-            els.substanceLabel.textContent = state.material.name.split(' ')[0];
+function closeAllModals() {
+    ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(closeModal);
+}
 
-            // 2. Thermometer Level
-            // Map 0-120C to 0-100% height
-            const thermHeight = (state.currentTemp / 120) * 100;
-            els.thermometerLiquid.style.height = `${Math.min(thermHeight, 100)}%`;
+function wireModals() {
+    document.getElementById('btn-steps').addEventListener('click', function () { openModal('modal-steps'); });
+    document.getElementById('btn-principle').addEventListener('click', function () { openModal('modal-principle'); });
+    document.getElementById('btn-quiz').addEventListener('click', function () { openModal('modal-quiz'); });
+    document.getElementById('btn-lang').addEventListener('click', toggleLanguage);
+    document.getElementById('btn-quiz-answers').addEventListener('click', function () {
+                quizAnswersVisible = !quizAnswersVisible;
+                renderQuiz();
+            });
+    document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+    });
+    ['modal-steps', 'modal-principle', 'modal-quiz'].forEach(function (id) {
+        const modal = document.getElementById(id);
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(id); });
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllModals(); });
+}
 
-            // 3. Particle Speed (Visual cue for kinetic energy)
-            updateParticles(clampedProgress);
-        }
+function init() {
+    populateMaterialSelect();
+    els.select.addEventListener('change', handleMaterialChange);
+    els.massInput.addEventListener('input', handleMassChange);
+    els.powerInput.addEventListener('input', handlePowerChange);
+    els.btnStart.addEventListener('click', toggleSimulation);
+    els.btnPause.addEventListener('click', toggleSimulation);
+    els.btnReset.addEventListener('click', resetSimulation);
+    initChart();
+    wireModals();
+    updateLanguageUI();
+    updateUI();
+    updateVisuals();
+    createParticles();
+    state.dataPoints = [{ x: 0, y: INITIAL_TEMP }];
+    chart.data.datasets[0].data = state.dataPoints;
+    chart.update();
+}
 
-        // Simple particle system for kinetic energy visualization
-        function createParticles() {
-            els.particleContainer.innerHTML = '';
-            for(let i=0; i<15; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                const size = Math.random() * 6 + 4;
-                p.style.width = `${size}px`;
-                p.style.height = `${size}px`;
-                p.style.left = `${Math.random() * 100}%`;
-                p.style.top = `${Math.random() * 100}%`;
-                els.particleContainer.appendChild(p);
-            }
-        }
-
-        function updateParticles(heatProgress) {
-            // heatProgress is 0 to 1
-            const speed = 1 + (heatProgress * 10); // Speed multiplier
-            const shake = heatProgress * 5; // Jitter amount
-            
-            const particles = els.particleContainer.children;
-            for(let p of particles) {
-                // Simple jitter animation manually updated roughly or via CSS override? 
-                // CSS is better for performance. Let's update inline styles for transform.
-                const dx = (Math.random() - 0.5) * shake;
-                const dy = (Math.random() - 0.5) * shake;
-                p.style.transform = `translate(${dx}px, ${dy}px)`;
-            }
-        }
-
-        // Start
-        init();
-
-    </script>
+init();
+</script>
 </body>
 </html>

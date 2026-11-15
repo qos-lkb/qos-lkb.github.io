@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黑體輻射與維恩位移 | Blackbody Radiation and Wien's Law</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入 MathJax 用於 LaTeX 數學公式渲染 -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <link rel="stylesheet" href="../css/sim-mathjax.css">
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* 自定義滑塊樣式 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            width: 100%;
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #f97316; /* orange-500 */
+            cursor: pointer;
+            margin-top: -10px; 
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: linear-gradient(90deg, #dc2626 0%, #f59e0b 30%, #fef08a 50%, #bae6fd 70%, #3b82f6 100%);
+            border-radius: 999px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* 恆星發光特效 */
+        .star-glow {
+            transition: all 0.2s ease-out;
+        }
+        .modal-backdrop { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease, opacity 0.3s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col p-4 overflow-x-hidden md:overflow-hidden">
+
+    <!-- 頂部標題列 -->
+    <header class="bg-white p-4 rounded-xl shadow-sm mb-4 flex justify-between items-center shrink-0 border border-slate-200">
+        <div>
+            <h1 class="text-2xl font-bold flex items-center gap-2 text-slate-800">
+                <!-- Icon: Sun/Star -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-500"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                <span data-i18n="title">黑體輻射與維恩位移</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-bold border border-orange-100" data-i18n="badge">天文</span>
+            </h1>
+            <p class="text-xs text-slate-500 mt-1 ml-9" data-i18n="subtitle">
+                探究溫度如何影響熱輻射光譜分佈與發光體顏色
+            </p>
+        </div>
+        <div class="flex gap-4 items-center">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-bold text-slate-700"><span data-i18n="btnSteps">觀察步驟</span></button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 text-sm font-bold hover:bg-rose-100"><span data-i18n="btnQuiz">課堂問題</span></button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 rounded-lg bg-orange-500 text-white text-sm font-bold"><span data-i18n="btnPrinciple">原理解說</span></button>
+            <button id="lang-btn" onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm">
+                中 / EN
+            </button>
+        </div>
+    </header>
+
+    <main class="flex flex-col lg:flex-row flex-1 gap-4 overflow-hidden h-full min-h-0">
+        
+        <!-- 左側面板：控制與實時數據 -->
+        <aside class="w-full lg:w-[300px] xl:w-[320px] order-2 lg:order-1 flex flex-col gap-4 shrink-0 h-full overflow-hidden min-h-0">
+            
+            <!-- 1. 溫度控制 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 shrink-0 z-20">
+                <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                    <span data-i18n="ctrlTitle">溫度控制 (Temperature)</span>
+                </h3>
+                
+                <div class="mb-6">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="text-sm text-slate-600 font-medium" data-i18n="lblTemp">黑體溫度 $T$</span>
+                        <span class="text-3xl font-mono font-bold text-orange-600">
+                            <span id="val-t">5778</span> <span class="text-lg text-orange-400">K</span>
+                        </span>
+                    </div>
+                    <input type="range" id="temp-slider" min="2500" max="15000" step="10" value="5778" oninput="updateSimulation()">
+                    <div class="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
+                        <span>2500K</span>
+                        <span>15000K</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="setPreset(3000)" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-orange-300 transition-all text-xs font-bold text-slate-600 flex flex-col items-center gap-1">
+                        <div class="w-4 h-4 rounded-full" style="background-color: #ffb46b;"></div>
+                        <span data-i18n="presetBulb">白熾燈泡</span>
+                        <span class="font-mono text-[10px] text-slate-400">3000K</span>
+                    </button>
+                    <button onclick="setPreset(5778)" class="p-2 border border-orange-400 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all text-xs font-bold text-orange-700 flex flex-col items-center gap-1 ring-1 ring-orange-200" id="btn-preset-sun">
+                        <div class="w-4 h-4 rounded-full" style="background-color: #fff4e8;"></div>
+                        <span data-i18n="presetSun">太陽</span>
+                        <span class="font-mono text-[10px] text-orange-400">5778K</span>
+                    </button>
+                    <button onclick="setPreset(9940)" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-blue-300 transition-all text-xs font-bold text-slate-600 flex flex-col items-center gap-1">
+                        <div class="w-4 h-4 rounded-full" style="background-color: #c9e2ff;"></div>
+                        <span data-i18n="presetSirius">天狼星</span>
+                        <span class="font-mono text-[10px] text-slate-400">9940K</span>
+                    </button>
+                </div>
+
+                <!-- 顯示參考曲線開關 -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-600" data-i18n="toggleRef">顯示太陽參考曲線 (5778K)</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="ref-toggle" class="sr-only peer" checked onchange="updateSimulation()">
+                        <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-400"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 2. 實時數據儀表板 -->
+            <div class="bg-slate-800 rounded-xl p-5 text-white shadow-lg flex-1 overflow-y-auto flex flex-col relative">
+                <!-- 背景特效星星 -->
+                <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-xl">
+                    <div id="ambient-glow" class="absolute w-[200%] h-[200%] -top-1/2 -left-1/2 bg-radial-gradient opacity-20 mix-blend-screen transition-all duration-500"></div>
+                </div>
+
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2 relative z-10">
+                    <span class="bg-blue-900/50 text-blue-400 w-6 h-6 rounded-full flex items-center justify-center text-xs border border-blue-700/50">2</span>
+                    <span data-i18n="dataTitle">觀測數據</span>
+                </h3>
+                
+                <!-- 視覺化星星 -->
+                <div class="flex justify-center mb-6 relative z-10">
+                    <div class="relative w-28 h-28 flex items-center justify-center">
+                        <div id="star-visual" class="w-20 h-20 rounded-full star-glow bg-white shadow-[0_0_40px_20px_rgba(255,255,255,0.8)] border border-white/50"></div>
+                        <div class="absolute -bottom-6 text-xs text-slate-400 font-bold tracking-widest uppercase" data-i18n="lblVisualColor">模擬視覺顏色</div>
+                    </div>
+                </div>
+
+                <div class="space-y-4 font-mono text-sm relative z-10 mt-auto">
+                    <!-- 韋恩位移定律 -->
+                    <div class="bg-slate-700/50 p-3 rounded-lg border border-slate-600/50">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-slate-300 text-xs flex flex-col">
+                                <span class="font-sans font-bold text-amber-400" data-i18n="lblWien">Wien's Law</span>
+                                <span>峰值波長 $\lambda_{max}$</span>
+                            </span>
+                            <span class="text-2xl font-bold text-amber-300">
+                                <span id="val-lambda">502</span> <span class="text-xs font-normal text-slate-400">nm</span>
+                            </span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-lambda" class="h-full bg-amber-400 transition-all duration-300" style="width: 50%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 斯特凡-波茲曼定律 -->
+                    <div class="bg-slate-700/50 p-3 rounded-lg border border-slate-600/50">
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-slate-300 text-xs flex flex-col">
+                                <span class="font-sans font-bold text-rose-400" data-i18n="lblStefan">Stefan-Boltzmann</span>
+                                <span>總輻射功率 $E \propto T^4$</span>
+                            </span>
+                            <span class="text-xl font-bold text-rose-300">
+                                <span id="val-power">1.00</span> <span class="text-xs font-normal text-slate-400">E<sub>sun</sub></span>
+                            </span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-power" class="h-full bg-rose-400 transition-all duration-300" style="width: 10%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+        <!-- 右側：圖表與解說區 -->
+        <section class="order-1 lg:order-2 flex-1 flex flex-col gap-4 overflow-hidden min-w-0 min-h-[420px]">
+            <!-- 圖表區 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 p-4 flex flex-col min-h-[400px] relative">
+                <h2 class="text-lg font-bold flex items-center gap-2 mb-2 text-slate-700">
+                    <span class="bg-purple-100 text-purple-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
+                    <span data-i18n="chartTitle">黑體輻射光譜 (普朗克定律)</span>
+                </h2>
+                
+                <!-- 可見光標示說明 -->
+                <div class="absolute top-4 right-4 flex gap-3 text-[10px] font-bold text-slate-500 bg-white/80 backdrop-blur px-2 py-1 rounded shadow-sm z-10 border border-slate-100">
+                    <div class="flex items-center gap-1">
+                        <div class="w-3 h-3 rounded bg-gradient-to-r from-violet-500 via-green-500 to-red-500 opacity-50"></div>
+                        <span data-i18n="legendVisible">可見光區 (380-750nm)</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-3 h-0.5 bg-orange-500"></div>
+                        <span data-i18n="legendCurrent">當前溫度</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-3 h-0.5 border-t-2 border-dashed border-slate-400"></div>
+                        <span data-i18n="legendRef">參考(5778K)</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 w-full relative">
+                    <canvas id="spectrumChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 理論教學區 -->
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 shrink-0 text-sm text-slate-700 overflow-y-auto max-h-48">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-bold text-blue-800 mb-2 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                            <span data-i18n="thWienTitle">韋恩位移定律</span>
+                        </h4>
+                        <p class="mb-2 opacity-90" data-i18n="thWienDesc">黑體發出的輻射中，強度最強的波長 $\lambda_{max}$ 與其絕對溫度 $T$ 成反比。當溫度越高，峰值波長越短（越偏藍）。</p>
+                        <div class="bg-white/60 p-2 rounded text-center font-mono font-bold text-blue-900 border border-blue-200 shadow-inner">
+                            $$ \lambda_{max} = \frac{b}{T} $$
+                        </div>
+                        <p class="text-[10px] text-right mt-1 text-blue-600/70">($b \approx 2.898 \times 10^{-3} \text{ m}\cdot\text{K}$)</p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-rose-800 mb-2 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                            <span data-i18n="thPlanckTitle">總能量與普朗克定律</span>
+                        </h4>
+                        <p class="mb-2 opacity-90" data-i18n="thPlanckDesc">溫度不僅改變曲線的峰值位置，也大幅改變總輻射能量。曲線下方的總面積正比於溫度的四次方（$E = \sigma T^4$）。</p>
+                        <div class="bg-white/60 p-2 rounded text-center font-mono font-bold text-rose-900 border border-rose-200 shadow-inner">
+                            $$ I(\lambda, T) = \frac{2hc^2}{\lambda^5} \frac{1}{e^{\frac{hc}{\lambda kT}} - 1} $$
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- 翻譯字典 ---
+        const i18n = {
+            zh: {
+                quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案", btnQuiz: "課堂問題",
+                quizQ1: "維恩定律：溫度升高，峰值波長？", quizQ1a: "變長", quizQ1b: "變短", quizQ1c: "不變", quizQ1d: "消失",
+                quizQ1ans: "λ_max ∝ 1/T，愈熱峰愈短波。",
+                quizQ2: "預測 temp-slider 調至 10000 K 的峰值讀數，再操作。", quizQ2ans: "峰值波長變短、峰向藍側。",
+                quizQ3: "5778 K 太陽預設峰值在？", quizQ3a: "可見光", quizQ3b: "純紅外", quizQ3c: "γ 射線", quizQ3d: "聲波",
+                quizQ3ans: "太陽表面峰在可見段。",
+                quizQ4: "比較白熾燈泡 3000 K 與天狼星 9940 K 視覺顏色。", quizQ4ans: "3000 K 偏暖黃；9940 K 偏藍白。",
+                quizQ5: "關閉 ref-toggle 後？", quizQ5a: "僅顯示當前 T 曲線", quizQ5b: "T 變 0", quizQ5c: "無坐標", quizQ5d: "停止模擬",
+                quizQ5ans: "參考曲線只作對照，關閉後仍可調 T。",
+                title: "黑體輻射與維恩位移",
+                badge: "天文",
+                btnSteps: "觀察步驟",
+                btnPrinciple: "原理解說",
+                quizTitle: "課堂問題", quizShowAnswers: "顯示參考答案", quizHideAnswers: "隱藏參考答案", quizRef: "參考答案", btnQuiz: "課堂問題",
+                stepsTitle: "觀察步驟",
+                s1: "1. 拖動溫度，看恆星顏色與光譜曲線一起移動。",
+                s2: "2. 讀取峰值波長，核對維恩位移 λ_max T ≈ 常數。",
+                s3: "3. 比較白熾燈、太陽與天狼星三個預設。",
+                s4: "4. 開關太陽參考曲線，看面積如何隨 T⁴ 增大。",
+                m1t: "概念",
+                m1d: "黑體光譜由溫度決定。峰值波長與溫度成反比（維恩位移），總功率正比於 T⁴。",
+                m2t: "機制",
+                m2d: "普朗克定律給出每單位波長的輻射強度。溫度升高時峰值移向短波，曲線下面積急升。",
+                m3t: "生活例子",
+                m3d: "白熾燈偏黃、太陽近白、灼熱恆星偏藍；紅外測溫也利用同一關係。",
+                subtitle: "探究溫度如何影響熱輻射光譜分佈與發光體顏色",
+                ctrlTitle: "溫度控制 (Temperature)",
+                lblTemp: "黑體溫度 $T$",
+                presetBulb: "白熾燈泡",
+                presetSun: "太陽",
+                presetSirius: "天狼星",
+                toggleRef: "顯示太陽參考曲線 (5778K)",
+                dataTitle: "觀測數據",
+                lblVisualColor: "模擬視覺顏色",
+                lblWien: "Wien's Law",
+                lblStefan: "Stefan-Boltzmann",
+                chartTitle: "黑體輻射光譜 (普朗克定律)",
+                legendVisible: "可見光區 (380-750nm)",
+                legendCurrent: "當前溫度",
+                legendRef: "參考(5778K)",
+                thWienTitle: "韋恩位移定律",
+                thWienDesc: "黑體發出的輻射中，強度最強的波長 $\\lambda_{max}$ 與其絕對溫度 $T$ 成反比。當溫度越高，峰值波長越短（越偏藍）。",
+                thPlanckTitle: "總能量與普朗克定律",
+                thPlanckDesc: "溫度不僅改變曲線的峰值位置，也大幅改變總輻射能量。曲線下方的總面積正比於溫度的四次方（$E = \\sigma T^4$）。"
+            },
+            en: {
+                quizTitle: "Classroom questions", quizShowAnswers: "Show reference answers", quizHideAnswers: "Hide reference answers", quizRef: "Reference", btnQuiz: "Quiz",
+                quizQ1: "Wien law: hotter peak wavelength?", quizQ1a: "Longer", quizQ1b: "Shorter", quizQ1c: "Same", quizQ1d: "Vanishes",
+                quizQ1ans: "λ_max decreases as T increases.",
+                quizQ2: "Predict peak at 10000 K on temp-slider, then test.", quizQ2ans: "Peak shifts to shorter wavelength.",
+                quizQ3: "Sun 5778 K peak in?", quizQ3a: "Visible", quizQ3b: "Only IR", quizQ3c: "Gamma", quizQ3d: "Sound",
+                quizQ3ans: "Solar peak is in the visible band.",
+                quizQ4: "Compare 3000 K bulb vs Sirius 9940 K colours.", quizQ4ans: "3000 K warm yellow; 9940 K blue-white.",
+                quizQ5: "Turn off ref-toggle?", quizQ5a: "Only current T curve", quizQ5b: "T=0", quizQ5c: "No axes", quizQ5d: "Simulation stops",
+                quizQ5ans: "Reference overlay off; slider still works.",
+                title: "Blackbody Radiation & Wien's Law",
+                badge: "Astronomy",
+                btnSteps: "Steps",
+                btnPrinciple: "Principle",
+                stepsTitle: "Observation steps",
+                s1: "1. Drag temperature and watch colour and the spectrum move together.",
+                s2: "2. Read the peak wavelength and check Wien’s law.",
+                s3: "3. Compare the bulb, Sun and Sirius presets.",
+                s4: "4. Toggle the solar reference and see the area grow with T⁴.",
+                m1t: "Concept",
+                m1d: "A blackbody spectrum is set by temperature. Peak wavelength falls as T rises; total power scales as T⁴.",
+                m2t: "Mechanism",
+                m2d: "Planck’s law gives intensity per wavelength. Higher T shifts the peak to shorter wavelengths and raises the area under the curve.",
+                m3t: "Everyday examples",
+                m3d: "A bulb looks yellow, the Sun nearly white, and hot stars blue. Infrared thermometers use the same idea.",
+                subtitle: "Explore how temperature affects thermal spectra and emitter color",
+                ctrlTitle: "Temperature Control",
+                lblTemp: "Temperature $T$",
+                presetBulb: "Light Bulb",
+                presetSun: "The Sun",
+                presetSirius: "Sirius",
+                toggleRef: "Show Sun Reference (5778K)",
+                dataTitle: "Observation Data",
+                lblVisualColor: "Simulated Visual Color",
+                lblWien: "Wien's Law",
+                lblStefan: "Stefan-Boltzmann",
+                chartTitle: "Blackbody Spectrum (Planck's Law)",
+                legendVisible: "Visible Light (380-750nm)",
+                legendCurrent: "Current T",
+                legendRef: "Ref(5778K)",
+                thWienTitle: "Wien's Displacement Law",
+                thWienDesc: "The wavelength of maximum emission $\\lambda_{max}$ is inversely proportional to the absolute temperature $T$. Higher temperatures shift the peak to shorter (bluer) wavelengths.",
+                thPlanckTitle: "Total Energy & Planck's Law",
+                thPlanckDesc: "Temperature changes both peak position and total radiated energy drastically. The total area under the curve is proportional to $T^4$ ($E = \\sigma T^4$)."
+            }
+        };
+
+        let currentLang = 'zh';
+        let chartInstance = null;
+
+        // --- 物理計算與常數 ---
+        // 為了在圖表上呈現合理的數值與比例，使用簡化常數計算光譜輻射度
+        // x軸: 波長 (nm), 計算時轉為 μm
+        // I(λ, T) = 37418 / ( λ^5 * (exp(14388 / (λ*T)) - 1) )
+        function plancksLaw(wavelengthNm, T) {
+            const lambda = wavelengthNm / 1000.0; // convert to μm
+            if (lambda === 0) return 0;
+            const c1 = 37418;
+            const c2 = 14388;
+            const exponent = c2 / (lambda * T);
+            // 避免數值溢位
+            if (exponent > 700) return 0;
+            return c1 / (Math.pow(lambda, 5) * (Math.exp(exponent) - 1));
+        }
+
+        // 韋恩位移定律: λ_max = b / T (nm)
+        function calcWienPeak(T) {
+            const b = 2.8977729e6; // nm * K
+            return b / T;
+        }
+
+        // --- 色溫轉 RGB 演算法 (Tanner Helland algorithm) ---
+        function kelvinToRGB(kelvin) {
+            let temp = kelvin / 100;
+            let red, green, blue;
+
+            // Red
+            if (temp <= 66) {
+                red = 255;
+            } else {
+                red = temp - 60;
+                red = 329.698727446 * Math.pow(red, -0.1332047592);
+                if (red < 0) red = 0;
+                if (red > 255) red = 255;
+            }
+
+            // Green
+            if (temp <= 66) {
+                green = temp;
+                green = 99.4708025861 * Math.log(green) - 161.1195681661;
+                if (green < 0) green = 0;
+                if (green > 255) green = 255;
+            } else {
+                green = temp - 60;
+                green = 288.1221695283 * Math.pow(green, -0.0755148492);
+                if (green < 0) green = 0;
+                if (green > 255) green = 255;
+            }
+
+            // Blue
+            if (temp >= 66) {
+                blue = 255;
+            } else {
+                if (temp <= 19) {
+                    blue = 0;
+                } else {
+                    blue = temp - 10;
+                    blue = 138.5177312231 * Math.log(blue) - 305.0447927307;
+                    if (blue < 0) blue = 0;
+                    if (blue > 255) blue = 255;
+                }
+            }
+
+            return { r: Math.round(red), g: Math.round(green), b: Math.round(blue) };
+        }
+
+        // --- 初始化與事件 ---
+        window.onload = function() {
+            initChart();
+            updateSimulation();
+        };
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateLanguageUI();
+        }
+
+        function updateLanguageUI() {
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            const t = i18n[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) {
+                    el.innerHTML = t[key];
+                }
+            });
+            // 重新渲染公式
+            if(window.MathJax) {
+                MathJax.typesetPromise();
+            }
+            updateSimulation(); // 更新圖表標籤
+        }
+
+        function setPreset(temp) {
+            document.getElementById('temp-slider').value = temp;
+            
+            // UI Button Highlighting logic
+            const btns = document.querySelectorAll('button[onclick^="setPreset"]');
+            btns.forEach(b => {
+                b.className = "p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all text-xs font-bold text-slate-600 flex flex-col items-center gap-1";
+            });
+            const activeBtn = Array.from(btns).find(b => b.getAttribute('onclick').includes(temp));
+            if(activeBtn) {
+                activeBtn.className = "p-2 border border-orange-400 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all text-xs font-bold text-orange-700 flex flex-col items-center gap-1 ring-1 ring-orange-200";
+            }
+
+            updateSimulation();
+        }
+
+        // --- 主更新邏輯 ---
+        function updateSimulation() {
+            const T = parseInt(document.getElementById('temp-slider').value);
+            const showRef = document.getElementById('ref-toggle').checked;
+            
+            // 1. 更新數值顯示
+            document.getElementById('val-t').innerText = T;
+            
+            // 2. 計算峰值與總能量
+            const lambdaMax = calcWienPeak(T);
+            document.getElementById('val-lambda').innerText = Math.round(lambdaMax);
+            
+            // Power (Stefan-Boltzmann: proportional to T^4). Compare to sun (5778K)
+            const powerRatio = Math.pow(T / 5778, 4);
+            document.getElementById('val-power').innerText = powerRatio < 0.1 ? powerRatio.toFixed(3) : (powerRatio > 10 ? powerRatio.toFixed(0) : powerRatio.toFixed(1));
+
+            // 更新長條圖 (視覺化)
+            const lambdaPct = Math.min(100, Math.max(0, (lambdaMax - 100) / (3000 - 100) * 100));
+            document.getElementById('bar-lambda').style.width = `${lambdaPct}%`;
+            
+            // 能量跨度很大，用對數或限制最大值來顯示 bar
+            const powerPct = Math.min(100, (Math.log10(powerRatio) + 2) / 4 * 100); 
+            document.getElementById('bar-power').style.width = `${Math.max(2, powerPct)}%`;
+
+            // 3. 更新發光體顏色
+            const rgb = kelvinToRGB(T);
+            const rgbString = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+            const starVisual = document.getElementById('star-visual');
+            starVisual.style.backgroundColor = rgbString;
+            starVisual.style.boxShadow = `0 0 50px 20px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`;
+            
+            const ambient = document.getElementById('ambient-glow');
+            ambient.style.background = `radial-gradient(circle, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4) 0%, transparent 60%)`;
+
+            // 4. 更新圖表數據
+            updateChartData(T, showRef, lambdaMax);
+        }
+
+        // --- Chart.js 相關 ---
+        // 自定義 Plugin：繪製可見光光譜背景
+        const visibleSpectrumPlugin = {
+            id: 'visibleSpectrum',
+            beforeDraw: (chart) => {
+                const {ctx, chartArea: {top, bottom, left, right}, scales: {x}} = chart;
+                
+                // 可見光範圍約 380nm 到 750nm
+                const startX = x.getPixelForValue(380);
+                const endX = x.getPixelForValue(750);
+
+                if (startX < right && endX > left) {
+                    const drawStart = Math.max(startX, left);
+                    const drawEnd = Math.min(endX, right);
+                    
+                    const grad = ctx.createLinearGradient(startX, 0, endX, 0);
+                    grad.addColorStop(0, 'rgba(138, 43, 226, 0.15)'); // 紫
+                    grad.addColorStop(0.2, 'rgba(0, 0, 255, 0.15)');   // 藍
+                    grad.addColorStop(0.4, 'rgba(0, 255, 0, 0.15)');   // 綠
+                    grad.addColorStop(0.6, 'rgba(255, 255, 0, 0.15)'); // 黃
+                    grad.addColorStop(0.8, 'rgba(255, 165, 0, 0.15)'); // 橘
+                    grad.addColorStop(1, 'rgba(255, 0, 0, 0.15)');     // 紅
+                    
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(drawStart, top, drawEnd - drawStart, bottom - top);
+                }
+            }
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('spectrumChart').getContext('2d');
+            
+            Chart.register(visibleSpectrumPlugin);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Current Temp',
+                            data: [],
+                            borderColor: '#f97316',
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 0
+                        },
+                        {
+                            label: 'Sun (5778K)',
+                            data: [],
+                            borderColor: '#94a3b8',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            hidden: false
+                        },
+                        {
+                            // 用於標示 Peak 的點
+                            label: 'Peak',
+                            data: [],
+                            backgroundColor: '#dc2626',
+                            borderColor: 'white',
+                            borderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8,
+                            showLine: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0 // 拖動滑桿時即時響應，關閉全局動畫
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { display: false }, // 使用自定義圖例
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if(context.datasetIndex === 2) return `Peak: ${context.parsed.x} nm`;
+                                    return `Intensity: ${context.parsed.y.toFixed(0)}`;
+                                },
+                                title: function(context) {
+                                    return `Wavelength: ${context[0].parsed.x} nm`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: 'Wavelength λ (nm)', font: {weight: 'bold'} },
+                            min: 0,
+                            max: 3000,
+                            grid: { color: '#f1f5f9' },
+                            ticks: { stepSize: 500 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Spectral Radiance (kW/m²/μm)', font: {weight: 'bold'} },
+                            min: 0,
+                            grid: { color: '#f1f5f9' },
+                            suggestedMax: 100000 // 動態調整
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChartData(T, showRef, lambdaMax) {
+            const dataT = [];
+            const dataRef = [];
+            
+            // 產生 100 到 3000 nm 的數據點，間隔 20nm 確保平滑
+            for (let x = 100; x <= 3000; x += 20) {
+                dataT.push({ x: x, y: plancksLaw(x, T) });
+                if (showRef) {
+                    dataRef.push({ x: x, y: plancksLaw(x, 5778) });
+                }
+            }
+
+            const yMax = plancksLaw(lambdaMax, T);
+            const peakData = [{ x: lambdaMax, y: yMax }];
+
+            chartInstance.data.datasets[0].data = dataT;
+            chartInstance.data.datasets[1].data = dataRef;
+            chartInstance.data.datasets[1].hidden = !showRef;
+            chartInstance.data.datasets[2].data = peakData;
+
+            // 動態調整 Y 軸最大值，讓曲線隨溫度升高自動縮放
+            // 若包含參考線，確保 y 軸能同時顯示兩者
+            let requiredMax = yMax;
+            if (showRef) {
+                const refMax = plancksLaw(calcWienPeak(5778), 5778);
+                requiredMax = Math.max(yMax, refMax);
+            }
+            // 加上 10% 的邊距
+            chartInstance.options.scales.y.max = requiredMax * 1.1;
+
+            chartInstance.update();
+        }
+    </script>
+        <div id="modal-quiz" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="bg-gradient-to-r from-rose-500 to-pink-600 p-4 text-white flex justify-between items-center gap-3 shrink-0 flex-wrap">
+                <h2 id="quiz-title" class="text-lg font-bold" data-i18n="quizTitle">課堂問題</h2>
+                <button type="button" id="btn-quiz-answers" class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-bold border border-white/30" data-i18n="quizShowAnswers">顯示參考答案</button>
+                <button type="button" id="quiz-close" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 shrink-0" aria-label="關閉">✕</button>
+            </div>
+            <div id="quiz-list" class="p-5 overflow-y-auto space-y-3 text-sm text-slate-700"></div>
+            <div class="p-4 border-t flex justify-end shrink-0">
+                <button type="button" id="quiz-confirm" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl" data-i18n="modalClose">關閉</button>
+            </div>
+        </div>
+    </div>
+
+<div id="modal-steps" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="modal-content bg-white w-full max-w-lg rounded-3xl shadow-2xl scale-95 opacity-0 flex flex-col max-h-[88vh] overflow-hidden">
+            <div class="bg-orange-500 p-5 text-white flex justify-between items-center"><h2 id="steps-title" class="text-lg font-bold" data-i18n="stepsTitle">觀察步驟</h2><button type="button" id="steps-close" class="w-8 h-8 rounded-full bg-white/20" aria-label="關閉">✕</button></div>
+            <div class="p-6 space-y-3"><div class="bg-sky-50 p-4 rounded-2xl text-xs" data-i18n="s1">1. 拖動溫度，看恆星顏色與光譜曲線一起移動。</div><div class="bg-sky-50 p-4 rounded-2xl text-xs" data-i18n="s2">2. 讀取峰值波長，核對維恩位移。</div><div class="bg-sky-50 p-4 rounded-2xl text-xs" data-i18n="s3">3. 比較白熾燈、太陽與天狼星三個預設。</div><div class="bg-sky-50 p-4 rounded-2xl text-xs" data-i18n="s4">4. 開關太陽參考曲線，看面積如何隨 T⁴ 增大。</div></div>
+            <div class="p-4 text-right border-t"><button type="button" id="steps-confirm" class="px-5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl">關閉</button></div>
+        </div>
+    </div>
+    <div id="modal-principle" class="modal-backdrop fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-3xl shadow-2xl scale-95 opacity-0 flex flex-col max-h-[88vh] overflow-hidden">
+            <div class="bg-orange-500 p-5 text-white flex justify-between items-center"><h2 id="modal-title" class="text-lg font-bold" data-i18n="btnPrinciple">原理解說</h2><button type="button" id="modal-close" class="w-8 h-8 rounded-full bg-white/20" aria-label="關閉">✕</button></div>
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <div class="bg-slate-50 p-4 rounded-2xl"><h3 class="font-bold text-sm" data-i18n="m1t">概念</h3><p class="text-xs mt-1" data-i18n="m1d">黑體光譜由溫度決定。峰值波長與溫度成反比（維恩位移），總功率正比於 T⁴。</p></div>
+                <div class="bg-slate-50 p-4 rounded-2xl"><h3 class="font-bold text-sm" data-i18n="m2t">機制</h3><p class="text-xs mt-1" data-i18n="m2d">普朗克定律給出每單位波長的輻射強度。溫度升高時峰值移向短波，曲線下面積急升。</p></div>
+                <div class="bg-emerald-50 p-4 rounded-2xl"><h3 class="font-bold text-sm" data-i18n="m3t">生活例子</h3><p class="text-xs mt-1" data-i18n="m3d">白熾燈偏黃、太陽近白、灼熱恆星偏藍；紅外測溫也利用同一關係。</p></div>
+            </div>
+            <div class="p-4 text-right border-t"><button type="button" id="modal-confirm" class="px-5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl">關閉</button></div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        
+let quizAnswersVisible = false;
+function tq(k){return t(k);}
+function renderClassroomQuiz(){
+  const box=document.getElementById("quiz-list"); if(!box)return;
+  const mk=qid=>["A","B","C","D"].map(L=>`<label class="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 cursor-pointer"><input type="radio" name="${qid}" class="mt-0.5 accent-rose-600"><span>${L}. ${tq("quizQ"+qid.slice(1)+L.toLowerCase())}</span></label>`).join("");
+  const ans=k=>quizAnswersVisible?`<div class="mt-2 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>${tq("quizRef")}：</strong> ${tq(k)}</div>`:"";
+  const w=(n,inner)=>`<div class="rounded-xl border p-3"><p class="font-semibold text-rose-700 mb-2">Q${n} · ${tq("quizQ"+n)}</p>${inner}${ans("quizQ"+n+"ans")}</div>`;
+  box.innerHTML=w(1,mk("q1"))+w(2,"")+w(3,mk("q3"))+w(4,"")+w(5,mk("q5"));
+  const ab=document.getElementById("btn-quiz-answers"); if(ab) ab.textContent=quizAnswersVisible?tq("quizHideAnswers"):tq("quizShowAnswers");
+  if(window.MathJax?.typesetPromise) MathJax.typesetPromise([box]).catch(()=>{});
+}
+function openQuizModal(){ closeM("modal-principle"); closeM("modal-steps"); quizAnswersVisible=false; openM("modal-quiz"); renderClassroomQuiz(); }
+
+function openM(id){var m=document.getElementById(id),c=m.querySelector('.modal-content');m.classList.remove('opacity-0','pointer-events-none');c.classList.remove('scale-95','opacity-0');c.classList.add('scale-100','opacity-100');}
+        function closeM(id){var m=document.getElementById(id),c=m.querySelector('.modal-content');c.classList.add('scale-95','opacity-0');c.classList.remove('scale-100','opacity-100');m.classList.add('opacity-0','pointer-events-none');}
+        document.getElementById('btn-steps').onclick=function(){closeM('modal-principle');openM('modal-steps');};
+        document.getElementById('btn-principle').onclick=function(){closeM('modal-steps');openM('modal-principle');if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise();};
+        document.getElementById('steps-close').onclick=document.getElementById('steps-confirm').onclick=function(){closeM('modal-steps');};
+        document.getElementById('modal-close').onclick=document.getElementById('modal-confirm').onclick=function(){closeM('modal-principle');};
+        document.getElementById('modal-steps').addEventListener('click',function(e){if(e.target.id==='modal-steps')closeM('modal-steps');});
+        document.getElementById('modal-principle').addEventListener('click',function(e){if(e.target.id==='modal-principle')closeM('modal-principle');});
+        document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeM('modal-steps');closeM('modal-principle');}});
+    })();
+    </script>
+</body>
+</html>
+document.getElementById('btn-quiz')?.addEventListener('click',()=>{closeM('modal-steps');closeM('modal-principle');quizAnswersVisible=false;openM('modal-quiz');renderClassroomQuiz();});
+document.getElementById('quiz-close')?.onclick=document.getElementById('quiz-confirm')?.onclick=()=>closeM('modal-quiz');
+document.getElementById('modal-quiz')?.addEventListener('click',e=>{if(e.target.id==='modal-quiz')closeM('modal-quiz');});
+document.getElementById('btn-quiz-answers')?.addEventListener('click',()=>{quizAnswersVisible=!quizAnswersVisible;renderClassroomQuiz();});
