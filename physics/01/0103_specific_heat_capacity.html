@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>比熱容量模擬實驗</title>
+    <title>量度比熱容量（能量–溫度）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -82,9 +82,9 @@
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-600 mb-2" data-i18n="labelMaterial">選擇物質</label>
                     <select id="materialSelect" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50"></select>
-                    <div class="mt-2 p-3 bg-blue-50 rounded-lg">
+                    <div id="shcBox" class="mt-2 p-3 bg-blue-50 rounded-lg hidden">
                         <p class="text-sm text-blue-800 font-semibold">
-                            <span data-i18n="labelSHC">比熱容量 (c)</span>: <span id="shcDisplay" class="text-lg font-bold">4200</span> J/kg°C
+                            <span data-i18n="labelSHC">標準比熱容量 (c)</span>: <span id="shcDisplay" class="text-lg font-bold">4200</span> J/kg°C
                         </p>
                     </div>
                 </div>
@@ -107,6 +107,18 @@
                     </label>
                     <input type="range" id="powerInput" min="500" max="2000" step="100" value="1000"
                            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500">
+                </div>
+
+                <div class="mb-6 space-y-2">
+                    <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="showAccepted" class="mt-1 accent-blue-600">
+                        <span data-i18n="showAccepted">顯示標準比熱（核對用）</span>
+                    </label>
+                    <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="heatLoss" class="mt-1 accent-amber-600">
+                        <span data-i18n="heatLoss">計入熱損失</span>
+                    </label>
+                    <p id="heatLossNote" class="hidden text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" data-i18n="heatLossNote">加熱時部分能量散到周圍。用電能 E = Pt 計算的比熱會偏大，能量–溫度圖也不再是直線。</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -133,10 +145,24 @@
                         <span class="text-gray-600" data-i18n="labelEnergy">已輸入能量 (E)</span>
                         <span class="font-mono font-bold text-xl text-blue-600"><span id="energyDisplay">0</span> J</span>
                     </div>
-                    <div class="flex justify-between items-center">
+                    <div class="flex justify-between items-center border-b pb-2">
                         <span class="text-gray-600" data-i18n="labelTime">加熱時間 (t)</span>
                         <span class="font-mono font-bold text-xl text-gray-800"><span id="timeDisplay">0.0</span> s</span>
                     </div>
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <span class="text-gray-600" data-i18n="labelT0">初溫 (T₀)</span>
+                        <span class="font-mono font-bold text-lg text-gray-700"><span id="t0Display">20.0</span>°C</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600" data-i18n="labelDeltaT">溫升 (ΔT)</span>
+                        <span class="font-mono font-bold text-lg text-orange-600"><span id="deltaTDisplay">0.0</span>°C</span>
+                    </div>
+                </div>
+                <div class="mt-4 rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                    <div class="text-xs font-bold text-emerald-800" data-i18n="labelCExp">實驗比熱容量</div>
+                    <div class="font-mono font-bold text-2xl text-emerald-700 leading-tight"><span id="cExpDisplay">—</span> <span class="text-sm font-sans font-medium">J/kg°C</span></div>
+                    <p id="cExpDetail" class="text-xs text-emerald-900 mt-1 font-mono">c = E / (m ΔT)</p>
+                    <p id="cExpStatus" class="text-xs text-slate-600 mt-1"></p>
                 </div>
             </div>
         </div>
@@ -170,7 +196,7 @@
             <div class="bg-white p-4 rounded-xl shadow-lg">
                 <div class="flex justify-between items-center mb-2 flex-wrap gap-1">
                     <h3 class="text-lg font-bold text-gray-700" data-i18n="chartTitle">能量 vs 溫度 關係圖</h3>
-                    <div class="text-xs text-gray-500" data-i18n="chartSlopeNote">斜率 (Slope) = 1 / (mc)</div>
+                    <div class="text-xs text-gray-500" id="chartSlopeNote">斜率 (Slope) = 1 / (mc)</div>
                 </div>
                 <div class="relative h-64 w-full">
                     <canvas id="chartCanvas"></canvas>
@@ -243,6 +269,9 @@ const materials = [
 const INITIAL_TEMP = 20;
 const MAX_TEMP = 120;
 const UPDATE_INTERVAL = 50;
+const LOSS_K = 18;
+const SAMPLE_EVERY = 0.2;
+const C_MIN_DT = 0.4;
 
 let currentLang = 'zh';
 let toastTimer = null;
@@ -256,7 +285,10 @@ let state = {
     timeElapsed: 0,
     isRunning: false,
     timerId: null,
-    dataPoints: []
+    dataPoints: [],
+    showAccepted: false,
+    heatLoss: false,
+    sampleAcc: 0
 };
 const quizState = { selections: {}, showAnswers: false };
 
@@ -269,9 +301,12 @@ const translations = {
         btnQuiz: '課堂問題',
         settingsTitle: '實驗設定',
         labelMaterial: '選擇物質',
-        labelSHC: '比熱容量 (c)',
+        labelSHC: '標準比熱容量 (c)',
         labelMass: '質量 (m)',
         labelPower: '加熱器功率 (P)',
+        showAccepted: '顯示標準比熱（核對用）',
+        heatLoss: '計入熱損失',
+        heatLossNote: '加熱時部分能量散到周圍。用電能 E = Pt 計算的比熱會偏大，能量–溫度圖也不再是直線。',
         btnStart: '開始加熱',
         btnPause: '暫停',
         btnReset: '重置',
@@ -279,12 +314,21 @@ const translations = {
         labelTemp: '溫度 (T)',
         labelEnergy: '已輸入能量 (E)',
         labelTime: '加熱時間 (t)',
+        labelT0: '初溫 (T₀)',
+        labelDeltaT: '溫升 (ΔT)',
+        labelCExp: '實驗比熱容量',
+        cPending: '溫升仍太小，請先加熱片刻再計算。',
+        cIdeal: '忽略熱損失時，此值應接近標準比熱。',
+        cLoss: '熱損失令溫升變小，實驗比熱高於標準值。',
+        cEquilibrium: '加熱與熱損失近乎平衡，溫度幾乎不再上升，不宜再用這段計算。',
+        acceptedLine: '標準值 {c} J/kg°C · 誤差 {err}',
         chartTitle: '能量 vs 溫度 關係圖',
-        chartSlopeNote: '斜率 (Slope) = 1 / (mc)',
+        chartSlopeNote: '無熱損失時斜率 ≈ 1 / (mc)',
+        chartSlopeLoss: '有熱損失時圖線變彎，斜率小於 1/(mc)',
         chartDataset: '溫度 vs 能量',
         chartX: '輸入能量 (Joules)',
         chartY: '溫度 (°C)',
-        observeTip: '<span class="font-bold">觀察重點：</span> 比熱容量 (<span class="font-serif italic">c</span>) 越大的物質（如水），溫度上升得越慢。這代表它能儲存更多的熱能。看看比較「水」和「銅」的圖線斜率有什麼不同？',
+        observeTip: '<span class="font-bold">觀察重點：</span> 「實時數據」用 <span class="font-mono">c = E / (mΔT)</span> 即時計算實驗比熱。比熱越大（如水），同樣能量下溫升越慢、圖線越平。可打開「標準比熱」核對，或打開「熱損失」看實驗值為何偏高。',
         maxTempMsg: '已達到最高模擬溫度（120°C）！',
         stepsTitle: '觀察步驟',
         principleTitle: '原理解說',
@@ -292,23 +336,25 @@ const translations = {
         showAnswers: '顯示參考答案',
         hideAnswers: '隱藏參考答案',
         shortHint: '請操作模擬後以短答作答。',
-        step1: '選擇物質 <strong>水</strong>，質量約 <strong>1.0 kg</strong>、功率約 <strong>1000 W</strong>。按「重置」，確認溫度約 <strong>20°C</strong>、能量與時間為 0。按「開始加熱」，觀察溫度讀數、溫度計高度與右圖「能量 vs 溫度」線：水升溫是否相對緩慢？約加熱至 40–50°C 可暫停。',
-        step2: '按「重置」。改選 <strong>銅</strong>（或 <strong>鉛</strong>），維持質量約 1.0 kg、功率約 1000 W，再開始加熱。比較：同樣累積能量下，溫度升得是否比水快？圖線斜率是否較陡？（對照顯示的比熱數值。）',
+        step1: '先<strong>不要</strong>勾選熱損失。選擇物質 <strong>水</strong>，質量約 <strong>1.0 kg</strong>、功率約 <strong>1000 W</strong>。按「重置」，確認溫度約 <strong>20°C</strong>、能量與時間為 0。按「開始加熱」，看「實時數據」的實驗比熱 <span class="font-mono">c = E/(mΔT)</span> 是否穩定在約 4200。約加熱至 40–50°C 可暫停，再勾選「顯示標準比熱」核對誤差。',
+        step2: '按「重置」。改選 <strong>銅</strong>（或 <strong>鉛</strong>），維持質量約 1.0 kg、功率約 1000 W，再開始加熱。比較：同樣累積能量下，溫度升得是否比水快？圖線斜率是否較陡？勾選「顯示標準比熱」可對照：銅、鉛的 c 遠小於水。',
         step3: '選回 <strong>水</strong>，重置後把質量調到約 <strong>2.0 kg</strong>（功率維持約 1000 W）再跑一段；再重置改回約 <strong>0.5 kg</strong> 再跑。說明質量如何影響升溫快慢，以及右圖斜率（相對能量）如何變化。',
-        step4: '用 <strong>E = mcΔT</strong> 一句話總結：為什麼「比熱大的物質較難升溫」？並指出本模擬假設了什麼（恒功率加熱、忽略熱損失／相變，溫度上限 120°C 為模擬上限）。',
+        step4: '重置後勾選<strong>熱損失</strong>，仍用水、約 1.0 kg、1000 W 再加熱。比較實驗比熱與標準值，並看能量–溫度圖是否變彎。用 <strong>E = mcΔT</strong> 一句話說明：為什麼散失的電能會令算出的 c 偏大？本模擬上限 120°C，不處理相變。',
         principleConceptTitle: '概念',
         principleConcept: '<strong>比熱容量（specific heat capacity）c</strong> 描述：使 <strong>1 kg</strong> 物質溫度上升 <strong>1°C</strong> 大約需要多少焦耳的能量。不同物質的 c 差很多——水特別大，許多金屬較小。本模擬用可調質量 m、恒功率加熱器功率 P，以及六種物質的查表 c，讓你觀察溫度如何隨輸入能量上升。',
         principleMechTitle: '機制',
         principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>能量輸入</strong>：加熱器以功率 P（W = J/s）運作；經過時間 t 後，輸入能量近似 E = P·t（理想、無散失）。</li><li><strong>溫升公式</strong>：忽略相變與熱損失時，E = m c ΔT ⇒ ΔT = E / (m c)。因此固定 E 與 m 時，c 越大 → ΔT 越小。</li><li><strong>圖線意義</strong>：以「輸入能量」為橫軸、「溫度」為縱軸時，理想情況下接近直線，斜率約為 1/(m c)。水（大 c）線較平；鉛／銅（小 c）線較陡。加大 m 也會使斜率變小。</li><li><strong>功率的角色</strong>：P 較大時，同樣時鐘時間內 E 累積較快，溫度讀數升得較快；但若只看「對能量」的斜率，理論上仍由 m 與 c 決定（本模擬為教學示意）。</li><li><strong>視覺線索</strong>：容器色偏紅、溫度計液柱升高、粒子抖動加劇，皆對應溫度／「微觀動能」示意，不是精確分子動力學。</li></ol>',
+        principleMeasureTitle: '怎樣量度',
+        principleMeasure: '電熱法把浸沒式電熱器放進物質，電能 <span class="font-mono">E = P t</span>。讀初溫 T₀ 與末溫 T，溫升 ΔT = T − T₀，則 <span class="font-mono">c = E / (m ΔT)</span>。不勾選熱損失時，此值應等於表列標準比熱，能量–溫度圖為直線，斜率 ≈ 1/(mc)。勾選熱損失後，一部分電能散到周圍，溫升變小，用全部電能算出的 c 會<strong>偏大</strong>，圖線也會變彎。120°C 只是模擬上限。',
         principleExampleTitle: '日常例子',
-        principleExample: '沿海／湖泊氣候較溫和（水的比熱大，升溫降溫慢）；煮湯時水要加熱很久才沸騰；沙漠晝夜溫差大（沙／乾土比熱較小）；散熱片常用金屬（較易隨吸熱而溫升並再散熱——此處只借「金屬 c 較小」的直覺，勿與輻射顏色檔混談）。',
+        principleExample: '沿海／湖泊氣候較溫和（水的比熱大，升溫降溫慢）；煮湯時水要加熱很久才沸騰；沙漠晝夜溫差大（沙／乾土比熱較小）；量度金屬塊或液體比熱時，若沒有保溫，算出的 c 通常高於標準值。勿與輻射顏色檔或潛熱相變檔混談。',
         q1: '選擇 <strong>水</strong>，質量約 1.0 kg、功率約 1000 W，重置後開始加熱一小段。再重置改選 <strong>銅</strong>，相同質量與功率再加熱一小段。最可能觀察到？',
         q1a: 'A. 銅的比熱顯示值較水小，同樣能量輸入下銅升溫較快，圖線較陡',
         q1b: 'B. 水與銅的溫度永遠完全相同，曲線重合',
         q1c: 'C. 銅的比熱一定大於水，所以銅升溫更慢',
         q1d: 'D. 只有改功率才會改變任何溫度讀數，換物質無效',
         q1ans: 'A。對應 c_water=4200 ≫ c_copper=385；ΔT = E/(m c)。',
-        q2: '固定物質為水、功率約 1000 W。比較 0.5 kg 與 2.0 kg 兩次加熱前，先預測 T–t 斜率差異，再操作核對。',
+        q2: '固定物質為水、功率約 1000 W，不要開熱損失。比較 0.5 kg 與 2.0 kg 兩次加熱前，先預測能量–溫度圖的斜率，再操作核對。',
         q2a: 'A. 質量較大時，同樣能量下溫升較小，能量–溫度圖線較平（斜率較小）',
         q2b: 'B. 質量越大，斜率一定越陡',
         q2c: 'C. 質量滑桿只改容器高度，從不影響溫度公式',
@@ -337,9 +383,12 @@ const translations = {
         btnQuiz: 'Quiz',
         settingsTitle: 'Experiment settings',
         labelMaterial: 'Select material',
-        labelSHC: 'Specific heat capacity (c)',
+        labelSHC: 'Accepted specific heat (c)',
         labelMass: 'Mass (m)',
         labelPower: 'Heater power (P)',
+        showAccepted: 'Show accepted c (for checking)',
+        heatLoss: 'Include heat loss',
+        heatLossNote: 'Some energy escapes while heating. c calculated from electrical energy E = Pt is too high, and the energy–temperature graph is no longer straight.',
         btnStart: 'Start heating',
         btnPause: 'Pause',
         btnReset: 'Reset',
@@ -347,12 +396,21 @@ const translations = {
         labelTemp: 'Temperature (T)',
         labelEnergy: 'Energy input (E)',
         labelTime: 'Heating time (t)',
+        labelT0: 'Initial temperature (T₀)',
+        labelDeltaT: 'Temperature rise (ΔT)',
+        labelCExp: 'Measured specific heat',
+        cPending: 'Temperature rise is still too small — heat a little longer.',
+        cIdeal: 'With no heat loss, this should stay near the accepted value.',
+        cLoss: 'Heat loss reduces ΔT, so the measured c is higher than the accepted value.',
+        cEquilibrium: 'Heating and heat loss are nearly balanced; temperature has almost stopped rising. Do not use this stretch to calculate c.',
+        acceptedLine: 'Accepted {c} J/kg°C · error {err}',
         chartTitle: 'Energy vs Temperature',
-        chartSlopeNote: 'Slope ≈ 1 / (mc)',
+        chartSlopeNote: 'With no heat loss, slope ≈ 1 / (mc)',
+        chartSlopeLoss: 'With heat loss the line bends and the slope is less than 1/(mc)',
         chartDataset: 'Temperature vs Energy',
         chartX: 'Energy input (Joules)',
         chartY: 'Temperature (°C)',
-        observeTip: '<span class="font-bold">Focus:</span> Materials with larger specific heat capacity <span class="font-serif italic">c</span> (e.g. water) warm more slowly and store more thermal energy. Compare the chart slopes of water and copper.',
+        observeTip: '<span class="font-bold">Focus:</span> Live data computes <span class="font-mono">c = E / (mΔT)</span>. A larger c (water) means a slower rise and a flatter chart. Reveal the accepted value to check, or turn on heat loss to see why the measured c runs high.',
         maxTempMsg: 'Maximum simulated temperature (120°C) reached!',
         stepsTitle: 'Observation steps',
         principleTitle: 'Principle',
@@ -360,23 +418,25 @@ const translations = {
         showAnswers: 'Show answers',
         hideAnswers: 'Hide answers',
         shortHint: 'Answer in your own words after using the sim.',
-        step1: 'Select <strong>water</strong>, mass ≈ <strong>1.0 kg</strong>, power ≈ <strong>1000 W</strong>. Press <strong>Reset</strong>; confirm ≈ <strong>20°C</strong> and energy/time at 0. Press <strong>Start heating</strong>. Watch the temperature readout, thermometer, and Energy–Temperature chart: does water warm relatively slowly? Pause around 40–50°C.',
-        step2: '<strong>Reset</strong>. Switch to <strong>copper</strong> (or <strong>lead</strong>), keep mass ≈ 1.0 kg and power ≈ 1000 W, then Start. Compare: for similar energy input, does temperature rise faster than water? Is the chart slope steeper? Match this to the displayed <em>c</em> value.',
+        step1: 'Leave <strong>heat loss off</strong>. Select <strong>water</strong>, mass ≈ <strong>1.0 kg</strong>, power ≈ <strong>1000 W</strong>. Press <strong>Reset</strong>; confirm ≈ <strong>20°C</strong> and energy/time at 0. Press <strong>Start heating</strong> and watch measured <span class="font-mono">c = E/(mΔT)</span> in Live data settle near 4200. Pause around 40–50°C, then tick <strong>Show accepted c</strong> and check the error.',
+        step2: '<strong>Reset</strong>. Switch to <strong>copper</strong> (or <strong>lead</strong>), keep mass ≈ 1.0 kg and power ≈ 1000 W, then Start. Compare: for similar energy input, does temperature rise faster than water? Is the chart slope steeper? Tick <strong>Show accepted c</strong> to check: copper and lead have a much smaller c than water.',
         step3: 'Select <strong>water</strong> again. After Reset, set mass ≈ <strong>2.0 kg</strong> (power ≈ 1000 W) and run; then Reset and try ≈ <strong>0.5 kg</strong>. Explain how mass changes the warming rate and the chart slope versus energy.',
-        step4: 'In one sentence using <strong>E = mcΔT</strong>, explain why a large specific heat capacity means slower warming. State the sim’s idealizations (constant power, ignore heat loss/phase change; 120°C is a sim cap).',
+        step4: 'Reset, tick <strong>heat loss</strong>, and heat water again (≈ 1.0 kg, 1000 W). Compare measured c with the accepted value, and see whether the energy–temperature graph bends. In one sentence with <strong>E = mcΔT</strong>, explain why lost electrical energy makes the calculated c too high. 120°C is only a sim cap; there is no phase change.',
         principleConceptTitle: 'Concept',
         principleConcept: '<strong>Specific heat capacity <em>c</em></strong> is roughly the energy (in joules) needed to raise <strong>1 kg</strong> of a substance by <strong>1°C</strong>. Values differ a lot—water is especially large; many metals are smaller. This sim lets you change mass <em>m</em>, heater power <em>P</em>, and choose among six tabulated materials to watch temperature rise with energy input.',
         principleMechTitle: 'Mechanism',
         principleMech: '<ol class="list-decimal pl-5 space-y-2"><li><strong>Energy input</strong>: The heater runs at power P (W = J/s); after time t, input energy is approximately E = P·t (ideal, no losses).</li><li><strong>Temperature rise</strong>: With no phase change or heat loss, E = m c ΔT ⇒ ΔT = E / (m c). For fixed E and m, larger c means smaller ΔT.</li><li><strong>Chart meaning</strong>: Plotting temperature vs input energy gives a near-straight line with slope ≈ 1/(m c). Water (large c) is flatter; lead/copper (small c) steeper. Larger m also flattens the slope.</li><li><strong>Role of power</strong>: Higher P accumulates E faster in clock time, so the readout climbs faster; the slope <strong>versus energy</strong> is still set by m and c (teaching sketch).</li><li><strong>Visual cues</strong>: Redder fill, taller thermometer column, and livelier particles are qualitative temperature/“kinetic” cues—not full molecular dynamics.</li></ol>',
+        principleMeasureTitle: 'How it is measured',
+        principleMeasure: 'In the electrical method an immersion heater supplies <span class="font-mono">E = P t</span>. Read T₀ and the later temperature T, so ΔT = T − T₀ and <span class="font-mono">c = E / (m ΔT)</span>. With heat loss off, this matches the tabulated c and the energy–temperature graph is straight with slope ≈ 1/(mc). With heat loss on, some electrical energy escapes, ΔT is smaller, and c worked out from the full electrical energy is <strong>too high</strong>; the graph bends. 120°C is only a sim cap.',
         principleExampleTitle: 'Everyday example',
-        principleExample: 'Lakes moderate climate (large c of water); soup takes long to boil; deserts have large day–night swings (sand/dry soil often smaller c); metal heats quickly for the same energy input—do not mix this with the radiation-and-colour sim.',
+        principleExample: 'Lakes moderate climate (large c of water); soup takes long to boil; deserts have large day–night swings. When measuring c of a metal or a liquid, poor insulation usually makes the result higher than the accepted value. Do not mix this with the radiation-and-colour sim or latent-heat sims.',
         q1: 'Select <strong>water</strong>, mass ≈ 1.0 kg, power ≈ 1000 W; Reset then Start briefly. Reset, switch to <strong>copper</strong>, same mass and power, Start again. What is most likely?',
         q1a: 'A. Copper shows a smaller c than water, warms faster for similar energy, steeper chart slope',
         q1b: 'B. Water and copper always share one identical temperature and overlapping curves',
         q1c: 'C. Copper’s c must be larger than water’s, so copper warms more slowly',
         q1d: 'D. Only power changes temperature; material choice does nothing',
         q1ans: 'A. Matches c_water=4200 ≫ c_copper=385; ΔT = E/(m c).',
-        q2: 'Keep water and power ≈ 1000 W. Before comparing 0.5 kg vs 2.0 kg runs, predict how the T–t slope differs, then verify.',
+        q2: 'Keep water, power ≈ 1000 W, and heat loss off. Before comparing 0.5 kg vs 2.0 kg, predict the energy–temperature slope, then verify.',
         q2a: 'A. Larger mass → smaller ΔT for the same energy → flatter Energy–Temperature slope',
         q2b: 'B. Larger mass always makes the slope steeper',
         q2c: 'C. The mass slider only changes beaker height and never affects the temperature formula',
@@ -413,6 +473,16 @@ const els = {
     tempDisplay: document.getElementById('tempDisplay'),
     energyDisplay: document.getElementById('energyDisplay'),
     timeDisplay: document.getElementById('timeDisplay'),
+    t0Display: document.getElementById('t0Display'),
+    deltaTDisplay: document.getElementById('deltaTDisplay'),
+    cExpDisplay: document.getElementById('cExpDisplay'),
+    cExpDetail: document.getElementById('cExpDetail'),
+    cExpStatus: document.getElementById('cExpStatus'),
+    shcBox: document.getElementById('shcBox'),
+    showAccepted: document.getElementById('showAccepted'),
+    heatLoss: document.getElementById('heatLoss'),
+    heatLossNote: document.getElementById('heatLossNote'),
+    slopeNote: document.getElementById('chartSlopeNote'),
     substanceContainer: document.getElementById('substanceContainer'),
     substanceLabel: document.getElementById('substanceLabel'),
     thermometerLiquid: document.getElementById('thermometerLiquid'),
@@ -517,14 +587,21 @@ function physicsLoop() {
     }
     const dt = UPDATE_INTERVAL / 1000;
     const energyStep = state.power * dt;
+    let storedStep = energyStep;
+    if (state.heatLoss) {
+        const pLoss = LOSS_K * Math.max(0, state.currentTemp - INITIAL_TEMP);
+        storedStep = Math.max(0, state.power - pLoss) * dt;
+    }
     state.totalEnergy += energyStep;
     state.timeElapsed += dt;
-    const tempChange = energyStep / (state.mass * state.material.c);
-    state.currentTemp += tempChange;
-    if (state.totalEnergy % (state.power * 0.2) < energyStep * 2) {
+    state.currentTemp += storedStep / (state.mass * state.material.c);
+    if (state.currentTemp > MAX_TEMP) state.currentTemp = MAX_TEMP;
+    state.sampleAcc += dt;
+    if (state.sampleAcc >= SAMPLE_EVERY) {
+        state.sampleAcc = 0;
         state.dataPoints.push({ x: state.totalEnergy, y: state.currentTemp });
         chart.data.datasets[0].data = state.dataPoints;
-        chart.update();
+        chart.update('none');
     }
     updateUI();
     updateVisuals();
@@ -551,7 +628,8 @@ function toggleSimulation() {
     if (state.isRunning) {
         els.btnStart.classList.add('hidden');
         els.btnPause.classList.remove('hidden');
-        els.heaterCoil.classList.replace('bg-gray-600', 'bg-red-600');
+        els.heaterCoil.classList.remove('bg-gray-600');
+        els.heaterCoil.classList.add('bg-red-600');
         els.heatEffect.style.opacity = '1';
         state.timerId = setInterval(physicsLoop, UPDATE_INTERVAL);
     } else {
@@ -562,9 +640,11 @@ function toggleSimulation() {
 function stopSimulation() {
     state.isRunning = false;
     clearInterval(state.timerId);
+    state.timerId = null;
     els.btnStart.classList.remove('hidden');
     els.btnPause.classList.add('hidden');
-    els.heaterCoil.classList.replace('bg-red-600', 'bg-gray-600');
+    els.heaterCoil.classList.remove('bg-red-600');
+    els.heaterCoil.classList.add('bg-gray-600');
     els.heatEffect.style.opacity = '0';
 }
 
@@ -573,21 +653,71 @@ function resetSimulation() {
     state.currentTemp = INITIAL_TEMP;
     state.totalEnergy = 0;
     state.timeElapsed = 0;
+    state.sampleAcc = 0;
     state.dataPoints = [{ x: 0, y: INITIAL_TEMP }];
     chart.data.datasets[0].data = state.dataPoints;
     chart.scales.x.max = undefined;
+    applyChartColor();
     chart.update();
     updateUI();
     updateVisuals();
+}
+
+function formatSignedPercent(value) {
+    const pct = value * 100;
+    const rounded = Math.abs(pct) >= 10 ? pct.toFixed(0) : pct.toFixed(1);
+    return (pct > 0 ? '+' : '') + rounded + '%';
+}
+
+function updateMeasurement() {
+    const texts = translations[currentLang];
+    const deltaT = state.currentTemp - INITIAL_TEMP;
+    els.t0Display.textContent = INITIAL_TEMP.toFixed(1);
+    els.deltaTDisplay.textContent = deltaT.toFixed(1);
+    els.shcBox.classList.toggle('hidden', !state.showAccepted);
+    els.heatLossNote.classList.toggle('hidden', !state.heatLoss);
+    if (els.slopeNote) {
+        els.slopeNote.textContent = state.heatLoss ? texts.chartSlopeLoss : texts.chartSlopeNote;
+    }
+    const pLoss = state.heatLoss ? LOSS_K * Math.max(0, deltaT) : 0;
+    const nearBalance = state.heatLoss && state.isRunning && pLoss > state.power * 0.92;
+    if (deltaT < C_MIN_DT) {
+        els.cExpDisplay.textContent = '—';
+        els.cExpDetail.textContent = 'c = E / (m ΔT)';
+        els.cExpStatus.textContent = texts.cPending;
+        return;
+    }
+    const cExp = state.totalEnergy / (state.mass * deltaT);
+    els.cExpDisplay.textContent = String(Math.round(cExp));
+    els.cExpDetail.textContent = 'c = ' + Math.round(state.totalEnergy) + ' / (' +
+        state.mass.toFixed(1) + ' × ' + deltaT.toFixed(2) + ')';
+    let status = state.heatLoss ? texts.cLoss : texts.cIdeal;
+    if (nearBalance) status = texts.cEquilibrium;
+    if (state.showAccepted) {
+        const err = (cExp - state.material.c) / state.material.c;
+        status += ' ' + texts.acceptedLine
+            .replace('{c}', String(state.material.c))
+            .replace('{err}', formatSignedPercent(err));
+    }
+    els.cExpStatus.textContent = status;
 }
 
 function updateUI() {
     els.shcDisplay.textContent = state.material.c;
     els.massValue.textContent = state.mass.toFixed(1);
     els.massVisualLabel.textContent = state.mass.toFixed(1) + ' kg';
+    els.powerValue.textContent = String(state.power);
     els.tempDisplay.textContent = state.currentTemp.toFixed(1);
     els.energyDisplay.textContent = Math.floor(state.totalEnergy);
     els.timeDisplay.textContent = state.timeElapsed.toFixed(1);
+    updateMeasurement();
+}
+
+function applyChartColor() {
+    if (!chart) return;
+    const rgb = state.material.baseColor;
+    chart.data.datasets[0].borderColor = 'rgb(' + rgb + ')';
+    chart.data.datasets[0].backgroundColor = 'rgba(' + rgb + ', 0.45)';
 }
 
 function updateVisuals() {
@@ -653,7 +783,26 @@ function renderPrinciple() {
     document.getElementById('principle-body').innerHTML =
         '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleConceptTitle + '</h3><p>' + t.principleConcept + '</p></div>' +
         '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleMechTitle + '</h3>' + t.principleMech + '</div>' +
+        '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleMeasureTitle + '</h3><p>' + t.principleMeasure + '</p></div>' +
         '<div><h3 class="font-bold text-indigo-800 mb-1">' + t.principleExampleTitle + '</h3><p>' + t.principleExample + '</p></div>';
+}
+
+function updateLanguageUI() {
+    setDocumentLang();
+    const texts = translations[currentLang];
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        const key = el.getAttribute('data-i18n');
+        if (texts[key] != null) el.innerHTML = texts[key];
+    });
+    const langBtn = document.getElementById('btn-lang');
+    if (langBtn) langBtn.textContent = currentLang === 'zh' ? '中 / EN' : 'EN / 中';
+    populateMaterialSelect();
+    renderSteps();
+    renderPrinciple();
+    renderQuiz();
+    updateChartTexts();
+    updateUI();
+    updateVisuals();
 }
 
 let quizAnswersVisible = false;
@@ -675,7 +824,7 @@ let quizAnswersVisible = false;
             }).join('');
             const vis = quizAnswersVisible;
             const ans = (key) => vis
-                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
+                ? '<div class="mt-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 p-2"><strong>' + ref + '：</strong> ' + texts[key] + '</div>' : '';
             const openHint = texts.shortHint || texts.openHint || '';
             const block = (n, qid, mc) => {
                 let h = '<div class="quiz-item rounded-xl border p-3 mb-3"><p class="font-semibold mb-2">Q' + n + '. ' + texts[qid] + '</p>';
@@ -683,7 +832,7 @@ let quizAnswersVisible = false;
                 else if (openHint) h += '<p class="text-xs opacity-70 mb-1">' + openHint + '</p>';
                 return h + ans(qid + 'ans') + '</div>';
             };
-            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', false) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
+            body.innerHTML = block(1, 'q1', true) + block(2, 'q2', true) + block(3, 'q3', true) + block(4, 'q4', false) + block(5, 'q5', true);
             const ansBtn = document.getElementById('btn-quiz-answers');
             if (ansBtn) ansBtn.textContent = vis ? texts.hideAnswers : texts.showAnswers;
             const modal = document.getElementById('modal-quiz');
@@ -738,18 +887,24 @@ function init() {
     els.select.addEventListener('change', handleMaterialChange);
     els.massInput.addEventListener('input', handleMassChange);
     els.powerInput.addEventListener('input', handlePowerChange);
+    els.showAccepted.addEventListener('change', function (e) {
+        state.showAccepted = e.target.checked;
+        updateUI();
+    });
+    els.heatLoss.addEventListener('change', function (e) {
+        state.heatLoss = e.target.checked;
+        updateUI();
+    });
     els.btnStart.addEventListener('click', toggleSimulation);
     els.btnPause.addEventListener('click', toggleSimulation);
     els.btnReset.addEventListener('click', resetSimulation);
     initChart();
     wireModals();
-    updateLanguageUI();
-    updateUI();
-    updateVisuals();
     createParticles();
     state.dataPoints = [{ x: 0, y: INITIAL_TEMP }];
     chart.data.datasets[0].data = state.dataPoints;
-    chart.update();
+    applyChartColor();
+    updateLanguageUI();
 }
 
 init();
