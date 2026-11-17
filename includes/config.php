@@ -291,7 +291,7 @@ function config_xai_reasoning_effort(): string
     config_load_dotenv();
     $effort = strtolower(trim((string) (getenv('XAI_REASONING_EFFORT') ?: ($_ENV['XAI_REASONING_EFFORT'] ?? ''))));
     if (!in_array($effort, ['low', 'medium', 'high', 'xhigh'], true)) {
-        return '';
+        return 'low';
     }
 
     return $effort;

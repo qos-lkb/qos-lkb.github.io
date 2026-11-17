@@ -140,7 +140,7 @@ function api_handle_admin_simulations_recovery(PDO $pdo, string $method): void
             api_json_error('validation_error', '沒有選取任何檔案。', 422);
         }
         $rateKey = api_rate_limit_key('sim_recovery_classify', (string) $user['id']);
-        if (!api_rate_limit_check($pdo, $rateKey, 6, 600)) {
+        if (!api_rate_limit_check($pdo, $rateKey, 30, 600)) {
             api_json_error('rate_limited', '分類次數過多，請約十分鐘後再試。', 429);
         }
         $model = trim((string) ($body['model'] ?? ''));
@@ -151,7 +151,7 @@ function api_handle_admin_simulations_recovery(PDO $pdo, string $method): void
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
-        set_time_limit(150);
+        set_time_limit(0);
         $plan = sim_recovery_plan($pdo, '');
         $result = sim_recovery_classify_paths($pdo, $paths, $model, $plan['subjects']);
         if (!$result['ok']) {
@@ -240,7 +240,7 @@ function api_handle_admin_simulations_topic_classify(PDO $pdo, string $method): 
             api_json_error('validation_error', '沒有選取任何模擬。', 422);
         }
         $rateKey = api_rate_limit_key('sim_topic_classify', (string) $user['id']);
-        if (!api_rate_limit_check($pdo, $rateKey, 6, 600)) {
+        if (!api_rate_limit_check($pdo, $rateKey, 30, 600)) {
             api_json_error('rate_limited', '分類次數過多，請約十分鐘後再試。', 429);
         }
         $model = trim((string) ($body['model'] ?? ''));
@@ -251,7 +251,7 @@ function api_handle_admin_simulations_topic_classify(PDO $pdo, string $method): 
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
-        set_time_limit(150);
+        set_time_limit(0);
         $plan = sim_topic_classify_plan($pdo, '');
         $result = sim_topic_classify_ids($pdo, $ids, $model, $plan['subjects']);
         if (!$result['ok']) {

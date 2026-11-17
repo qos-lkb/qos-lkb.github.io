@@ -207,10 +207,6 @@ async function renderAdminSimTopicClassify() {
             showFlash(t('請先勾選模擬。', 'Select simulations first.'), false);
             return;
         }
-        if (ids.length > 8) {
-            showFlash(t('一次最多分類 8 個。', 'At most 8 at a time.'), false);
-            return;
-        }
         try {
             const res = await global.ScienceApi.apiFetch('/admin/simulations/topic-classify', {
                 method: 'POST',

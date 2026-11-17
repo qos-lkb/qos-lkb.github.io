@@ -204,6 +204,90 @@ function sim_html_agent_should_send_reasoning(string $model, string $effort): bo
     return !str_contains($model, 'non-reasoning');
 }
 
+/**
+ * Chat completion for catalogue helpers. Uses low reasoning by default and omits max_tokens.
+ *
+ * @return array{ok:true,content:string}|array{ok:false,error:string,status:int}
+ */
+function sim_xai_chat_complete(string $model, string $system, string $userMessage, string $reasoningEffort = 'low'): array
+{
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'error' => '伺服器未啟用網路連線元件。', 'status' => 503];
+    }
+    require_once __DIR__ . '/config.php';
+    $apiKey = config_xai_api_key();
+    if ($apiKey === '') {
+        return ['ok' => false, 'error' => '尚未設定 XAI_API_KEY，無法使用 AI 分類。', 'status' => 503];
+    }
+    $effort = strtolower(trim($reasoningEffort));
+    if ($effort === '') {
+        $effort = config_xai_reasoning_effort() ?: 'low';
+    }
+    $body = [
+        'model' => $model,
+        'stream' => false,
+        'temperature' => 0.1,
+        'messages' => [
+            ['role' => 'system', 'content' => $system],
+            ['role' => 'user', 'content' => $userMessage],
+        ],
+    ];
+    if (sim_html_agent_should_send_reasoning($model, $effort)) {
+        $body['reasoning_effort'] = $effort;
+    }
+    $payload = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($payload === false) {
+        return ['ok' => false, 'error' => '無法送出分類請求。', 'status' => 500];
+    }
+    $ch = curl_init(SIM_HTML_AGENT_UPSTREAM_URL);
+    if ($ch === false) {
+        return ['ok' => false, 'error' => '無法連線到模型服務。', 'status' => 503];
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'Authorization: Bearer ' . $apiKey,
+        ],
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 180,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_RETURNTRANSFER => true,
+    ]);
+    $raw = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    if ($raw === false || $errno !== 0) {
+        return [
+            'ok' => false,
+            'error' => $errno === 28 ? '模型回應逾時，請稍後再試。' : '無法連線到模型服務。',
+            'status' => 503,
+        ];
+    }
+    if ($status >= 400 || !is_string($raw)) {
+        return ['ok' => false, 'error' => '模型服務回應失敗。', 'status' => 502];
+    }
+    $json = json_decode($raw, true);
+    if (!is_array($json)) {
+        return ['ok' => false, 'error' => '模型服務回應無效。', 'status' => 502];
+    }
+    $content = '';
+    foreach (($json['choices'] ?? []) as $choice) {
+        if (!is_array($choice)) {
+            continue;
+        }
+        $message = $choice['message'] ?? null;
+        if (is_array($message) && isset($message['content'])) {
+            $content .= (string) $message['content'];
+        }
+    }
+
+    return ['ok' => true, 'content' => $content];
+}
+
 function sim_html_agent_user_message(string $instruction, string $html): string
 {
     return "修訂指示：\n" . $instruction . "\n\n===== HTML 開始 =====\n" . $html . "\n===== HTML 結束 =====\n";
