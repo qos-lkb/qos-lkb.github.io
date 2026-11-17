@@ -89,9 +89,52 @@ function restoreCanvases(restores) {
     });
 }
 
-function htmlUrl(slug) {
-    const base = (global.ScienceApi && global.ScienceApi.API_BASE) || '/api/v1';
-    return `${base}/simulations/${encodeURIComponent(slug)}/html`;
+function captureSrc(row) {
+    const site = (global.ScienceApi && global.ScienceApi.SITE_BASE) || '';
+    const bust = `_ss=${Date.now()}`;
+    const path = String(row.html_path || '').replace(/^\//, '');
+    if (path) {
+        const base = site ? site.replace(/\/$/, '') : '';
+        return `${base}/${path}?${bust}`;
+    }
+    const api = (global.ScienceApi && global.ScienceApi.API_BASE) || '/api/v1';
+    return `${api}/simulations/${encodeURIComponent(row.slug || '')}/html?${bust}`;
+}
+
+function iframeHasBody(iframe) {
+    try {
+        const doc = iframe.contentDocument;
+        return !!(doc && doc.body && (doc.body.childNodes.length > 0 || doc.readyState === 'complete'));
+    } catch (e) {
+        return false;
+    }
+}
+
+function waitForIframeReady(iframe, src, maxWait = 12000) {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const started = Date.now();
+        const finish = (ok, reason) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(maxTimer);
+            clearInterval(poll);
+            iframe.removeEventListener('load', onLoad);
+            if (ok) resolve();
+            else reject(new Error(reason || '載入逾時'));
+        };
+        const onLoad = () => finish(true);
+        iframe.addEventListener('load', onLoad);
+        const poll = setInterval(() => {
+            if (Date.now() - started < 800) return;
+            if (iframeHasBody(iframe)) finish(true);
+        }, 200);
+        const maxTimer = setTimeout(() => {
+            if (iframeHasBody(iframe)) finish(true);
+            else finish(false, '載入逾時');
+        }, maxWait);
+        iframe.src = src;
+    });
 }
 
 function resolveAssetUrl(path) {
@@ -102,20 +145,13 @@ function resolveAssetUrl(path) {
     return (site ? site.replace(/\/$/, '') : '') + '/' + path.replace(/^\.\//, '');
 }
 
-async function captureSlugToPng(slug) {
+async function captureSlugToPng(row) {
     const iframe = document.getElementById('ss-capture-frame');
     if (!iframe) throw new Error('缺少預覽框。');
     iframe.style.width = `${CAPTURE_WIDTH}px`;
     iframe.style.height = `${CAPTURE_HEIGHT}px`;
-    iframe.src = 'about:blank';
-    await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('載入逾時')), 20000);
-        iframe.onload = () => {
-            clearTimeout(timer);
-            setTimeout(resolve, 2200);
-        };
-        iframe.src = htmlUrl(slug);
-    });
+    await waitForIframeReady(iframe, captureSrc(row));
+    await new Promise((r) => setTimeout(r, 600));
     const innerDoc = iframe.contentDocument;
     const root = innerDoc && innerDoc.documentElement;
     if (!root) throw new Error('無法讀取模擬頁（可能被沙箱阻擋）。');
@@ -215,7 +251,7 @@ async function renderAdminSimScreenshots() {
             ? `<img src="${escapeHtml(resolveAssetUrl(item.screenshot_path))}" alt="" class="w-24 h-14 object-cover rounded border border-slate-200">`
             : `<span class="w-24 h-14 inline-flex items-center justify-center bg-slate-100 text-slate-400 text-xs rounded">${escapeHtml(t('無', 'None'))}</span>`;
         return `<tr class="border-t border-slate-100 align-middle">
-            <td class="px-3 py-2"><input type="checkbox" class="ss-check rounded border-slate-300" value="${item.id}" data-slug="${escapeHtml(item.slug)}" ${item.kind !== 'ok' ? 'checked' : ''}></td>
+            <td class="px-3 py-2"><input type="checkbox" class="ss-check rounded border-slate-300" value="${item.id}" data-slug="${escapeHtml(item.slug)}" data-html-path="${escapeHtml(item.html_path || '')}" ${item.kind !== 'ok' ? 'checked' : ''}></td>
             <td class="px-3 py-2">${thumb}</td>
             <td class="px-3 py-2">
                 <div class="font-medium">${escapeHtml(item.title_zh || item.slug)}</div>
@@ -322,14 +358,15 @@ async function renderAdminSimScreenshots() {
         return Array.from(document.querySelectorAll('.ss-check:checked')).map((el) => ({
             id: Number(el.value),
             slug: el.getAttribute('data-slug') || '',
+            html_path: el.getAttribute('data-html-path') || '',
         })).filter((r) => r.id > 0);
     }
 
     async function captureOne(row) {
-        if (!row || !row.slug) {
-            throw new Error(t('缺少 slug。', 'Missing slug.'));
+        if (!row || (!row.slug && !row.html_path)) {
+            throw new Error(t('缺少模擬路徑。', 'Missing simulation path.'));
         }
-        const blob = await captureSlugToPng(row.slug);
+        const blob = await captureSlugToPng(row);
         await uploadPng(row.id, blob);
     }
 
@@ -384,7 +421,7 @@ async function renderAdminSimScreenshots() {
     async function run(mode, selectedOnly) {
         const rows = selectedOnly
             ? selectedRows()
-            : items.filter((it) => mode === 'all' || it.kind !== 'ok').map((it) => ({ id: it.id, slug: it.slug }));
+            : items.filter((it) => mode === 'all' || it.kind !== 'ok').map((it) => ({ id: it.id, slug: it.slug, html_path: it.html_path || '' }));
         if (!rows.length) {
             showFlash(t('沒有可更新的項目。請勾選列，或改按「更新所有模擬截圖」。', 'Nothing to update. Select rows, or use Update all.'), false);
             return;
