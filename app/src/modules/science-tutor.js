@@ -273,6 +273,7 @@ const global = window;
         log = root.querySelector('.science-tutor-log');
         input = root.querySelector('.science-tutor-input');
         sendBtn = root.querySelector('.science-tutor-send');
+        fab = root.querySelector('.science-tutor-fab');
         refreshLabels();
         showEmpty();
         void loadHistory();

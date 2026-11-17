@@ -43,6 +43,9 @@ const global = window;
         if (global.AppNav && typeof global.AppNav.refresh === 'function') {
             void global.AppNav.refresh().catch(() => {});
         }
+        if (getUser() && global.ScienceTutor && typeof ScienceTutor.mount === 'function') {
+            ScienceTutor.mount();
+        }
     }
 
     function escapeHtml(text) {
