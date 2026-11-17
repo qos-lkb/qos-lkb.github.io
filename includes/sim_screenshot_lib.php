@@ -6,8 +6,10 @@ require_once __DIR__ . '/simulation_files.php';
 require_once __DIR__ . '/web_base.php';
 
 const SIM_SCREENSHOT_BATCH = 5;
-const SIM_SCREENSHOT_WIDTH = 1920;
-const SIM_SCREENSHOT_HEIGHT = 1080;
+const SIM_SCREENSHOT_WIDTH = 1280;
+const SIM_SCREENSHOT_HEIGHT = 720;
+const SIM_SCREENSHOT_OUTPUT_MAX_W = 720;
+const SIM_SCREENSHOT_OUTPUT_MAX_H = 450;
 
 /**
  * Relative screenshot / asset path under the project root.
@@ -66,6 +68,51 @@ function sim_screenshot_file_ok(?string $rel): bool
     }
     $abs = sim_screenshot_abs((string) $rel, false);
     return $abs !== null && is_file($abs);
+}
+
+/**
+ * Downscale PNG on disk for catalog thumbnails (needs GD).
+ */
+function sim_screenshot_optimize_png_file(string $abs): bool
+{
+    if (!is_file($abs) || !function_exists('imagecreatefrompng')) {
+        return true;
+    }
+    $img = @imagecreatefrompng($abs);
+    if ($img === false) {
+        return false;
+    }
+    $w = imagesx($img);
+    $h = imagesy($img);
+    if ($w <= 0 || $h <= 0) {
+        imagedestroy($img);
+        return false;
+    }
+    $scale = min(
+        1.0,
+        SIM_SCREENSHOT_OUTPUT_MAX_W / $w,
+        SIM_SCREENSHOT_OUTPUT_MAX_H / $h
+    );
+    if ($scale >= 1.0) {
+        imagedestroy($img);
+        return true;
+    }
+    $nw = max(1, (int) round($w * $scale));
+    $nh = max(1, (int) round($h * $scale));
+    $out = imagecreatetruecolor($nw, $nh);
+    if ($out === false) {
+        imagedestroy($img);
+        return false;
+    }
+    imagealphablending($out, false);
+    imagesavealpha($out, true);
+    $white = imagecolorallocatealpha($out, 255, 255, 255, 0);
+    imagefilledrectangle($out, 0, 0, $nw, $nh, $white);
+    imagecopyresampled($out, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    imagepng($out, $abs, 6);
+    imagedestroy($img);
+    imagedestroy($out);
+    return true;
 }
 
 function sim_screenshot_dest_rel(string $htmlRel): ?string
@@ -214,6 +261,7 @@ function sim_screenshot_run_chrome(string $url, string $absOut): array
         @unlink($absOut);
         return ['ok' => false, 'error' => '截圖不是有效 PNG。'];
     }
+    sim_screenshot_optimize_png_file($absOut);
     return ['ok' => true];
 }
 
@@ -434,6 +482,11 @@ function sim_screenshot_store_upload_for_sim(PDO $pdo, int $id, array $file): ar
     }
     if (!move_uploaded_file($tmp, $abs)) {
         return ['ok' => false, 'error' => '儲存截圖失敗。'];
+    }
+    sim_screenshot_optimize_png_file($abs);
+    if (filesize($abs) > 4 * 1024 * 1024) {
+        @unlink($abs);
+        return ['ok' => false, 'error' => '截圖壓縮後仍超過 4 MB。'];
     }
     return sim_screenshot_set_path($pdo, $id, $destRel);
 }

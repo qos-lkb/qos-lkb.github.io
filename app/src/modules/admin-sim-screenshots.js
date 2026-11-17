@@ -42,8 +42,13 @@ function loadSnapshot() {
     return snapshotPromise;
 }
 
-const CAPTURE_WIDTH = 1280;
-const CAPTURE_HEIGHT = 800;
+/** Viewport used for capture (catalog cards only need the first screen). */
+const CAPTURE_WIDTH = 960;
+const CAPTURE_HEIGHT = 600;
+/** Max pixels written to disk after resize (keeps uploads under ~1–2 MB). */
+const OUTPUT_MAX_WIDTH = 720;
+const OUTPUT_MAX_HEIGHT = 450;
+const CANVAS_DISPLAY_MAX = 1024;
 
 function waitFrames(n) {
     return new Promise((resolve) => {
@@ -72,8 +77,10 @@ function expandCanvasesToBitmapSize(doc) {
             maxWidth: canvas.style.maxWidth,
             maxHeight: canvas.style.maxHeight,
         });
-        canvas.style.width = `${bw}px`;
-        canvas.style.height = `${bh}px`;
+        const dim = Math.max(bw, bh);
+        const scale = dim > CANVAS_DISPLAY_MAX ? CANVAS_DISPLAY_MAX / dim : 1;
+        canvas.style.width = `${Math.round(bw * scale)}px`;
+        canvas.style.height = `${Math.round(bh * scale)}px`;
         canvas.style.maxWidth = 'none';
         canvas.style.maxHeight = 'none';
     });
@@ -137,6 +144,34 @@ function waitForIframeReady(iframe, src, maxWait = 12000) {
     });
 }
 
+async function shrinkPngBlob(blob) {
+    const bitmap = await createImageBitmap(blob);
+    let w = bitmap.width;
+    let h = bitmap.height;
+    const ratio = Math.min(1, OUTPUT_MAX_WIDTH / w, OUTPUT_MAX_HEIGHT / h);
+    w = Math.max(1, Math.round(w * ratio));
+    h = Math.max(1, Math.round(h * ratio));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        bitmap.close();
+        throw new Error('無法壓縮圖片');
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const out = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('無法產生壓縮 PNG'))), 'image/png');
+    });
+    if (out.size > 2.5 * 1024 * 1024) {
+        throw new Error(t('截圖仍過大，請縮短頁面或稍後再試。', 'Screenshot still too large.'));
+    }
+    return out;
+}
+
 function resolveAssetUrl(path) {
     if (!path) return '';
     if (/^https?:\/\//i.test(path) || path.startsWith('//')) return path;
@@ -162,32 +197,24 @@ async function captureSlugToPng(row) {
         if (win) {
             win.dispatchEvent(new Event('resize'));
         }
-        const needW = Math.max(
-            CAPTURE_WIDTH,
-            root.scrollWidth || 0,
-            innerDoc.body ? innerDoc.body.scrollWidth : 0
-        );
-        const needH = Math.max(
-            CAPTURE_HEIGHT,
-            root.scrollHeight || 0,
-            innerDoc.body ? innerDoc.body.scrollHeight : 0
-        );
-        iframe.style.width = `${Math.min(needW, 1920)}px`;
-        iframe.style.height = `${Math.min(needH, 1200)}px`;
         if (win) {
+            win.scrollTo(0, 0);
             win.dispatchEvent(new Event('resize'));
         }
         await waitFrames(3);
         await new Promise((r) => setTimeout(r, 250));
+        const captureRoot = innerDoc.body || root;
         const domToBlob = await loadSnapshot();
-        const blob = await domToBlob(root, {
+        const raw = await domToBlob(captureRoot, {
             backgroundColor: '#ffffff',
+            width: CAPTURE_WIDTH,
+            height: CAPTURE_HEIGHT,
             scale: 1,
             type: 'image/png',
             features: { restoreScrollPosition: true },
         });
-        if (!blob) throw new Error('無法產生圖片');
-        return blob;
+        if (!raw) throw new Error('無法產生圖片');
+        return shrinkPngBlob(raw);
     } finally {
         restoreCanvases(restores);
         iframe.style.width = `${CAPTURE_WIDTH}px`;
