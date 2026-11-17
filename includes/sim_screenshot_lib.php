@@ -364,8 +364,12 @@ function sim_screenshot_process(PDO $pdo, array $ids, string $mode, bool $allowC
         }
         $cap = sim_screenshot_run_chrome($url, $abs);
         if (!$cap['ok']) {
-            $errors[] = '#' . $id . ' ' . ($cap['error'] ?? '截圖失敗');
-            $results[] = ['id' => $id, 'status' => 'error', 'error' => $cap['error'] ?? ''];
+            $results[] = [
+                'id' => $id,
+                'status' => 'needs_capture',
+                'slug' => (string) $row['slug'],
+                'error' => $cap['error'] ?? '截圖失敗',
+            ];
             continue;
         }
         $set = sim_screenshot_set_path($pdo, $id, $destRel);

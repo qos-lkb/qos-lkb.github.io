@@ -107,6 +107,7 @@ async function captureSlugToPng(slug) {
     if (!iframe) throw new Error('缺少預覽框。');
     iframe.style.width = `${CAPTURE_WIDTH}px`;
     iframe.style.height = `${CAPTURE_HEIGHT}px`;
+    iframe.src = 'about:blank';
     await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('載入逾時')), 20000);
         iframe.onload = () => {
@@ -258,7 +259,7 @@ async function renderAdminSimScreenshots() {
         <div class="flex flex-wrap gap-2 mb-3 items-center">
             <button type="button" id="btn-ss-missing" class="px-4 py-2 rounded-lg bg-indigo-700 text-white text-sm hover:bg-indigo-800">${escapeHtml(t('更新未有截圖的', 'Update missing screenshots'))}</button>
             <button type="button" id="btn-ss-all" class="px-4 py-2 rounded-lg border border-indigo-400 text-indigo-900 text-sm hover:bg-indigo-50">${escapeHtml(t('更新所有模擬截圖', 'Update all screenshots'))}</button>
-            <button type="button" id="btn-ss-selected" class="px-4 py-2 rounded-lg border border-slate-300 text-sm hover:bg-slate-50">${escapeHtml(t('更新已勾選', 'Update selected'))}</button>
+            <button type="button" id="btn-ss-selected" class="px-4 py-2 rounded-lg border border-slate-300 text-sm hover:bg-slate-50">${escapeHtml(t('重拍已勾選（含已有截圖）', 'Recapture selected'))}</button>
             <label class="text-sm text-slate-600 flex items-center gap-1"><input type="checkbox" id="ss-check-all" class="rounded border-slate-300"> ${escapeHtml(t('全選', 'Select all'))}</label>
         </div>
         <p id="ss-progress" class="text-sm text-slate-600 mb-2 hidden"></p>
@@ -324,43 +325,57 @@ async function renderAdminSimScreenshots() {
         })).filter((r) => r.id > 0);
     }
 
+    async function captureOne(row) {
+        if (!row || !row.slug) {
+            throw new Error(t('缺少 slug。', 'Missing slug.'));
+        }
+        const blob = await captureSlugToPng(row.slug);
+        await uploadPng(row.id, blob);
+    }
+
     async function processQueue(mode, queue) {
         let totalUpdated = 0;
         const totalErr = [];
-        const pending = queue.slice();
-        while (pending.length) {
-            const batch = pending.splice(0, 5);
+        let pending = queue.slice();
+
+        if (mode === 'missing' && pending.length) {
+            const ids = pending.map((r) => r.id);
+            while (ids.length) {
+                const batchIds = ids.splice(0, 5);
+                const res = await global.ScienceApi.apiFetch('/admin/simulations/screenshots', {
+                    method: 'POST',
+                    body: {
+                        action: 'link',
+                        mode: 'missing',
+                        ids: batchIds,
+                        search: document.getElementById('ss-q')?.value || '',
+                    },
+                });
+                totalUpdated += Number(res.updated || 0);
+                totalErr.push(...(res.errors || []));
+                const done = new Set(
+                    (res.results || [])
+                        .filter((r) => r.status === 'linked' || r.status === 'skipped')
+                        .map((r) => Number(r.id))
+                );
+                pending = pending.filter((r) => !done.has(r.id));
+            }
+        }
+
+        for (let i = 0; i < pending.length; i++) {
+            const row = pending[i];
             if (progress) {
                 progress.classList.remove('hidden');
                 progress.textContent = t(
-                    `處理中，尚餘 ${pending.length + batch.length}…`,
-                    `Working, ${pending.length + batch.length} left…`
+                    `擷取中 ${i + 1}／${pending.length}：${row.slug}`,
+                    `Capturing ${i + 1}/${pending.length}: ${row.slug}`
                 );
             }
-            const res = await global.ScienceApi.apiFetch('/admin/simulations/screenshots', {
-                method: 'POST',
-                body: {
-                    action: chromeOk ? 'capture' : 'link',
-                    mode,
-                    ids: batch.map((r) => r.id),
-                    search: document.getElementById('ss-q')?.value || '',
-                },
-            });
-            totalUpdated += Number(res.updated || 0);
-            totalErr.push(...(res.errors || []));
-            const needs = (res.results || []).filter((r) => r.status === 'needs_capture');
-            for (const row of needs) {
-                const item = batch.find((it) => it.id === row.id) || items.find((it) => it.id === row.id);
-                if (!item || !item.slug) {
-                    continue;
-                }
-                try {
-                    const blob = await captureSlugToPng(item.slug);
-                    await uploadPng(item.id, blob);
-                    totalUpdated++;
-                } catch (err) {
-                    totalErr.push('#' + item.id + ' ' + (err.message || '擷取失敗'));
-                }
+            try {
+                await captureOne(row);
+                totalUpdated++;
+            } catch (err) {
+                totalErr.push('#' + row.id + ' ' + (err.message || t('擷取失敗', 'Capture failed')));
             }
         }
         return { totalUpdated, totalErr };
@@ -371,7 +386,7 @@ async function renderAdminSimScreenshots() {
             ? selectedRows()
             : items.filter((it) => mode === 'all' || it.kind !== 'ok').map((it) => ({ id: it.id, slug: it.slug }));
         if (!rows.length) {
-            showFlash(t('沒有可更新的項目。', 'Nothing to update.'), false);
+            showFlash(t('沒有可更新的項目。請勾選列，或改按「更新所有模擬截圖」。', 'Nothing to update. Select rows, or use Update all.'), false);
             return;
         }
         if (mode === 'all' && !selectedOnly && !window.confirm(t('將覆寫所有模擬截圖，確定？', 'Overwrite all simulation screenshots?'))) {
@@ -396,7 +411,7 @@ async function renderAdminSimScreenshots() {
 
     document.getElementById('btn-ss-missing')?.addEventListener('click', () => run('missing', false));
     document.getElementById('btn-ss-all')?.addEventListener('click', () => run('all', false));
-    document.getElementById('btn-ss-selected')?.addEventListener('click', () => run('missing', true));
+    document.getElementById('btn-ss-selected')?.addEventListener('click', () => run('all', true));
 }
 
 global.AppAdmin = Object.assign(global.AppAdmin || {}, {
