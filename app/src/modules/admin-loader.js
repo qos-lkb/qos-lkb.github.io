@@ -52,6 +52,8 @@ const GROUP_LOADERS = {
     'sim-export': () => import('./admin-sim-export.js'),
     'sim-disk-import': () => import('./admin-sim-disk-import.js'),
     'sim-recovery': () => import('./admin-sim-recovery.js'),
+    'sim-topic-classify': () => import('./admin-sim-topic-classify.js'),
+    'sim-screenshots': () => import('./admin-sim-screenshots.js'),
     users: () => import('./admin-users.js'),
 };
 
@@ -99,6 +101,8 @@ function resolveAdminGroup(path) {
     if (p.startsWith('/admin/export-sim-html')) return 'sim-export';
     if (p.startsWith('/admin/import-disk-simulations')) return 'sim-disk-import';
     if (p.startsWith('/admin/recover-simulations')) return 'sim-recovery';
+    if (p.startsWith('/admin/classify-sim-topics')) return 'sim-topic-classify';
+    if (p.startsWith('/admin/sim-screenshots')) return 'sim-screenshots';
     if (/^\/admin\/(db|db-export|db-import|qsis-import|data-dictionary)$/.test(p)) return 'danger-ops';
     if (p.startsWith('/admin/users')) return 'users';
     return 'home';

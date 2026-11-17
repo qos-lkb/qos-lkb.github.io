@@ -344,6 +344,20 @@ const global = window;
                 tone: 'emerald',
                 icon: 'sim',
             } : null,
+            canExportSimHtml ? {
+                route: '/admin/classify-sim-topics',
+                label: t('模擬課題分類', 'Classify sim topics'),
+                desc: t('用 xAI 為未分類模擬指定課題；沒有該課題時可新建並寫入資料庫。', 'Use xAI to assign topics to unclassified sims; create missing topics when saving.'),
+                tone: 'violet',
+                icon: 'sim',
+            } : null,
+            canExportSimHtml ? {
+                route: '/admin/sim-screenshots',
+                label: t('模擬截圖', 'Sim screenshots'),
+                desc: t('自動為模擬補上或更新預覽截圖，並寫入 screenshot_path。', 'Capture or refresh preview screenshots and save screenshot_path.'),
+                tone: 'sky',
+                icon: 'sim',
+            } : null,
             canReview ? {
                 route: '/admin/review-queue',
                 label: t('審核佇列', 'Review queue'),

@@ -93,6 +93,16 @@
                     label: { zh: '失散模擬找回', en: 'Recover lost sims' },
                     anyPerm: ['simulation.manage_any', 'user.manage'],
                 },
+                {
+                    route: '/admin/classify-sim-topics',
+                    label: { zh: '模擬課題分類', en: 'Classify sim topics' },
+                    anyPerm: ['simulation.manage_any', 'user.manage'],
+                },
+                {
+                    route: '/admin/sim-screenshots',
+                    label: { zh: '模擬截圖', en: 'Sim screenshots' },
+                    anyPerm: ['simulation.manage_any', 'user.manage'],
+                },
                 { route: '/admin/db', label: { zh: '資料庫', en: 'Database' } },
                 { route: '/admin/qsis-import', label: { zh: 'QSIS 匯入', en: 'QSIS import' } },
                 { route: '/admin/data-dictionary', label: { zh: '資料字典', en: 'Data dictionary' } },
@@ -1085,6 +1095,16 @@
             '/admin/recover-simulations': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSimRecovery();
+                });
+            },
+            '/admin/classify-sim-topics': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimTopicClassify();
+                });
+            },
+            '/admin/sim-screenshots': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimScreenshots();
                 });
             },
             '/admin/db': async () => {

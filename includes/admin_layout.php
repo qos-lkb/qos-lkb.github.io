@@ -136,6 +136,8 @@ function admin_menu_sections(): array
         $contentItems[] = ['key' => 'export_sim_html', 'label' => '模擬 HTML 匯出', 'href' => '../app/admin/export-sim-html'];
         $contentItems[] = ['key' => 'import_disk_simulations', 'label' => '磁碟模擬匯入', 'href' => '../app/admin/import-disk-simulations'];
         $contentItems[] = ['key' => 'recover_simulations', 'label' => '失散模擬找回', 'href' => '../app/admin/recover-simulations'];
+        $contentItems[] = ['key' => 'classify_sim_topics', 'label' => '模擬課題分類', 'href' => '../app/admin/classify-sim-topics'];
+        $contentItems[] = ['key' => 'sim_screenshots', 'label' => '模擬截圖', 'href' => '../app/admin/sim-screenshots'];
     }
     if (user_has_permission('article.manage_any')) {
         $contentItems[] = ['key' => 'articles', 'label' => '科學文章', 'href' => '../app/admin/articles'];

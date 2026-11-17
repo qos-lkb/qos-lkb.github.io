@@ -165,10 +165,64 @@ function topics_create(PDO $pdo, int $subjectId, string $nameEn, string $nameZh 
         $pdo->prepare(
             'INSERT INTO topics (subject_id, slug, name_zh, name_en, sort_order) VALUES (?, ?, ?, ?, ?)'
         )->execute([$subjectId, $slug, $nameZh !== '' ? $nameZh : $nameEn, $nameEn, $mx]);
-        return ['ok' => true, 'id' => (int) $pdo->lastInsertId(), 'slug' => $slug];
+        return ['ok' => true, 'id' => (int) $pdo->lastInsertId(), 'slug' => $slug, 'created' => true];
     } catch (Throwable $e) {
         return ['ok' => false, 'error' => '新增單元失敗（可能 slug 重複）。'];
     }
+}
+
+/**
+ * Match an existing topic in the subject, otherwise create one.
+ *
+ * @return array{ok:bool,error?:string,id?:int,slug?:string,created?:bool}
+ */
+function topics_find_or_create(PDO $pdo, int $subjectId, string $nameEn, string $nameZh = '', string $slugHint = ''): array
+{
+    $nameEn = trim($nameEn);
+    $nameZh = trim($nameZh);
+    $slugHint = substr(sim_slugify($slugHint !== '' ? $slugHint : ($nameEn !== '' ? $nameEn : $nameZh)), 0, 160);
+    if ($subjectId <= 0) {
+        return ['ok' => false, 'error' => '請選擇科目。'];
+    }
+    if ($nameEn === '' && $nameZh === '' && $slugHint === '') {
+        return ['ok' => false, 'error' => '單元名稱不能空白。'];
+    }
+    if ($nameEn === '') {
+        $nameEn = $nameZh !== '' ? $nameZh : $slugHint;
+    }
+
+    $bySlug = $pdo->prepare('SELECT id, slug FROM topics WHERE subject_id = ? AND slug = ? LIMIT 1');
+    if ($slugHint !== '') {
+        $bySlug->execute([$subjectId, $slugHint]);
+        $hit = $bySlug->fetch();
+        if ($hit) {
+            return ['ok' => true, 'id' => (int) $hit['id'], 'slug' => (string) $hit['slug'], 'created' => false];
+        }
+    }
+
+    $byName = $pdo->prepare(
+        'SELECT id, slug FROM topics WHERE subject_id = ? AND (name_zh = ? OR name_en = ? OR LOWER(name_en) = LOWER(?)) LIMIT 1'
+    );
+    $byName->execute([$subjectId, $nameZh !== '' ? $nameZh : $nameEn, $nameEn, $nameEn]);
+    $hit = $byName->fetch();
+    if ($hit) {
+        return ['ok' => true, 'id' => (int) $hit['id'], 'slug' => (string) $hit['slug'], 'created' => false];
+    }
+
+    $created = topics_create($pdo, $subjectId, $nameEn, $nameZh);
+    if ($created['ok']) {
+        $created['created'] = true;
+        return $created;
+    }
+    if ($slugHint !== '') {
+        $bySlug->execute([$subjectId, $slugHint]);
+        $again = $bySlug->fetch();
+        if ($again) {
+            return ['ok' => true, 'id' => (int) $again['id'], 'slug' => (string) $again['slug'], 'created' => false];
+        }
+    }
+
+    return $created;
 }
 
 /**

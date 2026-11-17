@@ -10,6 +10,8 @@ require_once dirname(__DIR__, 3) . '/includes/simulation_files.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_disk_import.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_recovery.php';
 require_once dirname(__DIR__, 3) . '/includes/sim_recovery_classify_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/sim_topic_classify_lib.php';
+require_once dirname(__DIR__, 3) . '/includes/sim_screenshot_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/web_base.php';
 
 /**
@@ -203,6 +205,159 @@ function api_handle_admin_simulations_recovery(PDO $pdo, string $method): void
             'skipped' => $result['skipped'],
             'errors' => $result['errors'],
             'plan' => sim_recovery_plan($pdo, $search),
+        ]);
+        return;
+    }
+
+    api_json_error('validation_error', '不支援的 action。', 422);
+}
+
+function api_handle_admin_simulations_topic_classify(PDO $pdo, string $method): void
+{
+    $user = api_require_sim_html_export();
+    if ($method === 'GET') {
+        $search = isset($_GET['q']) ? trim((string) $_GET['q']) : '';
+        $plan = sim_topic_classify_plan($pdo, $search);
+        $models = api_sim_html_agent_model_ids($pdo);
+        $plan['models'] = $models['ids'];
+        $plan['default_model'] = $models['default'];
+        $plan['xai_configured'] = config_xai_api_key() !== '';
+        api_json_ok($plan);
+        return;
+    }
+    if ($method !== 'POST') {
+        api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+    }
+    api_verify_csrf_or_fail();
+    require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
+    $body = api_read_json_body();
+    $action = (string) ($body['action'] ?? '');
+    $search = trim((string) ($body['search'] ?? ''));
+
+    if ($action === 'classify') {
+        $ids = isset($body['ids']) && is_array($body['ids']) ? array_map('intval', $body['ids']) : [];
+        if ($ids === []) {
+            api_json_error('validation_error', '沒有選取任何模擬。', 422);
+        }
+        $rateKey = api_rate_limit_key('sim_topic_classify', (string) $user['id']);
+        if (!api_rate_limit_check($pdo, $rateKey, 6, 600)) {
+            api_json_error('rate_limited', '分類次數過多，請約十分鐘後再試。', 429);
+        }
+        $model = trim((string) ($body['model'] ?? ''));
+        $models = api_sim_html_agent_model_ids($pdo);
+        if ($model === '' || !in_array($model, $models['ids'], true)) {
+            $model = $models['default'];
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        set_time_limit(150);
+        $plan = sim_topic_classify_plan($pdo, '');
+        $result = sim_topic_classify_ids($pdo, $ids, $model, $plan['subjects']);
+        if (!$result['ok']) {
+            api_json_error('classify_failed', $result['error'], $result['status']);
+        }
+        api_json_ok([
+            'items' => $result['items'],
+            'model' => $result['model'],
+        ]);
+        return;
+    }
+
+    if ($action === 'apply') {
+        $items = isset($body['items']) && is_array($body['items']) ? $body['items'] : [];
+        if ($items === []) {
+            api_json_error('validation_error', '沒有可寫入的分類。', 422);
+        }
+        $isAdmin = user_has_permission('simulation.manage_any');
+        $result = sim_topic_classify_apply($pdo, $items, $user, $isAdmin);
+        if (!$result['ok'] && $result['updated'] === 0) {
+            api_json_error('save_failed', implode('；', $result['errors'] ?: ['寫入失敗。']), 422);
+        }
+        api_json_ok([
+            'updated' => $result['updated'],
+            'created_topics' => $result['created_topics'],
+            'errors' => $result['errors'],
+            'plan' => sim_topic_classify_plan($pdo, $search),
+        ]);
+        return;
+    }
+
+    api_json_error('validation_error', '不支援的 action。', 422);
+}
+
+function api_handle_admin_simulations_screenshots(PDO $pdo, string $method): void
+{
+    $user = api_require_sim_html_export();
+    if ($method === 'GET') {
+        $search = isset($_GET['q']) ? trim((string) $_GET['q']) : '';
+        $filter = isset($_GET['filter']) ? trim((string) $_GET['filter']) : 'all';
+        if ($filter !== 'missing') {
+            $filter = 'all';
+        }
+        api_json_ok(sim_screenshot_plan($pdo, $search, $filter));
+        return;
+    }
+    if ($method !== 'POST') {
+        api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+    }
+    api_verify_csrf_or_fail();
+
+    $contentType = (string) ($_SERVER['CONTENT_TYPE'] ?? '');
+    if (str_contains(strtolower($contentType), 'multipart/form-data')) {
+        $id = (int) ($_POST['sim_id'] ?? 0);
+        if ($id <= 0 || !isset($_FILES['file'])) {
+            api_json_error('validation_error', '請提供模擬與 PNG 檔。', 422);
+        }
+        $r = sim_screenshot_store_upload_for_sim($pdo, $id, $_FILES['file']);
+        if (!$r['ok']) {
+            api_json_error('upload_failed', $r['error'] ?? '上載失敗。', 422);
+        }
+        api_json_ok(['id' => $id, 'path' => $r['path'] ?? '']);
+        return;
+    }
+
+    $body = api_read_json_body();
+    $action = (string) ($body['action'] ?? '');
+    $mode = (string) ($body['mode'] ?? 'missing');
+    if ($mode !== 'all') {
+        $mode = 'missing';
+    }
+    $search = trim((string) ($body['search'] ?? ''));
+    $filter = $mode === 'missing' ? 'missing' : 'all';
+
+    if ($action === 'capture' || $action === 'link') {
+        $ids = [];
+        if (!empty($body['all'])) {
+            $plan = sim_screenshot_plan($pdo, $search, $filter);
+            foreach ($plan['items'] as $item) {
+                if ($mode === 'missing' && ($item['kind'] ?? '') === 'ok') {
+                    continue;
+                }
+                $ids[] = (int) $item['id'];
+                if (count($ids) >= SIM_SCREENSHOT_BATCH) {
+                    break;
+                }
+            }
+        } elseif (isset($body['ids']) && is_array($body['ids'])) {
+            $ids = array_map('intval', $body['ids']);
+        }
+        if ($ids === []) {
+            api_json_error('validation_error', '沒有選取任何模擬。', 422);
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        set_time_limit(180);
+        $allowChrome = $action === 'capture';
+        $result = sim_screenshot_process($pdo, $ids, $mode, $allowChrome);
+        api_json_ok([
+            'updated' => $result['updated'],
+            'skipped' => $result['skipped'],
+            'errors' => $result['errors'],
+            'results' => $result['results'],
+            'chrome_available' => sim_screenshot_chrome_bin() !== null,
+            'plan' => sim_screenshot_plan($pdo, $search, $filter),
         ]);
         return;
     }

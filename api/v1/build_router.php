@@ -57,6 +57,8 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addMethods(['GET', 'POST'], '/admin/simulations/export-html', static fn () => api_handle_admin_simulations_export_html($pdo, $method()));
     $router->addMethods(['GET', 'POST'], '/admin/simulations/import-disk', static fn () => api_handle_admin_simulations_import_disk($pdo, $method()));
     $router->addMethods(['GET', 'POST'], '/admin/simulations/recovery', static fn () => api_handle_admin_simulations_recovery($pdo, $method()));
+    $router->addMethods(['GET', 'POST'], '/admin/simulations/topic-classify', static fn () => api_handle_admin_simulations_topic_classify($pdo, $method()));
+    $router->addMethods(['GET', 'POST'], '/admin/simulations/screenshots', static fn () => api_handle_admin_simulations_screenshots($pdo, $method()));
     $router->addExact('POST', '/admin/simulations/upload-html', static fn () => api_handle_admin_simulation_upload($pdo, 'html'));
     $router->addExact('POST', '/admin/simulations/upload-screenshot', static fn () => api_handle_admin_simulation_upload($pdo, 'screenshot'));
     $router->addMethods(['GET', 'POST'], '/admin/simulations/preview-html', static fn () => api_handle_admin_simulation_preview($pdo, $method()));

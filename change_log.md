@@ -8,6 +8,10 @@
 
 ## 2026-11-17
 
+### 後台：模擬課題分類與自動截圖
+- `/admin/classify-sim-topics`：列出未指定課題的模擬，可用 xAI 建議課題；目錄沒有該課題時寫入會新建 `topics` 列。
+- `/admin/sim-screenshots`：可「只補缺截圖」或「更新全部」，先連結科目 `screenshots/` 既有檔，否則用 Chrome 或瀏覽器 iframe 擷取，並更新 `screenshot_path`。
+
 ### 編輯模擬：AI 優化 HTML
 - 後台「編輯模擬」可選模型與推理深度，依指示修訂 HTML。結果先預覽或套用到編輯器，按儲存才寫入檔案。
 - 使用與科學助教相同的伺服器 `XAI_API_KEY`。模型清單沿用助教可選型號。未設定金鑰時按鈕停用。

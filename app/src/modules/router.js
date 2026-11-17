@@ -60,6 +60,8 @@ const global = window;
         { re: /^\/admin\/export-sim-html\/?$/, name: '/admin/export-sim-html' },
         { re: /^\/admin\/import-disk-simulations\/?$/, name: '/admin/import-disk-simulations' },
         { re: /^\/admin\/recover-simulations\/?$/, name: '/admin/recover-simulations' },
+        { re: /^\/admin\/classify-sim-topics\/?$/, name: '/admin/classify-sim-topics' },
+        { re: /^\/admin\/sim-screenshots\/?$/, name: '/admin/sim-screenshots' },
         { re: /^\/admin\/question-banks\/new\/?$/, name: '/admin/question-banks/new' },
         { re: /^\/admin\/question-banks\/(\d+)\/edit\/?$/, name: '/admin/question-banks/:id/edit', keys: [1] },
         { re: /^\/admin\/question-banks\/?$/, name: '/admin/question-banks' },
