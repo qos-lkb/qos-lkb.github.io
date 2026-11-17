@@ -50,6 +50,8 @@ DROP TABLE IF EXISTS quiz_options;
 DROP TABLE IF EXISTS quiz_questions;
 DROP TABLE IF EXISTS learning_tools;
 DROP TABLE IF EXISTS admin_audit_log;
+DROP TABLE IF EXISTS tutor_messages;
+DROP TABLE IF EXISTS tutor_conversations;
 DROP TABLE IF EXISTS api_rate_limits;
 DROP TABLE IF EXISTS simulation_tags;
 DROP TABLE IF EXISTS simulations;
@@ -183,6 +185,26 @@ CREATE TABLE api_rate_limits (
     attempt_count INT UNSIGNED NOT NULL DEFAULT 1,
     window_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_api_rate_limits_key (rate_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE tutor_conversations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    model VARCHAR(64) NOT NULL DEFAULT '',
+    page_title VARCHAR(120) NOT NULL DEFAULT '',
+    page_path VARCHAR(200) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_tutor_conversations_user_updated (user_id, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE tutor_messages (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    conversation_id BIGINT UNSIGNED NOT NULL,
+    role ENUM('user', 'assistant') NOT NULL,
+    content MEDIUMTEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_tutor_messages_conversation (conversation_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE admin_audit_log (

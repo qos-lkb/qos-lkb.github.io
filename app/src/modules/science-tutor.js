@@ -212,6 +212,31 @@ const global = window;
         scrollLog();
     }
 
+    async function loadHistory() {
+        if (!log || !global.ScienceApi) return;
+        try {
+            const data = await ScienceApi.apiFetch('/tutor/history');
+            const messages = data && Array.isArray(data.messages) ? data.messages : [];
+            if (turns.length || !messages.length) {
+                if (!turns.length) showEmpty();
+                return;
+            }
+            for (const msg of messages) {
+                if (!msg || (msg.role !== 'user' && msg.role !== 'assistant')) continue;
+                const content = String(msg.content || '');
+                if (!content) continue;
+                turns.push({ role: msg.role, content });
+                const el = appendBubble(msg.role === 'user' ? 'science-tutor-msg-user' : 'science-tutor-msg-assistant');
+                if (msg.role === 'assistant') await renderRich(el, content);
+                else el.textContent = content;
+            }
+            if (!turns.length) showEmpty();
+            scrollLog();
+        } catch (e) {
+            if (!turns.length) showEmpty();
+        }
+    }
+
     function mount() {
         if (root) return;
         if (!global.ScienceApi || typeof ScienceApi.getUser !== 'function' || !ScienceApi.getUser()) return;
@@ -248,9 +273,9 @@ const global = window;
         log = root.querySelector('.science-tutor-log');
         input = root.querySelector('.science-tutor-input');
         sendBtn = root.querySelector('.science-tutor-send');
-        fab = root.querySelector('.science-tutor-fab');
         refreshLabels();
         showEmpty();
+        void loadHistory();
 
         fab.addEventListener('click', () => {
             if (panel.hidden) openPanel();

@@ -7,6 +7,23 @@ require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
 require_once dirname(__DIR__, 3) . '/includes/tutor_lib.php';
 
+function api_handle_tutor_history(PDO $pdo): void
+{
+    $user = require_api_user();
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT id FROM tutor_conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1'
+        );
+        $stmt->execute([(int) $user['id']]);
+        $id = $stmt->fetchColumn();
+        $messages = $id === false ? [] : tutor_recent_messages($pdo, (int) $id, TUTOR_HISTORY_LIMIT);
+    } catch (PDOException $e) {
+        api_json_error('schema_missing', '科學助教資料表未就緒。請執行 php scripts/apply_schema.php。', 500);
+    }
+
+    api_json_ok(['messages' => $messages]);
+}
+
 function api_handle_tutor_chat(PDO $pdo): void
 {
     $user = require_api_user();
@@ -18,6 +35,11 @@ function api_handle_tutor_chat(PDO $pdo): void
         api_json_error('validation_error', $normalized['error'], 422);
     }
 
+    $question = tutor_latest_user_text($normalized['messages']);
+    if ($question === '') {
+        api_json_error('validation_error', '請輸入問題。', 422);
+    }
+
     $contextRaw = $body['context'] ?? [];
     $context = tutor_normalize_context(is_array($contextRaw) ? $contextRaw : []);
 
@@ -26,5 +48,19 @@ function api_handle_tutor_chat(PDO $pdo): void
         api_json_error('rate_limited', '提問過於頻繁，請稍後再試。', 429);
     }
 
-    tutor_stream_chat($normalized['messages'], $context['title'], $context['path']);
+    try {
+        $conversationId = tutor_open_conversation(
+            $pdo,
+            (int) $user['id'],
+            config_xai_model(),
+            $context['title'],
+            $context['path']
+        );
+        tutor_append_user_turn($pdo, $conversationId, $question);
+        $messages = tutor_recent_messages($pdo, $conversationId, TUTOR_MAX_MESSAGES);
+    } catch (PDOException $e) {
+        api_json_error('schema_missing', '科學助教資料表未就緒。請執行 php scripts/apply_schema.php。', 500);
+    }
+
+    tutor_stream_chat($pdo, $conversationId, $messages, $context['title'], $context['path']);
 }

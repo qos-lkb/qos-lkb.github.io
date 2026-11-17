@@ -33,6 +33,7 @@ final class MigrationRunner
             'schema_simulations_review.sql',
             'schema_flashcards.sql',
             'schema_simulations_html_path.sql',
+            'schema_tutor.sql',
         ];
     }
 

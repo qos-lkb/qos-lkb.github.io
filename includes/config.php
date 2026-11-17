@@ -277,10 +277,24 @@ function config_xai_model(): string
     config_load_dotenv();
     $model = trim((string) (getenv('XAI_MODEL') ?: ($_ENV['XAI_MODEL'] ?? '')));
     if ($model === '' || !preg_match('/^[A-Za-z0-9._-]{1,64}$/', $model)) {
-        return 'grok-4.7';
+        return 'grok-4.6';
     }
 
     return $model;
+}
+
+/**
+ * Optional reasoning depth for models that support it. Empty means the API default.
+ */
+function config_xai_reasoning_effort(): string
+{
+    config_load_dotenv();
+    $effort = strtolower(trim((string) (getenv('XAI_REASONING_EFFORT') ?: ($_ENV['XAI_REASONING_EFFORT'] ?? ''))));
+    if (!in_array($effort, ['low', 'medium', 'high', 'xhigh'], true)) {
+        return '';
+    }
+
+    return $effort;
 }
 
 /**

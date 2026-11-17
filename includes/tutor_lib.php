@@ -124,7 +124,7 @@ function tutor_emit_sse(string $event, array $data): bool
 /**
  * Pull complete upstream SSE lines and forward visible answer text only.
  */
-function tutor_consume_upstream_buffer(string &$buffer): bool
+function tutor_consume_upstream_buffer(string &$buffer, string &$answer): bool
 {
     while (($pos = strpos($buffer, "\n")) !== false) {
         $line = rtrim(substr($buffer, 0, $pos), "\r");
@@ -144,12 +144,110 @@ function tutor_consume_upstream_buffer(string &$buffer): bool
         if (!is_string($text) || $text === '') {
             continue;
         }
+        $answer .= $text;
         if (!tutor_emit_sse('delta', ['text' => $text])) {
             return false;
         }
     }
 
     return true;
+}
+
+const TUTOR_HISTORY_LIMIT = 40;
+
+function tutor_open_conversation(PDO $pdo, int $userId, string $model, string $pageTitle, string $pagePath): int
+{
+    $stmt = $pdo->prepare(
+        'SELECT id FROM tutor_conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1'
+    );
+    $stmt->execute([$userId]);
+    $id = $stmt->fetchColumn();
+    if ($id !== false) {
+        $upd = $pdo->prepare(
+            'UPDATE tutor_conversations SET model = ?, page_title = ?, page_path = ? WHERE id = ?'
+        );
+        $upd->execute([$model, $pageTitle, $pagePath, (int) $id]);
+
+        return (int) $id;
+    }
+
+    $ins = $pdo->prepare(
+        'INSERT INTO tutor_conversations (user_id, model, page_title, page_path) VALUES (?, ?, ?, ?)'
+    );
+    $ins->execute([$userId, $model, $pageTitle, $pagePath]);
+
+    return (int) $pdo->lastInsertId();
+}
+
+function tutor_append_user_turn(PDO $pdo, int $conversationId, string $content): void
+{
+    $last = $pdo->prepare(
+        'SELECT role, content FROM tutor_messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1'
+    );
+    $last->execute([$conversationId]);
+    $row = $last->fetch(PDO::FETCH_ASSOC);
+    if (is_array($row) && $row['role'] === 'user' && (string) $row['content'] === $content) {
+        return;
+    }
+
+    $ins = $pdo->prepare(
+        'INSERT INTO tutor_messages (conversation_id, role, content) VALUES (?, ?, ?)'
+    );
+    $ins->execute([$conversationId, 'user', $content]);
+}
+
+function tutor_append_assistant_turn(PDO $pdo, int $conversationId, string $content): void
+{
+    $content = str_replace(["\r\n", "\r"], "\n", $content);
+    $content = trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $content) ?? '');
+    if ($content === '') {
+        return;
+    }
+    $ins = $pdo->prepare(
+        'INSERT INTO tutor_messages (conversation_id, role, content) VALUES (?, ?, ?)'
+    );
+    $ins->execute([$conversationId, 'assistant', $content]);
+}
+
+/**
+ * @return list<array{role:string,content:string}>
+ */
+function tutor_recent_messages(PDO $pdo, int $conversationId, int $limit): array
+{
+    $limit = max(1, min(TUTOR_HISTORY_LIMIT, $limit));
+    $stmt = $pdo->prepare(
+        'SELECT role, content FROM tutor_messages WHERE conversation_id = ? ORDER BY id DESC LIMIT ' . $limit
+    );
+    $stmt->execute([$conversationId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $rows = array_reverse($rows);
+    $out = [];
+    foreach ($rows as $row) {
+        $role = (string) ($row['role'] ?? '');
+        if ($role !== 'user' && $role !== 'assistant') {
+            continue;
+        }
+        $out[] = [
+            'role' => $role,
+            'content' => (string) ($row['content'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @param list<array{role:string,content:string}> $messages
+ */
+function tutor_latest_user_text(array $messages): string
+{
+    for ($i = count($messages) - 1; $i >= 0; $i--) {
+        if ($messages[$i]['role'] === 'user') {
+            return $messages[$i]['content'];
+        }
+    }
+
+    return '';
 }
 
 function tutor_begin_sse(): void
@@ -170,7 +268,7 @@ function tutor_begin_sse(): void
  *
  * @param list<array{role:string,content:string}> $messages
  */
-function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath): void
+function tutor_stream_chat(PDO $pdo, int $conversationId, array $messages, string $pageTitle, string $pagePath): void
 {
     if (!function_exists('curl_init')) {
         api_json_error('tutor_unavailable', '科學助教尚未啟用。', 503);
@@ -181,7 +279,7 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
         api_json_error('tutor_unavailable', '科學助教尚未啟用。', 503);
     }
 
-    $payload = json_encode([
+    $body = [
         'model' => config_xai_model(),
         'stream' => true,
         'temperature' => 0.3,
@@ -190,7 +288,12 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
             [['role' => 'system', 'content' => tutor_system_prompt($pageTitle, $pagePath)]],
             $messages
         ),
-    ], JSON_UNESCAPED_UNICODE);
+    ];
+    $effort = config_xai_reasoning_effort();
+    if ($effort !== '') {
+        $body['reasoning_effort'] = $effort;
+    }
+    $payload = json_encode($body, JSON_UNESCAPED_UNICODE);
     if ($payload === false) {
         api_json_error('server_error', '無法送出問題。', 500);
     }
@@ -204,6 +307,7 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
     $status = 0;
     $errorBody = '';
     $buffer = '';
+    $answer = '';
     $alive = true;
     $ch = curl_init(TUTOR_UPSTREAM_URL);
     curl_setopt_array($ch, [
@@ -225,7 +329,7 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
 
             return strlen($header);
         },
-        CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$status, &$errorBody, &$buffer, &$alive): int {
+        CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$status, &$errorBody, &$buffer, &$answer, &$alive): int {
             if (connection_aborted()) {
                 $alive = false;
 
@@ -239,7 +343,7 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
                 return strlen($chunk);
             }
             $buffer .= $chunk;
-            if (!tutor_consume_upstream_buffer($buffer)) {
+            if (!tutor_consume_upstream_buffer($buffer, $answer)) {
                 $alive = false;
 
                 return 0;
@@ -253,6 +357,15 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
     $errno = curl_errno($ch);
     curl_close($ch);
 
+    tutor_consume_upstream_buffer($buffer, $answer);
+    if ($answer !== '') {
+        try {
+            tutor_append_assistant_turn($pdo, $conversationId, $answer);
+        } catch (Throwable $e) {
+            // The student already has the text. A failed save must not hide the reply.
+        }
+    }
+
     if (!$alive || connection_aborted()) {
         return;
     }
@@ -263,6 +376,5 @@ function tutor_stream_chat(array $messages, string $pageTitle, string $pagePath)
         return;
     }
 
-    tutor_consume_upstream_buffer($buffer);
     tutor_emit_sse('done', ['ok' => true]);
 }
