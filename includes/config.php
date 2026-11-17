@@ -260,6 +260,30 @@ function config_db_wipe_confirm_phrase(): string
 }
 
 /**
+ * xAI API key for the science tutor. Empty when the tutor is not configured.
+ */
+function config_xai_api_key(): string
+{
+    config_load_dotenv();
+
+    return trim((string) (getenv('XAI_API_KEY') ?: ($_ENV['XAI_API_KEY'] ?? '')));
+}
+
+/**
+ * Chat model id. Invalid or empty values fall back to the current flagship.
+ */
+function config_xai_model(): string
+{
+    config_load_dotenv();
+    $model = trim((string) (getenv('XAI_MODEL') ?: ($_ENV['XAI_MODEL'] ?? '')));
+    if ($model === '' || !preg_match('/^[A-Za-z0-9._-]{1,64}$/', $model)) {
+        return 'grok-4.7';
+    }
+
+    return $model;
+}
+
+/**
  * @return array<string, mixed>
  */
 function app_config(): array

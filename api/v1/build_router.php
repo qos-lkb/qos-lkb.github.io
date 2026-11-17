@@ -34,6 +34,7 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('POST', '/auth/logout', static fn () => api_handle_auth_logout($pdo));
     $router->addExact('POST', '/auth/stop-impersonation', static fn () => api_handle_auth_stop_impersonation($pdo));
     $router->addExact('GET', '/auth/me', static fn () => api_handle_auth_me($pdo));
+    $router->addExact('POST', '/tutor/chat', static fn () => api_handle_tutor_chat($pdo));
     $router->addExact('GET', '/subjects', static fn () => api_handle_subjects($pdo));
     $router->addExact('GET', '/nav-menu', static fn () => api_handle_nav_menu($pdo));
 

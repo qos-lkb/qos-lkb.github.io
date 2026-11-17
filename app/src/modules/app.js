@@ -1170,6 +1170,9 @@
                 console.warn('Auth init failed', e);
             }
             void refreshNavVisibility();
+            if (window.ScienceTutor && window.ScienceApi?.getUser?.()) {
+                ScienceTutor.mount();
+            }
             // First dispatch may have run before session; refresh current route
             // (home for teachers, and any /admin deep link after cookie is known).
             if (window.AppRouter?.dispatch) {

@@ -27,4 +27,5 @@ import './modules/learning-tracker.js';
 import './modules/auth.js';
 import './modules/app-loader.js';
 import './modules/admin-loader.js';
+import './modules/science-tutor.js';
 import './modules/app.js';
