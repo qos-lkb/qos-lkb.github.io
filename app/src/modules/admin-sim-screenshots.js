@@ -42,6 +42,53 @@ function loadSnapshot() {
     return snapshotPromise;
 }
 
+const CAPTURE_WIDTH = 1280;
+const CAPTURE_HEIGHT = 800;
+
+function waitFrames(n) {
+    return new Promise((resolve) => {
+        const step = (left) => {
+            if (left <= 0) {
+                resolve();
+                return;
+            }
+            requestAnimationFrame(() => step(left - 1));
+        };
+        step(n);
+    });
+}
+
+function expandCanvasesToBitmapSize(doc) {
+    const restores = [];
+    if (!doc) return restores;
+    doc.querySelectorAll('canvas').forEach((canvas) => {
+        const bw = canvas.width;
+        const bh = canvas.height;
+        if (!bw || !bh) return;
+        restores.push({
+            el: canvas,
+            width: canvas.style.width,
+            height: canvas.style.height,
+            maxWidth: canvas.style.maxWidth,
+            maxHeight: canvas.style.maxHeight,
+        });
+        canvas.style.width = `${bw}px`;
+        canvas.style.height = `${bh}px`;
+        canvas.style.maxWidth = 'none';
+        canvas.style.maxHeight = 'none';
+    });
+    return restores;
+}
+
+function restoreCanvases(restores) {
+    restores.forEach((row) => {
+        row.el.style.width = row.width;
+        row.el.style.height = row.height;
+        row.el.style.maxWidth = row.maxWidth;
+        row.el.style.maxHeight = row.maxHeight;
+    });
+}
+
 function htmlUrl(slug) {
     const base = (global.ScienceApi && global.ScienceApi.API_BASE) || '/api/v1';
     return `${base}/simulations/${encodeURIComponent(slug)}/html`;
@@ -58,6 +105,8 @@ function resolveAssetUrl(path) {
 async function captureSlugToPng(slug) {
     const iframe = document.getElementById('ss-capture-frame');
     if (!iframe) throw new Error('缺少預覽框。');
+    iframe.style.width = `${CAPTURE_WIDTH}px`;
+    iframe.style.height = `${CAPTURE_HEIGHT}px`;
     await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('載入逾時')), 20000);
         iframe.onload = () => {
@@ -66,17 +115,47 @@ async function captureSlugToPng(slug) {
         };
         iframe.src = htmlUrl(slug);
     });
-    const doc = iframe.contentDocument && iframe.contentDocument.documentElement;
-    if (!doc) throw new Error('無法讀取模擬頁（可能被沙箱阻擋）。');
-    const domToBlob = await loadSnapshot();
-    const blob = await domToBlob(doc, {
-        backgroundColor: '#ffffff',
-        scale: 1,
-        type: 'image/png',
-        features: { restoreScrollPosition: true },
-    });
-    if (!blob) throw new Error('無法產生圖片');
-    return blob;
+    const innerDoc = iframe.contentDocument;
+    const root = innerDoc && innerDoc.documentElement;
+    if (!root) throw new Error('無法讀取模擬頁（可能被沙箱阻擋）。');
+
+    const restores = expandCanvasesToBitmapSize(innerDoc);
+    try {
+        const win = iframe.contentWindow;
+        if (win) {
+            win.dispatchEvent(new Event('resize'));
+        }
+        const needW = Math.max(
+            CAPTURE_WIDTH,
+            root.scrollWidth || 0,
+            innerDoc.body ? innerDoc.body.scrollWidth : 0
+        );
+        const needH = Math.max(
+            CAPTURE_HEIGHT,
+            root.scrollHeight || 0,
+            innerDoc.body ? innerDoc.body.scrollHeight : 0
+        );
+        iframe.style.width = `${Math.min(needW, 1920)}px`;
+        iframe.style.height = `${Math.min(needH, 1200)}px`;
+        if (win) {
+            win.dispatchEvent(new Event('resize'));
+        }
+        await waitFrames(3);
+        await new Promise((r) => setTimeout(r, 250));
+        const domToBlob = await loadSnapshot();
+        const blob = await domToBlob(root, {
+            backgroundColor: '#ffffff',
+            scale: 1,
+            type: 'image/png',
+            features: { restoreScrollPosition: true },
+        });
+        if (!blob) throw new Error('無法產生圖片');
+        return blob;
+    } finally {
+        restoreCanvases(restores);
+        iframe.style.width = `${CAPTURE_WIDTH}px`;
+        iframe.style.height = `${CAPTURE_HEIGHT}px`;
+    }
 }
 
 async function uploadPng(simId, blob) {
@@ -183,7 +262,9 @@ async function renderAdminSimScreenshots() {
             <label class="text-sm text-slate-600 flex items-center gap-1"><input type="checkbox" id="ss-check-all" class="rounded border-slate-300"> ${escapeHtml(t('全選', 'Select all'))}</label>
         </div>
         <p id="ss-progress" class="text-sm text-slate-600 mb-2 hidden"></p>
-        <iframe id="ss-capture-frame" title="${escapeHtml(t('截圖預覽', 'Capture preview'))}" class="w-full h-48 border border-slate-200 rounded-xl bg-white mb-3" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+        <div id="ss-capture-wrap" class="h-48 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 mb-3 relative">
+            <iframe id="ss-capture-frame" title="${escapeHtml(t('截圖預覽', 'Capture preview'))}" class="absolute top-0 left-0 border-0 bg-white origin-top-left" style="width:${CAPTURE_WIDTH}px;height:${CAPTURE_HEIGHT}px" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+        </div>
         <div class="overflow-x-auto bg-white border border-slate-200 rounded-xl">
             <table class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-left text-slate-500">
@@ -199,6 +280,15 @@ async function renderAdminSimScreenshots() {
             </table>
         </div>
     `;
+
+    (function scaleCapturePreview() {
+        const wrap = document.getElementById('ss-capture-wrap');
+        const frame = document.getElementById('ss-capture-frame');
+        if (!wrap || !frame) return;
+        const box = wrap.getBoundingClientRect();
+        const s = Math.min(box.width / CAPTURE_WIDTH, box.height / CAPTURE_HEIGHT, 1);
+        frame.style.transform = `scale(${s})`;
+    }());
 
     const flash = document.getElementById('ss-flash');
     const progress = document.getElementById('ss-progress');

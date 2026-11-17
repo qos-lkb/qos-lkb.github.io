@@ -6,8 +6,8 @@ require_once __DIR__ . '/simulation_files.php';
 require_once __DIR__ . '/web_base.php';
 
 const SIM_SCREENSHOT_BATCH = 5;
-const SIM_SCREENSHOT_WIDTH = 1280;
-const SIM_SCREENSHOT_HEIGHT = 800;
+const SIM_SCREENSHOT_WIDTH = 1920;
+const SIM_SCREENSHOT_HEIGHT = 1080;
 
 /**
  * Relative screenshot / asset path under the project root.

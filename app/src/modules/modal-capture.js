@@ -27,17 +27,48 @@ function loadSnapshot() {
 }
 
 async function captureFrameToPng(frame) {
-    const target = frame.contentDocument && frame.contentDocument.documentElement;
+    const innerDoc = frame.contentDocument;
+    const target = innerDoc && innerDoc.documentElement;
     if (!target) throw new Error('預覽尚未載入，請稍候再試');
-    const domToBlob = await loadSnapshot();
-    const blob = await domToBlob(target, {
-        backgroundColor: '#ffffff',
-        scale: Math.min(window.devicePixelRatio || 1, 2),
-        type: 'image/png',
-        features: { restoreScrollPosition: true },
+    const restores = [];
+    innerDoc.querySelectorAll('canvas').forEach((canvas) => {
+        const bw = canvas.width;
+        const bh = canvas.height;
+        if (!bw || !bh) return;
+        restores.push({
+            el: canvas,
+            width: canvas.style.width,
+            height: canvas.style.height,
+            maxWidth: canvas.style.maxWidth,
+            maxHeight: canvas.style.maxHeight,
+        });
+        canvas.style.width = `${bw}px`;
+        canvas.style.height = `${bh}px`;
+        canvas.style.maxWidth = 'none';
+        canvas.style.maxHeight = 'none';
     });
-    if (!blob) throw new Error('無法產生圖片');
-    return blob;
+    try {
+        if (frame.contentWindow) {
+            frame.contentWindow.dispatchEvent(new Event('resize'));
+        }
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const domToBlob = await loadSnapshot();
+        const blob = await domToBlob(target, {
+            backgroundColor: '#ffffff',
+            scale: Math.min(window.devicePixelRatio || 1, 2),
+            type: 'image/png',
+            features: { restoreScrollPosition: true },
+        });
+        if (!blob) throw new Error('無法產生圖片');
+        return blob;
+    } finally {
+        restores.forEach((row) => {
+            row.el.style.width = row.width;
+            row.el.style.height = row.height;
+            row.el.style.maxWidth = row.maxWidth;
+            row.el.style.maxHeight = row.maxHeight;
+        });
+    }
 }
 
 function getFormattedTimestamp() {
