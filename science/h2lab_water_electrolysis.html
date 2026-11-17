@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>液態水電解製氫路徑 / Liquid-water electrolysis pathway</title>
+    <!--
+      Science Sims — 液態水電解 → 儲氫 → 燃料電池。
+      對照公開教學路徑，不複製產品圖像，亦不是倒立管 2:1 定量模擬。
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            chtml: { scale: 1.05 }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { touch-action: none; }
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #0284c7; /* sky-600 */
+            cursor: pointer;
+            margin-top: -8px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1; /* slate-300 */
+            border-radius: 3px;
+        }
+        button:focus-visible, input:focus-visible, select:focus-visible {
+            outline: 2px solid #0369a1; /* sky-700 */
+            outline-offset: 2px;
+        }
+        .teach-modal { z-index: 80; }
+        .teach-modal.hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+    <header class="bg-white shadow-sm p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <div class="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0" aria-hidden="true">H₂</div>
+            <div>
+                <h1 id="app-title" class="text-lg sm:text-xl font-bold text-slate-800" data-zh="液態水電解製氫路徑" data-en="Liquid-water electrolysis pathway">液態水電解製氫路徑</h1>
+                <p id="app-subtitle" class="text-xs text-slate-500" data-zh="供電 → 液態水電解 → 儲氫 → 燃料電池 → 用電" data-en="Supply → liquid-water electrolysis → storage → fuel cell → load">供電 → 液態水電解 → 儲氫 → 燃料電池 → 用電</p>
+            </div>
+            <span id="badge-subject" class="text-xs bg-sky-700 text-white px-2.5 py-1 rounded-full whitespace-nowrap shrink-0" data-zh="科學" data-en="Science">科學</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="btn-steps" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs sm:text-sm font-semibold" data-zh="觀察步驟" data-en="Steps">觀察步驟</button>
+            <button type="button" id="btn-principle" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs sm:text-sm font-semibold" data-zh="原理解說" data-en="Principles">原理解說</button>
+            <button type="button" id="btn-quiz" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs sm:text-sm font-semibold" data-zh="課堂問題" data-en="Quiz">課堂問題</button>
+            <div class="hidden sm:block h-6 w-px bg-slate-200" aria-hidden="true"></div>
+            <button type="button" id="btn-lang" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-md text-xs sm:text-sm font-semibold" data-zh="中 / EN" data-en="中 / EN">中 / EN</button>
+            <button type="button" id="btn-reset" class="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-md text-xs sm:text-sm font-semibold" data-zh="重置" data-en="Reset">重置</button>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <section class="order-1 lg:order-2 lg:col-span-8 bg-white p-4 rounded-xl shadow-md flex flex-col w-full" aria-labelledby="canvas-heading">
+            <h2 id="canvas-heading" class="sr-only" data-zh="製氫路徑示意" data-en="Hydrogen pathway diagram">製氫路徑示意</h2>
+            <div class="overflow-x-auto">
+                <div id="canvas-wrapper" class="relative w-full min-w-[40rem] aspect-[16/9] max-w-[960px] mx-auto overflow-hidden rounded-lg shadow-inner bg-slate-50">
+                    <canvas id="sim-canvas" class="absolute inset-0 w-full h-full" role="img" aria-labelledby="live-status"></canvas>
+                </div>
+            </div>
+            <p id="canvas-hint" class="text-sm text-slate-600 mt-3 font-medium text-center" data-zh="總反應（課室）：2H₂O(l) → 2H₂ + O₂。氧氣不進入儲氫段。" data-en="Classroom overall reaction: 2H₂O(l) → 2H₂ + O₂. Oxygen is not sent to storage.">總反應（課室）：2H₂O(l) → 2H₂ + O₂。氧氣不進入儲氫段。</p>
+            <p id="live-status" class="text-sm text-slate-700 mt-2 text-center" aria-live="polite"></p>
+        </section>
+
+        <aside class="order-2 lg:order-1 lg:col-span-4 w-full flex flex-col gap-4" aria-labelledby="ctrl-title">
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 id="ctrl-title" class="text-lg font-bold border-b pb-2 mb-4 text-slate-700" data-zh="控制面板" data-en="Controls">控制面板</h2>
+
+                <fieldset class="mb-4">
+                    <legend id="label-source" class="text-sm font-semibold mb-2" data-zh="供電方式" data-en="Electricity source">供電方式</legend>
+                    <div class="grid gap-1.5 text-sm">
+                        <label class="flex items-center gap-2"><input type="radio" name="source" value="module" checked class="accent-sky-700"> <span data-zh="實驗控制模組（穩定供電）" data-en="Control module (steady supply)">實驗控制模組（穩定供電）</span></label>
+                        <label class="flex items-center gap-2"><input type="radio" name="source" value="solar" class="accent-sky-700"> <span data-zh="太陽能" data-en="Solar">太陽能</span></label>
+                        <label class="flex items-center gap-2"><input type="radio" name="source" value="wind" class="accent-sky-700"> <span data-zh="風力" data-en="Wind">風力</span></label>
+                    </div>
+                </fieldset>
+
+                <div id="sun-wrap" class="mb-4 hidden">
+                    <label class="flex justify-between text-sm font-semibold mb-2" for="slider-sun">
+                        <span data-zh="光照" data-en="Sunlight">光照</span>
+                        <span id="val-sun" class="text-sky-700 font-bold">70%</span>
+                    </label>
+                    <input type="range" id="slider-sun" min="0" max="100" step="5" value="70" class="w-full" aria-valuemin="0" aria-valuemax="100" aria-valuenow="70">
+                </div>
+
+                <div id="wind-wrap" class="mb-4 hidden">
+                    <label class="flex justify-between text-sm font-semibold mb-2" for="slider-wind">
+                        <span data-zh="風力" data-en="Wind">風力</span>
+                        <span id="val-wind" class="text-sky-700 font-bold">70%</span>
+                    </label>
+                    <input type="range" id="slider-wind" min="0" max="100" step="5" value="70" class="w-full" aria-valuemin="0" aria-valuemax="100" aria-valuenow="70">
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btn-water" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white py-2 rounded-lg font-bold" aria-pressed="true" data-zh="液態水：有" data-en="Liquid water: on">液態水：有</button>
+                    <button type="button" id="btn-power" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg font-bold" aria-pressed="false" data-zh="開始電解" data-en="Start electrolysis">開始電解</button>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button type="button" id="btn-fuel" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-2 rounded-lg font-bold" aria-pressed="false" data-zh="燃料電池：關" data-en="Fuel cell: off">燃料電池：關</button>
+                </div>
+
+                <label class="block text-sm font-semibold mb-4" for="load-select">
+                    <span data-zh="用電負載" data-en="Electric load">用電負載</span>
+                    <select id="load-select" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-2 bg-white">
+                        <option value="fan" data-zh="小風扇" data-en="Fan">小風扇</option>
+                        <option value="bulb" data-zh="燈泡" data-en="Bulb">燈泡</option>
+                        <option value="car" data-zh="模型車" data-en="Model car">模型車</option>
+                    </select>
+                </label>
+
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-sm">
+                    <div class="flex justify-between gap-2"><span data-zh="相對產氫" data-en="Relative H₂ rate">相對產氫</span><span id="val-gen" class="font-mono font-bold text-sky-700">0.00</span></div>
+                    <div class="flex justify-between gap-2"><span data-zh="相對儲氫" data-en="Relative storage">相對儲氫</span><span id="val-store" class="font-mono font-bold text-sky-800">0%</span></div>
+                    <div class="flex justify-between gap-2"><span data-zh="負載狀態" data-en="Load">負載狀態</span><span id="val-load" class="font-mono font-bold text-slate-800">—</span></div>
+                </div>
+
+                <button type="button" id="btn-reset-panel" class="mt-4 w-full bg-red-600 hover:bg-red-500 text-white py-2 rounded-lg font-bold" data-zh="重置" data-en="Reset">重置</button>
+            </div>
+
+            <div class="bg-sky-50 border border-sky-200 p-4 rounded-xl shadow-sm">
+                <h3 id="tip-title" class="text-sm font-bold text-sky-900 mb-2" data-zh="觀察重點" data-en="What to notice">觀察重點</h3>
+                <ul id="tip-list" class="text-xs text-sky-950 space-y-1 list-disc pl-4"></ul>
+            </div>
+        </aside>
+    </main>
+
+    <div id="modal-steps" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="steps-title">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+            <div class="flex justify-between items-center p-4 border-b border-slate-200">
+                <h2 id="steps-title" class="text-lg font-bold text-indigo-700">觀察步驟</h2>
+                <button type="button" class="modal-close text-slate-500 hover:text-slate-800 text-2xl leading-none px-2" aria-label="關閉">×</button>
+            </div>
+            <div id="steps-body" class="p-4 overflow-y-auto space-y-3 text-sm"></div>
+        </div>
+    </div>
+    <div id="modal-principle" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="principle-title">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+            <div class="flex justify-between items-center p-4 border-b border-slate-200">
+                <h2 id="principle-title" class="text-lg font-bold text-emerald-700">原理解說</h2>
+                <button type="button" class="modal-close text-slate-500 hover:text-slate-800 text-2xl leading-none px-2" aria-label="關閉">×</button>
+            </div>
+            <div id="principle-body" class="p-4 overflow-y-auto space-y-4 text-sm leading-relaxed"></div>
+        </div>
+    </div>
+    <div id="modal-quiz" class="teach-modal hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="quiz-title">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col text-slate-800">
+            <div class="flex justify-between items-center p-4 border-b border-slate-200 gap-2">
+                <h2 id="quiz-title" class="text-lg font-bold text-violet-700">課堂問題</h2>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-quiz-answers" class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-900 border border-violet-300 font-semibold">顯示參考答案</button>
+                    <button type="button" class="modal-close text-slate-500 hover:text-slate-800 text-2xl leading-none px-2" aria-label="關閉">×</button>
+                </div>
+            </div>
+            <div id="quiz-body" class="p-4 overflow-y-auto text-sm"></div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        const LANG_KEY = 'h2labWaterElectrolysisLang';
+        const BASE_W = 960;
+        const BASE_H = 540;
+
+        const i18n = {
+            zh: {
+                close: '關閉',
+                stepsTitle: '觀察步驟',
+                principleTitle: '原理解說',
+                quizTitle: '課堂問題',
+                showAns: '顯示參考答案',
+                hideAns: '隱藏參考答案',
+                waterOn: '液態水：有',
+                waterOff: '液態水：無',
+                start: '開始電解',
+                stop: '停止電解',
+                fuelOn: '燃料電池：開',
+                fuelOff: '燃料電池：關',
+                loadRunning: '用電中',
+                loadIdle: '靜止',
+                predict: '先預測，再操作畫面控件核對，用自己的話作答。',
+                ref: '參考答案',
+                tips: [
+                    '氫氣在電解器產生，不是在儲氫瓶或燃料電池裡生成。',
+                    '沒有液態水，或可再生供電為 0，電解就停；已儲存的氫仍留在瓶內。',
+                    '換太陽能或風力只改變供電，化學反應仍是液態水電解。',
+                    '燃料電池使用儲氫來帶動負載；儲氫用盡，負載就停。',
+                    '氧氣會一併產生，但這條路徑只把氫送去儲存。'
+                ],
+                stage: ['供電', '液態水電解', '儲氫', '燃料電池', '用電'],
+                sourceName: { module: '控制模組', solar: '太陽能', wind: '風力' },
+                loadName: { fan: '小風扇', bulb: '燈泡', car: '模型車' },
+                noWater: '無水',
+                o2vent: 'O₂ 排出',
+                live: (s) => '供電' + s.source + '，水' + s.water + '，電解' + s.power + '，相對產氫 ' + s.gen + '，儲氫 ' + s.store + '，燃料電池' + s.fuel + '，' + s.loadName + s.load + '。'
+            },
+            en: {
+                close: 'Close',
+                stepsTitle: 'Observation steps',
+                principleTitle: 'Principles',
+                quizTitle: 'Quiz',
+                showAns: 'Show answers',
+                hideAns: 'Hide answers',
+                waterOn: 'Liquid water: on',
+                waterOff: 'Liquid water: off',
+                start: 'Start electrolysis',
+                stop: 'Stop electrolysis',
+                fuelOn: 'Fuel cell: on',
+                fuelOff: 'Fuel cell: off',
+                loadRunning: 'powered',
+                loadIdle: 'idle',
+                predict: 'Predict first, then use the controls to check. Answer in your own words.',
+                ref: 'Reference answer',
+                tips: [
+                    'Hydrogen is made in the electrolyser, not inside the storage cylinder or the fuel cell.',
+                    'With no liquid water, or with renewable supply at 0, electrolysis stops; stored hydrogen stays.',
+                    'Solar or wind only changes the electricity supply. The chemistry stays liquid-water electrolysis.',
+                    'The fuel cell uses stored hydrogen to run the load. An empty store stops the load.',
+                    'Oxygen is produced as well, but this pathway stores only hydrogen.'
+                ],
+                stage: ['Supply', 'Electrolysis', 'Storage', 'Fuel cell', 'Load'],
+                sourceName: { module: 'module', solar: 'solar', wind: 'wind' },
+                loadName: { fan: 'fan', bulb: 'bulb', car: 'model car' },
+                noWater: 'No water',
+                o2vent: 'O₂ vent',
+                live: (s) => 'Supply: ' + s.source + '. Water ' + s.water + '. Electrolysis ' + s.power + '. Relative H₂ rate ' + s.gen + '. Storage ' + s.store + '. Fuel cell ' + s.fuel + '. The ' + s.loadName + ' is ' + s.load + '.'
+            }
+        };
+
+        const STEPS = [
+            {
+                zh: '按<strong>重置</strong>（控制模組、有液態水、電解關、燃料電池關、儲氫 0%、負載靜止，語言不變）。按<strong>開始電解</strong>。電解器應產氣，儲氫上升，負載仍靜止。',
+                en: 'Press <strong>Reset</strong> (control module, liquid water on, electrolysis off, fuel cell off, storage 0%, load idle; language unchanged). Press <strong>Start electrolysis</strong>. The electrolyser should make gas, storage should rise, and the load should stay idle.'
+            },
+            {
+                zh: '保持電解開啟，按<strong>液態水：無</strong>。產氫應停下，已累積的儲氫保留。再按回「有水」，產氫恢復。',
+                en: 'Leave electrolysis on and press <strong>Liquid water: off</strong>. Hydrogen production should stop and stored hydrogen should remain. Turn water back on and production resumes.'
+            },
+            {
+                zh: '改選<strong>太陽能</strong>，把光照調到 <strong>0%</strong>（水開、電解開）。相對產氫應接近 0。再把光照調高，產氫隨光照上升。改選<strong>風力</strong>時，用風力滑桿做同樣比較。控制模組則不看這兩個滑桿。',
+                en: 'Choose <strong>Solar</strong> and set sunlight to <strong>0%</strong> (water on, electrolysis on). Relative H₂ rate should be near 0. Raise sunlight and the rate should rise with it. Repeat with <strong>Wind</strong>. The control module ignores both sliders.'
+            },
+            {
+                zh: '讓儲氫升到明顯讀數，打開<strong>燃料電池</strong>，負載選小風扇、燈泡或模型車。負載應為「用電中」。控制模組仍在電解時，產氫快過用氫，儲氫繼續上升，只是較慢。按<strong>停止電解</strong>（或把光照／風力調到 0）後，儲氫下降；用盡則負載回到靜止。',
+                en: 'Let storage rise, switch the <strong>fuel cell</strong> on, and choose the fan, bulb, or model car. The load should read powered. If the control module is still electrolysing, production exceeds use, so storage keeps rising, only more slowly. Press <strong>Stop electrolysis</strong> (or set sunlight/wind to 0): storage falls, and an empty store returns the load to idle.'
+            },
+            {
+                zh: '打開原理解說：本模擬主軸是<strong>液態水電解路徑</strong>。它不是倒立管收集 H₂／O₂ 體積比 2:1 的定量模擬，也不是水蒸氣電解。',
+                en: 'Open Principles: this sim is the <strong>liquid-water electrolysis pathway</strong>. It is not the inverted-tube 2:1 H₂/O₂ volume sim, and it is not vapor-fed electrolysis.'
+            }
+        ];
+
+        const PRINCIPLE = {
+            zh: {
+                conceptTitle: '概念',
+                concept: '這條教學路徑用外加電能把<strong>液態水</strong>電解成氫氣與氧氣，屬非自發氧化還原。氫氣進入儲氫段，再經燃料電池轉成電能去帶動負載。製氫只發生在電解器。',
+                mechTitle: '機制',
+                mech: [
+                    '<strong>供電</strong>：控制模組提供穩定電能。太陽能與風力只改變供電強弱（0–100%），不改變反應物。',
+                    '<strong>電解</strong>：必須同時「有液態水」且「電解開啟」，可再生供電還須大於 0。課室總反應 $$2\\mathrm{H_2O}(l)\\rightarrow 2\\mathrm{H_2}(g)+\\mathrm{O_2}(g)$$。本模擬讓氧氣由電解器排出，只把氫送進儲氫段。',
+                    '<strong>儲氫與燃料電池</strong>：儲氫上升代表產氫多過用氫。燃料電池開啟且儲氫大於 0 時負載才用電，並消耗儲氫；若同時產氫更快，讀數仍可能上升。這是教學比例，不是流量、壓力或純度的實測。',
+                    '<strong>範圍</strong>：不模擬倒立管 2:1 定量、分解電壓、電極半反應選單、水蒸氣電解，也不代表任何產品規格。'
+                ],
+                egTitle: '對照例子',
+                eg: '課堂可先由教師沿「水 → 電解 → 儲氫 → 燃料電池 → 電」示範，小組再改水與供電並記錄儲氫，虛擬畫面則用來在動手前看風、光、水、氫、電的先後。'
+            },
+            en: {
+                conceptTitle: 'Concept',
+                concept: 'This pathway uses an external electricity supply to electrolyse <strong>liquid water</strong> into hydrogen and oxygen, a non-spontaneous redox change. Hydrogen goes to storage, then a fuel cell turns it back into electricity for a load. Hydrogen is made only in the electrolyser.',
+                mechTitle: 'Mechanism',
+                mech: [
+                    '<strong>Supply</strong>: the control module is steady. Solar and wind only scale the supply (0–100%). They do not change the reactant.',
+                    '<strong>Electrolysis</strong>: liquid water must be on and electrolysis must be started; a renewable source must also be above 0. Classroom overall reaction: $$2\\mathrm{H_2O}(l)\\rightarrow 2\\mathrm{H_2}(g)+\\mathrm{O_2}(g)$$. Here oxygen is vented and only hydrogen is stored.',
+                    '<strong>Storage and fuel cell</strong>: storage rises when production exceeds use. The load runs only while the fuel cell is on and storage is above 0, which consumes hydrogen; if production is faster, the reading can still rise. The percentages are a teaching scale, not a measured flow, pressure, or purity.',
+                    '<strong>Scope</strong>: not the inverted-tube 2:1 volume lab, not a decomposition-voltage study, not a half-reaction menu, not vapor-fed electrolysis, and not a product specification.'
+                ],
+                egTitle: 'Classroom example',
+                eg: 'A teacher can first walk the path water → electrolysis → storage → fuel cell → electricity. Groups then change water and supply and record storage. The screen is for seeing the order of wind, light, water, hydrogen, and electricity before a hands-on lesson.'
+            }
+        };
+
+        const QUIZ = [
+            {
+                q: { zh: '重置後保持控制模組與有水，按開始電解，燃料電池保持關閉。哪項最合理？', en: 'After Reset, keep the control module and water on, start electrolysis, and leave the fuel cell off. Which is most reasonable?' },
+                choices: [
+                    { zh: '電解器產氣、儲氫上升，負載仍靜止', en: 'The electrolyser makes gas, storage rises, and the load stays idle' },
+                    { zh: '沒有按下開始也會立刻產氫', en: 'Hydrogen appears immediately even if start was not pressed' },
+                    { zh: '燃料電池關閉時模型車仍會行駛', en: 'The model car runs while the fuel cell is off' },
+                    { zh: '反應物改成水蒸氣', en: 'The reactant changes to water vapor' }
+                ],
+                explain: { zh: 'A。製氫在電解器；燃料電池未開，負載不用儲氫。', en: 'A. Hydrogen is made in the electrolyser. With the fuel cell off, the load does not use stored hydrogen.' }
+            },
+            {
+                q: { zh: '電解進行中關掉液態水。用自己的話寫：（1）產氫怎樣；（2）已累積的儲氫怎樣。', en: 'During electrolysis, turn liquid water off. In your own words: (1) what happens to production; (2) what happens to hydrogen already stored.' },
+                choices: null,
+                explain: { zh: '（1）產氫停止，相對產氫接近 0。（2）已儲存的氫保留，直到燃料電池使用它。', en: '(1) Production stops and the relative rate is near 0. (2) Stored hydrogen remains until the fuel cell uses it.' }
+            },
+            {
+                q: { zh: '有水、電解開啟，供電改為太陽能且光照為 0%。哪項正確？', en: 'Water is on, electrolysis is on, the source is solar, and sunlight is 0%. Which is correct?' },
+                choices: [
+                    { zh: '幾乎不產氫；提高光照後相對產氫上升。風力滑桿對太陽能沒有作用。', en: 'Almost no hydrogen is made; raising sunlight raises the rate. The wind slider does not affect solar.' },
+                    { zh: '光照不影響產氫，因為化學反應與供電無關', en: 'Sunlight does not matter because the chemistry ignores the supply' },
+                    { zh: '光照為 0 時改走水蒸氣電解', en: 'At 0% sunlight the sim switches to vapor electrolysis' },
+                    { zh: '儲氫一定立刻變成 100%', en: 'Storage instantly becomes 100%' }
+                ],
+                explain: { zh: 'A。太陽能只提供電能；電能為 0 就不能電解。', en: 'A. Solar only supplies electricity. At zero supply, electrolysis does not run.' }
+            },
+            {
+                q: { zh: '儲氫已有讀數。先停止電解，再打開燃料電池並選擇小風扇。哪項最合理？', en: 'Storage already has a reading. Stop electrolysis, then turn the fuel cell on and choose the fan. Which is most reasonable?' },
+                choices: [
+                    { zh: '風扇用電中，儲氫下降；儲氫用盡後風扇靜止', en: 'The fan is powered and storage falls; an empty store makes the fan idle' },
+                    { zh: '風扇轉動但不消耗儲氫', en: 'The fan spins without using stored hydrogen' },
+                    { zh: '電解器變成燃料電池，不再需要氫', en: 'The electrolyser becomes the fuel cell and no longer needs hydrogen' },
+                    { zh: '重置會把語言改成英文', en: 'Reset switches the language to English' }
+                ],
+                explain: { zh: 'A。停止電解後，燃料電池只消耗已儲存的氫。重置不改語言。', en: 'A. After electrolysis stops, the fuel cell only consumes stored hydrogen. Reset does not change language.' }
+            },
+            {
+                q: { zh: '就本模擬的設計，哪項最正確？', en: 'Which statement best matches this sim?' },
+                choices: [
+                    { zh: '主軸是液態水電解 → 儲氫 → 燃料電池用電；可比較控制模組、太陽能與風力。不是倒立管 2:1 定量，也不是水蒸氣電解。', en: 'The focus is liquid-water electrolysis → storage → fuel-cell electricity, comparing a control module, solar, and wind. It is not the inverted-tube 2:1 lab and not vapor-fed electrolysis.' },
+                    { zh: '主軸是比較倒立管內氫氣與氧氣的體積比', en: 'The focus is comparing hydrogen and oxygen volumes in inverted tubes' },
+                    { zh: '主軸是濃鹽水電解並在陽極收集氯氣', en: 'The focus is electrolysing brine and collecting chlorine at the anode' },
+                    { zh: '這是不需外加電源的原電池', en: 'It is a galvanic cell that needs no external supply' }
+                ],
+                explain: { zh: 'A。定量體積比見另一個水的電解模擬；本檔只走製氫後的能量路徑。', en: 'A. The volume-ratio lab is the other water-electrolysis sim. This file follows the energy pathway after hydrogen is made.' }
+            }
+        ];
+
+        const canvas = document.getElementById('sim-canvas');
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+        const drawingContext = canvas.getContext('2d');
+
+        const state = {
+            source: 'module',
+            sunlight: 70,
+            wind: 70,
+            waterOn: true,
+            electrolyzing: false,
+            fuelCellOn: false,
+            load: 'fan',
+            storage: 0,
+            generationRate: 0,
+            outputting: false,
+            bubbles: [],
+            spin: 0
+        };
+
+        let currentLang = 'zh';
+        let quizReveal = false;
+        let lastFocus = null;
+        let lastTimestamp = 0;
+
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+        const textOf = (node) => node.dataset[currentLang === 'en' ? 'en' : 'zh'] || '';
+
+        const applyStaticLanguage = () => {
+            document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-Hant';
+            document.querySelectorAll('[data-zh]').forEach((node) => {
+                if (node.id === 'btn-water' || node.id === 'btn-power' || node.id === 'btn-fuel') return;
+                node.textContent = textOf(node);
+            });
+            document.querySelectorAll('.modal-close').forEach((button) => {
+                button.setAttribute('aria-label', i18n[currentLang].close);
+            });
+            document.getElementById('steps-title').textContent = i18n[currentLang].stepsTitle;
+            document.getElementById('principle-title').textContent = i18n[currentLang].principleTitle;
+            document.getElementById('quiz-title').textContent = i18n[currentLang].quizTitle;
+        };
+
+        const readStoredLanguage = () => {
+            try {
+                return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'zh';
+            } catch (error) {
+                console.error(error);
+                return 'zh';
+            }
+        };
+
+        const storeLanguage = () => {
+            try {
+                localStorage.setItem(LANG_KEY, currentLang);
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        const sourceFactor = () => {
+            if (state.source === 'solar') return state.sunlight / 100;
+            if (state.source === 'wind') return state.wind / 100;
+            return 1;
+        };
+
+        const syncSourcePanels = () => {
+            document.getElementById('sun-wrap').classList.toggle('hidden', state.source !== 'solar');
+            document.getElementById('wind-wrap').classList.toggle('hidden', state.source !== 'wind');
+        };
+
+        const updateButtons = () => {
+            const copy = i18n[currentLang];
+            const waterButton = document.getElementById('btn-water');
+            const powerButton = document.getElementById('btn-power');
+            const fuelButton = document.getElementById('btn-fuel');
+            waterButton.textContent = state.waterOn ? copy.waterOn : copy.waterOff;
+            waterButton.setAttribute('aria-pressed', state.waterOn ? 'true' : 'false');
+            powerButton.textContent = state.electrolyzing ? copy.stop : copy.start;
+            powerButton.setAttribute('aria-pressed', state.electrolyzing ? 'true' : 'false');
+            fuelButton.textContent = state.fuelCellOn ? copy.fuelOn : copy.fuelOff;
+            fuelButton.setAttribute('aria-pressed', state.fuelCellOn ? 'true' : 'false');
+        };
+
+        const renderTips = () => {
+            const list = document.getElementById('tip-list');
+            list.replaceChildren();
+            i18n[currentLang].tips.forEach((tip) => {
+                const item = document.createElement('li');
+                item.textContent = tip;
+                list.appendChild(item);
+            });
+        };
+
+        const updateReadouts = () => {
+            const copy = i18n[currentLang];
+            document.getElementById('val-sun').textContent = state.sunlight + '%';
+            document.getElementById('val-wind').textContent = state.wind + '%';
+            document.getElementById('slider-sun').setAttribute('aria-valuenow', String(state.sunlight));
+            document.getElementById('slider-wind').setAttribute('aria-valuenow', String(state.wind));
+            document.getElementById('val-gen').textContent = state.generationRate.toFixed(2);
+            document.getElementById('val-store').textContent = Math.round(state.storage) + '%';
+            document.getElementById('val-load').textContent = state.outputting ? copy.loadRunning : copy.loadIdle;
+            const summary = {
+                source: copy.sourceName[state.source],
+                water: state.waterOn ? (currentLang === 'en' ? 'on' : '有') : (currentLang === 'en' ? 'off' : '無'),
+                power: state.electrolyzing ? (currentLang === 'en' ? 'on' : '開') : (currentLang === 'en' ? 'off' : '關'),
+                gen: state.generationRate.toFixed(2),
+                store: Math.round(state.storage) + '%',
+                fuel: state.fuelCellOn ? (currentLang === 'en' ? 'on' : '開') : (currentLang === 'en' ? 'off' : '關'),
+                loadName: copy.loadName[state.load],
+                load: state.outputting ? copy.loadRunning : copy.loadIdle
+            };
+            document.getElementById('live-status').textContent = copy.live(summary);
+        };
+
+        const typesetMath = (root) => {
+            if (!window.MathJax || !window.MathJax.typesetPromise) return;
+            const nodes = root ? [root] : undefined;
+            window.MathJax.typesetPromise(nodes).catch((error) => console.error(error));
+        };
+
+        const closeModals = () => {
+            ['modal-steps', 'modal-principle', 'modal-quiz'].forEach((id) => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+            lastFocus = null;
+        };
+
+        const openModal = (id) => {
+            lastFocus = document.activeElement;
+            closeModals();
+            lastFocus = document.activeElement;
+            const dialog = document.getElementById(id);
+            dialog.classList.remove('hidden');
+            const closeButton = dialog.querySelector('.modal-close');
+            if (closeButton) closeButton.focus();
+        };
+
+        const renderSteps = () => {
+            document.getElementById('steps-title').textContent = i18n[currentLang].stepsTitle;
+            const body = document.getElementById('steps-body');
+            body.innerHTML = STEPS.map((step, index) => {
+                const sentence = currentLang === 'en' ? step.en : step.zh;
+                return '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200"><div class="font-bold text-indigo-700 mb-1">' + (index + 1) + '</div><div class="leading-relaxed">' + sentence + '</div></div>';
+            }).join('');
+        };
+
+        const renderPrinciple = () => {
+            const copy = PRINCIPLE[currentLang];
+            document.getElementById('principle-title').textContent = i18n[currentLang].principleTitle;
+            const items = copy.mech.map((item) => '<li class="mb-2 leading-relaxed">' + item + '</li>').join('');
+            const body = document.getElementById('principle-body');
+            body.innerHTML = '<div><h3 class="font-bold text-emerald-700 mb-1">' + copy.conceptTitle + '</h3><p>' + copy.concept + '</p></div>'
+                + '<div><h3 class="font-bold text-emerald-700 mb-1">' + copy.mechTitle + '</h3><ol class="list-decimal pl-5">' + items + '</ol></div>'
+                + '<div><h3 class="font-bold text-emerald-700 mb-1">' + copy.egTitle + '</h3><p>' + copy.eg + '</p></div>';
+            typesetMath(body);
+        };
+
+        const renderQuiz = () => {
+            const copy = i18n[currentLang];
+            document.getElementById('quiz-title').textContent = copy.quizTitle;
+            document.getElementById('btn-quiz-answers').textContent = quizReveal ? copy.hideAns : copy.showAns;
+            const body = document.getElementById('quiz-body');
+            body.innerHTML = QUIZ.map((item, index) => {
+                const question = currentLang === 'en' ? item.q.en : item.q.zh;
+                let html = '<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 mb-3"><div class="font-bold text-violet-800 mb-2">Q' + (index + 1) + '. ' + question + '</div>';
+                if (item.choices) {
+                    html += '<div class="grid gap-1.5">';
+                    item.choices.forEach((choice, choiceIndex) => {
+                        const label = String.fromCharCode(65 + choiceIndex);
+                        const choiceText = currentLang === 'en' ? choice.en : choice.zh;
+                        html += '<label class="flex items-start gap-2 rounded-lg border border-slate-200 p-2"><input type="radio" name="quiz-' + index + '" class="mt-0.5 accent-violet-700"><span>' + label + '. ' + choiceText + '</span></label>';
+                    });
+                    html += '</div>';
+                } else {
+                    html += '<p class="text-xs text-slate-500 italic">' + copy.predict + '</p>';
+                }
+                if (quizReveal) {
+                    const answer = currentLang === 'en' ? item.explain.en : item.explain.zh;
+                    html += '<div class="mt-2 text-sm text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-lg p-2"><strong>' + copy.ref + '：</strong> ' + answer + '</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+        };
+
+        const refreshOpenModal = () => {
+            if (!document.getElementById('modal-steps').classList.contains('hidden')) renderSteps();
+            if (!document.getElementById('modal-principle').classList.contains('hidden')) renderPrinciple();
+            if (!document.getElementById('modal-quiz').classList.contains('hidden')) renderQuiz();
+        };
+
+        const resetExperiment = () => {
+            state.source = 'module';
+            state.sunlight = 70;
+            state.wind = 70;
+            state.waterOn = true;
+            state.electrolyzing = false;
+            state.fuelCellOn = false;
+            state.load = 'fan';
+            state.storage = 0;
+            state.generationRate = 0;
+            state.outputting = false;
+            state.bubbles = [];
+            state.spin = 0;
+            document.querySelector('input[name="source"][value="module"]').checked = true;
+            document.getElementById('slider-sun').value = '70';
+            document.getElementById('slider-wind').value = '70';
+            document.getElementById('load-select').value = 'fan';
+            syncSourcePanels();
+            updateButtons();
+            updateReadouts();
+        };
+
+        const stepSimulation = (deltaSeconds) => {
+            const factor = sourceFactor();
+            const producing = state.electrolyzing && state.waterOn && factor > 0.02;
+            state.generationRate = producing ? factor : 0;
+            const produced = producing ? 8 * factor * deltaSeconds : 0;
+            const consumed = state.fuelCellOn && state.storage > 0 ? 5 * deltaSeconds : 0;
+            state.storage = clamp(state.storage + produced - consumed, 0, 100);
+            state.outputting = state.fuelCellOn && state.storage > 0.4;
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                if (state.outputting) state.spin += deltaSeconds * 5;
+                spawnBubbles(deltaSeconds, producing);
+                driftBubbles(deltaSeconds);
+            } else {
+                state.bubbles = [];
+            }
+        };
+
+        const spawnBubbles = (deltaSeconds, producing) => {
+            if (!producing || Math.random() > deltaSeconds * 10 || state.bubbles.length > 28) return;
+            const hydrogen = Math.random() < 0.67;
+            state.bubbles.push({
+                x: hydrogen ? 390 : 330,
+                y: 300 + Math.random() * 40,
+                kind: hydrogen ? 'h2' : 'o2',
+                life: 1
+            });
+        };
+
+        const driftBubbles = (deltaSeconds) => {
+            state.bubbles.forEach((bubble) => {
+                if (bubble.kind === 'h2') bubble.x += 70 * deltaSeconds;
+                else bubble.y -= 50 * deltaSeconds;
+                bubble.life -= deltaSeconds * 0.45;
+            });
+            state.bubbles = state.bubbles.filter((bubble) => bubble.life > 0 && bubble.x < 500);
+        };
+
+        const roundRect = (x, y, width, height, radius) => {
+            drawingContext.beginPath();
+            if (typeof drawingContext.roundRect === 'function') {
+                drawingContext.roundRect(x, y, width, height, radius);
+                return;
+            }
+            drawingContext.rect(x, y, width, height);
+        };
+
+        const drawArrow = (x1, y, x2) => {
+            drawingContext.strokeStyle = '#64748b';
+            drawingContext.fillStyle = '#64748b';
+            drawingContext.lineWidth = 3;
+            drawingContext.beginPath();
+            drawingContext.moveTo(x1, y);
+            drawingContext.lineTo(x2 - 10, y);
+            drawingContext.stroke();
+            drawingContext.beginPath();
+            drawingContext.moveTo(x2, y);
+            drawingContext.lineTo(x2 - 12, y - 6);
+            drawingContext.lineTo(x2 - 12, y + 6);
+            drawingContext.fill();
+        };
+
+        const drawLabel = (text, x, y) => {
+            drawingContext.fillStyle = '#0f172a';
+            drawingContext.font = '700 20px "Noto Sans TC", sans-serif';
+            drawingContext.textAlign = 'center';
+            drawingContext.fillText(text, x, y);
+        };
+
+        const drawSource = (copy) => {
+            roundRect(28, 150, 150, 210, 16);
+            drawingContext.fillStyle = '#e2e8f0';
+            drawingContext.fill();
+            drawLabel(copy.stage[0], 103, 128);
+            drawingContext.textAlign = 'center';
+            drawingContext.font = '600 14px "Noto Sans TC", sans-serif';
+            drawingContext.fillStyle = '#0f172a';
+            drawingContext.fillText(copy.sourceName[state.source], 103, 330);
+            if (state.source === 'solar') drawSun();
+            else if (state.source === 'wind') drawWind();
+            else drawModule();
+        };
+
+        const drawSun = () => {
+            drawingContext.fillStyle = state.sunlight > 2 ? '#f59e0b' : '#94a3b8';
+            drawingContext.beginPath();
+            drawingContext.arc(103, 230, 28 + state.sunlight / 12, 0, Math.PI * 2);
+            drawingContext.fill();
+        };
+
+        const drawWind = () => {
+            drawingContext.strokeStyle = state.wind > 2 ? '#0284c7' : '#94a3b8';
+            drawingContext.lineWidth = 4;
+            for (let blade = 0; blade < 3; blade += 1) {
+                const angle = state.spin + blade * (Math.PI * 2 / 3);
+                drawingContext.beginPath();
+                drawingContext.moveTo(103, 230);
+                drawingContext.lineTo(103 + Math.cos(angle) * 42, 230 + Math.sin(angle) * 42);
+                drawingContext.stroke();
+            }
+        };
+
+        const drawModule = () => {
+            roundRect(58, 190, 90, 70, 8);
+            drawingContext.fillStyle = '#334155';
+            drawingContext.fill();
+            drawingContext.fillStyle = state.electrolyzing ? '#22c55e' : '#64748b';
+            drawingContext.beginPath();
+            drawingContext.arc(103, 226, 8, 0, Math.PI * 2);
+            drawingContext.fill();
+        };
+
+        const drawElectrolyzer = (copy) => {
+            drawLabel(copy.stage[1], 330, 128);
+            roundRect(250, 160, 170, 230, 16);
+            drawingContext.fillStyle = '#f8fafc';
+            drawingContext.strokeStyle = '#0284c7';
+            drawingContext.lineWidth = 3;
+            drawingContext.fill();
+            drawingContext.stroke();
+            if (state.waterOn) {
+                drawingContext.fillStyle = 'rgba(56, 189, 248, 0.45)';
+                drawingContext.fillRect(258, 250, 154, 132);
+            }
+            drawingContext.fillStyle = '#475569';
+            drawingContext.fillRect(300, 230, 8, 110);
+            drawingContext.fillRect(360, 230, 8, 110);
+            drawingContext.fillStyle = state.waterOn ? '#0369a1' : '#b91c1c';
+            drawingContext.font = '700 16px "Noto Sans TC", sans-serif';
+            drawingContext.textAlign = 'center';
+            drawingContext.fillText(state.waterOn ? 'H₂O(l)' : copy.noWater, 335, 228);
+            drawingContext.font = '600 13px sans-serif';
+            drawingContext.fillStyle = '#475569';
+            drawingContext.fillText(copy.o2vent, 335, 188);
+        };
+
+        const drawStorage = (copy) => {
+            drawLabel(copy.stage[2], 560, 128);
+            roundRect(520, 160, 80, 230, 28);
+            drawingContext.fillStyle = '#e2e8f0';
+            drawingContext.fill();
+            const innerHeight = 200;
+            const gasHeight = (state.storage / 100) * innerHeight;
+            drawingContext.fillStyle = '#38bdf8';
+            drawingContext.fillRect(528, 180 + (innerHeight - gasHeight), 64, gasHeight);
+            drawingContext.fillStyle = '#0f172a';
+            drawingContext.font = '700 16px sans-serif';
+            drawingContext.textAlign = 'center';
+            drawingContext.fillText('H₂', 560, 410);
+            drawingContext.font = '600 13px sans-serif';
+            drawingContext.fillText(Math.round(state.storage) + '%', 560, 200);
+        };
+
+        const drawFuelCell = (copy) => {
+            drawLabel(copy.stage[3], 730, 128);
+            roundRect(670, 180, 130, 180, 14);
+            drawingContext.fillStyle = state.outputting ? '#dcfce7' : '#f1f5f9';
+            drawingContext.strokeStyle = state.outputting ? '#15803d' : '#64748b';
+            drawingContext.lineWidth = 3;
+            drawingContext.fill();
+            drawingContext.stroke();
+            drawingContext.strokeStyle = '#94a3b8';
+            for (let plate = 0; plate < 4; plate += 1) {
+                const x = 694 + plate * 24;
+                drawingContext.beginPath();
+                drawingContext.moveTo(x, 210);
+                drawingContext.lineTo(x, 320);
+                drawingContext.stroke();
+            }
+        };
+
+        const drawLoad = (copy) => {
+            drawLabel(copy.stage[4], 890, 128);
+            if (state.load === 'fan') drawFan();
+            else if (state.load === 'bulb') drawBulb();
+            else drawCar();
+        };
+
+        const drawFan = () => {
+            drawingContext.strokeStyle = state.outputting ? '#b45309' : '#64748b';
+            drawingContext.lineWidth = 5;
+            drawingContext.beginPath();
+            drawingContext.arc(890, 270, 46, 0, Math.PI * 2);
+            drawingContext.stroke();
+            for (let blade = 0; blade < 3; blade += 1) {
+                const angle = state.spin + blade * (Math.PI * 2 / 3);
+                drawingContext.beginPath();
+                drawingContext.moveTo(890, 270);
+                drawingContext.lineTo(890 + Math.cos(angle) * 38, 270 + Math.sin(angle) * 38);
+                drawingContext.stroke();
+            }
+        };
+
+        const drawBulb = () => {
+            drawingContext.fillStyle = state.outputting ? '#fde68a' : '#e2e8f0';
+            drawingContext.beginPath();
+            drawingContext.arc(890, 255, 36, 0, Math.PI * 2);
+            drawingContext.fill();
+            drawingContext.fillStyle = '#64748b';
+            drawingContext.fillRect(876, 290, 28, 16);
+        };
+
+        const drawCar = () => {
+            const shift = state.outputting ? Math.sin(state.spin) * 10 : 0;
+            drawingContext.fillStyle = state.outputting ? '#0369a1' : '#64748b';
+            roundRect(840 + shift, 240, 100, 36, 8);
+            drawingContext.fill();
+            drawingContext.fillStyle = '#0f172a';
+            drawingContext.beginPath();
+            drawingContext.arc(862 + shift, 284, 10, 0, Math.PI * 2);
+            drawingContext.arc(918 + shift, 284, 10, 0, Math.PI * 2);
+            drawingContext.fill();
+        };
+
+        const drawBubbles = () => {
+            state.bubbles.forEach((bubble) => {
+                drawingContext.globalAlpha = Math.max(bubble.life, 0);
+                drawingContext.fillStyle = bubble.kind === 'h2' ? '#0284c7' : '#94a3b8';
+                drawingContext.beginPath();
+                drawingContext.arc(bubble.x, bubble.y, 5, 0, Math.PI * 2);
+                drawingContext.fill();
+                drawingContext.globalAlpha = 1;
+            });
+        };
+
+        const drawScene = () => {
+            if (!drawingContext) return;
+            const copy = i18n[currentLang];
+            drawingContext.clearRect(0, 0, BASE_W, BASE_H);
+            drawingContext.fillStyle = '#f8fafc';
+            drawingContext.fillRect(0, 0, BASE_W, BASE_H);
+            drawSource(copy);
+            drawArrow(178, 260, 240);
+            drawElectrolyzer(copy);
+            drawArrow(430, 260, 510);
+            drawStorage(copy);
+            drawArrow(610, 260, 660);
+            drawFuelCell(copy);
+            drawArrow(810, 260, 850);
+            drawLoad(copy);
+            drawBubbles();
+        };
+
+        const resizeCanvas = () => {
+            const rect = canvasWrapper.getBoundingClientRect();
+            if (rect.width < 1 || rect.height < 1) return;
+            const ratio = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(rect.width * ratio);
+            canvas.height = Math.floor(rect.height * ratio);
+            drawingContext.setTransform(ratio * (rect.width / BASE_W), 0, 0, ratio * (rect.height / BASE_H), 0, 0);
+            drawScene();
+        };
+
+        const frame = (timestamp) => {
+            const deltaSeconds = Math.min(0.05, lastTimestamp ? (timestamp - lastTimestamp) / 1000 : 0);
+            lastTimestamp = timestamp;
+            stepSimulation(deltaSeconds);
+            updateReadouts();
+            drawScene();
+            requestAnimationFrame(frame);
+        };
+
+        const bindControls = () => {
+            document.querySelectorAll('input[name="source"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    if (!input.checked) return;
+                    state.source = input.value;
+                    syncSourcePanels();
+                });
+            });
+            document.getElementById('slider-sun').addEventListener('input', (event) => {
+                state.sunlight = clamp(Number(event.target.value), 0, 100);
+            });
+            document.getElementById('slider-wind').addEventListener('input', (event) => {
+                state.wind = clamp(Number(event.target.value), 0, 100);
+            });
+            document.getElementById('btn-water').addEventListener('click', () => {
+                state.waterOn = !state.waterOn;
+                updateButtons();
+            });
+            document.getElementById('btn-power').addEventListener('click', () => {
+                state.electrolyzing = !state.electrolyzing;
+                updateButtons();
+            });
+            document.getElementById('btn-fuel').addEventListener('click', () => {
+                state.fuelCellOn = !state.fuelCellOn;
+                updateButtons();
+            });
+            document.getElementById('load-select').addEventListener('change', (event) => {
+                state.load = event.target.value;
+            });
+            document.getElementById('btn-reset').addEventListener('click', resetExperiment);
+            document.getElementById('btn-reset-panel').addEventListener('click', resetExperiment);
+            document.getElementById('btn-lang').addEventListener('click', () => {
+                currentLang = currentLang === 'zh' ? 'en' : 'zh';
+                storeLanguage();
+                applyStaticLanguage();
+                updateButtons();
+                renderTips();
+                refreshOpenModal();
+            });
+            document.getElementById('btn-steps').addEventListener('click', () => {
+                renderSteps();
+                openModal('modal-steps');
+            });
+            document.getElementById('btn-principle').addEventListener('click', () => {
+                renderPrinciple();
+                openModal('modal-principle');
+            });
+            document.getElementById('btn-quiz').addEventListener('click', () => {
+                quizReveal = false;
+                renderQuiz();
+                openModal('modal-quiz');
+            });
+            document.getElementById('btn-quiz-answers').addEventListener('click', () => {
+                quizReveal = !quizReveal;
+                renderQuiz();
+            });
+            document.querySelectorAll('.modal-close').forEach((button) => {
+                button.addEventListener('click', closeModals);
+            });
+            document.querySelectorAll('.teach-modal').forEach((dialog) => {
+                dialog.addEventListener('click', (event) => {
+                    if (event.target === dialog) closeModals();
+                });
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') closeModals();
+            });
+        };
+
+        if (!drawingContext) {
+            console.error('Canvas 2D context is unavailable');
+        } else {
+            currentLang = readStoredLanguage();
+            applyStaticLanguage();
+            renderTips();
+            syncSourcePanels();
+            updateButtons();
+            bindControls();
+            new ResizeObserver(resizeCanvas).observe(canvasWrapper);
+            resizeCanvas();
+            requestAnimationFrame(frame);
+        }
+    })();
+    </script>
+</body>
+</html>
