@@ -681,6 +681,18 @@ const global = window;
                     <p id="html-path-note" class="text-xs text-slate-500"></p>
                     <textarea name="html" id="field-html" rows="16" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono text-sm"></textarea>
                 </section>
+                <section id="html-agent" class="bg-white rounded-xl border p-6 space-y-4" aria-labelledby="html-agent-title">
+                    <div>
+                        <h2 id="html-agent-title" class="text-sm font-semibold text-slate-800">${escapeHtml(t('AI 優化', 'AI optimize'))}</h2>
+                        <p class="mt-1 text-xs text-slate-500">${escapeHtml(t(
+                            '選擇模型與指示來修訂 HTML。結果先給你確認；套用後仍要按儲存才會寫入檔案。',
+                            'Pick a model and an instruction to revise the HTML. Review the result first. Apply, then Save, to write the file.'
+                        ))}</p>
+                    </div>
+                    <div id="html-agent-body">
+                        <p class="text-sm text-slate-500">${escapeHtml(t('載入模型…', 'Loading models…'))}</p>
+                    </div>
+                </section>
                 <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700">${escapeHtml(t('儲存', 'Save'))}</button>
             </form>`;
         bindSpaNav(box);
@@ -702,9 +714,11 @@ const global = window;
         }
 
         let previewSeq = 0;
-        async function openSandboxPreview() {
+        let agentSeq = 0;
+        let agentAbort = null;
+        async function openSandboxPreview(htmlOverride) {
             const seq = ++previewSeq;
-            const html = htmlEl.value || '';
+            const html = typeof htmlOverride === 'string' ? htmlOverride : (htmlEl.value || '');
             if (!html.trim()) {
                 showFlash(t('請先輸入或載入 HTML。', 'Enter or load HTML first.'));
                 return;
@@ -761,6 +775,210 @@ const global = window;
         }
 
         document.getElementById('btn-preview-html').onclick = () => openSandboxPreview();
+        bindHtmlAgent();
+
+        function bindHtmlAgent() {
+            const seq = ++agentSeq;
+            const host = document.getElementById('html-agent-body');
+            if (!host) return;
+            if (agentAbort) {
+                agentAbort.abort();
+                agentAbort = null;
+            }
+            host.innerHTML = `<p class="text-sm text-slate-500">${escapeHtml(t('載入模型…', 'Loading models…'))}</p>`;
+            global.ScienceApi.apiFetch('/admin/simulations/html-agent').then((opts) => {
+                if (seq !== agentSeq || !host.isConnected) return;
+                renderHtmlAgent(host, opts || {}, seq);
+            }).catch((err) => {
+                if (seq !== agentSeq || !host.isConnected) return;
+                host.innerHTML = `<p class="text-sm text-red-600">${escapeHtml(err.message || t('無法載入 AI 優化。', 'Could not load AI optimize.'))}</p>`;
+            });
+        }
+
+        function renderHtmlAgent(host, opts, seq) {
+            const models = Array.isArray(opts.models) ? opts.models : [];
+            const presets = Array.isArray(opts.presets) ? opts.presets : [];
+            const configured = !!opts.configured;
+            const defaultModel = String(opts.default_model || '');
+            const maxBytes = Number(opts.max_bytes || 180000);
+            const modelOpts = models.map((m) => {
+                const id = String(m.id || '');
+                const label = id + (m.label ? ' — ' + m.label : '');
+                return `<option value="${escapeAttr(id)}"${id === defaultModel ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+            }).join('');
+            const presetBtns = presets.map((p) =>
+                `<button type="button" data-preset="${escapeAttr(p.id)}" class="html-agent-preset text-xs px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50">${escapeHtml(t(p.label_zh || '', p.label_en || p.label_zh || ''))}</button>`
+            ).join('');
+            const efforts = [
+                ['', t('模型預設', 'Model default')],
+                ['low', t('低（較快）', 'Low (faster)')],
+                ['medium', t('中', 'Medium')],
+                ['high', t('高（較仔細）', 'High (slower)')],
+            ];
+            const effortOpts = efforts.map(([v, label]) =>
+                `<option value="${escapeAttr(v)}"${v === 'low' ? ' selected' : ''}>${escapeHtml(label)}</option>`
+            ).join('');
+            host.innerHTML = `
+                ${configured ? '' : `<p class="rounded-lg border border-amber-200 bg-amber-50 text-amber-900 px-3 py-2 text-sm">${escapeHtml(t('尚未設定 XAI_API_KEY，無法優化。', 'XAI_API_KEY is not set, so optimize is unavailable.'))}</p>`}
+                <div class="grid md:grid-cols-2 gap-4">
+                    <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('模型', 'Model'))}
+                        <select id="html-agent-model" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm"${models.length ? '' : ' disabled'}>${modelOpts || `<option value="">${escapeHtml(t('沒有可用模型', 'No models'))}</option>`}</select>
+                    </label>
+                    <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('推理深度', 'Reasoning'))}
+                        <select id="html-agent-effort" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">${effortOpts}</select>
+                        <span id="html-agent-effort-hint" class="mt-1 block text-xs text-slate-500"></span>
+                    </label>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-700">${escapeHtml(t('快速指示', 'Quick prompts'))}</p>
+                    <div class="mt-2 flex flex-wrap gap-2" role="group" aria-label="${escapeAttr(t('快速指示', 'Quick prompts'))}">${presetBtns}</div>
+                </div>
+                <label class="block text-sm font-medium text-slate-700">${escapeHtml(t('修訂指示', 'Instruction'))}
+                    <textarea id="html-agent-instruction" rows="3" maxlength="2000" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" placeholder="${escapeAttr(t('例如：把控制項改成可用鍵盤操作，不要改公式。', 'Example: make the controls keyboard accessible without changing the formulas.'))}"></textarea>
+                </label>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <button type="button" id="html-agent-run" class="text-sm px-3 py-1.5 rounded-lg bg-brand-700 text-white hover:bg-brand-800 disabled:opacity-50"${configured && models.length ? '' : ' disabled'}>${escapeHtml(t('開始優化', 'Optimize'))}</button>
+                    <button type="button" id="html-agent-cancel" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50" hidden>${escapeHtml(t('取消等待', 'Cancel wait'))}</button>
+                </div>
+                <p id="html-agent-status" class="text-sm text-slate-600" role="status" aria-live="polite"></p>
+                <div id="html-agent-result" class="hidden space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p id="html-agent-notes" class="text-sm text-slate-800 whitespace-pre-wrap"></p>
+                    <p id="html-agent-meta" class="text-xs text-slate-500"></p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" id="html-agent-apply" class="text-sm px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">${escapeHtml(t('套用到編輯器', 'Apply to editor'))}</button>
+                        <button type="button" id="html-agent-preview" class="text-sm px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700">${escapeHtml(t('預覽結果', 'Preview result'))}</button>
+                        <button type="button" id="html-agent-discard" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('捨棄', 'Discard'))}</button>
+                    </div>
+                </div>`;
+
+            const presetById = {};
+            presets.forEach((p) => {
+                presetById[String(p.id)] = p;
+            });
+            const modelEl = host.querySelector('#html-agent-model');
+            const effortEl = host.querySelector('#html-agent-effort');
+            const effortHint = host.querySelector('#html-agent-effort-hint');
+            const instructionEl = host.querySelector('#html-agent-instruction');
+            function syncEffortHint() {
+                if (!effortHint || !modelEl) return;
+                const skips = String(modelEl.value || '').includes('non-reasoning');
+                effortHint.textContent = skips
+                    ? t('此模型不使用推理深度。', 'This model ignores reasoning depth.')
+                    : '';
+                if (effortEl) effortEl.disabled = skips;
+            }
+            modelEl?.addEventListener('change', syncEffortHint);
+            syncEffortHint();
+            const general = presetById.general;
+            if (instructionEl && general) {
+                instructionEl.value = t(general.instruction_zh || '', general.instruction_en || '');
+            }
+            host.querySelectorAll('.html-agent-preset').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const preset = presetById[btn.getAttribute('data-preset') || ''];
+                    if (!instructionEl || !preset) return;
+                    instructionEl.value = t(preset.instruction_zh || '', preset.instruction_en || '');
+                    instructionEl.focus();
+                });
+            });
+
+            let proposed = '';
+            const resultBox = host.querySelector('#html-agent-result');
+            const statusEl = host.querySelector('#html-agent-status');
+            const runBtn = host.querySelector('#html-agent-run');
+            const cancelBtn = host.querySelector('#html-agent-cancel');
+            const notesEl = host.querySelector('#html-agent-notes');
+            const metaEl = host.querySelector('#html-agent-meta');
+
+            function setStatus(text, isError) {
+                if (!statusEl) return;
+                statusEl.textContent = text || '';
+                statusEl.className = 'text-sm ' + (isError ? 'text-red-600' : 'text-slate-600');
+            }
+
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    if (agentAbort) agentAbort.abort();
+                });
+            }
+            host.querySelector('#html-agent-discard')?.addEventListener('click', () => {
+                proposed = '';
+                resultBox?.classList.add('hidden');
+                setStatus(t('已捨棄這次結果。', 'Discarded this result.'), false);
+            });
+            host.querySelector('#html-agent-apply')?.addEventListener('click', () => {
+                if (!proposed) return;
+                htmlEl.value = proposed;
+                htmlEl.focus();
+                setStatus(t('已套用到編輯器。按「儲存」才會寫入檔案。', 'Applied to the editor. Press Save to write the file.'), false);
+            });
+            host.querySelector('#html-agent-preview')?.addEventListener('click', () => {
+                if (proposed) openSandboxPreview(proposed);
+            });
+            runBtn?.addEventListener('click', async () => {
+                const html = htmlEl.value || '';
+                const bytes = new TextEncoder().encode(html).length;
+                if (!html.trim()) {
+                    setStatus(t('請先輸入或載入 HTML。', 'Enter or load HTML first.'), true);
+                    return;
+                }
+                if (bytes > maxBytes) {
+                    setStatus(t('HTML 超過 AI 優化上限（約 180 KB）。', 'HTML is over the AI limit (about 180 KB).'), true);
+                    return;
+                }
+                const instruction = instructionEl ? instructionEl.value.trim() : '';
+                if (!instruction) {
+                    setStatus(t('請寫下要優化的地方。', 'Write what to change.'), true);
+                    return;
+                }
+                if (agentAbort) agentAbort.abort();
+                const controller = new AbortController();
+                agentAbort = controller;
+                runBtn.disabled = true;
+                if (cancelBtn) cancelBtn.hidden = false;
+                resultBox?.classList.add('hidden');
+                setStatus(t('模型正在修訂 HTML，較大的檔案可能要一兩分鐘。', 'The model is revising the HTML. Large files can take a minute or two.'), false);
+                try {
+                    const res = await global.ScienceApi.apiFetch('/admin/simulations/html-agent', {
+                        method: 'POST',
+                        signal: controller.signal,
+                        body: {
+                            html,
+                            instruction,
+                            model: modelEl ? modelEl.value : '',
+                            reasoning_effort: effortEl ? effortEl.value : '',
+                        },
+                    });
+                    if (seq !== agentSeq || !host.isConnected) return;
+                    proposed = String((res && res.html) || '');
+                    if (notesEl) {
+                        notesEl.textContent = String((res && res.notes) || '') || t('模型沒有附加說明。', 'The model did not add notes.');
+                    }
+                    if (metaEl) {
+                        const modelName = String((res && res.model) || '');
+                        metaEl.textContent = t(
+                            '模型 ' + modelName + '。原 ' + html.length + ' 字元，新 ' + proposed.length + ' 字元。',
+                            'Model ' + modelName + '. Was ' + html.length + ' characters, now ' + proposed.length + '.'
+                        );
+                    }
+                    resultBox?.classList.remove('hidden');
+                    setStatus(t('優化完成。請預覽或套用；尚未寫入檔案。', 'Done. Preview or apply. Nothing has been saved yet.'), false);
+                } catch (err) {
+                    if (seq !== agentSeq || !host.isConnected) return;
+                    if (err && err.name === 'AbortError') {
+                        setStatus(t('已取消等待。伺服器若已送出，這次回覆不會套用。', 'Wait cancelled. A reply already sent will not be applied.'), false);
+                    } else {
+                        setStatus((err && err.message) || t('優化失敗', 'Optimize failed'), true);
+                    }
+                } finally {
+                    if (agentAbort === controller) agentAbort = null;
+                    if (seq === agentSeq && runBtn && host.isConnected) {
+                        runBtn.disabled = !configured;
+                    }
+                    if (cancelBtn) cancelBtn.hidden = true;
+                }
+            });
+        }
 
         document.getElementById('btn-load-html').onclick = async () => {
             const fileInput = document.getElementById('html-file');

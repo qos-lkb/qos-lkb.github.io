@@ -59,6 +59,7 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('POST', '/admin/simulations/upload-html', static fn () => api_handle_admin_simulation_upload($pdo, 'html'));
     $router->addExact('POST', '/admin/simulations/upload-screenshot', static fn () => api_handle_admin_simulation_upload($pdo, 'screenshot'));
     $router->addMethods(['GET', 'POST'], '/admin/simulations/preview-html', static fn () => api_handle_admin_simulation_preview($pdo, $method()));
+    $router->addMethods(['GET', 'POST'], '/admin/simulations/html-agent', static fn () => api_handle_admin_simulation_html_agent($pdo, $method()));
     $router->addMethods(['GET', 'POST'], '/simulations/contribute', static fn () => api_handle_simulations_contribute($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-tools', static fn () => api_handle_admin_learning_tools($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/articles', static fn () => api_handle_admin_articles($pdo, $method()));

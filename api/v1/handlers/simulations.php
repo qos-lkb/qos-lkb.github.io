@@ -504,6 +504,87 @@ function simulation_preview_storage_dir(): string
     return $dir;
 }
 
+/**
+ * AI revision for the simulation HTML editor.
+ * GET lists models and prompt presets. POST returns revised HTML; it does not save.
+ */
+function api_handle_admin_simulation_html_agent(PDO $pdo, string $method): void
+{
+    require_once dirname(__DIR__, 3) . '/includes/sim_html_agent_lib.php';
+    require_once dirname(__DIR__, 3) . '/includes/tutor_lib.php';
+    require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
+
+    $user = require_api_user();
+    auth_refresh_permissions($user['id']);
+    if (!user_has_permission('simulation.manage_any') && !user_has_permission('simulation.manage_own')) {
+        api_json_error('forbidden', '沒有權限。', 403);
+    }
+
+    $models = api_sim_html_agent_model_ids($pdo);
+
+    if ($method === 'GET') {
+        api_json_ok(sim_html_agent_options_payload(
+            tutor_has_api_key(),
+            $models['ids'],
+            $models['default']
+        ));
+    }
+
+    if ($method !== 'POST') {
+        api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+    }
+
+    api_verify_csrf_or_fail();
+    $normalized = sim_html_agent_normalize_request(api_read_json_body(), $models['ids']);
+    if (!$normalized['ok']) {
+        api_json_error('validation_error', $normalized['error'], $normalized['status']);
+    }
+
+    $rateKey = api_rate_limit_key('sim_html_agent', (string) $user['id']);
+    if (!api_rate_limit_check($pdo, $rateKey, 8, 600)) {
+        api_json_error('rate_limited', '優化次數過多，請約十分鐘後再試。', 429);
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    set_time_limit(200);
+
+    $result = sim_html_agent_complete(
+        $normalized['model'],
+        $normalized['reasoning_effort'],
+        $normalized['instruction'],
+        $normalized['html']
+    );
+    if (!$result['ok']) {
+        api_json_error('agent_failed', $result['error'], $result['status']);
+    }
+
+    api_json_ok([
+        'html' => $result['html'],
+        'notes' => $result['notes'],
+        'model' => $result['model'],
+    ]);
+}
+
+/**
+ * @return array{ids:list<string>,default:string}
+ */
+function api_sim_html_agent_model_ids(PDO $pdo): array
+{
+    try {
+        return [
+            'ids' => tutor_model_choices($pdo),
+            'default' => tutor_effective_model($pdo),
+        ];
+    } catch (Throwable $e) {
+        return [
+            'ids' => TUTOR_MODEL_CHOICES,
+            'default' => config_xai_model(),
+        ];
+    }
+}
+
 function simulation_preview_sweep(string $dir): void
 {
     $cutoff = time() - 600;
