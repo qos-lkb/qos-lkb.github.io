@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>學生註冊 | <?php echo htmlspecialchars(config_site_title_bilingual(), ENT_QUOTES, 'UTF-8'); ?></title>
+    <link rel="shortcut icon" href="app/favicon.ico" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">

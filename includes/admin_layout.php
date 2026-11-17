@@ -372,6 +372,7 @@ function admin_page_start(string $title, string $activeKey = '', array $opts = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base href="<?php echo htmlspecialchars($adminBaseHref, ENT_QUOTES, 'UTF-8'); ?>">
     <title><?php echo $pageTitle; ?></title>
+    <link rel="shortcut icon" href="<?php echo htmlspecialchars(admin_site_asset_url('app/favicon.ico'), ENT_QUOTES, 'UTF-8'); ?>" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<?php echo htmlspecialchars($adminCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($userMenuCssUrl, ENT_QUOTES, 'UTF-8'); ?>">
