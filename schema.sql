@@ -52,6 +52,7 @@ DROP TABLE IF EXISTS learning_tools;
 DROP TABLE IF EXISTS admin_audit_log;
 DROP TABLE IF EXISTS tutor_messages;
 DROP TABLE IF EXISTS tutor_conversations;
+DROP TABLE IF EXISTS tutor_settings;
 DROP TABLE IF EXISTS api_rate_limits;
 DROP TABLE IF EXISTS simulation_tags;
 DROP TABLE IF EXISTS simulations;
@@ -206,6 +207,12 @@ CREATE TABLE tutor_messages (
     content MEDIUMTEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_tutor_messages_conversation (conversation_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE tutor_settings (
+    setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+    setting_value MEDIUMTEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE admin_audit_log (

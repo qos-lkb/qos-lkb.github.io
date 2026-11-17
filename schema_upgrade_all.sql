@@ -793,6 +793,12 @@ CREATE TABLE IF NOT EXISTS tutor_messages (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_tutor_messages_conversation (conversation_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tutor_settings (
+    setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+    setting_value MEDIUMTEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- END schema_tutor.sql
 
 -- ---------------------------------------------------------------------------

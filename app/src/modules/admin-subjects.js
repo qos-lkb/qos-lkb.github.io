@@ -113,6 +113,7 @@ const global = window;
         folder: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>',
         users: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>',
         lock: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>',
+        chat: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 10h8M8 14h5m7-2a9 9 0 11-3.2-6.9L21 3v6h-6"/>',
         menu: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 6h16M4 12h16M4 18h7"/>',
         db: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>',
         import: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>',
@@ -277,6 +278,13 @@ const global = window;
                 tone: 'sky',
                 icon: 'sheet',
             } : null,
+            {
+                route: '/admin/tutor',
+                label: t('Chatbot 管理', 'Chatbot admin'),
+                desc: t('開關科學助教、模型與系統提示，並查看對話紀錄。', 'Enable the science tutor, set model and prompt, and review chats.'),
+                tone: 'violet',
+                icon: 'chat',
+            },
             canCurriculum ? {
                 route: '/admin/course-curriculum',
                 label: t('自學課程編排', 'Course curriculum'),

@@ -34,6 +34,9 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('POST', '/auth/logout', static fn () => api_handle_auth_logout($pdo));
     $router->addExact('POST', '/auth/stop-impersonation', static fn () => api_handle_auth_stop_impersonation($pdo));
     $router->addExact('GET', '/auth/me', static fn () => api_handle_auth_me($pdo));
+    $router->addExact('GET', '/tutor/status', static fn () => api_handle_tutor_status($pdo));
+    $router->addExact('GET', '/tutor/settings', static fn () => api_handle_tutor_settings_get($pdo));
+    $router->addExact('PUT', '/tutor/settings', static fn () => api_handle_tutor_settings_put($pdo));
     $router->addExact('GET', '/tutor/history', static fn () => api_handle_tutor_history($pdo));
     $router->addExact('GET', '/tutor/conversations', static fn () => api_handle_tutor_conversations_list($pdo));
     $router->addExact('POST', '/tutor/conversations', static fn () => api_handle_tutor_conversations_create($pdo));

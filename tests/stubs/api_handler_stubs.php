@@ -460,6 +460,18 @@ if (!function_exists('api_handle_admin_db_backup_download')) {
     function api_handle_admin_db_backup_download(...$args): void {}
 }
 
+if (!function_exists('api_handle_tutor_status')) {
+    function api_handle_tutor_status(...$args): void {}
+}
+
+if (!function_exists('api_handle_tutor_settings_get')) {
+    function api_handle_tutor_settings_get(...$args): void {}
+}
+
+if (!function_exists('api_handle_tutor_settings_put')) {
+    function api_handle_tutor_settings_put(...$args): void {}
+}
+
 if (!function_exists('api_handle_tutor_history')) {
     function api_handle_tutor_history(...$args): void {}
 }

@@ -7,6 +7,45 @@ require_once dirname(__DIR__, 3) . '/includes/api_auth.php';
 require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
 require_once dirname(__DIR__, 3) . '/includes/tutor_lib.php';
 
+function api_handle_tutor_status(PDO $pdo): void
+{
+    require_api_user();
+    try {
+        tutor_ensure_schema($pdo);
+        api_json_ok(tutor_status_payload($pdo));
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取科學助教狀態。', 500);
+    }
+}
+
+function api_handle_tutor_settings_get(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    try {
+        tutor_ensure_schema($pdo);
+        api_json_ok(tutor_admin_settings_payload($pdo));
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取 Chatbot 設定。', 500);
+    }
+}
+
+function api_handle_tutor_settings_put(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    $normalized = tutor_normalize_admin_settings(api_read_json_body());
+    if (!$normalized['ok']) {
+        api_json_error('validation_error', $normalized['error'], 422);
+    }
+    try {
+        tutor_ensure_schema($pdo);
+        tutor_settings_save($pdo, $normalized['values']);
+        api_json_ok(tutor_admin_settings_payload($pdo));
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法儲存 Chatbot 設定。', 500);
+    }
+}
+
 function api_handle_tutor_history(PDO $pdo): void
 {
     $user = require_api_user();
@@ -75,10 +114,13 @@ function api_handle_tutor_conversations_create(PDO $pdo): void
     $context = tutor_normalize_context(is_array($body['context'] ?? null) ? $body['context'] : []);
     try {
         tutor_ensure_schema($pdo);
+        if (!tutor_is_enabled($pdo)) {
+            api_json_error('tutor_unavailable', '科學助教尚未啟用。', 503);
+        }
         $id = tutor_create_conversation(
             $pdo,
             (int) $user['id'],
-            config_xai_model(),
+            tutor_effective_model($pdo),
             $context['title'],
             $context['path']
         );
@@ -143,10 +185,13 @@ function api_handle_tutor_chat(PDO $pdo): void
 
     try {
         tutor_ensure_schema($pdo);
+        if (!tutor_is_enabled($pdo)) {
+            api_json_error('tutor_unavailable', '科學助教尚未啟用。', 503);
+        }
         $conversationId = tutor_open_conversation(
             $pdo,
             (int) $user['id'],
-            config_xai_model(),
+            tutor_effective_model($pdo),
             $context['title'],
             $context['path'],
             $requestedId,

@@ -43,8 +43,12 @@ const global = window;
         if (global.AppNav && typeof global.AppNav.refresh === 'function') {
             void global.AppNav.refresh().catch(() => {});
         }
-        if (getUser() && global.ScienceTutor && typeof ScienceTutor.mount === 'function') {
-            ScienceTutor.mount();
+        if (global.ScienceTutor) {
+            if (getUser() && typeof ScienceTutor.mount === 'function') {
+                void ScienceTutor.mount();
+            } else if (typeof ScienceTutor.unmount === 'function') {
+                ScienceTutor.unmount();
+            }
         }
     }
 

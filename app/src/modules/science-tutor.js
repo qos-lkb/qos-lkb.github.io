@@ -357,7 +357,24 @@ const global = window;
         }
     }
 
-    function mount() {
+    function unmount() {
+        if (abort) abort.abort();
+        if (root && root.parentNode) root.parentNode.removeChild(root);
+        root = null;
+        panel = null;
+        log = null;
+        input = null;
+        sendBtn = null;
+        fab = null;
+        resumeList = null;
+        turns = [];
+        chats = [];
+        conversationId = 0;
+        busy = false;
+        abort = null;
+    }
+
+    function ensureWidget() {
         if (root) return;
         if (!global.ScienceApi || typeof ScienceApi.getUser !== 'function' || !ScienceApi.getUser()) return;
 
@@ -443,9 +460,28 @@ const global = window;
         }, true);
         document.getElementById('btn-lang')?.addEventListener('click', () => refreshLabels());
 
-        global.ScienceTutor = Object.assign(global.ScienceTutor || {}, { mount, refreshLabels });
+        global.ScienceTutor = Object.assign(global.ScienceTutor || {}, { mount, unmount, refreshLabels });
     }
 
-    global.ScienceTutor = { mount, refreshLabels };
+    async function mount() {
+        if (!global.ScienceApi || typeof ScienceApi.getUser !== 'function' || !ScienceApi.getUser()) {
+            unmount();
+            return;
+        }
+        let enabled = false;
+        try {
+            const data = await ScienceApi.apiFetch('/tutor/status');
+            enabled = !!data.enabled;
+        } catch (e) {
+            enabled = false;
+        }
+        if (!enabled) {
+            unmount();
+            return;
+        }
+        ensureWidget();
+    }
+
+    global.ScienceTutor = { mount, unmount, refreshLabels };
 
 export {};

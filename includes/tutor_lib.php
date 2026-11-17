@@ -10,6 +10,17 @@ require_once __DIR__ . '/user_names_lib.php';
 const TUTOR_MAX_MESSAGES = 12;
 const TUTOR_MAX_MESSAGE_CHARS = 4000;
 const TUTOR_UPSTREAM_URL = 'https://api.x.ai/v1/chat/completions';
+const TUTOR_MAX_SYSTEM_PROMPT_CHARS = 8000;
+
+/** @var list<string> */
+const TUTOR_MODEL_CHOICES = [
+    'grok-4.7',
+    'grok-4.6',
+    'grok-4.5',
+    'grok-4.3',
+    'grok-4.20-0309-non-reasoning',
+    'grok-4.20-0309-reasoning',
+];
 
 /**
  * Create tutor tables / columns when missing. Do not require operators to run SQL.
@@ -52,12 +63,20 @@ function tutor_ensure_schema(PDO $pdo): void
             KEY idx_tutor_messages_conversation (conversation_id, id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+    schema_runtime_ensure_table(
+        $pdo,
+        'CREATE TABLE IF NOT EXISTS tutor_settings (
+            setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+            setting_value MEDIUMTEXT NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
     $ready = true;
 }
 
-function tutor_system_prompt(string $pageTitle, string $pagePath): string
+function tutor_default_system_prompt(): string
 {
-    $prompt = <<<'TXT'
+    return <<<'TXT'
 你是「伊中中科學學習平台」的科學助教，服務香港中學學生（初中科學與 HKDSE 物理、化學、生物）。
 用繁體中文回答；若學生用英文提問，則用英文回答。
 先解釋概念，再給步驟或例子。公式使用 LaTeX：行內 $...$，獨立一行 $$...$$。
@@ -66,6 +85,196 @@ function tutor_system_prompt(string $pageTitle, string $pagePath): string
 與科學無關的問題，用一兩句帶回科學學習。
 不要提及模型供應商，也不要要求學生提供個人資料。
 TXT;
+}
+
+/**
+ * @return array<string, string>
+ */
+function tutor_settings_map(PDO $pdo): array
+{
+    tutor_ensure_schema($pdo);
+    $stmt = $pdo->query('SELECT setting_key, setting_value FROM tutor_settings');
+    if ($stmt === false) {
+        return [];
+    }
+    $map = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $map[(string) $row['setting_key']] = (string) $row['setting_value'];
+    }
+
+    return $map;
+}
+
+function tutor_setting(PDO $pdo, string $key, string $default = ''): string
+{
+    $map = tutor_settings_map($pdo);
+
+    return array_key_exists($key, $map) ? $map[$key] : $default;
+}
+
+/**
+ * @param array<string, string> $values
+ */
+function tutor_settings_save(PDO $pdo, array $values): void
+{
+    tutor_ensure_schema($pdo);
+    $stmt = $pdo->prepare(
+        'INSERT INTO tutor_settings (setting_key, setting_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'
+    );
+    foreach ($values as $key => $value) {
+        $stmt->execute([$key, $value]);
+    }
+}
+
+function tutor_has_api_key(): bool
+{
+    return config_xai_api_key() !== '';
+}
+
+function tutor_is_enabled(PDO $pdo): bool
+{
+    return tutor_setting($pdo, 'enabled', '1') !== '0' && tutor_has_api_key();
+}
+
+function tutor_normalize_model_id(string $model): string
+{
+    $model = trim($model);
+    if ($model === '' || !preg_match('/^[A-Za-z0-9._-]{1,64}$/', $model)) {
+        return '';
+    }
+
+    return $model;
+}
+
+function tutor_effective_model(PDO $pdo): string
+{
+    $stored = tutor_normalize_model_id(tutor_setting($pdo, 'model', ''));
+    if ($stored !== '') {
+        return $stored;
+    }
+
+    return config_xai_model();
+}
+
+function tutor_effective_reasoning_effort(PDO $pdo): string
+{
+    $stored = strtolower(trim(tutor_setting($pdo, 'reasoning_effort', '')));
+    if ($stored === 'none') {
+        return '';
+    }
+    if (in_array($stored, ['low', 'medium', 'high', 'xhigh'], true)) {
+        return $stored;
+    }
+
+    return config_xai_reasoning_effort();
+}
+
+/**
+ * @return list<string>
+ */
+function tutor_model_choices(PDO $pdo): array
+{
+    $choices = TUTOR_MODEL_CHOICES;
+    $current = tutor_effective_model($pdo);
+    if ($current !== '' && !in_array($current, $choices, true)) {
+        $choices[] = $current;
+    }
+
+    return $choices;
+}
+
+/**
+ * @return array{conversations:int,messages:int,users:int}
+ */
+function tutor_admin_stats(PDO $pdo): array
+{
+    tutor_ensure_schema($pdo);
+    $conversations = (int) $pdo->query('SELECT COUNT(*) FROM tutor_conversations')->fetchColumn();
+    $messages = (int) $pdo->query('SELECT COUNT(*) FROM tutor_messages')->fetchColumn();
+    $users = (int) $pdo->query('SELECT COUNT(DISTINCT user_id) FROM tutor_conversations')->fetchColumn();
+
+    return [
+        'conversations' => $conversations,
+        'messages' => $messages,
+        'users' => $users,
+    ];
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function tutor_status_payload(PDO $pdo): array
+{
+    return [
+        'enabled' => tutor_is_enabled($pdo),
+        'configured' => tutor_has_api_key(),
+    ];
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function tutor_admin_settings_payload(PDO $pdo): array
+{
+    $map = tutor_settings_map($pdo);
+
+    return [
+        'enabled' => ($map['enabled'] ?? '1') !== '0',
+        'model' => (string) ($map['model'] ?? ''),
+        'reasoning_effort' => (string) ($map['reasoning_effort'] ?? ''),
+        'system_prompt' => (string) ($map['system_prompt'] ?? ''),
+        'default_system_prompt' => tutor_default_system_prompt(),
+        'env_model' => config_xai_model(),
+        'env_reasoning_effort' => config_xai_reasoning_effort(),
+        'has_api_key' => tutor_has_api_key(),
+        'effective_model' => tutor_effective_model($pdo),
+        'effective_reasoning_effort' => tutor_effective_reasoning_effort($pdo),
+        'models' => tutor_model_choices($pdo),
+        'stats' => tutor_admin_stats($pdo),
+        'live' => tutor_is_enabled($pdo),
+    ];
+}
+
+/**
+ * @param array<string, mixed> $body
+ * @return array{ok:true,values:array<string,string>}|array{ok:false,error:string}
+ */
+function tutor_normalize_admin_settings(array $body): array
+{
+    $enabled = !empty($body['enabled']);
+    $model = tutor_normalize_model_id((string) ($body['model'] ?? ''));
+    $effort = strtolower(trim((string) ($body['reasoning_effort'] ?? '')));
+    if ($effort !== '' && !in_array($effort, ['none', 'low', 'medium', 'high', 'xhigh'], true)) {
+        return ['ok' => false, 'error' => '推理深度無效。'];
+    }
+    $prompt = str_replace(["\r\n", "\r"], "\n", (string) ($body['system_prompt'] ?? ''));
+    $prompt = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $prompt) ?? '';
+    $prompt = trim($prompt);
+    if (mb_strlen($prompt) > TUTOR_MAX_SYSTEM_PROMPT_CHARS) {
+        $prompt = mb_substr($prompt, 0, TUTOR_MAX_SYSTEM_PROMPT_CHARS);
+    }
+
+    return [
+        'ok' => true,
+        'values' => [
+            'enabled' => $enabled ? '1' : '0',
+            'model' => $model,
+            'reasoning_effort' => $effort,
+            'system_prompt' => $prompt,
+        ],
+    ];
+}
+
+function tutor_system_prompt(string $pageTitle, string $pagePath, ?PDO $pdo = null): string
+{
+    $prompt = tutor_default_system_prompt();
+    if ($pdo !== null) {
+        $custom = trim(tutor_setting($pdo, 'system_prompt', ''));
+        if ($custom !== '') {
+            $prompt = $custom;
+        }
+    }
 
     $pageTitle = tutor_context_snippet($pageTitle, 120);
     $pagePath = tutor_context_snippet($pagePath, 200);
@@ -448,21 +657,21 @@ function tutor_stream_chat(PDO $pdo, int $conversationId, array $messages, strin
     }
 
     $apiKey = config_xai_api_key();
-    if ($apiKey === '') {
+    if ($apiKey === '' || !tutor_is_enabled($pdo)) {
         api_json_error('tutor_unavailable', '科學助教尚未啟用。', 503);
     }
 
     $body = [
-        'model' => config_xai_model(),
+        'model' => tutor_effective_model($pdo),
         'stream' => true,
         'temperature' => 0.3,
         'max_tokens' => 1500,
         'messages' => array_merge(
-            [['role' => 'system', 'content' => tutor_system_prompt($pageTitle, $pagePath)]],
+            [['role' => 'system', 'content' => tutor_system_prompt($pageTitle, $pagePath, $pdo)]],
             $messages
         ),
     ];
-    $effort = config_xai_reasoning_effort();
+    $effort = tutor_effective_reasoning_effort($pdo);
     if ($effort !== '') {
         $body['reasoning_effort'] = $effort;
     }
