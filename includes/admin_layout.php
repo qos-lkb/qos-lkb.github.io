@@ -135,6 +135,7 @@ function admin_menu_sections(): array
     if (user_has_permission('simulation.manage_any') || user_has_permission('user.manage')) {
         $contentItems[] = ['key' => 'export_sim_html', 'label' => '模擬 HTML 匯出', 'href' => '../app/admin/export-sim-html'];
         $contentItems[] = ['key' => 'import_disk_simulations', 'label' => '磁碟模擬匯入', 'href' => '../app/admin/import-disk-simulations'];
+        $contentItems[] = ['key' => 'recover_simulations', 'label' => '失散模擬找回', 'href' => '../app/admin/recover-simulations'];
     }
     if (user_has_permission('article.manage_any')) {
         $contentItems[] = ['key' => 'articles', 'label' => '科學文章', 'href' => '../app/admin/articles'];

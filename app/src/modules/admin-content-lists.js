@@ -677,6 +677,7 @@ const global = window;
                     ${showReview ? `<a href="${escapeHtml(spaHref('/admin/review-queue'))}" data-spa-nav="/admin/review-queue" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">${escapeHtml(t('審核佇列', 'Review queue'))}</a>` : ''}
                     ${canExportSimHtml() ? `<a href="${escapeHtml(spaHref('/admin/export-sim-html'))}" data-spa-nav="/admin/export-sim-html" class="text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-900 hover:bg-amber-50">${escapeHtml(t('模擬 HTML 匯出', 'Export simulation HTML'))}</a>` : ''}
                     ${canExportSimHtml() ? `<a href="${escapeHtml(spaHref('/admin/import-disk-simulations'))}" data-spa-nav="/admin/import-disk-simulations" class="text-sm px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-900 hover:bg-emerald-50">${escapeHtml(t('磁碟模擬匯入', 'Import sims from disk'))}</a>` : ''}
+                    ${canExportSimHtml() ? `<a href="${escapeHtml(spaHref('/admin/recover-simulations'))}" data-spa-nav="/admin/recover-simulations" class="text-sm px-3 py-1.5 rounded-lg border border-teal-300 text-teal-900 hover:bg-teal-50">${escapeHtml(t('失散模擬找回', 'Recover lost sims'))}</a>` : ''}
                     <label class="text-sm text-slate-600 flex items-center gap-2">
                         <span>${escapeHtml(t('科目', 'Subject'))}</span>
                         <select id="sim-filter-subject" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white">${subjectFilterOpts.join('')}</select>

@@ -8,6 +8,8 @@ require_once dirname(__DIR__, 3) . '/includes/simulation_save.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_security.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_files.php';
 require_once dirname(__DIR__, 3) . '/includes/simulation_disk_import.php';
+require_once dirname(__DIR__, 3) . '/includes/simulation_recovery.php';
+require_once dirname(__DIR__, 3) . '/includes/sim_recovery_classify_lib.php';
 require_once dirname(__DIR__, 3) . '/includes/web_base.php';
 
 /**
@@ -51,7 +53,20 @@ function api_handle_admin_simulations_import_disk(PDO $pdo, string $method): voi
             api_json_error('validation_error', '沒有選取任何檔案。', 422);
         }
         $canPublish = user_has_permission('simulation.manage_any');
-        $result = sim_disk_import_execute($pdo, $paths, (int) $user['id'], $status, $canPublish);
+        $overrides = [];
+        if (isset($body['overrides']) && is_array($body['overrides'])) {
+            foreach ($body['overrides'] as $pathKey => $row) {
+                if (!is_string($pathKey) || !is_array($row)) {
+                    continue;
+                }
+                $rel = sim_normalize_rel_path($pathKey);
+                if ($rel === null) {
+                    continue;
+                }
+                $overrides[$rel] = $row;
+            }
+        }
+        $result = sim_disk_import_execute($pdo, $paths, (int) $user['id'], $status, $canPublish, $overrides);
         if (!$result['ok']) {
             api_json_error('import_failed', (string) ($result['error'] ?? '匯入失敗。'), 422);
         }
@@ -65,6 +80,134 @@ function api_handle_admin_simulations_import_disk(PDO $pdo, string $method): voi
         return;
     }
     api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+}
+
+function api_handle_admin_simulations_recovery(PDO $pdo, string $method): void
+{
+    $user = api_require_sim_html_export();
+    if ($method === 'GET') {
+        $search = isset($_GET['q']) ? trim((string) $_GET['q']) : '';
+        $plan = sim_recovery_plan($pdo, $search);
+        $models = api_sim_html_agent_model_ids($pdo);
+        $plan['models'] = $models['ids'];
+        $plan['default_model'] = $models['default'];
+        api_json_ok($plan);
+        return;
+    }
+    if ($method !== 'POST') {
+        api_json_error('method_not_allowed', '不支援的 HTTP 方法。', 405);
+    }
+
+    api_verify_csrf_or_fail();
+    require_once dirname(__DIR__, 3) . '/includes/api_rate_limit.php';
+    $body = api_read_json_body();
+    $action = (string) ($body['action'] ?? '');
+
+    if ($action === 'link') {
+        $links = [];
+        if (isset($body['links']) && is_array($body['links'])) {
+            foreach ($body['links'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $links[] = [
+                    'sim_id' => (int) ($row['sim_id'] ?? 0),
+                    'path' => (string) ($row['path'] ?? ''),
+                ];
+            }
+        }
+        if ($links === []) {
+            api_json_error('validation_error', '沒有選取任何連結。', 422);
+        }
+        $result = sim_recovery_link_paths($pdo, $links);
+        if (!$result['ok'] && $result['linked'] === 0) {
+            api_json_error('link_failed', implode('；', $result['errors'] ?: ['連結失敗。']), 422);
+        }
+        api_json_ok([
+            'linked' => $result['linked'],
+            'skipped' => $result['skipped'],
+            'errors' => $result['errors'],
+            'plan' => sim_recovery_plan($pdo, trim((string) ($body['search'] ?? ''))),
+        ]);
+        return;
+    }
+
+    if ($action === 'classify') {
+        $paths = isset($body['paths']) && is_array($body['paths']) ? array_map('strval', $body['paths']) : [];
+        if ($paths === []) {
+            api_json_error('validation_error', '沒有選取任何檔案。', 422);
+        }
+        $rateKey = api_rate_limit_key('sim_recovery_classify', (string) $user['id']);
+        if (!api_rate_limit_check($pdo, $rateKey, 6, 600)) {
+            api_json_error('rate_limited', '分類次數過多，請約十分鐘後再試。', 429);
+        }
+        $model = trim((string) ($body['model'] ?? ''));
+        $models = api_sim_html_agent_model_ids($pdo);
+        if ($model === '' || !in_array($model, $models['ids'], true)) {
+            $model = $models['default'];
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        set_time_limit(150);
+        $plan = sim_recovery_plan($pdo, '');
+        $result = sim_recovery_classify_paths($pdo, $paths, $model, $plan['subjects']);
+        if (!$result['ok']) {
+            api_json_error('classify_failed', $result['error'], $result['status']);
+        }
+        api_json_ok([
+            'items' => $result['items'],
+            'model' => $result['model'],
+        ]);
+        return;
+    }
+
+    if ($action === 'import') {
+        $status = (string) ($body['status'] ?? 'draft');
+        $search = trim((string) ($body['search'] ?? ''));
+        $paths = [];
+        if (!empty($body['import_all_disk'])) {
+            $scan = sim_recovery_plan($pdo, $search);
+            foreach ($scan['disk_items'] as $item) {
+                if ($item['importable'] ?? false) {
+                    $paths[] = (string) $item['path'];
+                }
+            }
+        } elseif (isset($body['paths']) && is_array($body['paths'])) {
+            $paths = array_map('strval', $body['paths']);
+        }
+        if ($paths === []) {
+            api_json_error('validation_error', '沒有選取任何檔案。', 422);
+        }
+        $overrides = [];
+        if (isset($body['overrides']) && is_array($body['overrides'])) {
+            foreach ($body['overrides'] as $pathKey => $row) {
+                if (!is_string($pathKey) || !is_array($row)) {
+                    continue;
+                }
+                $rel = sim_normalize_rel_path($pathKey);
+                if ($rel === null) {
+                    continue;
+                }
+                $overrides[$rel] = $row;
+            }
+        }
+        $canPublish = user_has_permission('simulation.manage_any');
+        $result = sim_disk_import_execute($pdo, $paths, (int) $user['id'], $status, $canPublish, $overrides);
+        if (!$result['ok']) {
+            api_json_error('import_failed', (string) ($result['error'] ?? '匯入失敗。'), 422);
+        }
+        api_json_ok([
+            'created' => $result['created'],
+            'linked' => $result['linked'],
+            'skipped' => $result['skipped'],
+            'errors' => $result['errors'],
+            'plan' => sim_recovery_plan($pdo, $search),
+        ]);
+        return;
+    }
+
+    api_json_error('validation_error', '不支援的 action。', 422);
 }
 
 function api_handle_admin_simulations_export_html(PDO $pdo, string $method): void

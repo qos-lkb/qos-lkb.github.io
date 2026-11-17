@@ -59,6 +59,7 @@ const global = window;
         { re: /^\/admin\/simulations\/?$/, name: '/admin/simulations' },
         { re: /^\/admin\/export-sim-html\/?$/, name: '/admin/export-sim-html' },
         { re: /^\/admin\/import-disk-simulations\/?$/, name: '/admin/import-disk-simulations' },
+        { re: /^\/admin\/recover-simulations\/?$/, name: '/admin/recover-simulations' },
         { re: /^\/admin\/question-banks\/new\/?$/, name: '/admin/question-banks/new' },
         { re: /^\/admin\/question-banks\/(\d+)\/edit\/?$/, name: '/admin/question-banks/:id/edit', keys: [1] },
         { re: /^\/admin\/question-banks\/?$/, name: '/admin/question-banks' },

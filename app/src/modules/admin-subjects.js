@@ -337,6 +337,13 @@ const global = window;
                 tone: 'amber',
                 icon: 'sim',
             } : null,
+            canExportSimHtml ? {
+                route: '/admin/recover-simulations',
+                label: t('失散模擬找回', 'Recover lost sims'),
+                desc: t('掃描 repo 未登錄 HTML、修復 html_path，並可選用 xAI 建議科目。', 'Scan unregistered HTML, fix html_path, optionally use xAI for subject hints.'),
+                tone: 'emerald',
+                icon: 'sim',
+            } : null,
             canReview ? {
                 route: '/admin/review-queue',
                 label: t('審核佇列', 'Review queue'),

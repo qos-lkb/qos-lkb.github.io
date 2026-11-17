@@ -262,6 +262,7 @@ function sim_unregistered_disk_plan(PDO $pdo, string $search = ''): array
 
 /**
  * @param list<string> $paths
+ * @param array<string, array{subject_id?:int|null,title_zh?:string,title_en?:string,summary_zh?:string,summary_en?:string,slug?:string}> $overrides
  * @return array{ok:bool, error?:string, created:int, linked:int, skipped:int, errors:list<string>}
  */
 function sim_disk_import_execute(
@@ -269,7 +270,8 @@ function sim_disk_import_execute(
     array $paths,
     int $ownerUserId,
     string $status,
-    bool $canPublishAny
+    bool $canPublishAny,
+    array $overrides = []
 ): array {
     if (!sim_db_has_column($pdo, 'simulations', 'html_path')) {
         return [
@@ -321,6 +323,8 @@ function sim_disk_import_execute(
             continue;
         }
 
+        $ov = isset($overrides[$rel]) && is_array($overrides[$rel]) ? $overrides[$rel] : [];
+
         $existingId = $item['existing_sim_id'] ?? null;
         if ($existingId !== null) {
             $linkStmt->execute([$rel, (int) $existingId]);
@@ -328,13 +332,13 @@ function sim_disk_import_execute(
             continue;
         }
 
-        $baseSlug = substr((string) $item['proposed_slug'], 0, 190);
+        $baseSlug = substr((string) ($ov['slug'] ?? $item['proposed_slug']), 0, 190);
         $slug = sim_ensure_unique_slug($pdo, $baseSlug);
-        $titleZh = (string) ($item['title_zh'] ?? $slug);
-        $titleEn = (string) ($item['title_en'] ?? $titleZh);
-        $summaryZh = (string) ($item['summary_zh'] ?? '');
-        $summaryEn = (string) ($item['summary_en'] ?? '');
-        $subjectId = $item['subject_id'] ?? null;
+        $titleZh = (string) ($ov['title_zh'] ?? $item['title_zh'] ?? $slug);
+        $titleEn = (string) ($ov['title_en'] ?? $item['title_en'] ?? $titleZh);
+        $summaryZh = (string) ($ov['summary_zh'] ?? $item['summary_zh'] ?? '');
+        $summaryEn = (string) ($ov['summary_en'] ?? $item['summary_en'] ?? '');
+        $subjectId = array_key_exists('subject_id', $ov) ? $ov['subject_id'] : ($item['subject_id'] ?? null);
 
         try {
             $insStmt->execute([

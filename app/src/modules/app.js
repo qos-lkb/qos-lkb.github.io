@@ -88,6 +88,11 @@
                     label: { zh: '磁碟模擬匯入', en: 'Import sims from disk' },
                     anyPerm: ['simulation.manage_any', 'user.manage'],
                 },
+                {
+                    route: '/admin/recover-simulations',
+                    label: { zh: '失散模擬找回', en: 'Recover lost sims' },
+                    anyPerm: ['simulation.manage_any', 'user.manage'],
+                },
                 { route: '/admin/db', label: { zh: '資料庫', en: 'Database' } },
                 { route: '/admin/qsis-import', label: { zh: 'QSIS 匯入', en: 'QSIS import' } },
                 { route: '/admin/data-dictionary', label: { zh: '資料字典', en: 'Data dictionary' } },
@@ -1075,6 +1080,11 @@
             '/admin/import-disk-simulations': async () => {
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSimDiskImport();
+                });
+            },
+            '/admin/recover-simulations': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminSimRecovery();
                 });
             },
             '/admin/db': async () => {
