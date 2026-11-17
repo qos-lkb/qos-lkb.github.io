@@ -53,7 +53,6 @@
             items: [
                 { route: '/admin/courses', label: { zh: '課程', en: 'Courses' } },
                 { route: '/admin/inbox', label: { zh: '收件箱', en: 'Inbox' } },
-                { route: '/admin/tutor', label: { zh: 'Chatbot 管理', en: 'Chatbot' } },
                 { route: '/admin/school-overview', label: { zh: '學校總覽', en: 'School' } },
                 { route: '/admin/summer-homework', label: { zh: '暑期功課', en: 'Summer HW' } },
                 { route: '/admin/worksheets', label: { zh: '工作紙', en: 'Worksheets' } },

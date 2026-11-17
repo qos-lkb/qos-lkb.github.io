@@ -197,6 +197,7 @@ async function renderAdminTutor() {
             </tr>`;
         }).join('');
         box.innerHTML = `
+            <p class="mb-4"><a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="text-sm text-brand-700 hover:underline">${escapeHtml(t('← 管理首頁', '← Admin home'))}</a></p>
             ${manageHtml}
             <h2 class="text-lg font-bold text-slate-900 mb-2">${escapeHtml(t('對話紀錄', 'Chat history'))}</h2>
             <p class="text-slate-600 text-sm mb-4">${escapeHtml(all

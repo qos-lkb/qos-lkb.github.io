@@ -409,7 +409,6 @@ const LANG_KEY = 'science_sims_ui_lang';
                 ${canClass ? `<a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="user-menu-item" role="menuitem">${t('課程管理', 'Courses')}</a>` : ''}
                 ${canWorksheet ? `<a href="${escapeHtml(spaHref('/admin/worksheets'))}" data-spa-nav="/admin/worksheets" class="user-menu-item" role="menuitem">${t('工作紙設計', 'Worksheets')}</a>` : ''}
                 ${canAssignWorksheet ? `<a href="${escapeHtml(spaHref('/admin/courses'))}" data-spa-nav="/admin/courses" class="user-menu-item" role="menuitem">${t('工作紙派發', 'Assign worksheets')}</a>` : ''}
-                ${showAdminHome ? `<a href="${escapeHtml(spaHref('/admin/tutor'))}" data-spa-nav="/admin/tutor" class="user-menu-item" role="menuitem">${t('Chatbot 管理', 'Chatbot admin')}</a>` : ''}
                 ${showAdminHome ? `<a href="${escapeHtml(spaHref('/admin'))}" data-spa-nav="/admin" class="user-menu-item" role="menuitem">${t('管理後台', 'Admin')}</a>` : ''}
                 ${user.impersonating ? `<button type="button" class="user-menu-item user-menu-item-warn" data-action="stop-impersonation" role="menuitem">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>

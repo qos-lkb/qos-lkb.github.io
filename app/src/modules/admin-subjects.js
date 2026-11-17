@@ -278,13 +278,6 @@ const global = window;
                 tone: 'sky',
                 icon: 'sheet',
             } : null,
-            {
-                route: '/admin/tutor',
-                label: t('Chatbot 管理', 'Chatbot admin'),
-                desc: t('開關科學助教、模型與系統提示，並查看對話紀錄。', 'Enable the science tutor, set model and prompt, and review chats.'),
-                tone: 'violet',
-                icon: 'chat',
-            },
             canCurriculum ? {
                 route: '/admin/course-curriculum',
                 label: t('自學課程編排', 'Course curriculum'),
@@ -383,6 +376,13 @@ const global = window;
                 tone: 'slate',
                 icon: 'menu',
             } : null,
+            {
+                route: '/admin/tutor',
+                label: t('Chatbot 管理', 'Chatbot admin'),
+                desc: t('開關科學助教、模型與系統提示，並查看對話紀錄。', 'Enable the science tutor, set model and prompt, and review chats.'),
+                tone: 'violet',
+                icon: 'chat',
+            },
             canCodespace ? {
                 href: codespaceUrl(),
                 external: true,
