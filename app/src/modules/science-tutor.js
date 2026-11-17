@@ -7,7 +7,10 @@ const global = window;
     let input = null;
     let sendBtn = null;
     let fab = null;
+    let resumeList = null;
     let turns = [];
+    let chats = [];
+    let conversationId = 0;
     let busy = false;
     let abort = null;
 
@@ -19,6 +22,28 @@ const global = window;
 
     function t(zh, en) {
         return lang() === 'en' ? en : zh;
+    }
+
+    function storageKey() {
+        const user = global.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
+        const id = user && user.id ? String(user.id) : '0';
+        return 'science_tutor_cid_' + id;
+    }
+
+    function savedConversationId() {
+        try {
+            return parseInt(sessionStorage.getItem(storageKey()) || '0', 10) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    function rememberConversationId(id) {
+        conversationId = id > 0 ? id : 0;
+        try {
+            if (conversationId) sessionStorage.setItem(storageKey(), String(conversationId));
+            else sessionStorage.removeItem(storageKey());
+        } catch (e) { /* ignore */ }
     }
 
     function pageContext() {
@@ -37,6 +62,8 @@ const global = window;
         const sub = root.querySelector('.science-tutor-sub');
         const closeBtn = root.querySelector('.science-tutor-close');
         const empty = root.querySelector('.science-tutor-empty');
+        const newBtn = root.querySelector('[data-tutor-new]');
+        const resumeBtn = root.querySelector('[data-tutor-resume]');
         if (title) title.textContent = t('科學助教', 'Science tutor');
         if (sub) sub.textContent = t('物理、化學、生物', 'Physics, chemistry, biology');
         if (closeBtn) closeBtn.setAttribute('aria-label', t('關閉', 'Close'));
@@ -44,6 +71,8 @@ const global = window;
         if (input) input.placeholder = t('問一題科學問題…', 'Ask a science question…');
         if (sendBtn) sendBtn.textContent = busy ? t('回答中', '…') : t('送出', 'Send');
         if (empty) empty.textContent = t('問我物理、化學或生物問題。公式會用數學式顯示。', 'Ask a physics, chemistry, or biology question. Formulas are shown as math.');
+        if (newBtn) newBtn.textContent = t('新對話', 'New chat');
+        if (resumeBtn) resumeBtn.textContent = t('繼續對話', 'Resume chat');
     }
 
     function scrollLog() {
@@ -55,6 +84,12 @@ const global = window;
         if (input) input.disabled = next;
         if (sendBtn) sendBtn.disabled = next;
         refreshLabels();
+    }
+
+    function clearLog() {
+        turns = [];
+        if (log) log.innerHTML = '';
+        showEmpty();
     }
 
     function appendBubble(className) {
@@ -137,9 +172,14 @@ const global = window;
         consumeSse(buf + '\n\n', onEvent);
     }
 
+    function closeResume() {
+        if (resumeList) resumeList.hidden = true;
+    }
+
     function closePanel() {
         if (!panel || panel.hidden) return;
         panel.hidden = true;
+        closeResume();
         if (fab) {
             fab.setAttribute('aria-expanded', 'false');
             fab.focus();
@@ -154,6 +194,87 @@ const global = window;
         refreshLabels();
         showEmpty();
         if (input) input.focus();
+        void refreshChatList();
+    }
+
+    function paintMessages(messages) {
+        if (!log) return;
+        log.innerHTML = '';
+        turns = [];
+        if (!messages.length) {
+            showEmpty();
+            return;
+        }
+        const jobs = [];
+        for (const msg of messages) {
+            if (!msg || (msg.role !== 'user' && msg.role !== 'assistant')) continue;
+            const content = String(msg.content || '');
+            if (!content) continue;
+            turns.push({ role: msg.role, content });
+            const el = appendBubble(msg.role === 'user' ? 'science-tutor-msg-user' : 'science-tutor-msg-assistant');
+            if (msg.role === 'assistant') jobs.push(renderRich(el, content));
+            else el.textContent = content;
+        }
+        return Promise.all(jobs);
+    }
+
+    async function refreshChatList() {
+        if (!global.ScienceApi) return;
+        try {
+            const data = await ScienceApi.apiFetch('/tutor/conversations');
+            chats = data.conversations || [];
+        } catch (e) {
+            chats = [];
+        }
+        renderResumeList();
+    }
+
+    function renderResumeList() {
+        if (!resumeList) return;
+        if (!chats.length) {
+            resumeList.innerHTML = `<p class="science-tutor-resume-empty">${t('還沒有可繼續的對話。', 'No previous chats yet.')}</p>`;
+            return;
+        }
+        resumeList.innerHTML = chats.map((c) => {
+            const active = Number(c.id) === conversationId ? ' is-active' : '';
+            const label = c.title || t('新對話', 'New chat');
+            return `<button type="button" class="science-tutor-resume-item${active}" data-cid="${Number(c.id)}">${label.replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]))}</button>`;
+        }).join('');
+        resumeList.querySelectorAll('[data-cid]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                void resumeChat(parseInt(btn.getAttribute('data-cid') || '0', 10));
+            });
+        });
+    }
+
+    async function resumeChat(id) {
+        if (!id) return;
+        closeResume();
+        rememberConversationId(id);
+        try {
+            const data = await ScienceApi.apiFetch('/tutor/conversations/' + encodeURIComponent(id));
+            await paintMessages(data.messages || []);
+        } catch (e) {
+            appendBubble('science-tutor-msg-error').textContent = e.message || t('無法載入對話。', 'Could not load that chat.');
+        }
+    }
+
+    async function startNewChat() {
+        closeResume();
+        if (abort) abort.abort();
+        try {
+            const data = await ScienceApi.apiFetch('/tutor/conversations', {
+                method: 'POST',
+                body: { context: pageContext() },
+            });
+            const id = data && data.conversation ? Number(data.conversation.id) : 0;
+            rememberConversationId(id);
+            clearLog();
+            await refreshChatList();
+            if (input) input.focus();
+        } catch (e) {
+            appendBubble('science-tutor-msg-error').textContent = e.message || t('無法開始新對話。', 'Could not start a new chat.');
+        }
     }
 
     async function send() {
@@ -177,6 +298,7 @@ const global = window;
                 body: {
                     messages: turns.slice(-12),
                     context: pageContext(),
+                    conversation_id: conversationId || undefined,
                 },
                 rawResponse: true,
                 signal: abort.signal,
@@ -187,6 +309,8 @@ const global = window;
                     acc += payload.text;
                     assistantEl.textContent = acc;
                     scrollLog();
+                } else if (event === 'done' && payload && payload.conversation_id) {
+                    rememberConversationId(Number(payload.conversation_id) || conversationId);
                 } else if (event === 'error') {
                     failed = (payload && payload.message) || t('助教暫時無法回答，請稍後再試。', 'The tutor cannot answer right now. Try again shortly.');
                 }
@@ -201,6 +325,7 @@ const global = window;
             turns.push({ role: 'assistant', content: acc });
             if (turns.length > 12) turns = turns.slice(-12);
             await renderRich(assistantEl, acc);
+            void refreshChatList();
         } else if (assistantEl.isConnected) {
             assistantEl.remove();
         }
@@ -214,24 +339,19 @@ const global = window;
 
     async function loadHistory() {
         if (!log || !global.ScienceApi) return;
+        await refreshChatList();
+        const wanted = savedConversationId();
+        const fallback = chats.length ? Number(chats[0].id) : 0;
+        const id = (wanted && chats.some((c) => Number(c.id) === wanted)) ? wanted : fallback;
+        if (!id) {
+            showEmpty();
+            return;
+        }
+        rememberConversationId(id);
         try {
-            const data = await ScienceApi.apiFetch('/tutor/history');
-            const messages = data && Array.isArray(data.messages) ? data.messages : [];
-            if (turns.length || !messages.length) {
-                if (!turns.length) showEmpty();
-                return;
-            }
-            for (const msg of messages) {
-                if (!msg || (msg.role !== 'user' && msg.role !== 'assistant')) continue;
-                const content = String(msg.content || '');
-                if (!content) continue;
-                turns.push({ role: msg.role, content });
-                const el = appendBubble(msg.role === 'user' ? 'science-tutor-msg-user' : 'science-tutor-msg-assistant');
-                if (msg.role === 'assistant') await renderRich(el, content);
-                else el.textContent = content;
-            }
-            if (!turns.length) showEmpty();
-            scrollLog();
+            const data = await ScienceApi.apiFetch('/tutor/conversations/' + encodeURIComponent(id));
+            if (turns.length) return;
+            await paintMessages(data.messages || []);
         } catch (e) {
             if (!turns.length) showEmpty();
         }
@@ -256,6 +376,11 @@ const global = window;
                         </svg>
                     </button>
                 </div>
+                <div class="science-tutor-toolbar">
+                    <button type="button" class="science-tutor-tool" data-tutor-new></button>
+                    <button type="button" class="science-tutor-tool" data-tutor-resume aria-expanded="false"></button>
+                </div>
+                <div class="science-tutor-resume" hidden></div>
                 <div class="science-tutor-log" role="log" aria-live="polite"></div>
                 <form class="science-tutor-form">
                     <textarea class="science-tutor-input" rows="2" maxlength="4000"></textarea>
@@ -274,6 +399,7 @@ const global = window;
         input = root.querySelector('.science-tutor-input');
         sendBtn = root.querySelector('.science-tutor-send');
         fab = root.querySelector('.science-tutor-fab');
+        resumeList = root.querySelector('.science-tutor-resume');
         refreshLabels();
         showEmpty();
         void loadHistory();
@@ -283,6 +409,17 @@ const global = window;
             else closePanel();
         });
         root.querySelector('.science-tutor-close').addEventListener('click', () => closePanel());
+        root.querySelector('[data-tutor-new]').addEventListener('click', () => void startNewChat());
+        root.querySelector('[data-tutor-resume]').addEventListener('click', () => {
+            if (!resumeList) return;
+            const open = resumeList.hidden;
+            resumeList.hidden = !open;
+            root.querySelector('[data-tutor-resume]').setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                renderResumeList();
+                void refreshChatList();
+            }
+        });
         root.querySelector('.science-tutor-form').addEventListener('submit', (e) => {
             e.preventDefault();
             void send();
@@ -295,6 +432,11 @@ const global = window;
         });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && panel && !panel.hidden) {
+                if (resumeList && !resumeList.hidden) {
+                    closeResume();
+                    e.stopPropagation();
+                    return;
+                }
                 e.stopPropagation();
                 closePanel();
             }

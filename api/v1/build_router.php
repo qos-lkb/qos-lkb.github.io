@@ -35,6 +35,12 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('POST', '/auth/stop-impersonation', static fn () => api_handle_auth_stop_impersonation($pdo));
     $router->addExact('GET', '/auth/me', static fn () => api_handle_auth_me($pdo));
     $router->addExact('GET', '/tutor/history', static fn () => api_handle_tutor_history($pdo));
+    $router->addExact('GET', '/tutor/conversations', static fn () => api_handle_tutor_conversations_list($pdo));
+    $router->addExact('POST', '/tutor/conversations', static fn () => api_handle_tutor_conversations_create($pdo));
+    $router->addPattern(
+        '^GET /tutor/conversations/([0-9]+)$',
+        static fn (array $p) => api_handle_tutor_conversation_get($pdo, $p[1])
+    );
     $router->addExact('POST', '/tutor/chat', static fn () => api_handle_tutor_chat($pdo));
     $router->addExact('GET', '/subjects', static fn () => api_handle_subjects($pdo));
     $router->addExact('GET', '/nav-menu', static fn () => api_handle_nav_menu($pdo));

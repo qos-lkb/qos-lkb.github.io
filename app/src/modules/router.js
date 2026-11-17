@@ -83,6 +83,8 @@ const global = window;
         { re: /^\/admin\/courses\/(\d+)\/?$/, name: '/admin/courses/:id', keys: [1] },
         { re: /^\/admin\/courses\/?$/, name: '/admin/courses' },
         { re: /^\/admin\/inbox\/?$/, name: '/admin/inbox' },
+        { re: /^\/admin\/tutor\/(\d+)\/?$/, name: '/admin/tutor/:id', keys: [1] },
+        { re: /^\/admin\/tutor\/?$/, name: '/admin/tutor' },
         { re: /^\/admin\/school-overview\/?$/, name: '/admin/school-overview' },
         { re: /^\/admin\/users\/(\d+)\/?$/, name: '/admin/users/:id', keys: [1] },
         { re: /^\/admin\/users\/?$/, name: '/admin/users' },

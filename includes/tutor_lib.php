@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/api_response.php';
+require_once __DIR__ . '/schema_runtime.php';
+require_once __DIR__ . '/user_names_lib.php';
 
 const TUTOR_MAX_MESSAGES = 12;
 const TUTOR_MAX_MESSAGE_CHARS = 4000;
 const TUTOR_UPSTREAM_URL = 'https://api.x.ai/v1/chat/completions';
 
 /**
- * Create tutor tables when missing (idempotent). Safe to call on every tutor API request.
+ * Create tutor tables / columns when missing. Do not require operators to run SQL.
  */
 function tutor_ensure_schema(PDO $pdo): void
 {
@@ -19,11 +21,13 @@ function tutor_ensure_schema(PDO $pdo): void
         return;
     }
 
-    $pdo->exec(
+    schema_runtime_ensure_table(
+        $pdo,
         'CREATE TABLE IF NOT EXISTS tutor_conversations (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
             user_id INT UNSIGNED NOT NULL,
             model VARCHAR(64) NOT NULL DEFAULT \'\',
+            title VARCHAR(120) NOT NULL DEFAULT \'\',
             page_title VARCHAR(120) NOT NULL DEFAULT \'\',
             page_path VARCHAR(200) NOT NULL DEFAULT \'\',
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -31,7 +35,14 @@ function tutor_ensure_schema(PDO $pdo): void
             KEY idx_tutor_conversations_user_updated (user_id, updated_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
-    $pdo->exec(
+    schema_runtime_ensure_column(
+        $pdo,
+        'tutor_conversations',
+        'title',
+        "ALTER TABLE tutor_conversations ADD COLUMN title VARCHAR(120) NOT NULL DEFAULT '' AFTER model"
+    );
+    schema_runtime_ensure_table(
+        $pdo,
         'CREATE TABLE IF NOT EXISTS tutor_messages (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
             conversation_id BIGINT UNSIGNED NOT NULL,
@@ -189,9 +200,68 @@ function tutor_consume_upstream_buffer(string &$buffer, string &$answer): bool
 }
 
 const TUTOR_HISTORY_LIMIT = 40;
+const TUTOR_ADMIN_MESSAGE_LIMIT = 200;
 
-function tutor_open_conversation(PDO $pdo, int $userId, string $model, string $pageTitle, string $pagePath): int
+function tutor_can_view_all(array $user): bool
 {
+    return user_has_permission('user.manage');
+}
+
+function tutor_create_conversation(PDO $pdo, int $userId, string $model, string $pageTitle, string $pagePath): int
+{
+    $ins = $pdo->prepare(
+        'INSERT INTO tutor_conversations (user_id, model, title, page_title, page_path) VALUES (?, ?, ?, ?, ?)'
+    );
+    $ins->execute([$userId, $model, '', $pageTitle, $pagePath]);
+
+    return (int) $pdo->lastInsertId();
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function tutor_fetch_conversation(PDO $pdo, int $id): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT c.id, c.user_id, c.model, c.title, c.page_title, c.page_path, c.created_at, c.updated_at,
+                u.email, u.name_zh, u.name_en, u.display_name
+         FROM tutor_conversations c
+         LEFT JOIN users u ON u.id = c.user_id
+         WHERE c.id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? $row : null;
+}
+
+function tutor_open_conversation(
+    PDO $pdo,
+    int $userId,
+    string $model,
+    string $pageTitle,
+    string $pagePath,
+    int $conversationId = 0,
+    bool $forceNew = false
+): int {
+    if ($forceNew) {
+        return tutor_create_conversation($pdo, $userId, $model, $pageTitle, $pagePath);
+    }
+
+    if ($conversationId > 0) {
+        $row = tutor_fetch_conversation($pdo, $conversationId);
+        if ($row === null || (int) $row['user_id'] !== $userId) {
+            throw new InvalidArgumentException('conversation_not_found');
+        }
+        $upd = $pdo->prepare(
+            'UPDATE tutor_conversations SET model = ?, page_title = ?, page_path = ? WHERE id = ?'
+        );
+        $upd->execute([$model, $pageTitle, $pagePath, $conversationId]);
+
+        return $conversationId;
+    }
+
     $stmt = $pdo->prepare(
         'SELECT id FROM tutor_conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1'
     );
@@ -206,12 +276,72 @@ function tutor_open_conversation(PDO $pdo, int $userId, string $model, string $p
         return (int) $id;
     }
 
-    $ins = $pdo->prepare(
-        'INSERT INTO tutor_conversations (user_id, model, page_title, page_path) VALUES (?, ?, ?, ?)'
-    );
-    $ins->execute([$userId, $model, $pageTitle, $pagePath]);
+    return tutor_create_conversation($pdo, $userId, $model, $pageTitle, $pagePath);
+}
 
-    return (int) $pdo->lastInsertId();
+/**
+ * @param array<string, mixed> $row
+ * @return array<string, mixed>
+ */
+function tutor_conversation_payload(array $row, bool $includeOwner = false): array
+{
+    $title = trim((string) ($row['title'] ?? ''));
+    $payload = [
+        'id' => (int) $row['id'],
+        'title' => $title !== '' ? $title : '新對話',
+        'page_title' => (string) ($row['page_title'] ?? ''),
+        'page_path' => (string) ($row['page_path'] ?? ''),
+        'model' => (string) ($row['model'] ?? ''),
+        'created_at' => (string) ($row['created_at'] ?? ''),
+        'updated_at' => (string) ($row['updated_at'] ?? ''),
+    ];
+    if ($includeOwner) {
+        $payload['user_id'] = (int) ($row['user_id'] ?? 0);
+        $payload['user_email'] = (string) ($row['email'] ?? '');
+        $payload['user_name'] = user_format_name([
+            'name_zh' => (string) ($row['name_zh'] ?? ''),
+            'name_en' => (string) ($row['name_en'] ?? ''),
+            'display_name' => (string) ($row['display_name'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+        ]);
+    }
+
+    return $payload;
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function tutor_list_conversations(PDO $pdo, ?int $userId, string $query, bool $includeOwner): array
+{
+    $sql = 'SELECT c.id, c.user_id, c.model, c.title, c.page_title, c.page_path, c.created_at, c.updated_at,
+                   u.email, u.name_zh, u.name_en, u.display_name
+            FROM tutor_conversations c
+            LEFT JOIN users u ON u.id = c.user_id';
+    $where = [];
+    $params = [];
+    if ($userId !== null) {
+        $where[] = 'c.user_id = ?';
+        $params[] = $userId;
+    }
+    $query = tutor_context_snippet($query, 80);
+    if ($query !== '') {
+        $like = '%' . $query . '%';
+        $where[] = '(c.title LIKE ? OR u.email LIKE ? OR u.name_zh LIKE ? OR u.name_en LIKE ? OR u.display_name LIKE ?)';
+        array_push($params, $like, $like, $like, $like, $like);
+    }
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY c.updated_at DESC, c.id DESC LIMIT 80';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[] = tutor_conversation_payload($row, $includeOwner);
+    }
+
+    return $out;
 }
 
 function tutor_append_user_turn(PDO $pdo, int $conversationId, string $content): void
@@ -229,6 +359,14 @@ function tutor_append_user_turn(PDO $pdo, int $conversationId, string $content):
         'INSERT INTO tutor_messages (conversation_id, role, content) VALUES (?, ?, ?)'
     );
     $ins->execute([$conversationId, 'user', $content]);
+
+    $titleStmt = $pdo->prepare('SELECT title FROM tutor_conversations WHERE id = ? LIMIT 1');
+    $titleStmt->execute([$conversationId]);
+    $current = trim((string) $titleStmt->fetchColumn());
+    if ($current === '') {
+        $upd = $pdo->prepare('UPDATE tutor_conversations SET title = ? WHERE id = ?');
+        $upd->execute([tutor_context_snippet($content, 80), $conversationId]);
+    }
 }
 
 function tutor_append_assistant_turn(PDO $pdo, int $conversationId, string $content): void
@@ -411,5 +549,5 @@ function tutor_stream_chat(PDO $pdo, int $conversationId, array $messages, strin
         return;
     }
 
-    tutor_emit_sse('done', ['ok' => true]);
+    tutor_emit_sse('done', ['ok' => true, 'conversation_id' => $conversationId]);
 }

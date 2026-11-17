@@ -10,19 +10,109 @@ require_once dirname(__DIR__, 3) . '/includes/tutor_lib.php';
 function api_handle_tutor_history(PDO $pdo): void
 {
     $user = require_api_user();
+    $conversationId = (int) ($_GET['id'] ?? 0);
     try {
         tutor_ensure_schema($pdo);
-        $stmt = $pdo->prepare(
-            'SELECT id FROM tutor_conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1'
-        );
-        $stmt->execute([(int) $user['id']]);
-        $id = $stmt->fetchColumn();
-        $messages = $id === false ? [] : tutor_recent_messages($pdo, (int) $id, TUTOR_HISTORY_LIMIT);
+        if ($conversationId > 0) {
+            $row = tutor_fetch_conversation($pdo, $conversationId);
+            if ($row === null || ((int) $row['user_id'] !== (int) $user['id'] && !tutor_can_view_all($user))) {
+                api_json_error('not_found', '找不到這段對話。', 404);
+            }
+        } else {
+            $stmt = $pdo->prepare(
+                'SELECT id FROM tutor_conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1'
+            );
+            $stmt->execute([(int) $user['id']]);
+            $id = $stmt->fetchColumn();
+            $conversationId = $id === false ? 0 : (int) $id;
+            $row = $conversationId > 0 ? tutor_fetch_conversation($pdo, $conversationId) : null;
+        }
+        $messages = $conversationId > 0
+            ? tutor_recent_messages($pdo, $conversationId, TUTOR_HISTORY_LIMIT)
+            : [];
     } catch (PDOException $e) {
         api_json_error('db_error', '無法讀取科學助教紀錄。', 500);
     }
 
-    api_json_ok(['messages' => $messages]);
+    api_json_ok([
+        'conversation_id' => $conversationId,
+        'conversation' => $row ? tutor_conversation_payload($row, tutor_can_view_all($user)) : null,
+        'messages' => $messages,
+    ]);
+}
+
+function api_handle_tutor_conversations_list(PDO $pdo): void
+{
+    $user = require_api_user();
+    $all = ($_GET['all'] ?? '') === '1' || strtolower((string) ($_GET['all'] ?? '')) === 'true';
+    if ($all && !tutor_can_view_all($user)) {
+        api_json_error('forbidden', '沒有權限查看全部對話。', 403);
+    }
+    $q = (string) ($_GET['q'] ?? '');
+    try {
+        tutor_ensure_schema($pdo);
+        $items = tutor_list_conversations(
+            $pdo,
+            $all ? null : (int) $user['id'],
+            $q,
+            $all
+        );
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取科學助教紀錄。', 500);
+    }
+
+    api_json_ok([
+        'conversations' => $items,
+        'can_view_all' => tutor_can_view_all($user),
+    ]);
+}
+
+function api_handle_tutor_conversations_create(PDO $pdo): void
+{
+    $user = require_api_user();
+    api_verify_csrf_or_fail();
+    $body = api_read_json_body();
+    $context = tutor_normalize_context(is_array($body['context'] ?? null) ? $body['context'] : []);
+    try {
+        tutor_ensure_schema($pdo);
+        $id = tutor_create_conversation(
+            $pdo,
+            (int) $user['id'],
+            config_xai_model(),
+            $context['title'],
+            $context['path']
+        );
+        $row = tutor_fetch_conversation($pdo, $id);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法開始新對話。', 500);
+    }
+
+    api_json_ok(['conversation' => $row ? tutor_conversation_payload($row) : ['id' => $id]]);
+}
+
+function api_handle_tutor_conversation_get(PDO $pdo, string $idRaw): void
+{
+    $user = require_api_user();
+    $id = (int) $idRaw;
+    if ($id < 1) {
+        api_json_error('not_found', '找不到這段對話。', 404);
+    }
+    try {
+        tutor_ensure_schema($pdo);
+        $row = tutor_fetch_conversation($pdo, $id);
+        if ($row === null || ((int) $row['user_id'] !== (int) $user['id'] && !tutor_can_view_all($user))) {
+            api_json_error('not_found', '找不到這段對話。', 404);
+        }
+        $limit = tutor_can_view_all($user) ? TUTOR_ADMIN_MESSAGE_LIMIT : TUTOR_HISTORY_LIMIT;
+        $messages = tutor_recent_messages($pdo, $id, $limit);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取科學助教紀錄。', 500);
+    }
+
+    api_json_ok([
+        'conversation' => tutor_conversation_payload($row, tutor_can_view_all($user) || (int) $row['user_id'] !== (int) $user['id']),
+        'messages' => $messages,
+    ]);
 }
 
 function api_handle_tutor_chat(PDO $pdo): void
@@ -43,6 +133,8 @@ function api_handle_tutor_chat(PDO $pdo): void
 
     $contextRaw = $body['context'] ?? [];
     $context = tutor_normalize_context(is_array($contextRaw) ? $contextRaw : []);
+    $requestedId = (int) ($body['conversation_id'] ?? 0);
+    $forceNew = !empty($body['new']);
 
     $rateKey = api_rate_limit_key('tutor_chat', (string) $user['id']);
     if (!api_rate_limit_check($pdo, $rateKey, 30, 600)) {
@@ -56,10 +148,14 @@ function api_handle_tutor_chat(PDO $pdo): void
             (int) $user['id'],
             config_xai_model(),
             $context['title'],
-            $context['path']
+            $context['path'],
+            $requestedId,
+            $forceNew
         );
         tutor_append_user_turn($pdo, $conversationId, $question);
         $messages = tutor_recent_messages($pdo, $conversationId, TUTOR_MAX_MESSAGES);
+    } catch (InvalidArgumentException $e) {
+        api_json_error('not_found', '找不到這段對話。', 404);
     } catch (PDOException $e) {
         api_json_error('db_error', '無法儲存科學助教對話。', 500);
     }

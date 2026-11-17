@@ -459,3 +459,23 @@ if (!function_exists('api_handle_admin_db_backups_delete')) {
 if (!function_exists('api_handle_admin_db_backup_download')) {
     function api_handle_admin_db_backup_download(...$args): void {}
 }
+
+if (!function_exists('api_handle_tutor_history')) {
+    function api_handle_tutor_history(...$args): void {}
+}
+
+if (!function_exists('api_handle_tutor_conversations_list')) {
+    function api_handle_tutor_conversations_list(...$args): void {}
+}
+
+if (!function_exists('api_handle_tutor_conversations_create')) {
+    function api_handle_tutor_conversations_create(...$args): void {}
+}
+
+if (!function_exists('api_handle_tutor_conversation_get')) {
+    function api_handle_tutor_conversation_get(...$args): void {}
+}
+
+if (!function_exists('api_handle_tutor_chat')) {
+    function api_handle_tutor_chat(...$args): void {}
+}

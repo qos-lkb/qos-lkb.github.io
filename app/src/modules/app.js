@@ -53,6 +53,7 @@
             items: [
                 { route: '/admin/courses', label: { zh: '課程', en: 'Courses' } },
                 { route: '/admin/inbox', label: { zh: '收件箱', en: 'Inbox' } },
+                { route: '/admin/tutor', label: { zh: '科學助教', en: 'Tutor' } },
                 { route: '/admin/school-overview', label: { zh: '學校總覽', en: 'School' } },
                 { route: '/admin/summer-homework', label: { zh: '暑期功課', en: 'Summer HW' } },
                 { route: '/admin/worksheets', label: { zh: '工作紙', en: 'Worksheets' } },
@@ -896,6 +897,16 @@
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminInbox();
                 });
+            },
+            '/admin/tutor': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminTutor();
+                });
+            },
+            '/admin/tutor/:id': async (id) => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminTutorThread(id);
+                }, '/admin/tutor/' + id);
             },
             '/admin/school-overview': async () => {
                 await runAdminRoute(async () => {
