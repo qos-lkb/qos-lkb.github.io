@@ -682,3 +682,27 @@ function sim_body_from_row(array $sim): string
     }
     return '';
 }
+
+/**
+ * Editor starter template (not a published sim path; read directly from disk).
+ */
+function sim_read_skeleton_html(): string
+{
+    $path = dirname(__DIR__) . '/templates/sim_skeleton.html';
+    if (!is_file($path) || !is_readable($path)) {
+        return '';
+    }
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        return '';
+    }
+    $raw = str_replace(["\r\n", "\r"], "\n", $raw);
+    if (trim($raw) === '') {
+        return '';
+    }
+    if (!mb_check_encoding($raw, 'UTF-8')) {
+        return '';
+    }
+
+    return $raw;
+}

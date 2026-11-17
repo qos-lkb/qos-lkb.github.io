@@ -821,11 +821,13 @@ function api_handle_admin_simulation_html_agent(PDO $pdo, string $method): void
     $models = api_sim_html_agent_model_ids($pdo);
 
     if ($method === 'GET') {
-        api_json_ok(sim_html_agent_options_payload(
+        $payload = sim_html_agent_options_payload(
             tutor_has_api_key(),
             $models['ids'],
             $models['default']
-        ));
+        );
+        $payload['skeleton_html'] = sim_read_skeleton_html();
+        api_json_ok($payload);
     }
 
     if ($method !== 'POST') {
@@ -833,27 +835,54 @@ function api_handle_admin_simulation_html_agent(PDO $pdo, string $method): void
     }
 
     api_verify_csrf_or_fail();
-    $normalized = sim_html_agent_normalize_request(api_read_json_body(), $models['ids']);
-    if (!$normalized['ok']) {
-        api_json_error('validation_error', $normalized['error'], $normalized['status']);
-    }
+    $body = api_read_json_body();
+    $mode = strtolower(trim((string) ($body['mode'] ?? 'revise')));
 
-    $rateKey = api_rate_limit_key('sim_html_agent', (string) $user['id']);
-    if (!api_rate_limit_check($pdo, $rateKey, 8, 600)) {
-        api_json_error('rate_limited', '優化次數過多，請約十分鐘後再試。', 429);
-    }
+    if ($mode === 'generate') {
+        $normalized = sim_html_agent_normalize_generate_request($body, $models['ids']);
+        if (!$normalized['ok']) {
+            api_json_error('validation_error', $normalized['error'], $normalized['status']);
+        }
 
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_write_close();
-    }
-    set_time_limit(200);
+        $rateKey = api_rate_limit_key('sim_html_agent', (string) $user['id']);
+        if (!api_rate_limit_check($pdo, $rateKey, 8, 600)) {
+            api_json_error('rate_limited', '產生次數過多，請約十分鐘後再試。', 429);
+        }
 
-    $result = sim_html_agent_complete(
-        $normalized['model'],
-        $normalized['reasoning_effort'],
-        $normalized['instruction'],
-        $normalized['html']
-    );
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        set_time_limit(260);
+
+        $result = sim_html_agent_generate_complete(
+            $normalized['model'],
+            $normalized['reasoning_effort'],
+            $normalized['instruction'],
+            $normalized['context']
+        );
+    } else {
+        $normalized = sim_html_agent_normalize_request($body, $models['ids']);
+        if (!$normalized['ok']) {
+            api_json_error('validation_error', $normalized['error'], $normalized['status']);
+        }
+
+        $rateKey = api_rate_limit_key('sim_html_agent', (string) $user['id']);
+        if (!api_rate_limit_check($pdo, $rateKey, 8, 600)) {
+            api_json_error('rate_limited', '優化次數過多，請約十分鐘後再試。', 429);
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        set_time_limit(200);
+
+        $result = sim_html_agent_complete(
+            $normalized['model'],
+            $normalized['reasoning_effort'],
+            $normalized['instruction'],
+            $normalized['html']
+        );
+    }
     if (!$result['ok']) {
         api_json_error('agent_failed', $result['error'], $result['status']);
     }

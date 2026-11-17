@@ -775,6 +775,86 @@ const global = window;
         }
 
         document.getElementById('btn-preview-html').onclick = () => openSandboxPreview();
+
+        function simEditSubjectLabel() {
+            const sid = Number(subjectEl?.value || 0);
+            if (!sid) return '';
+            const subj = subjects.find((s) => Number(s.id) === sid);
+            if (!subj) return '';
+            return ((subj.name_zh || '') + ' / ' + (subj.name_en || '')).trim();
+        }
+
+        function simGenerateContextPayload() {
+            return {
+                title_zh: (form.title_zh?.value || '').trim(),
+                title_en: (form.title_en?.value || '').trim(),
+                summary_zh: (form.summary_zh?.value || '').trim(),
+                summary_en: (form.summary_en?.value || '').trim(),
+                subject_label: simEditSubjectLabel(),
+            };
+        }
+
+        let autoGenerateSeq = 0;
+
+        async function autoBootstrapNewSimulationHtml(opts) {
+            if (editId) return;
+            if ((htmlEl.value || '').trim()) return;
+            const seq = ++autoGenerateSeq;
+            const skeleton = String((opts && opts.skeleton_html) || '').trim();
+            if (skeleton) {
+                htmlEl.value = skeleton;
+                if (pathNote) {
+                    pathNote.textContent = t('已載入專案骨架模板，可編輯後儲存。', 'Loaded the project skeleton template. Edit and save.');
+                }
+                return;
+            }
+            if (!opts || !opts.configured) {
+                if (pathNote) {
+                    pathNote.textContent = t(
+                        '尚無骨架 HTML。請貼上內容，或設定 XAI_API_KEY 後重新整理以自動產生。',
+                        'No skeleton HTML. Paste content, or set XAI_API_KEY and reload to auto-generate.'
+                    );
+                }
+                return;
+            }
+            const defaultModel = String(opts.default_model || (Array.isArray(opts.models) && opts.models[0] && opts.models[0].id) || '');
+            if (!defaultModel) return;
+            if (pathNote) {
+                pathNote.textContent = t('正在由 AI 產生初始 HTML…', 'Generating starter HTML with AI…');
+            }
+            htmlEl.setAttribute('aria-busy', 'true');
+            try {
+                const res = await global.ScienceApi.apiFetch('/admin/simulations/html-agent', {
+                    method: 'POST',
+                    body: {
+                        mode: 'generate',
+                        model: defaultModel,
+                        reasoning_effort: 'low',
+                        ...simGenerateContextPayload(),
+                    },
+                });
+                if (seq !== autoGenerateSeq) return;
+                const generated = String((res && res.html) || '').trim();
+                if (generated) {
+                    htmlEl.value = generated;
+                    if (pathNote) {
+                        pathNote.textContent = t('已自動產生初始 HTML。請檢查後按儲存。', 'Starter HTML was generated. Review and save.');
+                    }
+                }
+            } catch (err) {
+                if (seq !== autoGenerateSeq) return;
+                if (pathNote) {
+                    pathNote.textContent = (err && err.message)
+                        ? String(err.message)
+                        : t('自動產生未完成，請稍後再試或手動貼上 HTML。', 'Auto-generate did not finish. Retry later or paste HTML.');
+                }
+            } finally {
+                if (seq === autoGenerateSeq) {
+                    htmlEl.removeAttribute('aria-busy');
+                }
+            }
+        }
+
         bindHtmlAgent();
 
         function bindHtmlAgent() {
@@ -789,6 +869,9 @@ const global = window;
             global.ScienceApi.apiFetch('/admin/simulations/html-agent').then((opts) => {
                 if (seq !== agentSeq || !host.isConnected) return;
                 renderHtmlAgent(host, opts || {}, seq);
+                if (seq === agentSeq) {
+                    autoBootstrapNewSimulationHtml(opts || {});
+                }
             }).catch((err) => {
                 if (seq !== agentSeq || !host.isConnected) return;
                 host.innerHTML = `<p class="text-sm text-red-600">${escapeHtml(err.message || t('無法載入 AI 優化。', 'Could not load AI optimize.'))}</p>`;
@@ -890,6 +973,14 @@ const global = window;
             const notesEl = host.querySelector('#html-agent-notes');
             const metaEl = host.querySelector('#html-agent-meta');
 
+            async function postHtmlAgentBody(body, controller) {
+                return global.ScienceApi.apiFetch('/admin/simulations/html-agent', {
+                    method: 'POST',
+                    signal: controller ? controller.signal : undefined,
+                    body,
+                });
+            }
+
             function setStatus(text, isError) {
                 if (!statusEl) return;
                 statusEl.textContent = text || '';
@@ -918,16 +1009,17 @@ const global = window;
             runBtn?.addEventListener('click', async () => {
                 const html = htmlEl.value || '';
                 const bytes = new TextEncoder().encode(html).length;
-                if (!html.trim()) {
+                const instruction = instructionEl ? instructionEl.value.trim() : '';
+                const generateMode = !html.trim() && !editId && configured;
+                if (!html.trim() && !generateMode) {
                     setStatus(t('請先輸入或載入 HTML。', 'Enter or load HTML first.'), true);
                     return;
                 }
-                if (bytes > maxBytes) {
+                if (!generateMode && bytes > maxBytes) {
                     setStatus(t('HTML 超過 AI 優化上限（約 180 KB）。', 'HTML is over the AI limit (about 180 KB).'), true);
                     return;
                 }
-                const instruction = instructionEl ? instructionEl.value.trim() : '';
-                if (!instruction) {
+                if (!generateMode && !instruction) {
                     setStatus(t('請寫下要優化的地方。', 'Write what to change.'), true);
                     return;
                 }
@@ -937,32 +1029,50 @@ const global = window;
                 runBtn.disabled = true;
                 if (cancelBtn) cancelBtn.hidden = false;
                 resultBox?.classList.add('hidden');
-                setStatus(t('模型正在修訂 HTML，較大的檔案可能要一兩分鐘。', 'The model is revising the HTML. Large files can take a minute or two.'), false);
+                setStatus(
+                    generateMode
+                        ? t('正在產生新的模擬 HTML…', 'Generating new simulation HTML…')
+                        : t('模型正在修訂 HTML，較大的檔案可能要一兩分鐘。', 'The model is revising the HTML. Large files can take a minute or two.'),
+                    false
+                );
                 try {
-                    const res = await global.ScienceApi.apiFetch('/admin/simulations/html-agent', {
-                        method: 'POST',
-                        signal: controller.signal,
-                        body: {
+                    const body = generateMode
+                        ? {
+                            mode: 'generate',
+                            model: modelEl ? modelEl.value : '',
+                            reasoning_effort: effortEl ? effortEl.value : '',
+                            instruction,
+                            ...simGenerateContextPayload(),
+                        }
+                        : {
                             html,
                             instruction,
                             model: modelEl ? modelEl.value : '',
                             reasoning_effort: effortEl ? effortEl.value : '',
-                        },
-                    });
+                        };
+                    const res = await postHtmlAgentBody(body, controller);
                     if (seq !== agentSeq || !host.isConnected) return;
                     proposed = String((res && res.html) || '');
-                    if (notesEl) {
-                        notesEl.textContent = String((res && res.notes) || '') || t('模型沒有附加說明。', 'The model did not add notes.');
+                    if (generateMode && proposed) {
+                        htmlEl.value = proposed;
+                        if (pathNote) {
+                            pathNote.textContent = t('已產生 HTML 並寫入編輯器。按儲存才會寫入檔案。', 'HTML generated in the editor. Press Save to write the file.');
+                        }
+                        setStatus(t('產生完成。', 'Generation complete.'), false);
+                    } else {
+                        if (notesEl) {
+                            notesEl.textContent = String((res && res.notes) || '') || t('模型沒有附加說明。', 'The model did not add notes.');
+                        }
+                        if (metaEl) {
+                            const modelName = String((res && res.model) || '');
+                            metaEl.textContent = t(
+                                '模型 ' + modelName + '。原 ' + html.length + ' 字元，新 ' + proposed.length + ' 字元。',
+                                'Model ' + modelName + '. Was ' + html.length + ' characters, now ' + proposed.length + '.'
+                            );
+                        }
+                        resultBox?.classList.remove('hidden');
+                        setStatus(t('優化完成。請預覽或套用；尚未寫入檔案。', 'Done. Preview or apply. Nothing has been saved yet.'), false);
                     }
-                    if (metaEl) {
-                        const modelName = String((res && res.model) || '');
-                        metaEl.textContent = t(
-                            '模型 ' + modelName + '。原 ' + html.length + ' 字元，新 ' + proposed.length + ' 字元。',
-                            'Model ' + modelName + '. Was ' + html.length + ' characters, now ' + proposed.length + '.'
-                        );
-                    }
-                    resultBox?.classList.remove('hidden');
-                    setStatus(t('優化完成。請預覽或套用；尚未寫入檔案。', 'Done. Preview or apply. Nothing has been saved yet.'), false);
                 } catch (err) {
                     if (seq !== agentSeq || !host.isConnected) return;
                     if (err && err.name === 'AbortError') {

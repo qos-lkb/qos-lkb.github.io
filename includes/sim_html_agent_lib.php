@@ -14,6 +14,29 @@ const SIM_HTML_AGENT_MAX_NOTES = 800;
 const SIM_HTML_AGENT_MAX_TOKENS = 48000;
 const SIM_HTML_AGENT_UPSTREAM_URL = 'https://api.x.ai/v1/chat/completions';
 
+function sim_html_agent_generate_system_prompt(): string
+{
+    return <<<'TXT'
+你是香港中學科學互動模擬的作者，服務 HKDSE／初中科學。
+使用者要建立一份新的單檔模擬頁。請產出完整、可離線開啟的 HTML，CSS 與 JavaScript 都寫在同一檔內（<style> 與 <script>）。
+
+必須遵守：
+- <!DOCTYPE html>、合適的 lang、UTF-8、viewport、有意義的 <title>
+- 使用 Tailwind CSS（cdn.tailwindcss.com）；語意標籤；基本無障礙（鍵盤、aria-label、對比）
+- 單檔、無建置、無後端；不要依賴 app/ bundler
+- 含標題區、控制面板與主要示範區（canvas、SVG 或等同互動），演示一個清楚的科學概念
+- 互動須可運作，不要只放佔位文字
+- 若使用者提供標題、摘要或科目，融入畫面；若無，做可替換的「示範科學模擬」
+- NOTES 用繁體中文，三行以內
+
+只輸出下列格式，不要加 Markdown 圍欄，不要在 HTML 之後再寫字：
+NOTES:
+（三行以內，說明模擬內容）
+HTML:
+（完整 HTML，由 <!DOCTYPE html> 或 <html 開始，到 </html> 結束）
+TXT;
+}
+
 function sim_html_agent_system_prompt(): string
 {
     return <<<'TXT'
@@ -193,6 +216,75 @@ function sim_html_agent_normalize_request(array $body, array $allowedModels): ar
         'model' => $model,
         'reasoning_effort' => $effort,
     ];
+}
+
+/**
+ * @param list<string> $allowedModels
+ * @return array{ok:true,instruction:string,model:string,reasoning_effort:string,context:array<string,string>}|array{ok:false,error:string,status:int}
+ */
+function sim_html_agent_normalize_generate_request(array $body, array $allowedModels): array
+{
+    $instruction = sim_html_agent_clean_instruction((string) ($body['instruction'] ?? ''));
+    if ($instruction === '') {
+        $instruction = '建立一份符合本專案標準的香港中學科學互動模擬（單檔 HTML，含 Tailwind、可操作的示範與重設按鈕）。';
+    }
+
+    $model = trim((string) ($body['model'] ?? ''));
+    if ($model === '' || !preg_match('/^[A-Za-z0-9._-]{1,64}$/', $model) || !in_array($model, $allowedModels, true)) {
+        return ['ok' => false, 'error' => '請選擇可用的模型。', 'status' => 422];
+    }
+
+    $effort = strtolower(trim((string) ($body['reasoning_effort'] ?? '')));
+    if ($effort !== '' && !in_array($effort, ['low', 'medium', 'high', 'xhigh'], true)) {
+        return ['ok' => false, 'error' => '推理深度無效。', 'status' => 422];
+    }
+    if (!sim_html_agent_should_send_reasoning($model, $effort)) {
+        $effort = '';
+    }
+
+    $context = [];
+    foreach (['title_zh', 'title_en', 'summary_zh', 'summary_en', 'subject_label'] as $key) {
+        $value = trim((string) ($body[$key] ?? ''));
+        if ($value !== '') {
+            $context[$key] = mb_substr($value, 0, 500);
+        }
+    }
+
+    return [
+        'ok' => true,
+        'instruction' => $instruction,
+        'model' => $model,
+        'reasoning_effort' => $effort,
+        'context' => $context,
+    ];
+}
+
+/**
+ * @param array<string, string> $context
+ */
+function sim_html_agent_generate_user_message(string $instruction, array $context): string
+{
+    $lines = ["建立指示：\n" . $instruction];
+    if ($context !== []) {
+        $lines[] = "\n模擬資料（若空白請自行決定合理示範主題）：";
+        if (isset($context['title_zh'])) {
+            $lines[] = '中文標題：' . $context['title_zh'];
+        }
+        if (isset($context['title_en'])) {
+            $lines[] = '英文標題：' . $context['title_en'];
+        }
+        if (isset($context['summary_zh'])) {
+            $lines[] = '中文摘要：' . $context['summary_zh'];
+        }
+        if (isset($context['summary_en'])) {
+            $lines[] = '英文摘要：' . $context['summary_en'];
+        }
+        if (isset($context['subject_label'])) {
+            $lines[] = '科目：' . $context['subject_label'];
+        }
+    }
+
+    return implode("\n", $lines);
 }
 
 function sim_html_agent_should_send_reasoning(string $model, string $effort): bool
@@ -464,6 +556,97 @@ function sim_html_agent_complete(string $model, string $reasoningEffort, string 
     }
     if ($status >= 400 || $status === 0) {
         error_log('sim_html_agent upstream ' . $status . ' ' . substr($raw, 0, 300));
+
+        return ['ok' => false, 'error' => sim_html_agent_upstream_message($status), 'status' => 502];
+    }
+
+    $json = json_decode($raw, true);
+    if (!is_array($json)) {
+        return ['ok' => false, 'error' => '模型服務回應無效。', 'status' => 502];
+    }
+    $parsed = sim_html_agent_extract_completion($json);
+    if (!$parsed['ok']) {
+        return ['ok' => false, 'error' => $parsed['error'], 'status' => 502];
+    }
+
+    return [
+        'ok' => true,
+        'html' => $parsed['html'],
+        'notes' => $parsed['notes'],
+        'model' => $model,
+    ];
+}
+
+/**
+ * @param array<string, string> $context
+ * @return array{ok:true,html:string,notes:string,model:string}|array{ok:false,error:string,status:int}
+ */
+function sim_html_agent_generate_complete(string $model, string $reasoningEffort, string $instruction, array $context): array
+{
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'error' => '伺服器未啟用網路連線元件，無法呼叫模型。', 'status' => 503];
+    }
+
+    require_once __DIR__ . '/config.php';
+    $apiKey = config_xai_api_key();
+    if ($apiKey === '') {
+        return ['ok' => false, 'error' => '尚未設定 XAI_API_KEY，無法產生 HTML。', 'status' => 503];
+    }
+
+    $body = [
+        'model' => $model,
+        'stream' => false,
+        'temperature' => 0.35,
+        'max_tokens' => SIM_HTML_AGENT_MAX_TOKENS,
+        'messages' => [
+            ['role' => 'system', 'content' => sim_html_agent_generate_system_prompt()],
+            ['role' => 'user', 'content' => sim_html_agent_generate_user_message($instruction, $context)],
+        ],
+    ];
+    if (sim_html_agent_should_send_reasoning($model, $reasoningEffort)) {
+        $body['reasoning_effort'] = $reasoningEffort;
+    }
+    $payload = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($payload === false) {
+        return ['ok' => false, 'error' => '無法送出請求。', 'status' => 500];
+    }
+
+    $ch = curl_init(SIM_HTML_AGENT_UPSTREAM_URL);
+    if ($ch === false) {
+        return ['ok' => false, 'error' => '無法連線到模型服務。', 'status' => 503];
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'Authorization: Bearer ' . $apiKey,
+        ],
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 240,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_RETURNTRANSFER => true,
+    ]);
+    $raw = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($raw === false || $errno !== 0) {
+        $timedOut = $errno === 28;
+
+        return [
+            'ok' => false,
+            'error' => $timedOut ? '模型回應逾時。可改選不推理的模型再試。' : '無法連線到模型服務。',
+            'status' => 503,
+        ];
+    }
+    if (!is_string($raw)) {
+        return ['ok' => false, 'error' => '模型服務回應無效。', 'status' => 502];
+    }
+    if ($status >= 400 || $status === 0) {
+        error_log('sim_html_agent generate upstream ' . $status . ' ' . substr($raw, 0, 300));
 
         return ['ok' => false, 'error' => sim_html_agent_upstream_message($status), 'status' => 502];
     }

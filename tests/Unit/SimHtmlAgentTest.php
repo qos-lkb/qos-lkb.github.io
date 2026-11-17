@@ -112,4 +112,15 @@ final class SimHtmlAgentTest extends TestCase
         self::assertTrue($payload['configured']);
         self::assertNotEmpty($payload['presets']);
     }
+
+    public function testNormalizeGenerateAllowsEmptyHtmlAndDefaultInstruction(): void
+    {
+        $normalized = sim_html_agent_normalize_generate_request([
+            'model' => 'grok-4.6',
+            'title_zh' => '波動',
+        ], ['grok-4.6']);
+        self::assertTrue($normalized['ok']);
+        self::assertNotSame('', $normalized['instruction']);
+        self::assertSame('波動', $normalized['context']['title_zh']);
+    }
 }
