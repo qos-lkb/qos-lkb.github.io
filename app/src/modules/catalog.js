@@ -2,7 +2,7 @@
 const global = window;
 
     const { apiFetch } = global.ScienceApi;
-    const { t, escapeHtml, getLang, navigate } = global.AppRouter;
+    const { t, escapeHtml, getLang, navigate, spaHref } = global.AppRouter;
 
     let subjectData = {};
     let categoryMap = {};
@@ -122,6 +122,42 @@ const global = window;
         return (base ? base.replace(/\/$/, '') : '') + '/' + path.replace(/^\.\//, '');
     }
 
+    function simulationShareUrl(slug) {
+        if (!slug) return '';
+        const path = spaHref
+            ? spaHref('/simulation/' + encodeURIComponent(slug))
+            : '/app/simulation/' + encodeURIComponent(slug);
+        if (/^https?:\/\//i.test(path)) return path;
+        const origin = (location.origin || '').replace(/\/$/, '');
+        return origin + (path.startsWith('/') ? path : '/' + path);
+    }
+
+    async function copySimulationShareLink(slug, feedbackEl) {
+        const url = simulationShareUrl(slug);
+        if (!url) return false;
+        let ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(url);
+                ok = true;
+            }
+        } catch (e) { /* fall through */ }
+        if (!ok) {
+            window.prompt(t('請複製以下連結：', 'Copy this link:'), url);
+            ok = true;
+        }
+        if (feedbackEl) {
+            const prev = feedbackEl.textContent;
+            feedbackEl.textContent = t('已複製', 'Copied');
+            feedbackEl.setAttribute('aria-label', t('連結已複製到剪貼簿', 'Link copied to clipboard'));
+            window.setTimeout(() => {
+                feedbackEl.textContent = prev;
+                feedbackEl.setAttribute('aria-label', t('複製模擬連結', 'Copy simulation link'));
+            }, 1800);
+        }
+        return ok;
+    }
+
     function cardHtmlFromItem(item) {
         const lang = getLang();
         const titleZh = titleMap[item.title] ? titleMap[item.title].zh : (item.title_zh || item.title);
@@ -142,7 +178,7 @@ const global = window;
         ).join(' ');
         const blurb = summary
             ? escapeHtml(summary)
-            : escapeHtml(t('點擊開始模擬，或查看說明', 'Launch the simulation, or view details'));
+            : escapeHtml(t('點擊開始模擬，或複製分享連結', 'Launch the simulation, or copy a share link'));
         const htmlUrl = slug ? (`${(global.ScienceApi && ScienceApi.API_BASE) || '/api/v1'}/simulations/${encodeURIComponent(slug)}/html`) : '';
         return `
             <div class="sim-card bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col hover:border-brand-300 hover:shadow-md transition-all" data-slug="${escapeHtml(slug)}" data-preview="${escapeHtml(previewRoute)}" data-html-url="${escapeHtml(htmlUrl)}" data-title-zh="${escapeHtml(titleZh)}" data-title-en="${escapeHtml(titleEn)}" data-tags="${escapeHtml(tags.join(','))}">
@@ -159,7 +195,7 @@ const global = window;
                     </div>
                 </button>
                 <div class="px-4 py-2 md:px-5 md:py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center gap-2">
-                    <button type="button" class="text-[11px] text-brand-700 font-semibold hover:underline min-h-[44px] px-1" data-details>${t('說明', 'Details')}</button>
+                    <button type="button" class="text-[11px] text-brand-700 font-semibold hover:underline min-h-[44px] px-1" data-copy-link aria-label="${escapeHtml(t('複製模擬連結', 'Copy simulation link'))}">${t('複製連結', 'Copy link')}</button>
                     <a href="${escapeHtml(exportUrl)}" class="text-[10px] text-slate-500 hover:text-brand-600 hover:underline min-h-[44px] inline-flex items-center" download>${t('下載源碼', 'Download')}</a>
                 </div>
             </div>`;
@@ -769,10 +805,12 @@ const global = window;
                 if (url) openModal(url);
             };
             card.querySelector('[data-launch]')?.addEventListener('click', launch);
-            card.querySelector('[data-details]')?.addEventListener('click', (e) => {
+            card.querySelector('[data-copy-link]')?.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const route = card.dataset.preview;
-                if (route) navigate(route);
+                const slug = card.dataset.slug;
+                if (!slug) return;
+                const btn = e.currentTarget;
+                void copySimulationShareLink(slug, btn);
             });
         });
     }
