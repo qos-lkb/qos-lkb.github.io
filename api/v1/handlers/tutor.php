@@ -11,6 +11,7 @@ function api_handle_tutor_history(PDO $pdo): void
 {
     $user = require_api_user();
     try {
+        tutor_ensure_schema($pdo);
         $stmt = $pdo->prepare(
             'SELECT id FROM tutor_conversations WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1'
         );
@@ -18,7 +19,7 @@ function api_handle_tutor_history(PDO $pdo): void
         $id = $stmt->fetchColumn();
         $messages = $id === false ? [] : tutor_recent_messages($pdo, (int) $id, TUTOR_HISTORY_LIMIT);
     } catch (PDOException $e) {
-        api_json_error('schema_missing', '科學助教資料表未就緒。請執行 php scripts/apply_schema.php。', 500);
+        api_json_error('db_error', '無法讀取科學助教紀錄。', 500);
     }
 
     api_json_ok(['messages' => $messages]);
@@ -49,6 +50,7 @@ function api_handle_tutor_chat(PDO $pdo): void
     }
 
     try {
+        tutor_ensure_schema($pdo);
         $conversationId = tutor_open_conversation(
             $pdo,
             (int) $user['id'],
@@ -59,7 +61,7 @@ function api_handle_tutor_chat(PDO $pdo): void
         tutor_append_user_turn($pdo, $conversationId, $question);
         $messages = tutor_recent_messages($pdo, $conversationId, TUTOR_MAX_MESSAGES);
     } catch (PDOException $e) {
-        api_json_error('schema_missing', '科學助教資料表未就緒。請執行 php scripts/apply_schema.php。', 500);
+        api_json_error('db_error', '無法儲存科學助教對話。', 500);
     }
 
     tutor_stream_chat($pdo, $conversationId, $messages, $context['title'], $context['path']);

@@ -10,7 +10,7 @@
 
 ### 科學助教
 - 登入後右下角可問中學科學問題，由伺服器串流轉送 Grok。金鑰只放 `.env`。
-- 對答寫入 `tutor_conversations`／`tutor_messages`。既有庫執行 `php scripts/apply_schema.php`。
+- 對答寫入 `tutor_conversations`／`tutor_messages`。首次使用時 API 會自動 `CREATE TABLE IF NOT EXISTS`；亦可執行 `php scripts/apply_schema.php`。
 - `.env.example` 列出可選文字模型；`XAI_REASONING_EFFORT=low` 可讓會推理的模型更快開口。
 
 ## 2026-11-15
