@@ -31,7 +31,7 @@ function ensureCss() {
     const link = document.createElement('link');
     link.id = 'sci-edu-css';
     link.rel = 'stylesheet';
-    link.href = contentBase() + '/science-edu.css?v=4';
+    link.href = contentBase() + '/science-edu.css?v=5';
     document.head.appendChild(link);
 }
 
@@ -132,7 +132,7 @@ function syncEditorTo(mode) {
     const source = document.getElementById('sci-edu-source');
     if (!visual || !source) return;
     if (mode === 'html' && editorMode !== 'html') {
-        source.value = relativeImages(visual.innerHTML).trim();
+        source.value = visualToStored();
     } else if (mode === 'visual' && editorMode === 'html') {
         visual.innerHTML = sanitize(absoluteImages(source.value));
         decorateImages(visual);
@@ -150,10 +150,8 @@ function syncEditorTo(mode) {
     });
 }
 
-function editorHtml() {
+function visualToStored() {
     const visual = document.getElementById('sci-edu-visual');
-    const source = document.getElementById('sci-edu-source');
-    if (editorMode === 'html') return source ? source.value : '';
     if (!visual) return '';
     const clone = visual.cloneNode(true);
     clone.querySelectorAll('.sci-edu-imgbox').forEach((box) => {
@@ -167,6 +165,14 @@ function editorHtml() {
     });
     clone.querySelectorAll('mjx-container').forEach((el) => el.remove());
     return relativeImages(clone.innerHTML).trim();
+}
+
+function editorHtml() {
+    if (editorMode === 'html') {
+        const source = document.getElementById('sci-edu-source');
+        return source ? source.value : '';
+    }
+    return visualToStored();
 }
 
 function fillEditor(html) {
@@ -194,6 +200,7 @@ function decorateImages(root) {
         const box = document.createElement('span');
         box.className = 'sci-edu-imgbox';
         box.contentEditable = 'false';
+        img.draggable = false;
         img.parentNode.insertBefore(box, img);
         box.appendChild(img);
         const handle = document.createElement('span');
@@ -244,11 +251,168 @@ function alignSelectedImage(dir) {
     return true;
 }
 
-function execEditor(command, value) {
+function currentBlock() {
+    const visual = document.getElementById('sci-edu-visual');
+    const sel = document.getSelection();
+    if (!visual || !sel || !sel.rangeCount) return null;
+    let node = sel.anchorNode;
+    if (!node || !visual.contains(node)) return null;
+    if (node.nodeType === 3) node = node.parentElement;
+    const block = node.closest('p,h1,h2,h3,h4,li,div,blockquote');
+    if (!block || block === visual || !visual.contains(block)) return null;
+    return block;
+}
+
+function toggleInline(tag) {
+    const visual = document.getElementById('sci-edu-visual');
+    const sel = document.getSelection();
+    if (!visual || !sel || !sel.rangeCount) return;
+    visual.focus();
+    const range = sel.getRangeAt(0);
+    if (!visual.contains(range.commonAncestorContainer)) return;
+    if (range.collapsed) {
+        const cmd = tag === 'strong' ? 'bold' : (tag === 'em' ? 'italic' : 'underline');
+        document.execCommand(cmd, false, null);
+        return;
+    }
+    const host = range.commonAncestorContainer.nodeType === 1
+        ? range.commonAncestorContainer
+        : range.commonAncestorContainer.parentElement;
+    const existing = host && host.closest ? host.closest(tag) : null;
+    if (existing && visual.contains(existing) && existing.textContent === range.toString()) {
+        existing.replaceWith(document.createTextNode(existing.textContent));
+        return;
+    }
+    const el = document.createElement(tag);
+    el.appendChild(range.extractContents());
+    range.insertNode(el);
+    const next = document.createRange();
+    next.selectNodeContents(el);
+    sel.removeAllRanges();
+    sel.addRange(next);
+}
+
+function setBlockTag(tag) {
+    const block = currentBlock();
+    if (!block) return;
+    if (block.tagName === 'LI') {
+        const list = block.parentElement;
+        const el = document.createElement(tag);
+        el.innerHTML = block.innerHTML;
+        if (block.style.textAlign) el.style.textAlign = block.style.textAlign;
+        list.parentNode.insertBefore(el, list);
+        block.remove();
+        if (!list.querySelector('li')) list.remove();
+        return;
+    }
+    if (block.tagName.toLowerCase() === tag) return;
+    const el = document.createElement(tag);
+    el.innerHTML = block.innerHTML;
+    if (block.style.textAlign) el.style.textAlign = block.style.textAlign;
+    block.replaceWith(el);
+}
+
+function setBlockAlign(align) {
+    const block = currentBlock();
+    if (block) block.style.textAlign = align;
+}
+
+function toggleList(ordered) {
+    const block = currentBlock();
+    if (!block) return;
+    const want = ordered ? 'OL' : 'UL';
+    if (block.tagName === 'LI') {
+        const list = block.parentElement;
+        if (list && list.tagName === want) {
+            const p = document.createElement('p');
+            p.innerHTML = block.innerHTML;
+            list.parentNode.insertBefore(p, list);
+            block.remove();
+            if (!list.querySelector('li')) list.remove();
+            return;
+        }
+        if (list) {
+            const next = document.createElement(ordered ? 'ol' : 'ul');
+            next.innerHTML = list.innerHTML;
+            list.replaceWith(next);
+        }
+        return;
+    }
+    const list = document.createElement(ordered ? 'ol' : 'ul');
+    const li = document.createElement('li');
+    li.innerHTML = block.innerHTML;
+    list.appendChild(li);
+    block.replaceWith(list);
+}
+
+function insertAtCaret(node) {
+    const visual = document.getElementById('sci-edu-visual');
+    const sel = document.getSelection();
+    if (!visual) return;
+    visual.focus();
+    if (!sel || !sel.rangeCount || !visual.contains(sel.anchorNode)) {
+        visual.appendChild(node);
+        return;
+    }
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+function insertLatex(tex) {
+    const span = document.createElement('span');
+    span.className = 'sci-edu-tex';
+    span.contentEditable = 'false';
+    span.dataset.tex = tex;
+    span.textContent = '\\(' + tex + '\\)';
+    insertAtCaret(span);
+    typesetMath(span);
+}
+
+function wrapLink(url) {
+    const sel = document.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    if (range.collapsed) a.textContent = url;
+    else a.appendChild(range.extractContents());
+    range.insertNode(a);
+}
+
+function applyFormat(cmd, value) {
     const visual = document.getElementById('sci-edu-visual');
     if (!visual) return;
     visual.focus();
-    document.execCommand(command, false, value);
+    if (cmd === 'bold') { toggleInline('strong'); return; }
+    if (cmd === 'italic') { toggleInline('em'); return; }
+    if (cmd === 'underline') { toggleInline('u'); return; }
+    if (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight') {
+        const align = cmd === 'justifyCenter' ? 'center' : (cmd === 'justifyRight' ? 'right' : 'left');
+        if (!alignSelectedImage(align)) setBlockAlign(align);
+        return;
+    }
+    if (cmd === 'formatBlock') {
+        setBlockTag(String(value || 'p').replace(/[<>]/g, '').toLowerCase() || 'p');
+        return;
+    }
+    if (cmd === 'insertUnorderedList') { toggleList(false); return; }
+    if (cmd === 'insertOrderedList') { toggleList(true); return; }
+    if (cmd === 'createLink') {
+        const url = window.prompt(t('連結網址', 'Link URL'), 'https://');
+        if (url) wrapLink(url);
+        return;
+    }
+    if (cmd === 'latex') {
+        const tex = window.prompt(t('輸入 LaTeX，例如 E=mc^2', 'Enter LaTeX, e.g. E=mc^2'), '');
+        if (tex) insertLatex(tex);
+    }
 }
 
 function ensureModal() {
@@ -309,31 +473,11 @@ function ensureModal() {
     });
     wrap.querySelectorAll('[data-cmd]').forEach((btn) => {
         btn.addEventListener('click', () => {
-            const cmd = btn.getAttribute('data-cmd');
-            if (cmd === 'createLink') {
-                const url = window.prompt(t('連結網址', 'Link URL'), 'https://');
-                if (url) execEditor('createLink', url);
-                return;
-            }
-            if (cmd === 'latex') {
-                const tex = window.prompt(t('輸入 LaTeX，例如 E=mc^2', 'Enter LaTeX, e.g. E=mc^2'), '');
-                if (!tex) return;
-                const safe = escapeHtml(tex);
-                execEditor('insertHTML', `<span class="sci-edu-tex" contenteditable="false" data-tex="${safe}">\\(${safe}\\)</span>`);
-                typesetMath(document.getElementById('sci-edu-visual'));
-                return;
-            }
-            if (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight') {
-                const dir = cmd === 'justifyCenter' ? 'center' : (cmd === 'justifyRight' ? 'right' : 'left');
-                if (alignSelectedImage(dir)) return;
-            }
-            const value = btn.getAttribute('data-value');
-            execEditor(cmd, value || undefined);
+            applyFormat(btn.getAttribute('data-cmd'), btn.getAttribute('data-value'));
         });
     });
     const visual = document.getElementById('sci-edu-visual');
     visual?.addEventListener('dragover', (e) => {
-        if (![...e.dataTransfer.items].some((item) => item.kind === 'file')) return;
         e.preventDefault();
         visual.classList.add('is-drop');
     });
@@ -536,6 +680,7 @@ global.AppScienceEdu = {
     renderPage,
     mountHome,
     contentBase,
+    applyFormat,
 };
 
 export {};

@@ -1,4 +1,5 @@
 'use strict';
+import './science-edu.js';
 const global = window;
 
 function t(zh, en) {
@@ -337,13 +338,11 @@ function wire() {
             setAdminMode('visual');
             visual.focus();
             const cmd = btn.getAttribute('data-admin-cmd');
-            if (cmd === 'createLink') {
-                const url = window.prompt(t('連結網址', 'Link URL'), 'https://');
-                if (url) document.execCommand('createLink', false, url);
+            if (global.AppScienceEdu && typeof global.AppScienceEdu.applyFormat === 'function') {
+                global.AppScienceEdu.applyFormat(cmd, btn.getAttribute('data-value'));
                 return;
             }
-            const value = btn.getAttribute('data-value');
-            document.execCommand(cmd, false, value || undefined);
+            document.execCommand(cmd, false, btn.getAttribute('data-value') || null);
         });
     });
     document.getElementById('sci-edu-preview')?.addEventListener('click', () => {
