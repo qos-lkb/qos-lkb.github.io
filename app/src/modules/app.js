@@ -65,6 +65,7 @@
                 { route: '/admin/simulations', label: { zh: '模擬', en: 'Simulations' } },
                 { route: '/admin/learning-notes', label: { zh: '筆記', en: 'Notes' } },
                 { route: '/admin/articles', label: { zh: '文章', en: 'Articles' } },
+                { route: '/admin/science-edu', label: { zh: '科學教育', en: 'Science pages' } },
                 { route: '/admin/learning-videos', label: { zh: '影片', en: 'Videos' } },
                 { route: '/admin/flashcard-sets', label: { zh: '閃卡', en: 'Flashcards' } },
                 { route: '/admin/question-banks', label: { zh: '題庫', en: 'Question banks' } },
@@ -551,6 +552,14 @@
         }
     }
 
+    async function showScience(slug) {
+        await ensureFrontModules('/science');
+        setActiveTab('');
+        if (window.AppScienceEdu) {
+            await AppScienceEdu.renderPage(slug || 'home');
+        }
+    }
+
     async function showHome() {
         await ensureFrontModules('/');
         const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
@@ -675,6 +684,12 @@
                 if (window.AppCourse) await AppCourse.renderTopic(subjectSlug, topicSlug);
             }),
             '/simulations': showSimulationsHome,
+            '/science': async () => {
+                await showScience('home');
+            },
+            '/science/:slug': async (slug) => {
+                await showScience(slug);
+            },
             '/simulations/contribute': front('/simulations/contribute', async () => {
                 restoreMainShell();
                 setActiveTab('simulations');
@@ -848,6 +863,11 @@
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminSubjects();
                 }, '/admin/subjects');
+            },
+            '/admin/science-edu': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppScienceEduAdmin) await AppScienceEduAdmin.render();
+                }, '/admin/science-edu');
             },
             '/admin/courses': async () => {
                 await runAdminRoute(async () => {

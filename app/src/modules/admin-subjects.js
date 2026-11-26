@@ -316,6 +316,13 @@ const global = window;
                 tone: 'emerald',
                 icon: 'article',
             } : null,
+            (global.ScienceApi.hasPermission('article.manage_any') || canUsers) ? {
+                route: '/admin/science-edu',
+                label: t('科學教育網頁', 'Science pages'),
+                desc: t('編輯訪客首頁的科學科介紹。內容寫在靜態檔，不進資料庫。', 'Edit the public science pages. Content stays in static files, not the database.'),
+                tone: 'teal',
+                icon: 'article',
+            } : null,
             canVideos ? {
                 route: '/admin/learning-videos',
                 label: t('學習影片', 'Learning videos'),

@@ -11,6 +11,7 @@ const inflight = new Map();
 const GROUP_LOADERS = {
     home: () => import('./admin-subjects.js'),
     subjects: () => import('./admin-subjects.js'),
+    'science-edu': () => import('./admin-science-edu.js'),
     courses: () => import('./admin-courses.js'),
     'course-students': () => import('./admin-course-students.js'),
     'student-dossier': () => import('./admin-student-dossier.js'),
@@ -72,6 +73,7 @@ function resolveAdminGroup(path) {
 
     if (p === '/admin') return 'home';
     if (p.startsWith('/admin/subjects')) return 'subjects';
+    if (p.startsWith('/admin/science-edu')) return 'science-edu';
     if (/^\/admin\/courses\/\d+\/students\/\d+$/.test(p)) return 'student-dossier';
     if (/^\/admin\/courses\/\d+\/students$/.test(p)) return 'course-students';
     if (/^\/admin\/courses\/\d+\/report$/.test(p)) return 'course-report';

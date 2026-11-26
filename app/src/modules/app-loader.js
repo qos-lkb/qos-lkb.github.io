@@ -33,6 +33,7 @@ const GROUP_LOADERS = {
         await Promise.all([
             import('./guest-home.js'),
             import('./summer-homework.js'),
+            import('./science-edu.js'),
         ]);
     },
     catalog: () => loadCatalogStack(),
@@ -73,6 +74,7 @@ const GROUP_LOADERS = {
         ]);
     },
     login: () => import('./login.js'),
+    'science-edu': () => import('./science-edu.js'),
 };
 
 /**
@@ -92,6 +94,7 @@ function resolveAppGroup(path) {
     const is = (base) => p === base || p.startsWith(base + '/');
 
     if (p === '/' || is('/summer-homework')) return 'home';
+    if (is('/science')) return 'science-edu';
     if (is('/admin')) return 'home'; // admin uses AppAdminLoader; keep no-op-ish
     if (p === '/login') return 'login';
     if (p === '/dashboard' || is('/assignment') || is('/assignments')) return 'learner';

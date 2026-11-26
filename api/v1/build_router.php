@@ -66,6 +66,15 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addMethods(['GET', 'POST'], '/simulations/contribute', static fn () => api_handle_simulations_contribute($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-tools', static fn () => api_handle_admin_learning_tools($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/articles', static fn () => api_handle_admin_articles($pdo, $method()));
+    $router->addMethods(['GET', 'PUT'], '/admin/science-edu', static fn () => api_handle_admin_science_edu($method()));
+    $router->addExact('POST', '/admin/science-edu/pages', static fn () => api_handle_admin_science_edu_create());
+    $router->addExact('POST', '/admin/science-edu/images', static fn () => api_handle_admin_science_edu_image());
+    $router->addPattern(
+        '^(GET|PUT|DELETE) /admin/science-edu/pages/([a-z0-9]+(?:-[a-z0-9]+)*)$',
+        static function (array $p): void {
+            api_handle_admin_science_edu_page($p[1], rawurldecode($p[2]));
+        }
+    );
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-notes', static fn () => api_handle_admin_learning_notes($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/worksheets', static fn () => api_handle_admin_worksheets($pdo, $method()));
     $router->addMethods(['GET', 'POST', 'DELETE'], '/admin/learning-videos', static fn () => api_handle_admin_learning_videos($pdo, $method()));

@@ -48,7 +48,7 @@ const global = window;
         const login = escapeHtml(loginUrl());
 
         main.innerHTML = `
-            <div class="guest-home guest-home-bleed w-full">
+            <div class="guest-home guest-home-bleed guest-home-with-science w-full">
                 <section class="guest-hero" aria-label="${escapeHtml(t('歡迎', 'Welcome'))}">
                     <div class="guest-hero-glow" aria-hidden="true"></div>
                     <div class="relative z-10 max-w-2xl mx-auto w-full px-2 sm:px-6">
@@ -71,7 +71,12 @@ const global = window;
                         </div>
                     </div>
                 </section>
+                <div id="sci-edu-home-slot"></div>
             </div>`;
+
+        if (global.AppScienceEdu && typeof global.AppScienceEdu.mountHome === 'function') {
+            global.AppScienceEdu.mountHome(document.getElementById('sci-edu-home-slot'));
+        }
 
         main.querySelectorAll('[data-nav]').forEach((el) => {
             el.addEventListener('click', (e) => {
