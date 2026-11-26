@@ -91,6 +91,32 @@ function bindPageLinks(root) {
     });
 }
 
+function canEditScience() {
+    const api = global.ScienceApi;
+    if (!api || typeof api.getUser !== 'function' || !api.getUser()) return false;
+    if (typeof api.hasPermission !== 'function') return false;
+    return api.hasPermission('article.manage_any') || api.hasPermission('user.manage');
+}
+
+function editButtonHtml() {
+    if (!canEditScience()) return '';
+    const href = global.AppRouter && typeof global.AppRouter.spaHref === 'function'
+        ? global.AppRouter.spaHref('/admin/science-edu')
+        : '#/admin/science-edu';
+    return `<div class="sci-edu-toolbar"><a class="sci-edu-edit" href="${escapeHtml(href)}" data-sci-admin="1">${escapeHtml(t('編輯學科網頁', 'Edit subject pages'))}</a></div>`;
+}
+
+function bindAdminEdit(root) {
+    root.querySelectorAll('[data-sci-admin]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (global.AppRouter && typeof global.AppRouter.navigate === 'function') {
+                global.AppRouter.navigate('/admin/science-edu');
+            }
+        });
+    });
+}
+
 function renderNav(nav, current) {
     const tops = nav.pages.filter((p) => !p.parent);
     const html = tops.map((page) => {
@@ -119,9 +145,13 @@ async function renderPage(slug) {
         main.innerHTML = `
             <div class="sci-edu-shell">
                 ${renderNav(nav, page.slug)}
-                <article class="sci-edu-article">${sanitize(html)}</article>
+                <div class="sci-edu-main">
+                    ${editButtonHtml()}
+                    <article class="sci-edu-article">${sanitize(html)}</article>
+                </div>
             </div>`;
         bindPageLinks(main);
+        bindAdminEdit(main);
     } catch (err) {
         main.innerHTML = `<p class="text-red-600 p-6">${escapeHtml(err && err.message ? err.message : t('載入失敗', 'Load failed'))}</p>`;
     }

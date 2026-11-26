@@ -9,6 +9,7 @@
         learning: { zh: '工具', en: 'Tools' },
         flashcards: { zh: '閃卡', en: 'Cards' },
         summer: { zh: '暑期功課', en: 'Summer HW' },
+        science: { zh: '學科網頁', en: 'Subjects' },
     };
 
     const GROUP_LABELS = {
@@ -33,6 +34,7 @@
         worksheets: '/worksheets',
         videos: '/learning-videos',
         simulations: '/simulations',
+        science: '/science',
         articles: '/articles',
         learning: '/learning-tools',
         flashcards: '/flashcards',
@@ -554,7 +556,7 @@
 
     async function showScience(slug) {
         await ensureFrontModules('/science');
-        setActiveTab('');
+        setActiveTab('science');
         if (window.AppScienceEdu) {
             await AppScienceEdu.renderPage(slug || 'home');
         }
@@ -565,6 +567,7 @@
         const user = window.ScienceApi && ScienceApi.getUser ? ScienceApi.getUser() : null;
         if (!user) {
             document.querySelectorAll('.nav-tab').forEach((btn) => btn.classList.remove('active'));
+            document.querySelector('[data-tab="science"]')?.classList.add('active');
             document.querySelectorAll('[data-group-btn]').forEach((btn) => btn.classList.remove('active'));
             document.querySelectorAll('.bottom-nav-btn').forEach((btn) => {
                 btn.classList.remove('active');
@@ -581,18 +584,7 @@
             }
             return;
         }
-        // When summer HW is hidden for this role, land on the first visible main tab instead.
-        if (!isTabVisible('summer')) {
-            const route = firstVisibleTabRoute();
-            if (window.AppRouter && typeof AppRouter.navigate === 'function') {
-                AppRouter.navigate(route, true);
-                return;
-            }
-        }
-        setActiveTab('summer');
-        if (window.AppSummerHomework) {
-            await AppSummerHomework.renderHome();
-        }
+        await showScience('home');
     }
 
     async function showSummerList(formFilter) {
