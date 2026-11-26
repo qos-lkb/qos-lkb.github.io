@@ -13,6 +13,54 @@ function escapeHtml(s) {
 
 let navState = { title: '', lead: '', pages: [] };
 let currentSlug = '';
+let adminEditorMode = 'visual';
+
+function contentBase() {
+    return (global.__SITE_BASE__ || '') + '/science-edu';
+}
+
+function absoluteImages(html) {
+    return String(html || '').replace(/src=(["'])images\//g, 'src=$1' + contentBase() + '/images/');
+}
+
+function relativeImages(html) {
+    const base = contentBase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return String(html || '').replace(new RegExp('src=(["\'])' + base + '/images/', 'g'), 'src=$1images/');
+}
+
+function setAdminMode(mode) {
+    const visual = document.getElementById('sci-edu-visual');
+    const source = document.getElementById('sci-edu-html');
+    if (!visual || !source) return;
+    if (mode === 'html' && adminEditorMode !== 'html') source.value = relativeImages(visual.innerHTML).trim();
+    if (mode === 'visual' && adminEditorMode === 'html') {
+        visual.innerHTML = typeof global.DOMPurify === 'undefined'
+            ? absoluteImages(source.value)
+            : global.DOMPurify.sanitize(absoluteImages(source.value), { ADD_ATTR: ['target', 'rel', 'class', 'data-sci-slug'] });
+    }
+    adminEditorMode = mode;
+    visual.hidden = mode !== 'visual';
+    source.hidden = mode !== 'html';
+    document.querySelectorAll('[data-admin-mode]').forEach((btn) => {
+        const on = btn.getAttribute('data-admin-mode') === mode;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+}
+
+function adminHtml() {
+    const visual = document.getElementById('sci-edu-visual');
+    const source = document.getElementById('sci-edu-html');
+    if (adminEditorMode === 'html') return source ? source.value : '';
+    return relativeImages(visual ? visual.innerHTML : '').trim();
+}
+
+function fillAdminEditor(html) {
+    const source = document.getElementById('sci-edu-html');
+    if (source) source.value = html || '';
+    adminEditorMode = 'html';
+    setAdminMode('visual');
+}
 
 function sortedPages() {
     return navState.pages.slice().sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0));
@@ -88,10 +136,25 @@ function renderEditor() {
                     <span>${escapeHtml(t('在訪客首頁顯示為卡片', 'Show as a card on the guest home'))}</span>
                 </label>
             </div>
-            <label class="block text-sm">
-                <span class="text-slate-600">${escapeHtml(t('HTML 正文', 'HTML body'))}</span>
-                <textarea id="sci-edu-html" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs" rows="16"></textarea>
-            </label>
+            <div class="flex items-center justify-between gap-2">
+                <span class="text-sm text-slate-600">${escapeHtml(t('正文', 'Body'))}</span>
+                <div class="sci-edu-mode" role="group">
+                    <button type="button" data-admin-mode="visual" class="is-on" aria-pressed="true">${escapeHtml(t('視覺', 'Visual'))}</button>
+                    <button type="button" data-admin-mode="html" aria-pressed="false">HTML</button>
+                </div>
+            </div>
+            <div class="sci-edu-rte-bar">
+                <button type="button" data-admin-cmd="formatBlock" data-value="<h1>">H1</button>
+                <button type="button" data-admin-cmd="formatBlock" data-value="<h2>">H2</button>
+                <button type="button" data-admin-cmd="formatBlock" data-value="<p>">${escapeHtml(t('內文', 'Text'))}</button>
+                <button type="button" data-admin-cmd="bold"><strong>B</strong></button>
+                <button type="button" data-admin-cmd="italic"><em>I</em></button>
+                <button type="button" data-admin-cmd="insertUnorderedList">${escapeHtml(t('清單', 'List'))}</button>
+                <button type="button" data-admin-cmd="insertOrderedList">1.</button>
+                <button type="button" data-admin-cmd="createLink">${escapeHtml(t('連結', 'Link'))}</button>
+            </div>
+            <div id="sci-edu-visual" class="sci-edu-visual sci-edu-article" contenteditable="true"></div>
+            <textarea id="sci-edu-html" class="sci-edu-source w-full" rows="16" hidden></textarea>
             <div class="flex flex-wrap gap-2">
                 <button type="button" id="sci-edu-save" class="px-4 py-2 rounded-lg bg-teal-700 text-white text-sm font-medium">${escapeHtml(t('儲存此頁', 'Save page'))}</button>
                 <button type="button" id="sci-edu-preview" class="px-4 py-2 rounded-lg border border-slate-300 text-sm">${escapeHtml(t('預覽', 'Preview'))}</button>
@@ -144,7 +207,7 @@ async function openPage(slug) {
     if (!area) return;
     try {
         const data = await global.ScienceApi.apiFetch('/admin/science-edu/pages/' + encodeURIComponent(slug));
-        area.value = data.html || '';
+        fillAdminEditor(data.html || '');
     } catch (err) {
         status(err.message || t('讀取失敗', 'Load failed'), true);
     }
@@ -164,8 +227,8 @@ function readEditorIntoState() {
 }
 
 async function savePage() {
-    const area = document.getElementById('sci-edu-html');
-    if (!currentSlug || !area) return;
+    if (!currentSlug || !document.getElementById('sci-edu-visual')) return;
+    const html = adminHtml();
     readEditorIntoState();
     const page = pageBySlug(currentSlug);
     status(t('儲存中…', 'Saving…'), false);
@@ -173,7 +236,7 @@ async function savePage() {
         const data = await global.ScienceApi.apiFetch('/admin/science-edu/pages/' + encodeURIComponent(currentSlug), {
             method: 'PUT',
             body: {
-                html: area.value,
+                html,
                 title: page.title,
                 summary: page.summary,
                 parent: page.parent,
@@ -184,8 +247,7 @@ async function savePage() {
         if (data.nav) navState = data.nav;
         status(t('已寫入靜態檔。', 'Saved to static files.'), false);
         paint();
-        const again = document.getElementById('sci-edu-html');
-        if (again) again.value = area.value;
+        fillAdminEditor(html);
     } catch (err) {
         status(err.message || t('儲存失敗', 'Save failed'), true);
     }
@@ -214,12 +276,19 @@ function move(delta) {
 }
 
 function insertAtCursor(text) {
-    const area = document.getElementById('sci-edu-html');
-    if (!area) return;
-    const start = area.selectionStart || 0;
-    const end = area.selectionEnd || 0;
-    area.value = area.value.slice(0, start) + text + area.value.slice(end);
-    area.focus();
+    if (adminEditorMode === 'html') {
+        const area = document.getElementById('sci-edu-html');
+        if (!area) return;
+        const start = area.selectionStart || 0;
+        const end = area.selectionEnd || 0;
+        area.value = area.value.slice(0, start) + text + area.value.slice(end);
+        area.focus();
+        return;
+    }
+    const visual = document.getElementById('sci-edu-visual');
+    if (!visual) return;
+    visual.focus();
+    document.execCommand('insertHTML', false, text.replace(/src=(["'])images\//g, 'src=$1' + contentBase() + '/images/'));
 }
 
 function wire() {
@@ -254,13 +323,30 @@ function wire() {
         }
     });
     document.getElementById('sci-edu-save')?.addEventListener('click', savePage);
+    document.querySelectorAll('[data-admin-mode]').forEach((btn) => {
+        btn.addEventListener('click', () => setAdminMode(btn.getAttribute('data-admin-mode')));
+    });
+    document.querySelectorAll('[data-admin-cmd]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const visual = document.getElementById('sci-edu-visual');
+            if (!visual) return;
+            setAdminMode('visual');
+            visual.focus();
+            const cmd = btn.getAttribute('data-admin-cmd');
+            if (cmd === 'createLink') {
+                const url = window.prompt(t('連結網址', 'Link URL'), 'https://');
+                if (url) document.execCommand('createLink', false, url);
+                return;
+            }
+            const value = btn.getAttribute('data-value');
+            document.execCommand(cmd, false, value || undefined);
+        });
+    });
     document.getElementById('sci-edu-preview')?.addEventListener('click', () => {
-        const area = document.getElementById('sci-edu-html');
         const box = document.getElementById('sci-edu-preview-box');
-        if (!area || !box) return;
+        if (!box) return;
         box.classList.remove('hidden');
-        const base = (global.__SITE_BASE__ || '') + '/science-edu';
-        const html = area.value.replace(/src=(["'])images\//g, 'src=$1' + base + '/images/');
+        const html = absoluteImages(adminHtml());
         box.innerHTML = typeof global.DOMPurify === 'undefined'
             ? html
             : global.DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel', 'class'] });

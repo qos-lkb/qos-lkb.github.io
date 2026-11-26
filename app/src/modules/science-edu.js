@@ -100,19 +100,234 @@ function canEditScience() {
 
 function editButtonHtml() {
     if (!canEditScience()) return '';
-    const href = global.AppRouter && typeof global.AppRouter.spaHref === 'function'
-        ? global.AppRouter.spaHref('/admin/science-edu')
-        : '#/admin/science-edu';
-    return `<div class="sci-edu-toolbar"><a class="sci-edu-edit" href="${escapeHtml(href)}" data-sci-admin="1">${escapeHtml(t('編輯學科網頁', 'Edit subject pages'))}</a></div>`;
+    return `<div class="sci-edu-toolbar"><button type="button" class="sci-edu-edit" data-sci-admin="1">${escapeHtml(t('編輯學科網頁', 'Edit subject pages'))}</button></div>`;
+}
+
+function absoluteImages(html) {
+    return String(html || '').replace(/src=(["'])images\//g, 'src=$1' + contentBase() + '/images/');
+}
+
+function relativeImages(html) {
+    const base = contentBase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return String(html || '').replace(new RegExp('src=(["\'])' + base + '/images/', 'g'), 'src=$1images/');
+}
+
+let editorSlug = '';
+let editorMode = 'visual';
+let editorNav = null;
+
+function editorRoot() {
+    return document.getElementById('sci-edu-modal');
+}
+
+function editorStatus(message, isError) {
+    const el = document.getElementById('sci-edu-modal-status');
+    if (!el) return;
+    el.textContent = message || '';
+    el.className = 'sci-edu-modal-status' + (isError ? ' is-error' : '');
+}
+
+function syncEditorTo(mode) {
+    const visual = document.getElementById('sci-edu-visual');
+    const source = document.getElementById('sci-edu-source');
+    if (!visual || !source) return;
+    if (mode === 'html' && editorMode !== 'html') {
+        source.value = relativeImages(visual.innerHTML).trim();
+    } else if (mode === 'visual' && editorMode === 'html') {
+        visual.innerHTML = sanitize(absoluteImages(source.value));
+    }
+    editorMode = mode;
+    visual.hidden = mode !== 'visual';
+    source.hidden = mode !== 'html';
+    editorRoot()?.querySelectorAll('[data-editor-mode]').forEach((btn) => {
+        const on = btn.getAttribute('data-editor-mode') === mode;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+}
+
+function editorHtml() {
+    const visual = document.getElementById('sci-edu-visual');
+    const source = document.getElementById('sci-edu-source');
+    if (editorMode === 'html') return source ? source.value : '';
+    return relativeImages(visual ? visual.innerHTML : '').trim();
+}
+
+function fillEditor(html) {
+    const visual = document.getElementById('sci-edu-visual');
+    const source = document.getElementById('sci-edu-source');
+    const stored = String(html || '');
+    if (source) source.value = stored;
+    if (visual) visual.innerHTML = sanitize(absoluteImages(stored));
+    editorMode = 'html';
+    syncEditorTo('visual');
+}
+
+function execEditor(command, value) {
+    const visual = document.getElementById('sci-edu-visual');
+    if (!visual) return;
+    visual.focus();
+    document.execCommand(command, false, value);
+}
+
+function ensureModal() {
+    if (editorRoot()) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'sci-edu-modal';
+    wrap.className = 'sci-edu-modal';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+        <div class="sci-edu-modal-backdrop" data-sci-close="1"></div>
+        <div class="sci-edu-modal-panel" role="dialog" aria-modal="true" aria-labelledby="sci-edu-modal-title">
+            <header class="sci-edu-modal-head">
+                <h2 id="sci-edu-modal-title">${escapeHtml(t('編輯學科網頁', 'Edit subject pages'))}</h2>
+                <button type="button" class="sci-edu-modal-close" data-sci-close="1" aria-label="${escapeHtml(t('關閉', 'Close'))}">×</button>
+            </header>
+            <div class="sci-edu-modal-tools">
+                <label class="sci-edu-modal-page">
+                    <span>${escapeHtml(t('頁面', 'Page'))}</span>
+                    <select id="sci-edu-modal-page"></select>
+                </label>
+                <div class="sci-edu-mode" role="group" aria-label="${escapeHtml(t('編輯方式', 'Editor mode'))}">
+                    <button type="button" data-editor-mode="visual" class="is-on" aria-pressed="true">${escapeHtml(t('視覺', 'Visual'))}</button>
+                    <button type="button" data-editor-mode="html" aria-pressed="false">HTML</button>
+                </div>
+            </div>
+            <div class="sci-edu-rte-bar" data-rte-bar="1">
+                <button type="button" data-cmd="formatBlock" data-value="<h1>">H1</button>
+                <button type="button" data-cmd="formatBlock" data-value="<h2>">H2</button>
+                <button type="button" data-cmd="formatBlock" data-value="<p>">${escapeHtml(t('內文', 'Text'))}</button>
+                <button type="button" data-cmd="bold"><strong>B</strong></button>
+                <button type="button" data-cmd="italic"><em>I</em></button>
+                <button type="button" data-cmd="insertUnorderedList">${escapeHtml(t('清單', 'List'))}</button>
+                <button type="button" data-cmd="insertOrderedList">1.</button>
+                <button type="button" data-cmd="createLink">${escapeHtml(t('連結', 'Link'))}</button>
+                <label class="sci-edu-upload">${escapeHtml(t('圖片', 'Image'))}<input id="sci-edu-modal-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden></label>
+            </div>
+            <div id="sci-edu-visual" class="sci-edu-visual sci-edu-article" contenteditable="true" role="textbox" aria-multiline="true"></div>
+            <textarea id="sci-edu-source" class="sci-edu-source" hidden spellcheck="false" aria-label="HTML"></textarea>
+            <footer class="sci-edu-modal-foot">
+                <p id="sci-edu-modal-status" class="sci-edu-modal-status" role="status"></p>
+                <button type="button" id="sci-edu-modal-save" class="sci-edu-edit">${escapeHtml(t('儲存', 'Save'))}</button>
+            </footer>
+        </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', (e) => {
+        if (e.target.closest('[data-sci-close]')) closeEditor();
+    });
+    wrap.querySelectorAll('[data-editor-mode]').forEach((btn) => {
+        btn.addEventListener('click', () => syncEditorTo(btn.getAttribute('data-editor-mode')));
+    });
+    wrap.querySelectorAll('[data-cmd]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const cmd = btn.getAttribute('data-cmd');
+            if (cmd === 'createLink') {
+                const url = window.prompt(t('連結網址', 'Link URL'), 'https://');
+                if (url) execEditor('createLink', url);
+                return;
+            }
+            const value = btn.getAttribute('data-value');
+            execEditor(cmd, value || undefined);
+        });
+    });
+    document.getElementById('sci-edu-modal-page')?.addEventListener('change', (e) => {
+        loadEditorPage(e.target.value);
+    });
+    document.getElementById('sci-edu-modal-save')?.addEventListener('click', saveEditor);
+    document.getElementById('sci-edu-modal-file')?.addEventListener('change', uploadEditorImage);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && editorRoot() && !editorRoot().hidden) closeEditor();
+    });
+}
+
+function fillPageSelect() {
+    const select = document.getElementById('sci-edu-modal-page');
+    if (!select || !editorNav) return;
+    select.innerHTML = editorNav.pages.map((page) => (
+        `<option value="${escapeHtml(page.slug)}"${page.slug === editorSlug ? ' selected' : ''}>${escapeHtml(page.title)}</option>`
+    )).join('');
+}
+
+async function loadEditorPage(slug) {
+    editorSlug = slug;
+    editorStatus(t('載入中…', 'Loading…'), false);
+    try {
+        const data = await global.ScienceApi.apiFetch('/admin/science-edu/pages/' + encodeURIComponent(slug));
+        fillEditor(data.html || '');
+        editorStatus('', false);
+    } catch (err) {
+        editorStatus(err.message || t('讀取失敗', 'Load failed'), true);
+    }
+}
+
+async function openEditor(slug) {
+    if (!canEditScience()) return;
+    ensureCss();
+    ensureModal();
+    const modal = editorRoot();
+    editorNav = await loadNav();
+    editorSlug = slug && pageBySlug(editorNav, slug) ? slug : (editorNav.pages[0] && editorNav.pages[0].slug) || 'home';
+    fillPageSelect();
+    modal.hidden = false;
+    document.body.classList.add('sci-edu-modal-open');
+    modal.querySelector('.sci-edu-modal-close')?.focus();
+    await loadEditorPage(editorSlug);
+}
+
+function closeEditor() {
+    const modal = editorRoot();
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('sci-edu-modal-open');
+}
+
+async function saveEditor() {
+    if (!editorSlug) return;
+    editorStatus(t('儲存中…', 'Saving…'), false);
+    try {
+        await global.ScienceApi.apiFetch('/admin/science-edu/pages/' + encodeURIComponent(editorSlug), {
+            method: 'PUT',
+            body: { html: editorHtml() },
+        });
+        const article = document.querySelector('.sci-edu-article:not(.sci-edu-visual)');
+        const shown = document.querySelector('.sci-edu-nav [aria-current="page"]')?.getAttribute('data-sci-slug');
+        if (article && shown === editorSlug) {
+            article.innerHTML = sanitize(absoluteImages(editorHtml()));
+            bindPageLinks(article);
+        }
+        editorStatus(t('已儲存。', 'Saved.'), false);
+    } catch (err) {
+        editorStatus(err.message || t('儲存失敗', 'Save failed'), true);
+    }
+}
+
+async function uploadEditorImage(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !editorSlug) return;
+    const body = new FormData();
+    body.append('slug', editorSlug);
+    body.append('file', file);
+    try {
+        const stored = await global.ScienceApi.apiFetch('/admin/science-edu/images', { method: 'POST', body });
+        const figure = `<figure class="sci-edu-figure"><img src="${contentBase()}/${stored.path}" alt=""></figure>`;
+        if (editorMode === 'html') {
+            const source = document.getElementById('sci-edu-source');
+            if (source) source.value += `\n<figure class="sci-edu-figure"><img src="${stored.path}" alt=""></figure>\n`;
+        } else {
+            document.getElementById('sci-edu-visual')?.focus();
+            document.execCommand('insertHTML', false, figure);
+        }
+        editorStatus(t('圖片已插入，記得儲存。', 'Image inserted. Remember to save.'), false);
+    } catch (err) {
+        editorStatus(err.message || t('上傳失敗', 'Upload failed'), true);
+    }
 }
 
 function bindAdminEdit(root) {
     root.querySelectorAll('[data-sci-admin]').forEach((el) => {
-        el.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (global.AppRouter && typeof global.AppRouter.navigate === 'function') {
-                global.AppRouter.navigate('/admin/science-edu');
-            }
+        el.addEventListener('click', () => {
+            const current = root.querySelector('.sci-edu-nav [aria-current="page"]')?.getAttribute('data-sci-slug') || 'home';
+            openEditor(current);
         });
     });
 }
