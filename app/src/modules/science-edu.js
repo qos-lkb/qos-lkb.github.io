@@ -31,7 +31,7 @@ function ensureCss() {
     const link = document.createElement('link');
     link.id = 'sci-edu-css';
     link.rel = 'stylesheet';
-    link.href = contentBase() + '/science-edu.css';
+    link.href = contentBase() + '/science-edu.css?v=4';
     document.head.appendChild(link);
 }
 
@@ -100,7 +100,7 @@ function canEditScience() {
 
 function editButtonHtml() {
     if (!canEditScience()) return '';
-    return `<div class="sci-edu-toolbar"><button type="button" class="sci-edu-edit" data-sci-admin="1">${escapeHtml(t('編輯學科網頁', 'Edit subject pages'))}</button></div>`;
+    return `<div class="sci-edu-toolbar"><button type="button" class="sci-edu-edit-btn" data-sci-admin="1">${escapeHtml(t('編輯學科網頁', 'Edit subject pages'))}</button></div>`;
 }
 
 function absoluteImages(html) {
@@ -135,10 +135,14 @@ function syncEditorTo(mode) {
         source.value = relativeImages(visual.innerHTML).trim();
     } else if (mode === 'visual' && editorMode === 'html') {
         visual.innerHTML = sanitize(absoluteImages(source.value));
+        decorateImages(visual);
+        typesetMath(visual);
     }
     editorMode = mode;
     visual.hidden = mode !== 'visual';
     source.hidden = mode !== 'html';
+    const bar = editorRoot()?.querySelector('[data-rte-bar]');
+    if (bar) bar.hidden = mode === 'html';
     editorRoot()?.querySelectorAll('[data-editor-mode]').forEach((btn) => {
         const on = btn.getAttribute('data-editor-mode') === mode;
         btn.classList.toggle('is-on', on);
@@ -150,7 +154,19 @@ function editorHtml() {
     const visual = document.getElementById('sci-edu-visual');
     const source = document.getElementById('sci-edu-source');
     if (editorMode === 'html') return source ? source.value : '';
-    return relativeImages(visual ? visual.innerHTML : '').trim();
+    if (!visual) return '';
+    const clone = visual.cloneNode(true);
+    clone.querySelectorAll('.sci-edu-imgbox').forEach((box) => {
+        const img = box.querySelector('img');
+        if (img) box.replaceWith(img);
+    });
+    clone.querySelectorAll('.sci-edu-handle').forEach((el) => el.remove());
+    clone.querySelectorAll('.sci-edu-tex').forEach((el) => {
+        const tex = el.getAttribute('data-tex') || '';
+        el.replaceWith(document.createTextNode('\\(' + tex + '\\)'));
+    });
+    clone.querySelectorAll('mjx-container').forEach((el) => el.remove());
+    return relativeImages(clone.innerHTML).trim();
 }
 
 function fillEditor(html) {
@@ -158,9 +174,74 @@ function fillEditor(html) {
     const source = document.getElementById('sci-edu-source');
     const stored = String(html || '');
     if (source) source.value = stored;
-    if (visual) visual.innerHTML = sanitize(absoluteImages(stored));
+    if (visual) {
+        visual.innerHTML = sanitize(absoluteImages(stored));
+        decorateImages(visual);
+        typesetMath(visual);
+    }
     editorMode = 'html';
     syncEditorTo('visual');
+}
+
+function typesetMath(root) {
+    if (!root || !global.MathJax || typeof global.MathJax.typesetPromise !== 'function') return;
+    global.MathJax.typesetPromise([root]).catch(() => {});
+}
+
+function decorateImages(root) {
+    root.querySelectorAll('img').forEach((img) => {
+        if (img.closest('.sci-edu-imgbox')) return;
+        const box = document.createElement('span');
+        box.className = 'sci-edu-imgbox';
+        box.contentEditable = 'false';
+        img.parentNode.insertBefore(box, img);
+        box.appendChild(img);
+        const handle = document.createElement('span');
+        handle.className = 'sci-edu-handle';
+        handle.title = t('拖曳改變大小', 'Drag to resize');
+        box.appendChild(handle);
+        box.addEventListener('click', (e) => {
+            e.stopPropagation();
+            root.querySelectorAll('.sci-edu-imgbox.is-selected').forEach((el) => el.classList.remove('is-selected'));
+            box.classList.add('is-selected');
+        });
+        handle.addEventListener('pointerdown', (e) => startResize(e, img));
+    });
+}
+
+function startResize(e, img) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = img.getBoundingClientRect().width;
+    img.style.height = 'auto';
+    function move(ev) {
+        const next = Math.max(48, startW + (ev.clientX - startX));
+        img.style.width = Math.round(next) + 'px';
+    }
+    function up() {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+}
+
+function alignSelectedImage(dir) {
+    const box = document.querySelector('#sci-edu-visual .sci-edu-imgbox.is-selected');
+    if (!box) return false;
+    box.style.display = 'block';
+    if (dir === 'center') {
+        box.style.marginLeft = 'auto';
+        box.style.marginRight = 'auto';
+    } else if (dir === 'right') {
+        box.style.marginLeft = 'auto';
+        box.style.marginRight = '0';
+    } else {
+        box.style.marginLeft = '0';
+        box.style.marginRight = 'auto';
+    }
+    return true;
 }
 
 function execEditor(command, value) {
@@ -197,14 +278,19 @@ function ensureModal() {
                 <button type="button" data-cmd="formatBlock" data-value="<h1>">H1</button>
                 <button type="button" data-cmd="formatBlock" data-value="<h2>">H2</button>
                 <button type="button" data-cmd="formatBlock" data-value="<p>">${escapeHtml(t('內文', 'Text'))}</button>
-                <button type="button" data-cmd="bold"><strong>B</strong></button>
-                <button type="button" data-cmd="italic"><em>I</em></button>
+                <button type="button" data-cmd="bold" title="${escapeHtml(t('粗體', 'Bold'))}"><strong>B</strong></button>
+                <button type="button" data-cmd="italic" title="${escapeHtml(t('斜體', 'Italic'))}"><em>I</em></button>
+                <button type="button" data-cmd="underline" title="${escapeHtml(t('底線', 'Underline'))}"><span style="text-decoration:underline">U</span></button>
+                <button type="button" data-cmd="justifyLeft" title="${escapeHtml(t('置左', 'Align left'))}">左</button>
+                <button type="button" data-cmd="justifyCenter" title="${escapeHtml(t('置中', 'Align center'))}">中</button>
+                <button type="button" data-cmd="justifyRight" title="${escapeHtml(t('置右', 'Align right'))}">右</button>
                 <button type="button" data-cmd="insertUnorderedList">${escapeHtml(t('清單', 'List'))}</button>
                 <button type="button" data-cmd="insertOrderedList">1.</button>
                 <button type="button" data-cmd="createLink">${escapeHtml(t('連結', 'Link'))}</button>
+                <button type="button" data-cmd="latex" title="LaTeX">LaTeX</button>
                 <label class="sci-edu-upload">${escapeHtml(t('圖片', 'Image'))}<input id="sci-edu-modal-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden></label>
             </div>
-            <div id="sci-edu-visual" class="sci-edu-visual sci-edu-article" contenteditable="true" role="textbox" aria-multiline="true"></div>
+            <div id="sci-edu-visual" class="sci-edu-visual" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="${escapeHtml(t('在此編輯，或把圖片拖進來', 'Edit here, or drop an image'))}"></div>
             <textarea id="sci-edu-source" class="sci-edu-source" hidden spellcheck="false" aria-label="HTML"></textarea>
             <footer class="sci-edu-modal-foot">
                 <p id="sci-edu-modal-status" class="sci-edu-modal-status" role="status"></p>
@@ -218,6 +304,9 @@ function ensureModal() {
     wrap.querySelectorAll('[data-editor-mode]').forEach((btn) => {
         btn.addEventListener('click', () => syncEditorTo(btn.getAttribute('data-editor-mode')));
     });
+    wrap.querySelector('[data-rte-bar]')?.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button')) e.preventDefault();
+    });
     wrap.querySelectorAll('[data-cmd]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const cmd = btn.getAttribute('data-cmd');
@@ -226,9 +315,38 @@ function ensureModal() {
                 if (url) execEditor('createLink', url);
                 return;
             }
+            if (cmd === 'latex') {
+                const tex = window.prompt(t('輸入 LaTeX，例如 E=mc^2', 'Enter LaTeX, e.g. E=mc^2'), '');
+                if (!tex) return;
+                const safe = escapeHtml(tex);
+                execEditor('insertHTML', `<span class="sci-edu-tex" contenteditable="false" data-tex="${safe}">\\(${safe}\\)</span>`);
+                typesetMath(document.getElementById('sci-edu-visual'));
+                return;
+            }
+            if (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight') {
+                const dir = cmd === 'justifyCenter' ? 'center' : (cmd === 'justifyRight' ? 'right' : 'left');
+                if (alignSelectedImage(dir)) return;
+            }
             const value = btn.getAttribute('data-value');
             execEditor(cmd, value || undefined);
         });
+    });
+    const visual = document.getElementById('sci-edu-visual');
+    visual?.addEventListener('dragover', (e) => {
+        if (![...e.dataTransfer.items].some((item) => item.kind === 'file')) return;
+        e.preventDefault();
+        visual.classList.add('is-drop');
+    });
+    visual?.addEventListener('dragleave', () => visual.classList.remove('is-drop'));
+    visual?.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        visual.classList.remove('is-drop');
+        const files = [...e.dataTransfer.files].filter((file) => /^image\/(jpeg|png|webp|gif)$/.test(file.type));
+        try {
+            for (const file of files) await uploadEditorFile(file);
+        } catch (err) {
+            editorStatus(err.message || t('上傳失敗', 'Upload failed'), true);
+        }
     });
     document.getElementById('sci-edu-modal-page')?.addEventListener('change', (e) => {
         loadEditorPage(e.target.value);
@@ -300,24 +418,30 @@ async function saveEditor() {
     }
 }
 
-async function uploadEditorImage(e) {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
+async function uploadEditorFile(file) {
     if (!file || !editorSlug) return;
     const body = new FormData();
     body.append('slug', editorSlug);
     body.append('file', file);
+    const stored = await global.ScienceApi.apiFetch('/admin/science-edu/images', { method: 'POST', body });
+    const figure = `<figure class="sci-edu-figure"><img src="${contentBase()}/${stored.path}" alt=""></figure>`;
+    if (editorMode === 'html') {
+        const source = document.getElementById('sci-edu-source');
+        if (source) source.value += `\n<figure class="sci-edu-figure"><img src="${stored.path}" alt=""></figure>\n`;
+    } else {
+        const visual = document.getElementById('sci-edu-visual');
+        visual?.focus();
+        document.execCommand('insertHTML', false, figure);
+        if (visual) decorateImages(visual);
+    }
+    editorStatus(t('圖片已插入，記得儲存。', 'Image inserted. Remember to save.'), false);
+}
+
+async function uploadEditorImage(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
     try {
-        const stored = await global.ScienceApi.apiFetch('/admin/science-edu/images', { method: 'POST', body });
-        const figure = `<figure class="sci-edu-figure"><img src="${contentBase()}/${stored.path}" alt=""></figure>`;
-        if (editorMode === 'html') {
-            const source = document.getElementById('sci-edu-source');
-            if (source) source.value += `\n<figure class="sci-edu-figure"><img src="${stored.path}" alt=""></figure>\n`;
-        } else {
-            document.getElementById('sci-edu-visual')?.focus();
-            document.execCommand('insertHTML', false, figure);
-        }
-        editorStatus(t('圖片已插入，記得儲存。', 'Image inserted. Remember to save.'), false);
+        await uploadEditorFile(file);
     } catch (err) {
         editorStatus(err.message || t('上傳失敗', 'Upload failed'), true);
     }

@@ -147,8 +147,12 @@ function renderEditor() {
                 <button type="button" data-admin-cmd="formatBlock" data-value="<h1>">H1</button>
                 <button type="button" data-admin-cmd="formatBlock" data-value="<h2>">H2</button>
                 <button type="button" data-admin-cmd="formatBlock" data-value="<p>">${escapeHtml(t('內文', 'Text'))}</button>
-                <button type="button" data-admin-cmd="bold"><strong>B</strong></button>
-                <button type="button" data-admin-cmd="italic"><em>I</em></button>
+                <button type="button" data-admin-cmd="bold" title="${escapeHtml(t('粗體', 'Bold'))}"><strong>B</strong></button>
+                <button type="button" data-admin-cmd="italic" title="${escapeHtml(t('斜體', 'Italic'))}"><em>I</em></button>
+                <button type="button" data-admin-cmd="underline" title="${escapeHtml(t('底線', 'Underline'))}"><span style="text-decoration:underline">U</span></button>
+                <button type="button" data-admin-cmd="justifyLeft">${escapeHtml(t('置左', 'Left'))}</button>
+                <button type="button" data-admin-cmd="justifyCenter">${escapeHtml(t('置中', 'Center'))}</button>
+                <button type="button" data-admin-cmd="justifyRight">${escapeHtml(t('置右', 'Right'))}</button>
                 <button type="button" data-admin-cmd="insertUnorderedList">${escapeHtml(t('清單', 'List'))}</button>
                 <button type="button" data-admin-cmd="insertOrderedList">1.</button>
                 <button type="button" data-admin-cmd="createLink">${escapeHtml(t('連結', 'Link'))}</button>
