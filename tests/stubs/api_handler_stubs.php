@@ -499,3 +499,11 @@ if (!function_exists('api_handle_pronunciation_catalog')) {
 if (!function_exists('api_handle_pronunciation_attempt')) {
     function api_handle_pronunciation_attempt(...$args): void {}
 }
+
+if (!function_exists('api_handle_explanation_catalog')) {
+    function api_handle_explanation_catalog(...$args): void {}
+}
+
+if (!function_exists('api_handle_explanation_attempt')) {
+    function api_handle_explanation_attempt(...$args): void {}
+}

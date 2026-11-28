@@ -51,6 +51,7 @@ require_once __DIR__ . '/handlers/ops.php';
 require_once __DIR__ . '/handlers/admin_dashboard.php';
 require_once __DIR__ . '/handlers/tutor.php';
 require_once __DIR__ . '/handlers/pronunciation.php';
+require_once __DIR__ . '/handlers/explanation.php';
 require_once dirname(__DIR__, 2) . '/includes/science_edu_lib.php';
 require_once __DIR__ . '/handlers/science_edu.php';
 require_once __DIR__ . '/build_router.php';

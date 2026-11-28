@@ -19,6 +19,7 @@ const global = window;
         { re: /^\/flashcards\/([^/]+)$/, name: '/flashcards/:slug', keys: [1] },
         { re: /^\/flashcards\/?$/, name: '/flashcards' },
         { re: /^\/pronunciation\/?$/, name: '/pronunciation' },
+        { re: /^\/explain\/?$/, name: '/explain' },
         { re: /^\/learning-videos\/?$/, name: '/learning-videos' },
         { re: /^\/articles\/?$/, name: '/articles' },
         { re: /^\/courses\/?$/, name: '/courses' },

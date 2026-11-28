@@ -24,6 +24,7 @@ function spa_nav_item_defs(): array
         ['key' => 'learning', 'label_zh' => '互動學習工具', 'label_en' => 'Interactive Tools'],
         ['key' => 'flashcards', 'label_zh' => '閃卡', 'label_en' => 'Flashcards'],
         ['key' => 'pronunciation', 'label_zh' => '讀音', 'label_en' => 'Speech'],
+        ['key' => 'explain', 'label_zh' => '解釋', 'label_en' => 'Explain'],
     ];
 }
 
