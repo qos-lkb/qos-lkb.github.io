@@ -414,7 +414,7 @@ const global = window;
             canUsers ? {
                 route: '/admin/explanations',
                 label: t('口述解釋', 'Explanations'),
-                desc: t('收聽各使用者的科學解釋錄音，並查看分數與評語。', 'Listen to each user\'s spoken explanation and review the score.'),
+                desc: t('管理科目與題目，並收聽各使用者的錄音與分數。', 'Manage subjects and questions, and review each user\'s recording and score.'),
                 tone: 'teal',
                 icon: 'chat',
             } : null,

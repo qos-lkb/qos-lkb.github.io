@@ -242,6 +242,37 @@ CREATE TABLE explanation_attempts (
     KEY idx_explanation_attempts_user_question (user_id, question_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE explanation_subjects (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(64) NOT NULL,
+    label_zh VARCHAR(80) NOT NULL DEFAULT '',
+    label_en VARCHAR(80) NOT NULL DEFAULT '',
+    sort_order INT NOT NULL DEFAULT 0,
+    published TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_explanation_subjects_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE explanation_questions (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(64) NOT NULL,
+    subject_slug VARCHAR(64) NOT NULL,
+    title_zh VARCHAR(120) NOT NULL DEFAULT '',
+    title_en VARCHAR(120) NOT NULL DEFAULT '',
+    prompt_zh TEXT NOT NULL,
+    prompt_en TEXT NOT NULL,
+    points_zh TEXT NOT NULL,
+    points_en TEXT NOT NULL,
+    misconceptions_zh TEXT NOT NULL,
+    published TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_explanation_questions_slug (slug),
+    KEY idx_explanation_questions_subject (subject_slug, published, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE admin_audit_log (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     actor_user_id INT UNSIGNED NULL,

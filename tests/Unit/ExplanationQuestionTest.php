@@ -12,7 +12,7 @@ final class ExplanationQuestionTest extends TestCase
 {
     public function testTenQuestionsCoverTheFourSubjects(): void
     {
-        $questions = explanation_questions();
+        $questions = explanation_builtin_questions();
         self::assertCount(10, $questions);
         $keys = array_column($questions, 'key');
         self::assertSame($keys, array_values(array_unique($keys)));
@@ -29,7 +29,12 @@ final class ExplanationQuestionTest extends TestCase
 
     public function testCatalogueHidesTheRubric(): void
     {
-        $payload = explanation_catalog_payload(true, []);
+        $payload = explanation_catalog_payload_from_lists(
+            true,
+            [],
+            explanation_builtin_subjects(),
+            explanation_builtin_questions()
+        );
         self::assertCount(10, $payload['questions']);
         self::assertSame(70, $payload['pass_score']);
         self::assertSame(90, $payload['max_seconds']);
@@ -41,6 +46,15 @@ final class ExplanationQuestionTest extends TestCase
         $first = $payload['questions'][0];
         self::assertSame('particle_states', $first['key']);
         self::assertArrayNotHasKey('points_zh', $first);
+    }
+
+    public function testSlugAndListHelpers(): void
+    {
+        self::assertSame('sea_breeze', explanation_slug('Sea_Breeze'));
+        self::assertSame('', explanation_slug('1bad'));
+        self::assertSame('', explanation_slug('../x'));
+        self::assertSame(['A', 'B'], explanation_decode_list("A\nB\n"));
+        self::assertSame('["A","B"]', explanation_encode_list("A\nB"));
     }
 
     public function testParseJudgeClampsScoreAndReadsFencedJson(): void
@@ -67,9 +81,10 @@ final class ExplanationQuestionTest extends TestCase
         self::assertStringEndsWith('/4/9.webm', $path);
     }
 
-    public function testUnknownQuestionIsMissing(): void
+    public function testUnknownBuiltinQuestionIsMissing(): void
     {
-        self::assertNotNull(explanation_question('breathing_vs_respiration'));
-        self::assertNull(explanation_question('not_a_question'));
+        $keys = array_column(explanation_builtin_questions(), 'key');
+        self::assertContains('breathing_vs_respiration', $keys);
+        self::assertNotContains('not_a_question', $keys);
     }
 }

@@ -18,6 +18,7 @@
 - 錄音即時送到 xAI 轉寫，再按隱藏評分要點判斷解釋是否準確。70 分或以上代表主要解釋正確。參考要點在評分後才顯示。
 - 錄音、分數、轉寫與評語寫入 `explanation_attempts` 和 `uploads/explanations/`。學生可重聽今次和之前的錄音與分數。
 - `user.manage` 可在後台「口述解釋」查看各人作答。表或 `audio_ext` 欄不存在時，解釋 API 會自動補上。
+- 科目與問題（含評分答案／要點）改存 `explanation_subjects`、`explanation_questions`。後台可新增、編輯、刪除。空表時首次 API 會寫入原有十題作起始資料。
 - 需伺服器已設定 `XAI_API_KEY`。每位登入使用者每 10 分鐘最多評分 10 次。
 
 ## 2026-11-17

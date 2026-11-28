@@ -44,13 +44,146 @@ function explanation_ensure_schema(PDO $pdo): void
         'audio_ext',
         "ALTER TABLE explanation_attempts ADD COLUMN audio_ext VARCHAR(8) NOT NULL DEFAULT '' AFTER feedback_en"
     );
+    schema_runtime_ensure_table(
+        $pdo,
+        'CREATE TABLE IF NOT EXISTS explanation_subjects (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            slug VARCHAR(64) NOT NULL,
+            label_zh VARCHAR(80) NOT NULL DEFAULT \'\',
+            label_en VARCHAR(80) NOT NULL DEFAULT \'\',
+            sort_order INT NOT NULL DEFAULT 0,
+            published TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_explanation_subjects_slug (slug)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    schema_runtime_ensure_table(
+        $pdo,
+        'CREATE TABLE IF NOT EXISTS explanation_questions (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            slug VARCHAR(64) NOT NULL,
+            subject_slug VARCHAR(64) NOT NULL,
+            title_zh VARCHAR(120) NOT NULL DEFAULT \'\',
+            title_en VARCHAR(120) NOT NULL DEFAULT \'\',
+            prompt_zh TEXT NOT NULL,
+            prompt_en TEXT NOT NULL,
+            points_zh TEXT NOT NULL,
+            points_en TEXT NOT NULL,
+            misconceptions_zh TEXT NOT NULL,
+            published TINYINT(1) NOT NULL DEFAULT 1,
+            sort_order INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_explanation_questions_slug (slug),
+            KEY idx_explanation_questions_subject (subject_slug, published, sort_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    explanation_seed_if_empty($pdo);
     $ready = true;
+}
+
+function explanation_seed_if_empty(PDO $pdo): void
+{
+    $subjectCount = (int) $pdo->query('SELECT COUNT(*) FROM explanation_subjects')->fetchColumn();
+    if ($subjectCount === 0) {
+        $stmt = $pdo->prepare(
+            'INSERT INTO explanation_subjects (slug, label_zh, label_en, sort_order, published)
+             VALUES (?, ?, ?, ?, 1)'
+        );
+        foreach (explanation_builtin_subjects() as $i => $subject) {
+            $stmt->execute([
+                $subject['key'],
+                $subject['label_zh'],
+                $subject['label_en'],
+                $i + 1,
+            ]);
+        }
+    }
+    $questionCount = (int) $pdo->query('SELECT COUNT(*) FROM explanation_questions')->fetchColumn();
+    if ($questionCount === 0) {
+        $stmt = $pdo->prepare(
+            'INSERT INTO explanation_questions
+             (slug, subject_slug, title_zh, title_en, prompt_zh, prompt_en, points_zh, points_en, misconceptions_zh, published, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
+        );
+        foreach (explanation_builtin_questions() as $i => $question) {
+            $stmt->execute([
+                $question['key'],
+                $question['subject'],
+                $question['title_zh'],
+                $question['title_en'],
+                $question['prompt_zh'],
+                $question['prompt_en'],
+                explanation_encode_list($question['points_zh']),
+                explanation_encode_list($question['points_en']),
+                explanation_encode_list($question['misconceptions_zh']),
+                $i + 1,
+            ]);
+        }
+    }
+}
+
+function explanation_slug(string $raw): string
+{
+    $slug = strtolower(trim($raw));
+
+    return preg_match('/^[a-z][a-z0-9_]{1,62}$/', $slug) === 1 ? $slug : '';
+}
+
+/**
+ * @param list<string>|mixed $items
+ */
+function explanation_encode_list(mixed $items): string
+{
+    $out = [];
+    if (is_string($items)) {
+        $items = preg_split('/\r\n|\r|\n/', $items) ?: [];
+    }
+    if (!is_array($items)) {
+        $items = [];
+    }
+    foreach ($items as $item) {
+        $line = trim((string) $item);
+        if ($line !== '') {
+            $out[] = $line;
+        }
+    }
+
+    return json_encode($out, JSON_UNESCAPED_UNICODE) ?: '[]';
+}
+
+/**
+ * @return list<string>
+ */
+function explanation_decode_list(mixed $raw): array
+{
+    if (is_array($raw)) {
+        return array_values(array_filter(array_map(static fn ($item) => trim((string) $item), $raw), static fn ($item) => $item !== ''));
+    }
+    $text = trim((string) $raw);
+    if ($text === '') {
+        return [];
+    }
+    $decoded = json_decode($text, true);
+    if (!is_array($decoded)) {
+        $decoded = preg_split('/\r\n|\r|\n/', $text) ?: [];
+    }
+    $out = [];
+    foreach ($decoded as $item) {
+        $line = trim((string) $item);
+        if ($line !== '') {
+            $out[] = $line;
+        }
+    }
+
+    return $out;
 }
 
 /**
  * @return list<array{key:string,label_zh:string,label_en:string}>
  */
-function explanation_subjects(): array
+function explanation_builtin_subjects(): array
 {
     return [
         ['key' => 'science', 'label_zh' => '綜合科學', 'label_en' => 'Integrated science'],
@@ -68,7 +201,7 @@ function explanation_subjects(): array
  *   points_zh:list<string>,points_en:list<string>,misconceptions_zh:list<string>
  * }>
  */
-function explanation_questions(): array
+function explanation_builtin_questions(): array
 {
     return [
         [
@@ -315,20 +448,365 @@ function explanation_questions(): array
 }
 
 /**
+ * @param array<string, mixed> $row
  * @return array{
- *   key:string,subject:string,title_zh:string,title_en:string,prompt_zh:string,prompt_en:string,
- *   points_zh:list<string>,points_en:list<string>,misconceptions_zh:list<string>
- * }|null
+ *   id:int,key:string,subject:string,title_zh:string,title_en:string,prompt_zh:string,prompt_en:string,
+ *   points_zh:list<string>,points_en:list<string>,misconceptions_zh:list<string>,
+ *   published:bool,sort_order:int
+ * }
  */
-function explanation_question(string $key): ?array
+function explanation_question_from_row(array $row): array
 {
-    foreach (explanation_questions() as $question) {
-        if ($question['key'] === $key) {
-            return $question;
-        }
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'key' => (string) ($row['slug'] ?? ''),
+        'subject' => (string) ($row['subject_slug'] ?? ''),
+        'title_zh' => (string) ($row['title_zh'] ?? ''),
+        'title_en' => (string) ($row['title_en'] ?? ''),
+        'prompt_zh' => (string) ($row['prompt_zh'] ?? ''),
+        'prompt_en' => (string) ($row['prompt_en'] ?? ''),
+        'points_zh' => explanation_decode_list($row['points_zh'] ?? '[]'),
+        'points_en' => explanation_decode_list($row['points_en'] ?? '[]'),
+        'misconceptions_zh' => explanation_decode_list($row['misconceptions_zh'] ?? '[]'),
+        'published' => (int) ($row['published'] ?? 0) === 1,
+        'sort_order' => (int) ($row['sort_order'] ?? 0),
+    ];
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array{id:int,key:string,label_zh:string,label_en:string,published:bool,sort_order:int}
+ */
+function explanation_subject_from_row(array $row): array
+{
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'key' => (string) ($row['slug'] ?? ''),
+        'label_zh' => (string) ($row['label_zh'] ?? ''),
+        'label_en' => (string) ($row['label_en'] ?? ''),
+        'published' => (int) ($row['published'] ?? 0) === 1,
+        'sort_order' => (int) ($row['sort_order'] ?? 0),
+    ];
+}
+
+/**
+ * @return list<array{id:int,key:string,label_zh:string,label_en:string,published:bool,sort_order:int}>
+ */
+function explanation_subjects(PDO $pdo, bool $publishedOnly = true): array
+{
+    explanation_ensure_schema($pdo);
+    $sql = 'SELECT id, slug, label_zh, label_en, published, sort_order
+            FROM explanation_subjects';
+    if ($publishedOnly) {
+        $sql .= ' WHERE published = 1';
+    }
+    $sql .= ' ORDER BY sort_order ASC, id ASC';
+    $out = [];
+    foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[] = explanation_subject_from_row($row);
     }
 
-    return null;
+    return $out;
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function explanation_questions(PDO $pdo, bool $publishedOnly = true): array
+{
+    explanation_ensure_schema($pdo);
+    $sql = 'SELECT q.id, q.slug, q.subject_slug, q.title_zh, q.title_en, q.prompt_zh, q.prompt_en,
+                   q.points_zh, q.points_en, q.misconceptions_zh, q.published, q.sort_order
+            FROM explanation_questions q';
+    if ($publishedOnly) {
+        $sql .= ' INNER JOIN explanation_subjects s ON s.slug = q.subject_slug AND s.published = 1
+                  WHERE q.published = 1';
+    }
+    $sql .= ' ORDER BY q.sort_order ASC, q.id ASC';
+    $out = [];
+    foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[] = explanation_question_from_row($row);
+    }
+
+    return $out;
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function explanation_question(PDO $pdo, string $key, bool $publishedOnly = false): ?array
+{
+    explanation_ensure_schema($pdo);
+    $sql = 'SELECT q.id, q.slug, q.subject_slug, q.title_zh, q.title_en, q.prompt_zh, q.prompt_en,
+                   q.points_zh, q.points_en, q.misconceptions_zh, q.published, q.sort_order
+            FROM explanation_questions q
+            WHERE q.slug = ?';
+    if ($publishedOnly) {
+        $sql .= ' AND q.published = 1
+                  AND EXISTS (SELECT 1 FROM explanation_subjects s WHERE s.slug = q.subject_slug AND s.published = 1)';
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$key]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? explanation_question_from_row($row) : null;
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function explanation_subject_by_id(PDO $pdo, int $id): ?array
+{
+    explanation_ensure_schema($pdo);
+    $stmt = $pdo->prepare(
+        'SELECT id, slug, label_zh, label_en, published, sort_order FROM explanation_subjects WHERE id = ?'
+    );
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? explanation_subject_from_row($row) : null;
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function explanation_question_by_id(PDO $pdo, int $id): ?array
+{
+    explanation_ensure_schema($pdo);
+    $stmt = $pdo->prepare(
+        'SELECT id, slug, subject_slug, title_zh, title_en, prompt_zh, prompt_en,
+                points_zh, points_en, misconceptions_zh, published, sort_order
+         FROM explanation_questions WHERE id = ?'
+    );
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? explanation_question_from_row($row) : null;
+}
+
+/**
+ * @param array<string, mixed> $input
+ * @return array{ok:true,subject:array<string,mixed>}|array{ok:false,error:string,status:int}
+ */
+function explanation_save_subject(PDO $pdo, array $input, ?int $id = null): array
+{
+    explanation_ensure_schema($pdo);
+    $slug = explanation_slug((string) ($input['key'] ?? $input['slug'] ?? ''));
+    $labelZh = explanation_clip((string) ($input['label_zh'] ?? ''), 80);
+    $labelEn = explanation_clip((string) ($input['label_en'] ?? ''), 80);
+    $sort = (int) ($input['sort_order'] ?? 0);
+    $published = !empty($input['published']);
+    if ($slug === '') {
+        return ['ok' => false, 'error' => '科目代碼須為小寫英文、數字或底線，並以字母開頭。', 'status' => 422];
+    }
+    if ($labelZh === '' || $labelEn === '') {
+        return ['ok' => false, 'error' => '請填寫中、英文科目名稱。', 'status' => 422];
+    }
+    $dup = $pdo->prepare('SELECT id FROM explanation_subjects WHERE slug = ? AND id <> ?');
+    $dup->execute([$slug, $id ?? 0]);
+    if ($dup->fetchColumn()) {
+        return ['ok' => false, 'error' => '這個科目代碼已被使用。', 'status' => 422];
+    }
+    if ($id === null) {
+        $stmt = $pdo->prepare(
+            'INSERT INTO explanation_subjects (slug, label_zh, label_en, sort_order, published)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$slug, $labelZh, $labelEn, $sort, $published ? 1 : 0]);
+        $id = (int) $pdo->lastInsertId();
+    } else {
+        $existing = explanation_subject_by_id($pdo, $id);
+        if ($existing === null) {
+            return ['ok' => false, 'error' => '找不到這個科目。', 'status' => 404];
+        }
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                'UPDATE explanation_subjects
+                 SET slug = ?, label_zh = ?, label_en = ?, sort_order = ?, published = ?
+                 WHERE id = ?'
+            );
+            $stmt->execute([$slug, $labelZh, $labelEn, $sort, $published ? 1 : 0, $id]);
+            if ($existing['key'] !== $slug) {
+                $pdo->prepare('UPDATE explanation_questions SET subject_slug = ? WHERE subject_slug = ?')
+                    ->execute([$slug, $existing['key']]);
+            }
+            $pdo->commit();
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+    $saved = explanation_subject_by_id($pdo, $id);
+
+    return $saved === null
+        ? ['ok' => false, 'error' => '無法儲存科目。', 'status' => 500]
+        : ['ok' => true, 'subject' => $saved];
+}
+
+/**
+ * @return array{ok:true}|array{ok:false,error:string,status:int}
+ */
+function explanation_delete_subject(PDO $pdo, int $id): array
+{
+    explanation_ensure_schema($pdo);
+    $existing = explanation_subject_by_id($pdo, $id);
+    if ($existing === null) {
+        return ['ok' => false, 'error' => '找不到這個科目。', 'status' => 404];
+    }
+    $count = $pdo->prepare('SELECT COUNT(*) FROM explanation_questions WHERE subject_slug = ?');
+    $count->execute([$existing['key']]);
+    if ((int) $count->fetchColumn() > 0) {
+        return ['ok' => false, 'error' => '請先刪除或移走這個科目下的問題。', 'status' => 409];
+    }
+    $pdo->prepare('DELETE FROM explanation_subjects WHERE id = ?')->execute([$id]);
+
+    return ['ok' => true];
+}
+
+/**
+ * @param array<string, mixed> $input
+ * @return array{ok:true,question:array<string,mixed>}|array{ok:false,error:string,status:int}
+ */
+function explanation_save_question(PDO $pdo, array $input, ?int $id = null): array
+{
+    explanation_ensure_schema($pdo);
+    $slug = explanation_slug((string) ($input['key'] ?? $input['slug'] ?? ''));
+    $subject = explanation_slug((string) ($input['subject'] ?? $input['subject_slug'] ?? ''));
+    $titleZh = explanation_clip((string) ($input['title_zh'] ?? ''), 120);
+    $titleEn = explanation_clip((string) ($input['title_en'] ?? ''), 120);
+    $promptZh = explanation_clip((string) ($input['prompt_zh'] ?? ''), 2000);
+    $promptEn = explanation_clip((string) ($input['prompt_en'] ?? ''), 2000);
+    $pointsZh = explanation_decode_list($input['points_zh'] ?? []);
+    $pointsEn = explanation_decode_list($input['points_en'] ?? []);
+    $wrongZh = explanation_decode_list($input['misconceptions_zh'] ?? []);
+    $sort = (int) ($input['sort_order'] ?? 0);
+    $published = !empty($input['published']);
+    if ($slug === '') {
+        return ['ok' => false, 'error' => '問題代碼須為小寫英文、數字或底線，並以字母開頭。', 'status' => 422];
+    }
+    if ($subject === '' || explanation_subject_row_by_slug($pdo, $subject) === null) {
+        return ['ok' => false, 'error' => '請選擇已存在的科目。', 'status' => 422];
+    }
+    if ($titleZh === '' || $titleEn === '' || $promptZh === '' || $promptEn === '') {
+        return ['ok' => false, 'error' => '請填寫中、英文題目標題和題目。', 'status' => 422];
+    }
+    if ($pointsZh === [] || $pointsEn === []) {
+        return ['ok' => false, 'error' => '請各寫至少一條中、英文評分要點（答案）。', 'status' => 422];
+    }
+    $dup = $pdo->prepare('SELECT id FROM explanation_questions WHERE slug = ? AND id <> ?');
+    $dup->execute([$slug, $id ?? 0]);
+    if ($dup->fetchColumn()) {
+        return ['ok' => false, 'error' => '這個問題代碼已被使用。', 'status' => 422];
+    }
+    if ($id === null) {
+        $stmt = $pdo->prepare(
+            'INSERT INTO explanation_questions
+             (slug, subject_slug, title_zh, title_en, prompt_zh, prompt_en, points_zh, points_en, misconceptions_zh, published, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $slug,
+            $subject,
+            $titleZh,
+            $titleEn,
+            $promptZh,
+            $promptEn,
+            explanation_encode_list($pointsZh),
+            explanation_encode_list($pointsEn),
+            explanation_encode_list($wrongZh),
+            $published ? 1 : 0,
+            $sort,
+        ]);
+        $id = (int) $pdo->lastInsertId();
+    } else {
+        $existing = explanation_question_by_id($pdo, $id);
+        if ($existing === null) {
+            return ['ok' => false, 'error' => '找不到這條問題。', 'status' => 404];
+        }
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                'UPDATE explanation_questions
+                 SET slug = ?, subject_slug = ?, title_zh = ?, title_en = ?, prompt_zh = ?, prompt_en = ?,
+                     points_zh = ?, points_en = ?, misconceptions_zh = ?, published = ?, sort_order = ?
+                 WHERE id = ?'
+            );
+            $stmt->execute([
+                $slug,
+                $subject,
+                $titleZh,
+                $titleEn,
+                $promptZh,
+                $promptEn,
+                explanation_encode_list($pointsZh),
+                explanation_encode_list($pointsEn),
+                explanation_encode_list($wrongZh),
+                $published ? 1 : 0,
+                $sort,
+                $id,
+            ]);
+            if ($existing['key'] !== $slug) {
+                $pdo->prepare('UPDATE explanation_attempts SET question_key = ? WHERE question_key = ?')
+                    ->execute([$slug, $existing['key']]);
+            }
+            $pdo->commit();
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+    $saved = explanation_question_by_id($pdo, $id);
+
+    return $saved === null
+        ? ['ok' => false, 'error' => '無法儲存問題。', 'status' => 500]
+        : ['ok' => true, 'question' => $saved];
+}
+
+/**
+ * @return array{ok:true}|array{ok:false,error:string,status:int}
+ */
+function explanation_delete_question(PDO $pdo, int $id): array
+{
+    explanation_ensure_schema($pdo);
+    $existing = explanation_question_by_id($pdo, $id);
+    if ($existing === null) {
+        return ['ok' => false, 'error' => '找不到這條問題。', 'status' => 404];
+    }
+    $pdo->prepare('DELETE FROM explanation_questions WHERE id = ?')->execute([$id]);
+
+    return ['ok' => true];
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function explanation_subject_row_by_slug(PDO $pdo, string $slug): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, slug, label_zh, label_en, published, sort_order FROM explanation_subjects WHERE slug = ?'
+    );
+    $stmt->execute([$slug]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? explanation_subject_from_row($row) : null;
+}
+
+/**
+ * @return array<string, array{title_zh:string,title_en:string,subject:string}>
+ */
+function explanation_question_titles(PDO $pdo): array
+{
+    $map = [];
+    foreach (explanation_questions($pdo, false) as $question) {
+        $map[$question['key']] = [
+            'title_zh' => $question['title_zh'],
+            'title_en' => $question['title_en'],
+            'subject' => $question['subject'],
+        ];
+    }
+
+    return $map;
 }
 
 function explanation_clip(string $text, int $max): string
@@ -400,14 +878,16 @@ function explanation_user_stats(PDO $pdo, int $userId): array
 
 /**
  * @param array<string, array{best_score:int,attempt_count:int}> $stats
+ * @param list<array<string, mixed>> $subjects
+ * @param list<array<string, mixed>> $questions
  * @return array{configured:bool,pass_score:int,max_seconds:int,subjects:list<array<string,string>>,questions:list<array<string,mixed>>}
  */
-function explanation_catalog_payload(bool $configured, array $stats): array
+function explanation_catalog_payload_from_lists(bool $configured, array $stats, array $subjects, array $questions): array
 {
-    $questions = [];
-    foreach (explanation_questions() as $question) {
+    $publicQuestions = [];
+    foreach ($questions as $question) {
         $stat = $stats[$question['key']] ?? null;
-        $questions[] = [
+        $publicQuestions[] = [
             'key' => $question['key'],
             'subject' => $question['subject'],
             'title_zh' => $question['title_zh'],
@@ -418,14 +898,36 @@ function explanation_catalog_payload(bool $configured, array $stats): array
             'attempt_count' => $stat['attempt_count'] ?? 0,
         ];
     }
+    $publicSubjects = [];
+    foreach ($subjects as $subject) {
+        $publicSubjects[] = [
+            'key' => $subject['key'],
+            'label_zh' => $subject['label_zh'],
+            'label_en' => $subject['label_en'],
+        ];
+    }
 
     return [
         'configured' => $configured,
         'pass_score' => EXPLANATION_PASS_SCORE,
         'max_seconds' => EXPLANATION_MAX_SECONDS,
-        'subjects' => explanation_subjects(),
-        'questions' => $questions,
+        'subjects' => $publicSubjects,
+        'questions' => $publicQuestions,
     ];
+}
+
+/**
+ * @param array<string, array{best_score:int,attempt_count:int}> $stats
+ * @return array{configured:bool,pass_score:int,max_seconds:int,subjects:list<array<string,string>>,questions:list<array<string,mixed>>}
+ */
+function explanation_catalog_payload(PDO $pdo, bool $configured, array $stats): array
+{
+    return explanation_catalog_payload_from_lists(
+        $configured,
+        $stats,
+        explanation_subjects($pdo, true),
+        explanation_questions($pdo, true)
+    );
 }
 
 /**
@@ -697,11 +1199,10 @@ function explanation_attempt_payload(array $row, bool $withOwner = false): array
         'has_audio' => $ext !== '',
         'created_at' => (string) ($row['created_at'] ?? ''),
     ];
-    $question = explanation_question($payload['question_key']);
-    if ($question !== null) {
-        $payload['title_zh'] = $question['title_zh'];
-        $payload['title_en'] = $question['title_en'];
-        $payload['subject'] = $question['subject'];
+    if (isset($row['_title_zh'])) {
+        $payload['title_zh'] = (string) $row['_title_zh'];
+        $payload['title_en'] = (string) ($row['_title_en'] ?? '');
+        $payload['subject'] = (string) ($row['_subject'] ?? '');
     }
     if ($withOwner) {
         require_once __DIR__ . '/user_names_lib.php';
@@ -732,8 +1233,15 @@ function explanation_list_user_attempts(PDO $pdo, int $userId, string $questionK
          LIMIT 20'
     );
     $stmt->execute([$userId, $questionKey]);
+    $titles = explanation_question_titles($pdo);
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $meta = $titles[(string) ($row['question_key'] ?? '')] ?? null;
+        if ($meta !== null) {
+            $row['_title_zh'] = $meta['title_zh'];
+            $row['_title_en'] = $meta['title_en'];
+            $row['_subject'] = $meta['subject'];
+        }
         $out[] = explanation_attempt_payload($row, false);
     }
 
@@ -768,8 +1276,15 @@ function explanation_list_admin_attempts(PDO $pdo, string $query, string $questi
     $sql .= ' ORDER BY a.id DESC LIMIT 80';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+    $titles = explanation_question_titles($pdo);
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $meta = $titles[(string) ($row['question_key'] ?? '')] ?? null;
+        if ($meta !== null) {
+            $row['_title_zh'] = $meta['title_zh'];
+            $row['_title_en'] = $meta['title_en'];
+            $row['_subject'] = $meta['subject'];
+        }
         $out[] = explanation_attempt_payload($row, true);
     }
 

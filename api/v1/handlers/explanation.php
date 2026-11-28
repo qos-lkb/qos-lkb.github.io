@@ -21,7 +21,7 @@ function api_handle_explanation_catalog(PDO $pdo): void
         api_json_error('db_error', '無法讀取口述解釋。', 500);
     }
 
-    api_json_ok(explanation_catalog_payload(config_xai_api_key() !== '', $stats));
+    api_json_ok(explanation_catalog_payload($pdo, config_xai_api_key() !== '', $stats));
 }
 
 function api_handle_explanation_attempt(PDO $pdo): void
@@ -32,7 +32,11 @@ function api_handle_explanation_attempt(PDO $pdo): void
         api_json_error('xai_unconfigured', '尚未設定 XAI_API_KEY，暫時不能評分。', 503);
     }
     $questionKey = trim((string) ($_POST['question_key'] ?? ''));
-    $question = explanation_question($questionKey);
+    try {
+        $question = explanation_question($pdo, $questionKey, true);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取題目。', 500);
+    }
     if ($question === null) {
         api_json_error('validation_error', '找不到這條科學問題。', 422);
     }
@@ -91,7 +95,12 @@ function api_handle_explanation_attempt_list(PDO $pdo): void
 {
     $user = require_api_user();
     $questionKey = trim((string) ($_GET['question_key'] ?? ''));
-    if (explanation_question($questionKey) === null) {
+    try {
+        $question = explanation_question($pdo, $questionKey, true);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取題目。', 500);
+    }
+    if ($question === null) {
         api_json_error('validation_error', '找不到這條科學問題。', 422);
     }
     try {
@@ -127,26 +136,133 @@ function api_handle_admin_explanations(PDO $pdo): void
     require_api_permission('user.manage');
     $query = trim((string) ($_GET['q'] ?? ''));
     $questionKey = trim((string) ($_GET['question_key'] ?? ''));
-    if ($questionKey !== '' && explanation_question($questionKey) === null) {
-        api_json_error('validation_error', '找不到這條科學問題。', 422);
-    }
     try {
+        if ($questionKey !== '' && explanation_question($pdo, $questionKey, false) === null) {
+            api_json_error('validation_error', '找不到這條科學問題。', 422);
+        }
         $attempts = explanation_list_admin_attempts($pdo, $query, $questionKey);
+        $questions = [];
+        foreach (explanation_questions($pdo, false) as $question) {
+            $questions[] = [
+                'id' => $question['id'],
+                'key' => $question['key'],
+                'title_zh' => $question['title_zh'],
+                'title_en' => $question['title_en'],
+                'subject' => $question['subject'],
+            ];
+        }
     } catch (PDOException $e) {
         api_json_error('db_error', '無法讀取口述解釋紀錄。', 500);
-    }
-    $questions = [];
-    foreach (explanation_questions() as $question) {
-        $questions[] = [
-            'key' => $question['key'],
-            'title_zh' => $question['title_zh'],
-            'title_en' => $question['title_en'],
-            'subject' => $question['subject'],
-        ];
     }
 
     api_json_ok([
         'attempts' => $attempts,
         'questions' => $questions,
     ]);
+}
+
+function api_handle_admin_explanation_bank(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    try {
+        $subjects = explanation_subjects($pdo, false);
+        $questions = explanation_questions($pdo, false);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取口述解釋題庫。', 500);
+    }
+
+    api_json_ok([
+        'subjects' => $subjects,
+        'questions' => $questions,
+    ]);
+}
+
+function api_handle_admin_explanation_subject_create(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    try {
+        $saved = explanation_save_subject($pdo, api_read_json_body());
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法儲存科目。', 500);
+    }
+    if (!$saved['ok']) {
+        api_json_error('validation_error', $saved['error'], $saved['status']);
+    }
+    api_json_ok(['subject' => $saved['subject']]);
+}
+
+function api_handle_admin_explanation_subject_update(PDO $pdo, string $id): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    try {
+        $saved = explanation_save_subject($pdo, api_read_json_body(), (int) $id);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法儲存科目。', 500);
+    }
+    if (!$saved['ok']) {
+        api_json_error($saved['status'] === 404 ? 'not_found' : 'validation_error', $saved['error'], $saved['status']);
+    }
+    api_json_ok(['subject' => $saved['subject']]);
+}
+
+function api_handle_admin_explanation_subject_delete(PDO $pdo, string $id): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    try {
+        $deleted = explanation_delete_subject($pdo, (int) $id);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法刪除科目。', 500);
+    }
+    if (!$deleted['ok']) {
+        api_json_error($deleted['status'] === 404 ? 'not_found' : 'validation_error', $deleted['error'], $deleted['status']);
+    }
+    api_json_ok(['ok' => true]);
+}
+
+function api_handle_admin_explanation_question_create(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    try {
+        $saved = explanation_save_question($pdo, api_read_json_body());
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法儲存問題。', 500);
+    }
+    if (!$saved['ok']) {
+        api_json_error('validation_error', $saved['error'], $saved['status']);
+    }
+    api_json_ok(['question' => $saved['question']]);
+}
+
+function api_handle_admin_explanation_question_update(PDO $pdo, string $id): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    try {
+        $saved = explanation_save_question($pdo, api_read_json_body(), (int) $id);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法儲存問題。', 500);
+    }
+    if (!$saved['ok']) {
+        api_json_error($saved['status'] === 404 ? 'not_found' : 'validation_error', $saved['error'], $saved['status']);
+    }
+    api_json_ok(['question' => $saved['question']]);
+}
+
+function api_handle_admin_explanation_question_delete(PDO $pdo, string $id): void
+{
+    require_api_permission('user.manage');
+    api_verify_csrf_or_fail();
+    try {
+        $deleted = explanation_delete_question($pdo, (int) $id);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法刪除問題。', 500);
+    }
+    if (!$deleted['ok']) {
+        api_json_error($deleted['status'] === 404 ? 'not_found' : 'validation_error', $deleted['error'], $deleted['status']);
+    }
+    api_json_ok(['ok' => true]);
 }

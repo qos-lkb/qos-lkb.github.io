@@ -55,6 +55,25 @@ function api_v1_build_router(PDO $pdo): Router
         static fn (array $p) => api_handle_explanation_audio($pdo, $p[1])
     );
     $router->addExact('GET', '/admin/explanations', static fn () => api_handle_admin_explanations($pdo));
+    $router->addExact('GET', '/admin/explanations/bank', static fn () => api_handle_admin_explanation_bank($pdo));
+    $router->addExact('POST', '/admin/explanations/subjects', static fn () => api_handle_admin_explanation_subject_create($pdo));
+    $router->addPattern(
+        '^PUT /admin/explanations/subjects/([0-9]+)$',
+        static fn (array $p) => api_handle_admin_explanation_subject_update($pdo, $p[1])
+    );
+    $router->addPattern(
+        '^DELETE /admin/explanations/subjects/([0-9]+)$',
+        static fn (array $p) => api_handle_admin_explanation_subject_delete($pdo, $p[1])
+    );
+    $router->addExact('POST', '/admin/explanations/questions', static fn () => api_handle_admin_explanation_question_create($pdo));
+    $router->addPattern(
+        '^PUT /admin/explanations/questions/([0-9]+)$',
+        static fn (array $p) => api_handle_admin_explanation_question_update($pdo, $p[1])
+    );
+    $router->addPattern(
+        '^DELETE /admin/explanations/questions/([0-9]+)$',
+        static fn (array $p) => api_handle_admin_explanation_question_delete($pdo, $p[1])
+    );
     $router->addExact('GET', '/subjects', static fn () => api_handle_subjects($pdo));
     $router->addExact('GET', '/nav-menu', static fn () => api_handle_nav_menu($pdo));
 

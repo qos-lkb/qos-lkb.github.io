@@ -519,3 +519,31 @@ if (!function_exists('api_handle_explanation_audio')) {
 if (!function_exists('api_handle_admin_explanations')) {
     function api_handle_admin_explanations(...$args): void {}
 }
+
+if (!function_exists('api_handle_admin_explanation_bank')) {
+    function api_handle_admin_explanation_bank(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanation_subject_create')) {
+    function api_handle_admin_explanation_subject_create(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanation_subject_update')) {
+    function api_handle_admin_explanation_subject_update(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanation_subject_delete')) {
+    function api_handle_admin_explanation_subject_delete(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanation_question_create')) {
+    function api_handle_admin_explanation_question_create(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanation_question_update')) {
+    function api_handle_admin_explanation_question_update(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanation_question_delete')) {
+    function api_handle_admin_explanation_question_delete(...$args): void {}
+}
