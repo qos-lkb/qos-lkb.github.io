@@ -80,7 +80,54 @@ function explanation_ensure_schema(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
     explanation_seed_if_empty($pdo);
+    explanation_ensure_permission($pdo);
     $ready = true;
+}
+
+function explanation_ensure_permission(PDO $pdo): void
+{
+    $pdo->exec(
+        "INSERT INTO permissions (name, description) VALUES
+         ('explanation.manage', 'Manage oral explanation subjects and questions')
+         ON DUPLICATE KEY UPDATE description = VALUES(description)"
+    );
+    $stmt = $pdo->prepare('SELECT id FROM permissions WHERE name = ? LIMIT 1');
+    $stmt->execute(['explanation.manage']);
+    $permissionId = (int) $stmt->fetchColumn();
+    if ($permissionId < 1) {
+        return;
+    }
+    $roleStmt = $pdo->query("SELECT id FROM roles WHERE name IN ('admin', 'teacher')");
+    $insert = $pdo->prepare(
+        'INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)'
+    );
+    $granted = false;
+    foreach ($roleStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $role) {
+        $insert->execute([(int) $role['id'], $permissionId]);
+        if ($insert->rowCount() > 0) {
+            $granted = true;
+        }
+    }
+    if (function_exists('auth_refresh_permissions') && !empty($_SESSION['user_id'])
+        && function_exists('user_has_permission') && !user_has_permission('explanation.manage')) {
+        auth_refresh_permissions((int) $_SESSION['user_id']);
+    }
+}
+
+function explanation_can_manage(): bool
+{
+    return function_exists('user_has_permission')
+        && (user_has_permission('explanation.manage') || user_has_permission('user.manage'));
+}
+
+function explanation_require_manage(): array
+{
+    $user = require_api_user();
+    if (!explanation_can_manage()) {
+        api_json_error('forbidden', '沒有權限管理口述解釋題目。', 403);
+    }
+
+    return $user;
 }
 
 function explanation_seed_if_empty(PDO $pdo): void
@@ -882,12 +929,12 @@ function explanation_user_stats(PDO $pdo, int $userId): array
  * @param list<array<string, mixed>> $questions
  * @return array{configured:bool,pass_score:int,max_seconds:int,subjects:list<array<string,string>>,questions:list<array<string,mixed>>}
  */
-function explanation_catalog_payload_from_lists(bool $configured, array $stats, array $subjects, array $questions): array
+function explanation_catalog_payload_from_lists(bool $configured, array $stats, array $subjects, array $questions, bool $canManage = false): array
 {
     $publicQuestions = [];
     foreach ($questions as $question) {
         $stat = $stats[$question['key']] ?? null;
-        $publicQuestions[] = [
+        $row = [
             'key' => $question['key'],
             'subject' => $question['subject'],
             'title_zh' => $question['title_zh'],
@@ -897,20 +944,33 @@ function explanation_catalog_payload_from_lists(bool $configured, array $stats, 
             'best_score' => $stat['best_score'] ?? null,
             'attempt_count' => $stat['attempt_count'] ?? 0,
         ];
+        if ($canManage) {
+            $row['id'] = (int) ($question['id'] ?? 0);
+            $row['published'] = !empty($question['published']);
+            $row['sort_order'] = (int) ($question['sort_order'] ?? 0);
+        }
+        $publicQuestions[] = $row;
     }
     $publicSubjects = [];
     foreach ($subjects as $subject) {
-        $publicSubjects[] = [
+        $row = [
             'key' => $subject['key'],
             'label_zh' => $subject['label_zh'],
             'label_en' => $subject['label_en'],
         ];
+        if ($canManage) {
+            $row['id'] = (int) ($subject['id'] ?? 0);
+            $row['published'] = !empty($subject['published']);
+            $row['sort_order'] = (int) ($subject['sort_order'] ?? 0);
+        }
+        $publicSubjects[] = $row;
     }
 
     return [
         'configured' => $configured,
         'pass_score' => EXPLANATION_PASS_SCORE,
         'max_seconds' => EXPLANATION_MAX_SECONDS,
+        'can_manage' => $canManage,
         'subjects' => $publicSubjects,
         'questions' => $publicQuestions,
     ];
@@ -918,15 +978,18 @@ function explanation_catalog_payload_from_lists(bool $configured, array $stats, 
 
 /**
  * @param array<string, array{best_score:int,attempt_count:int}> $stats
- * @return array{configured:bool,pass_score:int,max_seconds:int,subjects:list<array<string,string>>,questions:list<array<string,mixed>>}
+ * @return array{configured:bool,pass_score:int,max_seconds:int,can_manage:bool,subjects:list<array<string,string>>,questions:list<array<string,mixed>>}
  */
 function explanation_catalog_payload(PDO $pdo, bool $configured, array $stats): array
 {
+    $canManage = explanation_can_manage();
+
     return explanation_catalog_payload_from_lists(
         $configured,
         $stats,
-        explanation_subjects($pdo, true),
-        explanation_questions($pdo, true)
+        explanation_subjects($pdo, !$canManage),
+        explanation_questions($pdo, !$canManage),
+        $canManage
     );
 }
 

@@ -261,6 +261,7 @@ function admin_permission_groups(): array
                 'question_bank.',
                 'learning_video.',
                 'summer_homework.',
+                'explanation.',
             ],
         ],
         'course' => [
@@ -335,6 +336,7 @@ function admin_permission_labels(): array
         'worksheet.assign_own' => '派發工作紙予任教班級',
         'worksheet.grade_own' => '評分及回饋任教班級工作紙',
         'worksheet.submit_own' => '完成及呈交工作紙',
+        'explanation.manage' => '管理口述解釋科目與問題',
         'question_bank.manage_any' => '管理全部試題庫',
         'question_bank.manage_own' => '管理自己的試題庫',
         'flashcard_set.manage_any' => '管理全部閃卡組',

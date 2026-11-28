@@ -411,7 +411,7 @@ const global = window;
                 tone: 'violet',
                 icon: 'chat',
             },
-            canUsers ? {
+            (canUsers || global.ScienceApi.hasPermission('explanation.manage')) ? {
                 route: '/admin/explanations',
                 label: t('口述解釋', 'Explanations'),
                 desc: t('管理科目與題目，並收聽各使用者的錄音與分數。', 'Manage subjects and questions, and review each user\'s recording and score.'),

@@ -2,6 +2,7 @@
 const global = window;
 
 import { audioPlayerHtml, bindDeferredAudio } from './audio-playback.js';
+import { userCanManage, loadExplanationBank, manageToolbarHtml, bindManageBar } from './explanation-editor.js';
 
 const { apiFetch } = global.ScienceApi;
 const { t, escapeHtml, getLang } = global.AppRouter;
@@ -21,6 +22,7 @@ let chunks = [];
 let recordGen = 0;
 let history = [];
 let historyFor = '';
+let bank = null;
 
 function maxSeconds() {
     const n = catalog && Number(catalog.max_seconds);
@@ -316,8 +318,11 @@ function paint() {
         const badge = item.best_score == null
             ? ''
             : `<span class="ml-2 text-xs font-semibold ${scoreClass(item.best_score)}">${item.best_score}</span>`;
+        const draft = (userCanManage(catalog) && item.published === false)
+            ? `<span class="ml-2 text-xs text-amber-700">${escapeHtml(t('草稿', 'Draft'))}</span>`
+            : '';
         return `<button type="button" data-question="${escapeHtml(item.key)}" class="text-left px-3 py-2 rounded-xl border text-sm ${on ? 'border-brand-500 bg-brand-50' : 'border-slate-200 bg-white hover:border-brand-300'}">
-            <span class="font-semibold text-slate-900">${escapeHtml(label)}</span>${badge}
+            <span class="font-semibold text-slate-900">${escapeHtml(label)}</span>${badge}${draft}
             <span class="block text-xs text-slate-500 mt-0.5">${escapeHtml(subjectLabel(item.subject))}</span>
         </button>`;
     }).join('');
@@ -380,6 +385,7 @@ function paint() {
                     'Explain a science question in Cantonese or Mandarin. The recording is sent to xAI, turned into text, and checked against the science. ' + passScore() + ' or above means the main explanation is sound. The recording and score are kept so you can play them back. Key points appear only after scoring.'
                 ))}</p>
             </div>
+            ${userCanManage(catalog) ? manageToolbarHtml() : ''}
             ${errorMsg ? `<p class="mb-4 text-sm text-rose-700" role="alert">${escapeHtml(errorMsg)}</p>` : ''}
             <div class="flex flex-wrap gap-2 mb-4" role="group" aria-label="${escapeHtml(t('科目', 'Subject'))}">${chips}</div>
             <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_18rem] gap-4">
@@ -431,6 +437,38 @@ function paint() {
     const next = document.getElementById('explain-next');
     if (next) next.addEventListener('click', () => nextQuestion());
     bindDeferredAudio(main);
+    if (userCanManage(catalog)) {
+        bindManageBar(main, {
+            currentQuestion: question,
+            currentSubject: subject === 'all' ? (question ? question.subject : '') : subject,
+            bank: bank || { subjects: catalog.subjects || [], questions: catalog.questions || [] },
+            onSaved: reloadAfterEdit,
+        });
+    }
+}
+
+async function reloadAfterEdit(savedKey) {
+    if (savedKey) questionKey = savedKey;
+    catalog = await apiFetch('/explain');
+    if (userCanManage(catalog)) {
+        try {
+            bank = await loadExplanationBank();
+        } catch (_e) {
+            bank = { subjects: catalog.subjects || [], questions: catalog.questions || [] };
+        }
+    } else {
+        bank = null;
+    }
+    const keys = (catalog.questions || []).map((item) => item.key);
+    if (questionKey && !keys.includes(questionKey)) {
+        questionKey = keys[0] || '';
+    }
+    paint();
+    if (questionKey) {
+        void loadHistory(questionKey).then(() => {
+            if (questionKey) paint();
+        });
+    }
 }
 
 function historyHtml(lang, question) {
@@ -483,6 +521,14 @@ async function renderExplanation() {
     }
     if (!questionKey && catalog.questions && catalog.questions[0]) {
         questionKey = catalog.questions[0].key;
+    }
+    bank = null;
+    if (userCanManage(catalog)) {
+        try {
+            bank = await loadExplanationBank();
+        } catch (_e) {
+            bank = { subjects: catalog.subjects || [], questions: catalog.questions || [] };
+        }
     }
     paint();
     const initialKey = questionKey;

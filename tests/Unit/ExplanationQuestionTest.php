@@ -38,6 +38,7 @@ final class ExplanationQuestionTest extends TestCase
         self::assertCount(10, $payload['questions']);
         self::assertSame(70, $payload['pass_score']);
         self::assertSame(90, $payload['max_seconds']);
+        self::assertFalse($payload['can_manage']);
         $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE);
         self::assertIsString($encoded);
         self::assertStringNotContainsString('points_zh', $encoded);

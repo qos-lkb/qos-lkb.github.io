@@ -62,11 +62,6 @@
                 { route: '/admin/school-overview', label: { zh: '學校總覽', en: 'School' } },
                 { route: '/admin/summer-homework', label: { zh: '暑期功課', en: 'Summer HW' } },
                 { route: '/admin/worksheets', label: { zh: '工作紙', en: 'Worksheets' } },
-                {
-                    route: '/admin/explanations',
-                    label: { zh: '口述解釋', en: 'Explanations' },
-                    anyPerm: ['user.manage'],
-                },
             ],
         },
         {
@@ -80,6 +75,11 @@
                 { route: '/admin/learning-videos', label: { zh: '影片', en: 'Videos' } },
                 { route: '/admin/flashcard-sets', label: { zh: '閃卡', en: 'Flashcards' } },
                 { route: '/admin/question-banks', label: { zh: '題庫', en: 'Question banks' } },
+                {
+                    route: '/admin/explanations',
+                    label: { zh: '口述解釋題庫', en: 'Explanation bank' },
+                    anyPerm: ['explanation.manage', 'user.manage'],
+                },
                 { route: '/admin/review-queue', label: { zh: '審核', en: 'Review' } },
             ],
         },

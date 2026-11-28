@@ -1037,7 +1037,8 @@ INSERT INTO permissions (name, description) VALUES
     ('student.profile_own', 'View and update own student profile'),
     ('summer_homework.manage_any', 'Manage all summer homework assessments'),
     ('summer_homework.manage_own', 'Manage own summer homework assessments'),
-    ('summer_homework.submit_own', 'Complete summer homework assessments');
+    ('summer_homework.submit_own', 'Complete summer homework assessments'),
+    ('explanation.manage', 'Manage oral explanation subjects and questions');
 
 -- admin: all permissions
 INSERT INTO role_permissions (role_id, permission_id)
@@ -1055,7 +1056,8 @@ WHERE r.name = 'teacher' AND p.name IN (
     'question_bank.manage_own',
     'flashcard_set.manage_own',
     'class.manage_own',
-    'summer_homework.manage_own'
+    'summer_homework.manage_own',
+    'explanation.manage'
 );
 
 -- student

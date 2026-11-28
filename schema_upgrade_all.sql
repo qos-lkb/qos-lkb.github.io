@@ -853,6 +853,14 @@ CREATE TABLE IF NOT EXISTS explanation_subjects (
     UNIQUE KEY uq_explanation_subjects_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT INTO permissions (name, description) VALUES
+    ('explanation.manage', 'Manage oral explanation subjects and questions')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.name IN ('admin', 'teacher') AND p.name = 'explanation.manage';
+
 CREATE TABLE IF NOT EXISTS explanation_questions (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     slug VARCHAR(64) NOT NULL,

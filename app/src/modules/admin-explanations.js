@@ -399,7 +399,7 @@ async function renderAdminExplanations() {
         global.AppRouter.navigate('/login');
         return;
     }
-    if (!global.ScienceApi.hasPermission('user.manage')) {
+    if (!global.ScienceApi.hasPermission('explanation.manage') && !global.ScienceApi.hasPermission('user.manage')) {
         box.innerHTML = `<p class="text-red-600">${escapeHtml(t('沒有權限管理口述解釋。', 'You cannot manage oral explanations.'))}</p>`;
         return;
     }

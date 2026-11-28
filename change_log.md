@@ -19,6 +19,7 @@
 - 錄音、分數、轉寫與評語寫入 `explanation_attempts` 和 `uploads/explanations/`。學生可重聽今次和之前的錄音與分數。
 - `user.manage` 可在後台「口述解釋」查看各人作答。表或 `audio_ext` 欄不存在時，解釋 API 會自動補上。
 - 科目與問題（含評分答案／要點）改存 `explanation_subjects`、`explanation_questions`。後台可新增、編輯、刪除。空表時首次 API 會寫入原有十題作起始資料。
+- 有 `explanation.manage` 或 `user.manage` 的帳戶，可在前台「學習 → 解釋」直接新增、編輯、刪除科目與問題。首次呼叫解釋 API 會自動把此權限交給 admin 與 teacher。
 - 需伺服器已設定 `XAI_API_KEY`。每位登入使用者每 10 分鐘最多評分 10 次。
 
 ## 2026-11-17

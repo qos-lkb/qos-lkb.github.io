@@ -125,7 +125,7 @@ function api_handle_explanation_audio(PDO $pdo, string $id): void
         api_json_error('not_found', '找不到這段錄音。', 404);
     }
     $owner = (int) $row['user_id'] === (int) $user['id'];
-    if (!$owner && !user_has_permission('user.manage')) {
+    if (!$owner && !explanation_can_manage()) {
         api_json_error('not_found', '找不到這段錄音。', 404);
     }
     explanation_stream_audio($row);
@@ -133,7 +133,7 @@ function api_handle_explanation_audio(PDO $pdo, string $id): void
 
 function api_handle_admin_explanations(PDO $pdo): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     $query = trim((string) ($_GET['q'] ?? ''));
     $questionKey = trim((string) ($_GET['question_key'] ?? ''));
     try {
@@ -163,7 +163,7 @@ function api_handle_admin_explanations(PDO $pdo): void
 
 function api_handle_admin_explanation_bank(PDO $pdo): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     try {
         $subjects = explanation_subjects($pdo, false);
         $questions = explanation_questions($pdo, false);
@@ -179,7 +179,7 @@ function api_handle_admin_explanation_bank(PDO $pdo): void
 
 function api_handle_admin_explanation_subject_create(PDO $pdo): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     api_verify_csrf_or_fail();
     try {
         $saved = explanation_save_subject($pdo, api_read_json_body());
@@ -194,7 +194,7 @@ function api_handle_admin_explanation_subject_create(PDO $pdo): void
 
 function api_handle_admin_explanation_subject_update(PDO $pdo, string $id): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     api_verify_csrf_or_fail();
     try {
         $saved = explanation_save_subject($pdo, api_read_json_body(), (int) $id);
@@ -209,7 +209,7 @@ function api_handle_admin_explanation_subject_update(PDO $pdo, string $id): void
 
 function api_handle_admin_explanation_subject_delete(PDO $pdo, string $id): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     api_verify_csrf_or_fail();
     try {
         $deleted = explanation_delete_subject($pdo, (int) $id);
@@ -224,7 +224,7 @@ function api_handle_admin_explanation_subject_delete(PDO $pdo, string $id): void
 
 function api_handle_admin_explanation_question_create(PDO $pdo): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     api_verify_csrf_or_fail();
     try {
         $saved = explanation_save_question($pdo, api_read_json_body());
@@ -239,7 +239,7 @@ function api_handle_admin_explanation_question_create(PDO $pdo): void
 
 function api_handle_admin_explanation_question_update(PDO $pdo, string $id): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     api_verify_csrf_or_fail();
     try {
         $saved = explanation_save_question($pdo, api_read_json_body(), (int) $id);
@@ -254,7 +254,7 @@ function api_handle_admin_explanation_question_update(PDO $pdo, string $id): voi
 
 function api_handle_admin_explanation_question_delete(PDO $pdo, string $id): void
 {
-    require_api_permission('user.manage');
+    explanation_require_manage();
     api_verify_csrf_or_fail();
     try {
         $deleted = explanation_delete_question($pdo, (int) $id);
