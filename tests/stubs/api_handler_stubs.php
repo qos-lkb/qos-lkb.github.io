@@ -491,3 +491,11 @@ if (!function_exists('api_handle_tutor_conversation_get')) {
 if (!function_exists('api_handle_tutor_chat')) {
     function api_handle_tutor_chat(...$args): void {}
 }
+
+if (!function_exists('api_handle_pronunciation_catalog')) {
+    function api_handle_pronunciation_catalog(...$args): void {}
+}
+
+if (!function_exists('api_handle_pronunciation_attempt')) {
+    function api_handle_pronunciation_attempt(...$args): void {}
+}

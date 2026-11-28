@@ -215,6 +215,19 @@ CREATE TABLE tutor_settings (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE pronunciation_attempts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    term_key VARCHAR(64) NOT NULL,
+    transcript VARCHAR(500) NOT NULL DEFAULT '',
+    score TINYINT UNSIGNED NOT NULL,
+    feedback_zh VARCHAR(500) NOT NULL DEFAULT '',
+    feedback_en VARCHAR(500) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_pronunciation_attempts_user (user_id, created_at),
+    KEY idx_pronunciation_attempts_user_term (user_id, term_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE admin_audit_log (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     actor_user_id INT UNSIGNED NULL,
@@ -1030,6 +1043,7 @@ INSERT INTO spa_nav_visibility (item_key, audience, is_visible) VALUES
     ('articles', 'guest', 1), ('articles', 'student', 1), ('articles', 'teacher', 1), ('articles', 'admin', 1),
     ('learning', 'guest', 1), ('learning', 'student', 1), ('learning', 'teacher', 1), ('learning', 'admin', 1),
     ('flashcards', 'guest', 1), ('flashcards', 'student', 1), ('flashcards', 'teacher', 1), ('flashcards', 'admin', 1),
+    ('pronunciation', 'guest', 1), ('pronunciation', 'student', 1), ('pronunciation', 'teacher', 1), ('pronunciation', 'admin', 1),
     -- Summer HW temporarily hidden for all audiences; re-enable per role in /admin/nav-menu.
     ('summer', 'guest', 0), ('summer', 'student', 0), ('summer', 'teacher', 0), ('summer', 'admin', 0);
 
@@ -1042,4 +1056,5 @@ INSERT INTO spa_nav_order (item_key, sort_order) VALUES
     ('simulations', 5),
     ('articles', 6),
     ('learning', 7),
-    ('flashcards', 8);
+    ('flashcards', 8),
+    ('pronunciation', 9);

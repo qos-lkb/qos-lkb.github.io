@@ -45,6 +45,8 @@ function api_v1_build_router(PDO $pdo): Router
         static fn (array $p) => api_handle_tutor_conversation_get($pdo, $p[1])
     );
     $router->addExact('POST', '/tutor/chat', static fn () => api_handle_tutor_chat($pdo));
+    $router->addExact('GET', '/pronunciation', static fn () => api_handle_pronunciation_catalog($pdo));
+    $router->addExact('POST', '/pronunciation/attempts', static fn () => api_handle_pronunciation_attempt($pdo));
     $router->addExact('GET', '/subjects', static fn () => api_handle_subjects($pdo));
     $router->addExact('GET', '/nav-menu', static fn () => api_handle_nav_menu($pdo));
 

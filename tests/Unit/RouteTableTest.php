@@ -22,6 +22,8 @@ final class RouteTableTest extends TestCase
         self::assertContains('GET /catalog', $router->exactKeys());
         self::assertContains('POST /auth/dev-login', $router->exactKeys());
         self::assertContains('GET /tutor/status', $router->exactKeys());
+        self::assertContains('GET /pronunciation', $router->exactKeys());
+        self::assertContains('POST /pronunciation/attempts', $router->exactKeys());
         self::assertContains('GET /tutor/settings', $router->exactKeys());
         self::assertContains('PUT /tutor/settings', $router->exactKeys());
         self::assertNotContains('POST /auth/change-password', $router->exactKeys());

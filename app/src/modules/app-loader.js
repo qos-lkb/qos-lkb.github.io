@@ -45,6 +45,7 @@ const GROUP_LOADERS = {
         await loadMarkdownStack();
         await import('./quiz.js');
     },
+    pronunciation: () => import('./pronunciation.js'),
     flashcards: async () => {
         await loadCatalogStack();
         await import('./flashcards.js');
@@ -102,6 +103,7 @@ function resolveAppGroup(path) {
     if (is('/simulations') || is('/simulation')) return 'catalog';
     if (is('/quiz')) return 'quiz';
     if (is('/flashcards')) return 'flashcards';
+    if (is('/pronunciation')) return 'pronunciation';
     if (is('/article')) return 'article';
     if (is('/note')) return 'note';
     if (is('/worksheet')) return 'worksheet';

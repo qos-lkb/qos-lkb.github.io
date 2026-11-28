@@ -802,6 +802,24 @@ CREATE TABLE IF NOT EXISTS tutor_settings (
 -- END schema_tutor.sql
 
 -- ---------------------------------------------------------------------------
+-- BEGIN schema_pronunciation.sql
+-- 科學詞語讀音練習。可重跑。首次呼叫讀音 API 亦會自動建表。
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pronunciation_attempts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    term_key VARCHAR(64) NOT NULL,
+    transcript VARCHAR(500) NOT NULL DEFAULT '',
+    score TINYINT UNSIGNED NOT NULL,
+    feedback_zh VARCHAR(500) NOT NULL DEFAULT '',
+    feedback_en VARCHAR(500) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_pronunciation_attempts_user (user_id, created_at),
+    KEY idx_pronunciation_attempts_user_term (user_id, term_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- END schema_pronunciation.sql
+
+-- ---------------------------------------------------------------------------
 -- Record upgrade in schema_migrations (for apply_schema.php --status)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO schema_migrations (filename) VALUES

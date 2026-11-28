@@ -8,6 +8,7 @@
         articles: { zh: '文章', en: 'Articles' },
         learning: { zh: '工具', en: 'Tools' },
         flashcards: { zh: '閃卡', en: 'Cards' },
+        pronunciation: { zh: '讀音', en: 'Speech' },
         summer: { zh: '暑期功課', en: 'Summer HW' },
         science: { zh: '學科網頁', en: 'Subjects' },
     };
@@ -19,13 +20,13 @@
     };
 
     const NAV_GROUPS = {
-        learn: ['courses', 'notes', 'worksheets', 'videos', 'flashcards'],
+        learn: ['courses', 'notes', 'worksheets', 'videos', 'flashcards', 'pronunciation'],
         browse: ['simulations', 'articles', 'learning'],
         tasks: ['summer'],
     };
 
     const BOTTOM_PRIMARY = ['courses', 'simulations', 'notes'];
-    const MORE_TABS = ['worksheets', 'videos', 'articles', 'flashcards', 'learning', 'summer'];
+    const MORE_TABS = ['worksheets', 'videos', 'articles', 'flashcards', 'pronunciation', 'learning', 'summer'];
 
     const TAB_ROUTES = {
         summer: '/summer-homework',
@@ -38,6 +39,7 @@
         articles: '/articles',
         learning: '/learning-tools',
         flashcards: '/flashcards',
+        pronunciation: '/pronunciation',
     };
 
     const ADMIN_NAV = [
@@ -718,6 +720,11 @@
                 setActiveTab('articles');
                 if (window.AppCourse) AppCourse.clearCourseContext();
                 await AppCatalog.renderArticlesList();
+            }),
+            '/pronunciation': front('/pronunciation', async () => {
+                setActiveTab('pronunciation');
+                if (window.AppCourse) AppCourse.clearCourseContext();
+                if (window.AppPronunciation) await AppPronunciation.renderPronunciation();
             }),
             '/flashcards': front('/flashcards', async () => {
                 restoreMainShell();
