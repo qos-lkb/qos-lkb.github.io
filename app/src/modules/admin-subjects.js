@@ -411,6 +411,13 @@ const global = window;
                 tone: 'violet',
                 icon: 'chat',
             },
+            canUsers ? {
+                route: '/admin/explanations',
+                label: t('口述解釋', 'Explanations'),
+                desc: t('收聽各使用者的科學解釋錄音，並查看分數與評語。', 'Listen to each user\'s spoken explanation and review the score.'),
+                tone: 'teal',
+                icon: 'chat',
+            } : null,
             canCodespace ? {
                 href: codespaceUrl(),
                 external: true,

@@ -507,3 +507,15 @@ if (!function_exists('api_handle_explanation_catalog')) {
 if (!function_exists('api_handle_explanation_attempt')) {
     function api_handle_explanation_attempt(...$args): void {}
 }
+
+if (!function_exists('api_handle_explanation_attempt_list')) {
+    function api_handle_explanation_attempt_list(...$args): void {}
+}
+
+if (!function_exists('api_handle_explanation_audio')) {
+    function api_handle_explanation_audio(...$args): void {}
+}
+
+if (!function_exists('api_handle_admin_explanations')) {
+    function api_handle_admin_explanations(...$args): void {}
+}

@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * Oral science explanations.
  * Audio is transcribed by xAI, then judged against a hidden rubric.
- * Recordings are not stored.
+ * The recording is kept so the student and admins can play it back.
  */
 
 const EXPLANATION_STT_URL = 'https://api.x.ai/v1/stt';
@@ -32,10 +32,17 @@ function explanation_ensure_schema(PDO $pdo): void
             score TINYINT UNSIGNED NOT NULL,
             feedback_zh VARCHAR(800) NOT NULL DEFAULT \'\',
             feedback_en VARCHAR(800) NOT NULL DEFAULT \'\',
+            audio_ext VARCHAR(8) NOT NULL DEFAULT \'\',
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             KEY idx_explanation_attempts_user (user_id, created_at),
             KEY idx_explanation_attempts_user_question (user_id, question_key)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    schema_runtime_ensure_column(
+        $pdo,
+        'explanation_attempts',
+        'audio_ext',
+        "ALTER TABLE explanation_attempts ADD COLUMN audio_ext VARCHAR(8) NOT NULL DEFAULT '' AFTER feedback_en"
     );
     $ready = true;
 }
@@ -616,8 +623,197 @@ function explanation_score_audio(array $question, array $audio): array
     ];
 }
 
+function explanation_audio_extension(string $filename): string
+{
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $allowed = ['webm' => true, 'm4a' => true, 'mp3' => true, 'wav' => true, 'ogg' => true];
+
+    return isset($allowed[$ext]) ? $ext : '';
+}
+
+function explanation_audio_mime(string $ext): string
+{
+    return match ($ext) {
+        'webm' => 'audio/webm',
+        'm4a' => 'audio/mp4',
+        'mp3' => 'audio/mpeg',
+        'wav' => 'audio/wav',
+        'ogg' => 'audio/ogg',
+        default => 'application/octet-stream',
+    };
+}
+
+function explanation_storage_dir(): string
+{
+    return dirname(__DIR__) . '/uploads/explanations';
+}
+
+function explanation_audio_disk_path(int $userId, int $attemptId, string $ext): ?string
+{
+    $ext = explanation_audio_extension('clip.' . $ext);
+    if ($userId < 1 || $attemptId < 1 || $ext === '') {
+        return null;
+    }
+    $root = explanation_storage_dir();
+    $path = $root . '/' . $userId . '/' . $attemptId . '.' . $ext;
+    $rootReal = realpath($root);
+    $fileReal = realpath($path);
+    if ($rootReal !== false && $fileReal !== false && !str_starts_with($fileReal, $rootReal . DIRECTORY_SEPARATOR)) {
+        return null;
+    }
+
+    return $path;
+}
+
+function explanation_store_audio(int $userId, int $attemptId, string $tmpPath, string $filename): bool
+{
+    $ext = explanation_audio_extension($filename);
+    $dest = explanation_audio_disk_path($userId, $attemptId, $ext);
+    if ($dest === null || $tmpPath === '' || !is_file($tmpPath)) {
+        return false;
+    }
+    $dir = dirname($dest);
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        return false;
+    }
+
+    return copy($tmpPath, $dest);
+}
+
 /**
- * @return array{best_score:int,attempt_count:int}
+ * @param array<string, mixed> $row
+ * @return array<string, mixed>
+ */
+function explanation_attempt_payload(array $row, bool $withOwner = false): array
+{
+    $ext = explanation_audio_extension('clip.' . (string) ($row['audio_ext'] ?? ''));
+    $payload = [
+        'id' => (int) ($row['id'] ?? 0),
+        'question_key' => (string) ($row['question_key'] ?? ''),
+        'score' => (int) ($row['score'] ?? 0),
+        'transcript' => (string) ($row['transcript'] ?? ''),
+        'feedback_zh' => (string) ($row['feedback_zh'] ?? ''),
+        'feedback_en' => (string) ($row['feedback_en'] ?? ''),
+        'has_audio' => $ext !== '',
+        'created_at' => (string) ($row['created_at'] ?? ''),
+    ];
+    $question = explanation_question($payload['question_key']);
+    if ($question !== null) {
+        $payload['title_zh'] = $question['title_zh'];
+        $payload['title_en'] = $question['title_en'];
+        $payload['subject'] = $question['subject'];
+    }
+    if ($withOwner) {
+        require_once __DIR__ . '/user_names_lib.php';
+        $payload['user_id'] = (int) ($row['user_id'] ?? 0);
+        $payload['user_email'] = (string) ($row['email'] ?? '');
+        $payload['user_name'] = user_format_name([
+            'name_zh' => (string) ($row['name_zh'] ?? ''),
+            'name_en' => (string) ($row['name_en'] ?? ''),
+            'display_name' => (string) ($row['display_name'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+        ]);
+    }
+
+    return $payload;
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function explanation_list_user_attempts(PDO $pdo, int $userId, string $questionKey): array
+{
+    explanation_ensure_schema($pdo);
+    $stmt = $pdo->prepare(
+        'SELECT id, question_key, transcript, score, feedback_zh, feedback_en, audio_ext, created_at
+         FROM explanation_attempts
+         WHERE user_id = ? AND question_key = ?
+         ORDER BY id DESC
+         LIMIT 20'
+    );
+    $stmt->execute([$userId, $questionKey]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[] = explanation_attempt_payload($row, false);
+    }
+
+    return $out;
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function explanation_list_admin_attempts(PDO $pdo, string $query, string $questionKey): array
+{
+    explanation_ensure_schema($pdo);
+    $sql = 'SELECT a.id, a.user_id, a.question_key, a.transcript, a.score, a.feedback_zh, a.feedback_en,
+                   a.audio_ext, a.created_at, u.email, u.name_zh, u.name_en, u.display_name
+            FROM explanation_attempts a
+            LEFT JOIN users u ON u.id = a.user_id';
+    $where = [];
+    $params = [];
+    if ($questionKey !== '') {
+        $where[] = 'a.question_key = ?';
+        $params[] = $questionKey;
+    }
+    $query = trim($query);
+    if ($query !== '') {
+        $where[] = '(u.email LIKE ? OR u.name_zh LIKE ? OR u.name_en LIKE ? OR u.display_name LIKE ?)';
+        $like = '%' . $query . '%';
+        array_push($params, $like, $like, $like, $like);
+    }
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY a.id DESC LIMIT 80';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[] = explanation_attempt_payload($row, true);
+    }
+
+    return $out;
+}
+
+/**
+ * @return array<string, mixed>|null
+ */
+function explanation_fetch_attempt(PDO $pdo, int $id): ?array
+{
+    explanation_ensure_schema($pdo);
+    $stmt = $pdo->prepare(
+        'SELECT id, user_id, question_key, transcript, score, feedback_zh, feedback_en, audio_ext, created_at
+         FROM explanation_attempts WHERE id = ? LIMIT 1'
+    );
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? $row : null;
+}
+
+function explanation_stream_audio(array $attempt): void
+{
+    $path = explanation_audio_disk_path(
+        (int) ($attempt['user_id'] ?? 0),
+        (int) ($attempt['id'] ?? 0),
+        (string) ($attempt['audio_ext'] ?? '')
+    );
+    if ($path === null || !is_file($path)) {
+        api_json_error('not_found', '找不到這段錄音。', 404);
+    }
+    $ext = explanation_audio_extension('clip.' . (string) ($attempt['audio_ext'] ?? ''));
+    header('Content-Type: ' . explanation_audio_mime($ext));
+    header('Content-Length: ' . (string) filesize($path));
+    header('Content-Disposition: inline; filename="explanation-' . (int) $attempt['id'] . '.' . $ext . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, max-age=3600');
+    readfile($path);
+    exit;
+}
+
+/**
+ * @return array{id:int,best_score:int,attempt_count:int}
  */
 function explanation_save_attempt(
     PDO $pdo,
@@ -641,7 +837,22 @@ function explanation_save_attempt(
         explanation_clip($feedbackZh, 800),
         explanation_clip($feedbackEn, 800),
     ]);
+    $id = (int) $pdo->lastInsertId();
     $stats = explanation_user_stats($pdo, $userId);
 
-    return $stats[$questionKey] ?? ['best_score' => $score, 'attempt_count' => 1];
+    return [
+        'id' => $id,
+        'best_score' => $stats[$questionKey]['best_score'] ?? $score,
+        'attempt_count' => $stats[$questionKey]['attempt_count'] ?? 1,
+    ];
+}
+
+function explanation_mark_audio(PDO $pdo, int $attemptId, string $filename): void
+{
+    $ext = explanation_audio_extension($filename);
+    if ($attemptId < 1 || $ext === '') {
+        return;
+    }
+    $stmt = $pdo->prepare('UPDATE explanation_attempts SET audio_ext = ? WHERE id = ?');
+    $stmt->execute([$ext, $attemptId]);
 }

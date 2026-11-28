@@ -236,6 +236,7 @@ CREATE TABLE explanation_attempts (
     score TINYINT UNSIGNED NOT NULL,
     feedback_zh VARCHAR(800) NOT NULL DEFAULT '',
     feedback_en VARCHAR(800) NOT NULL DEFAULT '',
+    audio_ext VARCHAR(8) NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_explanation_attempts_user (user_id, created_at),
     KEY idx_explanation_attempts_user_question (user_id, question_key)

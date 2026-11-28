@@ -62,6 +62,11 @@
                 { route: '/admin/school-overview', label: { zh: '學校總覽', en: 'School' } },
                 { route: '/admin/summer-homework', label: { zh: '暑期功課', en: 'Summer HW' } },
                 { route: '/admin/worksheets', label: { zh: '工作紙', en: 'Worksheets' } },
+                {
+                    route: '/admin/explanations',
+                    label: { zh: '口述解釋', en: 'Explanations' },
+                    anyPerm: ['user.manage'],
+                },
             ],
         },
         {
@@ -947,6 +952,11 @@
                 await runAdminRoute(async () => {
                     if (window.AppAdmin) await AppAdmin.renderAdminTutorThread(id);
                 }, '/admin/tutor/' + id);
+            },
+            '/admin/explanations': async () => {
+                await runAdminRoute(async () => {
+                    if (window.AppAdmin) await AppAdmin.renderAdminExplanations();
+                });
             },
             '/admin/school-overview': async () => {
                 await runAdminRoute(async () => {

@@ -53,6 +53,20 @@ final class ExplanationQuestionTest extends TestCase
         self::assertSame(0, explanation_parse_judge('{"score":-4,"feedback_zh":"再試","feedback_en":"Try"}')['score']);
     }
 
+    public function testAudioExtensionRejectsUnsafeNames(): void
+    {
+        self::assertSame('webm', explanation_audio_extension('explanation.webm'));
+        self::assertSame('m4a', explanation_audio_extension('clip.M4A'));
+        self::assertSame('', explanation_audio_extension('clip.php'));
+        self::assertSame('', explanation_audio_extension('clip'));
+        self::assertNull(explanation_audio_disk_path(0, 1, 'webm'));
+        self::assertNull(explanation_audio_disk_path(1, 2, 'php'));
+        self::assertNull(explanation_audio_disk_path(4, 9, '../webm'));
+        $path = explanation_audio_disk_path(4, 9, 'webm');
+        self::assertNotNull($path);
+        self::assertStringEndsWith('/4/9.webm', $path);
+    }
+
     public function testUnknownQuestionIsMissing(): void
     {
         self::assertNotNull(explanation_question('breathing_vs_respiration'));

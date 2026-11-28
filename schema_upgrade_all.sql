@@ -831,10 +831,15 @@ CREATE TABLE IF NOT EXISTS explanation_attempts (
     score TINYINT UNSIGNED NOT NULL,
     feedback_zh VARCHAR(800) NOT NULL DEFAULT '',
     feedback_en VARCHAR(800) NOT NULL DEFAULT '',
+    audio_ext VARCHAR(8) NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_explanation_attempts_user (user_id, created_at),
     KEY idx_explanation_attempts_user_question (user_id, question_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 已建立舊表時補上錄音欄。首次呼叫解釋 API 亦會自動補欄。
+ALTER TABLE explanation_attempts
+    ADD COLUMN IF NOT EXISTS audio_ext VARCHAR(8) NOT NULL DEFAULT '' AFTER feedback_en;
 -- END schema_explanation.sql
 
 -- ---------------------------------------------------------------------------

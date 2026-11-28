@@ -21,6 +21,7 @@ const GROUP_LOADERS = {
     'course-worksheets': () => import('./admin-course-worksheets.js'),
     inbox: () => import('./admin-inbox.js'),
     tutor: () => import('./admin-tutor.js'),
+    explanations: () => import('./admin-explanations.js'),
     'school-overview': () => import('./admin-school-overview.js'),
     'summer-list': () => import('./admin-summer-homework-list.js'),
     'summer-analytics': () => import('./admin-summer-analytics.js'),
@@ -83,6 +84,7 @@ function resolveAdminGroup(path) {
     if (/^\/admin\/courses(\/\d+)?$/.test(p)) return 'courses';
     if (p.startsWith('/admin/inbox')) return 'inbox';
     if (p.startsWith('/admin/tutor')) return 'tutor';
+    if (p.startsWith('/admin/explanations')) return 'explanations';
     if (p.startsWith('/admin/school-overview')) return 'school-overview';
     if (/^\/admin\/summer-homework\/\d+\/analytics$/.test(p)) return 'summer-analytics';
     if (/^\/admin\/summer-homework\/(new|\d+\/(edit|view|preview))$/.test(p)) return 'summer-edit';

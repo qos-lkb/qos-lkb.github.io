@@ -17,6 +17,8 @@ let recorder = null;
 let timerId = null;
 let chunks = [];
 let recordGen = 0;
+let history = [];
+let historyFor = '';
 
 function maxSeconds() {
     const n = catalog && Number(catalog.max_seconds);
@@ -26,6 +28,30 @@ function maxSeconds() {
 function passScore() {
     const n = catalog && Number(catalog.pass_score);
     return n > 0 ? n : 70;
+}
+
+function audioUrl(id) {
+    const base = (global.ScienceApi && ScienceApi.API_BASE) || '/api/v1';
+    return base + '/explain/attempts/' + encodeURIComponent(String(id)) + '/audio';
+}
+
+async function loadHistory(key) {
+    const user = global.ScienceApi.getUser && ScienceApi.getUser();
+    if (!user || !key) {
+        history = [];
+        historyFor = key || '';
+        return;
+    }
+    try {
+        const data = await apiFetch('/explain/attempts?question_key=' + encodeURIComponent(key));
+        if (key !== questionKey) return;
+        history = data.attempts || [];
+        historyFor = key;
+    } catch (_e) {
+        if (key !== questionKey) return;
+        history = [];
+        historyFor = key;
+    }
 }
 
 function loginUrl() {
@@ -128,6 +154,9 @@ function selectQuestion(key) {
     errorMsg = '';
     elapsed = 0;
     paint();
+    void loadHistory(key).then(() => {
+        if (key === questionKey && phase !== 'recording') paint();
+    });
 }
 
 function nextQuestion() {
@@ -157,11 +186,12 @@ async function submit(blob, mime) {
             row.best_score = data.best_score;
             row.attempt_count = data.attempt_count;
         }
+        await loadHistory(question.key);
     } catch (e) {
         phase = 'idle';
         errorMsg = e.message || t('評分失敗，請再試一次。', 'Scoring failed. Try again.');
     }
-    paint();
+    if (phase !== 'recording') paint();
 }
 
 async function beginRecord() {
@@ -314,15 +344,22 @@ function paint() {
            </div>`
         : '';
 
+    const replaySrc = result
+        ? ((result.has_audio && result.id) ? audioUrl(result.id) : playbackUrl)
+        : '';
+    const player = replaySrc
+        ? `<p class="text-sm font-semibold text-slate-700 mt-4">${escapeHtml(t('重聽這次錄音', 'Replay this recording'))}</p>
+           <audio controls preload="metadata" src="${escapeHtml(replaySrc)}" class="w-full mt-1"></audio>`
+        : '';
     const resultHtml = result ? `
         <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4" aria-live="polite">
             <p class="text-xs uppercase tracking-wide text-slate-500">${escapeHtml(t('分數', 'Score'))}</p>
             <p class="text-5xl font-extrabold tabular-nums ${scoreClass(result.score)}">${result.score}</p>
             <p class="text-slate-800 mt-3">${escapeHtml(feedback)}</p>
             <p class="text-sm text-slate-500 mt-2">${escapeHtml(t('xAI 聽到：', 'xAI heard: '))}${escapeHtml(result.transcript || t('（沒有辨識到說話）', '(no speech detected)'))}</p>
+            ${player}
             ${pointHtml}
             <div class="flex flex-wrap gap-2 mt-4">
-                ${playbackUrl ? `<button type="button" id="explain-replay" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm">${escapeHtml(t('重聽自己的錄音', 'Replay mine'))}</button>` : ''}
                 <button type="button" id="explain-again" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm">${escapeHtml(t('再解釋一次', 'Try again'))}</button>
                 <button type="button" id="explain-next" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm">${escapeHtml(t('下一題', 'Next question'))}</button>
             </div>
@@ -334,8 +371,8 @@ function paint() {
                 <p class="text-xs uppercase tracking-wide text-brand-600 font-semibold">${escapeHtml(t('學習', 'Learn'))}</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">${escapeHtml(t('口述解釋', 'Explain aloud'))}</h1>
                 <p class="text-slate-600 mt-2 max-w-2xl">${escapeHtml(t(
-                    '用廣東話或普通話解釋科學問題。錄音會即時送到 xAI 轉成文字，再按科學要點判斷是否準確。' + passScore() + ' 分或以上代表主要解釋正確。聲音檔不會保存。參考要點在評分後才顯示。',
-                    'Explain a science question in Cantonese or Mandarin. The recording is sent to xAI, turned into text, and checked against the science. ' + passScore() + ' or above means the main explanation is sound. The audio file is not kept. Key points appear only after scoring.'
+                    '用廣東話或普通話解釋科學問題。錄音會即時送到 xAI 轉成文字，再按科學要點判斷是否準確。' + passScore() + ' 分或以上代表主要解釋正確。錄音和分數會保存，你可以稍後重聽。參考要點在評分後才顯示。',
+                    'Explain a science question in Cantonese or Mandarin. The recording is sent to xAI, turned into text, and checked against the science. ' + passScore() + ' or above means the main explanation is sound. The recording and score are kept so you can play them back. Key points appear only after scoring.'
                 ))}</p>
             </div>
             ${errorMsg ? `<p class="mb-4 text-sm text-rose-700" role="alert">${escapeHtml(errorMsg)}</p>` : ''}
@@ -352,6 +389,7 @@ function paint() {
                         </div>
                         ${phase === 'recording' ? `<p class="text-xs text-slate-500 mt-2">${escapeHtml(t('最長 ' + maxSeconds() + ' 秒，時間到會自動送出。', 'Stops automatically after ' + maxSeconds() + ' seconds.'))}</p>` : ''}
                         ${resultHtml}
+                        ${historyHtml(lang, question)}
                     ` : `<p class="text-slate-500">${escapeHtml(t('這個科目還沒有題目。', 'No questions in this subject.'))}</p>`}
                 </section>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 content-start" role="list">${grid}</div>
@@ -387,14 +425,36 @@ function paint() {
     }
     const next = document.getElementById('explain-next');
     if (next) next.addEventListener('click', () => nextQuestion());
-    const replay = document.getElementById('explain-replay');
-    if (replay) {
-        replay.addEventListener('click', () => {
-            if (!playbackUrl) return;
-            const audio = new Audio(playbackUrl);
-            void audio.play();
-        });
+}
+
+function historyHtml(lang, question) {
+    const user = global.ScienceApi.getUser && ScienceApi.getUser();
+    if (!user || !question) return '';
+    if (historyFor !== question.key) {
+        return `<p class="mt-6 text-sm text-slate-500">${escapeHtml(t('正在載入之前的錄音…', 'Loading earlier recordings…'))}</p>`;
     }
+    if (!history.length) {
+        return `<p class="mt-6 text-sm text-slate-500">${escapeHtml(t('這題還沒有已保存的錄音。', 'No saved recordings for this question yet.'))}</p>`;
+    }
+    const items = history.map((item) => {
+        const note = lang === 'zh' ? (item.feedback_zh || item.feedback_en) : (item.feedback_en || item.feedback_zh);
+        const clip = item.has_audio
+            ? `<audio controls preload="none" src="${escapeHtml(audioUrl(item.id))}" class="w-full mt-2"></audio>`
+            : `<p class="text-xs text-slate-500 mt-2">${escapeHtml(t('這次沒有保存到錄音檔。', 'No audio was saved for this try.'))}</p>`;
+        return `<article class="rounded-xl border border-slate-200 p-3">
+            <div class="flex items-baseline justify-between gap-3">
+                <p class="text-2xl font-extrabold tabular-nums ${scoreClass(Number(item.score) || 0)}">${Number(item.score) || 0}</p>
+                <time class="text-xs text-slate-500">${escapeHtml(item.created_at || '')}</time>
+            </div>
+            ${clip}
+            <p class="text-sm text-slate-800 mt-2">${escapeHtml(note || '')}</p>
+            <p class="text-xs text-slate-500 mt-1">${escapeHtml(t('聽到：', 'Heard: '))}${escapeHtml(item.transcript || t('（沒有辨識到說話）', '(no speech detected)'))}</p>
+        </article>`;
+    }).join('');
+    return `<div class="mt-6 pt-5 border-t border-slate-200">
+        <h3 class="text-sm font-semibold text-slate-800">${escapeHtml(t('之前的錄音與分數', 'Earlier recordings and scores'))}</h3>
+        <div class="mt-3 space-y-3">${items}</div>
+    </div>`;
 }
 
 async function renderExplanation() {
@@ -416,6 +476,10 @@ async function renderExplanation() {
         questionKey = catalog.questions[0].key;
     }
     paint();
+    const initialKey = questionKey;
+    void loadHistory(initialKey).then(() => {
+        if (initialKey === questionKey) paint();
+    });
 }
 
 global.AppExplanation = {

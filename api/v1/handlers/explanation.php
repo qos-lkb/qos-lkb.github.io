@@ -64,11 +64,16 @@ function api_handle_explanation_attempt(PDO $pdo): void
             $scored['feedback_zh'],
             $scored['feedback_en']
         );
+        $hasAudio = explanation_store_audio((int) $user['id'], $stats['id'], $audio['path'], $audio['filename']);
+        if ($hasAudio) {
+            explanation_mark_audio($pdo, $stats['id'], $audio['filename']);
+        }
     } catch (PDOException $e) {
         api_json_error('db_error', '分數未能儲存，請再試一次。', 500);
     }
 
     api_json_ok([
+        'id' => $stats['id'],
         'question_key' => $question['key'],
         'transcript' => $scored['transcript'],
         'score' => $scored['score'],
@@ -76,7 +81,72 @@ function api_handle_explanation_attempt(PDO $pdo): void
         'feedback_en' => $scored['feedback_en'],
         'key_points_zh' => $scored['key_points_zh'],
         'key_points_en' => $scored['key_points_en'],
+        'has_audio' => $hasAudio,
         'best_score' => $stats['best_score'],
         'attempt_count' => $stats['attempt_count'],
+    ]);
+}
+
+function api_handle_explanation_attempt_list(PDO $pdo): void
+{
+    $user = require_api_user();
+    $questionKey = trim((string) ($_GET['question_key'] ?? ''));
+    if (explanation_question($questionKey) === null) {
+        api_json_error('validation_error', '找不到這條科學問題。', 422);
+    }
+    try {
+        $attempts = explanation_list_user_attempts($pdo, (int) $user['id'], $questionKey);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取之前的錄音。', 500);
+    }
+
+    api_json_ok(['attempts' => $attempts]);
+}
+
+function api_handle_explanation_audio(PDO $pdo, string $id): void
+{
+    $user = require_api_user();
+    $attemptId = (int) $id;
+    try {
+        $row = explanation_fetch_attempt($pdo, $attemptId);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取錄音。', 500);
+    }
+    if ($row === null) {
+        api_json_error('not_found', '找不到這段錄音。', 404);
+    }
+    $owner = (int) $row['user_id'] === (int) $user['id'];
+    if (!$owner && !user_has_permission('user.manage')) {
+        api_json_error('not_found', '找不到這段錄音。', 404);
+    }
+    explanation_stream_audio($row);
+}
+
+function api_handle_admin_explanations(PDO $pdo): void
+{
+    require_api_permission('user.manage');
+    $query = trim((string) ($_GET['q'] ?? ''));
+    $questionKey = trim((string) ($_GET['question_key'] ?? ''));
+    if ($questionKey !== '' && explanation_question($questionKey) === null) {
+        api_json_error('validation_error', '找不到這條科學問題。', 422);
+    }
+    try {
+        $attempts = explanation_list_admin_attempts($pdo, $query, $questionKey);
+    } catch (PDOException $e) {
+        api_json_error('db_error', '無法讀取口述解釋紀錄。', 500);
+    }
+    $questions = [];
+    foreach (explanation_questions() as $question) {
+        $questions[] = [
+            'key' => $question['key'],
+            'title_zh' => $question['title_zh'],
+            'title_en' => $question['title_en'],
+            'subject' => $question['subject'],
+        ];
+    }
+
+    api_json_ok([
+        'attempts' => $attempts,
+        'questions' => $questions,
     ]);
 }

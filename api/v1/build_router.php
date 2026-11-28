@@ -48,7 +48,13 @@ function api_v1_build_router(PDO $pdo): Router
     $router->addExact('GET', '/pronunciation', static fn () => api_handle_pronunciation_catalog($pdo));
     $router->addExact('POST', '/pronunciation/attempts', static fn () => api_handle_pronunciation_attempt($pdo));
     $router->addExact('GET', '/explain', static fn () => api_handle_explanation_catalog($pdo));
+    $router->addExact('GET', '/explain/attempts', static fn () => api_handle_explanation_attempt_list($pdo));
     $router->addExact('POST', '/explain/attempts', static fn () => api_handle_explanation_attempt($pdo));
+    $router->addPattern(
+        '^GET /explain/attempts/([0-9]+)/audio$',
+        static fn (array $p) => api_handle_explanation_audio($pdo, $p[1])
+    );
+    $router->addExact('GET', '/admin/explanations', static fn () => api_handle_admin_explanations($pdo));
     $router->addExact('GET', '/subjects', static fn () => api_handle_subjects($pdo));
     $router->addExact('GET', '/nav-menu', static fn () => api_handle_nav_menu($pdo));
 

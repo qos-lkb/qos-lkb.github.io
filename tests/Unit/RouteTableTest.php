@@ -25,7 +25,12 @@ final class RouteTableTest extends TestCase
         self::assertContains('GET /pronunciation', $router->exactKeys());
         self::assertContains('POST /pronunciation/attempts', $router->exactKeys());
         self::assertContains('GET /explain', $router->exactKeys());
+        self::assertContains('GET /explain/attempts', $router->exactKeys());
         self::assertContains('POST /explain/attempts', $router->exactKeys());
+        self::assertContains('GET /admin/explanations', $router->exactKeys());
+        $hitAudio = $router->match('GET', '/explain/attempts/12/audio');
+        self::assertNotNull($hitAudio);
+        self::assertSame('12', $hitAudio['params'][1] ?? null);
         self::assertContains('GET /tutor/settings', $router->exactKeys());
         self::assertContains('PUT /tutor/settings', $router->exactKeys());
         self::assertNotContains('POST /auth/change-password', $router->exactKeys());
