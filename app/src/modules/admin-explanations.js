@@ -1,6 +1,8 @@
 'use strict';
 const global = window;
 
+import { audioPlayerHtml, bindDeferredAudio } from './audio-playback.js';
+
 function t(zh, en) {
     return global.AppRouter && global.AppRouter.t ? global.AppRouter.t(zh, en) : zh;
 }
@@ -72,7 +74,10 @@ async function renderAdminExplanations() {
             const note = lang === 'zh' ? (item.feedback_zh || item.feedback_en) : (item.feedback_en || item.feedback_zh);
             const heading = lang === 'zh' ? (item.title_zh || item.question_key) : (item.title_en || item.question_key);
             const player = item.has_audio
-                ? `<audio controls preload="none" src="${escapeHtml(audioUrl(item.id))}" class="w-full min-w-[12rem]"></audio>`
+                ? audioPlayerHtml(audioUrl(item.id), {
+                    className: 'min-w-[12rem]',
+                    fallbackText: t('無法播放錄音', 'Could not play the recording'),
+                })
                 : `<span class="text-slate-400">${escapeHtml(t('沒有錄音', 'No audio'))}</span>`;
             return `<tr class="border-t border-slate-100 align-top">
                 <td class="p-3 whitespace-nowrap text-slate-500">${escapeHtml(item.created_at || '')}</td>
@@ -113,6 +118,7 @@ async function renderAdminExplanations() {
                     </tbody>
                 </table>
             </div>`;
+        bindDeferredAudio(box);
         box.querySelector('#admin-explain-filter')?.addEventListener('submit', (e) => {
             e.preventDefault();
             const form = e.target;

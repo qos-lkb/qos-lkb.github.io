@@ -1,6 +1,8 @@
 'use strict';
 const global = window;
 
+import { audioPlayerHtml, bindDeferredAudio } from './audio-playback.js';
+
 const { apiFetch } = global.ScienceApi;
 const { t, escapeHtml, getLang } = global.AppRouter;
 
@@ -349,7 +351,10 @@ function paint() {
         : '';
     const player = replaySrc
         ? `<p class="text-sm font-semibold text-slate-700 mt-4">${escapeHtml(t('重聽這次錄音', 'Replay this recording'))}</p>
-           <audio controls preload="metadata" src="${escapeHtml(replaySrc)}" class="w-full mt-1"></audio>`
+           ${audioPlayerHtml(replaySrc, {
+               className: 'mt-1',
+               fallbackText: t('無法播放這段錄音。', 'Could not play this recording.'),
+           })}`
         : '';
     const resultHtml = result ? `
         <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4" aria-live="polite">
@@ -425,6 +430,7 @@ function paint() {
     }
     const next = document.getElementById('explain-next');
     if (next) next.addEventListener('click', () => nextQuestion());
+    bindDeferredAudio(main);
 }
 
 function historyHtml(lang, question) {
@@ -439,7 +445,10 @@ function historyHtml(lang, question) {
     const items = history.map((item) => {
         const note = lang === 'zh' ? (item.feedback_zh || item.feedback_en) : (item.feedback_en || item.feedback_zh);
         const clip = item.has_audio
-            ? `<audio controls preload="none" src="${escapeHtml(audioUrl(item.id))}" class="w-full mt-2"></audio>`
+            ? audioPlayerHtml(audioUrl(item.id), {
+                className: 'mt-2',
+                fallbackText: t('無法播放這段錄音。', 'Could not play this recording.'),
+            })
             : `<p class="text-xs text-slate-500 mt-2">${escapeHtml(t('這次沒有保存到錄音檔。', 'No audio was saved for this try.'))}</p>`;
         return `<article class="rounded-xl border border-slate-200 p-3">
             <div class="flex items-baseline justify-between gap-3">
